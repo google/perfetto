@@ -34,13 +34,7 @@ class JitCache;
 // Keeps track of Jitted code.
 class JitTracker : public Destructible {
  public:
-  static JitTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->jit_tracker) {
-      context->jit_tracker.reset(new JitTracker(context));
-    }
-    return static_cast<JitTracker*>(context->jit_tracker.get());
-  }
-
+  explicit JitTracker(TraceProcessorContext* context);
   ~JitTracker() override;
 
   // Creates a JitCache. Any frame interning request for the given pid in the
@@ -51,8 +45,6 @@ class JitTracker : public Destructible {
                            AddressRange range);
 
  private:
-  explicit JitTracker(TraceProcessorContext* context);
-
   FrameId InternUnknownFrame(MappingId mapping_id, uint64_t rel_pc);
 
   TraceProcessorContext* const context_;

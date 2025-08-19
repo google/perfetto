@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -28,7 +29,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
-#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
@@ -37,12 +38,17 @@
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -53,12 +59,12 @@ using ::perfetto::protos::pbzero::TrafficDirection;
 class NetworkTraceModuleTest : public testing::Test {
  public:
   NetworkTraceModuleTest() {
-    context_.storage = std::make_shared<TraceStorage>();
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
-
+    storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(storage_);
     context_.slice_translation_table =
@@ -68,42 +74,48 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
   }
 
   base::Status TokenizeAndParse() {
-    context_.chunk_readers.push_back(
-        std::make_unique<ProtoTraceReader>(&context_));
-
     trace_->Finalize();
     std::vector<uint8_t> v = trace_.SerializeAsArray();
     trace_.Reset();
 
-    auto status = context_.chunk_readers.back()->Parse(
-        TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
+    auto reader = std::make_unique<ProtoTraceReader>(&context_);
+    auto status =
+        reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();
-    context_.args_tracker->Flush();
     return status;
   }
 
-  bool HasArg(ArgSetId sid, base::StringView key, Variadic value) {
+  bool HasArg(ArgSetId set_id, base::StringView key, Variadic value) {
     StringId key_id = storage_->InternString(key);
-    const auto& a = storage_->arg_table();
-    Query q;
-    q.constraints = {a.arg_set_id().eq(sid)};
-    for (auto it = a.FilterToIterator(q); it; ++it) {
-      if (it.key() == key_id) {
-        EXPECT_EQ(it.flat_key(), key_id);
-        if (storage_->GetArgValue(it.row_number().row_number()) == value) {
-          return true;
+    const auto& args = storage_->arg_table();
+    auto cursor = args.CreateCursor({
+        dataframe::FilterSpec{
+            tables::ArgTable::ColumnIndex::arg_set_id,
+            0,
+            dataframe::Eq{},
+            std::nullopt,
+        },
+    });
+    cursor.SetFilterValueUnchecked(0, set_id);
+
+    bool found = false;
+    for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
+      if (cursor.key() == key_id) {
+        EXPECT_EQ(cursor.flat_key(), key_id);
+        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+          found = true;
+          break;
         }
       }
     }
-    return false;
+    return found;
   }
 
  protected:
@@ -113,8 +125,6 @@ class NetworkTraceModuleTest : public testing::Test {
 };
 
 TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
-  NetworkTraceModule module(&context_);
-
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 
@@ -127,7 +137,7 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
   event->set_remote_port(443);
   event->set_tcp_flags(0b10010);
   event->set_ip_proto(6);
-  event->set_interface("wlan");
+  event->set_network_interface("wlan");
 
   ASSERT_TRUE(TokenizeAndParse().ok());
 
@@ -151,8 +161,6 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
-  NetworkTraceModule module(&context_);
-
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 
@@ -188,8 +196,6 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
-  NetworkTraceModule module(&context_);
-
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 

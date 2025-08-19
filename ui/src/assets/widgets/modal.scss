@@ -1,0 +1,165 @@
+// Copyright (C) 2019 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+// The opacity changes are only transitional. Once the `modalFadeOut` animation
+// reaches the end, the Mithril component that renders .pf-modal-backdrop
+// (and .pf-modal-dialog) is fully destroyed and removed from the DOM.
+// We use keyframes+animation, rather than transition, because the former allow
+// hooking the onanimationend events to synchronize the Mithril removal with
+// the end of the CSS animation.
+@keyframes modalFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pf-modal-backdrop {
+  position: absolute;
+  z-index: 99;
+  background-color: rgba(0, 0, 0, 0.6);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  backdrop-filter: blur(2px);
+  animation: modalFadeIn 0.25s var(--anim-easing);
+  animation-fill-mode: both;
+
+  &.modal-fadeout {
+    animation: modalFadeOut 0.25s var(--anim-easing);
+    animation-fill-mode: both;
+  }
+}
+
+.pf-modal-dialog {
+  position: absolute;
+  z-index: 100;
+  background-color: var(--pf-color-background);
+  margin: auto;
+  min-width: 25vw;
+  min-height: 10vh;
+  padding: 30px;
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: $border-radius;
+  overflow-y: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  &.pf-modal-dialog-valign-top {
+    top: 1rem;
+    transform: translate(-50%, 0);
+  }
+
+  > header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .modal-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 0;
+      font-weight: 600;
+      font-size: 1.25rem;
+      line-height: 1.25;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: transparent;
+      border: 0;
+    }
+  } // header
+
+  main {
+    font-size: 1rem;
+    margin-top: 2rem;
+    line-height: 1.5;
+
+    .small-font {
+      font-size: 0.9rem;
+    }
+  }
+
+  footer {
+    display: flex;
+    justify-content: end;
+    margin-top: 2rem;
+    gap: 4px;
+  } // footer
+}
+
+.pf-modal-pre {
+  white-space: pre-line;
+  font-size: 13px;
+}
+
+.pf-modal-logs,
+.pf-modal-bash {
+  white-space: pre-wrap;
+  border: 1px solid var(--pf-color-border);
+  padding: 10px;
+  border-radius: 3px;
+  font-size: 10px;
+  background: var(--pf-color-background-secondary);
+  font-family: var(--pf-font-monospace);
+  margin-top: 10px;
+  margin-bottom: 10px;
+  min-height: 50px;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.pf-modal-bash {
+  margin: 0;
+  padding: 5px 0;
+  overflow: auto;
+  min-height: 0;
+}
+
+.pf-modal-textarea {
+  display: block;
+  padding: 10px;
+  border-radius: 3px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  width: 100%;
+  background: inherit;
+  color: inherit;
+}
+
+.pf-modal-small {
+  font-size: 0.75rem;
+}

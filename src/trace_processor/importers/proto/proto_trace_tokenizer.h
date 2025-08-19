@@ -32,8 +32,8 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/util/gzip_utils.h"
 
+#include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor {
@@ -164,8 +164,7 @@ class ProtoTraceTokenizer {
       }
 
       // If there's not enough bytes in the reader, then we cannot do anymore.
-      size_t size_incl_header = hdr_size + field_size;
-      if (size_incl_header > avail) {
+      if (field_size > avail - hdr_size) {
         return base::OkStatus();
       }
 

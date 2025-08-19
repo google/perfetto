@@ -14,18 +14,11 @@
 
 import {Time, time} from '../base/time';
 import {getOrCreate} from '../base/utils';
+import {FilterExpression, SearchProvider} from '../public/search';
 import {Track} from '../public/track';
 import {SourceDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
-import {
-  ColumnType,
-  LONG,
-  NUM,
-  SqlValue,
-  STR_NULL,
-  UNKNOWN,
-} from '../trace_processor/query_result';
-import {escapeSearchQuery} from '../trace_processor/query_utils';
+import {LONG, NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 
 // Type alias for search results
 export type SearchResult = {
@@ -40,7 +33,7 @@ type PartitionMap = Map<string, Map<SqlValue, Track[]>>;
 // to find the corresponding track.
 export interface TrackGroup {
   readonly src: string;
-  readonly schema: Record<string, ColumnType>;
+  readonly schema: Record<string, SqlValue>;
   readonly nonPartitioned: Track[];
   readonly partitioned: PartitionMap;
 }
@@ -49,20 +42,35 @@ export interface TrackGroup {
 export async function searchTrackEvents(
   engine: Engine,
   tracks: ReadonlyArray<Track>,
+  providers: ReadonlyArray<SearchProvider>,
   searchTerm: string,
 ): Promise<SearchResult[]> {
-  const trackGroups = buildTrackGroups(tracks);
+  let results: SearchResult[] = [];
 
-  // TODO(stevegolton): We currently only search names and ids, but in the
-  // future we will allow custom search facets to be defined by plugins.
-  const names = await searchNames(trackGroups, searchTerm, engine);
-  const ids = await searchIds(trackGroups, searchTerm, engine);
-  const results = names.concat(ids);
+  for (const provider of providers) {
+    const filteredTracks = provider.selectTracks(tracks);
+    if (filteredTracks.length === 0) {
+      // If the provider does not select any tracks, skip it.
+      continue;
+    }
+    const filter = await provider.getSearchFilter(searchTerm);
+    if (!filter) {
+      // If the provider does not have a filter for this search term, skip it.
+      continue;
+    }
+    const providerResults = await searchTracksUsingProvider(
+      engine,
+      filteredTracks,
+      filter,
+    );
+    results = results.concat(providerResults);
+  }
 
   // Remove duplicates
   const uniqueResults = new Map<string, SearchResult>();
   for (const result of results) {
-    const key = `${result.id}-${result.ts}`;
+    // Use a combination of id and track URI to ensure uniqueness.
+    const key = `${result.id}-${result.track.uri}`;
     if (!uniqueResults.has(key)) {
       uniqueResults.set(key, result);
     }
@@ -76,12 +84,28 @@ export async function searchTrackEvents(
   return sortedResults;
 }
 
+async function searchTracksUsingProvider(
+  engine: Engine,
+  tracks: ReadonlyArray<Track>,
+  filter: FilterExpression,
+): Promise<SearchResult[]> {
+  const trackGroups = buildTrackGroups(tracks);
+
+  const results = await searchTrackGroupsWithFilter(
+    engine,
+    trackGroups,
+    filter,
+  );
+
+  return results;
+}
+
 function buildTrackGroups(
   tracks: ReadonlyArray<Track>,
 ): Map<string, TrackGroup> {
   const trackGroups = new Map<string, TrackGroup>();
   for (const track of tracks) {
-    const dataset = track.track.getDataset?.();
+    const dataset = track.renderer.getDataset?.();
     if (dataset) {
       const src = dataset.src;
       const trackGroup = getOrCreate(trackGroups, src, () => ({
@@ -149,47 +173,11 @@ function normalizeMapKey(value: SqlValue): SqlValue {
   }
 }
 
-async function searchNames(
-  trackGroups: Map<string, TrackGroup>,
-  searchTerm: string,
+async function searchTrackGroupsWithFilter(
   engine: Engine,
-): Promise<SearchResult[]> {
-  let searchResults: SearchResult[] = [];
-
-  // Process each track group
-  for (const trackGroup of trackGroups.values()) {
-    // Only search track groups that implement the required schema
-    // The schema check ensures 'id', 'ts', and 'name' columns exist.
-    const groupDataset = new SourceDataset({
-      src: trackGroup.src,
-      schema: trackGroup.schema,
-    });
-    if (groupDataset.implements({id: NUM, ts: LONG, name: STR_NULL})) {
-      const results = await searchTrackGroup(
-        trackGroup,
-        `name GLOB ${escapeSearchQuery(searchTerm)}`,
-        engine,
-      );
-      searchResults = searchResults.concat(results);
-    }
-  }
-
-  return searchResults;
-}
-
-async function searchIds(
   trackGroups: Map<string, TrackGroup>,
-  searchTerm: string,
-  engine: Engine,
+  filter: FilterExpression,
 ): Promise<SearchResult[]> {
-  // Check if the search term is can be parsed as an int.
-  const id = Number(searchTerm);
-
-  // Note: Number.isInteger also returns false for NaN.
-  if (!Number.isInteger(id)) {
-    return [];
-  }
-
   let searchResults: SearchResult[] = [];
 
   // Process each track group
@@ -201,7 +189,7 @@ async function searchIds(
       schema: trackGroup.schema,
     });
     if (groupDataset.implements({id: NUM, ts: LONG})) {
-      const results = await searchTrackGroup(trackGroup, `id = ${id}`, engine);
+      const results = await searchTrackGroup(trackGroup, filter, engine);
       searchResults = searchResults.concat(results);
     }
   }
@@ -211,7 +199,7 @@ async function searchIds(
 
 async function searchTrackGroup(
   trackGroup: TrackGroup,
-  condition: string,
+  filter: FilterExpression,
   engine: Engine,
 ): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
@@ -227,9 +215,10 @@ async function searchTrackGroup(
   // Build and execute search query
   const query = `
     SELECT
-      ${selectCols.join(', ')}
-    FROM (${trackGroup.src})
-    WHERE ${condition}
+      ${selectCols.map((c) => `source.${c} AS ${c}`).join()}
+    FROM (${trackGroup.src}) AS source
+    ${filter.join ? `JOIN ${filter.join}` : ''}
+    WHERE ${filter.where}
   `;
   const result = await engine.query(query);
 

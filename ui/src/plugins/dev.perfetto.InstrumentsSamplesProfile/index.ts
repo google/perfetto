@@ -54,20 +54,22 @@ export default class implements PerfettoPlugin {
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = makeUriForProc(upid);
-      const title = `Process Callstacks`;
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        track: createProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
+        renderer: createProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForProcess(upid);
-      const track = new TrackNode({uri, title, sortOrder: -40});
+      const track = new TrackNode({
+        uri,
+        name: 'Process Callstacks',
+        sortOrder: -40,
+      });
       group?.addChildInOrder(track);
     }
     const tResult = await ctx.engine.query(`
@@ -91,25 +93,24 @@ export default class implements PerfettoPlugin {
       it.next()
     ) {
       const {threadName, utid, tid, upid} = it;
-      const title =
+      const name =
         threadName === null
           ? `Thread Callstacks ${tid}`
           : `${threadName} Callstacks ${tid}`;
       const uri = `${getThreadUriPrefix(upid, utid)}_instruments_samples_profile`;
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
           utid,
           upid: upid ?? undefined,
         },
-        track: createThreadInstrumentsSamplesProfileTrack(ctx, uri, utid),
+        renderer: createThreadInstrumentsSamplesProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
-      const track = new TrackNode({uri, title, sortOrder: -50});
+      const track = new TrackNode({uri, name, sortOrder: -50});
       group?.addChildInOrder(track);
     }
 

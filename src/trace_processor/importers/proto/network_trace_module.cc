@@ -18,8 +18,8 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <optional>
 #include <utility>
-#include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -32,7 +32,6 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -45,6 +44,7 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
 // From android.os.UserHandle.PER_USER_RANGE
 constexpr int kPerUserRange = 100000;
 
@@ -62,6 +62,7 @@ base::StackString<12> GetTcpFlagMask(uint32_t tcp_flags) {
 
   return base::StackString<12>("%s", flags);
 }
+
 }  // namespace
 
 using ::perfetto::protos::pbzero::NetworkPacketBundle;
@@ -70,8 +71,11 @@ using ::perfetto::protos::pbzero::TracePacket;
 using ::perfetto::protos::pbzero::TrafficDirection;
 using ::protozero::ConstBytes;
 
-NetworkTraceModule::NetworkTraceModule(TraceProcessorContext* context)
-    : context_(context),
+NetworkTraceModule::NetworkTraceModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
       net_arg_length_(context->storage->InternString("packet_length")),
       net_arg_ip_proto_(context->storage->InternString("packet_transport")),
       net_arg_tcp_flags_(context->storage->InternString("packet_tcp_flags")),
@@ -86,8 +90,8 @@ NetworkTraceModule::NetworkTraceModule(TraceProcessorContext* context)
       net_ipproto_icmp_(context->storage->InternString("IPPROTO_ICMP")),
       net_ipproto_icmpv6_(context->storage->InternString("IPPROTO_ICMPV6")),
       packet_count_(context->storage->InternString("packet_count")) {
-  RegisterForField(TracePacket::kNetworkPacketFieldNumber, context);
-  RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber, context);
+  RegisterForField(TracePacket::kNetworkPacketFieldNumber);
+  RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber);
 }
 
 ModuleResult NetworkTraceModule::TokenizePacket(
@@ -158,6 +162,8 @@ void NetworkTraceModule::ParseTracePacketData(
     case TracePacket::kNetworkPacketBundleFieldNumber:
       ParseNetworkPacketBundle(ts, decoder.network_packet_bundle());
       return;
+    default:
+      break;
   }
 }
 
@@ -168,13 +174,20 @@ void NetworkTraceModule::ParseGenericEvent(
     int64_t count,
     protos::pbzero::NetworkPacketEvent::Decoder& evt) {
   // Tracks are per interface and per direction.
-  const char* direction =
-      evt.direction() == TrafficDirection::DIR_INGRESS  ? "Received"
-      : evt.direction() == TrafficDirection::DIR_EGRESS ? "Transmitted"
-                                                        : "DIR_UNKNOWN";
-
+  const char* direction;
+  switch (evt.direction()) {
+    case TrafficDirection::DIR_INGRESS:
+      direction = "Received";
+      break;
+    case TrafficDirection::DIR_EGRESS:
+      direction = "Transmitted";
+      break;
+    default:
+      direction = "DIR_UNKNOWN";
+      break;
+  }
   StringId direction_id = context_->storage->InternString(direction);
-  StringId iface = context_->storage->InternString(evt.interface());
+  StringId iface = context_->storage->InternString(evt.network_interface());
 
   if (!loaded_package_names_) {
     loaded_package_names_ = true;
@@ -207,21 +220,18 @@ void NetworkTraceModule::ParseGenericEvent(
       "network_packets",
       tracks::Dimensions(tracks::StringDimensionBlueprint("net_interface"),
                          tracks::StringDimensionBlueprint("net_direction")),
-      tracks::FnNameBlueprint([](base::StringView interface,
-                                 base::StringView direction) {
-        return base::StackString<64>("%.*s %.*s", int(interface.size()),
-                                     interface.data(), int(direction.size()),
-                                     direction.data());
-      }));
+      tracks::FnNameBlueprint(
+          [](base::StringView network, base::StringView direction) {
+            return base::StackString<64>("%.*s %.*s", int(network.size()),
+                                         network.data(), int(direction.size()),
+                                         direction.data());
+          }));
 
   TrackId track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(evt.interface(), direction), ts, dur);
+      kBlueprint, tracks::Dimensions(evt.network_interface(), direction), ts,
+      dur);
 
   tables::AndroidNetworkPacketsTable::Row actual_row;
-  actual_row.ts = ts;
-  actual_row.dur = dur;
-  actual_row.name = slice_name;
-  actual_row.track_id = track_id;
   actual_row.iface = iface;
   actual_row.direction = direction_id;
   actual_row.packet_transport = GetIpProto(evt);
@@ -249,9 +259,8 @@ void NetworkTraceModule::ParseGenericEvent(
     actual_row.packet_tcp_flags_str = context_->storage->InternString(
         GetTcpFlagMask(evt.tcp_flags()).string_view());
   }
-
-  context_->slice_tracker->ScopedTyped(
-      context_->storage->mutable_android_network_packets_table(), actual_row,
+  std::optional<SliceId> id = context_->slice_tracker->Scoped(
+      ts, track_id, kNullStringId, slice_name, dur,
       [&](ArgsTracker::BoundInserter* i) {
         i->AddArg(net_arg_ip_proto_,
                   Variadic::String(actual_row.packet_transport));
@@ -279,6 +288,12 @@ void NetworkTraceModule::ParseGenericEvent(
         i->AddArg(net_arg_length_, Variadic::Integer(length));
         i->AddArg(packet_count_, Variadic::Integer(count));
       });
+  if (id) {
+    auto* network_packets =
+        context_->storage->mutable_android_network_packets_table();
+    actual_row.id = *id;
+    network_packets->Insert(actual_row);
+  }
 }
 
 StringId NetworkTraceModule::GetIpProto(NetworkPacketEvent::Decoder& evt) {
@@ -305,8 +320,8 @@ void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
 void NetworkTraceModule::ParseNetworkPacketBundle(int64_t ts, ConstBytes blob) {
   NetworkPacketBundle::Decoder event(blob);
   NetworkPacketEvent::Decoder ctx(event.ctx());
-  int64_t dur = static_cast<int64_t>(event.total_duration());
-  int64_t length = static_cast<int64_t>(event.total_length());
+  auto dur = static_cast<int64_t>(event.total_duration());
+  auto length = static_cast<int64_t>(event.total_length());
 
   // Any bundle that makes it through tokenization must be aggregated bundles
   // with total packets/total length.
@@ -316,10 +331,10 @@ void NetworkTraceModule::ParseNetworkPacketBundle(int64_t ts, ConstBytes blob) {
 void NetworkTraceModule::PushPacketBufferForSort(
     int64_t timestamp,
     RefPtr<PacketSequenceStateGeneration> state) {
-  std::vector<uint8_t> v = packet_buffer_.SerializeAsArray();
-  context_->sorter->PushTracePacket(
-      timestamp, std::move(state),
-      TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
+  auto [vec, size] = packet_buffer_.SerializeAsUniquePtr();
+  TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+  module_context_->trace_packet_stream->Push(
+      timestamp, TracePacketData{std::move(tbv), std::move(state)});
   packet_buffer_.Reset();
 }
 

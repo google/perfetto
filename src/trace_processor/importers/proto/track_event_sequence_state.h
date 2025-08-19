@@ -19,7 +19,9 @@
 
 #include <utility>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -39,7 +41,12 @@ class TrackEventSequenceState {
   bool pid_and_tid_valid() const { return persistent_state_.pid_and_tid_valid; }
 
   int32_t pid() const { return persistent_state_.pid; }
-  int32_t tid() const { return persistent_state_.tid; }
+  int64_t tid() const {
+    return persistent_state_.use_synthetic_tid
+               ? CreateSyntheticTid(persistent_state_.tid,
+                                    persistent_state_.pid)
+               : persistent_state_.tid;
+  }
 
   bool timestamps_valid() const { return timestamps_valid_; }
 
@@ -61,7 +68,16 @@ class TrackEventSequenceState {
     return thread_instruction_count_;
   }
 
-  void SetThreadDescriptor(const protos::pbzero::ThreadDescriptor::Decoder&);
+  double IncrementAndGetCounterValue(uint64_t counter_track_uuid,
+                                     double value) {
+    auto [it, inserted] =
+        incremental_counter_values_.Insert(counter_track_uuid, 0.0);
+    *it += value;
+    return *it;
+  }
+
+  void SetThreadDescriptor(const protos::pbzero::ThreadDescriptor::Decoder&,
+                           bool use_synthetic_tid);
 
  private:
   // State that is never cleared.
@@ -75,6 +91,8 @@ class TrackEventSequenceState {
     // pid/tid override. Only valid after |pid_and_tid_valid_| is set to true.
     int32_t pid = 0;
     int32_t tid = 0;
+
+    bool use_synthetic_tid = false;
   };
 
   explicit TrackEventSequenceState(PersistentState persistent_state)
@@ -89,6 +107,9 @@ class TrackEventSequenceState {
   int64_t timestamp_ns_ = 0;
   int64_t thread_timestamp_ns_ = 0;
   int64_t thread_instruction_count_ = 0;
+
+  base::FlatHashMap<uint64_t /* uuid */, double /* value */>
+      incremental_counter_values_;
 
   PersistentState persistent_state_;
 };

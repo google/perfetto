@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -32,8 +33,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_intersector.h"
@@ -50,12 +52,14 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+#include "src/trace_processor/perfetto_sql/intrinsics/types/symbolization_input.h"
+#endif
 namespace perfetto::trace_processor {
 namespace {
 
-inline void HashSqlValue(base::Hasher& h, const SqlValue& v) {
+inline void HashSqlValue(base::FnvHasher& h, const SqlValue& v) {
   switch (v.type) {
     case SqlValue::Type::kString:
       h.Update(v.AsString());
@@ -81,10 +85,10 @@ using Array = std::variant<perfetto_sql::IntArray,
                            perfetto_sql::StringArray>;
 
 // An SQL aggregate-function which creates an array.
-struct ArrayAgg : public SqliteAggregateFunction<ArrayAgg> {
+struct ArrayAgg : public sqlite::AggregateFunction<ArrayAgg> {
   static constexpr char kName[] = "__intrinsic_array_agg";
   static constexpr int kArgCount = 1;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     template <typename T>
     void Push(sqlite3_context* ctx, T value) {
       if (PERFETTO_UNLIKELY(!array)) {
@@ -150,10 +154,10 @@ struct ArrayAgg : public SqliteAggregateFunction<ArrayAgg> {
 };
 
 // An SQL aggregate function which creates a graph.
-struct NodeAgg : public SqliteAggregateFunction<NodeAgg> {
+struct NodeAgg : public sqlite::AggregateFunction<NodeAgg> {
   static constexpr char kName[] = "__intrinsic_graph_agg";
   static constexpr int kArgCount = 2;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::Graph graph;
   };
 
@@ -181,7 +185,7 @@ struct NodeAgg : public SqliteAggregateFunction<NodeAgg> {
 };
 
 // An SQL scalar function which creates an struct.
-struct Struct : public SqliteFunction<Struct> {
+struct Struct : public sqlite::Function<Struct> {
   static constexpr char kName[] = "__intrinsic_struct";
   static constexpr int kArgCount = -1;
 
@@ -229,10 +233,10 @@ struct Struct : public SqliteFunction<Struct> {
 };
 
 // An SQL aggregate function which creates a RowDataframe.
-struct RowDataframeAgg : public SqliteAggregateFunction<Struct> {
+struct RowDataframeAgg : public sqlite::AggregateFunction<Struct> {
   static constexpr char kName[] = "__intrinsic_row_dataframe_agg";
   static constexpr int kArgCount = -1;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::RowDataframe dataframe;
     std::optional<uint32_t> argc_index;
   };
@@ -301,11 +305,11 @@ struct RowDataframeAgg : public SqliteAggregateFunction<Struct> {
 };
 
 struct IntervalTreeIntervalsAgg
-    : public SqliteAggregateFunction<perfetto_sql::PartitionedTable> {
+    : public sqlite::AggregateFunction<perfetto_sql::PartitionedTable> {
   static constexpr char kName[] = "__intrinsic_interval_tree_intervals_agg";
   static constexpr int kArgCount = -1;
   static constexpr int kMinArgCount = 3;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedTable partitions;
     std::vector<SqlValue> tmp_vals;
     uint64_t last_interval_start = 0;
@@ -326,17 +330,25 @@ struct IntervalTreeIntervalsAgg
             ctx, "Interval intersect only accepts positive `ts` values.");
         return;
       }
-      sqlite::result::Error(
-          ctx, "Interval intersect requires intervals to be sorted by ts.");
+      base::StackString<1024> err_msg(
+          "Interval intersect requires intervals to be sorted by ts. "
+          "Current interval(id %u) start %" PRId64
+          " is less than the last interval start %" PRIu64 ".",
+          interval.id, sqlite::value::Int64(argv[1]),
+          agg_ctx.last_interval_start);
+      sqlite::result::Error(ctx, err_msg.c_str());
       return;
     }
-    agg_ctx.last_interval_start = interval.start;
     int64_t dur = sqlite::value::Int64(argv[2]);
-    if (dur < 1) {
-      sqlite::result::Error(
-          ctx, "Interval intersect only works on intervals with dur > 0");
+
+    if (dur < 0) {
+      sqlite::result::Error(ctx,
+                            "Interval intersect only works on intervals with "
+                            "non negative duration.");
       return;
     }
+
+    agg_ctx.last_interval_start = interval.start;
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
     // Fast path for no partitions.
@@ -365,7 +377,7 @@ struct IntervalTreeIntervalsAgg
     }
 
     // Create a partition key and save SqlValues of the partition.
-    base::Hasher h;
+    base::FnvHasher h;
     uint32_t j = 0;
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
@@ -417,10 +429,10 @@ struct IntervalTreeIntervalsAgg
 };
 
 struct CounterPerTrackAgg
-    : public SqliteAggregateFunction<perfetto_sql::PartitionedCounter> {
+    : public sqlite::AggregateFunction<perfetto_sql::PartitionedCounter> {
   static constexpr char kName[] = "__intrinsic_counter_per_track_agg";
   static constexpr int kArgCount = 4;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedCounter tracks;
   };
 
@@ -465,6 +477,50 @@ struct CounterPerTrackAgg
   }
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+
+struct SymbolizeAgg
+    : public sqlite::AggregateFunction<perfetto_sql::SymbolizationInput> {
+  static constexpr char kName[] = "__intrinsic_symbolize_agg";
+  static constexpr int kArgCount = 4;
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    perfetto_sql::SymbolizationInput symbolization_input;
+  };
+
+  static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
+    auto argc = static_cast<uint32_t>(rargc);
+    PERFETTO_DCHECK(argc == kArgCount);
+    auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+    auto& input = agg_ctx.symbolization_input;
+
+    input.binary_paths.emplace_back(sqlite::value::Text(argv[0]));
+
+    ::SymbolizationRequest request;
+    request.binary_path = input.binary_paths.back().c_str();
+    request.binary_path_len =
+        static_cast<uint32_t>(input.binary_paths.back().size());
+    request.address = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
+    input.requests.emplace_back(request);
+
+    uint64_t mapping_id = static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
+    uint64_t address = static_cast<uint64_t>(sqlite::value::Int64(argv[3]));
+    input.mapping_id_and_address.emplace_back(mapping_id, address);
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
+    if (!raw_agg_ctx) {
+      return sqlite::result::Null(ctx);
+    }
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<perfetto_sql::SymbolizationInput>(
+            std::move(raw_agg_ctx.get()->symbolization_input)),
+        perfetto_sql::SymbolizationInput::kName);
+  }
+};
+#endif
+
 }  // namespace
 
 base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
@@ -477,6 +533,12 @@ base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
           nullptr));
   RETURN_IF_ERROR(
       engine.RegisterSqliteAggregateFunction<CounterPerTrackAgg>(nullptr));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+  RETURN_IF_ERROR(
+      engine.RegisterSqliteAggregateFunction<SymbolizeAgg>(nullptr));
+#endif
+
   return engine.RegisterSqliteAggregateFunction<NodeAgg>(nullptr);
 }
 

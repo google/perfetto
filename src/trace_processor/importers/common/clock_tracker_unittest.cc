@@ -16,9 +16,15 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
+#include <cstdint>
+#include <memory>
 #include <optional>
 #include <random>
+#include <tuple>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -28,8 +34,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class ClockTrackerTest : public ::testing::Test {
  public:
@@ -62,7 +67,6 @@ constexpr auto MONOTONIC_COARSE =
 constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
-  EXPECT_FALSE(ct_.HasPathToTraceTime(REALTIME));
   EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
@@ -70,7 +74,6 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
   ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  EXPECT_TRUE(ct_.HasPathToTraceTime(REALTIME));
   EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 10000);
   EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 1), 10001);
   EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 10009);
@@ -211,16 +214,15 @@ TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  ClockTracker::ClockId c64_1 = ct_.SequenceToGlobalClock(1, 64);
-  ClockTracker::ClockId c65_1 = ct_.SequenceToGlobalClock(1, 65);
-  ClockTracker::ClockId c66_1 = ct_.SequenceToGlobalClock(1, 66);
-  ClockTracker::ClockId c66_2 = ct_.SequenceToGlobalClock(2, 64);
+  ClockTracker::ClockId c64_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  ClockTracker::ClockId c65_1 = ClockTracker::SequenceToGlobalClock(1, 65);
+  ClockTracker::ClockId c66_1 = ClockTracker::SequenceToGlobalClock(1, 66);
+  ClockTracker::ClockId c66_2 = ClockTracker::SequenceToGlobalClock(2, 64);
 
-  ct_.AddSnapshot(
-      {{MONOTONIC, 10000},
-       {c64_1, 100000},
-       {c65_1, 100, /*unit_multiplier_ns=*/1000, /*is_incremental=*/false},
-       {c66_1, 10, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
+  ct_.AddSnapshot({{MONOTONIC, 10000},
+                   {c64_1, 100000},
+                   {c65_1, 100, /*unit=*/1000, /*incremental=*/false},
+                   {c66_1, 10, /*unit=*/1000, /*incremental=*/true}});
 
   // c64_1 is non-incremental and in nanos.
   EXPECT_EQ(*Convert(c64_1, 150000, MONOTONIC), 60000);
@@ -239,11 +241,9 @@ TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 15 */), 114000);
 
   ct_.AddSnapshot(
-      {{MONOTONIC, 20000},
-       {c66_1, 20, /*unit_multiplier_ns=*/1000, /*incremental=*/true}});
+      {{MONOTONIC, 20000}, {c66_1, 20, /*unit=*/1000, /*incremental=*/true}});
   ct_.AddSnapshot(
-      {{MONOTONIC, 20000},
-       {c66_2, 20, /*unit_multiplier_ns=*/1000, /*incremental=*/true}});
+      {{MONOTONIC, 20000}, {c66_2, 20, /*unit=*/1000, /*incremental=*/true}});
 
   // c66_1 and c66_2 are both incremental and in micros, but shouldn't affect
   // each other.
@@ -306,6 +306,39 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
   }
 }
 
+TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
+  std::minstd_rand rnd;
+  int last_raw = 0;
+  int last_mono = 0;
+  int last_boot = 0;
+  static const int increments[] = {1, 2, 10};
+  for (int i = 0; i < 1000; i++) {
+    last_raw += increments[rnd() % base::ArraySize(increments)];
+    last_mono += increments[rnd() % base::ArraySize(increments)];
+    ct_.AddSnapshot({{MONOTONIC_RAW, last_raw}, {MONOTONIC, last_mono}});
+
+    last_mono += increments[rnd() % base::ArraySize(increments)];
+    last_boot += increments[rnd() % base::ArraySize(increments)];
+    ct_.AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
+  }
+
+  for (int i = 0; i < 1000; i++) {
+    int64_t val = static_cast<int64_t>(rnd()) % 10000;
+    ClockTracker::ClockId src = MONOTONIC_RAW;
+    ClockTracker::ClockId tgt = BOOTTIME;
+
+    // It will still write the cache, just not lookup.
+    ct_.set_cache_lookups_disabled_for_testing(true);
+    auto not_cached = Convert(src, val, tgt);
+
+    // This should 100% hit the cache.
+    ct_.set_cache_lookups_disabled_for_testing(false);
+    auto cached = Convert(src, val, tgt);
+
+    ASSERT_EQ(not_cached.value(), cached.value());
+  }
+}
+
 // Test clock conversion with offset to the host.
 TEST_F(ClockTrackerTest, ClockOffset) {
   EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
@@ -314,15 +347,15 @@ TEST_F(ClockTrackerTest, ClockOffset) {
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   // Client-to-host BOOTTIME offset is -10000 ns.
-  ct_.SetClockOffset(BOOTTIME, -10000);
+  ct_.SetRemoteClockOffset(BOOTTIME, -10000);
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
   ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
-  auto seq_clock_2 = ct_.SequenceToGlobalClock(2, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
   ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -348,7 +381,7 @@ TEST_F(ClockTrackerTest, ClockOffset) {
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
   // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
-            100 * 10 + 100 + 1000 + 100000 + 10000);
+            (100 * 10) + 100 + 1000 + 100000 + 10000);
 }
 
 // Test conversion of remote machine timestamps without offset. This can happen
@@ -362,8 +395,8 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
-  auto seq_clock_2 = ct_.SequenceToGlobalClock(2, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
   ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -385,7 +418,7 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
   // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME.
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
-            100 * 10 + 100 + 1000 + 100000);
+            (100 * 10) + 100 + 1000 + 100000);
 }
 
 // Test clock offset of non-defualt trace time clock domain.
@@ -394,13 +427,13 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   ct_.SetTraceTimeClock(MONOTONIC);
-  ct_.SetClockOffset(MONOTONIC, -2000);
-  ct_.SetClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
+  ct_.SetRemoteClockOffset(MONOTONIC, -2000);
+  ct_.SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
   ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
 
   int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
@@ -419,6 +452,101 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), 1100 - 1200 + 2000 - (-2000));
 }
 
+TEST_F(ClockTrackerTest, MultiHopCacheIsHit) {
+  // Path: MONOTONIC_RAW -> MONOTONIC -> BOOTTIME
+  ct_.AddSnapshot({{MONOTONIC_RAW, 100}, {MONOTONIC, 200}});
+  ct_.AddSnapshot({{MONOTONIC, 300}, {BOOTTIME, 4000}});
+
+  // First conversion should be a cache miss.
+  uint32_t hits = ct_.cache_hits_for_testing();
+  int64_t expected_ts = 10 + (200 - 100) + (4000 - 300);
+  EXPECT_EQ(*Convert(MONOTONIC_RAW, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+
+  // Second conversion should be a cache hit.
+  EXPECT_EQ(*Convert(MONOTONIC_RAW, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 1);
+
+  // Another conversion within the same range.
+  EXPECT_EQ(*Convert(MONOTONIC_RAW, 20, BOOTTIME), expected_ts + 10);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 2);
+
+  // Add a new snapshot. This should clear the cache.
+  ct_.AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
+
+  // This conversion should now cause another cache miss.
+  hits = ct_.cache_hits_for_testing();
+  EXPECT_EQ(*Convert(MONOTONIC_RAW, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+}
+
+TEST_F(ClockTrackerTest, CacheBoundaries) {
+  ct_.AddSnapshot({{MONOTONIC, 100}, {BOOTTIME, 1000}});
+  ct_.AddSnapshot({{MONOTONIC, 200}, {BOOTTIME, 2000}});
+  ct_.AddSnapshot({{MONOTONIC, 300}, {BOOTTIME, 3000}});
+
+  // Test points around the first snapshot.
+  EXPECT_EQ(*Convert(MONOTONIC, 99, BOOTTIME), 999);
+  EXPECT_EQ(*Convert(MONOTONIC, 100, BOOTTIME), 1000);
+  EXPECT_EQ(*Convert(MONOTONIC, 101, BOOTTIME), 1001);
+
+  // Test points around the second snapshot.
+  EXPECT_EQ(*Convert(MONOTONIC, 199, BOOTTIME), 1099);
+  EXPECT_EQ(*Convert(MONOTONIC, 200, BOOTTIME), 2000);
+  EXPECT_EQ(*Convert(MONOTONIC, 201, BOOTTIME), 2001);
+
+  // Test points around the third snapshot.
+  EXPECT_EQ(*Convert(MONOTONIC, 299, BOOTTIME), 2099);
+  EXPECT_EQ(*Convert(MONOTONIC, 300, BOOTTIME), 3000);
+  EXPECT_EQ(*Convert(MONOTONIC, 301, BOOTTIME), 3001);
+}
+
+TEST_F(ClockTrackerTest, CacheInvalidationAndPathReoptimization) {
+  // 1. Set up a 2-hop path and convert through it.
+  ct_.AddSnapshot({{MONOTONIC, 100}, {MONOTONIC_RAW, 200}});
+  ct_.AddSnapshot({{MONOTONIC_RAW, 300}, {BOOTTIME, 4000}});
+
+  // First conversion is a miss.
+  EXPECT_EQ(*Convert(MONOTONIC, 50, BOOTTIME), 50 + (200 - 100) + (4000 - 300));
+  EXPECT_EQ(ct_.cache_hits_for_testing(), 0u);
+
+  // Second conversion should be a cache hit.
+  EXPECT_EQ(*Convert(MONOTONIC, 50, BOOTTIME), 50 + (200 - 100) + (4000 - 300));
+  EXPECT_EQ(ct_.cache_hits_for_testing(), 1u);
+
+  // 2. Add a direct, more optimal path. This will clear the cache.
+  ct_.AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
+
+  // 3. Convert again. It should be a miss, and the new, more optimal path
+  // should be used for the conversion.
+  EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
+  EXPECT_EQ(ct_.cache_hits_for_testing(), 1u);
+
+  // The new path should now be cached.
+  EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
+  EXPECT_EQ(ct_.cache_hits_for_testing(), 2u);
+}
+
+TEST_F(ClockTrackerTest, ThreeHopConversion) {
+  // Path: REALTIME -> MONOTONIC_RAW -> MONOTONIC -> BOOTTIME
+  ct_.AddSnapshot({{REALTIME, 1000}, {MONOTONIC_RAW, 100}});
+  ct_.AddSnapshot({{MONOTONIC_RAW, 200}, {MONOTONIC, 3000}});
+  ct_.AddSnapshot({{MONOTONIC, 4000}, {BOOTTIME, 50000}});
+
+  // First conversion should be a cache miss.
+  uint32_t hits = ct_.cache_hits_for_testing();
+  int64_t expected_ts = 10 + (100 - 1000) + (3000 - 200) + (50000 - 4000);
+  EXPECT_EQ(*Convert(REALTIME, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+
+  // Second conversion should be a cache hit.
+  EXPECT_EQ(*Convert(REALTIME, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 1);
+
+  // Another conversion within the same range.
+  EXPECT_EQ(*Convert(REALTIME, 20, BOOTTIME), expected_ts + 10);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 2);
+}
+
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

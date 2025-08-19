@@ -61,9 +61,13 @@ message ClockSnapshot {
     optional bool is_incremental = 3;
 
     // Allows to specify a custom unit different than the default (ns) for this
-    // clock domain. A multiplier of 1000 means that a timestamp = 3 should be
-    // interpreted as 3000 ns = 3 us. All snapshots for the same clock within a
-    // trace need to use the same unit.
+    // clock domain.
+    //
+    // * A multiplier of 1000 means that a timestamp = 3 should be interpreted
+    //   as 3000 ns = 3 us.
+    // * All snapshots for the same clock within a trace need to use the same
+    //   unit.
+    // * `unit_multiplier_ns` is *not* supported for the `primary_trace_clock`.
     optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;

@@ -25,7 +25,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <xlocale.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 #include <cinttypes>
@@ -36,7 +36,7 @@
 namespace perfetto {
 namespace base {
 
-// Locale-independant as possible version of strtod.
+// Locale-independent as possible version of strtod.
 double StrToD(const char* nptr, char** endptr) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||           \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \

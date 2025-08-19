@@ -40,6 +40,7 @@ message BlinkTaskScope {
     TASK_SCOPE_REQUEST_IDLE_CALLBACK = 7;
     TASK_SCOPE_XML_HTTP_REQUEST = 8;
     TASK_SCOPE_SOFT_NAVIGATION = 9;
+    TASK_SCOPE_MISC_EVENT = 10;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -115,15 +116,15 @@ message RenderFrameImplDeletion {
   // The intent for the deletion.
   optional FrameDeleteIntention intent = 1;
 
-  // Whether the frame that's about to be deleted has a pending navigation
+  // Whether the frame that is about to be deleted has a pending navigation
   // commit.
   optional bool has_pending_commit = 2;
 
-  // Whether the frame that's about to be deleted has a pending cross-document
+  // Whether the frame that is about to be deleted has a pending cross-document
   // navigation commit.
   optional bool has_pending_cross_document_commit = 3;
 
-  // The FrameTreeNode ID of the frame that's about to be deleted.
+  // The FrameTreeNode ID of the frame that is about to be deleted.
   optional uint64 frame_tree_node_id = 4;
 }
 
@@ -704,6 +705,7 @@ message BackForwardCacheCanStoreDocumentResult {
     CACHE_CONTROL_NO_STORE_DEVICE_BOUND_SESSION_TERMINATED = 65;
     CACHE_LIMIT_PRUNED_ON_MODERATE_MEMORY_PRESSURE = 66;
     CACHE_LIMIT_PRUNED_ON_CRITICAL_MEMORY_PRESSURE = 67;
+    SHARED_WORKER_MESSAGE = 68;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -800,6 +802,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_MACHINE_LEARNING = 86;
     TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_BEST_EFFORT = 87;
     TASK_TYPE_INTERNAL_AUTOFILL = 88;
+    TASK_TYPE_BACK_FORWARD_CACHE_POSTED_MESSAGE = 89;
   }
 
   enum FrameType {
@@ -1026,6 +1029,12 @@ message SequenceManagerTask {
 
     V8_USER_VISIBLE_TQ = 56;
     V8_BEST_EFFORT_TQ = 57;
+
+    NETWORK_SERVICE_THREAD_HIGH_TQ = 58;
+    NETWORK_SERVICE_THREAD_DEFAULT_TQ = 59;
+
+    UI_STARTUP_TQ = 60;
+    IO_STARTUP_TQ = 61;
   }
 
   optional Priority priority = 1;
@@ -1048,6 +1057,8 @@ message AndroidToolbar {
     BLOCKED_COMPOSITOR_IN_MOTION = 11;
     BLOCKED_NTP_Y_TRANSLATION = 12;
     BLOCKED_FULLSCREEN = 13;
+    BLOCKED_TABLET_BUTTON_ANIMATION_IN_PROGRESS = 14;
+    BLOCKED_LAYOUT_REQUESTED = 15;
   }
   enum AllowCaptureReason {
     ALLOWED_UNKNOWN = 0;

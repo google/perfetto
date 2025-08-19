@@ -8,11 +8,5 @@ perfetto_proto_library("@TYPE@") {
 
   generate_descriptor = "chrome_track_event.descriptor"
   generator_visibility = [ "../../../src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor" ]
-  descriptor_root_source = "chrome_track_event.proto"
-
-  # When rolled into Chrome, extension descriptor is going to be linked into
-  # binary, therefore increasing its size. Including imports means that the
-  # full TrackEvent descriptor is going to be included as well, increasing the
-  # binary size unnecessarily. Therefore, exclude_imports is used.
-  exclude_imports = true
+  descriptor_root_source = chrome_track_event_descriptor_source
 }

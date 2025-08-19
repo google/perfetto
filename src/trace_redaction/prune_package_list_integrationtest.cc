@@ -36,22 +36,12 @@
 
 namespace perfetto::trace_redaction {
 
-namespace {
-
-// Set the package name to "just some package name". If a specific package name
-// is needed, the test it should overwrite this value.
-constexpr std::string_view kPackageName =
-    "com.Unity.com.unity.multiplayer.samples.coop";
-constexpr uint64_t kPackageUid = 10252;
-
-}  // namespace
-
 class PrunePackageListIntegrationTest
     : public testing::Test,
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    context_.package_name = kPackageName;
+    context_.package_name = kSomePackageName;
 
     trace_redactor_.emplace_collect<FindPackageUid>();
     trace_redactor_.emplace_transform<PrunePackageList>();
@@ -109,7 +99,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
   ASSERT_OK(after_raw_trace) << after_raw_trace.status().message();
 
   ASSERT_TRUE(context_.package_uid.has_value());
-  ASSERT_EQ(*context_.package_uid, kPackageUid);
+  ASSERT_EQ(*context_.package_uid, kSomePackageUid);
 
   protos::pbzero::Trace::Decoder redacted_trace(after_raw_trace.value());
   auto packages = GetPackageInfo(redacted_trace);
@@ -118,10 +108,10 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
 
   for (const auto& package : packages) {
     ASSERT_TRUE(package.has_name());
-    ASSERT_EQ(package.name(), kPackageName);
+    ASSERT_EQ(package.name(), kSomePackageName);
 
     ASSERT_TRUE(package.has_uid());
-    ASSERT_EQ(NormalizeUid(package.uid()), kPackageUid);
+    ASSERT_EQ(NormalizeUid(package.uid()), kSomePackageUid);
   }
 }
 

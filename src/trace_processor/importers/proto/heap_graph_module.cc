@@ -15,20 +15,27 @@
  */
 
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
+#include <cstdint>
+#include <optional>
+#include <utility>
+#include <vector>
 
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_utils.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "perfetto/ext/base/string_view.h"
-#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -62,9 +69,10 @@ bool ForEachVarInt(const T& decoder, F fn) {
 
 using perfetto::protos::pbzero::TracePacket;
 
-HeapGraphModule::HeapGraphModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kHeapGraphFieldNumber, context);
+HeapGraphModule::HeapGraphModule(ProtoImporterModuleContext* module_context,
+                                 TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kHeapGraphFieldNumber);
 }
 
 void HeapGraphModule::ParseTracePacketData(
@@ -85,7 +93,7 @@ void HeapGraphModule::ParseTracePacketData(
 void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
                                      int64_t ts,
                                      protozero::ConstBytes blob) {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(heap_graph.pid()));
@@ -128,6 +136,15 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
             if (value)
               value += base_obj_id;
             obj.referred_objects.push_back(value);
+          });
+    }
+
+    if (!parse_error) {
+      // grep-friendly: runtime_internal_object_id
+      parse_error = ForEachVarInt<
+          protos::pbzero::HeapGraphObject::kRuntimeInternalObjectIdFieldNumber>(
+          object, [&obj](uint64_t value) {
+            obj.runtime_internal_objects.push_back(value);
           });
     }
 
@@ -233,9 +250,8 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 }
 
 void HeapGraphModule::NotifyEndOfFile() {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

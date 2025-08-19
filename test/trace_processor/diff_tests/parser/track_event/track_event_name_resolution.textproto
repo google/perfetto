@@ -1,0 +1,76 @@
+# Test for SIBLING_MERGE_BEHAVIOR_NONE name resolution.
+# The track should take the name of the last descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_descriptor {
+    uuid: 1
+    name: "First Name"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_descriptor {
+    uuid: 1
+    name: "Second Name"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 300
+  track_event {
+    track_uuid: 1
+    name: "Event"
+    type: TYPE_INSTANT
+  }
+}
+
+# Test for default name resolution.
+# The track should take the name of the descriptor before the first event.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 400
+  track_descriptor {
+    uuid: 2
+    name: "Before Event"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 500
+  track_event {
+    track_uuid: 2
+    name: "Event"
+    type: TYPE_INSTANT
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 600
+  track_descriptor {
+    uuid: 2
+    name: "After Event"
+  }
+}
+
+# Test for default name resolution with an event name.
+# The track should take the name of the first event.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 700
+  track_descriptor {
+    uuid: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 800
+  track_event {
+    track_uuid: 3
+    name: "Event Name"
+    type: TYPE_INSTANT
+  }
+}

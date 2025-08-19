@@ -29,11 +29,11 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
 #include "src/bigtrace/orchestrator/orchestrator_impl.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::bigtrace {
 namespace {

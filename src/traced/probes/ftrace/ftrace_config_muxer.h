@@ -27,8 +27,8 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 
@@ -132,10 +132,10 @@ struct FtraceDataSourceConfig {
 // When you are finished with a config you can signal that with |RemoveConfig|.
 class FtraceConfigMuxer {
  public:
-  // The FtraceProcfs and ProtoTranslationTable
+  // The Tracefs and ProtoTranslationTable
   // should outlive this instance.
   FtraceConfigMuxer(
-      FtraceProcfs* ftrace,
+      Tracefs* ftrace,
       AtraceWrapper* atrace_wrapper,
       ProtoTranslationTable* table,
       SyscallTable syscalls,
@@ -147,13 +147,12 @@ class FtraceConfigMuxer {
   FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
   FtraceConfigMuxer& operator=(const FtraceConfigMuxer&) = delete;
 
-  // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
-  // match the requested config. Returns true on success and false on failure.
-  // This is best effort. FtraceConfigMuxer may not be able to adjust the
-  // buffer size right now. Events may be missing or there may be extra events
-  // (if you enable an atrace category we try to give you the matching events).
-  // If someone else is tracing we won't touch atrace (since it resets the
-  // buffer).
+  // Ask FtraceConfigMuxer to adjust tracefs settings to match the requested
+  // config. Returns true on success and false on failure. This is best effort.
+  // FtraceConfigMuxer may not be able to adjust the buffer size right now.
+  // Events may be missing or there may be extra events (if you enable an atrace
+  // category we try to give you the matching events). If someone else is
+  // tracing we won't touch atrace (since it resets the buffer).
   bool SetupConfig(FtraceConfigId id,
                    const FtraceConfig& request,
                    FtraceSetupErrors* = nullptr);
@@ -231,6 +230,7 @@ class FtraceConfigMuxer {
   };
 
   void SetupClock(const FtraceConfig& request);
+  void RememberActiveClock();
   void SetupBufferSize(const FtraceConfig& request);
   bool UpdateBufferPercent();
   void UpdateAtrace(const FtraceConfig& request, std::string* atrace_errors);
@@ -271,7 +271,7 @@ class FtraceConfigMuxer {
   // so the filter can be updated before ds_configs_.
   bool SetSyscallEventFilter(const EventFilter& extra_syscalls);
 
-  FtraceProcfs* ftrace_;
+  Tracefs* ftrace_;
   AtraceWrapper* atrace_wrapper_;
   ProtoTranslationTable* table_;
   SyscallTable syscalls_;

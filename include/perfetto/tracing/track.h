@@ -217,12 +217,28 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       : Track(id ^ internal::Fnv1a(name.value) ^ kNamedTrackMagic, parent),
         static_name_(name) {}
 
+  // Construct a track using `name` and `ptr` as identifier.
+  template <class TrackEventName>
+  static NamedTrack FromPointer(TrackEventName&& name,
+                                const void* ptr,
+                                Track parent = MakeProcessTrack()) {
+    // Using pointers as global TrackIds isn't supported as pointers are
+    // per-proccess and the same pointer value can be used in different
+    // processes. If you hit this check but are providing no |parent| track,
+    // verify that Tracing::Initialize() was called for the current process.
+    PERFETTO_DCHECK(parent.uuid != Track().uuid);
+
+    return NamedTrack(std::forward<TrackEventName>(name),
+                      static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+                      parent);
+  }
+
   // Construct a track using `name` and `id` as identifier within thread-scope.
   // Shorthand for `Track::NamedTrack("name", id, ThreadTrack::Current())`
   // Usage: TRACE_EVENT_BEGIN("...", "...",
   // perfetto::NamedTrack::ThreadScoped("rendering"))
   template <class TrackEventName>
-  static NamedTrack ThreadScoped(TrackEventName name,
+  static NamedTrack ThreadScoped(TrackEventName&& name,
                                  uint64_t id = 0,
                                  Track parent = Track()) {
     if (parent.uuid == 0)
@@ -231,12 +247,66 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
     return NamedTrack(std::forward<TrackEventName>(name), id, parent);
   }
 
+  // Same as above using `name` and `ptr` as identifier within thread-scope.
+  template <class TrackEventName>
+  static NamedTrack ThreadScoped(TrackEventName&& name,
+                                 const void* ptr,
+                                 Track parent = Track()) {
+    if (parent.uuid == 0) {
+      return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+                                     ThreadTrack::Current());
+    }
+    return Track::FromPointer(std::forward<TrackEventName>(name), ptr, parent);
+  }
+
+  template <class TrackEventName>
+  static NamedTrack Global(TrackEventName&& name, uint64_t id = 0) {
+    return NamedTrack(std::forward<TrackEventName>(name), id, Track());
+  }
+
+  constexpr NamedTrack disable_sibling_merge() const {
+    return NamedTrack(
+        *this,
+        perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
+        nullptr, std::nullopt);
+  }
+  constexpr NamedTrack set_sibling_merge_key(const char* key) {
+    return NamedTrack(*this,
+                      perfetto::protos::gen::TrackDescriptor::
+                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                      key, std::nullopt);
+  }
+  constexpr NamedTrack set_sibling_merge_key(uint64_t key) {
+    return NamedTrack(*this,
+                      perfetto::protos::gen::TrackDescriptor::
+                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                      nullptr, key);
+  }
+
   void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
+  constexpr NamedTrack(
+      const NamedTrack& other,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+          sibling_merge_behavior,
+      const char* sibling_merge_key,
+      std::optional<uint64_t> sibling_merge_key_int)
+      : Track(other),
+        static_name_(other.static_name_),
+        dynamic_name_(other.dynamic_name_),
+        sibling_merge_behavior_(sibling_merge_behavior),
+        sibling_merge_key_(sibling_merge_key),
+        sibling_merge_key_int_(std::move(sibling_merge_key_int)) {}
+
   StaticString static_name_;
   DynamicString dynamic_name_;
+  perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+      sibling_merge_behavior_{perfetto::protos::gen::TrackDescriptor::
+                                  SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
+  const char* sibling_merge_key_{nullptr};
+  std::optional<uint64_t> sibling_merge_key_int_ = std::nullopt;
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter

@@ -28,9 +28,11 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -56,12 +58,12 @@
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/sample_id.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
+#include "src/trace_processor/importers/perf/time_conv_record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/build_id.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -119,7 +121,11 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 }  // namespace
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx), aux_manager_(ctx) {}
+    : context_(ctx),
+      perf_tracker_(ctx),
+      stream_(ctx->sorter->CreateStream(
+          std::make_unique<RecordParser>(context_, &perf_tracker_))),
+      aux_manager_(ctx, &perf_tracker_) {}
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
 
@@ -369,7 +375,7 @@ void PerfDataTokenizer::MaybePushRecord(Record record) {
         stats::perf_record_skipped, static_cast<int>(record.header.type));
     return;
   }
-  context_->sorter->PushPerfRecord(*trace_ts, std::move(record));
+  stream_->Push(*trace_ts, std::move(record));
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -440,7 +446,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       return feature::EventDescription::Parse(
           std::move(data), [&](feature::EventDescription desc) {
             for (auto id : desc.ids) {
-              perf_session_->SetEventName(id, std::move(desc.event_string));
+              perf_session_->SetEventName(id, desc.event_string);
             }
             return base::OkStatus();
           });
@@ -477,7 +483,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(
                 blob.data(), blob.length());
-            PerfTracker::GetOrCreate(context_)->AddSimpleperfFile2(file);
+            perf_tracker_.AddSimpleperfFile2(file);
           }));
 
       break;
@@ -508,8 +514,7 @@ base::Status PerfDataTokenizer::ProcessTimeConvRecord(Record record) {
   if (!reader.Read(time_conv)) {
     return base::ErrStatus("Failed to parse PERF_RECORD_TIME_CONV");
   }
-
-  return aux_manager_.OnTimeConvRecord(std::move(time_conv));
+  return aux_manager_.OnTimeConvRecord(time_conv);
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -526,8 +531,8 @@ PerfDataTokenizer::ParseAuxtraceData() {
       buffer_.SliceOff(buffer_.start_offset(), size);
   buffer_.PopFrontBytes(size);
   PERFETTO_CHECK(data.has_value());
-  base::Status status = aux_manager_.OnAuxtraceRecord(
-      std::move(*current_auxtrace_), std::move(*data));
+  base::Status status =
+      aux_manager_.OnAuxtraceRecord(*current_auxtrace_, std::move(*data));
   current_auxtrace_.reset();
   parsing_state_ = ParsingState::kParseRecords;
   RETURN_IF_ERROR(status);
@@ -547,6 +552,7 @@ base::Status PerfDataTokenizer::NotifyEndOfFile() {
   if (parsing_state_ != ParsingState::kDone) {
     return base::ErrStatus("Premature end of perf file.");
   }
+  RETURN_IF_ERROR(perf_tracker_.NotifyEndOfFile());
   return base::OkStatus();
 }
 

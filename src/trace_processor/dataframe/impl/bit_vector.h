@@ -86,6 +86,15 @@ struct BitVector {
     ++size_;
   }
 
+  // Adds n bits with the given value to the end of the vector.
+  PERFETTO_ALWAYS_INLINE void push_back_multiple(bool bit, uint64_t count) {
+    // TODO(lalitm): This is not the most efficient way to do this, but
+    // it is simple and works for now. Consider optimizing this later.
+    for (uint64_t i = 0; i < count; ++i) {
+      push_back(bit);
+    }
+  }
+
   // Changes the value of a bit at the specified index.
   //
   // i: The index of the bit to change.
@@ -197,6 +206,12 @@ struct BitVector {
       accum += static_cast<uint32_t>(PERFETTO_POPCOUNT(words_[i]));
     }
     return res;
+  }
+
+  // Clears all bits in the vector, resetting it to an empty state.
+  void clear() {
+    words_.clear();
+    size_ = 0;
   }
 
   // Shrinks the memory allocated by the vector to be as small as possible while

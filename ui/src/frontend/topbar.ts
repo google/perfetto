@@ -13,25 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../base/classnames';
-import {taskTracker} from './task_tracker';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {assertFalse} from '../base/logging';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {AppImpl} from '../core/app_impl';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
-
-class Progress implements m.ClassComponent<TraceImplAttrs> {
-  view({attrs}: m.CVnode<TraceImplAttrs>): m.Children {
-    const engine = attrs.trace.engine;
-    const isLoading =
-      AppImpl.instance.isLoadingTrace ||
-      engine.numRequestsPending > 0 ||
-      taskTracker.hasPendingTasks();
-    const classes = classNames(isLoading && 'progress-anim');
-    return m('.progress', {class: classes});
-  }
-}
+import {classNames} from '../base/classnames';
+import {Button} from '../widgets/button';
+import {Router} from '../core/router';
+import {Intent} from '../widgets/common';
 
 class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
   private tracePopupErrorDismissed = false;
@@ -49,31 +39,32 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
       ? `${totErrors} import or data loss errors detected.`
       : `Metric error detected.`;
     return m(
-      '.error-box',
+      '.pf-topbar__error-box',
       m(
         Popup,
         {
-          trigger: m('.popup-trigger'),
+          trigger: m('span'),
           isOpen: !this.tracePopupErrorDismissed,
           position: PopupPosition.Left,
-          onChange: (shouldOpen: boolean) => {
+          onChange: (shouldOpen) => {
             assertFalse(shouldOpen);
             this.tracePopupErrorDismissed = true;
           },
         },
-        m('.error-popup', 'Data-loss/import error. Click for more info.'),
-      ),
-      m(
-        'a.error',
-        {href: '#!/info'},
         m(
-          'i.material-icons',
-          {
-            title: message + ` Click for more info.`,
-          },
-          'announcement',
+          '.pf-topbar__error-popup',
+          'Data-loss/import error. Click for more info.',
         ),
       ),
+      m(Button, {
+        icon: 'announcement',
+        title: message + ` Click for more info.`,
+        intent: Intent.Danger,
+        onclick: () => {
+          // Navigate to the info page when the button is clicked.
+          Router.navigate('#!/info');
+        },
+      }),
     );
   }
 }
@@ -85,15 +76,16 @@ export interface TopbarAttrs {
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.Vnode<TopbarAttrs>) {
-    const {omnibox} = attrs;
+    const {omnibox, trace} = attrs;
     return m(
-      '.topbar',
+      '.pf-topbar',
       {
-        class: AppImpl.instance.sidebar.visible ? '' : 'hide-sidebar',
+        className: classNames(
+          !AppImpl.instance.sidebar.visible && 'pf-topbar--hide-sidebar',
+        ),
       },
       omnibox,
-      attrs.trace && m(Progress, {trace: attrs.trace}),
-      attrs.trace && m(TraceErrorIcon, {trace: attrs.trace}),
+      trace && m(TraceErrorIcon, {trace}),
     );
   }
 }

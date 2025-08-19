@@ -663,7 +663,7 @@ if (use_custom_libcxx) {
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
-      "//gn/standalone:no_rtti",
+      "//gn/standalone:rtti_cflags",
 
       # When building with msan, libunwind itself triggers memory violations
       # that causes msan to get stuck into an infinite loop. Just don't
@@ -749,7 +749,7 @@ if (use_custom_libcxx) {
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
-      "//gn/standalone:no_rtti",
+      "//gn/standalone:rtti_cflags",
       "//gn/standalone:c++17",
     ]
     configs += [
@@ -868,7 +868,7 @@ if (use_custom_libcxx) {
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
-      "//gn/standalone:no_rtti",
+      "//gn/standalone:rtti_cflags",
       "//gn/standalone:c++17",
     ]
     if ((is_android || is_mac) && !custom_libcxx_is_static) {
@@ -1044,6 +1044,7 @@ config("sqlite_config") {
     "-DSQLITE_OMIT_RANDOMNESS",
     "-DSQLITE_OMIT_AUTOINIT",
     "-DSQLITE_ENABLE_JSON1",
+    "-DSQLITE_ENABLE_MATH_FUNCTIONS",
   ]
   if (is_clang && is_win) {
     # SQLite uses __int64 which clang complains about unless
@@ -1704,7 +1705,7 @@ if (enable_perfetto_etm_importer) {
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
-      "//gn/standalone:no_rtti",
+      "//gn/standalone:rtti_cflags",
     ]
     include_dirs = [ "open_csd/decoder/include" ]
     public_configs = [ ":open_csd_config" ]

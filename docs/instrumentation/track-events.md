@@ -352,23 +352,6 @@ TRACE_EVENT("category", perfetto::StaticString{i % 2 == 0 ? "A" : "B"});
 DANGER: Using perfetto::StaticString with strings whose contents change
         dynamically can cause silent trace data corruption.
 
-## Performance
-
-Perfetto's trace points are designed to have minimal overhead when tracing is
-disabled while providing high throughput for data intensive tracing use
-cases. While exact timings will depend on your system, there is a
-[microbenchmark](/src/tracing/api_benchmark.cc) which gives some ballpark
-figures:
-
-| Scenario | Runtime on Pixel 3 XL | Runtime on ThinkStation P920 |
-| -------- | --------------------- | ---------------------------- |
-| `TRACE_EVENT(...)` (disabled)              | 2 ns   | 1 ns   |
-| `TRACE_EVENT("cat", "name")`               | 285 ns | 630 ns |
-| `TRACE_EVENT("cat", "name", <lambda>)`     | 304 ns | 663 ns |
-| `TRACE_EVENT("cat", "name", "key", value)` | 354 ns | 664 ns |
-| `DataSource::Trace(<lambda>)` (disabled)   | 2 ns   | 1 ns   |
-| `DataSource::Trace(<lambda>)`              | 133 ns | 58 ns  |
-
 ## Advanced topics
 
 ### Track event arguments

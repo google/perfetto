@@ -24,7 +24,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
-      title: 'Central Power Manager',
+      name: 'Central Power Manager',
       isSummary: true,
     });
 
@@ -57,14 +57,13 @@ export default class implements PerfettoPlugin {
       });
       ctx.tracks.registerTrack({
         uri,
-        title: trackName,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
         },
-        track,
+        renderer: track,
       });
-      group.addChildInOrder(new TrackNode({uri, title: trackName}));
+      group.addChildInOrder(new TrackNode({uri, name: trackName}));
       if (!groupAdded) {
         ctx.workspace.addChildInOrder(group);
         groupAdded = true;

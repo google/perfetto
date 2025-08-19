@@ -144,7 +144,7 @@ points built design to allow closed compoentns to be slotted in place of the
 default, open source ones.
 
 The first point is the formalization of the idea "platform" code. Even since the
-begining of the Python API, there was always a need for code internally to be
+beginning of the Python API, there was always a need for code internally to be
 run slightly different to open source code. For example, Google internal Python
 distrubution does not use Pip, instead packaging dependencies into a single
 binary. The notion of a "platform" loosely existed to abstract this sort of

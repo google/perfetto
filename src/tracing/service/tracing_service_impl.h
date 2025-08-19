@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/base/weak_runner.h"
@@ -102,6 +103,7 @@ class TracingServiceImpl : public TracingService {
                          base::TaskRunner*,
                          Producer*,
                          const std::string& producer_name,
+                         const std::string& machine_name,
                          const std::string& sdk_version,
                          bool in_process,
                          bool smb_scraping_enabled);
@@ -174,6 +176,7 @@ class TracingServiceImpl : public TracingService {
     size_t shmem_page_size_hint_bytes_ = 0;
     bool is_shmem_provided_by_producer_ = false;
     const std::string name_;
+    const std::string machine_name_;
     std::string sdk_version_;
     bool in_process_;
     bool smb_scraping_enabled_;
@@ -356,7 +359,9 @@ class TracingServiceImpl : public TracingService {
   void ChangeTraceConfig(ConsumerEndpointImpl*, const TraceConfig&);
 
   void StartTracing(TracingSessionID);
-  void DisableTracing(TracingSessionID, bool disable_immediately = false);
+  void DisableTracing(TracingSessionID,
+                      bool disable_immediately = false,
+                      const std::string& error = {});
   void Flush(TracingSessionID tsid,
              uint32_t timeout_ms,
              ConsumerEndpoint::FlushCallback,
@@ -388,7 +393,7 @@ class TracingServiceImpl : public TracingService {
   // Returns false in case of error.
   bool ReadBuffersIntoFile(TracingSessionID);
 
-  void FreeBuffers(TracingSessionID);
+  void FreeBuffers(TracingSessionID tsid, const std::string& error = {});
 
   // Service implementation.
   std::unique_ptr<TracingService::ProducerEndpoint> ConnectProducer(
@@ -401,7 +406,8 @@ class TracingServiceImpl : public TracingService {
           ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
-      const std::string& sdk_version = {}) override;
+      const std::string& sdk_version = {},
+      const std::string& machine_name = {}) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -755,6 +761,8 @@ class TracingServiceImpl : public TracingService {
     // This is set when the clone operation was caused by a clone trigger.
     std::optional<TriggerInfo> clone_trigger;
 
+    std::optional<base::ScopedSchedBoost> priority_boost;
+
     // NOTE: when adding new fields here consider whether that state should be
     // copied over in DoCloneSession() or not. Ask yourself: is this a
     // "runtime state" (e.g. active data sources) or a "trace (meta)data state"?
@@ -834,7 +842,8 @@ class TracingServiceImpl : public TracingService {
   void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);
   void OnAllDataSourceStartedTimeout(TracingSessionID);
-  void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
+  void DisableTracingNotifyConsumerAndFlushFile(TracingSession*,
+                                                const std::string& error = {});
   void PeriodicFlushTask(TracingSessionID, bool post_next_only);
   void CompleteFlush(TracingSessionID tsid,
                      ConsumerEndpoint::FlushCallback callback,

@@ -16,16 +16,21 @@
 
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <utility>
 
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/etm/etm_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream.h"
 #include "src/trace_processor/importers/etm/frame_decoder.h"
@@ -34,11 +39,12 @@
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/util.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
-#include "src/trace_processor/util/status_macros.h"
 
+// Be aware the in the OSCD namespace an ETM chunk is an ETM trace.
 namespace perfetto::trace_processor::etm {
 namespace {
 
@@ -249,8 +255,9 @@ base::StatusOr<PerCpuConfiguration> ParseAuxtraceInfo(
 //      store it in `TraceStorage`.
 class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
  public:
-  explicit EtmV4StreamDemultiplexer(TraceProcessorContext* context)
-      : context_(context) {}
+  explicit EtmV4StreamDemultiplexer(TraceProcessorContext* context,
+                                    EtmTracker* etm_tracker)
+      : context_(context), etm_tracker_(etm_tracker) {}
   ~EtmV4StreamDemultiplexer() override = default;
 
   base::StatusOr<perf_importer::AuxDataStream*> InitializeAuxDataStream(
@@ -272,8 +279,8 @@ class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
     ASSIGN_OR_RETURN(PerCpuConfiguration per_cpu_configuration,
                      ParseAuxtraceInfo(std::move(info)));
 
-    for (auto id : EtmTracker::GetOrCreate(context_)->InsertEtmV4Config(
-             std::move(per_cpu_configuration))) {
+    for (auto id :
+         etm_tracker_->InsertEtmV4Config(std::move(per_cpu_configuration))) {
       RETURN_IF_ERROR(InitCpu(id));
     }
     return base::OkStatus();
@@ -286,13 +293,15 @@ class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
 
     auto stream = std::make_unique<EtmV4Stream>(context_, &decoder_, config_id);
 
-    RETURN_IF_ERROR(decoder_.Attach(static_cast<uint8_t>(config.cs_trace_id()),
-                                    stream.get()));
+    RETURN_IF_ERROR(decoder_.Attach(
+        static_cast<uint8_t>(config.cs_trace_stream_id()), stream.get()));
     PERFETTO_CHECK(streams_.Insert(config.cpu(), std::move(stream)).second);
     return base::OkStatus();
   }
 
   TraceProcessorContext* const context_;
+  EtmTracker* const etm_tracker_;
+
   FrameDecoder decoder_;
   base::FlatHashMap<uint32_t, std::unique_ptr<EtmV4Stream>> streams_;
 };
@@ -302,9 +311,10 @@ class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
 // static
 base::StatusOr<std::unique_ptr<perf_importer::AuxDataTokenizer>>
 CreateEtmV4StreamDemultiplexer(TraceProcessorContext* context,
+                               EtmTracker* etm_tracker,
                                perf_importer::AuxtraceInfoRecord info) {
   std::unique_ptr<EtmV4StreamDemultiplexer> tokenizer(
-      new EtmV4StreamDemultiplexer(context));
+      new EtmV4StreamDemultiplexer(context, etm_tracker));
 
   RETURN_IF_ERROR(tokenizer->Init(std::move(info)));
 

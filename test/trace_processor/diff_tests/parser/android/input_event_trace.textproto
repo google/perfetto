@@ -228,7 +228,7 @@ packet {
         source: 4098
         action: 4
         device_id: 4
-        display_id: 0
+        display_id: 987654321
         classification: 0
         flags: 128
         policy_flags: 1644167168
@@ -1442,11 +1442,11 @@ packet {
         source: 257
         action: 0
         device_id: 2
-        display_id: -1
+        display_id: 123456789
         repeat_count: 0
         flags: 8
         policy_flags: 1644167168
-        key_code: 24
+        key_code: 25
         scan_code: 115
         meta_state: 0
       }

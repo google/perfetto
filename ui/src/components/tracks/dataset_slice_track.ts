@@ -20,7 +20,7 @@ import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
 import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
-import {ColumnType, LONG, NUM} from '../../trace_processor/query_result';
+import {SqlValue, LONG, NUM} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../colorizer';
 import {formatDuration} from '../time_utils';
 import {
@@ -323,7 +323,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     if (!row.valid()) return undefined;
 
     // Pull the fields out from the results
-    const data: {[key: string]: ColumnType} = {};
+    const data: {[key: string]: SqlValue} = {};
     for (const col of result.columns()) {
       data[col] = row.get(col);
     }
@@ -377,10 +377,10 @@ export function renderTooltip<T>(
 ) {
   const durationFormatted = formatDurationForTooltip(trace, slice);
   const {title = slice.title, extras} = opts;
-
   return [
     m('', exists(durationFormatted) && m('b', durationFormatted), ' ', title),
     extras,
+    slice.count > 1 && m('div', `and ${slice.count - 1} other events`),
   ];
 }
 

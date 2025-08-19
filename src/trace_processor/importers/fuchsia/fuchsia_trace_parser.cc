@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -32,6 +33,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -227,7 +229,7 @@ FuchsiaTraceParser::ParseArgs(
   return {std::move(args)};
 }
 
-void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
+void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
   // The timestamp is also present in the record, so we'll ignore the one
   // passed as an argument.
   fuchsia_trace_utils::RecordCursor cursor(fr.record_view()->data(),
@@ -433,8 +435,9 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
           }
           UniquePid upid =
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          TrackId track_id = context_->track_tracker->InternLegacyAsyncTrack(
-              name, upid, correlation_id, false, kNullStringId);
+          TrackId track_id = context_->track_compressor->InternLegacyAsyncTrack(
+              name, upid, correlation_id, false, kNullStringId,
+              TrackCompressor::AsyncSliceType::kBegin);
           slices->Begin(ts, track_id, cat, name, std::move(insert_args));
           break;
         }
@@ -446,8 +449,9 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
           }
           UniquePid upid =
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          TrackId track_id = context_->track_tracker->InternLegacyAsyncTrack(
-              name, upid, correlation_id, false, kNullStringId);
+          TrackId track_id = context_->track_compressor->InternLegacyAsyncTrack(
+              name, upid, correlation_id, false, kNullStringId,
+              TrackCompressor::AsyncSliceType::kInstant);
           slices->Scoped(ts, track_id, cat, name, 0, std::move(insert_args));
           break;
         }
@@ -459,8 +463,9 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
           }
           UniquePid upid =
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          TrackId track_id = context_->track_tracker->InternLegacyAsyncTrack(
-              name, upid, correlation_id, false, kNullStringId);
+          TrackId track_id = context_->track_compressor->InternLegacyAsyncTrack(
+              name, upid, correlation_id, false, kNullStringId,
+              TrackCompressor::AsyncSliceType::kEnd);
           slices->End(ts, track_id, cat, name, std::move(insert_args));
           break;
         }

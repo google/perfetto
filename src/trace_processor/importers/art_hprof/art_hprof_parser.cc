@@ -15,12 +15,34 @@
  */
 
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::art_hprof {
 
-ArtHprofParser::ArtHprofParser(TraceProcessorContext* ctx) : context_(ctx) {}
+ArtHprofParser::ArtHprofParser(TraceProcessorContext* context)
+    : context_(context) {}
 
 ArtHprofParser::~ArtHprofParser() = default;
 
@@ -100,7 +122,8 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU1(uint8_t& value) {
 }
 
 bool ArtHprofParser::TraceBlobViewIterator::ReadU2(uint16_t& value) {
-  uint8_t b1, b2;
+  uint8_t b1;
+  uint8_t b2;
   if (!ReadU1(b1) || !ReadU1(b2))
     return false;
   value = static_cast<uint16_t>((static_cast<uint16_t>(b1) << 8) |
@@ -109,7 +132,10 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU2(uint16_t& value) {
 }
 
 bool ArtHprofParser::TraceBlobViewIterator::ReadU4(uint32_t& value) {
-  uint8_t b1, b2, b3, b4;
+  uint8_t b1;
+  uint8_t b2;
+  uint8_t b3;
+  uint8_t b4;
   if (!ReadU1(b1) || !ReadU1(b2) || !ReadU1(b3) || !ReadU1(b4))
     return false;
   value = (static_cast<uint32_t>(b1) << 24) |
@@ -126,8 +152,10 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadId(uint64_t& value,
       return false;
     value = id;
     return true;
-  } else if (id_size == 8) {
-    uint32_t high, low;
+  }
+  if (id_size == 8) {
+    uint32_t high;
+    uint32_t low;
     if (!ReadU4(high) || !ReadU4(low))
       return false;
     value = (static_cast<uint64_t>(high) << 32) | low;
@@ -143,7 +171,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadString(std::string& str,
     return false;
 
   str.resize(length);
-  std::memcpy(&str[0], slice->data(), length);
+  std::memcpy(str.data(), slice->data(), length);
   current_offset_ += length;
   return true;
 }
@@ -193,13 +221,10 @@ bool ArtHprofParser::TraceBlobViewIterator::CanReadRecord() const {
   // Check if we can read an entire record from the chunk.
   // If we can't we should fail so that we can receive another
   // chunk to continue.
-  if (reader_.SliceOff(current_offset_, record_length)) {
-    return true;
-  }
-  return false;
+  return static_cast<bool>(reader_.SliceOff(current_offset_, record_length));
 }
 
-void ArtHprofParser::TraceBlobViewIterator::PushBlob(TraceBlobView&& blob) {
+void ArtHprofParser::TraceBlobViewIterator::PushBlob(TraceBlobView blob) {
   reader_.PushBack(std::move(blob));
 }
 
@@ -239,12 +264,12 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     auto& class_def = it.value();
     uint64_t super_id = class_def.GetSuperClassId();
     if (super_id != 0) {
-      auto current_id = FindClassId(class_id);
-      auto super_id_opt = FindClassId(super_id);
+      auto* current_id = FindClassId(class_id);
+      auto* super_id_opt = FindClassId(super_id);
 
       if (current_id && super_id_opt) {
-        class_table.mutable_superclass_id()->Set(current_id->value,
-                                                 *super_id_opt);
+        auto ref = class_table.FindById(*current_id);
+        ref->set_superclass_id(*super_id_opt);
       }
     }
   }
@@ -255,7 +280,7 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     auto& obj = it.value();
 
     if (obj.GetObjectType() == ObjectType::kClass) {
-      auto class_name_it = class_name_map_.Find(obj.GetClassId());
+      auto* class_name_it = class_name_map_.Find(obj.GetClassId());
       if (!class_name_it) {
         context_->storage->IncrementStats(stats::hprof_class_errors);
         continue;
@@ -387,7 +412,7 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
 
     // Find the class ID in the table
     for (uint32_t i = 0; i < class_table.row_count(); i++) {
-      if (class_table.name()[i] == name_id) {
+      if (class_table[i].name() == name_id) {
         field_class_map[class_id] = tables::HeapGraphClassTable::Id(i);
         break;
       }
@@ -406,15 +431,15 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
     }
 
     // Get owner's table ID
-    auto owner_id_opt = FindObjectId(owner_id);
+    auto* owner_id_opt = FindObjectId(owner_id);
     if (!owner_id_opt) {
       continue;
     }
 
     // Create reference set for owner
     uint32_t reference_set_id = next_reference_set_id++;
-    object_table.mutable_reference_set_id()->Set(owner_id_opt->value,
-                                                 reference_set_id);
+    object_table.FindById(*owner_id_opt)
+        ->set_reference_set_id(reference_set_id);
 
     // Process all references from this owner
     for (const auto& ref : refs) {
@@ -432,11 +457,10 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
 
       // Resolve field type from class ID
       StringId field_type_id;
-      auto cls = field_class_map.Find(*ref.field_class_id);
+      auto* cls = field_class_map.Find(*ref.field_class_id);
       if (cls) {
         // Get class name from class table
-        StringId class_name_id = class_table.name()[cls->value];
-        field_type_id = class_name_id;
+        field_type_id = class_table[cls->value].name();
       } else {
         context_->storage->IncrementStats(stats::hprof_class_errors);
         continue;

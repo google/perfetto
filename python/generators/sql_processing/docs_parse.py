@@ -17,7 +17,7 @@ from abc import ABC
 from dataclasses import dataclass
 import re
 import sys
-from typing import Dict, List, Optional, Set, NamedTuple
+from typing import Dict, List, Optional, NamedTuple
 
 from python.generators.sql_processing.docs_extractor import DocsExtractor
 from python.generators.sql_processing.utils import ObjKind
@@ -28,6 +28,13 @@ from python.generators.sql_processing.utils import OBJECT_NAME_ALLOWLIST
 
 from python.generators.sql_processing.utils import ANY_PATTERN
 from python.generators.sql_processing.utils import ARG_DEFINITION_PATTERN
+
+
+@dataclass
+class DocParseOptions:
+  # TODO(lalitm): set this to true and/or remove this check once Google3 modules
+  # adhere to this check.
+  enforce_every_column_set_is_documented: bool = False
 
 
 def _is_internal(name: str) -> bool:
@@ -82,11 +89,17 @@ class AbstractDocParser(ABC):
   class Column:
     pass
 
-  def __init__(self, path: str, module: str):
+  def __init__(
+      self,
+      path: str,
+      module: str,
+      options: DocParseOptions,
+  ):
     self.path = path
     self.module = module
     self.name = None
     self.errors = []
+    self.options = options
 
   def _parse_name(self, upper: bool = False):
     assert self.name
@@ -102,8 +115,17 @@ class AbstractDocParser(ABC):
       self._error('Description of the table/view/function/macro is missing')
     return desc.strip()
 
-  def _parse_columns(self, schema: str, kind: ObjKind) -> Dict[str, Arg]:
+  def _parse_columns(
+      self,
+      schema: str,
+      kind: ObjKind,
+  ) -> Dict[str, Arg]:
     columns = self._parse_args_definition(schema) if schema else {}
+    if not schema and self.options.enforce_every_column_set_is_documented:
+      self._error(
+          'Description of the columns of table/view/function is missing')
+      return columns
+
     for column_name, properties in columns.items():
       if not properties.description:
         self._error(
@@ -206,8 +228,8 @@ class TableOrView:
 class TableViewDocParser(AbstractDocParser):
   """Parses documentation for CREATE TABLE and CREATE VIEW statements."""
 
-  def __init__(self, path: str, module: str):
-    super().__init__(path, module)
+  def __init__(self, path: str, module: str, options: DocParseOptions):
+    super().__init__(path, module, options)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[TableOrView]:
     assert doc.obj_kind == ObjKind.table_view
@@ -230,12 +252,11 @@ class TableViewDocParser(AbstractDocParser):
       return
 
     cols = self._parse_columns(schema, ObjKind.table_view)
-
     return TableOrView(
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(schema, ObjKind.table_view))
+        cols=cols)
 
 
 class Function:
@@ -256,8 +277,8 @@ class Function:
 class FunctionDocParser(AbstractDocParser):
   """Parses documentation for CREATE_FUNCTION statements."""
 
-  def __init__(self, path: str, module: str):
-    super().__init__(path, module)
+  def __init__(self, path: str, module: str, options: DocParseOptions):
+    super().__init__(path, module, options)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[Function]:
     or_replace, self.name, args, ret_comment, ret_type = doc.obj_match
@@ -307,8 +328,8 @@ class TableFunction:
 class TableFunctionDocParser(AbstractDocParser):
   """Parses documentation for table function statements."""
 
-  def __init__(self, path: str, module: str):
-    super().__init__(path, module)
+  def __init__(self, path: str, module: str, options: DocParseOptions):
+    super().__init__(path, module, options)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[TableFunction]:
     or_replace, self.name, args, ret_comment, columns = doc.obj_match
@@ -357,8 +378,8 @@ class Macro:
 class MacroDocParser(AbstractDocParser):
   """Parses documentation for macro statements."""
 
-  def __init__(self, path: str, module: str):
-    super().__init__(path, module)
+  def __init__(self, path: str, module: str, options: DocParseOptions):
+    super().__init__(path, module, options)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[Macro]:
     or_replace, self.name, args, return_desc, return_type = doc.obj_match
@@ -402,8 +423,8 @@ class Include:
 class IncludeParser(AbstractDocParser):
   """Parses the includes of module."""
 
-  def __init__(self, path: str, module: str):
-    super().__init__(path, module)
+  def __init__(self, path: str, module: str, options: DocParseOptions):
+    super().__init__(path, module, options)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[Include]:
     self.module = list(doc.obj_match)[0]
@@ -443,7 +464,11 @@ class ParsedModule:
     self.includes = includes
 
 
-def parse_file(path: str, sql: str) -> Optional[ParsedModule]:
+def parse_file(
+    path: str,
+    sql: str,
+    options: DocParseOptions = DocParseOptions(),
+) -> Optional[ParsedModule]:
   """Reads the provided SQL and, if possible, generates a dictionary with data
     from documentation together with errors from validation of the schema."""
   if sys.platform.startswith('win'):
@@ -475,31 +500,31 @@ def parse_file(path: str, sql: str) -> Optional[ParsedModule]:
   includes: List[Include] = []
   for doc in docs:
     if doc.obj_kind == ObjKind.table_view:
-      parser = TableViewDocParser(path, package_name)
+      parser = TableViewDocParser(path, package_name, options)
       res = parser.parse(doc)
       if res:
         table_views.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.function:
-      parser = FunctionDocParser(path, package_name)
+      parser = FunctionDocParser(path, package_name, options)
       res = parser.parse(doc)
       if res:
         functions.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.table_function:
-      parser = TableFunctionDocParser(path, package_name)
+      parser = TableFunctionDocParser(path, package_name, options)
       res = parser.parse(doc)
       if res:
         table_functions.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.macro:
-      parser = MacroDocParser(path, package_name)
+      parser = MacroDocParser(path, package_name, options)
       res = parser.parse(doc)
       if res:
         macros.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.include:
-      parser = IncludeParser(path, package_name)
+      parser = IncludeParser(path, package_name, options)
       res = parser.parse(doc)
       if res:
         includes.append(res)

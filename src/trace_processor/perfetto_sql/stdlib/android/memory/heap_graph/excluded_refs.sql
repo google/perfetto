@@ -25,8 +25,8 @@ ORDER BY
 CREATE PERFETTO TABLE _excluded_refs AS
 SELECT
   ref.id
-FROM heap_graph_reference AS ref
-CROSS JOIN heap_graph_object AS robj
+FROM heap_graph_object AS robj
+CROSS JOIN heap_graph_reference AS ref
   USING (reference_set_id)
 CROSS JOIN _ref_type_ids
   USING (type_id)

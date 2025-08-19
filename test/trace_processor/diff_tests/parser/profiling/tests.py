@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -263,9 +263,8 @@ class Profiling(TestSuite):
                pct.name AS cntr_name, pct.is_timebase,
                thread.tid,
                spf.name
-        FROM experimental_annotated_callstack eac
-        JOIN perf_sample ps
-          ON (eac.start_id = ps.callsite_id)
+        FROM perf_sample ps
+        JOIN experimental_annotated_callstack(ps.callsite_id) eac
         JOIN perf_counter_track pct
           USING(perf_session_id, cpu)
         JOIN thread
@@ -284,9 +283,8 @@ class Profiling(TestSuite):
                pct.name AS cntr_name, pct.is_timebase,
                thread.tid,
                spf.name
-        FROM experimental_annotated_callstack eac
-        JOIN perf_sample ps
-          ON (eac.start_id = ps.callsite_id)
+        FROM perf_sample ps
+        JOIN experimental_annotated_callstack(ps.callsite_id) eac
         JOIN perf_counter_track pct
           USING(perf_session_id, cpu)
         JOIN thread
@@ -304,15 +302,14 @@ class Profiling(TestSuite):
         select
           eac.depth, eac.annotation, spm.name as map_name,
           ifnull(demangle(spf.name), spf.name) as frame_name
-        from experimental_annotated_callstack eac
-          join stack_profile_frame spf on (eac.frame_id = spf.id)
-          join stack_profile_mapping spm on (spf.mapping = spm.id)
-        where eac.start_id = (
+        from experimental_annotated_callstack((
           select spc.id as callsite_id
           from stack_profile_callsite spc
           join stack_profile_frame spf on (spc.frame_id = spf.id)
-          where spf.name = "_ZN3art28ResolveFieldWithAccessChecksEPNS_6ThreadEPNS_11ClassLinkerEtPNS_9ArtMethodEbbm")
-          and depth != 10  -- Skipped because cause symbolization issues on clang vs gcc due to llvm-demangle
+          where spf.name = "_ZN3art28ResolveFieldWithAccessChecksEPNS_6ThreadEPNS_11ClassLinkerEtPNS_9ArtMethodEbbm")) eac
+          join stack_profile_frame spf on (eac.frame_id = spf.id)
+          join stack_profile_mapping spm on (spf.mapping = spm.id)
+        where depth != 10  -- Skipped because cause symbolization issues on clang vs gcc due to llvm-demangle
         order by depth asc;
         """,
         out=Csv("""
@@ -353,10 +350,9 @@ class Profiling(TestSuite):
         select
           eac.depth, eac.annotation, spm.name as map_name,
           ifnull(demangle(spf.name), spf.name) as frame_name
-        from experimental_annotated_callstack eac
+        from experimental_annotated_callstack((select callsite_id from perf_sample)) eac
           join stack_profile_frame spf on (eac.frame_id = spf.id)
           join stack_profile_mapping spm on (spf.mapping = spm.id)
-        where eac.start_id = (select callsite_id from perf_sample)
         order by depth asc;
         """,
         out=Csv("""

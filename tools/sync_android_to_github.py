@@ -182,6 +182,21 @@ def fetch_updates(dry_run):
   print_color(Colors.HEADER, "------------------------------------")
 
 
+def fetch_notes(dry_run):
+  print_color(Colors.HEADER,
+              f"--- Fetching notes for remote {GITHUB_REMOTE} ---")
+  try:
+    run_command(
+        ["git", "fetch", GITHUB_REMOTE, f"{GIT_NOTES_REF}:{GIT_NOTES_REF}"],
+        dry_run=dry_run,
+        is_modifying_command=True)  # Modifying local remote-tracking branches
+    print_color(Colors.OKGREEN, "✓ Remotes updated.")
+  except subprocess.CalledProcessError:
+    print_color(Colors.FAIL, "ERROR: Failed to fetch notes.")
+    sys.exit(1)
+  print_color(Colors.HEADER, "------------------------------------")
+
+
 def get_commit_details(commit_hash, dry_run):
   details_format = "%H%n%an%n%ae%n%ad%n%cn%n%ce%n%cd%n%s%n%b"  # Hash, Author Name, Author Email, Author Date, Committer Name, Committer Email, Committer Date, Subject, Body
   try:
@@ -590,6 +605,8 @@ def main():
       fetch_updates(args.dry_run)
     else:
       print_color(Colors.OKCYAN, "DRY-RUN: Would fetch updates from remotes.")
+
+    fetch_notes(args.dry_run)
 
     main_loop(args.dry_run, original_branch)
 

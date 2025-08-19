@@ -22,14 +22,6 @@ import("../../../gn/perfetto_cc_proto_descriptor.gni")
 #
 # TODO(altimin): Move it to src/util and use it in console interceptor.
 
-source_set("util") {
-  sources = [ "status_macros.h" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/trace_processor:basic_types",
-  ]
-}
-
 source_set("stdlib") {
   sources = [ "sql_modules.h" ]
 }
@@ -131,7 +123,6 @@ source_set("descriptors") {
     "descriptors.h",
   ]
   deps = [
-    ":util",
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace_processor:zero",
@@ -162,7 +153,6 @@ source_set("proto_to_args_parser") {
   public_deps = [
     ":descriptors",
     ":interned_message_view",
-    ":util",
     "../../base",
   ]
 }
@@ -177,7 +167,6 @@ source_set("zip_reader") {
   deps = [
     ":gzip",
     ":trace_blob_view_reader",
-    ":util",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
@@ -250,7 +239,8 @@ source_set("profile_builder") {
     "../../../protos/third_party/pprof:zero",
     "../../base",
     "../containers",
-    "../db/column",
+    "../dataframe",
+    "../dataframe",
     "../storage",
     "../tables",
     "../types",
@@ -290,7 +280,7 @@ source_set("winscope_proto_mapping") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
-    "../db",
+    "../dataframe",
     "../storage:storage",
     "../tables",
   ]
@@ -310,6 +300,11 @@ source_set("unittests") {
     "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
+
+  if (!is_win) {
+    sources += [ "regex_unittest.cc" ]
+  }
+
   testonly = true
   deps = [
     ":bump_allocator",
@@ -320,6 +315,7 @@ source_set("unittests") {
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
+    ":regex",
     ":sql_argument",
     ":trace_blob_view_reader",
     ":zip_reader",

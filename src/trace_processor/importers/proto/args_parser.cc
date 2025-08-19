@@ -100,10 +100,6 @@ void ArgsParser::AddBytes(const Key& key, const protozero::ConstBytes& value) {
 bool ArgsParser::AddJson(const Key& key, const protozero::ConstChars& value) {
   if (!support_json_)
     PERFETTO_FATAL("Unexpected JSON value when parsing data");
-
-  auto json_value = json::ParseJsonString(value);
-  if (!json_value)
-    return false;
   json::Iterator iterator;
   return json::AddJsonValueToArgs(iterator, value.data, value.data + value.size,
                                   key.flat_key, key.key, &storage_, &inserter_);

@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -258,9 +258,9 @@ class JsonParser(TestSuite):
         ''',
         out=Csv("""
           "ts","dur","name","flat_key","key","string_value","int_value"
-          100000,-1,"BeginEvent","args.arg_bool","args.arg_bool","[NULL]",1
-          100000,-1,"BeginEvent","args.arg_int","args.arg_int","[NULL]",123
           100000,-1,"BeginEvent","args.arg_str","args.arg_str","hello","[NULL]"
+          100000,-1,"BeginEvent","args.arg_int","args.arg_int","[NULL]",123
+          100000,-1,"BeginEvent","args.arg_bool","args.arg_bool","[NULL]",1
           320000,0,"InstantThread","[NULL]","[NULL]","[NULL]","[NULL]"
           350000,0,"Instanti","[NULL]","[NULL]","[NULL]","[NULL]"
           250000,50000,"CompleteEvent","args.another_int","args.another_int","[NULL]",-5
@@ -704,6 +704,28 @@ class JsonParser(TestSuite):
           300,"[NULL]","CounterStringEdgeCases trailing_dot",246.000000
         """))
 
+  def test_json_trailing_comma(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {"displayTimeUnit":"ms","traceEvents":[
+          {"name":"Foo","ph":"X","tid":0,"ts":3473608.458,"dur":295555.500},
+          {"name":"Bar","ph":"X","tid":0,"ts":4890.000,"dur":3764289.708},
+          ]}
+        '''),
+        query="""
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur
+          FROM slice
+          ORDER BY slice.ts
+        """,
+        out=Csv("""
+          "name","ts","dur"
+          "Bar",4890000,3764289708
+          "Foo",3473608458,295555500
+        """))
+
   def test_json_id2(self):
     return DiffTestBlueprint(
         trace=Json('''
@@ -774,4 +796,621 @@ class JsonParser(TestSuite):
         ''',
         out=Csv("""
           "ts","dur","name","thread_name","tid","process_name","pid","flat_key","key","string_value","int_value"
+        """))
+
+  def test_string_ts_and_dur(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "B",
+              "pid": 10,
+              "tid": 11,
+              "ts": "100",
+              "name": "BeginEvent"
+            },
+            {
+              "ph": "E",
+              "pid": 10,
+              "tid": 11,
+              "ts": "200.5",
+              "name": "BeginEvent"
+            },
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 12,
+              "ts": "250",
+              "dur": "50.5",
+              "name": "CompleteEvent",
+              "cat": "cat2,cat3",
+              "tts": "240",
+              "tdur": "40.5"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv("""
+          "ts","dur","name"
+          100000,100500,"BeginEvent"
+          250000,50500,"CompleteEvent"
+        """))
+
+  def test_invalid_string_ts_and_dur(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 13,
+              "ts": "300",
+              "dur": "invalid",
+              "name": "InvalidDur"
+            },
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 14,
+              "ts": "invalid",
+              "dur": "50",
+              "name": "InvalidTs"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv("""
+          "ts","dur","name"
+        """))
+
+  def test_string_tts_and_tdur(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 15,
+              "ts": "400",
+              "dur": "100",
+              "tts": "390.5",
+              "tdur": "80.5",
+              "name": "StringTtsTdur"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name,
+            slice.thread_ts,
+            slice.thread_dur
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv("""
+          "ts","dur","name","thread_ts","thread_dur"
+          400000,100000,"StringTtsTdur",390500,80500
+        """))
+
+  def test_json_id2_global_string_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "b",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4000,
+              "name": "AsyncId2GlobalString",
+              "cat": "id2test",
+              "id2": {
+                "global": "global_id_str"
+              }
+            },
+            {
+              "ph": "e",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4100,
+              "name": "AsyncId2GlobalString",
+              "cat": "id2test",
+              "id2": {
+                "global": "global_id_str"
+              }
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "AsyncId2GlobalString"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "AsyncId2GlobalString",4000000,100000,"AsyncId2GlobalString","legacy_async_global_slice"
+        """))
+
+  def test_json_id2_local_string_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "b",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4000,
+              "name": "AsyncId2LocalString",
+              "cat": "id2test",
+              "id2": {
+                "local": "local_id_str"
+              }
+            },
+            {
+              "ph": "e",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4100,
+              "name": "AsyncId2LocalString",
+              "cat": "id2test",
+              "id2": {
+                "local": "local_id_str"
+              }
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "AsyncId2LocalString"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "AsyncId2LocalString",4000000,100000,"AsyncId2LocalString","legacy_async_process_slice"
+        """))
+
+  def test_string_ts_trailing_chars(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 16,
+              "ts": "100a",
+              "dur": "50",
+              "name": "TrailingCharsTs"
+            },
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 17,
+              "ts": "200",
+              "dur": "50a",
+              "name": "TrailingCharsDur"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur
+          FROM slice
+        ''',
+        out=Csv("""
+          "name","ts","dur"
+        """))
+
+  def test_json_id2_global_int_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+              "traceEvents": [
+                  {
+                      "name": "process_name",
+                      "ph": "M",
+                      "pid": 2,
+                      "args": {
+                          "name": "device2"
+                      }
+                  },
+                  {
+                      "name": "thread_name",
+                      "ph": "M",
+                      "pid": 2,
+                      "tid": 2,
+                      "args": {
+                          "name": "send2"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "b",
+                      "pid": 2,
+                      "tid": 2,
+                      "ts": 1850244461563845.0,
+                      "id2": {
+                          "global": 1
+                      },
+                      "args": {
+                          "dev_name": "86",
+                          "wr": "129010217631161",
+                          "op_type": "3",
+                          "src_num": "1",
+                          "dst_num": "3",
+                          "ah_num": "1",
+                          "length": "1048577"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "e",
+                      "pid": 2,
+                      "tid": 2,
+                      "ts": 1850244461564012.0,
+                      "id2": {
+                          "global": 1
+                      }
+                  }
+              ]
+          }
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "write"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "write",1850244461563845000,167000,"write","legacy_async_global_slice"
+        """))
+
+  def test_json_id2_local_int_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+              "traceEvents": [
+                  {
+                      "name": "process_name",
+                      "ph": "M",
+                      "pid": 1,
+                      "args": {
+                          "name": "device"
+                      }
+                  },
+                  {
+                      "name": "thread_name",
+                      "ph": "M",
+                      "pid": 1,
+                      "tid": 1,
+                      "args": {
+                          "name": "send"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "b",
+                      "pid": 1,
+                      "tid": 1,
+                      "ts": 1750244461563845.0,
+                      "id2": {
+                          "local": 0
+                      },
+                      "args": {
+                          "dev_name": "85",
+                          "wr": "129010217631160",
+                          "op_type": "2",
+                          "src_num": "0",
+                          "dst_num": "2",
+                          "ah_num": "0",
+                          "length": "1048576"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "e",
+                      "pid": 1,
+                      "tid": 1,
+                      "ts": 1750244461564012.0,
+                      "id2": {
+                          "local": 0
+                      }
+                  }
+              ]
+          }
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "write"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "write",1750244461563845000,167000,"write","legacy_async_process_slice"
+        """))
+
+  def test_json_pid_tid_zero(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "traceEvents": [
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 0,
+                "ph": "b",
+                "name": "RoutineControl Reeq",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl Reeq",
+                  "detail": "RoutineControl Reeq",
+                  "hex": "31 01 02 03 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 0,
+                "ph": "b",
+                "name": "31 ",
+                "id": "0x31",
+                "args": {
+                  "name": "31 ",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "e",
+                "name": "31 ",
+                "id": "0x31",
+                "args": {
+                  "name": "31 ",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 0,
+                "ph": "b",
+                "name": "RoutineControl",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "e",
+                "name": "RoutineControl",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "b",
+                "name": "01 ",
+                "id": "0x31",
+                "args": {
+                  "name": "01 ",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "e",
+                "name": "01 ",
+                "id": "0x31",
+                "args": {
+                  "name": "01 ",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "b",
+                "name": "startRoutine",
+                "id": "0x31",
+                "args": {
+                  "name": "startRoutine",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "e",
+                "name": "startRoutine",
+                "id": "0x31",
+                "args": {
+                  "name": "startRoutine",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "b",
+                "name": "02 03 ",
+                "id": "0x31",
+                "args": {
+                  "name": "02 03 ",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 4,
+                "ph": "e",
+                "name": "02 03 ",
+                "id": "0x31",
+                "args": {
+                  "name": "02 03 ",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "b",
+                "name": "Routine Identifier",
+                "id": "0x31",
+                "args": {
+                  "name": "Routine Identifier",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 4,
+                "ph": "e",
+                "name": "Routine Identifier",
+                "id": "0x31",
+                "args": {
+                  "name": "Routine Identifier",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 4,
+                "ph": "e",
+                "name": "RoutineControl Reeq",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl Reeq",
+                  "detail": "RoutineControl Reeq",
+                  "hex": "31 01 02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              }
+            ]
+          }
+        '''),
+        query='''
+          SELECT name, ts, dur FROM slice
+        ''',
+        out=Csv("""
+          "name","ts","dur"
+          "RoutineControl Reeq",0,4000
+          "31 ",0,1000
+          "RoutineControl",0,1000
+          "01 ",1000,1000
+          "startRoutine",1000,1000
+          "02 03 ",2000,2000
+          "Routine Identifier",2000,2000
         """))

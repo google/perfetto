@@ -17,7 +17,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 
 #include <array>
-#include <functional>
 #include <random>
 #include <set>
 #include <unordered_map>
@@ -72,7 +71,7 @@ struct Value {
   int id = instances++;
 };
 
-struct Hasher {
+struct KeyHasher {
   size_t operator()(const Key& k) const { return static_cast<size_t>(k.val); }
 };
 
@@ -80,7 +79,7 @@ int Key::instances = 0;
 int Value::instances = 0;
 
 TYPED_TEST(FlatHashMapTest, NonTrivialKeyValues) {
-  FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap;
+  FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap;
 
   for (int iteration = 0; iteration < 3; iteration++) {
     const int kNum = 10;
@@ -100,7 +99,7 @@ TYPED_TEST(FlatHashMapTest, NonTrivialKeyValues) {
     ASSERT_EQ(Key::instances, kNum - 3);
     ASSERT_EQ(Value::instances, kNum - 3);
 
-    FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap2(
+    FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap2(
         std::move(fmap));
     ASSERT_EQ(fmap.size(), 0u);
     ASSERT_EQ(fmap2.size(), static_cast<size_t>(kNum - 3));
@@ -170,7 +169,7 @@ TYPED_TEST(FlatHashMapTest, AllTagsAreValid) {
 }
 
 TYPED_TEST(FlatHashMapTest, FillWithTombstones) {
-  FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap(
+  FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap(
       /*initial_capacity=*/0, /*load_limit_pct=*/100);
 
   for (int rep = 0; rep < 3; rep++) {
@@ -381,6 +380,97 @@ TYPED_TEST(FlatHashMapTest, VsUnorderedMap) {
     for (int key : keys_copy)
       ASSERT_EQ(fmap.Find(key), nullptr);
   }
+}
+
+TYPED_TEST(FlatHashMapTest, Clear) {
+  {
+    FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap;
+    ASSERT_EQ(Key::instances, 0);
+    ASSERT_EQ(Value::instances, 0);
+
+    fmap.Insert(Key(1), Value(1));
+    fmap.Insert(Key(2), Value(2));
+    ASSERT_EQ(Key::instances, 2);
+    ASSERT_EQ(Value::instances, 2);
+
+    fmap.Clear();
+    ASSERT_EQ(fmap.size(), 0u);
+    ASSERT_EQ(Key::instances, 0);
+    ASSERT_EQ(Value::instances, 0);
+
+    fmap.Insert(Key(3), Value(3));
+    ASSERT_EQ(fmap.size(), 1u);
+    ASSERT_EQ(Key::instances, 1);
+    ASSERT_EQ(Value::instances, 1);
+  }
+  ASSERT_EQ(Key::instances, 0);
+  ASSERT_EQ(Value::instances, 0);
+
+  {
+    FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
+    fmap.Insert(1, 1);
+    fmap.Insert(2, 2);
+    ASSERT_EQ(fmap.size(), 2u);
+
+    fmap.Clear();
+    ASSERT_EQ(fmap.size(), 0u);
+
+    fmap.Insert(3, 3);
+    ASSERT_EQ(fmap.size(), 1u);
+    ASSERT_NE(fmap.Find(3), nullptr);
+    ASSERT_EQ(*fmap.Find(3), 3);
+  }
+}
+
+TYPED_TEST(FlatHashMapTest, TombstoneGrowthRehash) {
+  FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
+  // Insert 100 elements. This will cause the capacity to become 128.
+  for (int i = 0; i < 100; ++i) {
+    fmap.Insert(i, i);
+  }
+
+  // Erase 50 elements. This will leave us with size = 50 and tombstones = 50.
+  for (int i = 0; i < 50; ++i) {
+    fmap.Erase(i);
+  }
+
+  // The next insert should trigger a growth rehash because size + tombstones
+  // (100) is close to the load limit (112) and a new element would exceed it.
+  fmap.Insert(101, 101);
+
+  // Check that all the old values are still there.
+  for (int i = 50; i < 100; ++i) {
+    ASSERT_NE(fmap.Find(i), nullptr);
+    ASSERT_EQ(*fmap.Find(i), i);
+  }
+  ASSERT_NE(fmap.Find(101), nullptr);
+  ASSERT_EQ(*fmap.Find(101), 101);
+}
+
+TYPED_TEST(FlatHashMapTest, TombstoneCompactionRehash) {
+  FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
+  // Insert 300 elements. This will cause the capacity to become 512.
+  for (int i = 0; i < 300; ++i) {
+    fmap.Insert(i, i);
+  }
+
+  // Erase 160 elements. This will leave us with size = 140 and tombstones =
+  // 160.
+  for (int i = 0; i < 160; ++i) {
+    fmap.Erase(i);
+  }
+
+  // The next insert should trigger a compaction rehash because tombstones >
+  // size and size > 128.
+  fmap.Insert(301, 301);
+
+  // Check that all the old values are still there.
+  for (int i = 160; i < 300; ++i) {
+    ASSERT_NE(fmap.Find(i), nullptr);
+    ASSERT_EQ(*fmap.Find(i), i);
+  }
+  ASSERT_NE(fmap.Find(301), nullptr);
+  ASSERT_EQ(*fmap.Find(301), 301);
 }
 
 }  // namespace

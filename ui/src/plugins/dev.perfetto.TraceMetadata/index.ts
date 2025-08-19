@@ -46,7 +46,6 @@ export default class implements PerfettoPlugin {
       return;
     }
     const uri = `/clock_snapshots`;
-    const title = 'Clock Snapshots';
     const track = new DatasetSliceTrack({
       trace,
       uri,
@@ -132,10 +131,9 @@ export default class implements PerfettoPlugin {
     });
     trace.tracks.registerTrack({
       uri,
-      title,
-      track,
+      renderer: track,
     });
-    const trackNode = new TrackNode({uri, title});
+    const trackNode = new TrackNode({uri, name: 'Clock Snapshots'});
     const group = trace.plugins
       .getPlugin(StandardGroupsPlugin)
       .getOrCreateStandardGroup(trace.workspace, 'SYSTEM');

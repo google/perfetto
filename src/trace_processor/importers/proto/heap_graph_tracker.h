@@ -17,22 +17,28 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
+#include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
-
-#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -77,6 +83,7 @@ class HeapGraphTracker : public Destructible {
 
     std::vector<uint64_t> field_name_ids;
     std::vector<uint64_t> referred_objects;
+    std::vector<uint64_t> runtime_internal_objects;
 
     // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
     // this is the value of its `size` field.
@@ -90,11 +97,7 @@ class HeapGraphTracker : public Destructible {
 
   explicit HeapGraphTracker(TraceStorage* storage);
 
-  static HeapGraphTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->heap_graph_tracker) {
-      context->heap_graph_tracker.reset(
-          new HeapGraphTracker(context->storage.get()));
-    }
+  static HeapGraphTracker* Get(TraceProcessorContext* context) {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
   }
 
@@ -137,8 +140,8 @@ class HeapGraphTracker : public Destructible {
   }
 
   std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildFlamegraph(
-      const int64_t current_ts,
-      const UniquePid current_upid);
+      int64_t current_ts,
+      UniquePid current_upid);
 
   uint64_t GetLastObjectId(uint32_t seq_id) {
     return GetOrCreateSequence(seq_id).last_object_id;
@@ -171,6 +174,7 @@ class HeapGraphTracker : public Destructible {
     protos::pbzero::HeapGraphObject::HeapType last_heap_type =
         protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
     std::vector<SourceRoot> current_roots;
+    std::vector<uint64_t> internal_vm_roots;
 
     // Note: the below maps are a mix of std::map and base::FlatHashMap because
     // of the incremental evolution of this code (i.e. when the code was written
@@ -239,12 +243,21 @@ class HeapGraphTracker : public Destructible {
                    std::vector<tables::HeapGraphObjectTable::Id>&);
   void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
   size_t RankRoot(StringId type);
-  void UpdateShortestPaths(tables::HeapGraphObjectTable::RowReference row_ref);
+  void UpdateShortestPaths(
+      base::CircularQueue<
+          std::pair<int32_t, tables::HeapGraphObjectTable::RowReference>>&,
+      tables::HeapGraphObjectTable::RowReference row_ref);
   void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
                         PathFromRoot* path);
 
   TraceStorage* const storage_;
   std::map<uint32_t, SequenceState> sequence_state_;
+
+  tables::HeapGraphClassTable::Cursor class_cursor_;
+  tables::HeapGraphObjectTable::Cursor object_cursor_;
+  tables::HeapGraphObjectTable::Cursor superclass_cursor_;
+  tables::HeapGraphReferenceTable::Cursor reference_cursor_;
+  tables::HeapGraphReferenceTable::Cursor referred_cursor_;
 
   std::map<std::pair<std::optional<StringId>, StringId>,
            std::vector<tables::HeapGraphClassTable::RowNumber>>
@@ -275,7 +288,6 @@ class HeapGraphTracker : public Destructible {
                 std::tuple_size<decltype(type_kind_string_ids_)>{});
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_

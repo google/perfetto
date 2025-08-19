@@ -26,7 +26,7 @@ import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Select} from '../../widgets/select';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
@@ -329,7 +329,7 @@ export class NotesPanel {
       onclick: async () => {
         const result = await this.trace.omnibox.prompt('Group name...');
         if (result) {
-          const group = new TrackNode({title: result, isSummary: true});
+          const group = new TrackNode({name: result, isSummary: true});
           this.trace.workspace.addChildLast(group);
         }
       },
@@ -418,7 +418,7 @@ export class NotesPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = COLOR_BORDER;
     ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
@@ -444,7 +444,7 @@ export class NotesPanel {
 
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));

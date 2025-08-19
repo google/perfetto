@@ -39,8 +39,7 @@ async function registerAllocsTrack(
   });
   ctx.tracks.registerTrack({
     uri,
-    title: `dmabuf allocs`,
-    track: track,
+    renderer: track,
   });
 }
 
@@ -55,40 +54,34 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.memory.dmabuf`);
-    await e.query(`
-      CREATE PERFETTO TABLE _android_memory_cumulative_dmabuf AS
-      SELECT
-        upid, utid, ts,
-        SUM(buf_size) OVER(PARTITION BY COALESCE(upid, utid) ORDER BY ts) AS value
-      FROM android_dmabuf_allocs;`);
 
     const pids = await e.query(
-      `SELECT DISTINCT upid, IIF(upid IS NULL, utid, NULL) AS utid FROM _android_memory_cumulative_dmabuf`,
+      `SELECT DISTINCT upid, IIF(upid IS NULL, utid, NULL) AS utid FROM android_memory_cumulative_dmabuf`,
     );
     const it = pids.iter({upid: NUM_NULL, utid: NUM_NULL});
     for (; it.valid(); it.next()) {
       if (it.upid != null) {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
         const config: SqlDataSource = {
-          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+          sqlSource: `SELECT ts, value FROM android_memory_cumulative_dmabuf
                  WHERE upid = ${it.upid}`,
         };
         await registerAllocsTrack(ctx, uri, config);
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
           .getGroupForProcess(it.upid)
-          ?.addChildInOrder(new TrackNode({uri, title: 'dmabuf allocs'}));
+          ?.addChildInOrder(new TrackNode({uri, name: 'dmabuf allocs'}));
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
         const config: SqlDataSource = {
-          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+          sqlSource: `SELECT ts, value FROM android_memory_cumulative_dmabuf
                  WHERE utid = ${it.utid}`,
         };
         await registerAllocsTrack(ctx, uri, config);
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
           .getGroupForThread(it.utid)
-          ?.addChildInOrder(new TrackNode({uri, title: 'dmabuf allocs'}));
+          ?.addChildInOrder(new TrackNode({uri, name: 'dmabuf allocs'}));
       }
     }
     const memoryGroupFn = () => {
@@ -117,16 +110,15 @@ async function addGlobalCounter(ctx: Trace, parent: () => TrackNode) {
   const uri = `/android_dmabuf_counter`;
   ctx.tracks.registerTrack({
     uri,
-    title,
     tags: {
       kind: COUNTER_TRACK_KIND,
       trackIds: [id],
     },
-    track: new TraceProcessorCounterTrack(ctx, uri, {}, id, title),
+    renderer: new TraceProcessorCounterTrack(ctx, uri, {}, id, title),
   });
   const node = new TrackNode({
     uri,
-    title,
+    name: title,
   });
   parent().addChildInOrder(node);
   return node;
@@ -134,10 +126,10 @@ async function addGlobalCounter(ctx: Trace, parent: () => TrackNode) {
 
 async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   const track = await ctx.engine.query(`
-    select name, group_concat(id) as trackIds
+    select min(name) as name, group_concat(id) as trackIds
     from track
     where type = 'android_dma_allocations'
-    group by name
+    group by track_group_id
   `);
   const it = track.maybeFirstRow({trackIds: STR, name: STR});
   if (!it) {
@@ -148,12 +140,11 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   const ids = trackIds.split(',').map((x) => Number(x));
   ctx.tracks.registerTrack({
     uri,
-    title,
     tags: {
       kind: SLICE_TRACK_KIND,
       trackIds: ids,
     },
-    track: await createTraceProcessorSliceTrack({
+    renderer: await createTraceProcessorSliceTrack({
       trace: ctx,
       uri,
       trackIds: ids,
@@ -161,7 +152,7 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   });
   const node = new TrackNode({
     uri,
-    title,
+    name: title,
   });
   parent().addChildInOrder(node);
 }

@@ -16,6 +16,7 @@
 from dataclasses import dataclass
 from enum import auto
 from enum import Flag as enum_Flag
+from enum import Enum
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -40,9 +41,57 @@ class ColumnFlag(enum_Flag):
   """
   NONE = 0
   SORTED = auto()
-  HIDDEN = auto()
   DENSE = auto()
+  HIDDEN = auto()
   SET_ID = auto()
+
+
+class SqlAccess(Enum):
+  """
+  Decides whether and how the data in column is accessible.
+
+  Allowing access to columns in C++ code costs performance, so by default
+  we do not allow access; this includes in cursors, row references etc.
+  """
+
+  # Indicates the column is read from SQL code but does not have any
+  # special access requirements.
+  DEFAULT = auto()
+
+  # Indicates the column is read from SQL code and is used in a performance
+  # critical code paths.
+  HIGH_PERF = auto()
+
+
+class CppAccess(Enum):
+  """
+  Decides whether and how the data in column is accessible in C++.
+
+  Allowing access to columns in C++ code costs performance, so by default
+  we do not allow access; this includes in cursors, row references etc.
+  """
+  # Indicates the column is not read from C++ code, and is only
+  # read from SQL.
+  NONE = auto()
+
+  # Indicates the column is read from C++ code, but not written to.
+  READ = auto()
+
+  # Indicates the column is read from C++ code and written to in
+  # non-performance critical code paths.
+  READ_AND_LOW_PERF_WRITE = auto()
+
+  # Indicates the column is read from C++ code and written to in
+  # performance critical code paths.
+  READ_AND_HIGH_PERF_WRITE = auto()
+
+
+class CppAccessDuration(Enum):
+  """
+  Indicates whether the column is accessible post finalization in C++ code.
+  """
+  PRE_FINALIZATION_ONLY = False
+  POST_FINALIZATION = True
 
 
 @dataclass(frozen=True)
@@ -58,6 +107,9 @@ class Column:
   name: str
   type: CppColumnType
   flags: ColumnFlag = ColumnFlag.NONE
+  sql_access: SqlAccess = SqlAccess.DEFAULT
+  cpp_access: CppAccess = CppAccess.NONE
+  cpp_access_duration: CppAccessDuration = CppAccessDuration.PRE_FINALIZATION_ONLY
 
 
 @dataclass(frozen=True)
@@ -124,6 +176,8 @@ class Table:
     class_name: Name of the C++ table class.
     sql_name: Name of the table in SQL.
     columns: The columns in this table.
+    add_implicit_column: Whether the implicit id column should be added to
+    this table.
     tabledoc: Documentation for this table. Can include documentation overrides
     for auto-added columns (i.e. id and type) and aliases added in
     |wrapping_sql_view|.
@@ -136,8 +190,11 @@ class Table:
   sql_name: str
   columns: List[Column]
   parent: Optional['Table'] = None
+  add_implicit_column: bool = True
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
+  # TODO(lalitm): remove once migration sticks.
+  use_legacy_table_backend: bool = False
 
 
 @dataclass(frozen=True)

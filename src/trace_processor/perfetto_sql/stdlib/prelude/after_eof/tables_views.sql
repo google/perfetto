@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Lists all metrics built-into trace processor.
@@ -72,7 +74,16 @@ CREATE PERFETTO VIEW track (
   -- expand the args.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG
+  machine_id LONG,
+  -- An opaque key indicating that this track belongs to a group of tracks which
+  -- are "conceptually" the same track.
+  --
+  -- Tracks in trace processor don't allow overlapping events to allow for easy
+  -- analysis (i.e. SQL window functions, SPAN JOIN and other similar
+  -- operators). However, in visualization settings (e.g. the UI), the
+  -- distinction doesn't matter and all tracks with the same `track_group_id`
+  -- should be merged together into a single logical "UI track".
+  track_group_id LONG
 ) AS
 SELECT
   id,
@@ -81,7 +92,8 @@ SELECT
   dimension_arg_set_id,
   parent_id,
   source_arg_set_id,
-  machine_id
+  machine_id,
+  track_group_id
 FROM __intrinsic_track;
 
 -- Contains information about the CPUs on the device this trace was taken on.
@@ -748,7 +760,8 @@ CREATE PERFETTO TABLE perf_counter_track (
   description STRING,
   -- The id of the perf session this counter was captured on.
   perf_session_id LONG,
-  -- The CPU the counter is associated with.
+  -- The CPU the counter is associated with. Can be null if the counter is not
+  -- associated with any CPU.
   cpu LONG,
   -- Whether this counter is the sampling timebase for the session.
   is_timebase BOOL
@@ -767,7 +780,7 @@ SELECT
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
 WHERE
-  ct.type = 'perf_counter';
+  ct.type IN ('perf_cpu_counter', 'perf_global_counter');
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters (
@@ -969,7 +982,9 @@ FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
-  t.type = 'android_expected_frame_timeline';
+  t.type = 'android_expected_frame_timeline'
+ORDER BY
+  s.id;
 
 -- This table contains information on the actual timeline and additional
 -- analysis related to the performance of either a display frame or a surface
@@ -1042,7 +1057,9 @@ FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
-  t.type = 'android_actual_frame_timeline';
+  t.type = 'android_actual_frame_timeline'
+ORDER BY
+  s.id;
 
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
 -- classes that exist in the heap, including their names, inheritance
@@ -1091,7 +1108,7 @@ CREATE PERFETTO VIEW heap_graph_object (
   native_size LONG,
   -- Join key with heap_graph_reference containing all objects referred in this
   -- object's fields.
-  reference_set_id JOINID(heap_graph_reference.id),
+  reference_set_id JOINID(heap_graph_reference.reference_set_id),
   -- Bool whether this object is reachable from a GC root. If false, this object
   -- is uncollected garbage.
   reachable BOOL,
@@ -1125,8 +1142,8 @@ FROM __intrinsic_heap_graph_object;
 CREATE PERFETTO VIEW heap_graph_reference (
   -- Unique identifier for this heap graph reference.
   id ID,
-  -- Join key to heap_graph_object.
-  reference_set_id JOINID(heap_graph_object.id),
+  -- Join key to heap_graph_object reference_set_id.
+  reference_set_id JOINID(heap_graph_object.reference_set_id),
   -- Id of object that has this reference_set_id.
   owner_id JOINID(heap_graph_object.id),
   -- Id of object that is referred to.
@@ -1148,3 +1165,81 @@ SELECT
   field_type_name,
   deobfuscated_field_name
 FROM __intrinsic_heap_graph_reference;
+
+-- Table with memory snapshots.
+CREATE PERFETTO VIEW memory_snapshot (
+  -- Unique identifier for this snapshot.
+  id ID,
+  -- Time of the snapshot.
+  timestamp TIMESTAMP,
+  -- Track of this snapshot.
+  track_id JOINID(track.id),
+  -- Detail level of this snapshot.
+  detail_level STRING
+) AS
+SELECT
+  id,
+  timestamp,
+  track_id,
+  detail_level
+FROM __intrinsic_memory_snapshot;
+
+-- Table with process memory snapshots.
+CREATE PERFETTO VIEW process_memory_snapshot (
+  -- Unique identifier for this snapshot.
+  id ID,
+  -- Snapshot ID for this snapshot.
+  snapshot_id JOINID(memory_snapshot.id),
+  -- Process for this snapshot.
+  upid JOINID(process.id)
+) AS
+SELECT
+  id,
+  snapshot_id,
+  upid
+FROM __intrinsic_process_memory_snapshot;
+
+-- Table with memory snapshot nodes.
+CREATE PERFETTO VIEW memory_snapshot_node (
+  -- Unique identifier for this node.
+  id ID,
+  -- Process snapshot ID for to this node.
+  process_snapshot_id JOINID(process_memory_snapshot.id),
+  -- Parent node for this node, optional.
+  parent_node_id JOINID(memory_snapshot_node.id),
+  -- Path for this node.
+  path STRING,
+  -- Size of the memory allocated to this node.
+  size LONG,
+  -- Effective size used by this node.
+  effective_size LONG,
+  -- Additional args of the node.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  process_snapshot_id,
+  parent_node_id,
+  path,
+  size,
+  effective_size,
+  arg_set_id
+FROM __intrinsic_memory_snapshot_node;
+
+-- Table with memory snapshot edge
+CREATE PERFETTO VIEW memory_snapshot_edge (
+  -- Unique identifier for this edge.
+  id ID,
+  -- Source node for this edge.
+  source_node_id JOINID(memory_snapshot_node.id),
+  -- Target node for this edge.
+  target_node_id JOINID(memory_snapshot_node.id),
+  -- Importance for this edge.
+  importance LONG
+) AS
+SELECT
+  id,
+  source_node_id,
+  target_node_id,
+  importance
+FROM __intrinsic_memory_snapshot_edge;

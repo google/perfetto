@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
+#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
 
 #include <cctype>
 #include <cstddef>
@@ -36,6 +37,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -55,7 +57,9 @@ std::string Slice(const std::string& str, size_t start, size_t end) {
 }  // namespace
 
 PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx) {}
+    : context_(ctx),
+      stream_(ctx->sorter->CreateStream(
+          std::make_unique<PerfTextTraceParser>(ctx))) {}
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
 base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
@@ -131,9 +135,9 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
           mapping->InternDummyFrame(symbol_name, base::StringView()));
     }
     if (frames.empty()) {
-      return base::ErrStatus(
-          "Perf text parser: no frames in sample (context: '%s')",
-          std::string(first_line).c_str());
+      context_->storage->IncrementStats(
+          stats::perf_text_importer_sample_no_frames);
+      continue;
     }
 
     std::optional<CallsiteId> parent_callsite;
@@ -153,7 +157,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     evt.pid = sample->pid;
     evt.callsite_id = *parent_callsite;
 
-    context_->sorter->PushPerfTextEvent(sample->ts, evt);
+    stream_->Push(sample->ts, evt);
     reader_.PopFrontUntil(it.file_offset());
   }
 }

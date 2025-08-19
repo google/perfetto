@@ -15,19 +15,25 @@
 import protos from '../../protos';
 import m from 'mithril';
 import {
-  ColumnControllerRow,
-  columnControllerRowFromName,
-  newColumnControllerRows,
-} from './query_builder/column_controller';
+  ColumnInfo,
+  columnInfoFromName,
+  newColumnInfoList,
+} from './query_builder/column_info';
 import {
-  GroupByAgg,
+  Aggregation,
   placeholderNewColumnName,
-} from './query_builder/operations/groupy_by';
-import {Filter} from './query_builder/operations/filter';
+} from './query_builder/operations/aggregations';
+import {FilterDefinition} from '../../components/widgets/data_grid/common';
+import {Engine} from '../../trace_processor/engine';
+
+let nodeCounter = 0;
+export function nextNodeId(): string {
+  return (nodeCounter++).toString();
+}
 
 export enum NodeType {
   // Sources
-  kStdlibTable,
+  kTable,
   kSimpleSlices,
   kSqlSource,
 }
@@ -35,23 +41,38 @@ export enum NodeType {
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNode?: QueryNode;
-  sourceCols: ColumnControllerRow[];
+  sourceCols: ColumnInfo[];
+  customTitle?: string;
 
-  filters: Filter[];
-  groupByColumns: ColumnControllerRow[];
-  aggregations: GroupByAgg[];
+  // Operations
+  filters: FilterDefinition[];
+  groupByColumns: ColumnInfo[];
+  aggregations: Aggregation[];
+
+  // Errors
+  queryError?: Error;
+  responseError?: Error;
+  dataError?: Error;
+
+  onchange?: () => void;
+
+  // Caching
+  isExecuted?: boolean;
+  hasOperationChanged?: boolean;
 }
 
 export interface QueryNode {
+  readonly nodeId: string;
+  readonly graphTableName?: string;
   readonly type: NodeType;
   readonly prevNode?: QueryNode;
   readonly nextNode?: QueryNode;
 
   // Columns that are available in the source data.
-  readonly sourceCols: ColumnControllerRow[];
+  readonly sourceCols: ColumnInfo[];
 
   // Columns that are available after applying all operations.
-  readonly finalCols: ColumnControllerRow[];
+  readonly finalCols: ColumnInfo[];
 
   // State of the node. This is used to store the user's input and can be used
   // to fully recover the node.
@@ -59,9 +80,16 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
-  getDetails(): m.Child;
-  getStateCopy(): QueryNodeState;
+  nodeSpecificModify(): m.Child;
+  clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
+}
+
+export interface Query {
+  sql: string;
+  textproto: string;
+  modules: string[];
+  preambles: string[];
 }
 
 export function createSelectColumnsProto(
@@ -87,13 +115,119 @@ export function createFinalColumns(node: QueryNode) {
     const selected = node.state.groupByColumns.filter((c) => c.checked);
     for (const agg of node.state.aggregations) {
       selected.push(
-        columnControllerRowFromName(
-          agg.newColumnName ?? placeholderNewColumnName(agg),
-        ),
+        columnInfoFromName(agg.newColumnName ?? placeholderNewColumnName(agg)),
       );
     }
-    return newColumnControllerRows(selected, true);
+    return newColumnInfoList(selected, true);
   }
 
-  return newColumnControllerRows(node.sourceCols, true);
+  return newColumnInfoList(node.sourceCols, true);
+}
+
+function getStructuredQueries(
+  finalNode: QueryNode,
+): protos.PerfettoSqlStructuredQuery[] | undefined {
+  if (finalNode.finalCols === undefined) {
+    return;
+  }
+  const revStructuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
+  let curNode: QueryNode | undefined = finalNode;
+  while (curNode) {
+    const curSq = curNode.getStructuredQuery();
+    if (curSq === undefined) {
+      return;
+    }
+    revStructuredQueries.push(curSq);
+    if (curNode.prevNode && !curNode.prevNode.validate()) {
+      return;
+    }
+    curNode = curNode.prevNode;
+  }
+  return revStructuredQueries.reverse();
+}
+
+export function queryToRun(query?: Query): string {
+  if (query === undefined) return 'N/A';
+  const includes = query.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};`);
+  return includes.join('\n') + query.preambles.join('\n') + query.sql;
+}
+
+export async function analyzeNode(
+  node: QueryNode,
+  engine: Engine,
+): Promise<Query | undefined | Error> {
+  if (
+    node.state.isExecuted &&
+    !node.state.hasOperationChanged &&
+    node.type !== NodeType.kSqlSource
+  ) {
+    const sql: Query = {
+      sql: `SELECT * FROM ${node.graphTableName ?? ''}`,
+      textproto: '',
+      modules: [],
+      preambles: [],
+    };
+    return sql;
+  }
+
+  const structuredQueries = getStructuredQueries(node);
+  if (structuredQueries === undefined) return;
+
+  const res = await engine.analyzeStructuredQuery(structuredQueries);
+  if (res.error) return Error(res.error);
+  if (res.results.length === 0) return Error('No structured query results');
+  if (res.results.length !== structuredQueries.length) {
+    return Error(
+      `Wrong structured query results. Asked for ${
+        structuredQueries.length
+      }, received ${res.results.length}`,
+    );
+  }
+
+  const lastRes = res.results[res.results.length - 1];
+  if (lastRes.sql === null || lastRes.sql === undefined) {
+    return;
+  }
+  if (!lastRes.textproto) {
+    return Error('No textproto in structured query results');
+  }
+
+  let finalSql = lastRes.sql;
+  if (node.type !== NodeType.kSqlSource) {
+    const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
+      node.graphTableName ?? `exp_${node.nodeId}`
+    } AS \n${lastRes.sql}`;
+    const selectSql = `SELECT * FROM ${node.graphTableName ?? `exp_${node.nodeId}`}`;
+    finalSql = `${createTableSql};\n${selectSql}`;
+  }
+
+  const sql: Query = {
+    sql: finalSql,
+    textproto: lastRes.textproto ?? '',
+    modules: lastRes.modules ?? [],
+    preambles: lastRes.preambles ?? [],
+  };
+  return sql;
+}
+
+export function setOperationChanged(node: QueryNode) {
+  let curr: QueryNode | undefined = node;
+  while (curr) {
+    if (curr.state.hasOperationChanged) {
+      // Already marked as changed, and so are the children.
+      break;
+    }
+    curr.state.hasOperationChanged = true;
+    curr = curr.nextNode;
+  }
+}
+
+export function isAQuery(
+  maybeQuery: Query | undefined | Error,
+): maybeQuery is Query {
+  return (
+    maybeQuery !== undefined &&
+    !(maybeQuery instanceof Error) &&
+    maybeQuery.sql !== undefined
+  );
 }

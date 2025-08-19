@@ -18,8 +18,7 @@ import {Utid} from '../sql_utils/core_types';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
-import {Details, DetailsSchema} from '../widgets/sql/details/details';
-import d = DetailsSchema;
+import {Details, DetailsSchema as d} from '../widgets/sql/details/details';
 import {Trace} from '../../public/trace';
 
 export class ThreadDetailsTab implements Tab {

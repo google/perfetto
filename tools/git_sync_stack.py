@@ -52,29 +52,33 @@ def main():
       '--target',
       metavar='branch_name',
       default=None,
-      help='A branch within the stack (default: current)')
+      help='A branch within the stack (default: current).')
   parser.add_argument(
       '-r',
       '--remote',
       default='origin',
-      help='Default remote repository name (default: origin)')
+      help='Default remote repository name (default: origin).')
   parser.add_argument(
-      '--draft', action='store_true', help='Create PRs as drafts')
+      '--draft', action='store_true', help='Create PRs as drafts.')
   parser.add_argument(
       '-f',
       '--force',
       action='store_true',
-      help='Use --force-with-lease when pushing')
+      help='Use --force-with-lease when pushing.')
+  parser.add_argument(
+      '--no-verify',
+      action='store_true',
+      help='Bypass presubmit checks when pushing.')
   args = parser.parse_args()
 
   start_branch = args.target or get_current_branch()
   if not start_branch:
-    print("Error: Cannot determine target branch.", file=sys.stderr)
+    print('Error: Cannot determine target branch.', file=sys.stderr)
     sys.exit(1)
 
   default_remote_name = args.remote
   repo_default_branch = 'origin/main'
-  mainline_branches = {'origin/main'}
+  mainline_branches = {'origin/main', 'origin/ui-canary', 'origin/ui-stable'}
 
   all_local_branches = get_all_branches()
   if start_branch not in all_local_branches:
@@ -91,7 +95,7 @@ def main():
     sys.exit(1)
 
   if not branches_to_process:
-    print("Could not determine stack branches. Exiting.", file=sys.stderr)
+    print('Error: Could not determine stack branches.', file=sys.stderr)
     sys.exit(1)
   print(f"Processing stack (parent-first): {', '.join(branches_to_process)}")
 
@@ -100,7 +104,9 @@ def main():
     print(f"\n--- Processing: {branch} ---")
 
     local_parent = get_branch_parent(branch)
-    desired_base = 'main'
+    desired_base = local_parent.split(
+        '/'
+    )[1] if local_parent and local_parent in mainline_branches else 'main'
     if local_parent and local_parent not in mainline_branches:
       upstream_base_name = get_upstream_branch_name(local_parent)
       if upstream_base_name:
@@ -111,7 +117,12 @@ def main():
             f"Warning: Parent '{local_parent}' lacks upstream. Using default '{repo_default_branch}' as PR base.",
             file=sys.stderr)
 
-    push_args: List[str] = ['push', '-u']
+    push_options: List[str] = ['-u']
+    if args.force:
+      push_options.append('--force-with-lease')
+    if args.no_verify:
+      push_options.append('--no-verify')
+
     branch_remote_result = run_git_command(
         ['config', f'branch.{branch}.remote'], check=False)
     push_remote = default_remote_name
@@ -121,23 +132,21 @@ def main():
 
     remote_branch_name = get_upstream_branch_name(branch)
     if remote_branch_name:
-      refspec = f"{branch}:{remote_branch_name}"  # Push local to its tracking remote branch
+      refspec = f"{branch}:{remote_branch_name}"
     else:
       print(
           f"Warning: No upstream for '{branch}'. Pushing to '{push_remote}/{branch}'.",
           file=sys.stderr)
-      refspec = f"{branch}:{branch}"  # Fallback: push local name to same remote name
+      refspec = f"{branch}:{branch}"
 
-    push_args.extend([push_remote, refspec])
-    if args.force:
-      push_args.append('--force-with-lease')
+    push_args: List[str] = ['push', *push_options, push_remote, refspec]
 
     try:
       print(f"Pushing {branch} ({refspec})...")
       run_git_command(push_args)
     except SystemExit:
       errors_occurred = True
-      print(f"Error pushing {branch}.", file=sys.stderr)
+      print(f'Error: Pushing {branch} failed.', file=sys.stderr)
       continue
 
     try:
@@ -159,19 +168,27 @@ def main():
         ]
         if args.draft:
           create_command.append('--draft')
-        run_command(create_command)
+        result = run_command(create_command)
+
+      # Print the URL of the PR that was just created or updated.
+      pr_info = get_existing_pr_info(branch)
+      if pr_info:
+        print(f"\nhttps://github.com/google/perfetto/pull/{pr_info['number']}")
     except SystemExit:
       errors_occurred = True
-      print(f"Error managing PR for {branch} via 'gh'.", file=sys.stderr)
+      print(
+          f"Error: Managing PR for {branch} via 'gh' failed.", file=sys.stderr)
       continue
     except Exception as e:
       errors_occurred = True
-      print(f"Unexpected error managing PR for {branch}: {e}", file=sys.stderr)
+      print(
+          f"Error: Unexpected error managing PR for {branch}: {e}",
+          file=sys.stderr)
       continue
 
-  print("\n--- Stack sync process finished ---")
+  print('\n--- Stack sync process finished ---')
   if errors_occurred:
-    print("One or more errors occurred.", file=sys.stderr)
+    print('Error: One or more errors occurred.', file=sys.stderr)
     sys.exit(1)
 
 

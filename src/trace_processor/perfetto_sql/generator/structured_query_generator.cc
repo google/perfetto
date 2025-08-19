@@ -29,12 +29,14 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
-#include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor::perfetto_sql::generator {
 
@@ -48,9 +50,51 @@ enum QueryType : uint8_t {
   kNested,
 };
 
+std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
+  std::pair<SqlSource, SqlSource> result{
+      SqlSource(SqlSource::FromTraceProcessorImplementation("")),
+      SqlSource(SqlSource::FromTraceProcessorImplementation(""))};
+
+  if (sql.empty()) {
+    return result;
+  }
+
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+
+  SqliteTokenizer::Token stmt_begin_tok = tokenizer.NextNonWhitespace();
+  while (stmt_begin_tok.token_type == TK_SEMI) {
+    stmt_begin_tok = tokenizer.NextNonWhitespace();
+  }
+  SqliteTokenizer::Token preamble_start = stmt_begin_tok;
+  SqliteTokenizer::Token preamble_end = stmt_begin_tok;
+
+  // Loop over statements
+  while (true) {
+    // Ignore all next semicolons.
+    if (stmt_begin_tok.token_type == TK_SEMI) {
+      stmt_begin_tok = tokenizer.NextNonWhitespace();
+      continue;
+    }
+
+    // Exit if the next token is the end of the SQL.
+    if (stmt_begin_tok.IsTerminal()) {
+      return {tokenizer.Substr(preamble_start, preamble_end),
+              tokenizer.Substr(preamble_end, stmt_begin_tok)};
+    }
+
+    // Found next valid statement
+
+    preamble_end = stmt_begin_tok;
+    stmt_begin_tok = tokenizer.NextTerminal();
+  }
+}
+
 struct QueryState {
-  QueryState(QueryType _type, protozero::ConstBytes _bytes, size_t index)
-      : type(_type), bytes(_bytes) {
+  QueryState(QueryType _type,
+             protozero::ConstBytes _bytes,
+             size_t index,
+             std::optional<size_t> parent_idx)
+      : type(_type), bytes(_bytes), parent_index(parent_idx) {
     protozero::ProtoDecoder decoder(bytes);
     std::string prefix = type == QueryType::kShared ? "shared_sq_" : "sq_";
     if (auto id = decoder.FindField(StructuredQuery::kIdFieldNumber); id) {
@@ -65,6 +109,7 @@ struct QueryState {
   protozero::ConstBytes bytes;
   std::optional<std::string> id_from_proto;
   std::string table_name;
+  std::optional<size_t> parent_index;
 
   std::string sql;
 };
@@ -136,7 +181,7 @@ class GeneratorImpl {
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
     protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kRoot, bytes, state_.size());
+  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt);
   for (; state_index_ < state_.size(); ++state_index_) {
     base::StatusOr<std::string> sql = GenerateImpl();
     if (!sql.ok()) {
@@ -232,12 +277,33 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   if (sql.sql().size == 0) {
     return base::ErrStatus("Sql field must be specified");
   }
-  if (sql.column_names()->size() == 0) {
-    return base::ErrStatus("Sql must specify columns");
+
+  std::string source_sql_str = sql.sql().ToStdString();
+  std::string final_sql_statement;
+  if (sql.has_preamble()) {
+    // If preambles are specified, we assume that the SQL is a single statement.
+    preambles_.push_back(sql.preamble().ToStdString());
+    final_sql_statement = source_sql_str;
+  } else {
+    auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql_str);
+    if (!parsed_preamble.sql().empty()) {
+      preambles_.push_back(parsed_preamble.sql());
+    } else if (sql.has_preamble()) {
+      return base::ErrStatus(
+          "Sql source specifies both `preamble` and has multiple statements in "
+          "the `sql` field. This is not supported - plase don't use `preamble` "
+          "and pass all the SQL you want to execute in the `sql` field.");
+    }
+    final_sql_statement = main_sql.sql();
   }
 
-  if (sql.has_preamble()) {
-    preambles_.push_back(sql.preamble().ToStdString());
+  if (final_sql_statement.empty()) {
+    return base::ErrStatus(
+        "SQL source cannot be empty after processing preamble");
+  }
+
+  if (sql.column_names()->size() == 0) {
+    return base::ErrStatus("Sql must specify columns");
   }
 
   std::vector<std::string> cols;
@@ -246,7 +312,9 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   }
   std::string join_str = base::Join(cols, ", ");
 
-  return "(SELECT " + join_str + " FROM (" + sql.sql().ToStdString() + "))";
+  std::string generated_sql =
+      "(SELECT " + join_str + " FROM (" + final_sql_statement + "))";
+  return generated_sql;
 }
 
 base::StatusOr<std::string> GeneratorImpl::SimpleSlices(
@@ -326,6 +394,17 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
+  for (std::optional<size_t> curr_idx = state_index_; curr_idx;
+       curr_idx = state_[*curr_idx].parent_index) {
+    const auto& query = state_[*curr_idx];
+    if (query.id_from_proto && *query.id_from_proto == id) {
+      return base::ErrStatus(
+          "Cycle detected in structured query dependencies involving query "
+          "with "
+          "id '%s'",
+          id.c_str());
+    }
+  }
   auto* it = query_protos_.Find(id);
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
@@ -337,12 +416,12 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
-                      state_.size());
+                      state_.size(), state_index_);
   return state_.back().table_name;
 }
 
 std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kNested, bytes, state_.size());
+  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_);
   return state_.back().table_name;
 }
 

@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -43,14 +44,12 @@
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/build_id.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 
@@ -92,12 +91,15 @@ bool IsInKernel(protos::pbzero::Profiling::CpuMode cpu_mode) {
 using FramesTable = tables::StackProfileFrameTable;
 using CallsitesTable = tables::StackProfileCallsiteTable;
 
-RecordParser::RecordParser(TraceProcessorContext* context)
-    : context_(context), mapping_tracker_(context->mapping_tracker.get()) {}
+RecordParser::RecordParser(TraceProcessorContext* context,
+                           PerfTracker* perf_tracker)
+    : context_(context),
+      perf_tracker_(perf_tracker),
+      mapping_tracker_(context->mapping_tracker.get()) {}
 
 RecordParser::~RecordParser() = default;
 
-void RecordParser::ParsePerfRecord(int64_t ts, Record record) {
+void RecordParser::Parse(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
     context_->storage->IncrementIndexedStats(
         stats::perf_record_skipped, static_cast<int>(record.header.type));
@@ -251,8 +253,9 @@ base::Status RecordParser::ParseComm(Record record) {
   }
 
   context_->process_tracker->UpdateThread(tid, pid);
+  auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadName(
-      tid, context_->storage->InternString(base::StringView(comm)),
+      utid, context_->storage->InternString(base::StringView(comm)),
       ThreadNamePriority::kFtrace);
 
   return base::OkStatus();
@@ -268,11 +271,10 @@ base::Status RecordParser::ParseMmap(int64_t trace_ts, Record record) {
       BuildCreateMappingParams(mmap, mmap.filename, std::move(build_id));
 
   if (IsInKernel(record.GetCpuMode())) {
-    PerfTracker::GetOrCreate(context_)->CreateKernelMemoryMapping(
-        trace_ts, std::move(params));
+    perf_tracker_->CreateKernelMemoryMapping(trace_ts, std::move(params));
   } else {
-    PerfTracker::GetOrCreate(context_)->CreateUserMemoryMapping(
-        trace_ts, GetUpid(mmap), std::move(params));
+    perf_tracker_->CreateUserMemoryMapping(trace_ts, GetUpid(mmap),
+                                           std::move(params));
   }
   return base::OkStatus();
 }
@@ -289,11 +291,10 @@ base::Status RecordParser::ParseMmap2(int64_t trace_ts, Record record) {
       BuildCreateMappingParams(mmap2, mmap2.filename, std::move(build_id));
 
   if (IsInKernel(record.GetCpuMode())) {
-    PerfTracker::GetOrCreate(context_)->CreateKernelMemoryMapping(
-        trace_ts, std::move(params));
+    perf_tracker_->CreateKernelMemoryMapping(trace_ts, std::move(params));
   } else {
-    PerfTracker::GetOrCreate(context_)->CreateUserMemoryMapping(
-        trace_ts, GetUpid(mmap2), std::move(params));
+    perf_tracker_->CreateUserMemoryMapping(trace_ts, GetUpid(mmap2),
+                                           std::move(params));
   }
 
   return base::OkStatus();
@@ -321,30 +322,18 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
     return UpdateCountersInReadGroups(sample);
   }
 
-  if (!sample.cpu.has_value()) {
-    context_->storage->IncrementStats(
-        stats::perf_counter_skipped_because_no_cpu);
-    return base::OkStatus();
-  }
-
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
     return base::ErrStatus("No period for sample");
   }
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
-  sample.attr->GetOrCreateCounter(*sample.cpu)
+  sample.attr->GetOrCreateCounter(sample.cpu)
       .AddDelta(sample.trace_ts, static_cast<double>(period));
   return base::OkStatus();
 }
 
 base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
-  if (!sample.cpu.has_value()) {
-    context_->storage->IncrementStats(
-        stats::perf_counter_skipped_because_no_cpu);
-    return base::OkStatus();
-  }
-
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
         sample.perf_session->FindAttrForEventId(*entry.event_id);
@@ -352,14 +341,14 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
                              *entry.event_id);
     }
-    attr->GetOrCreateCounter(*sample.cpu)
+    attr->GetOrCreateCounter(sample.cpu)
         .AddCount(sample.trace_ts, static_cast<double>(entry.value));
   }
   return base::OkStatus();
 }
 
 DummyMemoryMapping* RecordParser::GetDummyMapping(UniquePid upid) {
-  if (auto it = dummy_mappings_.Find(upid); it) {
+  if (auto* it = dummy_mappings_.Find(upid); it) {
     return *it;
   }
 

@@ -19,20 +19,21 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
@@ -40,7 +41,6 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -76,8 +76,11 @@ constexpr uint32_t kZxObjTypeThread = 2;
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
-      proto_reader_(context),
+      proto_trace_reader_(context),
       process_id_(context->storage->InternString("process")) {
+  auto parser = std::make_unique<FuchsiaTraceParser>(context);
+  parser_ = parser.get();
+  stream_ = context->sorter->CreateStream(std::move(parser));
   RegisterProvider(0, "");
 }
 
@@ -191,7 +194,7 @@ base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
       TraceBlob::CopyFrom(proto_trace_data_.data(), proto_trace_data_.size());
   proto_trace_data_.clear();
 
-  return proto_reader_.Parse(TraceBlobView(std::move(perfetto_blob)));
+  return proto_trace_reader_.Parse(TraceBlobView(std::move(perfetto_blob)));
 }
 
 // Most record types are read and recorded in |TraceStorage| here directly.
@@ -202,7 +205,6 @@ base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
 void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
   TraceStorage* storage = context_->storage.get();
   ProcessTracker* procs = context_->process_tracker.get();
-  TraceSorter* sorter = context_->sorter.get();
 
   fuchsia_trace_utils::RecordCursor cursor(tbv.data(), tbv.length());
   uint64_t header;
@@ -425,7 +427,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       if (!insert_args(n_args, cursor, record)) {
         return;
       }
-      sorter->PushFuchsiaRecord(ts, std::move(record));
+      stream_->Push(ts, std::move(record));
       break;
     }
     case kBlob: {
@@ -489,9 +491,11 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // support 32 bits. This is usually not an issue except for
           // artificial koids which have the 2^63 bit set. This is used for
           // things such as virtual threads.
-          procs->SetProcessMetadata(
-              static_cast<uint32_t>(obj_id), std::optional<uint32_t>(),
-              base::StringView(storage->GetString(name)), base::StringView());
+          UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+              static_cast<uint32_t>(obj_id));
+          procs->SetProcessMetadata(upid,
+                                    base::StringView(storage->GetString(name)),
+                                    base::StringView());
           break;
         }
         case kZxObjTypeThread: {
@@ -520,9 +524,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // (b/383877212). This should be refactored properly out into a
           // tracker (which is the pattern for handling this sort of thing
           // in the rest of TP) but that is a bunch of boilerplate.
-          auto* parser = static_cast<FuchsiaTraceParser*>(
-              context_->fuchsia_record_parser.get());
-          auto& thread = parser->GetThread(obj_id);
+          // TODO: DNS: this is not correct.
+          auto& thread = parser_->GetThread(obj_id);
           thread.info.pid = pid;
 
           UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(obj_id),
@@ -586,7 +589,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
                 incoming_thread_ref,
                 current_provider_->GetThread(incoming_thread_ref));
           }
-          sorter->PushFuchsiaRecord(ts, std::move(record));
+          stream_->Push(ts, std::move(record));
           break;
         }
         case kSchedulerEventContextSwitch: {
@@ -620,7 +623,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           if (!insert_args(n_args, cursor, record)) {
             return;
           }
-          sorter->PushFuchsiaRecord(ts, std::move(record));
+          stream_->Push(ts, std::move(record));
           break;
         }
         case kSchedulerEventThreadWakeup: {
@@ -648,7 +651,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           if (!insert_args(n_args, cursor, record)) {
             return;
           }
-          sorter->PushFuchsiaRecord(ts, std::move(record));
+          stream_->Push(ts, std::move(record));
           break;
         }
         default:
@@ -668,12 +671,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
 void FuchsiaTraceTokenizer::RegisterProvider(uint32_t provider_id,
                                              std::string name) {
   std::unique_ptr<ProviderInfo> provider(new ProviderInfo());
-  provider->name = name;
+  provider->name = std::move(name);
   current_provider_ = provider.get();
   providers_[provider_id] = std::move(provider);
 }
 
 base::Status FuchsiaTraceTokenizer::NotifyEndOfFile() {
+  RETURN_IF_ERROR(proto_trace_reader_.NotifyEndOfFile());
   return base::OkStatus();
 }
 

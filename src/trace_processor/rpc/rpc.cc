@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
@@ -38,7 +40,6 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -628,13 +629,17 @@ void Rpc::ComputeTraceSummaryInternal(
   auto comp_spec = args.computation_spec();
   protos::pbzero::TraceSummaryArgs::ComputationSpec::Decoder comp_spec_decoder(
       comp_spec.data, comp_spec.size);
-  if (!comp_spec_decoder.has_metric_ids()) {
-    result->set_error("TraceSummary computation spec missing v2_metric_ids");
-    return;
-  }
+
   TraceSummaryComputationSpec computation_spec;
-  for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
-    computation_spec.v2_metric_ids.push_back(it->as_std_string());
+
+  if (comp_spec_decoder.has_run_all_metrics() &&
+      comp_spec_decoder.run_all_metrics() == true) {
+    computation_spec.v2_metric_ids = std::nullopt;
+  } else {
+    computation_spec.v2_metric_ids = std::vector<std::string>();
+    for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
+      computation_spec.v2_metric_ids->push_back(it->as_std_string());
+    }
   }
 
   if (comp_spec_decoder.has_metadata_query_id()) {
@@ -668,7 +673,6 @@ void Rpc::ComputeTraceSummaryInternal(
     default:
       PERFETTO_FATAL("Unknown format");
   }
-
   std::vector<uint8_t> output;
   base::Status status = trace_processor_->Summarize(
       computation_spec, summary_specs, &output, output_spec);

@@ -17,8 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 #define SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 
+#include <cstddef>
 #include <optional>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -66,7 +69,7 @@ class Regex {
   static base::StatusOr<Regex> Create(const char* pattern) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     regex_t regex;
-    if (regcomp(&regex, pattern, 0)) {
+    if (regcomp(&regex, pattern, REG_EXTENDED)) {
       return base::ErrStatus("Regex pattern '%s' is malformed.", pattern);
     }
     return Regex(regex);
@@ -87,11 +90,43 @@ class Regex {
 #endif
   }
 
+  // Returns a vector of string views representing the matched groups.
+  // The first element is the full match. Subsequent elements are parenthesized
+  // subexpressions.
+  // Returns nullopt if there is no match.
+  void Submatch(const char* s, std::vector<std::string_view>& out) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_CHECK(regex_);
+    const auto& rgx = regex_.value();
+    size_t nmatch = rgx.re_nsub + 1;
+    pmatch_.resize(nmatch);
+
+    out.clear();
+    if (regexec(&rgx, s, nmatch, pmatch_.data(), 0) != 0) {
+      return;
+    }
+    for (size_t i = 0; i < nmatch; ++i) {
+      if (pmatch_[i].rm_so == -1) {
+        // Optional group that did not match.
+        out.emplace_back();
+      } else {
+        out.emplace_back(
+            s + pmatch_[i].rm_so,
+            static_cast<size_t>(pmatch_[i].rm_eo - pmatch_[i].rm_so));
+      }
+    }
+#else
+    base::ignore_result(s);
+    PERFETTO_FATAL("Windows regex is not supported.");
+#endif
+  }
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
  private:
   explicit Regex(regex_t regex) : regex_(regex) {}
 
   std::optional<regex_t> regex_;
+  std::vector<regmatch_t> pmatch_;
 #endif
 };
 }  // namespace perfetto::trace_processor::regex

@@ -22,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/importers/etm/etm_v4_decoder.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/sql_values.h"
@@ -30,7 +31,6 @@
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
 #include "src/trace_processor/importers/etm/types.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::etm {
 
@@ -42,22 +42,22 @@ ElementCursor::ElementCursor(TraceStorage* storage)
 ElementCursor::~ElementCursor() = default;
 
 base::Status ElementCursor::Filter(
-    std::optional<tables::EtmV4TraceTable::Id> trace_id,
+    std::optional<tables::EtmV4ChunkTable::Id> chunk_id,
     ElementTypeMask type_mask) {
-  trace_id_ = trace_id;
+  chunk_id_ = chunk_id;
   type_mask_ = type_mask;
-  if (!trace_id.has_value() || type_mask_.empty()) {
+  if (!chunk_id.has_value() || type_mask_.empty()) {
     SetAtEof();
     return base::OkStatus();
   }
   auto session = *storage_->etm_v4_session_table().FindById(
-      storage_->etm_v4_trace_table().FindById(*trace_id)->session_id());
+      storage_->etm_v4_chunk_table().FindById(*chunk_id)->session_id());
   RETURN_IF_ERROR(ResetDecoder(session.configuration_id()));
 
   reader_->SetTs(session.start_ts().value_or(0));
   // We expect this to overflow to 0 in the Next() below
   element_index_ = std::numeric_limits<uint32_t>::max();
-  const auto& data = StorageHandle(storage_).GetTrace(*trace_id);
+  const auto& data = StorageHandle(storage_).GetChunk(*chunk_id);
   data_start_ = data.data();
   data_ = data_start_;
   data_end_ = data.data() + data.size();

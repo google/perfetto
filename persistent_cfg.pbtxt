@@ -39,7 +39,7 @@ data_sources: {
     name: "android.surfaceflinger.transactions"
     target_buffer: 0
     surfaceflinger_transactions_config: {
-      mode: MODE_ACTIVE
+      mode: MODE_CONTINUOUS
     }
   }
 }

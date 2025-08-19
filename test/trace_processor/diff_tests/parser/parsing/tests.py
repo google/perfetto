@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -758,20 +758,22 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT id, name, key_type, int_value, str_value FROM metadata;
+        SELECT name, key_type, int_value, str_value
+        FROM metadata
+        ORDER BY name;
         """,
         out=Csv('''
-          "id","name","key_type","int_value","str_value"
-          0,"trace_uuid","single","[NULL]","00000000-0000-0000-7f42-b235fa358661"
-          1,"trace_time_clock_id","single",6,"[NULL]"
-          2,"cr-a-playstore_version_code","single",101,"[NULL]"
-          3,"cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
-          4,"cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
-          5,"cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
-          6,"cr-scenario_name_hash","single",3005533841,"[NULL]"
-          7,"cr-triggered_rule_name_hash","single",1595654158,"[NULL]"
-          8,"trace_size_bytes","single",95,"[NULL]"
-          9,"trace_type","single","[NULL]","proto"
+          "name","key_type","int_value","str_value"
+          "cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+          "cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          "cr-a-playstore_version_code","single",101,"[NULL]"
+          "cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
+          "cr-scenario_name_hash","single",3005533841,"[NULL]"
+          "cr-triggered_rule_name_hash","single",1595654158,"[NULL]"
+          "trace_size_bytes","single",95,"[NULL]"
+          "trace_time_clock_id","single",6,"[NULL]"
+          "trace_type","single","[NULL]","proto"
+          "trace_uuid","single","[NULL]","00000000-0000-0000-7f42-b235fa358661"
         '''))
 
   def test_chrome_metadata_multiple(self):
@@ -821,20 +823,22 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT id, name, key_type, int_value, str_value FROM metadata;
+        SELECT name, key_type, int_value, str_value
+        FROM metadata
+        ORDER BY name;
         """,
         out=Csv("""
-        "id","name","key_type","int_value","str_value"
-        0,"trace_uuid","single","[NULL]","00000000-0000-0000-0de8-df55233147f0"
-        1,"trace_time_clock_id","single",6,"[NULL]"
-        2,"cr-a-playstore_version_code","single",101,"[NULL]"
-        3,"cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
-        4,"cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
-        5,"cr-b-playstore_version_code","single",102,"[NULL]"
-        6,"cr-b-enabled_categories","single","[NULL]","cat3,cat4,cat5"
-        7,"cr-b-field_trial_hashes","single","[NULL]","{ name: 1234, group: 5678 } { name: 9012, group: 3456 } "
-        8,"trace_size_bytes","single",110,"[NULL]"
-        9,"trace_type","single","[NULL]","proto"
+          "name","key_type","int_value","str_value"
+          "cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+          "cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          "cr-a-playstore_version_code","single",101,"[NULL]"
+          "cr-b-enabled_categories","single","[NULL]","cat3,cat4,cat5"
+          "cr-b-field_trial_hashes","single","[NULL]","{ name: 1234, group: 5678 } { name: 9012, group: 3456 } "
+          "cr-b-playstore_version_code","single",102,"[NULL]"
+          "trace_size_bytes","single",110,"[NULL]"
+          "trace_time_clock_id","single",6,"[NULL]"
+          "trace_type","single","[NULL]","proto"
+          "trace_uuid","single","[NULL]","00000000-0000-0000-0de8-df55233147f0"
         """))
 
   # CPU info
@@ -1751,3 +1755,155 @@ class Parsing(TestSuite):
         "utid","tid","name"
         0,0,"swapper"
         """))
+
+  # Slice nesting with same timestamps and zero duration.
+  def test_same_ts_two_zero_duration_slice_nesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",1
+        '''))
+
+  # Slice unnesting with same timestamps and non-zero duration.
+  def test_same_ts_two_duration_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1100,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",0
+        '''))
+
+  # Slice unnesting with same timestamps and first zero then non-zero duration.
+  #
+  # X events are special here: they are ordered by duration desc and so
+  # "Slice 1" will be stacked under "Slice 2".
+  def test_same_ts_zero_duration_slice_then_duration_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",1
+        "Slice 2",0
+        '''))
+
+  # Slice unnesting with same timestamps and first zero then begin/end pair
+  #
+  # like `test_same_ts_zero_duration_slice_then_duration_slice_unnesting` but
+  # works around the janky 'X' duration sorting.
+  def test_same_ts_zero_duration_slice_then_begin_end_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "B",
+            "ts": 1000,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "E",
+            "ts": 1100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",0
+        '''))
+
+  # Slice unnesting with same timestamps and first non-zero then zero duration.
+  def test_same_ts_duration_slice_then_zero_duration_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1100,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",0
+        '''))

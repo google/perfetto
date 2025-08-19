@@ -1,29 +1,42 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, SqlValue} from '../../../trace_processor/query_result';
+import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
 import {
   DataGridDataSource,
   DataSourceResult,
   FilterDefinition,
-  SortBy,
+  Sorting,
   SortByColumn,
+  DataGridModel,
+  Pagination,
+  AggregateSpec,
+  areAggregateArraysEqual,
 } from './common';
 
 export class SQLDataSource implements DataGridDataSource {
   private readonly engine: Engine;
-  private readonly baseQuery: string;
   private readonly limiter = new AsyncLimiter();
-
-  // Previous query (for diffing)
-  private oldQuery = '';
-
-  // Query state
-  private cachedResult: DataSourceResult = {
-    totalRows: 0,
-    rows: [],
-    rowOffset: 0,
-  };
+  private readonly baseQuery: string;
+  private workingQuery = '';
+  private pagination?: Pagination;
+  private aggregates?: ReadonlyArray<AggregateSpec>;
+  private cachedResult?: DataSourceResult;
+  private isLoadingFlag = false;
 
   constructor(engine: Engine, query: string) {
     this.engine = engine;
@@ -33,185 +46,196 @@ export class SQLDataSource implements DataGridDataSource {
   /**
    * Getter for the current rows result
    */
-  get rows(): DataSourceResult {
+  get rows(): DataSourceResult | undefined {
     return this.cachedResult;
+  }
+
+  get isLoading(): boolean {
+    return this.isLoadingFlag;
   }
 
   /**
    * Notify of parameter changes and trigger data update
    */
-  notifyUpdate(
-    sortBy: SortBy,
-    filters: ReadonlyArray<FilterDefinition>,
-    offset: number,
-    limit: number,
-  ): void {
-    const query = this.buildQuery(filters, sortBy, limit, offset);
-    if (query !== this.oldQuery) {
-      this.oldQuery = query;
-      this.limiter.schedule(async () => {
-        try {
-          const result = await this.executeQueries(
-            filters,
-            sortBy,
-            limit,
-            offset,
-          );
+  notifyUpdate({
+    columns,
+    sorting = {direction: 'UNSORTED'},
+    filters = [],
+    pagination,
+    aggregates,
+  }: DataGridModel): void {
+    this.limiter.schedule(async () => {
+      this.isLoadingFlag = true;
 
-          if (result) {
-            this.cachedResult = result;
-          }
-        } catch (error) {
-          console.error('Error executing query:', error);
+      try {
+        // If the working query has changed, we need to invalidate the cache and
+        // reload everything, including the page count.
+        const workingQuery = this.buildWorkingQuery(columns, filters, sorting);
+        if (workingQuery !== this.workingQuery) {
+          this.workingQuery = workingQuery;
+
+          // Clear the cache
+          this.cachedResult = undefined;
+          this.pagination = undefined;
+          this.aggregates = undefined;
+
+          // Update the cache with the total row count
+          const rowCount = await this.getRowCount(workingQuery);
+          this.cachedResult = {
+            rowOffset: 0,
+            totalRows: rowCount,
+            rows: [],
+            aggregates: {},
+          };
         }
-      });
-    }
+
+        if (!areAggregateArraysEqual(this.aggregates, aggregates)) {
+          this.aggregates = aggregates;
+          if (aggregates) {
+            const aggregateResults = await this.getAggregates(
+              workingQuery,
+              aggregates,
+            );
+            this.cachedResult = {
+              ...this.cachedResult!,
+              aggregates: aggregateResults,
+            };
+          }
+        }
+
+        // Fetch data if pagination has changed.
+        if (!comparePagination(this.pagination, pagination)) {
+          this.pagination = pagination;
+          const {offset, rows} = await this.getRows(workingQuery, pagination);
+          this.cachedResult = {
+            ...this.cachedResult!,
+            rowOffset: offset,
+            rows,
+          };
+        }
+      } finally {
+        this.isLoadingFlag = false;
+      }
+    });
   }
 
   /**
-   * Builds a complete SQL query with filtering, sorting, and pagination
+   * Builds a complete SQL query that defines the working dataset (ignores
+   * pagination).
    */
-  private buildQuery(
+  private buildWorkingQuery(
+    columns: ReadonlyArray<string> | undefined,
     filters: ReadonlyArray<FilterDefinition>,
-    sortBy: SortBy,
-    limit: number,
-    offset: number,
+    sorting: Sorting,
   ): string {
-    // Wrap the base query as a subquery
-    let query = `WITH base_data AS (${this.baseQuery})`;
+    const colDefs = columns ?? ['*'];
 
-    // Start the main query
-    query += `\nSELECT * FROM base_data`;
+    let query = `\nSELECT ${colDefs.join()} FROM (${this.baseQuery})`;
 
     // Add WHERE clause if there are filters
     if (filters.length > 0) {
-      const whereConditions = filters
-        .map((filter) => {
-          switch (filter.op) {
-            case '=':
-              return `${filter.column} = ${this.sqlValue(filter.value)}`;
-            case '!=':
-              return `${filter.column} != ${this.sqlValue(filter.value)}`;
-            case '<':
-              return `${filter.column} < ${this.sqlValue(filter.value)}`;
-            case '<=':
-              return `${filter.column} <= ${this.sqlValue(filter.value)}`;
-            case '>':
-              return `${filter.column} > ${this.sqlValue(filter.value)}`;
-            case '>=':
-              return `${filter.column} >= ${this.sqlValue(filter.value)}`;
-            case 'glob':
-              return `${filter.column} GLOB ${this.sqlValue(filter.value)}`;
-            case 'is null':
-              return `${filter.column} IS NULL`;
-            case 'is not null':
-              return `${filter.column} IS NOT NULL`;
-            default:
-              return '1=1'; // Default to true if unknown operator
-          }
-        })
-        .join(' AND ');
+      const whereConditions = filters.map(filter2Sql).join(' AND ');
 
       query += `\nWHERE ${whereConditions}`;
     }
 
     // Add ORDER BY clause for sorting
-    if (sortBy.direction !== 'unsorted') {
-      const {column, direction} = sortBy as SortByColumn;
+    if (sorting.direction !== 'UNSORTED') {
+      const {column, direction} = sorting as SortByColumn;
       query += `\nORDER BY ${column} ${direction.toUpperCase()}`;
     }
 
-    // Add pagination with LIMIT and OFFSET
-    query += `\nLIMIT ${limit} OFFSET ${offset}`;
-
     return query;
   }
 
-  /**
-   * Builds a count query to get the total number of rows (for pagination)
-   */
-  private buildCountQuery(filters: ReadonlyArray<FilterDefinition>): string {
-    // Wrap the base query as a subquery
-    let query = `WITH base_data AS (${this.baseQuery})`;
-
-    // Start the count query
-    query += `\nSELECT COUNT(*) as total_count FROM base_data`;
-
-    // Add WHERE clause if there are filters
-    if (filters.length > 0) {
-      const whereConditions = filters
-        .map((filter) => {
-          switch (filter.op) {
-            case '=':
-            case '!=':
-            case '<':
-            case '<=':
-            case '>':
-            case '>=':
-              return `${filter.column} ${filter.op} ${this.sqlValue(filter.value)}`;
-            case 'glob':
-              return `${filter.column} GLOB ${this.sqlValue(filter.value)}`;
-            case 'is null':
-              return `${filter.column} IS NULL`;
-            case 'is not null':
-              return `${filter.column} IS NOT NULL`;
-            default:
-              return '1=1'; // Default to true if unknown operator
-          }
-        })
-        .join(' AND ');
-
-      query += `\nWHERE ${whereConditions}`;
-    }
-
-    return query;
+  private async getRowCount(workingQuery: string): Promise<number> {
+    const result = await this.engine.query(`
+      WITH data AS (${workingQuery})
+      SELECT COUNT(*) AS total_count
+      FROM data
+    `);
+    return result.firstRow({total_count: NUM}).total_count;
   }
 
-  /**
-   * Converts a JavaScript value to a SQL string representation
-   */
-  private sqlValue(value: SqlValue): string {
-    if (typeof value === 'string') {
-      // Escape single quotes in strings
-      return `'${value.replace(/'/g, "''")}'`;
-    } else if (typeof value === 'number' || typeof value === 'bigint') {
-      return value.toString();
-    } else if (typeof value === 'boolean') {
-      return value ? '1' : '0';
-    } else {
-      // For other types, convert to string
-      return `'${String(value)}'`;
-    }
+  private async getAggregates(
+    workingQuery: string,
+    aggregates: ReadonlyArray<AggregateSpec>,
+  ): Promise<Row> {
+    const query = `
+      WITH data AS (${workingQuery})
+      SELECT
+        ${aggregates.map((a) => `${a.func}(${a.col}) AS ${a.col}`)}
+      FROM data
+    `;
+
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows[0];
   }
 
-  private async executeQueries(
-    filters: ReadonlyArray<FilterDefinition>,
-    sortBy: SortBy,
-    limit: number,
-    offset: number,
-  ): Promise<DataSourceResult | undefined> {
-    const countQuery = this.buildCountQuery(filters);
-    const countResult = await this.engine.query(countQuery);
-    const firstRow = countResult.maybeFirstRow({total_count: NUM});
-    if (!firstRow) {
-      return undefined;
+  private async getRows(
+    workingQuery: string,
+    pagination?: Pagination,
+  ): Promise<{offset: number; rows: Row[]}> {
+    let query = `
+      WITH data AS (${workingQuery})
+      SELECT *
+      FROM data
+    `;
+
+    if (pagination) {
+      query += `LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
     }
 
-    const totalRows = firstRow.total_count;
-
-    // Build the data query
-    const dataQuery = this.buildQuery(filters, sortBy, limit, offset);
-    const dataResult = await runQueryForQueryTable(dataQuery, this.engine);
-
-    if (dataResult.error) {
-      console.error('Error executing data query:', dataResult.error);
-      return undefined;
-    }
+    const result = await runQueryForQueryTable(query, this.engine);
 
     return {
-      totalRows,
-      rows: dataResult.rows,
-      rowOffset: offset,
+      offset: pagination?.offset ?? 0,
+      rows: result.rows,
     };
   }
+}
+
+function filter2Sql(filter: FilterDefinition): string {
+  switch (filter.op) {
+    case '=':
+    case '!=':
+    case '<':
+    case '<=':
+    case '>':
+    case '>=':
+      return `${filter.column} ${filter.op} ${sqlValue(filter.value)}`;
+    case 'glob':
+      return `${filter.column} GLOB ${sqlValue(filter.value)}`;
+    case 'is null':
+      return `${filter.column} IS NULL`;
+    case 'is not null':
+      return `${filter.column} IS NOT NULL`;
+    default:
+      return '1=1'; // Default to true if unknown operator
+  }
+}
+
+function sqlValue(value: SqlValue): string {
+  if (typeof value === 'string') {
+    // Escape single quotes in strings
+    return `'${value.replace(/'/g, "''")}'`;
+  } else if (typeof value === 'number' || typeof value === 'bigint') {
+    return value.toString();
+  } else if (typeof value === 'boolean') {
+    return value ? '1' : '0';
+  } else {
+    // For other types, convert to string
+    return `'${String(value)}'`;
+  }
+}
+
+function comparePagination(a?: Pagination, b?: Pagination): boolean {
+  // Both undefined - they're equal
+  if (!a && !b) return true;
+
+  // One is undefined, other isn't - they're different
+  if (!a || !b) return false;
+
+  // Both exist - compare their properties
+  return a.limit === b.limit && a.offset === b.offset;
 }

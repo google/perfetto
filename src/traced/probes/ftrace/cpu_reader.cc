@@ -184,15 +184,11 @@ void SerialiseOffendingPage([[maybe_unused]] CpuReader::Bundler* bundler,
 CpuReader::CpuReader(size_t cpu,
                      base::ScopedFile trace_fd,
                      const ProtoTranslationTable* table,
-                     LazyKernelSymbolizer* symbolizer,
-                     protos::pbzero::FtraceClock ftrace_clock,
-                     const FtraceClockSnapshot* ftrace_clock_snapshot)
+                     LazyKernelSymbolizer* symbolizer)
     : cpu_(cpu),
       table_(table),
       symbolizer_(symbolizer),
-      trace_fd_(std::move(trace_fd)),
-      ftrace_clock_(ftrace_clock),
-      ftrace_clock_snapshot_(ftrace_clock_snapshot) {
+      trace_fd_(std::move(trace_fd)) {
   PERFETTO_CHECK(trace_fd_);
   PERFETTO_CHECK(SetBlocking(*trace_fd_, false));
 }
@@ -202,7 +198,8 @@ CpuReader::~CpuReader() = default;
 size_t CpuReader::ReadCycle(
     ParsingBuffers* parsing_bufs,
     size_t max_pages,
-    const std::set<FtraceDataSource*>& started_data_sources) {
+    const std::set<FtraceDataSource*>& started_data_sources,
+    const std::optional<FtraceClockSnapshot>& clock_snapshot) {
   PERFETTO_DCHECK(max_pages > 0 && parsing_bufs->ftrace_data_buf_pages() > 0);
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_READ_CYCLE);
@@ -212,9 +209,10 @@ size_t CpuReader::ReadCycle(
   for (bool is_first_batch = true;; is_first_batch = false) {
     size_t batch_pages = std::min(parsing_bufs->ftrace_data_buf_pages(),
                                   max_pages - total_pages_read);
-    size_t pages_read = ReadAndProcessBatch(
-        parsing_bufs->ftrace_data_buf(), batch_pages, is_first_batch,
-        parsing_bufs->compact_sched_buf(), started_data_sources);
+    size_t pages_read =
+        ReadAndProcessBatch(parsing_bufs->ftrace_data_buf(), batch_pages,
+                            is_first_batch, parsing_bufs->compact_sched_buf(),
+                            started_data_sources, clock_snapshot);
 
     PERFETTO_DCHECK(pages_read <= batch_pages);
     total_pages_read += pages_read;
@@ -241,7 +239,8 @@ size_t CpuReader::ReadAndProcessBatch(
     size_t max_pages,
     bool first_batch_in_cycle,
     CompactSchedBuffer* compact_sched_buf,
-    const std::set<FtraceDataSource*>& started_data_sources) {
+    const std::set<FtraceDataSource*>& started_data_sources,
+    const std::optional<FtraceClockSnapshot>& clock_snapshot) {
   const uint32_t sys_page_size = base::GetSysPageSize();
   size_t pages_read = 0;
   {
@@ -328,8 +327,7 @@ size_t CpuReader::ReadAndProcessBatch(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), data_source->mutable_parse_errors(),
         data_source->mutable_bundle_end_timestamp(cpu_), parsing_buf,
-        pages_read, compact_sched_buf, table_, symbolizer_,
-        ftrace_clock_snapshot_, ftrace_clock_);
+        pages_read, compact_sched_buf, table_, symbolizer_, clock_snapshot);
   }
   return pages_read;
 }
@@ -351,12 +349,10 @@ void CpuReader::Bundler::StartNewPacket(
   // valid since the data source was started".
   bundle_->set_previous_bundle_end_timestamp(previous_bundle_end_timestamp);
 
-  if (ftrace_clock_) {
-    bundle_->set_ftrace_clock(ftrace_clock_);
-    if (ftrace_clock_snapshot_ && ftrace_clock_snapshot_->ftrace_clock_ts) {
-      bundle_->set_ftrace_timestamp(ftrace_clock_snapshot_->ftrace_clock_ts);
-      bundle_->set_boot_timestamp(ftrace_clock_snapshot_->boot_clock_ts);
-    }
+  if (clock_snapshot_.has_value()) {
+    bundle_->set_ftrace_clock(clock_snapshot_->ftrace_clock);
+    bundle_->set_ftrace_timestamp(clock_snapshot_->ftrace_clock_ts);
+    bundle_->set_boot_timestamp(clock_snapshot_->boot_clock_ts);
   }
 }
 
@@ -468,14 +464,12 @@ bool CpuReader::ProcessPagesForDataSource(
     CompactSchedBuffer* compact_sched_buf,
     const ProtoTranslationTable* table,
     LazyKernelSymbolizer* symbolizer,
-    const FtraceClockSnapshot* ftrace_clock_snapshot,
-    protos::pbzero::FtraceClock ftrace_clock) {
+    const std::optional<FtraceClockSnapshot>& clock_snapshot) {
   const uint32_t sys_page_size = base::GetSysPageSize();
-  Bundler bundler(trace_writer, metadata,
-                  ds_config->symbolize_ksyms ? symbolizer : nullptr, cpu,
-                  ftrace_clock_snapshot, ftrace_clock, compact_sched_buf,
-                  ds_config->compact_sched.enabled, *bundle_end_timestamp,
-                  table->generic_evt_pb_descriptors());
+  Bundler bundler(
+      trace_writer, metadata, ds_config->symbolize_ksyms ? symbolizer : nullptr,
+      cpu, clock_snapshot, compact_sched_buf, ds_config->compact_sched.enabled,
+      *bundle_end_timestamp, table->generic_evt_pb_descriptors());
 
   bool success = true;
   size_t pages_parsed = 0;
@@ -1192,11 +1186,14 @@ size_t CpuReader::ReadFrozen(
 
   // Convert events and serialise the protos. We don't handle the failure
   // here, because appropriate errors are recorded in |parsing_errors|.
+  // No clock_snapshot handling (will be parsed as "boot") since this codepath
+  // is for a non-live trace, where the timestamps do not represent the current
+  // boot.
   ProcessPagesForDataSource(trace_writer, metadata, cpu_, parsing_config,
                             parse_errors, &bundle_end_timestamp, parsing_buf,
                             pages_read, parsing_bufs->compact_sched_buf(),
-                            table_, symbolizer_, ftrace_clock_snapshot_,
-                            ftrace_clock_);
+                            table_, symbolizer_,
+                            /*clock_snapshot=*/std::nullopt);
 
   return pages_read;
 }

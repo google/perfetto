@@ -40,13 +40,6 @@ enum class Type {
   kLong,
   kDouble,
   kString,
-
-  // Deprecated types.
-  // TODO(b/380259828): Remove.
-  kInt,
-  kUint,
-  kProto,
-  kFloat,
   kBytes,
 };
 

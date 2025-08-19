@@ -40,7 +40,7 @@ test('sched', async () => {
 
   // Now test sorting.
 
-  const hdr = page.getByRole('cell', {name: 'Avg Wall duration (ms)'});
+  const hdr = page.getByRole('cell', {name: /^Avg Wall duration.*/});
   await hdr.click();
   await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png');
 

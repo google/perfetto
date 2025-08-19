@@ -153,6 +153,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
           minDistance: 1,
           cursorWhileDragging: 'text',
           onDrag: (e) => {
+            this.trace.raf.scheduleCanvasRedraw();
             const dragRect = Rect2D.fromPoints(e.dragStart, e.dragCurrent);
             const timeSpan = timescale
               .pxSpanToHpTimeSpan(dragRect)

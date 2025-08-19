@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
-      title: 'Chrome Scroll Jank',
+      name: 'Chrome Scroll Jank',
       sortOrder: -30,
       isSummary: true,
     });
@@ -70,11 +70,10 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track: createTopLevelScrollTrack(ctx, uri),
+      renderer: createTopLevelScrollTrack(ctx, uri),
     });
 
-    const track = new TrackNode({uri, title});
+    const track = new TrackNode({uri, name: title});
     group.addChildInOrder(track);
   }
 
@@ -179,11 +178,10 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track: createEventLatencyTrack(ctx, uri, baseTable),
+      renderer: createEventLatencyTrack(ctx, uri, baseTable),
     });
 
-    const track = new TrackNode({uri, title});
+    const track = new TrackNode({uri, name: title});
     group.addChildInOrder(track);
   }
 
@@ -200,11 +198,10 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track: createScrollJankV3Track(ctx, uri),
+      renderer: createScrollJankV3Track(ctx, uri),
     });
 
-    const track = new TrackNode({uri, title});
+    const track = new TrackNode({uri, name: title});
     group.addChildInOrder(track);
   }
 
@@ -221,11 +218,10 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track: createScrollTimelineTrack(ctx, model),
+      renderer: createScrollTimelineTrack(ctx, model),
     });
 
-    const track = new TrackNode({uri, title});
+    const track = new TrackNode({uri, name: title});
     group.addChildInOrder(track);
   }
 
@@ -253,9 +249,8 @@ export default class implements PerfettoPlugin {
         argColumns: ['id', 'track_id', 'ts', 'dur'],
         uri,
       });
-      const title = 'Chrome VSync';
-      ctx.tracks.registerTrack({uri, title, track});
-      group.addChildInOrder(new TrackNode({uri, title}));
+      ctx.tracks.registerTrack({uri, renderer: track});
+      group.addChildInOrder(new TrackNode({uri, name: 'Chrome VSync'}));
     }
 
     {
@@ -266,9 +261,8 @@ export default class implements PerfettoPlugin {
         uri,
         `(SELECT id, ts, LEAD(ts) OVER (ORDER BY ts) - ts as dur FROM ${vsyncTable})`,
       );
-      const title = 'Chrome VSync delta';
-      ctx.tracks.registerTrack({uri, title, track});
-      group.addChildInOrder(new TrackNode({uri, title}));
+      ctx.tracks.registerTrack({uri, renderer: track});
+      group.addChildInOrder(new TrackNode({uri, name: 'Chrome VSync delta'}));
     }
 
     {
@@ -284,9 +278,8 @@ export default class implements PerfettoPlugin {
         FROM chrome_scroll_update_info
         WHERE generation_ts IS NOT NULL)`,
       );
-      const title = 'Chrome input delta';
-      ctx.tracks.registerTrack({uri, title, track});
-      group.addChildInOrder(new TrackNode({uri, title}));
+      ctx.tracks.registerTrack({uri, renderer: track});
+      group.addChildInOrder(new TrackNode({uri, name: 'Chrome input delta'}));
     }
 
     {
@@ -342,8 +335,8 @@ export default class implements PerfettoPlugin {
           }),
           detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
         });
-        ctx.tracks.registerTrack({uri, title: step.name, track});
-        group.addChildInOrder(new TrackNode({uri, title: step.name}));
+        ctx.tracks.registerTrack({uri, renderer: track});
+        group.addChildInOrder(new TrackNode({uri, name: step.name}));
       }
     }
   }

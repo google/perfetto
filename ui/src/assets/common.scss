@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "widgets/theme";
+@import "theme";
 @import "typefaces";
-@import "fonts";
 
 :root {
+  // Legacy variables - to be removed
   --sidebar-width: 230px;
   --topbar-height: 44px;
-  --monospace-font: "Roboto Mono", monospace;
   --track-shell-width: 250px;
-  --track-border-color: #00000025;
   --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --selection-stroke-color: #00344596;
-  --selection-fill-color: #8398e64d;
-  --overview-timeline-non-visible-color: #c8c8c8cc;
   --details-content-height: 308px;
+
+  // Fonts
+  --pf-font: "Roboto", sans-serif;
+  --pf-font-compact: "Roboto Condensed", sans-serif;
+  --pf-font-monospace: "Roboto Mono", monospace;
 }
 
 @mixin transition($time: 0.1s) {
@@ -45,6 +45,7 @@
     border-radius $time ease;
 }
 
+// Mixin for using material icons inside a pseudo-element.
 @mixin material-icon($content) {
   @include icon;
   content: $content;
@@ -53,13 +54,26 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
-  touch-action: none;
 }
 
 html {
-  font-family: Roboto, verdana, sans-serif;
+  font-size: 16px;
+  font-family: var(--pf-font);
   height: 100%;
   width: 100%;
+  touch-action: pan-x pan-y;
+}
+
+@media (pointer: coarse) {
+  // Disable long-press text selection on tablets. That collides with the mouse
+  // emulation we do where long press emulates a mousedown+move+up (to
+  // distinguish it from pans).
+  html {
+    // required for iOS which doesn't support unprefixed user-select.
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
 }
 
 html,
@@ -75,7 +89,7 @@ body > main {
 
 pre,
 code {
-  font-family: var(--monospace-font);
+  font-family: var(--pf-font-monospace);
 }
 
 // This is to minimize Mac vs Linux Chrome Headless rendering differences
@@ -95,20 +109,8 @@ h3 {
   margin: 0;
 }
 table {
+  -webkit-user-select: text;
   user-select: text;
-}
-
-body > main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  color: #121212;
-  overflow: hidden;
 }
 
 body.filedrag::after {
@@ -138,436 +140,5 @@ button {
 }
 
 button.close {
-  font-family: var(--monospace-font);
-}
-
-.full-page-loading-screen {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: row;
-  background: #3e4a5a url("assets/logo-3d.png") no-repeat fixed center;
-}
-
-.page {
-  grid-area: page;
-}
-
-@mixin table-font-size {
-  font-size: 14px;
-  line-height: 18px;
-}
-
-$table-hover-color: hsl(214, 22%, 90%);
-
-$table-border-color: rgba(60, 76, 92, 0.4);
-
-$bottom-tab-padding: 10px;
-
-@mixin table-component {
-  @include bottom-panel-font;
-  @include table-font-size;
-
-  width: 100%;
-  border-collapse: collapse;
-
-  thead {
-    font-weight: normal;
-
-    td.reorderable-cell {
-      cursor: grab;
-    }
-  }
-
-  tr:hover td {
-    background-color: $table-hover-color;
-  }
-
-  tr.header {
-    border-bottom: 1px solid $table-border-color;
-    text-align: center;
-  }
-
-  td {
-    padding: 3px 5px;
-    white-space: nowrap;
-
-    i.material-icons {
-      // Shrink the icons inside the table cells to increase the information
-      // density a little bit.
-      font-size: 16px;
-    }
-
-    &.has-left-border {
-      border-left: 1px solid rgba(60, 76, 92, 0.4);
-    }
-  }
-}
-
-.generic-table {
-  @include table-component;
-}
-
-.pivot-table {
-  @include table-component;
-
-  thead,
-  i {
-    cursor: pointer;
-  }
-  td.first {
-    border-left: 1px solid $table-border-color;
-    padding-left: 6px;
-  }
-  .disabled {
-    cursor: default;
-  }
-  .indent {
-    display: inline-block;
-    // 16px is the width of expand_more/expand_less icon to pad out cells
-    // without the button
-    width: 16px;
-  }
-  strong {
-    font-weight: 400;
-  }
-}
-
-.pf-query-panel {
-  display: contents;
-  .pf-query-warning {
-    padding: 4px;
-    position: sticky;
-    left: 0;
-  }
-}
-
-.query-error {
-  padding: 20px 10px;
-  color: hsl(-10, 50%, 50%);
-  font-family: "Roboto Mono", sans-serif;
-  font-size: 12px;
-  font-weight: 300;
-  white-space: pre;
-}
-
-.dropdown {
-  display: inline-block;
-  position: relative;
-}
-
-.dropdown-button {
-  cursor: pointer;
-}
-
-.popup-menu {
-  position: absolute;
-  background-color: white;
-  right: 0;
-  box-shadow: 0 0 4px 0 #999;
-  /* TODO(hjd): Reduce and make z-index use sensible. */
-  z-index: 1000;
-
-  &.closed {
-    display: none;
-  }
-
-  &.opened {
-    display: block;
-  }
-
-  button.open-menu {
-    border-radius: 0;
-    margin: 0;
-    height: auto;
-    background: transparent;
-    color: #111;
-    font-size: 12px;
-    padding: 0.4em 1em;
-    white-space: nowrap;
-    width: 100%;
-    text-align: right;
-    line-height: 1;
-    display: block; // Required in order for inherited white-space property not
-    // to screw up vertical rendering of the popup menu items.
-
-    &:hover {
-      background: #c7d0db;
-    }
-  }
-
-  .nested-menu {
-    padding-right: 1em;
-  }
-}
-
-.x-scrollable {
-  overflow-x: auto;
-}
-
-header.overview {
-  position: sticky;
-  top: 0;
-  left: 0;
-  display: flex;
-  align-content: baseline;
-  background-color: hsl(213, 22%, 82%);
-  color: hsl(213, 22%, 20%);
-  font-family: "Roboto Condensed", sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  padding: 4px 10px;
-  vertical-align: middle;
-  border-color: hsl(213, 22%, 75%);
-  border-style: solid;
-  border-width: 1px 0;
-  .code {
-    font-family: var(--monospace-font);
-    font-size: 12px;
-    margin-left: 10px;
-    color: hsl(213, 22%, 40%);
-  }
-  span {
-    white-space: nowrap;
-  }
-  span.code {
-    text-overflow: ellipsis;
-    max-width: 50vw;
-    overflow: hidden;
-  }
-  span.spacer {
-    flex-grow: 1;
-  }
-}
-
-.text-select {
-  user-select: text;
-}
-
-button.query-ctrl {
-  background: #262f3c;
-  color: white;
-  border-radius: 10px;
-  font-size: 10px;
-  height: 18px;
-  line-height: 18px;
-  min-width: 7em;
-  margin: auto 0 auto 1rem;
-}
-
-.perf-stats {
-  --stroke-color: hsl(217, 39%, 94%);
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 600px;
-  color: var(--stroke-color);
-  font-family: var(--monospace-font);
-  padding: 10px 24px;
-  z-index: 100;
-  background-color: rgba(27, 28, 29, 0.9);
-  button {
-    text-decoration: underline;
-    color: hsl(45, 100%, 48%);
-    &:hover {
-      color: hsl(6, 70%, 53%);
-    }
-  }
-  .close-button {
-    position: absolute;
-    right: 20px;
-    top: 10px;
-    width: 20px;
-    height: 20px;
-    color: var(--stroke-color);
-  }
-  & > section {
-    padding: 5px;
-    border-bottom: 1px solid var(--stroke-color);
-  }
-  div {
-    margin: 2px 0;
-  }
-  table,
-  td,
-  th {
-    border: 1px solid var(--stroke-color);
-    text-align: center;
-    padding: 4px;
-    margin: 4px 0;
-  }
-  table {
-    border-collapse: collapse;
-  }
-}
-
-.cookie-consent {
-  position: absolute;
-  z-index: 10;
-  left: 10px;
-  bottom: 10px;
-  width: 550px;
-  background-color: #19212b;
-  font-size: 14px;
-  color: rgb(180, 183, 186);
-  border-radius: 5px;
-  padding: 20px;
-
-  .buttons {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-    font-size: 15px;
-  }
-
-  button {
-    padding: 10px;
-    border-radius: 3px;
-    color: #fff;
-    margin-left: 5px;
-    a {
-      text-decoration: none;
-      color: #fff;
-    }
-  }
-  button:hover {
-    background-color: #373f4b;
-    cursor: pointer;
-  }
-}
-
-.disallow-selection {
-  user-select: none;
-}
-
-.pivot-table {
-  user-select: text;
-  padding: $bottom-tab-padding;
-
-  button.mode-button {
-    border-radius: 10px;
-    padding: 7px;
-    margin: 5px;
-    background-color: #c7d0db;
-  }
-
-  &.query-error {
-    color: red;
-  }
-
-  .total-values {
-    text-align: right;
-    padding-right: 10px;
-    font-weight: bolder;
-  }
-
-  .empty-result {
-    padding: 10px;
-  }
-
-  td.menu {
-    text-align: left;
-  }
-
-  td.action-button {
-    min-width: fit-content;
-    width: 1px;
-  }
-
-  td {
-    // In context menu icon to go on a separate line.
-    // In regular pivot table cells, avoids wrapping the icon spacer to go on
-    // a separate line.
-    white-space: pre;
-  }
-}
-
-.name-completion {
-  input {
-    width: 90%;
-  }
-  min-height: 20vh;
-  min-width: 30vw;
-
-  .arguments-popup-sizer {
-    color: transparent;
-    user-select: none;
-    height: 0;
-  }
-}
-
-.reorderable-cell {
-  &.dragged {
-    color: gray;
-  }
-
-  &.highlight-left {
-    background: linear-gradient(90deg, $table-border-color, transparent 20%);
-  }
-
-  &.highlight-right {
-    background: linear-gradient(270deg, $table-border-color, transparent 20%);
-  }
-}
-
-.history-item {
-  border-bottom: 1px solid hsl(213, 22%, 75%);
-  padding: 0.25em 0.5em;
-  max-height: 150px;
-  overflow-y: auto;
-  position: relative;
-
-  pre {
-    font-size: 10pt;
-    margin: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: pre-wrap;
-    position: relative;
-    cursor: pointer;
-
-    &:hover::after {
-      content: "Doubleclick to re-run";
-      font-size: 12px;
-      color: rgba(0, 0, 0, 20%);
-      position: absolute;
-      top: 0;
-      margin: auto;
-      right: 0;
-    }
-  }
-
-  &:hover {
-    background-color: hsl(213, 22%, 94%);
-    .history-item-buttons {
-      visibility: visible;
-    }
-  }
-}
-
-.history-item-buttons {
-  position: sticky;
-  float: right;
-  top: 0;
-  visibility: hidden;
-
-  button {
-    margin: 0 0.5rem;
-
-    i.material-icons,
-    i.material-icons-filled {
-      font-size: 18px;
-    }
-  }
-}
-
-.context-wrapper {
-  white-space: nowrap;
-
-  i.material-icons {
-    margin-left: 0;
-  }
+  font-family: var(--pf-font-monospace);
 }

@@ -40,10 +40,10 @@ export default class implements PerfettoPlugin {
   }
 
   private async createHeapProfileTable(trace: Trace) {
-    await createPerfettoTable(
-      trace.engine,
-      EVENT_TABLE_NAME,
-      `
+    await createPerfettoTable({
+      engine: trace.engine,
+      name: EVENT_TABLE_NAME,
+      as: `
         SELECT
           MIN(id) as id,
           graph_sample_ts AS ts,
@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
         FROM heap_profile_allocation
         GROUP BY ts, upid
       `,
-    );
+    });
   }
 
   private async addProcessTracks(trace: Trace) {
@@ -82,16 +82,14 @@ export default class implements PerfettoPlugin {
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = `/process_${upid}/heap_profile`;
-      const title = 'Heap Profile';
 
       const track: Track = {
         uri,
-        title,
         tags: {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        track: createHeapProfileTrack(
+        renderer: createHeapProfileTrack(
           trace,
           uri,
           EVENT_TABLE_NAME,
@@ -104,7 +102,11 @@ export default class implements PerfettoPlugin {
       this.trackMap.set(upid, track);
 
       const group = trackGroupsPlugin.getGroupForProcess(upid);
-      const trackNode = new TrackNode({uri, title, sortOrder: -30});
+      const trackNode = new TrackNode({
+        uri,
+        name: 'Heap Profile',
+        sortOrder: -30,
+      });
       group?.addChildInOrder(trackNode);
     }
   }

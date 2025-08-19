@@ -24,9 +24,9 @@ import {assertExists, assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
-import {TextInput} from '../../widgets/text_input';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -56,12 +56,11 @@ async function getMetricV1(
 async function getMetricV2(
   engine: Engine,
   metric: string,
-  metricId: string,
   format: Format,
 ): Promise<string> {
   const result = await engine.summarizeTrace(
     [metric],
-    [metricId],
+    undefined,
     undefined,
     format === 'proto' ? 'proto' : 'prototext',
   );
@@ -178,28 +177,23 @@ class MetricsV1Controller {
   }
 }
 
-interface MetricResultAttrs {
-  readonly result: Result<string> | 'pending' | undefined;
-}
-
-class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
-  view({attrs}: m.CVnode<MetricResultAttrs>) {
-    const result = attrs.result;
-
-    if (result === undefined) {
-      return m('pre.metric-error', 'No metric provided');
-    }
-
-    if (result === 'pending') {
-      return m(Spinner);
-    }
-
-    if (!result.ok) {
-      return m('pre.metric-error', `${result.error}`);
-    }
-
-    return m('pre', result.value);
+function renderResult(
+  result: Result<string> | 'pending' | undefined,
+  format: Format,
+) {
+  if (result === undefined) {
+    return m('pre.pf-metrics-page__error', 'No metric provided');
   }
+
+  if (result === 'pending') {
+    return m(Spinner);
+  }
+
+  if (!result.ok) {
+    return m('pre.pf-metrics-page__error', `${result.error}`);
+  }
+
+  return m(CodeSnippet, {language: format, text: result.value});
 }
 
 interface MetricV1FetcherAttrs {
@@ -261,12 +255,10 @@ interface MetricV2FetcherAttrs {
 }
 
 class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
-  private metricId: string = '';
   private text: string = '';
 
   view({attrs}: m.CVnode<MetricV2FetcherAttrs>) {
     if (attrs.showExample) {
-      this.metricId = 'memory_per_process';
       this.text = `id: "memory_per_process"
 dimensions: "process_name"
 value: "avg_rss_and_swap"
@@ -287,30 +279,12 @@ query: {
     }
     return m(
       '.pf-metricsv2-page',
-      m(
-        '.pf-metricsv2-page__metric_id_box',
-        'Metric id: ',
-        m(TextInput, {
-          value: this.metricId,
-          oninput: (e: KeyboardEvent) => {
-            if (!e.target) return;
-            attrs.onUpdateText();
-            this.metricId = (e.target as HTMLInputElement).value;
-          },
-        }),
-      ),
       'Provide metric v2 spec in prototext format ',
       m(Editor, {
-        generation: attrs.editorGeneration,
-        initialText: this.text,
+        text: this.text,
         onExecute: (text: string) => {
           this.text = text;
-          getMetricV2(
-            attrs.engine,
-            `metric_spec: {${text}}`,
-            this.metricId,
-            'prototext',
-          )
+          getMetricV2(attrs.engine, `metric_spec: {${text}}`, 'prototext')
             .then((result) => {
               attrs.onExecuteRunMetric(okResult(result));
             })
@@ -368,18 +342,21 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
     const v1Controller = assertExists(this.v1Controller);
     const json = v1Controller.resultAsJson;
     return m(
-      '.metrics-page',
-      m(SegmentedButtons, {
-        options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
-        selectedOption: this.mode === 'V1' ? 0 : 1,
-        onOptionSelected: (num) => {
-          if (num === 0) {
-            this.mode = 'V1';
-          } else {
-            this.mode = 'V2';
-          }
-        },
-      }),
+      '.pf-metrics-page',
+      m(
+        '',
+        m(SegmentedButtons, {
+          options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
+          selectedOption: this.mode === 'V1' ? 0 : 1,
+          onOptionSelected: (num) => {
+            if (num === 0) {
+              this.mode = 'V1';
+            } else {
+              this.mode = 'V2';
+            }
+          },
+        }),
+      ),
       this.mode === 'V1' &&
         m(MetricV1Fetcher, {
           controller: v1Controller,
@@ -414,9 +391,10 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
           }
           return m(MetricVizView, {visualisation, data});
         }),
-      m(MetricResultView, {
-        result: this.mode === 'V1' ? v1Controller.result : this.v2Result,
-      }),
+      renderResult(
+        this.mode === 'V1' ? v1Controller.result : this.v2Result,
+        v1Controller.format,
+      ),
     );
   }
 }

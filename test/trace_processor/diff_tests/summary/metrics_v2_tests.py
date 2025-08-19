@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import DataPath, Path
+from python.generators.diff_tests.testing import DataPath, Path, Csv
 from python.generators.diff_tests.testing import MetricV2SpecTextproto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
@@ -88,3 +88,197 @@ class SummaryMetricsV2(TestSuite):
               }
         '''),
         out=Path('simple_slices_metric_v2.out'))
+
+  def test_sql_no_preamble(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "memory_per_process"
+          dimensions: "id"
+          value: "ts"
+          query: {
+            id: "sql_source"
+            sql {
+              sql: "SELECT id, ts FROM slice limit 2"
+              column_names: "id"
+              column_names: "ts"
+            }
+          }
+        '''),
+        out=Csv("""
+          row {
+            values: {
+              double_value: 37351104642.0
+            }
+            dimension {
+              int64_value: 0
+            }
+          }
+          row {
+            values: {
+              double_value: 37351520078.0
+            }
+            dimension {
+            int64_value: 1
+            }
+          }
+          specs {
+            id: "memory_per_process"
+            dimensions: "id"
+            value: "ts"
+            query {
+              id: "sql_source"
+              sql {
+                sql: "SELECT id, ts FROM slice limit 2"
+                column_names: "id"
+                column_names: "ts"
+              }
+            }
+          }
+        """))
+
+  def test_sql_miltistatements_in_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "memory_per_process"
+          dimensions: "id"
+          value: "ts"
+          query: {
+            id: "sql_source"
+            sql {
+              sql: "INCLUDE PERFETTO MODULE slices.with_context; SELECT id, ts FROM slice limit 2"
+              column_names: "id"
+              column_names: "ts"
+            }
+          }
+        '''),
+        out=Csv("""
+          row {
+            values: {
+              double_value: 37351104642.0
+            }
+            dimension {
+              int64_value: 0
+            }
+          }
+          row {
+            values: {
+              double_value: 37351520078.0
+            }
+            dimension {
+              int64_value: 1
+            }
+          }
+          specs {
+            id: "memory_per_process"
+            dimensions: "id"
+            value: "ts"
+            query {
+              id: "sql_source"
+              sql {
+                sql: "INCLUDE PERFETTO MODULE slices.with_context; SELECT id, ts FROM slice limit 2"
+                column_names: "id"
+                column_names: "ts"
+              }
+            }
+          }
+        """))
+
+  def test_sql_with_view_preamble(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "preamble_view_metric"
+          dimensions: "id"
+          value: "ts"
+          query: {
+            id: "sql_source_with_view"
+            sql {
+              preamble: "CREATE PERFETTO VIEW sl AS SELECT id, ts FROM slice;"
+              sql: "SELECT id, ts FROM sl LIMIT 2"
+              column_names: "id"
+              column_names: "ts"
+            }
+          }
+        '''),
+        out=Csv("""
+          row {
+            values: {
+              double_value: 37351104642.0
+            }
+            dimension {
+              int64_value: 0
+            }
+          }
+          row {
+            values: {
+              double_value: 37351520078.0
+            }
+            dimension {
+            int64_value: 1
+            }
+          }
+          specs {
+            id: "preamble_view_metric"
+            dimensions: "id"
+            value: "ts"
+            query {
+              id: "sql_source_with_view"
+              sql {
+                preamble: "CREATE PERFETTO VIEW sl AS SELECT id, ts FROM slice;"
+                sql: "SELECT id, ts FROM sl LIMIT 2"
+                column_names: "id"
+                column_names: "ts"
+              }
+            }
+          }
+        """))
+
+  def test_sql_with_view_multistatement_view(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "preamble_view_metric"
+          dimensions: "id"
+          value: "ts"
+          query: {
+            id: "sql_source_with_view"
+            sql {
+              sql: "CREATE PERFETTO VIEW sl AS SELECT id, ts FROM slice; SELECT id, ts FROM sl LIMIT 2"
+              column_names: "id"
+              column_names: "ts"
+            }
+          }
+        '''),
+        out=Csv("""
+          row {
+            values: {
+              double_value: 37351104642.0
+            }
+            dimension {
+              int64_value: 0
+            }
+          }
+          row {
+            values: {
+              double_value: 37351520078.0
+            }
+            dimension {
+            int64_value: 1
+            }
+          }
+          specs {
+            id: "preamble_view_metric"
+            dimensions: "id"
+            value: "ts"
+            query {
+              id: "sql_source_with_view"
+              sql {
+              sql: "CREATE PERFETTO VIEW sl AS SELECT id, ts FROM slice; SELECT id, ts FROM sl LIMIT 2"
+                column_names: "id"
+                column_names: "ts"
+              }
+            }
+          }
+        """))

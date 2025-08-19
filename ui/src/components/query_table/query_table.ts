@@ -14,7 +14,11 @@
 
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
-import {QueryResponse} from './queries';
+import {
+  formatAsDelimited,
+  formatAsMarkdownTable,
+  QueryResponse,
+} from './queries';
 import {Row} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
@@ -28,6 +32,7 @@ import {DataGrid, renderCell} from '../widgets/data_grid/data_grid';
 import {DataGridDataSource} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
+import {Box} from '../../widgets/box';
 
 type Numeric = bigint | number;
 
@@ -156,11 +161,17 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
           resp.error === undefined && [
             m(MenuItem, {
               label: 'Result (.tsv)',
-              onclick: () => queryResponseAsTsvToClipboard(resp),
+              onclick: async () => {
+                const tsv = formatAsDelimited(resp);
+                await copyToClipboard(tsv);
+              },
             }),
             m(MenuItem, {
               label: 'Result (.md)',
-              onclick: () => queryResponseAsMarkdownToClipboard(resp),
+              onclick: async () => {
+                const markdown = formatAsMarkdownTable(resp);
+                await copyToClipboard(markdown);
+              },
             }),
           ],
       ),
@@ -174,23 +185,20 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
-        m(
-          '.pf-query-warning',
-          m(
-            Callout,
-            {icon: 'warning'},
+        m(Box, [
+          m(Callout, {icon: 'warning'}, [
             `${resp.statementWithOutputCount} out of ${resp.statementCount} `,
             'statements returned a result. ',
             'Only the results for the last statement are displayed.',
-          ),
-        ),
+          ]),
+        ]),
       this.renderContent(resp, dataSource),
     );
   }
 
   private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
     if (resp.error) {
-      return m('.query-error', `SQL error: ${resp.error}`);
+      return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
     const onViewerPage =
@@ -199,9 +207,10 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(DataGrid, {
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
+      fillHeight: true,
       filters: [],
       columns: resp.columns.map((c) => ({name: c})),
-      dataSource,
+      data: dataSource,
       cellRenderer: (value, name, row) => {
         const sliceId = getSliceId(row);
         const cell = renderCell(value, name);
@@ -237,63 +246,4 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       scrollToSelection: true,
     });
   }
-}
-
-async function queryResponseAsTsvToClipboard(
-  resp: QueryResponse,
-): Promise<void> {
-  const lines: string[][] = [];
-  lines.push(resp.columns);
-  for (const row of resp.rows) {
-    const line = [];
-    for (const col of resp.columns) {
-      const value = row[col];
-      line.push(value === null ? 'NULL' : `${value}`);
-    }
-    lines.push(line);
-  }
-  await copyToClipboard(lines.map((line) => line.join('\t')).join('\n'));
-}
-
-async function queryResponseAsMarkdownToClipboard(
-  resp: QueryResponse,
-): Promise<void> {
-  // Convert all values to strings.
-  // rows = [header, separators, ...body]
-  const rows: string[][] = [];
-  rows.push(resp.columns);
-  rows.push(resp.columns.map((_) => '---'));
-  for (const responseRow of resp.rows) {
-    rows.push(
-      resp.columns.map((responseCol) => {
-        const value = responseRow[responseCol];
-        return value === null ? 'NULL' : `${value}`;
-      }),
-    );
-  }
-
-  // Find the maximum width of each column.
-  const maxWidths: number[] = Array(resp.columns.length).fill(0);
-  for (const row of rows) {
-    for (let i = 0; i < resp.columns.length; i++) {
-      if (row[i].length > maxWidths[i]) {
-        maxWidths[i] = row[i].length;
-      }
-    }
-  }
-
-  const text = rows
-    .map((row, rowIndex) => {
-      // Pad each column to the maximum width with hyphens (separator row) or
-      // spaces (all other rows).
-      const expansionChar = rowIndex === 1 ? '-' : ' ';
-      const line: string[] = row.map(
-        (str, colIndex) =>
-          str + expansionChar.repeat(maxWidths[colIndex] - str.length),
-      );
-      return `| ${line.join(' | ')} |`;
-    })
-    .join('\n');
-
-  await copyToClipboard(text);
 }

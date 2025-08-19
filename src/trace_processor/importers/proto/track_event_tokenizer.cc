@@ -19,13 +19,16 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -48,9 +51,11 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
@@ -58,25 +63,43 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
-
 namespace {
 using protos::pbzero::CounterDescriptor;
-}
 
-TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context,
-                                         TrackEventTracker* track_event_tracker)
+class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
+ public:
+  explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
+  void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
+    tracker_->Parse(ts, data);
+  }
+
+ private:
+  LegacyV8CpuProfileTracker* tracker_;
+};
+
+}  // namespace
+
+TrackEventTokenizer::TrackEventTokenizer(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context,
+    TrackEventTracker* track_event_tracker)
     : context_(context),
       track_event_tracker_(track_event_tracker),
+      module_context_(module_context),
+      v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(context)),
+      v8_stream_(context->sorter->CreateStream(
+          std::make_unique<V8Sink>(v8_tracker_.get()))),
       counter_name_thread_time_id_(
           context_->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
           context_->storage->InternString("thread_instruction_count")),
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
-                         context_->storage->InternString("bytes")}} {}
+                         context_->storage->InternString("bytes")}} {
+  base::ignore_result(module_context_);
+}
 
 ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
     RefPtr<PacketSequenceStateGeneration> /*state*/,
@@ -140,10 +163,45 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.sibling_order_rank = track.sibling_order_rank();
   }
 
-  if (track.has_name())
+  if (track.has_sibling_merge_behavior()) {
+    using B = TrackDescriptorProto::SiblingMergeBehavior;
+    switch (track.sibling_merge_behavior()) {
+      case B::SIBLING_MERGE_BEHAVIOR_UNSPECIFIED:
+      case B::SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kByName;
+        break;
+      case B::SIBLING_MERGE_BEHAVIOR_NONE:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kNone;
+        break;
+      case B::SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kByKey;
+        if (track.has_sibling_merge_key()) {
+          reservation.sibling_merge_key =
+              context_->storage->InternString(track.sibling_merge_key());
+        } else if (track.has_sibling_merge_key_int()) {
+          reservation.sibling_merge_key = context_->storage->InternString(
+              "sibling_merge_key_int:" +
+              std::to_string(track.sibling_merge_key_int()));
+        }
+        break;
+    }
+  }
+
+  if (track.has_name()) {
     reservation.name = context_->storage->InternString(track.name());
-  else if (track.has_static_name())
+  } else if (track.has_static_name()) {
     reservation.name = context_->storage->InternString(track.static_name());
+  } else if (track.has_atrace_name()) {
+    reservation.name = context_->storage->InternString(track.atrace_name());
+  }
+
+  if (track.has_description()) {
+    reservation.description =
+        context_->storage->InternString(track.description());
+  }
 
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
@@ -161,17 +219,26 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       return ModuleResult::Handled();
     }
 
-    if (state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(*state, thread);
-    }
-
     reservation.min_timestamp = packet_timestamp;
-    reservation.pid = static_cast<uint32_t>(thread.pid());
-    reservation.tid = static_cast<uint32_t>(thread.tid());
+    reservation.pid = static_cast<int64_t>(thread.pid());
+    reservation.tid = static_cast<int64_t>(thread.tid());
     reservation.use_separate_track =
         track.disallow_merging_with_system_tracks();
 
+    // If tid is sandboxed then use a unique synthetic tid, to avoid
+    // having concurrent threads with the same tid.
+    if (track.has_chrome_thread()) {
+      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_thread(
+          track.chrome_thread());
+      if (chrome_thread.has_is_sandboxed_tid()) {
+        reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
+      }
+    }
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+
+    if (state->IsIncrementalStateValid()) {
+      TokenizeThreadDescriptor(*state, thread, reservation.use_synthetic_tid);
+    }
 
     return ModuleResult::Ignored();
   }
@@ -238,6 +305,11 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     counter_details.is_incremental = counter.is_incremental();
     counter_details.unit_multiplier = counter.unit_multiplier();
 
+    if (counter.has_y_axis_share_key()) {
+      counter_details.y_axis_share_key =
+          context_->storage->InternString(counter.y_axis_share_key());
+    }
+
     auto unit = static_cast<uint32_t>(counter.unit());
     if (counter.type() == CounterDescriptor::COUNTER_THREAD_TIME_NS) {
       counter_details.unit = counter_unit_ids_[CounterDescriptor::UNIT_TIME_NS];
@@ -256,9 +328,6 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     // Incrementally encoded counters are only valid on a single sequence.
-    if (counter.is_incremental()) {
-      counter_details.packet_sequence_id = packet.trusted_packet_sequence_id();
-    }
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
     return ModuleResult::Ignored();
@@ -290,7 +359,7 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   }
 
   protos::pbzero::ThreadDescriptor::Decoder thread(packet.thread_descriptor());
-  TokenizeThreadDescriptor(*state, thread);
+  TokenizeThreadDescriptor(*state, thread, /*use_synthetic_tid=*/false);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
@@ -298,10 +367,11 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
     PacketSequenceStateGeneration& state,
-    const protos::pbzero::ThreadDescriptor::Decoder& thread) {
+    const protos::pbzero::ThreadDescriptor::Decoder& thread,
+    bool use_synthetic_tid) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.SetThreadDescriptor(thread);
+  state.SetThreadDescriptor(thread, use_synthetic_tid);
 }
 
 ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
@@ -429,12 +499,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     std::optional<double> value;
     if (event.has_counter_value()) {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
-          track_uuid, packet.trusted_packet_sequence_id(),
-          static_cast<double>(event.counter_value()));
+          state.get(), track_uuid, static_cast<double>(event.counter_value()));
     } else {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
-          track_uuid, packet.trusted_packet_sequence_id(),
-          event.double_counter_value());
+          state.get(), track_uuid, event.double_counter_value());
     }
 
     if (!value) {
@@ -450,8 +518,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   size_t index = 0;
   const protozero::RepeatedFieldIterator<uint64_t> kEmptyIterator;
   auto result = AddExtraCounterValues(
-      data, index, packet.trusted_packet_sequence_id(),
-      event.extra_counter_values(), event.extra_counter_track_uuids(),
+      *state, data, index, event.extra_counter_values(),
+      event.extra_counter_track_uuids(),
       defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
     PERFETTO_DLOG("%s", result.c_message());
@@ -459,8 +527,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     return ModuleResult::Handled();
   }
   result = AddExtraCounterValues(
-      data, index, packet.trusted_packet_sequence_id(),
-      event.extra_double_counter_values(),
+      *state, data, index, event.extra_double_counter_values(),
       event.extra_double_counter_track_uuids(),
       defaults ? defaults->extra_double_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
@@ -468,17 +535,15 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
-
-  context_->sorter->PushTrackEventPacket(timestamp, std::move(data),
-                                         context_->machine_id());
+  module_context_->track_event_stream->Push(timestamp, std::move(data));
   return ModuleResult::Handled();
 }
 
 template <typename T>
 base::Status TrackEventTokenizer::AddExtraCounterValues(
+    PacketSequenceStateGeneration& state,
     TrackEventData& data,
     size_t& index,
-    uint32_t trusted_packet_sequence_id,
     protozero::RepeatedFieldIterator<T> value_it,
     protozero::RepeatedFieldIterator<uint64_t> packet_track_uuid_it,
     protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it) {
@@ -511,8 +576,7 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
     }
     std::optional<double> abs_value =
         track_event_tracker_->ConvertToAbsoluteCounterValue(
-            *track_uuid_it, trusted_packet_sequence_id,
-            static_cast<double>(*value_it));
+            &state, *track_uuid_it, static_cast<double>(*value_it));
     if (!abs_value) {
       return base::ErrStatus(
           "Ignoring TrackEvent with invalid extra counter track");
@@ -526,11 +590,6 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     const protos::pbzero::TrackEvent::Decoder& event,
     const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy,
     PacketSequenceStateGeneration& state) {
-  // We are just trying to parse out the V8 profiling events into the cpu
-  // sampling tables: if we don't have JSON enabled, just don't do this.
-  if (!context_->json_trace_parser) {
-    return base::OkStatus();
-  }
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);
@@ -550,7 +609,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
       ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
                                        protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
                                        val["startTime"].asInt64() * 1000));
-      context_->legacy_v8_cpu_profile_tracker->SetStartTsForSessionAndPid(
+      v8_tracker_->SetStartTsForSessionAndPid(
           legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), ts);
       continue;
     }
@@ -564,10 +623,9 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
       base::StringView url =
           frame.isMember("url") ? frame["url"].asCString() : base::StringView();
       base::StringView function_name = frame["functionName"].asCString();
-      base::Status status =
-          context_->legacy_v8_cpu_profile_tracker->AddCallsite(
-              legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node_id,
-              parent_node_id, url, function_name, {});
+      base::Status status = v8_tracker_->AddCallsite(
+          legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node_id,
+          parent_node_id, url, function_name, {});
       if (!status.ok()) {
         context_->storage->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_callsite);
@@ -581,14 +639,13 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
           "v8 legacy profile: samples and timestamps do not have same size");
     }
     for (uint32_t i = 0; i < samples.size(); ++i) {
-      ASSIGN_OR_RETURN(
-          int64_t ts,
-          context_->legacy_v8_cpu_profile_tracker->AddDeltaAndGetTs(
-              legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
-              deltas[i].asInt64() * 1000));
-      context_->sorter->PushLegacyV8CpuProfileEvent(
-          ts, legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
-          static_cast<uint32_t>(state.tid()), samples[i].asUInt());
+      ASSIGN_OR_RETURN(int64_t ts, v8_tracker_->AddDeltaAndGetTs(
+                                       legacy.unscoped_id(),
+                                       static_cast<uint32_t>(state.pid()),
+                                       deltas[i].asInt64() * 1000));
+      v8_stream_->Push(
+          ts, {legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
+               static_cast<uint32_t>(state.tid()), samples[i].asUInt()});
     }
   }
 #else

@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
@@ -47,14 +47,13 @@ namespace {
 class PerfSampleTrackerTest : public ::testing::Test {
  public:
   PerfSampleTrackerTest() {
-    context.storage = std::make_shared<TraceStorage>();
+    context.storage = std::make_unique<TraceStorage>();
     context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
     context.cpu_tracker = std::make_unique<CpuTracker>(&context);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
-    context.args_tracker = std::make_unique<ArgsTracker>(&context);
     context.track_tracker = std::make_unique<TrackTracker>(&context);
-    context.perf_sample_tracker = std::make_unique<PerfSampleTracker>(&context);
+    perf_sample_tracker = std::make_unique<PerfSampleTracker>(&context);
   }
 
   base::StatusOr<std::optional<Variadic>> GetDimension(
@@ -77,6 +76,7 @@ class PerfSampleTrackerTest : public ::testing::Test {
 
  protected:
   TraceProcessorContext context;
+  std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
 };
 
 TEST_F(PerfSampleTrackerTest, PerCpuCounterTracks) {
@@ -84,9 +84,9 @@ TEST_F(PerfSampleTrackerTest, PerCpuCounterTracks) {
   uint32_t cpu0 = 0;
   uint32_t cpu1 = 1;
 
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(
       seq_id, cpu0, /*nullable_defaults=*/nullptr);
-  auto stream2 = context.perf_sample_tracker->GetSamplingStreamInfo(
+  auto stream2 = perf_sample_tracker->GetSamplingStreamInfo(
       seq_id, cpu1, /*nullable_defaults=*/nullptr);
 
   // same session, different counter tracks
@@ -94,7 +94,7 @@ TEST_F(PerfSampleTrackerTest, PerCpuCounterTracks) {
   EXPECT_NE(stream.timebase_track_id, stream2.timebase_track_id);
 
   // re-querying one of the existing streams gives the same ids
-  auto stream3 = context.perf_sample_tracker->GetSamplingStreamInfo(
+  auto stream3 = perf_sample_tracker->GetSamplingStreamInfo(
       seq_id, cpu1, /*nullable_defaults=*/nullptr);
 
   EXPECT_EQ(stream2.perf_session_id, stream3.perf_session_id);
@@ -113,8 +113,8 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Counter) {
   auto defaults_pb = defaults.SerializeAsString();
   protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
 
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
-      seq_id, cpu0, &defaults_decoder);
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(seq_id, cpu0,
+                                                           &defaults_decoder);
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
@@ -150,8 +150,8 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Tracepoint) {
   auto defaults_pb = defaults.SerializeAsString();
   protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
 
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
-      seq_id, cpu0, &defaults_decoder);
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(seq_id, cpu0,
+                                                           &defaults_decoder);
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
@@ -179,7 +179,7 @@ TEST_F(PerfSampleTrackerTest, UnknownCounterTreatedAsCpuClock) {
   uint32_t seq_id = 42;
   uint32_t cpu0 = 0;
 
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(
       seq_id, cpu0, /*nullable_defaults=*/nullptr);
 
   TrackId track_id = stream.timebase_track_id;
@@ -220,8 +220,8 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
   auto defaults_pb = defaults.SerializeAsString();
   protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
 
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
-      seq_id, cpu0, &defaults_decoder);
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(seq_id, cpu0,
+                                                           &defaults_decoder);
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
@@ -275,8 +275,8 @@ TEST_F(PerfSampleTrackerTest, FollowersTracks) {
   auto defaults_pb = defaults.SerializeAsString();
   protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
 
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
-      seq_id, cpu_id, &defaults_decoder);
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(seq_id, cpu_id,
+                                                           &defaults_decoder);
 
   ASSERT_EQ(stream.follower_track_ids.size(), 3u);
 
@@ -330,15 +330,15 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
   protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
 
   // Two per-cpu lookups for first sequence
-  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
+  auto stream = perf_sample_tracker->GetSamplingStreamInfo(
       /*seq_id=*/42, cpu0, &defaults_decoder);
-  context.perf_sample_tracker->GetSamplingStreamInfo(
+  perf_sample_tracker->GetSamplingStreamInfo(
       /*seq_id=*/42, cpu1, &defaults_decoder);
 
   // Second sequence
-  auto stream2 = context.perf_sample_tracker->GetSamplingStreamInfo(
+  auto stream2 = perf_sample_tracker->GetSamplingStreamInfo(
       /*seq_id=*/100, cpu0, &defaults_decoder);
-  context.perf_sample_tracker->GetSamplingStreamInfo(
+  perf_sample_tracker->GetSamplingStreamInfo(
       /*seq_id=*/100, cpu1, &defaults_decoder);
 
   EXPECT_NE(stream.perf_session_id, stream2.perf_session_id);

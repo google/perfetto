@@ -30,7 +30,7 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
 import {TrackEventSelection} from '../../public/selection';
-import {hasArgs, renderArguments} from '../../components/details/slice_args';
+import {hasArgs, renderArguments} from '../../components/details/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
 import {Arg, getArgs} from '../../components/sql_utils/args';
 

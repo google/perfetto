@@ -55,10 +55,8 @@
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
-#include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
-#include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
-#include "src/trace_processor/importers/i2c/i2c_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -68,6 +66,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/softirq_action.h"
 #include "src/trace_processor/types/tcp_state.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/types/version_number.h"
 
@@ -356,19 +355,78 @@ const char* GetMmEventTypeStr(uint32_t type) {
   }
 }
 
+void InsertFieldIntoArgs(StringId name_id,
+                         ProtoSchemaType type,
+                         const protozero::Field& fld,
+                         ArgsTracker::BoundInserter& inserter,
+                         TraceProcessorContext* context) {
+  switch (type) {
+    case ProtoSchemaType::kInt32:
+    case ProtoSchemaType::kInt64:
+    case ProtoSchemaType::kSfixed32:
+    case ProtoSchemaType::kSfixed64:
+    case ProtoSchemaType::kBool:
+    case ProtoSchemaType::kEnum: {
+      inserter.AddArg(name_id, Variadic::Integer(fld.as_int64()));
+      break;
+    }
+    case ProtoSchemaType::kUint32:
+    case ProtoSchemaType::kUint64:
+    case ProtoSchemaType::kFixed32:
+    case ProtoSchemaType::kFixed64: {
+      // Note that SQLite functions will still treat unsigned values
+      // as a signed 64 bit integers (but the translation back to ftrace
+      // refers to this storage directly).
+      inserter.AddArg(name_id, Variadic::UnsignedInteger(fld.as_uint64()));
+      break;
+    }
+    case ProtoSchemaType::kSint32:
+    case ProtoSchemaType::kSint64: {
+      inserter.AddArg(name_id, Variadic::Integer(fld.as_sint64()));
+      break;
+    }
+    case ProtoSchemaType::kString:
+    case ProtoSchemaType::kBytes: {
+      StringId value = context->storage->InternString(fld.as_string());
+      inserter.AddArg(name_id, Variadic::String(value));
+      break;
+    }
+    case ProtoSchemaType::kDouble: {
+      inserter.AddArg(name_id, Variadic::Real(fld.as_double()));
+      break;
+    }
+    case ProtoSchemaType::kFloat: {
+      inserter.AddArg(name_id,
+                      Variadic::Real(static_cast<double>(fld.as_float())));
+      break;
+    }
+    case ProtoSchemaType::kUnknown:
+    case ProtoSchemaType::kGroup:
+    case ProtoSchemaType::kMessage:
+      PERFETTO_DLOG("Could not store %s as a field in args table.",
+                    ProtoSchemaToString(type));
+      break;
+  }
+}
+
 }  // namespace
 
-FtraceParser::FtraceParser(TraceProcessorContext* context)
+FtraceParser::FtraceParser(TraceProcessorContext* context,
+                           GenericFtraceTracker* generic_tracker)
     : context_(context),
-      rss_stat_tracker_(context),
+      generic_tracker_(generic_tracker),
       drm_tracker_(context),
-      iostat_tracker_(context),
-      virtio_gpu_tracker_(context),
-      mali_gpu_event_tracker_(context),
-      pkvm_hyp_cpu_tracker_(context),
       gpu_work_period_tracker_(context),
-      thermal_tracker_(context),
+      i2c_tracker_(context),
+      iostat_tracker_(context),
+      mali_gpu_event_tracker_(context),
       pixel_mm_kswapd_event_tracker_(context),
+      pkvm_hyp_cpu_tracker_(context),
+      rss_stat_tracker_(context),
+      thermal_tracker_(context),
+      v4l2_tracker_(context),
+      virtio_gpu_tracker_(context),
+      virtio_video_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -776,7 +834,9 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
 
     ConstBytes fld_bytes = fld.as_bytes();
     if (fld.id() == FtraceEvent::kGenericFieldNumber) {
-      ParseGenericFtrace(ts, cpu, pid, fld_bytes);
+      ParseLegacyGenericFtrace(ts, cpu, pid, fld_bytes);
+    } else if (GenericFtraceTracker::IsGenericFtraceEvent(fld.id())) {
+      ParseGenericFtrace(fld.id(), ts, cpu, pid, fld_bytes);
     } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
       // sched_switch parsing populates the raw table by itself
       ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
@@ -951,6 +1011,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kCmaAllocStartFieldNumber: {
         ParseCmaAllocStart(ts, pid);
+        break;
+      }
+      case FtraceEvent::kMmAllocContigMigrateRangeInfoFieldNumber: {
+        ParseMmAllocContigMigrateRangeInfo(pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kCmaAllocFinishFieldNumber: {
+        ParseCmaAllocFinish(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kCmaAllocInfoFieldNumber: {
@@ -1181,16 +1249,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kVb2V4l2BufDoneFieldNumber:
       case FtraceEvent::kVb2V4l2QbufFieldNumber:
       case FtraceEvent::kVb2V4l2DqbufFieldNumber: {
-        V4l2Tracker::GetOrCreate(context_)->ParseV4l2Event(fld.id(), ts, pid,
-                                                           fld_bytes);
+        v4l2_tracker_.ParseV4l2Event(fld.id(), ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kVirtioVideoCmdFieldNumber:
       case FtraceEvent::kVirtioVideoCmdDoneFieldNumber:
       case FtraceEvent::kVirtioVideoResourceQueueFieldNumber:
       case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
-        VirtioVideoTracker::GetOrCreate(context_)->ParseVirtioVideoEvent(
-            fld.id(), ts, fld_bytes);
+        virtio_video_tracker_.ParseVirtioVideoEvent(fld.id(), ts, fld_bytes);
         break;
       }
       case FtraceEvent::kTrustySmcFieldNumber: {
@@ -1393,6 +1459,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseHrtimerExpireExit(cpu, ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDmabufRssStatFieldNumber: {
+        ParseDmabufRssStat(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1516,10 +1586,10 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   has_seen_first_ftrace_packet_ = true;
 }
 
-void FtraceParser::ParseGenericFtrace(int64_t ts,
-                                      uint32_t cpu,
-                                      uint32_t tid,
-                                      ConstBytes blob) {
+void FtraceParser::ParseLegacyGenericFtrace(int64_t ts,
+                                            uint32_t cpu,
+                                            uint32_t tid,
+                                            ConstBytes blob) {
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
@@ -1528,7 +1598,8 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, event_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
     protos::pbzero::GenericFtraceEvent::Field::Decoder fld(*it);
@@ -1546,6 +1617,60 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
   }
 }
 
+void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
+                                      int64_t ts,
+                                      uint32_t cpu,
+                                      uint32_t tid,
+                                      ConstBytes blob) {
+  protozero::ProtoDecoder decoder(blob);
+
+  // Special handling for events matching a convention - derive track/counter
+  // tracks for them automatically (no perfetto code changes needed).
+  if (PERFETTO_LIKELY(ts >= soft_drop_ftrace_data_before_ts_)) {
+    generic_tracker_->MaybeParseAsTrackEvent(event_proto_id, ts, tid, decoder);
+  }
+
+  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table)) {
+    return;
+  }
+
+  GenericFtraceTracker::GenericEvent* descriptor =
+      generic_tracker_->GetEvent(event_proto_id);
+  if (!descriptor) {
+    PERFETTO_DLOG("Failed to find descriptor for proto id %" PRIu32 "",
+                  event_proto_id);
+    context_->storage->IncrementStats(stats::ftrace_generic_descriptor_errors);
+    return;
+  }
+
+  // Insert event into |ftrace_event|.
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  tables::FtraceEventTable::Id id =
+      context_->storage->mutable_ftrace_event_table()
+          ->Insert({ts, descriptor->name, utid, {}, {}, ucpu})
+          .id;
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
+
+  // Insert fields into |args|.
+  for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
+    if (PERFETTO_UNLIKELY(
+            (fld.id() >= descriptor->fields.size()) ||
+            (descriptor->fields[fld.id()].type == ProtoSchemaType::kUnknown))) {
+      context_->storage->IncrementStats(
+          stats::ftrace_generic_descriptor_errors);
+      PERFETTO_DLOG("Skipping unknown generic field with id %" PRIu32 "",
+                    fld.id());
+      continue;
+    }
+    auto& field_descriptor = descriptor->fields[fld.id()];
+    auto name_id = field_descriptor.name;
+    auto type = field_descriptor.type;
+    InsertFieldIntoArgs(name_id, type, fld, inserter, context_);
+  }
+}
+
 void FtraceParser::ParseTypedFtraceToRaw(
     uint32_t ftrace_id,
     int64_t timestamp,
@@ -1558,7 +1683,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
 
   ProtoDecoder decoder(blob);
   if (ftrace_id >= GetDescriptorsSize()) {
-    PERFETTO_DLOG("Event with id: %d does not exist and cannot be parsed.",
+    PERFETTO_DLOG("Event with id: %u does not exist and cannot be parsed.",
                   ftrace_id);
     return;
   }
@@ -1572,7 +1697,8 @@ void FtraceParser::ParseTypedFtraceToRaw(
           ->Insert(
               {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     uint32_t field_id = fld.id();
@@ -1611,53 +1737,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
       }
     }
 
-    switch (type) {
-      case ProtoSchemaType::kInt32:
-      case ProtoSchemaType::kInt64:
-      case ProtoSchemaType::kSfixed32:
-      case ProtoSchemaType::kSfixed64:
-      case ProtoSchemaType::kBool:
-      case ProtoSchemaType::kEnum: {
-        inserter.AddArg(name_id, Variadic::Integer(fld.as_int64()));
-        break;
-      }
-      case ProtoSchemaType::kUint32:
-      case ProtoSchemaType::kUint64:
-      case ProtoSchemaType::kFixed32:
-      case ProtoSchemaType::kFixed64: {
-        // Note that SQLite functions will still treat unsigned values
-        // as a signed 64 bit integers (but the translation back to ftrace
-        // refers to this storage directly).
-        inserter.AddArg(name_id, Variadic::UnsignedInteger(fld.as_uint64()));
-        break;
-      }
-      case ProtoSchemaType::kSint32:
-      case ProtoSchemaType::kSint64: {
-        inserter.AddArg(name_id, Variadic::Integer(fld.as_sint64()));
-        break;
-      }
-      case ProtoSchemaType::kString:
-      case ProtoSchemaType::kBytes: {
-        StringId value = context_->storage->InternString(fld.as_string());
-        inserter.AddArg(name_id, Variadic::String(value));
-        break;
-      }
-      case ProtoSchemaType::kDouble: {
-        inserter.AddArg(name_id, Variadic::Real(fld.as_double()));
-        break;
-      }
-      case ProtoSchemaType::kFloat: {
-        inserter.AddArg(name_id,
-                        Variadic::Real(static_cast<double>(fld.as_float())));
-        break;
-      }
-      case ProtoSchemaType::kUnknown:
-      case ProtoSchemaType::kGroup:
-      case ProtoSchemaType::kMessage:
-        PERFETTO_DLOG("Could not store %s as a field in args table.",
-                      ProtoSchemaToString(type));
-        break;
-    }
+    InsertFieldIntoArgs(name_id, type, fld, inserter, context_);
   }
 }
 
@@ -1706,8 +1786,10 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
   protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto wakee_utid = context_->process_tracker->UpdateThreadName(
-      wakee_pid, name_id, ThreadNamePriority::kFtrace);
+  UniqueTid wakee_utid =
+      context_->process_tracker->GetOrCreateThread(wakee_pid);
+  context_->process_tracker->UpdateThreadName(wakee_utid, name_id,
+                                              ThreadNamePriority::kFtrace);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp,
                                                              wakee_utid, utid);
@@ -2344,8 +2426,7 @@ void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+  i2c_tracker_.Enter(timestamp, utid, adapter_nr, msg_nr);
 }
 
 void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
@@ -2356,8 +2437,7 @@ void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+  i2c_tracker_.Enter(timestamp, utid, adapter_nr, msg_nr);
 }
 
 void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
@@ -2368,8 +2448,7 @@ void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
   uint32_t nr_msgs = static_cast<uint32_t>(evt.nr_msgs());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Exit(timestamp, utid, adapter_nr, nr_msgs);
+  i2c_tracker_.Exit(timestamp, utid, adapter_nr, nr_msgs);
 }
 
 void FtraceParser::ParseTaskNewTask(int64_t timestamp,
@@ -2419,8 +2498,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // they get resolved to the same process.
   auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
-  proc_tracker->UpdateThreadNameByUtid(new_utid, new_comm,
-                                       ThreadNamePriority::kFtrace);
+  proc_tracker->UpdateThreadName(new_utid, new_comm,
+                                 ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
@@ -2431,8 +2510,9 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
+  auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      tid, comm, ThreadNamePriority::kFtrace);
+      utid, comm, ThreadNamePriority::kFtrace);
 }
 
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,
@@ -2554,6 +2634,14 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id);
 }
 
+// The ftrace event sequence for a Contiguous Memory Allocator (CMA)
+// allocation changes depending on the kernel version.
+//
+// - Versions 5.10 to 6.0 (i.e., 5.10 <= v < 6.1):
+// CmaAllocStart -> CmaAllocInfo
+//
+// - Versions 6.1 and newer (i.e., v >= 6.1):
+// CmaAllocStart -> MmAllocContigMigrateRangeInfo -> CmaAllocFinish
 void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
@@ -2564,8 +2652,66 @@ void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
+  // Erase any stale entry for this thread and initialize a fresh, zeroed
+  // struct for the new allocation sequence. This handles cases where a
+  // MmAllocContigMigrateRangeInfo event is skipped.
+  if (kernel_version >= VersionNumber{6, 1}) {
+    utid_to_cma_migration_info_[utid] = CmaMigrationInfo{};
+  }
+
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
                                  cma_alloc_id_);
+}
+
+void FtraceParser::ParseMmAllocContigMigrateRangeInfo(uint32_t pid,
+                                                      ConstBytes blob) {
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event deprecated >=6.1; using MmAllocContigMigrateRangeInfo.
+  if (kernel_version < VersionNumber{6, 1})
+    return;
+
+  protos::pbzero::MmAllocContigMigrateRangeInfoFtraceEvent::Decoder info(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  utid_to_cma_migration_info_[utid] = CmaMigrationInfo{
+      info.nr_migrated(), info.nr_reclaimed(), info.nr_mapped()};
+}
+
+void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
+                                       uint32_t pid,
+                                       ConstBytes blob) {
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo deprecated >=6.1; Pair with ParseCmaAllocStart()
+  if (kernel_version < VersionNumber{6, 1})
+    return;
+
+  protos::pbzero::CmaAllocFinishFtraceEvent::Decoder cma_alloc_finish(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  CmaMigrationInfo* info_ptr = utid_to_cma_migration_info_.Find(utid);
+  const CmaMigrationInfo& info = info_ptr ? *info_ptr : CmaMigrationInfo{};
+
+  auto args_inserter = [this, &cma_alloc_finish,
+                        &info](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cma_name_id_,
+                     Variadic::String(context_->storage->InternString(
+                         cma_alloc_finish.name())));
+    inserter->AddArg(cma_pfn_id_,
+                     Variadic::UnsignedInteger(cma_alloc_finish.pfn()));
+    inserter->AddArg(cma_req_pages_id_,
+                     Variadic::UnsignedInteger(cma_alloc_finish.count()));
+    inserter->AddArg(cma_nr_migrated_id_,
+                     Variadic::UnsignedInteger(info.nr_migrated));
+    inserter->AddArg(cma_nr_reclaimed_id_,
+                     Variadic::UnsignedInteger(info.nr_reclaimed));
+    inserter->AddArg(cma_nr_mapped_id_,
+                     Variadic::UnsignedInteger(info.nr_mapped));
+  };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
@@ -2573,9 +2719,11 @@ void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
                                      ConstBytes blob) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
-  // CmaAllocInfo event only exists after 5.10
-  if (kernel_version < VersionNumber{5, 10})
+  // CmaAllocInfo event: Kernel 5.10 <= version < 6.1
+  if (kernel_version < VersionNumber{5, 10} ||
+      kernel_version >= VersionNumber{6, 1}) {
     return;
+  }
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -2788,7 +2936,7 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
                                      protozero::ConstBytes blob) {
   protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob);
   if (evt.vec() >= base::ArraySize(kActionNames)) {
-    PERFETTO_DFATAL("No action name at index %d for softirq event.", evt.vec());
+    PERFETTO_DFATAL("No action name at index %u for softirq event.", evt.vec());
     return;
   }
 
@@ -3641,7 +3789,6 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   auto val = (action_name == "timekeeping_freeze") ? 0 : evt.val();
 
   base::StackString<64> str("%s(%d)", action_name.c_str(), val);
-  std::string current_action = str.ToStdString();
 
   StringId slice_name_id = context_->storage->InternString(str.string_view());
   int64_t cookie = slice_name_id.raw_id();
@@ -4194,4 +4341,14 @@ void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
       context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
   context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
+
+void FtraceParser::ParseDmabufRssStat(int64_t ts,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::DmabufRssStatFtraceEvent::Decoder evt(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  context_->event_tracker->PushProcessCounterForThread(
+      EventTracker::DmabufRssStat(), ts, static_cast<double>(evt.rss()), utid);
+}
+
 }  // namespace perfetto::trace_processor

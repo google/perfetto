@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -478,4 +478,53 @@ class Tables(TestSuite):
         out=Csv("""
         "utid_count","end_utid_count"
         89,0
+        """))
+
+  def test_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            tracing_service_version: "Perfetto v38.0-0bb49ab54 (0bb49ab54dbe55ce5b9dfea3a2ada68b87aecb65)"
+            timezone_off_mins: 60
+            utsname {
+              sysname: "Darwin"
+              version: "Foobar"
+              machine: "x86_64"
+              release: "22.6.0"
+            }
+            num_cpus: 4
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              version: "#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025"
+              release: "6.6.82-android15-8-g1a7680db913a-ab13304129"
+              machine: "x86_64"
+            }
+            android_build_fingerprint: "android_test_fingerprint"
+            android_device_manufacturer: "Android"
+            android_soc_model: "some_soc_model"
+            tracing_service_version: "Perfetto v50.1 (N/A)"
+            android_sdk_version: 33
+            page_size: 4096
+            num_cpus: 8
+            timezone_off_mins: 0
+          }
+          machine_id: 2420838448
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query="""
+        SELECT * FROM machine
+        """,
+        out=Csv("""
+        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version"
+        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]"
+        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33
         """))

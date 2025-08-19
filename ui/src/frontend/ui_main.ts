@@ -47,7 +47,11 @@ import {
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
 import {renderStatusBar} from './statusbar';
-import {Time} from '../base/time';
+import {formatTimezone, timezoneOffsetMap} from '../base/time';
+import {LinearProgress} from '../widgets/linear_progress';
+import {taskTracker} from './task_tracker';
+import {Button} from '../widgets/button';
+import {initCssConstants} from './css_constants';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -61,6 +65,9 @@ const OMNIBOX_INPUT_REF = 'omnibox';
 // This wrapper creates a new instance of UiMainPerTrace for each new trace
 // loaded (including the case of no trace at the beginning).
 export class UiMain implements m.ClassComponent {
+  oncreate({dom}: m.CVnodeDOM) {
+    initCssConstants(dom);
+  }
   view() {
     const currentTraceId = AppImpl.instance.trace?.engine.engineId ?? '';
     return [m(UiMainPerTrace, {key: currentTraceId})];
@@ -117,11 +124,12 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Set timestamp and duration format',
         callback: async () => {
           const TF = TimestampFormat;
-          const timeZone = Time.formatTimezone(trace.traceInfo.tzOffMin);
+          const timeZone = formatTimezone(trace.traceInfo.tzOffMin);
           const result = await app.omnibox.prompt('Select format...', {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
               {format: TF.UTC, name: 'Realtime (UTC)'},
+
               {format: TF.TraceTz, name: `Realtime (Trace TZ - ${timeZone})`},
               {format: TF.Seconds, name: 'Seconds'},
               {format: TF.Milliseconds, name: 'Milliseconds'},
@@ -131,10 +139,23 @@ export class UiMainPerTrace implements m.ClassComponent {
                 format: TF.TraceNsLocale,
                 name: 'Trace nanoseconds (with locale-specific formatting)',
               },
+              {format: TF.CustomTimezone, name: 'Custom Timezone'},
             ],
             getName: (x) => x.name,
           });
-          result && (trace.timeline.timestampFormat = result.format);
+          if (!result) return;
+
+          if (result.format === TF.CustomTimezone) {
+            const result = await app.omnibox.prompt('Select format...', {
+              values: Object.entries(timezoneOffsetMap),
+              getName: ([key]) => key,
+            });
+
+            if (!result) return;
+            trace.timeline.timezoneOverride.set(result[0]);
+          }
+
+          trace.timeline.timestampFormat = result.format;
         },
       },
       {
@@ -205,14 +226,19 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.FocusSelection',
         name: 'Focus current selection',
-        callback: () => trace.selection.scrollToCurrentSelection(),
+        callback: () => trace.selection.scrollToSelection(),
         defaultHotkey: 'F',
+      },
+      {
+        id: 'perfetto.ZoomOnSelection',
+        name: 'Zoom in on current selection',
+        callback: () => trace.selection.zoomOnSelection(),
       },
       {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         defaultHotkey: 'Escape',
       },
@@ -272,7 +298,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           // - If nothing is selected, or all selected tracks are entirely
           //   selected, then select the entire trace. This allows double tapping
           //   Ctrl+A to select the entire track, then select the entire trace.
-          let tracksToSelect: string[];
+          let tracksToSelect: ReadonlyArray<string>;
           const selection = trace.selection.selection;
           if (selection.kind === 'area') {
             // Something is already selected, let's see if it covers the entire
@@ -312,7 +338,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
-          const range = trace.selection.findTimeRangeOfSelection();
+          const range = trace.selection.getTimeSpanOfSelection();
           if (selection.kind === 'track_event' && range) {
             trace.selection.selectArea({
               start: range.start,
@@ -420,9 +446,9 @@ export class UiMainPerTrace implements m.ClassComponent {
           }
           const parsed = JSON.parse(json);
           const state = parseAppState(parsed);
-          if (state.success) {
-            deserializeAppStatePhase1(state.data, trace);
-            deserializeAppStatePhase2(state.data, trace);
+          if (state.ok) {
+            deserializeAppStatePhase1(state.value, trace);
+            deserializeAppStatePhase2(state.value, trace);
           }
         },
       },
@@ -472,7 +498,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
       return m(
-        `.omnibox.message-mode`,
+        `.pf-omnibox.pf-omnibox--message-mode`,
         m(`input[readonly][disabled][ref=omnibox]`, {
           value: '',
           placeholder: statusMessage,
@@ -515,7 +541,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: omnibox.text,
       placeholder: prompt.text,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'prompt-mode',
+      extraClasses: 'pf-omnibox--prompt-mode',
       closeOnOutsideClick: true,
       options,
       selectedOptionIndex: omnibox.selectionIndex,
@@ -573,7 +599,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'command-mode',
+      extraClasses: 'pf-omnibox--command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
@@ -615,7 +641,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: AppImpl.instance.omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'query-mode',
+      extraClasses: 'pf-omnibox--query-mode',
 
       onInput: (value) => {
         AppImpl.instance.omnibox.setText(value);
@@ -688,30 +714,27 @@ export class UiMainPerTrace implements m.ClassComponent {
     const children = [];
     const results = this.trace?.search.searchResults;
     if (this.trace?.search.searchInProgress) {
-      children.push(m('.current', m(Spinner)));
+      children.push(m('.pf-omnibox__stepthrough-current', m(Spinner)));
     } else if (results !== undefined) {
       const searchMgr = assertExists(this.trace).search;
       const index = searchMgr.resultIndex;
       const total = results.totalResults ?? 0;
       children.push(
-        m('.current', `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`),
         m(
-          'button',
-          {
-            onclick: () => searchMgr.stepBackwards(),
-          },
-          m('i.material-icons.left', 'keyboard_arrow_left'),
+          '.pf-omnibox__stepthrough-current',
+          `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`,
         ),
-        m(
-          'button',
-          {
-            onclick: () => searchMgr.stepForward(),
-          },
-          m('i.material-icons.right', 'keyboard_arrow_right'),
-        ),
+        m(Button, {
+          onclick: () => searchMgr.stepBackwards(),
+          icon: 'keyboard_arrow_left',
+        }),
+        m(Button, {
+          onclick: () => searchMgr.stepForward(),
+          icon: 'keyboard_arrow_right',
+        }),
       );
     }
-    return m('.stepthrough', children);
+    return m('.pf-omnibox__stepthrough', children);
   }
 
   oncreate(vnode: m.VnodeDOM) {
@@ -731,17 +754,26 @@ export class UiMainPerTrace implements m.ClassComponent {
       }
     }
 
+    const isSomethingLoading =
+      AppImpl.instance.isLoadingTrace ||
+      (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
+      taskTracker.hasPendingTasks();
+
     return m(
       HotkeyContext,
       {hotkeys},
       m(
-        'main',
+        'main.pf-ui-main',
         m(Sidebar, {trace: this.trace}),
         m(Topbar, {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
         }),
-        app.pages.renderPageForCurrentRoute(),
+        m(LinearProgress, {
+          className: 'pf-ui-main__loading',
+          state: isSomethingLoading ? 'indeterminate' : 'none',
+        }),
+        m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
         showStatusBarFlag.get() && renderStatusBar(app.trace),

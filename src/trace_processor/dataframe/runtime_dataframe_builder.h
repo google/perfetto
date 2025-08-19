@@ -17,32 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
-#include <memory>
-#include <optional>
+#include <cstring>
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/impl/bit_vector.h"
-#include "src/trace_processor/dataframe/impl/flex_vector.h"
-#include "src/trace_processor/dataframe/impl/types.h"
-#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -100,15 +90,17 @@ class RuntimeDataframeBuilder {
   //         string values encountered during row addition. Must remain
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
-  RuntimeDataframeBuilder(std::vector<std::string> names, StringPool* pool)
-      : string_pool_(pool) {
-    for (uint32_t i = 0; i < names.size(); ++i) {
-      column_states_.emplace_back();
-    }
-    for (auto& name : names) {
-      column_names_.emplace_back(std::move(name));
-    }
-  }
+  //  types: An optional vector of `ColumnType` specifying the types
+  //         of the columns. If empty, types are inferred from the first
+  //         non-null value added to each column. If provided, must match
+  //         the size of `names`.
+  RuntimeDataframeBuilder(
+      std::vector<std::string> names,
+      StringPool* pool,
+      const std::vector<AdhocDataframeBuilder::ColumnType>& types = {})
+      : coulumn_count_(static_cast<uint32_t>(names.size())),
+        builder_(std::move(names), pool, types),
+        pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 
   // Movable but not copyable
@@ -149,48 +141,32 @@ class RuntimeDataframeBuilder {
   bool AddRow(ValueFetcherImpl* fetcher) {
     static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
                   "ValueFetcherImpl must inherit from ValueFetcher");
-    PERFETTO_CHECK(current_status_.ok());
+    PERFETTO_CHECK(status().ok());
 
-    for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      ColumnState& state = column_states_[i];
+    for (uint32_t i = 0; i < coulumn_count_; ++i) {
       typename ValueFetcherImpl::Type fetched_type = fetcher->GetValueType(i);
       switch (fetched_type) {
-        case ValueFetcherImpl::kInt64: {
-          auto* r = EnsureColumnType<int64_t>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+        case ValueFetcherImpl::kInt64:
+          if (!builder_.PushNonNull(i, fetcher->GetInt64Value(i))) {
             return false;
           }
-          r->push_back(fetcher->GetInt64Value(i));
           break;
-        }
-        case ValueFetcherImpl::kDouble: {
-          auto* r = EnsureColumnType<double>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+        case ValueFetcherImpl::kDouble:
+          if (!builder_.PushNonNull(i, fetcher->GetDoubleValue(i))) {
             return false;
           }
-          r->push_back(fetcher->GetDoubleValue(i));
           break;
-        }
-        case ValueFetcherImpl::kString: {
-          auto* r = EnsureColumnType<StringPool::Id>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+        case ValueFetcherImpl::kString:
+          if (!builder_.PushNonNull(
+                  i, pool_->InternString(fetcher->GetStringValue(i)))) {
             return false;
           }
-          r->push_back(string_pool_->InternString(fetcher->GetStringValue(i)));
           break;
-        }
         case ValueFetcherImpl::kNull:
-          if (PERFETTO_UNLIKELY(!state.null_overlay)) {
-            state.null_overlay =
-                impl::BitVector::CreateWithSize(row_count_, true);
-          }
+          builder_.PushNull(i);
           break;
       }
-      if (PERFETTO_UNLIKELY(state.null_overlay)) {
-        state.null_overlay->push_back(fetched_type != ValueFetcherImpl::kNull);
-      }
-    }  // End column loop
-    row_count_++;
+    }
     return true;
   }
 
@@ -209,70 +185,7 @@ class RuntimeDataframeBuilder {
   // - Determine the final sort state (IdSorted, SetIdSorted, Sorted, Unsorted)
   //   by analyzing the collected non-null values.
   // - Construct and return the final `Dataframe` instance.
-  base::StatusOr<Dataframe> Build() && {
-    RETURN_IF_ERROR(current_status_);
-    std::vector<std::shared_ptr<impl::Column>> columns;
-    for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      auto& state = column_states_[i];
-      switch (state.data.index()) {
-        case base::variant_index<DataVariant, std::nullopt_t>():
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{impl::FlexVector<uint32_t>()},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              Unsorted{}}));
-          break;
-        case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
-          auto& data =
-              base::unchecked_get<impl::FlexVector<int64_t>>(state.data);
-          bool is_id_sorted = data.empty() || data[0] == 0;
-          bool is_setid_sorted = data.empty() || data[0] == 0;
-          bool is_sorted = true;
-          int64_t min = data.empty() ? 0 : data[0];
-          int64_t max = data.empty() ? 0 : data[0];
-          for (uint32_t j = 1; j < data.size(); ++j) {
-            is_id_sorted = is_id_sorted && (data[j] == j);
-            is_setid_sorted =
-                is_setid_sorted && (data[j] == data[j - 1] || data[j] == j);
-            is_sorted = is_sorted && data[j - 1] <= data[j];
-            min = std::min(min, data[j]);
-            max = std::max(max, data[j]);
-          }
-          bool is_nullable = state.null_overlay.has_value();
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              CreateIntegerStorage(std::move(data), is_id_sorted, min, max),
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              GetIntegerSortStateFromProperties(is_nullable, is_id_sorted,
-                                                is_setid_sorted, is_sorted)}));
-          break;
-        }
-        case base::variant_index<DataVariant, impl::FlexVector<double>>(): {
-          auto& data =
-              base::unchecked_get<impl::FlexVector<double>>(state.data);
-          SortState sort_state =
-              GetSortStateForDouble(state.null_overlay.has_value(), data);
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{std::move(data)},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state}));
-          break;
-        }
-        case base::variant_index<DataVariant,
-                                 impl::FlexVector<StringPool::Id>>(): {
-          auto& data =
-              base::unchecked_get<impl::FlexVector<StringPool::Id>>(state.data);
-          SortState sort_state = GetStringSortState(
-              state.null_overlay.has_value(), data, string_pool_);
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{std::move(data)},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state}));
-          break;
-        }
-      }
-    }
-    return Dataframe(true, std::move(column_names_), std::move(columns),
-                     row_count_, string_pool_);
-  }
+  base::StatusOr<Dataframe> Build() && { return std::move(builder_).Build(); }
 
   // Returns the current status of the builder.
   //
@@ -282,145 +195,12 @@ class RuntimeDataframeBuilder {
   // Returns:
   //   const base::Status&: The current status. `ok()` will be true unless
   //                        an error occurred during a previous `AddRow` call.
-  const base::Status& status() const { return current_status_; }
+  const base::Status& status() const { return builder_.status(); }
 
  private:
-  using DataVariant = std::variant<std::nullopt_t,
-                                   impl::FlexVector<int64_t>,
-                                   impl::FlexVector<double>,
-                                   impl::FlexVector<StringPool::Id>>;
-  struct ColumnState {
-    DataVariant data = std::nullopt;
-    std::optional<impl::BitVector> null_overlay;
-  };
-
-  template <typename T>
-  PERFETTO_ALWAYS_INLINE impl::FlexVector<T>* EnsureColumnType(
-      uint32_t i,
-      DataVariant& data) {
-    switch (data.index()) {
-      case base::variant_index<DataVariant, std::nullopt_t>():
-        data = impl::FlexVector<T>();
-        return &base::unchecked_get<impl::FlexVector<T>>(data);
-      case base::variant_index<DataVariant, impl::FlexVector<T>>():
-        return &base::unchecked_get<impl::FlexVector<T>>(data);
-      default:
-        current_status_ = base::ErrStatus(
-            "Type mismatch in column '%s' at row %u. Existing type != "
-            "fetched type.",
-            column_names_[i].c_str(), row_count_);
-        return nullptr;
-    }
-  }
-
-  static impl::Storage CreateIntegerStorage(impl::FlexVector<int64_t> data,
-                                            bool is_id_sorted,
-                                            int64_t min,
-                                            int64_t max) {
-    if (is_id_sorted) {
-      return impl::Storage{
-          impl::Storage::Id{static_cast<uint32_t>(data.size())}};
-    }
-    if (IsRangeFullyRepresentableByType<uint32_t>(min, max)) {
-      return impl::Storage{
-          impl::Storage::Uint32{DowncastFromInt64<uint32_t>(data)}};
-    }
-    if (IsRangeFullyRepresentableByType<int32_t>(min, max)) {
-      return impl::Storage{
-          impl::Storage::Int32{DowncastFromInt64<int32_t>(data)}};
-    }
-    return impl::Storage{impl::Storage::Int64{std::move(data)}};
-  }
-
-  static impl::NullStorage CreateNullStorageFromBitvector(
-      std::optional<impl::BitVector> bit_vector) {
-    if (bit_vector) {
-      return impl::NullStorage{
-          impl::NullStorage::SparseNull{*std::move(bit_vector), {}}};
-    }
-    return impl::NullStorage{impl::NullStorage::NonNull{}};
-  }
-
-  template <typename T>
-  static bool IsRangeFullyRepresentableByType(int64_t min, int64_t max) {
-    // The <= for max is intentional because we're checking representability
-    // of min/max, not looping or similar.
-    PERFETTO_DCHECK(min <= max);
-    return min >= std::numeric_limits<T>::min() &&
-           max <= std::numeric_limits<T>::max();
-  }
-
-  template <typename T>
-  static impl::FlexVector<T> DowncastFromInt64(
-      const impl::FlexVector<int64_t>& data) {
-    auto res = impl::FlexVector<T>::CreateWithSize(data.size());
-    for (uint32_t i = 0; i < data.size(); ++i) {
-      PERFETTO_DCHECK(IsRangeFullyRepresentableByType<T>(data[i], data[i]));
-      res[i] = static_cast<T>(data[i]);
-    }
-    return res;
-  }
-
-  static SortState GetSortStateForDouble(bool is_nullable,
-                                         const impl::FlexVector<double>& data) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    for (uint32_t i = 1; i < data.size(); ++i) {
-      if (data[i - 1] > data[i]) {
-        return SortState{Unsorted{}};
-      }
-    }
-    return SortState{Sorted{}};
-  }
-
-  static SortState GetStringSortState(
-      bool is_nullable,
-      const impl::FlexVector<StringPool::Id>& data,
-      StringPool* pool) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    if (!data.empty()) {
-      NullTermStringView prev = pool->Get(data[0]);
-      for (uint32_t i = 1; i < data.size(); ++i) {
-        NullTermStringView curr = pool->Get(data[i]);
-        if (prev > curr) {
-          return SortState{Unsorted{}};
-        }
-        prev = curr;
-      }
-    }
-    return SortState{Sorted{}};
-  }
-
-  static SortState GetIntegerSortStateFromProperties(bool is_nullable,
-                                                     bool is_id_sorted,
-                                                     bool is_setid_sorted,
-                                                     bool is_sorted) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    if (is_id_sorted) {
-      PERFETTO_DCHECK(is_setid_sorted);
-      PERFETTO_DCHECK(is_sorted);
-      return SortState{IdSorted{}};
-    }
-    if (is_setid_sorted) {
-      PERFETTO_DCHECK(is_sorted);
-      return SortState{SetIdSorted{}};
-    }
-    if (is_sorted) {
-      return SortState{Sorted{}};
-    }
-    return SortState{Unsorted{}};
-  }
-
-  StringPool* string_pool_;
-  uint32_t row_count_ = 0;
-  std::vector<std::string> column_names_;
-  std::vector<ColumnState> column_states_;
-  base::Status current_status_ = base::OkStatus();
+  uint32_t coulumn_count_ = 0;
+  AdhocDataframeBuilder builder_;
+  StringPool* pool_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

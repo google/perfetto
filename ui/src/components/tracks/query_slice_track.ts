@@ -14,7 +14,7 @@
 
 import {DatasetSliceTrack} from './dataset_slice_track';
 import {
-  ARG_PREFIX,
+  RAW_PREFIX,
   DebugSliceTrackDetailsPanel,
 } from './debug_slice_track_details_panel';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
@@ -51,7 +51,7 @@ export interface SqlDataSource {
   // If omitted, original column names from the query are used instead.
   // The caller is responsible for ensuring that the number of items in this
   // list matches the number of columns returned by sqlSource.
-  readonly columns?: string[];
+  readonly columns?: ReadonlyArray<string>;
 }
 
 export interface SliceColumnMapping {
@@ -131,7 +131,7 @@ async function createPerfettoTableForTrack(
         ifnull(cast(${dur} as int), -1) as dur,
         printf('%s', ${name}) as name
         ${argColumns.length > 0 ? ',' : ''}
-        ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
+        ${argColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`).join(',\n')}
       from data
     )
     select
@@ -141,5 +141,5 @@ async function createPerfettoTableForTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  return await createPerfettoTable({engine, name: tableName, as: query});
 }

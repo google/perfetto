@@ -96,24 +96,19 @@ TEST(PackagesListDataSourceTest, EmptyNameFilterIncludesAll) {
   auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
   pipe.rd.release();  // now owned by |fs|
 
-  protozero::HeapBuffered<protos::pbzero::PackagesList> packages_list;
+  std::unordered_multimap<uint64_t, Package> packages;
   std::set<std::string> filter{};
 
-  ASSERT_TRUE(ParsePackagesListStream(packages_list.get(), fs, filter));
+  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter));
 
-  protos::gen::PackagesList parsed_list;
-  parsed_list.ParseFromString(packages_list.SerializeAsString());
-
-  EXPECT_FALSE(parsed_list.read_error());
-  EXPECT_FALSE(parsed_list.parse_error());
   // all entries
-  EXPECT_EQ(parsed_list.packages_size(), 3);
-  EXPECT_EQ(parsed_list.packages()[0].name(), "com.test.one");
-  EXPECT_EQ(parsed_list.packages()[0].version_code(), 10);
-  EXPECT_EQ(parsed_list.packages()[1].name(), "com.test.two");
-  EXPECT_EQ(parsed_list.packages()[1].version_code(), 20);
-  EXPECT_EQ(parsed_list.packages()[2].name(), "com.test.three");
-  EXPECT_EQ(parsed_list.packages()[2].version_code(), 30);
+  EXPECT_EQ(packages.size(), 3lu);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1000)->second.version_code, 10);
+  EXPECT_EQ(packages.find(1001)->second.name, "com.test.two");
+  EXPECT_EQ(packages.find(1001)->second.version_code, 20);
+  EXPECT_EQ(packages.find(1002)->second.name, "com.test.three");
+  EXPECT_EQ(packages.find(1002)->second.version_code, 30);
 }
 
 TEST(PackagesListDataSourceTest, NameFilter) {
@@ -133,22 +128,17 @@ TEST(PackagesListDataSourceTest, NameFilter) {
   auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
   pipe.rd.release();  // now owned by |fs|
 
-  protozero::HeapBuffered<protos::pbzero::PackagesList> packages_list;
+  std::unordered_multimap<uint64_t, Package> packages;
   std::set<std::string> filter{"com.test.one", "com.test.three"};
 
-  ASSERT_TRUE(ParsePackagesListStream(packages_list.get(), fs, filter));
+  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter));
 
-  protos::gen::PackagesList parsed_list;
-  parsed_list.ParseFromString(packages_list.SerializeAsString());
-
-  EXPECT_FALSE(parsed_list.read_error());
-  EXPECT_FALSE(parsed_list.parse_error());
   // two named entries
-  EXPECT_EQ(parsed_list.packages_size(), 2);
-  EXPECT_EQ(parsed_list.packages()[0].name(), "com.test.one");
-  EXPECT_EQ(parsed_list.packages()[0].version_code(), 10);
-  EXPECT_EQ(parsed_list.packages()[1].name(), "com.test.three");
-  EXPECT_EQ(parsed_list.packages()[1].version_code(), 30);
+  EXPECT_EQ(packages.size(), 2lu);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1000)->second.version_code, 10);
+  EXPECT_EQ(packages.find(1002)->second.name, "com.test.three");
+  EXPECT_EQ(packages.find(1002)->second.version_code, 30);
 }
 
 }  // namespace

@@ -84,6 +84,7 @@ action("gen_buildflags") {
     "PERFETTO_WATCHDOG=$perfetto_watchdog",
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
     "PERFETTO_ENABLE_ETM_IMPORTER=$enable_perfetto_etm_importer",
+    "PERFETTO_LLVM_SYMBOLIZER=$enable_perfetto_llvm_symbolizer",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
@@ -104,6 +105,7 @@ action("gen_buildflags") {
     "PERFETTO_LLVM_DEMANGLE=$enable_perfetto_llvm_demangle",
     "PERFETTO_SYSTEM_CONSUMER=$enable_perfetto_system_consumer",
     "PERFETTO_THREAD_SAFETY_ANNOTATIONS=$perfetto_thread_safety_annotations",
+    "PERFETTO_ENABLE_WINSCOPE=$enable_perfetto_winscope",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -491,7 +493,7 @@ perfetto_android_library("android_test_common") {
 
 if (enable_perfetto_etm_importer) {
   group("open_csd") {
-    visibility = [ "//src/trace_processor/importers/etm:etm_impl" ]
+    visibility = [ "//src/trace_processor/importers/etm" ]
     public_deps = [ "//buildtools:open_csd" ]
   }
 }

@@ -257,20 +257,13 @@ class ProtoToArgsParser {
                                  ParsingOverrideForType parsing_override);
 
  private:
-  base::Status ParseField(const FieldDescriptor& field_descriptor,
-                          int repeated_field_number,
-                          protozero::Field field,
-                          Delegate& delegate,
-                          int* unknown_extensions,
-                          bool add_defaults);
+  struct WorkItem;
 
   base::Status ParsePackedField(
       const FieldDescriptor& field_descriptor,
       std::unordered_map<size_t, int>& repeated_field_index,
       protozero::Field field,
-      Delegate& delegate,
-      int* unknown_extensions,
-      bool add_defaults);
+      Delegate& delegate);
 
   std::optional<base::Status> MaybeApplyOverrideForField(
       const protozero::Field&,
@@ -281,16 +274,6 @@ class ProtoToArgsParser {
       ScopedNestedKeyContext& key,
       const protozero::ConstBytes& data,
       Delegate& delegate);
-
-  // A type override can call |key.RemoveFieldSuffix()| if it wants to exclude
-  // the overridden field's name from the parsed args' keys.
-  base::Status ParseMessageInternal(ScopedNestedKeyContext& key,
-                                    const protozero::ConstBytes& cb,
-                                    const std::string& type,
-                                    const std::vector<uint32_t>* fields,
-                                    Delegate& delegate,
-                                    int* unknown_extensions,
-                                    bool add_defaults = false);
 
   base::Status ParseSimpleField(const FieldDescriptor& descriptor,
                                 const protozero::Field& field,

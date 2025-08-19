@@ -1,0 +1,134 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../../assets/theme";
+
+.pf-explore-page-help {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.pf-getting-started {
+  position: sticky;
+  top: 0;
+  background: var(--perfetto-primary-background);
+  padding: 0.5rem;
+  z-index: 1;
+  margin-bottom: 1rem;
+
+  .step-cards {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+  }
+
+  .card {
+    flex: 1;
+    padding: 1.5rem;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 0.5rem;
+    background-color: var(--pf-color-background);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition:
+      transform 0.2s ease-in-out,
+      box-shadow 0.2s ease-in-out;
+    cursor: pointer;
+
+    &:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    h4 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-size: 1.1em;
+      font-weight: 500;
+    }
+
+    .sql-modules {
+      .pf-search {
+        width: 100%;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--pf-color-border);
+        border-radius: 0.375rem;
+        font-size: 1em;
+        transition: border-color 0.2s ease-in-out;
+        background: var(--pf-color-background);
+
+        &:focus {
+          border-color: var(--pf-color-primary);
+          outline: none;
+        }
+      }
+
+      .module-tree {
+        ul {
+          padding-left: 1rem;
+          list-style: none;
+        }
+
+        li {
+          margin-bottom: 0.25rem;
+        }
+
+        strong {
+          font-weight: 500;
+        }
+      }
+    }
+    p {
+      margin-bottom: 0;
+      font-size: 0.9em;
+      color: var(--pf-color-text-muted);
+    }
+  }
+}
+
+.pf-table-list {
+  padding: 0.5rem;
+  overflow-y: auto;
+  height: 100%;
+
+  .pf-table-card {
+    text-decoration: none;
+    display: block;
+
+    .table-name {
+      font-weight: 500;
+      color: var(--pf-color-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .table-description {
+      font-size: 0.875em;
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  .pf-search {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    font-family: inherit;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 0.25rem;
+    font-size: 1em;
+    background: unset;
+    outline: unset;
+    color: var(--pf-color-text);
+  }
+}

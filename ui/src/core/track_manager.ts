@@ -236,7 +236,7 @@ class TrackFSMImpl implements TrackWithFSM {
   }
 
   get track(): TrackRenderer {
-    return this.desc.track;
+    return this.desc.renderer;
   }
 }
 
@@ -256,7 +256,7 @@ export function trackMatchesFilter(
       .filter((s) => s !== '');
 
     // At least one of the name filter terms must match.
-    const trackTitleLower = track.title.toLowerCase();
+    const trackTitleLower = track.name.toLowerCase();
     if (
       !nameFilters.some((nameFilter) =>
         trackTitleLower.includes(nameFilter.toLowerCase()),

@@ -104,7 +104,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                                FunctionPrototype{"foo", {}},
                                CreateFn::Returns{
                                    false,
-                                   sql_argument::Type::kInt,
+                                   sql_argument::Type::kLong,
                                    {},
                                },
                                FindSubstr(res, "select 1"),
@@ -119,7 +119,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                                FunctionPrototype{
                                    "bar",
                                    {
-                                       {"$x", sql_argument::Type::kInt},
+                                       {"$x", sql_argument::Type::kLong},
                                        {"$y", sql_argument::Type::kLong},
                                    },
                                },
@@ -140,7 +140,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                                FunctionPrototype{
                                    "bar",
                                    {
-                                       {"$x", sql_argument::Type::kInt},
+                                       {"$x", sql_argument::Type::kLong},
                                        {"$y", sql_argument::Type::kLong},
                                    },
                                },
@@ -162,7 +162,7 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoFunctionScalar) {
                                FunctionPrototype{"foo", {}},
                                CreateFn::Returns{
                                    false,
-                                   sql_argument::Type::kInt,
+                                   sql_argument::Type::kLong,
                                    {},
                                },
                                FindSubstr(res, "select 1"),
@@ -194,7 +194,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
       FunctionPrototype{"foo", {}},
       CreateFn::Returns{
           false,
-          sql_argument::Type::kInt,
+          sql_argument::Type::kLong,
           {},
       },
       FindSubstr(res, "select 1"),
@@ -290,7 +290,6 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     false,
                                     "foo",
-                                    CreateTable::kRuntimeTable,
                                     {},
                                     FindSubstr(res, "SELECT 42 AS bar"),
                                 }));
@@ -305,7 +304,6 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     true,
                                     "foo",
-                                    CreateTable::kRuntimeTable,
                                     {},
                                     FindSubstr(res, "SELECT 42 AS bar"),
                                 }));
@@ -320,8 +318,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     false,
                                     "foo",
-                                    CreateTable::kRuntimeTable,
-                                    {{"$bar", sql_argument::Type::kInt}},
+                                    {{"$bar", sql_argument::Type::kLong}},
                                     FindSubstr(res, "SELECT 42 AS bar"),
                                 }));
   ASSERT_FALSE(parser.Next());
@@ -333,11 +330,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
-            Statement(CreateTable{false,
-                                  "foo",
-                                  CreateTable::kRuntimeTable,
-                                  {},
-                                  FindSubstr(res, "SELECT 42 AS bar")}));
+            Statement(CreateTable{
+                false, "foo", {}, FindSubstr(res, "SELECT 42 AS bar")}));
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "select 1"));
@@ -350,11 +344,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
-            Statement(CreateTable{false,
-                                  "foo",
-                                  CreateTable::kDataframe,
-                                  {},
-                                  FindSubstr(res, "SELECT 42 AS bar")}));
+            Statement(CreateTable{
+                false, "foo", {}, FindSubstr(res, "SELECT 42 AS bar")}));
   ASSERT_FALSE(parser.Next());
 }
 
@@ -424,7 +415,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
                 "foo",
                 {
                     {"$foo", sql_argument::Type::kString},
-                    {"$bar", sql_argument::Type::kInt},
+                    {"$bar", sql_argument::Type::kLong},
                 },
                 SqlSource::FromExecuteQuery("SELECT 'a' as foo, 42 AS bar"),
                 SqlSource::FromExecuteQuery(

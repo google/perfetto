@@ -20,9 +20,13 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/instruments/row.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::instruments_importer {
+
+class RowParser;
 
 class InstrumentsXmlTokenizer : public ChunkedTraceReader {
  public:

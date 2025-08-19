@@ -42,7 +42,9 @@ export default class implements PerfettoPlugin {
         g.parent_id as parentId,
         g.is_counter AS isCounter,
         g.name,
+        g.description,
         g.unit,
+        g.y_axis_share_key as yAxisShareKey,
         g.builtin_counter_type as builtinCounterType,
         g.has_data AS hasData,
         g.has_children AS hasChildren,
@@ -63,7 +65,9 @@ export default class implements PerfettoPlugin {
       parentId: NUM_NULL,
       isCounter: NUM,
       name: STR_NULL,
+      description: STR_NULL,
       unit: STR_NULL,
+      yAxisShareKey: STR_NULL,
       builtinCounterType: STR_NULL,
       hasData: NUM,
       hasChildren: NUM,
@@ -85,7 +89,9 @@ export default class implements PerfettoPlugin {
         parentId,
         isCounter,
         name,
+        description,
         unit,
+        yAxisShareKey,
         builtinCounterType,
         hasData,
         hasChildren,
@@ -105,7 +111,7 @@ export default class implements PerfettoPlugin {
 
       const kind = isCounter ? COUNTER_TRACK_KIND : SLICE_TRACK_KIND;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const title = getTrackName({
+      const trackName = getTrackName({
         name,
         utid,
         upid,
@@ -126,34 +132,40 @@ export default class implements PerfettoPlugin {
         const trackId = trackIds[0];
         ctx.tracks.registerTrack({
           uri,
-          title,
+          description: description ?? undefined,
           tags: {
             kind,
             trackIds: [trackIds[0]],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
           },
-          track: new TraceProcessorCounterTrack(
+          renderer: new TraceProcessorCounterTrack(
             ctx,
             uri,
             {
               unit: unit ?? undefined,
+              // We combine the yAxisShareKey with the parentId to ensure that
+              // only tracks under the same parent are grouped.
+              yRangeSharingKey:
+                yAxisShareKey === null
+                  ? undefined
+                  : `trackEvent-${parentId}-${yAxisShareKey}`,
             },
             trackId,
-            title,
+            trackName,
           ),
         });
       } else if (hasData) {
         ctx.tracks.registerTrack({
           uri,
-          title,
+          description: description ?? undefined,
           tags: {
             kind,
             trackIds: trackIds,
             upid: upid ?? undefined,
             utid: utid ?? undefined,
           },
-          track: await createTraceProcessorSliceTrack({
+          renderer: await createTraceProcessorSliceTrack({
             trace: ctx,
             uri,
             trackIds,
@@ -170,10 +182,10 @@ export default class implements PerfettoPlugin {
         hasChildren,
       );
       const node = new TrackNode({
-        title,
+        name: trackName,
         sortOrder: orderId,
         isSummary: hasData === 0,
-        uri: uri,
+        uri,
       });
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
@@ -205,7 +217,7 @@ export default class implements PerfettoPlugin {
     let node = this.parentTrackNodes.get(id);
     if (node === undefined) {
       node = new TrackNode({
-        title: 'Global Track Events',
+        name: 'Global Track Events',
         isSummary: true,
       });
       ctx.workspace.addChildInOrder(node);

@@ -394,6 +394,7 @@ message AnalyzeStructuredQueryResult {
 message TraceSummaryArgs {
   message ComputationSpec {
     repeated string metric_ids = 1;
+    optional bool run_all_metrics = 3;
     optional string metadata_query_id = 2;
   }
   enum Format {

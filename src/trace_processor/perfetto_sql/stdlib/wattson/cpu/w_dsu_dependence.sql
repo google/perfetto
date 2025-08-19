@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE linux.devfreq;
 
-INCLUDE PERFETTO MODULE wattson.cpu.split;
+INCLUDE PERFETTO MODULE wattson.cpu.pivot;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
@@ -37,21 +37,20 @@ SELECT
   idle_2,
   freq_3,
   idle_3,
+  cpu0_curve,
+  cpu1_curve,
+  cpu2_curve,
+  cpu3_curve,
   cpu4_curve,
   cpu5_curve,
   cpu6_curve,
   cpu7_curve,
   l3_hit_count,
   l3_miss_count,
-  suspended,
   no_static,
-  min(
-    no_static,
-    coalesce(idle_4, 1),
-    coalesce(idle_5, 1),
-    coalesce(idle_6, 1),
-    coalesce(idle_7, 1)
-  ) AS all_cpu_deep_idle
+  all_cpu_deep_idle,
+  freq_1d_static,
+  freq_2d_static
 FROM _w_independent_cpus_calc AS base, _use_devfreq_for_calc;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
@@ -98,22 +97,21 @@ SELECT
   c.idle_2,
   c.freq_3,
   c.idle_3,
-  -- NULL columns needed to match columns of _get_max_vote before UNION
-  NULL AS cpu0_curve,
-  NULL AS cpu1_curve,
-  NULL AS cpu2_curve,
-  NULL AS cpu3_curve,
+  c.cpu0_curve,
+  c.cpu1_curve,
+  c.cpu2_curve,
+  c.cpu3_curve,
   c.cpu4_curve,
   c.cpu5_curve,
   c.cpu6_curve,
   c.cpu7_curve,
   c.l3_hit_count,
   c.l3_miss_count,
-  c.suspended,
   c.no_static,
   c.all_cpu_deep_idle,
-  d.dsu_freq AS dependent_freq,
-  255 AS dependent_policy
+  c.freq_1d_static,
+  c.freq_2d_static,
+  d.dsu_freq AS dependency
 FROM _interval_intersect!(
   (
     _ii_subquery!(_cpu_curves),

@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -57,7 +57,8 @@ class CriticalPathTests(TestSuite):
           SELECT * FROM _critical_path!(
             (SELECT *, source_node_id - dest_node_id AS edge_weight FROM edge),
             root
-          );
+          )
+          ORDER BY parent_id;
         """,
         out=Csv("""
         "root_id","parent_id","id"

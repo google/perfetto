@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
@@ -31,7 +31,7 @@ namespace perfetto::trace_processor {
 
 // Represents a time boundary for a column.
 struct TimeConstraints {
-  FilterOp op;
+  dataframe::Op op;
   int64_t value;
 };
 

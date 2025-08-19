@@ -268,7 +268,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       m(
         VirtualOverlayCanvas,
         {
-          className: 'virtual-canvas',
+          className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
           onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
@@ -367,6 +367,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                   top: this.tooltipPos?.y + 'px',
                 },
               }),
+              // We have a wide set of buttons that would overflow given the
+              // normal width constraints of the popup.
+              fitContent: true,
               position: PopupPosition.Bottom,
               isOpen:
                 this.tooltipPos?.state === 'HOVER' ||

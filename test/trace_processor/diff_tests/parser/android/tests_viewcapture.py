@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -60,10 +60,11 @@ class ViewCapture(TestSuite):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           id, snapshot_id
         FROM
-          __intrinsic_viewcapture_view;
+          android_viewcapture_view;
         """,
         out=Csv("""
         "id","snapshot_id"
@@ -77,10 +78,11 @@ class ViewCapture(TestSuite):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
+          android_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
           WHERE vc.snapshot_id = 1
         ORDER BY args.arg_set_id, args.key
         LIMIT 10;
@@ -103,18 +105,20 @@ class ViewCapture(TestSuite):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
-        WHERE args.key = 'class_name';
+          android_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
+        WHERE args.key = 'class_name'
+        ORDER BY display_value;
         """,
         out=Csv("""
         "key","display_value"
-        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
-        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
-        "class_name","com.android.internal.policy.DecorView"
         "class_name","STRING DE-INTERNING ERROR"
+        "class_name","com.android.internal.policy.DecorView"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
         """))
 
   def test_tables_has_raw_protos(self):

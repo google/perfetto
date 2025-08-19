@@ -45,6 +45,11 @@ export class Icons {
   static readonly GoTo = 'arrow_forward';
   static readonly ContextMenuAlt = 'more_vert';
   static readonly Warning = 'warning';
+  static readonly Help = 'help';
+  static readonly Download = 'download';
+  static readonly Check = 'check';
+  static readonly Search = 'search';
+  static readonly Save = 'save';
 
   // Page control
   static readonly NextPage = 'chevron_right';
@@ -57,4 +62,7 @@ export class Icons {
   static readonly SortDesc = 'arrow_downward';
   static readonly ResetState = 'restart_alt';
   static readonly Remove = 'clear';
+
+  static readonly Play = 'play_arrow';
+  static readonly Edit = 'edit';
 }

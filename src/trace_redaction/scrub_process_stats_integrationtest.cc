@@ -41,8 +41,7 @@ class ScrubProcessStatsTest : public testing::Test,
     auto* scrub = trace_redactor_.emplace_transform<ScrubProcessStats>();
     scrub->emplace_filter<ConnectedToPackage>();
 
-    // Package "com.Unity.com.unity.multiplayer.samples.coop";
-    context_.package_uid = 10252;
+    context_.package_uid = kSomePackageUid;
   }
 
   // Gets pids from all process_stats messages in the trace (bytes).

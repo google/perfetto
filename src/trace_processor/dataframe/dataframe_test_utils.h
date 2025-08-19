@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -70,6 +71,8 @@ struct TestRowFetcher : ValueFetcher {
     PERFETTO_CHECK(current_row_ && index < current_row_->size());
     return std::get<const char*>((*current_row_)[index]);
   }
+  static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 
  private:
   const std::vector<Value>* current_row_ = nullptr;

@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {assertUnreachable} from '../../base/logging';
 import {Time} from '../../base/time';
-import {renderArguments} from '../../components/details/slice_args';
+import {renderArguments} from '../../components/details/args';
 import {Arg, ArgValue, ArgValueType} from '../../components/sql_utils/args';
 import {asArgId} from '../../components/sql_utils/core_types';
 import {Timestamp} from '../../components/widgets/timestamp';

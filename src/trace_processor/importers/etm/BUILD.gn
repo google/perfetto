@@ -17,36 +17,21 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_etm_importer)
 
-group("etm") {
-  public_deps = [ ":public_hdr" ]
-  deps = [ ":etm_impl" ]
-}
-
-source_set("public_hdr") {
-  visibility = [
-    ":etm",
-    ":etm_impl",
-  ]
+source_set("etm_header") {
   sources = [
     "etm_tracker.h",
     "etm_v4_stream_demultiplexer.h",
   ]
-
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../include/perfetto/trace_processor:storage",
-    "../../tables:tables_python",
+    "../../tables",
     "../../types",
   ]
 }
 
-source_set("etm_impl") {
-  visibility = [
-    ":etm",
-    ":unittests",
-    "../../perfetto_sql/intrinsics/operators:etm_impl",
-  ]
+source_set("etm") {
   sources = [
     "element_cursor.cc",
     "element_cursor.h",
@@ -78,41 +63,23 @@ source_set("etm_impl") {
     "virtual_address_space.h",
   ]
 
-  public_deps = [ "../../../../gn:open_csd" ]
+  public_deps = [
+    ":etm_header",
+    "../../../../gn:open_csd",
+  ]
 
   deps = [
-    ":file_tracker",
-    ":public_hdr",
+    ":etm_header",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base:base",
+    "../../dataframe",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
     "../common",
-    "../elf:binary_info",
     "../perf",
     "../perf:record",
-  ]
-}
-
-source_set("file_tracker") {
-  sources = [
-    "elf_tracker.cc",
-    "elf_tracker.h",
-    "file_tracker.cc",
-    "file_tracker.h",
-  ]
-
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
-    "../../../../include/perfetto/trace_processor:storage",
-    "../../storage",
-    "../../tables:tables_python",
-    "../../types",
-    "../../util:build_id",
-    "../elf:binary_info",
   ]
 }
 
@@ -120,7 +87,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [ "virtual_address_space_unittest.cc" ]
   deps = [
-    ":etm_impl",
+    ":etm",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",

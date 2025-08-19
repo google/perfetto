@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -117,4 +117,51 @@ class LinuxTests(TestSuite):
         241211918973684,0,45824,179,0
         241211919810453,1,45824,179,0
         241211920094761,0,45824,179,0
+        """))
+
+  def test_linux_irqs(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_irq_gpu_markers.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE linux.irqs;
+
+        SELECT
+          ts,
+          MIN(dur) AS dur,
+          name,
+          id,
+          parent_id,
+          is_soft_irq
+        FROM linux_irqs
+        GROUP BY name
+        """,
+        out=Csv("""
+        "ts","dur","name","id","parent_id","is_soft_irq"
+        1701669861045,1994,"BLOCK",26750,"[NULL]",1
+        1702703279625,4801,"IRQ (100a0000.BIG)",40985,"[NULL]",0
+        1701729013999,1953,"IRQ (100a0000.LITTLE)",28512,"[NULL]",0
+        1702778115806,2279,"IRQ (100a0000.MID)",42932,"[NULL]",0
+        1702128463747,11800,"IRQ (10840000.pinctrl)",36938,"[NULL]",0
+        1701651076906,4476,"IRQ (10970000.hsi2c)",26056,"[NULL]",0
+        1703144502403,53263,"IRQ (176a0000.mbox)",48988,"[NULL]",0
+        1701622901247,3255,"IRQ (1c0b0000.drmdpp)",25182,"[NULL]",0
+        1702732122195,2644,"IRQ (1c0b1000.drmdpp)",41684,"[NULL]",0
+        1702872227623,2604,"IRQ (1c0b2000.drmdpp)",44530,"[NULL]",0
+        1702128740196,2807,"IRQ (1c0b3000.drmdpp)",36952,"[NULL]",0
+        1701467062461,2848,"IRQ (1c0b4000.drmdpp)",21037,"[NULL]",0
+        1701478183961,2767,"IRQ (1c0b5000.drmdpp)",21469,"[NULL]",0
+        1701406364748,1871,"IRQ (1c2c0000.drmdsim)",19038,"[NULL]",0
+        1702177862429,5533,"IRQ (1c300000.drmdecon)",37515,"[NULL]",0
+        1703394103355,3662,"IRQ (1c500000.mali)",53392,"[NULL]",0
+        1701692147056,122,"IRQ (IPI)",27439,"[NULL]",0
+        1701693794557,2889,"IRQ (arm-pmu)",27499,"[NULL]",0
+        1701648179242,1342,"IRQ (cs40l25a)",26000,"[NULL]",0
+        1698403560059,1668,"IRQ (dwc3)",6740,"[NULL]",0
+        1702128469566,4842,"IRQ (exynos-crtc-0)",36939,36938,0
+        1701671403810,3215,"IRQ (exynos-mct)",26771,"[NULL]",0
+        1702051098390,855,"IRQ (fts)",35709,"[NULL]",0
+        1701667815309,5046,"IRQ (ufshcd)",26686,"[NULL]",0
+        1701689581585,407,"RCU",27392,"[NULL]",1
+        1703001573489,447,"SCHED",46634,"[NULL]",1
+        1702673567426,1098,"TIMER",39947,"[NULL]",1
         """))

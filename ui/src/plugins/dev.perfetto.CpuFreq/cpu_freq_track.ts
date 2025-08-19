@@ -75,10 +75,10 @@ export class CpuFreqTrack implements TrackRenderer {
     `);
     if (this.config.idleTrackId === undefined) {
       this.trash.use(
-        await createView(
-          this.trace.engine,
-          `raw_freq_idle_${this.trackUuid}`,
-          `
+        await createView({
+          engine: this.trace.engine,
+          name: `raw_freq_idle_${this.trackUuid}`,
+          as: `
             select ts, dur, value as freqValue, -1 as idleValue
             from counter_leading_intervals!((
               select id, ts, track_id, value
@@ -86,14 +86,14 @@ export class CpuFreqTrack implements TrackRenderer {
               where track_id = ${this.config.freqTrackId}
             ))
           `,
-        ),
+        }),
       );
     } else {
       this.trash.use(
-        await createPerfettoTable(
-          this.trace.engine,
-          `raw_freq_${this.trackUuid}`,
-          `
+        await createPerfettoTable({
+          engine: this.trace.engine,
+          name: `raw_freq_${this.trackUuid}`,
+          as: `
             select ts, dur, value as freqValue
             from counter_leading_intervals!((
               select id, ts, track_id, value
@@ -101,14 +101,14 @@ export class CpuFreqTrack implements TrackRenderer {
              where track_id = ${this.config.freqTrackId}
             ))
           `,
-        ),
+        }),
       );
 
       this.trash.use(
-        await createPerfettoTable(
-          this.trace.engine,
-          `raw_idle_${this.trackUuid}`,
-          `
+        await createPerfettoTable({
+          engine: this.trace.engine,
+          name: `raw_idle_${this.trackUuid}`,
+          as: `
             select
               ts,
               dur,
@@ -119,42 +119,42 @@ export class CpuFreqTrack implements TrackRenderer {
               where track_id = ${this.config.idleTrackId}
             ))
           `,
-        ),
+        }),
       );
 
       this.trash.use(
-        await createVirtualTable(
-          this.trace.engine,
-          `raw_freq_idle_${this.trackUuid}`,
-          `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
-        ),
+        await createVirtualTable({
+          engine: this.trace.engine,
+          name: `raw_freq_idle_${this.trackUuid}`,
+          using: `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
+        }),
       );
     }
 
     this.trash.use(
-      await createVirtualTable(
-        this.trace.engine,
-        `cpu_freq_${this.trackUuid}`,
-        `
-          __intrinsic_counter_mipmap((
-            select ts, freqValue as value
-            from raw_freq_idle_${this.trackUuid}
-          ))
-        `,
-      ),
+      await createVirtualTable({
+        engine: this.trace.engine,
+        name: `cpu_freq_${this.trackUuid}`,
+        using: `
+        __intrinsic_counter_mipmap((
+          select ts, freqValue as value
+          from raw_freq_idle_${this.trackUuid}
+        ))
+      `,
+      }),
     );
 
     this.trash.use(
-      await createVirtualTable(
-        this.trace.engine,
-        `cpu_idle_${this.trackUuid}`,
-        `
-          __intrinsic_counter_mipmap((
-            select ts, idleValue as value
-            from raw_freq_idle_${this.trackUuid}
-          ))
-        `,
-      ),
+      await createVirtualTable({
+        engine: this.trace.engine,
+        name: `cpu_idle_${this.trackUuid}`,
+        using: `
+        __intrinsic_counter_mipmap((
+          select ts, idleValue as value
+          from raw_freq_idle_${this.trackUuid}
+        ))
+      `,
+      }),
     );
   }
 
@@ -254,7 +254,13 @@ export class CpuFreqTrack implements TrackRenderer {
     return text;
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
+  render({
+    ctx,
+    size,
+    timescale,
+    visibleWindow,
+    theme,
+  }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
 
@@ -288,8 +294,10 @@ export class CpuFreqTrack implements TrackRenderer {
       saturation = 0;
     }
 
-    ctx.fillStyle = color.setHSL({s: saturation, l: 70}).cssString;
-    ctx.strokeStyle = color.setHSL({s: saturation, l: 55}).cssString;
+    ctx.fillStyle = color
+      .setHSL({s: saturation, l: 50})
+      .setAlpha(0.6).cssString;
+    ctx.strokeStyle = color.setHSL({s: saturation, l: 50}).cssString;
 
     const calculateX = (timestamp: time) => {
       return Math.floor(timescale.timeToPx(timestamp));
@@ -402,9 +410,11 @@ export class CpuFreqTrack implements TrackRenderer {
 
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.globalAlpha = 0.6;
     ctx.fillRect(0, 0, 42, 18);
-    ctx.fillStyle = '#666';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = theme.COLOR_TEXT;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
 

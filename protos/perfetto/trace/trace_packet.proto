@@ -26,6 +26,7 @@ import "protos/perfetto/trace/android/android_system_property.proto";
 import "protos/perfetto/trace/android/app_wakelock_data.proto";
 import "protos/perfetto/trace/android/bluetooth_trace.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
+import "protos/perfetto/trace/android/cpu_per_uid_data.proto";
 import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
@@ -46,10 +47,12 @@ import "protos/perfetto/trace/chrome/chrome_trigger.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
 import "protos/perfetto/trace/etw/etw_event_bundle.proto";
+import "protos/perfetto/trace/evdev.proto";
 import "protos/perfetto/trace/filesystem/inode_file_map.proto";
 import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "protos/perfetto/trace/ftrace/ftrace_stats.proto";
-import "protos/perfetto/trace/generic_kernel/generic_task_state.proto";
+import "protos/perfetto/trace/generic_kernel/generic_power.proto";
+import "protos/perfetto/trace/generic_kernel/generic_task.proto";
 import "protos/perfetto/trace/gpu/gpu_counter_event.proto";
 import "protos/perfetto/trace/gpu/gpu_log.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
@@ -108,7 +111,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 118.
+// Next id: 122.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -257,6 +260,12 @@ message TracePacket {
 
     // Generic events for a standard kernel implementation
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
+    GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
+    GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+
+    CpuPerUidData cpu_per_uid_data = 119;
+
+    EvdevEvent evdev_event = 121;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

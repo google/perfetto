@@ -18,9 +18,7 @@
 
 #include <memory>
 
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -34,13 +32,13 @@ TEST(Descendant, SliceTableNullConstraint) {
   storage.mutable_slice_table()->Insert({});
 
   Descendant generator{Descendant::Type::kSlice, &storage};
+  auto cursor = generator.MakeCursor();
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  base::StatusOr<std::unique_ptr<Table>> res =
-      generator.ComputeTable({SqlValue()});
-  ASSERT_TRUE(res.ok());
-  ASSERT_EQ(res->get()->row_count(), 0u);
+  bool res = cursor->Run({SqlValue()});
+  ASSERT_TRUE(res);
+  ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
 }
 
 TEST(Descendant, SliceByStackTableNullConstraint) {
@@ -50,13 +48,13 @@ TEST(Descendant, SliceByStackTableNullConstraint) {
   storage.mutable_slice_table()->Insert({});
 
   Descendant generator{Descendant::Type::kSliceByStack, &storage};
+  auto cursor = generator.MakeCursor();
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  base::StatusOr<std::unique_ptr<Table>> res =
-      generator.ComputeTable({SqlValue()});
-  ASSERT_TRUE(res.ok());
-  ASSERT_EQ(res->get()->row_count(), 0u);
+  bool res = cursor->Run({SqlValue()});
+  ASSERT_TRUE(res);
+  ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
 }
 
 }  // namespace

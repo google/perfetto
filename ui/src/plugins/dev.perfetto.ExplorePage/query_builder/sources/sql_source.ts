@@ -14,72 +14,75 @@
 
 import m from 'mithril';
 import {
-  createFinalColumns,
   createSelectColumnsProto,
-  NodeType,
   QueryNode,
   QueryNodeState,
+  NodeType,
 } from '../../query_node';
-import {
-  ColumnControllerRow,
-  columnControllerRowFromName,
-  newColumnControllerRows,
-} from '../column_controller';
+import {columnInfoFromName, newColumnInfoList} from '../column_info';
 import protos from '../../../../protos';
-import {TextInput} from '../../../../widgets/text_input';
+import {Editor} from '../../../../widgets/editor';
+import {Icon} from '../../../../widgets/icon';
+import {Icons} from '../../../../base/semantic_icons';
 import {
   createFiltersProto,
   createGroupByProto,
-  Operator,
 } from '../operations/operation_component';
+import {
+  QueryHistoryComponent,
+  queryHistoryStorage,
+} from '../../../../components/widgets/query_history';
+import {Trace} from '../../../../public/trace';
+import {SourceNode} from '../source_node';
 
-export interface SqlSourceAttrs extends QueryNodeState {
+export interface SqlSourceState extends QueryNodeState {
   sql?: string;
-  sqlColumns?: string[];
-  preamble?: string;
+  onExecute?: (sql: string) => void;
+  responseError?: Error;
+  trace: Trace;
 }
 
-export class SqlSourceNode implements QueryNode {
-  readonly type: NodeType = NodeType.kSqlSource;
-  readonly prevNode = undefined;
-  nextNode?: QueryNode;
+export class SqlSourceNode extends SourceNode {
+  readonly state: SqlSourceState;
 
-  readonly sourceCols: ColumnControllerRow[];
-  readonly finalCols: ColumnControllerRow[];
-
-  readonly state: SqlSourceAttrs;
-
-  constructor(attrs: SqlSourceAttrs) {
+  constructor(attrs: SqlSourceState) {
+    super(attrs);
     this.state = attrs;
-    this.sourceCols =
-      attrs.sqlColumns?.map((c) => columnControllerRowFromName(c)) ?? [];
-    this.finalCols = createFinalColumns(this);
   }
 
-  getStateCopy(): QueryNodeState {
-    const newState: SqlSourceAttrs = {
+  get type() {
+    return NodeType.kSqlSource;
+  }
+
+  setSourceColumns(columns: string[]) {
+    this.state.sourceCols = columns.map((c) => columnInfoFromName(c));
+    m.redraw();
+  }
+
+  onQueryExecuted(columns: string[]) {
+    this.setSourceColumns(columns);
+  }
+
+  clone(): QueryNode {
+    const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      sqlColumns: this.state.sqlColumns,
-      preamble: this.state.preamble,
-      sourceCols: newColumnControllerRows(this.sourceCols),
-      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
-      filters: this.state.filters.map((f) => ({...f})),
-      aggregations: this.state.aggregations.map((a) => ({...a})),
+      onExecute: this.state.onExecute,
+      sourceCols: newColumnInfoList(this.sourceCols),
+      groupByColumns: [],
+      filters: [],
+      aggregations: [],
+      customTitle: this.state.customTitle,
+      trace: this.state.trace,
     };
-    return newState;
+    return new SqlSourceNode(stateCopy);
   }
 
   validate(): boolean {
-    return (
-      this.state.sql !== undefined &&
-      this.state.sqlColumns !== undefined &&
-      this.state.preamble !== undefined &&
-      this.sourceCols.length > 0
-    );
+    return this.state.sql !== undefined && this.state.sql.trim() !== '';
   }
 
   getTitle(): string {
-    return `Sql source`;
+    return this.state.customTitle ?? 'Sql source';
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -88,11 +91,13 @@ export class SqlSourceNode implements QueryNode {
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
-    if (this.state.sqlColumns) sqlProto.columnNames = this.state.sqlColumns;
-    if (this.state.preamble) sqlProto.preamble = this.state.preamble;
+    sqlProto.columnNames = this.state.sourceCols.map((c) => c.column.name);
     sq.sql = sqlProto;
 
-    const filtersProto = createFiltersProto(this.state.filters);
+    const filtersProto = createFiltersProto(
+      this.state.filters,
+      this.sourceCols,
+    );
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
       this.state.groupByColumns,
@@ -105,118 +110,61 @@ export class SqlSourceNode implements QueryNode {
     return sq;
   }
 
-  getDetails(): m.Child {
-    return m(
-      '',
-      m(
-        '',
-        'Preamble',
-        m(TextInput, {
-          id: 'preamble',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            this.state.preamble = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
-      ),
-      m(
-        '',
-        'Sql ',
-        m(TextInput, {
-          id: 'sql_source',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            this.state.sql = (e.target as HTMLInputElement).value
-              .trim()
-              .split(';')[0];
-          },
-        }),
-      ),
-      m(
-        '',
-        'Column names (comma separated strings) ',
-        m(TextInput, {
-          id: 'columns',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            this.state.sqlColumns = (e.target as HTMLInputElement).value
-              .split(',')
-              .map((col) => col.trim())
-              .filter(Boolean);
-            this.state.sourceCols = this.state.sqlColumns.map((c) =>
-              columnControllerRowFromName(c, true),
-            );
-            this.state.groupByColumns = newColumnControllerRows(
-              this.state.sourceCols,
-              false,
-            );
-          },
-        }),
-      ),
-    );
-  }
-}
+  nodeSpecificModify(): m.Child {
+    const runQuery = (sql: string) => {
+      this.state.sql = sql.trim();
+      if (this.state.onExecute) {
+        this.state.onExecute(this.state.sql);
+      }
+      m.redraw();
+    };
 
-export class SqlSource implements m.ClassComponent<SqlSourceAttrs> {
-  view({attrs}: m.CVnode<SqlSourceAttrs>) {
     return m(
-      '',
+      '.sql-source-node',
       m(
-        '',
-        'Preamble',
-        m(TextInput, {
-          id: 'preamble',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.preamble = (e.target as HTMLInputElement).value.trim();
+        'div',
+        {
+          style: {
+            minHeight: '400px',
+            backgroundColor: '#282c34',
+            position: 'relative',
           },
+        },
+        this.state.responseError &&
+          m(Icon, {
+            icon: Icons.Warning,
+            filled: true,
+            style: {
+              color: 'yellow',
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              zIndex: 1,
+              fontSize: '2rem',
+            } as m.Attributes['style'],
+            title:
+              `NOT A VALID NODE.\nCan't generate proto based on provided query.\n\n` +
+              `Response error: ${this.state.responseError.message}`,
+          }),
+        m(Editor, {
+          text: this.state.sql ?? '',
+          onUpdate: (text: string) => {
+            this.state.sql = text;
+          },
+          onExecute: (text: string) => {
+            queryHistoryStorage.saveQuery(text);
+            runQuery(text);
+          },
+          autofocus: true,
         }),
       ),
-      m(
-        '',
-        'Sql ',
-        m(TextInput, {
-          id: 'sql_source',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.sql = (e.target as HTMLInputElement).value
-              .trim()
-              .split(';')[0];
-          },
-        }),
-      ),
-      m(
-        '',
-        'Column names (comma separated strings) ',
-        m(TextInput, {
-          id: 'columns',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.sqlColumns = (e.target as HTMLInputElement).value
-              .split(',')
-              .map((col) => col.trim())
-              .filter(Boolean);
-            attrs.sourceCols = attrs.sqlColumns.map((c) =>
-              columnControllerRowFromName(c, true),
-            );
-            attrs.groupByColumns = newColumnControllerRows(
-              attrs.sourceCols,
-              false,
-            );
-          },
-        }),
-      ),
-      m(Operator, {
-        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-        groupby: {
-          groupByColumns: attrs.groupByColumns,
-          aggregations: attrs.aggregations,
+      m(QueryHistoryComponent, {
+        className: '.pf-query-history-container',
+        trace: this.state.trace,
+        runQuery,
+        setQuery: (q: string) => {
+          this.state.sql = q;
+          m.redraw();
         },
       }),
     );

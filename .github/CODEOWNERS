@@ -1,20 +1,8 @@
 # This file define code owners for GitHub pull requests
 # NOTE: The last matching rule is the one that defines the owner.
 
-# General repo-wide owners 
+# General repo-wide owners
 * @google/perfetto-team
-
-# ui.perfetto.dev
-/ui/**/* @google/perfetto-ui-team
-
-# On-device and SDK code
-/src/**/* @google/perfetto-traced-team
-/include/**/* @google/perfetto-traced-team
-
-# Trace Processor (keep after src/*)
-/src/trace_processor/**/* @google/perfetto-tp-team
-/include/perfetto/ext/trace_processor/**/* @google/perfetto-tp-team
-/include/perfetto/trace_processor/**/* @google/perfetto-tp-team
 
 # Files/Directories that don't require a strict owner check.
 /Android.bp
@@ -31,8 +19,9 @@
 /tools/**/*
 /test/**/*
 
-# Changes to the Tracing Protocol ABI are extremely subtle because they need to
-# be forward/backward compatible with various combinations of producer and
-# service versions. Adding >1 owner to reviews is encouraged here.
-# TODO(primiano): add @betasheet once he joins google org
-/protos/perfetto/ipc/**/* @primiano @LalitMaganti
+# Chromium-specific parts of stdlib is rolled from the chromium repo.
+# The chromium owners should be able to approve the rolls.
+/protos/third_party/chromium/**/* @google/chromium-stdlib-owners
+/src/trace_processor/perfetto_sql/stdlib/chrome/**/* @google/chromium-stdlib-owners
+/test/trace_processor/diff_tests/stdlib/chrome/**/* @google/chromium-stdlib-owners
+/test/data/chrome/**.sha256 @google/chromium-stdlib-owners

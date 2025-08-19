@@ -21,10 +21,8 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <map>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <thread>
 #include <utility>
@@ -109,6 +107,7 @@ using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::Return;
 using ::testing::SaveArg;
+using testing::StrEq;
 using ::testing::StrictMock;
 using ::testing::StringMatchResultListener;
 using ::testing::StrNe;
@@ -1536,6 +1535,149 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, MachineNameFilter) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/1234, "machine2");
+  producer2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer3 = CreateMockProducer();
+  producer3->Connect(svc.get(), "mock_producer_3", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/5678, "machine3");
+  producer3->RegisterDataSource("data_source");
+  producer3->RegisterDataSource("unused_data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  *data_source->add_machine_name_filter() = "host";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+  producer1->WaitForDataSourceStart("data_source");
+
+  EXPECT_CALL(*producer2, OnConnect()).Times(0);
+  EXPECT_CALL(*producer3, OnConnect()).Times(0);
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer2.get());
+  Mock::VerifyAndClearExpectations(producer3.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer1->WaitForDataSourceStop("data_source");
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/1234, "machine2");
+  producer2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer3 = CreateMockProducer();
+  producer3->Connect(svc.get(), "mock_producer_3", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/5678, "machine3");
+  producer3->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  *data_source->add_machine_name_filter() = "host";
+  *data_source->add_machine_name_filter() = "machine2";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+
+  producer2->WaitForTracingSetup();
+  producer2->WaitForDataSourceSetup("data_source");
+
+  producer1->WaitForDataSourceStart("data_source");
+  producer2->WaitForDataSourceStart("data_source");
+
+  EXPECT_CALL(*producer3, OnConnect()).Times(0);
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer2.get());
+  Mock::VerifyAndClearExpectations(producer3.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer1->WaitForDataSourceStop("data_source");
+  producer2->WaitForDataSourceStop("data_source");
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, MachineNameFilterWithHostExternalName) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1", /*uid=*/42, /*pid=*/1025,
+                     kDefaultMachineID, "machine1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/1234, "machine2");
+  producer2->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  *data_source->add_machine_name_filter() = "machine1";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+  producer1->WaitForDataSourceStart("data_source");
+
+  EXPECT_CALL(*producer2, OnConnect()).Times(0);
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer2.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer1->WaitForDataSourceStop("data_source");
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+  base::UnsetEnv("PERFETTO_MACHINE_NAME");
+}
+
 TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -2232,7 +2374,8 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
     auto name = "mock_producer_" + std::to_string(i);
     producer[i] = CreateMockProducer();
     producer[i]->Connect(svc.get(), name, base::GetCurrentUserId(),
-                         base::GetProcessId(), kSizes[i].hint_size_kb * 1024,
+                         base::GetProcessId(), kDefaultMachineID,
+                         /*machine_name=*/{}, kSizes[i].hint_size_kb * 1024,
                          kSizes[i].hint_page_size_kb * 1024);
     producer[i]->RegisterDataSource("data_source");
   }
@@ -3261,6 +3404,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
 
   // Service should adopt the SMB provided by the producer.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                    kDefaultMachineID, /*machine_name=*/{},
                     /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                     TestRefSharedMemory::Create(shm.get()),
                     /*in_process=*/false);
@@ -3390,6 +3534,7 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
 
     // Service should adopt the SMB provided by the producer.
     producer_->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                       kDefaultMachineID, /*machine_name=*/{},
                        /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                        TestRefSharedMemory::Create(shm_.get()),
                        /*in_process=*/false);
@@ -4654,6 +4799,7 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
 
   // Service should adopt the SMB provided by the producer.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                    kDefaultMachineID, /*machine_name=*/{},
                     /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                     std::move(shm));
   EXPECT_TRUE(producer->endpoint()->IsShmemProvidedByProducer());
@@ -4709,6 +4855,7 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMBInvalidSizes) {
   // Service should not adopt the SMB provided by the producer, because the SMB
   // size isn't a multiple of the page size.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                    kDefaultMachineID, /*machine_name=*/{},
                     /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                     std::move(shm));
   EXPECT_FALSE(producer->endpoint()->IsShmemProvidedByProducer());
@@ -6479,6 +6626,146 @@ TEST_F(TracingServiceImplTest, FlushTimeoutEventsEmitted) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST_F(TracingServiceImplTest, ExclusiveSessionInvalidUser) {
+  TraceConfig exclusive_cfg;
+  exclusive_cfg.add_buffers()->set_size_kb(128);
+  exclusive_cfg.set_exclusive_prio(1);
+
+  // A non-privileged user cannot start an exclusive session.
+  std::unique_ptr<MockConsumer> unprivileged_consumer = CreateMockConsumer();
+  unprivileged_consumer->Connect(svc.get(), 1234 /* uid */);
+  unprivileged_consumer->EnableTracing(exclusive_cfg);
+  unprivileged_consumer->WaitForTracingDisabledWithError(StrEq(
+      "On android, exclusive mode can only be requested by root or shell."));
+
+  // A privileged user (root) can start an exclusive session.
+  std::unique_ptr<MockConsumer> root_consumer = CreateMockConsumer();
+  root_consumer->Connect(svc.get(), AID_ROOT);
+  root_consumer->EnableTracing(exclusive_cfg);
+  root_consumer->FreeBuffers();
+  root_consumer->WaitForTracingDisabled();
+
+  // A privileged user (shell) can start an exclusive session.
+  std::unique_ptr<MockConsumer> shell_consumer = CreateMockConsumer();
+  shell_consumer->Connect(svc.get(), AID_SHELL);
+  shell_consumer->EnableTracing(exclusive_cfg);
+  shell_consumer->FreeBuffers();
+  shell_consumer->WaitForTracingDisabled();
+}
+#endif  // OS_ANDROID
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionBlocksNewSessions) {
+  TraceConfig exclusive_cfg;
+  exclusive_cfg.add_buffers()->set_size_kb(128);
+  exclusive_cfg.set_exclusive_prio(1);
+
+  // Start an exclusive session.
+  std::unique_ptr<MockConsumer> exclusive_consumer = CreateMockConsumer();
+  exclusive_consumer->Connect(svc.get());
+  exclusive_consumer->EnableTracing(exclusive_cfg);
+
+  // Now that an exclusive session is running, a new non-exclusive one should
+  // be rejected.
+  TraceConfig non_exclusive_cfg;
+  non_exclusive_cfg.add_buffers()->set_size_kb(128);
+  std::unique_ptr<MockConsumer> non_exclusive_consumer = CreateMockConsumer();
+  non_exclusive_consumer->Connect(svc.get());
+  non_exclusive_consumer->EnableTracing(non_exclusive_cfg);
+  non_exclusive_consumer->WaitForTracingDisabledWithError(
+      StrEq("An exclusive session with priority 1 >= requested priority "
+            "0 is already active."));
+
+  // A new exclusive session with lower-or-equal priority should be rejected.
+  std::unique_ptr<MockConsumer> new_exclusive_consumer = CreateMockConsumer();
+  new_exclusive_consumer->Connect(svc.get());
+  new_exclusive_consumer->EnableTracing(exclusive_cfg);
+  new_exclusive_consumer->WaitForTracingDisabledWithError(
+      StrEq("An exclusive session with priority 1 >= requested priority "
+            "1 is already active."));
+
+  exclusive_consumer->FreeBuffers();
+  exclusive_consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionAbortRunningSessions) {
+  // Start a normal session.
+  TraceConfig non_exclusive_cfg;
+  non_exclusive_cfg.add_buffers()->set_size_kb(128);
+  std::unique_ptr<MockConsumer> non_exclusive_consumer = CreateMockConsumer();
+  non_exclusive_consumer->Connect(svc.get());
+  non_exclusive_consumer->EnableTracing(non_exclusive_cfg);
+
+  // Start a CLONE_SNAPSHOT session.
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+  TraceConfig clone_cfg;
+  clone_cfg.add_buffers()->set_size_kb(128);
+  clone_cfg.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = clone_cfg.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_stop_delay_ms(1);
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+  clone_consumer->EnableTracing(clone_cfg);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  // Start an exclusive session which should abort all other non-exclusive
+  // sessions.
+  TraceConfig exclusive_cfg;
+  exclusive_cfg.add_buffers()->set_size_kb(128);
+  exclusive_cfg.set_exclusive_prio(1);
+  std::unique_ptr<MockConsumer> exclusive_consumer = CreateMockConsumer();
+  exclusive_consumer->Connect(svc.get());
+
+  const std::string abort_reason =
+      "Aborted due to user requested higher-priority (1) exclusive session.";
+  EXPECT_CALL(*non_exclusive_consumer,
+              OnTracingDisabled(HasSubstr(abort_reason)));
+  EXPECT_CALL(*clone_consumer, OnTracingDisabled(HasSubstr(abort_reason)));
+  exclusive_consumer->EnableTracing(exclusive_cfg);
+  producer->WaitForDataSourceStop("ds_1");
+  // The aborted clone session should not have any data.
+  EXPECT_THAT(clone_consumer->ReadBuffers(), IsEmpty());
+
+  exclusive_consumer->FreeBuffers();
+  exclusive_consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionHigherPriorityAbortsLower) {
+  // Start a low-priority exclusive session.
+  TraceConfig exclusive_cfg_1;
+  exclusive_cfg_1.add_buffers()->set_size_kb(128);
+  exclusive_cfg_1.set_exclusive_prio(1);
+  std::unique_ptr<MockConsumer> exclusive_consumer = CreateMockConsumer();
+  exclusive_consumer->Connect(svc.get());
+  exclusive_consumer->EnableTracing(exclusive_cfg_1);
+
+  // A new exclusive session with higher priority should be accepted, and should
+  // abort the existing one.
+  TraceConfig exclusive_cfg_2;
+  exclusive_cfg_2.add_buffers()->set_size_kb(128);
+  exclusive_cfg_2.set_exclusive_prio(2);
+  std::unique_ptr<MockConsumer> new_exclusive_consumer = CreateMockConsumer();
+  new_exclusive_consumer->Connect(svc.get());
+
+  EXPECT_CALL(
+      *exclusive_consumer,
+      OnTracingDisabled(HasSubstr("Aborted due to user requested "
+                                  "higher-priority (2) exclusive session.")));
+  new_exclusive_consumer->EnableTracing(exclusive_cfg_2);
+
+  // Finally, disable the last exclusive session.
+  new_exclusive_consumer->FreeBuffers();
+  new_exclusive_consumer->WaitForTracingDisabled();
 }
 
 }  // namespace

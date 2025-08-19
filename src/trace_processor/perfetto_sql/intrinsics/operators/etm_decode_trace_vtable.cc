@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/etm/element_cursor.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
@@ -34,7 +35,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::etm {
 namespace {
@@ -53,27 +53,27 @@ base::StatusOr<ocsd_gen_trc_elem_t> ToElementType(sqlite3_value* value) {
   return *type;
 }
 
-base::StatusOr<tables::EtmV4TraceTable::Id> GetEtmV4TraceId(
+base::StatusOr<tables::EtmV4ChunkTable::Id> GetEtmV4ChunkId(
     const TraceStorage* storage,
     sqlite3_value* argv) {
   SqlValue in_id = sqlite::utils::SqliteValueToSqlValue(argv);
   if (in_id.type != SqlValue::kLong) {
-    return base::ErrStatus("trace_id must be LONG");
+    return base::ErrStatus("chunk_id must be LONG");
   }
 
   if (in_id.AsLong() < 0 ||
-      in_id.AsLong() >= storage->etm_v4_trace_table().row_count()) {
-    return base::ErrStatus("Invalid trace_id value: %" PRIu32,
-                           storage->etm_v4_trace_table().row_count());
+      in_id.AsLong() >= storage->etm_v4_chunk_table().row_count()) {
+    return base::ErrStatus("Invalid chunk_id value: %" PRIu32,
+                           storage->etm_v4_chunk_table().row_count());
   }
 
-  return tables::EtmV4TraceTable::Id(static_cast<uint32_t>(in_id.AsLong()));
+  return tables::EtmV4ChunkTable::Id(static_cast<uint32_t>(in_id.AsLong()));
 }
 
 static constexpr char kSchema[] = R"(
     CREATE TABLE x(
-      trace_id INTEGER HIDDEN,
-      trace_index INTEGER,
+      chunk_id INTEGER HIDDEN,
+      chunk_index INTEGER,
       element_index INTEGER,
       element_type TEXT,
       timestamp INTEGER,
@@ -89,8 +89,8 @@ static constexpr char kSchema[] = R"(
   )";
 
 enum class ColumnIndex {
-  kTraceId,
-  kTraceIndex,
+  kChunkId,
+  kChunkIndex,
   kElementIndex,
   kElementType,
   kTimestamp,
@@ -104,14 +104,14 @@ enum class ColumnIndex {
   kInstructionRange
 };
 
-constexpr char kTraceIdEqArg = 't';
+constexpr char kChunkIdEqArg = 't';
 constexpr char kElementTypeEqArg = 'e';
 constexpr char kElementTypeInArg = 'E';
 
 }  // namespace
 
-class EtmDecodeTraceVtable::Cursor
-    : public sqlite::Module<EtmDecodeTraceVtable>::Cursor {
+class EtmDecodeChunkVtable::Cursor
+    : public sqlite::Module<EtmDecodeChunkVtable>::Cursor {
  public:
   explicit Cursor(Vtab* vtab) : cursor_(vtab->storage) {}
 
@@ -129,7 +129,7 @@ class EtmDecodeTraceVtable::Cursor
   ElementCursor cursor_;
 };
 
-base::StatusOr<ElementTypeMask> EtmDecodeTraceVtable::Cursor::GetTypeMask(
+base::StatusOr<ElementTypeMask> EtmDecodeChunkVtable::Cursor::GetTypeMask(
     sqlite3_value* argv,
     bool is_inlist) {
   ElementTypeMask mask;
@@ -151,11 +151,11 @@ base::StatusOr<ElementTypeMask> EtmDecodeTraceVtable::Cursor::GetTypeMask(
   return mask;
 }
 
-base::Status EtmDecodeTraceVtable::Cursor::Filter(int,
+base::Status EtmDecodeChunkVtable::Cursor::Filter(int,
                                                   const char* idxStr,
                                                   int argc,
                                                   sqlite3_value** argv) {
-  std::optional<tables::EtmV4TraceTable::Id> id;
+  std::optional<tables::EtmV4ChunkTable::Id> id;
   ElementTypeMask type_mask;
   type_mask.set_all();
   if (argc != static_cast<int>(strlen(idxStr))) {
@@ -163,8 +163,8 @@ base::Status EtmDecodeTraceVtable::Cursor::Filter(int,
   }
   for (; *idxStr != 0; ++idxStr, ++argv) {
     switch (*idxStr) {
-      case kTraceIdEqArg: {
-        ASSIGN_OR_RETURN(id, GetEtmV4TraceId(cursor_.storage(), *argv));
+      case kChunkIdEqArg: {
+        ASSIGN_OR_RETURN(id, GetEtmV4ChunkId(cursor_.storage(), *argv));
         break;
       }
       case kElementTypeEqArg: {
@@ -188,12 +188,12 @@ base::Status EtmDecodeTraceVtable::Cursor::Filter(int,
   return cursor_.Filter(id, type_mask);
 }
 
-int EtmDecodeTraceVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
+int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
   switch (static_cast<ColumnIndex>(raw_n)) {
-    case ColumnIndex::kTraceId:
-      sqlite::result::Long(ctx, cursor_.trace_id().value);
+    case ColumnIndex::kChunkId:
+      sqlite::result::Long(ctx, cursor_.chunk_id().value);
       break;
-    case ColumnIndex::kTraceIndex:
+    case ColumnIndex::kChunkIndex:
       sqlite::result::Long(ctx, static_cast<int64_t>(cursor_.index()));
       break;
     case ColumnIndex::kElementIndex:
@@ -251,7 +251,7 @@ int EtmDecodeTraceVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Connect(sqlite3* db,
+int EtmDecodeChunkVtable::Connect(sqlite3* db,
                                   void* ctx,
                                   int,
                                   const char* const*,
@@ -265,12 +265,12 @@ int EtmDecodeTraceVtable::Connect(sqlite3* db,
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Disconnect(sqlite3_vtab* vtab) {
+int EtmDecodeChunkVtable::Disconnect(sqlite3_vtab* vtab) {
   delete GetVtab(vtab);
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
+int EtmDecodeChunkVtable::BestIndex(sqlite3_vtab* tab,
                                     sqlite3_index_info* info) {
   bool seen_id_eq = false;
   int argv_index = 1;
@@ -279,17 +279,17 @@ int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
     auto& in = info->aConstraint[i];
     auto& out = info->aConstraintUsage[i];
 
-    if (in.iColumn == static_cast<int>(ColumnIndex::kTraceId)) {
+    if (in.iColumn == static_cast<int>(ColumnIndex::kChunkId)) {
       if (!in.usable) {
         return SQLITE_CONSTRAINT;
       }
       if (in.op != SQLITE_INDEX_CONSTRAINT_EQ) {
         return sqlite::utils::SetError(
-            tab, "trace_id only supports equality constraints");
+            tab, "chunk_id only supports equality constraints");
       }
       seen_id_eq = true;
 
-      idx_str += kTraceIdEqArg;
+      idx_str += kChunkIdEqArg;
       out.argvIndex = argv_index++;
       out.omit = true;
       continue;
@@ -312,7 +312,7 @@ int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
     }
   }
   if (!seen_id_eq) {
-    return sqlite::utils::SetError(tab, "Constraint required on trace_id");
+    return sqlite::utils::SetError(tab, "Constraint required on chunk_id");
   }
 
   info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
@@ -321,18 +321,18 @@ int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Open(sqlite3_vtab* sql_vtab,
+int EtmDecodeChunkVtable::Open(sqlite3_vtab* sql_vtab,
                                sqlite3_vtab_cursor** cursor) {
   *cursor = new Cursor(GetVtab(sql_vtab));
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Close(sqlite3_vtab_cursor* cursor) {
+int EtmDecodeChunkVtable::Close(sqlite3_vtab_cursor* cursor) {
   delete GetCursor(cursor);
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Filter(sqlite3_vtab_cursor* cur,
+int EtmDecodeChunkVtable::Filter(sqlite3_vtab_cursor* cur,
                                  int idxNum,
                                  const char* idxStr,
                                  int argc,
@@ -344,7 +344,7 @@ int EtmDecodeTraceVtable::Filter(sqlite3_vtab_cursor* cur,
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Next(sqlite3_vtab_cursor* cur) {
+int EtmDecodeChunkVtable::Next(sqlite3_vtab_cursor* cur) {
   auto status = GetCursor(cur)->Next();
   if (!status.ok()) {
     return sqlite::utils::SetError(cur->pVtab, status);
@@ -352,17 +352,17 @@ int EtmDecodeTraceVtable::Next(sqlite3_vtab_cursor* cur) {
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Eof(sqlite3_vtab_cursor* cur) {
+int EtmDecodeChunkVtable::Eof(sqlite3_vtab_cursor* cur) {
   return GetCursor(cur)->Eof();
 }
 
-int EtmDecodeTraceVtable::Column(sqlite3_vtab_cursor* cur,
+int EtmDecodeChunkVtable::Column(sqlite3_vtab_cursor* cur,
                                  sqlite3_context* ctx,
                                  int raw_n) {
   return GetCursor(cur)->Column(ctx, raw_n);
 }
 
-int EtmDecodeTraceVtable::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
+int EtmDecodeChunkVtable::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
   return SQLITE_ERROR;
 }
 

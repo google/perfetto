@@ -99,7 +99,7 @@ class RedactSchedSwitchIntegrationTest
     redact_sched_events->emplace_modifier<ClearComms>();
     redact_sched_events->emplace_waking_filter<AllowAll>();
 
-    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
+    context_.package_name = kSomePackageName;
   }
 
   std::unordered_map<int32_t, std::string> expected_names_ = {

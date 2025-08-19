@@ -27,6 +27,7 @@
 #include "perfetto/public/protos/common/builtin_clock.pzc.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_DataSourceConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_AndroidReportConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BufferConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BuiltinDataSource);
@@ -281,6 +282,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   perfetto_protos_TraceConfig_SessionSemaphore,
                   session_semaphores,
                   39);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  MSG,
+                  perfetto_protos_PriorityBoostConfig,
+                  priority_boost,
+                  40);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  uint32_t,
+                  exclusive_prio,
+                  41);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_SessionSemaphore,
@@ -562,6 +573,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
                   const char*,
                   producer_name_regex_filter,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
+                  STRING,
+                  const char*,
+                  machine_name_filter,
+                  4);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,

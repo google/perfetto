@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -61,8 +62,10 @@ class Cursor {
                   const impl::Column* const* column_ptrs,
                   const Index* indexes,
                   const StringPool* pool) {
-    interpreter_.Initialize(plan.bytecode, column_ptrs, indexes, pool);
+    interpreter_.Initialize(plan.bytecode, plan.params.register_count,
+                            column_ptrs, indexes, pool);
     params_ = plan.params;
+    col_to_output_offset_ = plan.col_to_output_offset;
     pool_ = pool;
 
     column_storage_data_ptrs_.clear();
@@ -78,16 +81,7 @@ class Cursor {
   // Parameters:
   //   fvf: A subclass of `ValueFetcher` that defines the logic for fetching
   //        filter values for each filter spec.
-  PERFETTO_ALWAYS_INLINE void Execute(
-      FilterValueFetcherImpl& filter_value_fetcher) {
-    using S = impl::Span<uint32_t>;
-    interpreter_.Execute(filter_value_fetcher);
-
-    const auto& span =
-        *interpreter_.template GetRegisterValue<S>(params_.output_register);
-    pos_ = span.b;
-    end_ = span.e;
-  }
+  PERFETTO_ALWAYS_INLINE void Execute(FilterValueFetcherImpl&);
 
   // Returns the index of the row in the table this cursor is pointing to.
   PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const { return *pos_; }
@@ -114,8 +108,9 @@ class Cursor {
                                    CellCallbackImpl& cell_callback_impl) {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
+    PERFETTO_DCHECK(col < col_to_output_offset_.size());
     const impl::Storage::DataPointer& p = column_storage_data_ptrs_[col];
-    uint32_t idx = pos_[params_.col_to_output_offset[col]];
+    uint32_t idx = pos_[col_to_output_offset_[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
       return;
@@ -150,6 +145,8 @@ class Cursor {
   impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
   impl::QueryPlan::ExecutionParams params_;
+  // Maps column indices to their output offsets in the result set.
+  base::SmallVector<uint32_t, 24> col_to_output_offset_;
   // Variant of pointers to the storage data.
   std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
   // String pool for string values.

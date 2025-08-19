@@ -83,11 +83,16 @@ void AndroidInputEventParser::ParseMotionEvent(
           ->InternString(
               base::StringView(base::Base64Encode(bytes.data, bytes.size)))
           .raw_id();
+  event_row.source = event_proto.source();
+  event_row.action = event_proto.action();
+  event_row.device_id = event_proto.device_id();
+  event_row.display_id = event_proto.display_id();
 
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
                           .id;
-  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
+  ArgsTracker args_tracker(&context_);
+  auto inserter = args_tracker.AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 
   base::Status status =
@@ -111,11 +116,17 @@ void AndroidInputEventParser::ParseKeyEvent(
           ->InternString(
               base::StringView(base::Base64Encode(bytes.data, bytes.size)))
           .raw_id();
+  event_row.source = event_proto.source();
+  event_row.action = event_proto.action();
+  event_row.device_id = event_proto.device_id();
+  event_row.display_id = event_proto.display_id();
+  event_row.key_code = event_proto.key_code();
 
   auto event_row_id = context_.storage->mutable_android_key_events_table()
                           ->Insert(event_row)
                           .id;
-  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
+  ArgsTracker args_tracker(&context_);
+  auto inserter = args_tracker.AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 
   base::Status status =
@@ -146,7 +157,8 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           ->Insert(event_row)
           .id;
 
-  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
+  ArgsTracker args_tracker(&context_);
+  auto inserter = args_tracker.AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 
   base::Status status = args_parser_.ParseMessage(

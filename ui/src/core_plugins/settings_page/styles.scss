@@ -12,18 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
+@import "../../assets/theme";
 
 .pf-settings-page {
-  margin-block: 16px;
-
-  &__topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 16px;
-  }
-
   &__card {
     display: flex;
     flex-direction: row;
@@ -31,7 +22,7 @@
     justify-content: space-between;
 
     &--changed {
-      border-left: solid 3px rgb(0, 96, 155);
+      border-left: solid 3px var(--pf-color-primary);
     }
   }
 
@@ -43,7 +34,6 @@
 
   &__description {
     font-size: smaller;
-    color: var(--secondary-foreground-color);
   }
 
   &__controls {
@@ -57,7 +47,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: var(--error-color);
+    color: var(--pf-color-danger);
     font-size: 14px;
   }
 }

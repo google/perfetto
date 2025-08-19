@@ -59,3 +59,5 @@ WHERE
   dominator_node_id IS NOT NULL
 ORDER BY
   id;
+
+CREATE PERFETTO INDEX _raw_heap_graph_dominator_tree_idom_id_idx ON _raw_heap_graph_dominator_tree(idom_id);

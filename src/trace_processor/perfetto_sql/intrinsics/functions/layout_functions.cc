@@ -21,13 +21,13 @@
 #include <vector>
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 
@@ -162,7 +162,7 @@ base::Status StepStatus(sqlite3_context* ctx,
   return slice_packer.value()->AddSlice(ts.AsLong(), dur.AsLong());
 }
 
-struct InternalLayout : public SqliteWindowFunction {
+struct InternalLayout : public sqlite::WindowFunction {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_CHECK(argc >= 0);
 

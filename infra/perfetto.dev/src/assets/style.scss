@@ -62,6 +62,7 @@ html,
 body {
   padding: 0;
   margin: 0;
+  overscroll-behavior-y: none;
 }
 
 h1,
@@ -546,16 +547,16 @@ h3 {
   min-height: 100vh;
   display: grid;
   --nav-width: 240px;
-  --toc-width: 180px;
+  --toc-min-width: 180px;
+  --toc-max-width: 320px;
 
   // 1665px is the clientWidth on a macbook pro. Adjust the layout so that
   // the max-width of the central .doc fits precisely when the browser is
   // full-screen on a macbook.
-  --max-doc-width: calc(1665px - var(--toc-width) - var(--nav-width));
+  --max-doc-width: calc(1665px - var(--toc-min-width) - var(--nav-width));
 
-  grid-template-columns: var(--nav-width) minmax(auto, var(--max-doc-width)) var(
-      --toc-width
-    );
+  grid-template-columns: var(--nav-width) minmax(auto, var(--max-doc-width)) minmax(var(
+      --toc-min-width), 1fr);
   grid-template-rows: 1fr max-content;
   grid-template-areas: "nav doc toc" "nav footer toc";
 
@@ -612,62 +613,65 @@ h3 {
       }
     }
 
-    // Applies only to outer-level submenus.
-    > ul {
-      position: static; // Otherwise gets v-centered in the middle.
-      > li {
-        padding-bottom: 10px;
-        margin-bottom: 10px;
-        font-weight: 600;
-        color: #111;
+    > ul > li {
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+      color: #000;
 
-        &:not(:last-child) {
-          border-bottom: 1px solid #eee;
-        }
-
-        &.compressible {
-          > p > a::after {
-            content: "keyboard_arrow_up";
-            font-family: "Material Icons Round";
-            font-size: 24px;
-            width: 24px;
-            transition: transform var(--anim-ease) var(--anim-time);
-            margin: 0 0 0 auto;
-            font-weight: 200;
-            color: #666;
-          }
-          > ul {
-            transition:
-              max-height var(--anim-ease) var(--anim-time),
-              opacity var(--anim-ease) var(--anim-time);
-            opacity: 1;
-          }
-          &.compressed {
-            // The JS will compute and set the maxHeight on each
-            // element depending on the size of their children.
-            // !important is needed to override the element-inline
-            // max-height property set by JS, which is prioritary.
-            > ul {
-              max-height: 0 !important;
-              visibility: hidden;
-              opacity: 0;
-            }
-            > p > a::after {
-              transform: scaleY(-1);
-            }
-          }
-        } // .compressible
+      &:not(:last-child) {
+        border-bottom: 2px solid #ddd;
       }
     }
+
+    a[href="#"],
+    a:not([href]) {
+      font-weight: 600;
+    }
+
+    // Applies only to outer-level submenus.
+    .compressible {
+      > p > a::after {
+        content: "keyboard_arrow_up";
+        font-family: "Material Icons Round";
+        font-size: 24px;
+        width: 24px;
+        transition: transform var(--anim-ease) var(--anim-time);
+        margin: 0 0 0 auto;
+        font-weight: 200;
+        color: #666;
+      }
+      > ul {
+        transition: max-height var(--anim-ease) var(--anim-time),
+          opacity var(--anim-ease) var(--anim-time);
+        opacity: 1;
+      }
+      &.compressed {
+        // The JS will compute and set the maxHeight on each
+        // element depending on the size of their children.
+        // !important is needed to override the element-inline
+        // max-height property set by JS, which is prioritary.
+        > ul {
+          max-height: 0 !important;
+          visibility: hidden;
+          opacity: 0;
+        }
+        > p > a::after {
+          transform: scaleY(-1);
+        }
+      }
+    } // .compressible
 
     li a {
       padding-left: 16px;
     }
     li li a {
-      padding-left: 30px;
+      padding-left: 16px;
     }
     li li li a {
-      padding-left: 44px;
+      padding-left: 24px;
+    }
+    li li li li a {
+      padding-left: 32px;
     }
     .expanded a::after {
       transform: rotate(180deg);
@@ -924,10 +928,45 @@ h3 {
         }
       }
     }
+
+    .tab-box {
+      border: 1px solid #eee;
+      border-radius: 2px;
+      padding: 8px;
+    }
+
+    .tab-buttons {
+      border-bottom: 1px solid #eee;
+    }
+
+    .tab-button {
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      font-family: Roboto, sans-serif;
+      font-size: 1rem;
+      padding: 8px;
+      &:hover {
+        background-color: hsl(0, 0%, 80%);
+      }
+      &.tab-button-selected {
+        border-bottom: 4px solid hsl(210, 29%, 30%);
+      }
+    }
+
+    .tab-content {
+      display: none;
+      padding: 8px;
+
+      &.tab-content-selected {
+        display: block;
+      }
+    }
   }
   .toc {
     grid-area: toc;
     padding: 20px 16px 20px 0;
+    max-width: var(--toc-max-width);
 
     position: sticky;
     top: var(--site-header-height);

@@ -119,7 +119,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         }),
       },
       m(VirtualTable, {
-        className: 'pf-android-logs-table',
+        className: 'pf-logs-panel',
         columns: [
           ...(hasMachineIds ? [{header: 'Machine', width: '6em'}] : []),
           {header: 'Timestamp', width: '13em'},
@@ -189,15 +189,16 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
     const rows: VirtualTableRow[] = [];
     for (let i = 0; i < this.entries.timestamps.length; i++) {
-      const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
+      const priority = priorities[i];
+      const priorityLetter = LOG_PRIORITIES[priority][0];
       const ts = timestamps[i];
-      const prioClass = priorityLetter ?? '';
+      const priorityClass = `pf-logs-panel__row--${classForPriority(priority)}`;
 
       rows.push({
         id: i,
         className: classNames(
-          prioClass,
-          this.entries.isHighlighted[i] && 'pf-highlighted',
+          priorityClass,
+          this.entries.isHighlighted[i] && 'pf-logs-panel__row--highlighted',
         ),
         cells: [
           ...(hasMachineIds ? [machineIds[i]] : []),
@@ -213,6 +214,25 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     }
 
     return rows;
+  }
+}
+
+function classForPriority(priority: number) {
+  switch (priority) {
+    case 2:
+      return 'verbose';
+    case 3:
+      return 'debug';
+    case 4:
+      return 'info';
+    case 5:
+      return 'warn';
+    case 6:
+      return 'error';
+    case 7:
+      return 'fatal';
+    default:
+      return undefined;
   }
 }
 
@@ -309,7 +329,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
 
     return [
-      m('.log-label', 'Log Level'),
+      m('span', 'Log Level'),
       m(LogPriorityWidget, {
         trace: attrs.trace,
         options: LOG_PRIORITIES,

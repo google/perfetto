@@ -18,10 +18,14 @@
 
 #include <memory>
 
+#include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
+#include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
+#include "src/trace_processor/importers/proto/android_cpu_per_uid_module.h"
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/app_wakelock_module.h"
@@ -30,7 +34,6 @@
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
-#include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/pixel_modem_module.h"
 #include "src/trace_processor/importers/proto/profile_module.h"
@@ -39,45 +42,69 @@
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
+#endif
 
 namespace perfetto::trace_processor {
 
-void RegisterAdditionalModules(TraceProcessorContext* context) {
+void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context) {
   // Content analyzer and metadata module both depend on this.
   context->descriptor_pool_->AddFromFileDescriptorSet(kTraceDescriptor.data(),
                                                       kTraceDescriptor.size());
 
-  context->modules.emplace_back(new AndroidKernelWakelocksModule(context));
-  context->modules.emplace_back(new AndroidProbesModule(context));
-  context->modules.emplace_back(new NetworkTraceModule(context));
-  context->modules.emplace_back(new GraphicsEventModule(context));
-  context->modules.emplace_back(new HeapGraphModule(context));
-  context->modules.emplace_back(new DeobfuscationModule(context));
-  context->modules.emplace_back(new SystemProbesModule(context));
-  context->modules.emplace_back(new TranslationTableModule(context));
-  context->modules.emplace_back(new StatsdModule(context));
-  context->modules.emplace_back(new AndroidCameraEventModule(context));
-  context->modules.emplace_back(new MetadataModule(context));
-  context->modules.emplace_back(new V8Module(context));
-  context->modules.emplace_back(new WinscopeModule(context));
-  context->modules.emplace_back(new PixelModemModule(context));
-  context->modules.emplace_back(new ProfileModule(context));
-  context->modules.emplace_back(new AppWakelockModule(context));
-  context->modules.emplace_back(new GenericKernelModule(context));
+  module_context->modules.emplace_back(
+      new AndroidCpuPerUidModule(module_context, context));
+  module_context->modules.emplace_back(
+      new AndroidKernelWakelocksModule(module_context, context));
+  module_context->modules.emplace_back(
+      new AndroidProbesModule(module_context, context));
+  module_context->modules.emplace_back(
+      new NetworkTraceModule(module_context, context));
+  module_context->modules.emplace_back(
+      new GraphicsEventModule(module_context, context));
+  module_context->modules.emplace_back(
+      new HeapGraphModule(module_context, context));
+  module_context->modules.emplace_back(
+      new DeobfuscationModule(module_context, context));
+  module_context->modules.emplace_back(
+      new SystemProbesModule(module_context, context));
+  module_context->modules.emplace_back(
+      new TranslationTableModule(module_context, context));
+  module_context->modules.emplace_back(
+      new StatsdModule(module_context, context));
+  module_context->modules.emplace_back(
+      new AndroidCameraEventModule(module_context, context));
+  module_context->modules.emplace_back(
+      new MetadataModule(module_context, context));
+  module_context->modules.emplace_back(new V8Module(module_context, context));
+  module_context->modules.emplace_back(
+      new PixelModemModule(module_context, context));
+  module_context->modules.emplace_back(
+      new ProfileModule(module_context, context));
+  module_context->modules.emplace_back(
+      new AppWakelockModule(module_context, context));
+  module_context->modules.emplace_back(
+      new GenericKernelModule(module_context, context));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  module_context->modules.emplace_back(
+      new WinscopeModule(module_context, context));
+#endif
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.
-  context->modules.emplace_back(new FtraceModuleImpl(context));
-  context->ftrace_module =
-      static_cast<FtraceModule*>(context->modules.back().get());
-  context->modules.emplace_back(new EtwModuleImpl(context));
-  context->etw_module = static_cast<EtwModule*>(context->modules.back().get());
-
-  if (context->multi_machine_trace_manager) {
-    context->multi_machine_trace_manager->EnableAdditionalModules(
-        RegisterAdditionalModules);
-  }
+  module_context->modules.emplace_back(
+      new FtraceModuleImpl(module_context, context));
+  module_context->ftrace_module =
+      static_cast<FtraceModule*>(module_context->modules.back().get());
+  module_context->modules.emplace_back(
+      new EtwModuleImpl(module_context, context));
+  module_context->etw_module =
+      static_cast<EtwModule*>(module_context->modules.back().get());
 
   if (context->config.analyze_trace_proto_content) {
     context->content_analyzer = std::make_unique<ProtoContentAnalyzer>(context);

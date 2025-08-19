@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -208,15 +208,15 @@ class Fuchsia(TestSuite):
           "depth","count"
           0,15294
           1,11654
-          2,9722
-          3,2009
-          4,3882
-          5,2441
-          6,1825
-          7,2215
-          8,2192
-          9,1666
-          10,348
+          2,9723
+          3,2033
+          4,3943
+          5,2458
+          6,1839
+          7,2225
+          8,2193
+          9,1667
+          10,349
           11,329
           12,304
           13,246
@@ -270,7 +270,6 @@ class Fuchsia(TestSuite):
         "Someint64",-234516543631231,"[NULL]","[NULL]","int","-234516543631231"
         "Someuint32",2145,"[NULL]","[NULL]","int","2145"
         "Someuint64",423621626134123415,"[NULL]","[NULL]","int","423621626134123415"
-        "cookie",658,"[NULL]","[NULL]","int","658"
         "name","[NULL]","example_counter:somedataseries:0","[NULL]","string","example_counter:somedataseries:0"
         "ping","[NULL]","pong","[NULL]","string","pong"
         "scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
@@ -281,8 +280,8 @@ class Fuchsia(TestSuite):
         "somepointer",3285933758964,"[NULL]","[NULL]","pointer","0x2fd10ea19f4"
         "source","[NULL]","chrome","[NULL]","string","chrome"
         "source_scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
-        "trace_id",658,"[NULL]","[NULL]","int","658"
         "trace_id_is_process_scoped",0,"[NULL]","[NULL]","bool","false"
+        "track_compressor_idx",0,"[NULL]","[NULL]","int","0"
         "upid",1,"[NULL]","[NULL]","int","1"
         "utid",1,"[NULL]","[NULL]","int","1"
         """))

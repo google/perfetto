@@ -18,12 +18,12 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iomanip>
-#include <sstream>
-#include <utility>
-#include <vector>
+#include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_view_splitter.h"
@@ -33,19 +33,25 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 
-AndroidDumpstateReader::AndroidDumpstateReader(TraceProcessorContext* context,
-                                               int32_t year)
-    : context_(context),
-      battery_stats_reader_(context),
-      log_reader_(context, year, true) {}
+AndroidDumpstateReader::AndroidDumpstateReader(TraceProcessorContext* context)
+    : context_(context), battery_stats_reader_(context) {}
 
 AndroidDumpstateReader::~AndroidDumpstateReader() = default;
 
 base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
+  if (!default_log_reader_) {
+    default_log_reader_ = std::make_unique<BufferingAndroidLogReader>(
+        context_, /* year */ 0, /*wait_for_tz*/ true);
+  }
+  return ParseLine(default_log_reader_.get(), line);
+}
+
+base::Status AndroidDumpstateReader::ParseLine(
+    BufferingAndroidLogReader* const log_reader,
+    base::StringView line) {
   context_->clock_tracker->SetTraceTimeClock(
       protos::pbzero::BUILTIN_CLOCK_REALTIME);
 
@@ -87,7 +93,7 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
     section = section.substr(0, section.size() - 7);
     bool end_marker = section.find("was the duration of") != npos;
     current_service_id_ = StringId::Null();
-    current_serivce_ = "";
+    current_service_ = "";
     if (end_marker) {
       current_section_id_ = StringId::Null();
     } else {
@@ -115,7 +121,7 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
   if (current_section_ == Section::kDumpsys && line.StartsWith("--------- ") &&
       line.find("was the duration of dumpsys") != npos) {
     current_service_id_ = StringId::Null();
-    current_serivce_ = "";
+    current_service_ = "";
     return base::OkStatus();
   }
   if (current_section_ == Section::kDumpsys && current_service_id_.is_null() &&
@@ -133,12 +139,13 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
     base::StringView svc = line.substr(line.rfind(' ') + 1);
     svc = svc.substr(0, svc.size() - 1);
     current_service_id_ = context_->storage->InternString(svc);
-    current_serivce_ = svc;
+    current_service_ = svc;
   } else if (current_section_ == Section::kDumpsys &&
-             current_serivce_ == "alarm") {
+             current_service_ == "alarm") {
     MaybeSetTzOffsetFromAlarmService(line);
   } else if (current_section_ == Section::kLog) {
-    RETURN_IF_ERROR(log_reader_.ParseLine(line));
+    PERFETTO_DCHECK(log_reader != nullptr);
+    RETURN_IF_ERROR(log_reader->ParseLine(line));
   } else if (current_section_ == Section::kBatteryStats) {
     RETURN_IF_ERROR(battery_stats_reader_.ParseLine(line));
   }

@@ -12,30 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-card {
-  padding: 12px 16px;
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  border: solid 1px lightgray;
+@import "../theme.scss";
 
-  &--borderless {
-    border: unset;
-    box-shadow: unset;
-  }
-}
+$border-radius: $border-radius-large;
 
-.pf-card-list {
-  display: flex;
-  flex-direction: column;
-  border: solid 1px lightgray;
-  border-radius: 2px;
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
+@layer pf-widgets {
+  .pf-card {
+    padding: 12px 16px;
+    box-shadow: $box-shadow-1;
+    border-radius: $border-radius;
+    border: solid 1px var(--pf-color-border);
 
-  > .pf-card:not(:last-child) {
-    border-bottom: 1px solid lightgray;
+    &.pf-interactive {
+      transition: $anim-timing;
+      &:hover {
+        box-shadow: $box-shadow-3;
+      }
+    }
   }
 
-  > .pf-card {
-    border-radius: unset;
+  .pf-card-stack {
+    display: flex;
+    flex-direction: column;
+    border: solid 1px var(--pf-color-border);
+    border-radius: $border-radius;
+    box-shadow: $box-shadow-1;
+    overflow: hidden;
+
+    > .pf-card:not(:last-child) {
+      border-bottom: 1px solid var(--pf-color-border);
+    }
+
+    > .pf-card {
+      border-radius: unset;
+      border: unset;
+      box-shadow: unset;
+    }
+
+    > .pf-card.pf-interactive:hover {
+      background-color: color_hover(transparent);
+      box-shadow: unset;
+    }
+
+    &--horizontal {
+      flex-direction: row;
+
+      > .pf-card:not(:last-child) {
+        border-right: 1px solid var(--pf-color-border);
+        border-bottom: unset;
+      }
+    }
   }
 }

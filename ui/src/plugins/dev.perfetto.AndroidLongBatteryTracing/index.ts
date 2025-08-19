@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {uuidv4} from '../../base/uuid';
 import {Trace} from '../../public/trace';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
@@ -20,6 +22,14 @@ import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {STR, LONG} from '../../trace_processor/query_result';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {Flamegraph} from '../../widgets/flamegraph';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+} from '../../components/query_flamegraph';
+
+const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
 interface ContainedTrace {
   uuid: string;
@@ -834,7 +844,29 @@ const BT_ACTIVITY = `
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
+  static readonly dependencies = [StandardGroupsPlugin];
+
   private readonly groups = new Map<string, TrackNode>();
+
+  private getOrCreateGroup(
+    ctx: Trace,
+    groupName: string,
+    groupCollapsed = true,
+  ): TrackNode {
+    const existingGroup = this.groups.get(groupName);
+    if (existingGroup) {
+      return existingGroup;
+    }
+
+    const group = new TrackNode({
+      name: groupName,
+      isSummary: true,
+      collapsed: groupCollapsed,
+    });
+    this.groups.set(groupName, group);
+    ctx.workspace.addChildInOrder(group);
+    return group;
+  }
 
   private addTrack(
     ctx: Trace,
@@ -843,19 +875,8 @@ export default class implements PerfettoPlugin {
     groupCollapsed = true,
   ): void {
     if (groupName) {
-      const existingGroup = this.groups.get(groupName);
-      if (existingGroup) {
-        existingGroup.addChildInOrder(track);
-      } else {
-        const group = new TrackNode({
-          title: groupName,
-          isSummary: true,
-          collapsed: groupCollapsed,
-        });
-        group.addChildInOrder(track);
-        this.groups.set(groupName, group);
-        ctx.workspace.addChildInOrder(group);
-      }
+      const group = this.getOrCreateGroup(ctx, groupName, groupCollapsed);
+      group.addChildInOrder(track);
     } else {
       ctx.workspace.addChildInOrder(track);
     }
@@ -881,10 +902,9 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri,
-      title: name,
-      track,
+      renderer: track,
     });
-    const trackNode = new TrackNode({uri, title: name});
+    const trackNode = new TrackNode({uri, name});
     this.addTrack(ctx, trackNode, groupName, groupCollapsed);
   }
 
@@ -908,10 +928,9 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri,
-      title: name,
-      track,
+      renderer: track,
     });
-    const trackNode = new TrackNode({uri, title: name});
+    const trackNode = new TrackNode({uri, name});
     this.addTrack(ctx, trackNode, groupName, groupCollapsed);
   }
 
@@ -962,6 +981,10 @@ export default class implements PerfettoPlugin {
     }
 
     const groupName = 'Device State';
+    const deviceStateGroup = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'DEVICE_STATE');
+    this.groups.set(groupName, deviceStateGroup);
 
     const query = (name: string, track: string) =>
       this.addBatteryStatsEvent(ctx, name, track, groupName, features);
@@ -1146,38 +1169,172 @@ export default class implements PerfettoPlugin {
 
   async addDayExplorerCounters(
     ctx: Trace,
-    table: string,
     groupName: string,
     limit: number,
   ): Promise<void> {
-    const e = ctx.engine;
-
-    await e.query(
+    await ctx.engine.query(
       `INCLUDE PERFETTO MODULE
           google3.wireless.android.telemetry.trace_extractor.modules.day_explorer.perfetto_ui_blames`,
     );
 
-    const counters = await e.query(
-      `select track_name, cast(round(total_energy_uws / 3600000) as int) as energy_mwh
-      from ${table}_totals order by total_energy_uws desc limit ${limit}`,
-    );
-    const countersIt = counters.iter({
-      track_name: STR,
+    const group = this.getOrCreateGroup(ctx, groupName);
+    await this.addDayExplorerRecursive(ctx, group, limit, -1n);
+  }
+
+  private async addDayExplorerRecursive(
+    ctx: Trace,
+    parent: TrackNode,
+    limit: number,
+    parentId: bigint,
+  ): Promise<void> {
+    const children = await ctx.engine.query(`
+      SELECT track_id, display_name, cast(round(total_energy_uws / 3600000) as int) as energy_mwh
+      FROM day_explorer_ui_hierarchy
+      WHERE (${parentId} >= 0 AND parent_id = ${parentId})
+         OR (${parentId} < 0 AND parent_id IS NULL)
+      ORDER BY energy_mwh DESC
+      LIMIT ${limit}
+    `);
+
+    const childIter = children.iter({
+      track_id: LONG,
+      display_name: STR,
       energy_mwh: LONG,
     });
-    for (; countersIt.valid(); countersIt.next()) {
-      const opts = {unit: 'mW', yRangeSharingKey: `day-explorer-${table}`};
 
-      await this.addCounterTrack(
+    for (; childIter.valid(); childIter.next()) {
+      const query = `
+        SELECT ts, power_mw AS value
+        FROM day_explorer_ui_hierarchy_per_ts
+        WHERE track_id = ${childIter.track_id}
+      `;
+      const groupKey = `_day_explorer_ui_hierarchy_under_${parentId}`;
+      const trackName = `${childIter.display_name} - ${childIter.energy_mwh}mWh`;
+      const node = await this.createDayExplorerTrack(
         ctx,
-        `${countersIt.track_name} - ${countersIt.energy_mwh} mWh`,
-        `select ts, power_mw as value
-         from ${table}
-         where track_name = '${countersIt.track_name}'`,
-        groupName,
-        opts,
+        trackName,
+        groupKey,
+        query,
       );
+      parent.addChildInOrder(node);
+      await this.addDayExplorerRecursive(ctx, node, limit, childIter.track_id);
     }
+  }
+
+  private async createDayExplorerTrack(
+    ctx: Trace,
+    name: string,
+    groupKey: string,
+    query: string,
+  ): Promise<TrackNode> {
+    const uri = `/day_explorer_${uuidv4()}`;
+    const renderer = await createQueryCounterTrack({
+      trace: ctx,
+      uri,
+      data: {
+        sqlSource: query,
+      },
+      columns: {
+        ts: 'ts',
+        value: 'value',
+      },
+      options: {
+        yRangeSharingKey: groupKey,
+      },
+    });
+
+    ctx.tracks.registerTrack({
+      uri,
+      renderer,
+      tags: {
+        kind: DAY_EXPLORER_TRACK_KIND,
+      },
+    });
+
+    return new TrackNode({
+      name,
+      uri,
+    });
+  }
+
+  private createDayExplorerFlameGraphPanel(trace: Trace) {
+    let previousSelection: AreaSelection | undefined;
+    let flamegraph: QueryFlamegraph | undefined;
+    return {
+      id: 'day_explorer_flamegraph_selection',
+      name: 'Day Explorer Flamegraph',
+      render: (selection: AreaSelection) => {
+        const selectionChanged =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        previousSelection = selection;
+        if (selectionChanged) {
+          flamegraph = this.computeDayExplorerFlameGraph(trace, selection);
+        }
+
+        if (flamegraph === undefined) {
+          return undefined;
+        }
+
+        return {isLoading: false, content: flamegraph.render()};
+      },
+    };
+  }
+
+  computeDayExplorerFlameGraph(trace: Trace, currentSelection: AreaSelection) {
+    // The flame graph will be shown when any day explorer track is in the area
+    // selection. The selection is used to filter by time, but not by track. All
+    // day explorer tracks are considered for the graph.
+    let hasDayExplorer = false;
+    for (const trackInfo of currentSelection.tracks) {
+      if (trackInfo?.tags?.kind === DAY_EXPLORER_TRACK_KIND) {
+        hasDayExplorer = true;
+        break;
+      }
+    }
+    if (!hasDayExplorer) {
+      return undefined;
+    }
+    const metrics = metricsFromTableOrSubquery(
+      `
+        (
+          WITH
+            total_energy AS (
+              SELECT track_id, parent_id, display_name, SUM(energy_uws) AS energy_uws
+              FROM day_explorer_ui_hierarchy_per_ts
+              WHERE ts >= ${currentSelection.start}
+                AND ts <= ${currentSelection.end}
+              GROUP BY 1, 2, 3
+            ),
+            with_child AS (
+              SELECT
+                *,
+                (
+                  SELECT IFNULL(SUM(energy_uws), 0)
+                  FROM total_energy
+                  WHERE parent_id = P.track_id
+                ) AS child_energy
+              FROM total_energy AS P
+            )
+          SELECT
+            track_id AS id,
+            parent_id AS parentId,
+            display_name AS name,
+            cast(round((energy_uws - child_energy) / 1000) as int) AS self_count
+          FROM with_child
+        )
+      `,
+      [
+        {
+          name: 'Energy mWs',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+    );
+    return new QueryFlamegraph(trace, metrics, {
+      state: Flamegraph.createDefaultState(metrics),
+    });
   }
 
   async addDayExplorerBehaviors(ctx: Trace, groupName: string): Promise<void> {
@@ -1738,21 +1895,6 @@ export default class implements PerfettoPlugin {
     return features;
   }
 
-  private readonly DAY_EXPLORER_TABLES = {
-    day_explorer_screen_off_category: 'DE Screen Off: Category',
-    day_explorer_screen_off_category_package: 'DE Screen Off: Cat / Pkg',
-    day_explorer_screen_off_category_package_level_1:
-      'DE Screen Off: Cat / Pkg / L1',
-    day_explorer_screen_off_category_package_level_1_level_2:
-      'DE Screen Off: Cat / Pkg / L1 / L2',
-    day_explorer_screen_on_category: 'DE Screen On: Category',
-    day_explorer_screen_on_category_package: 'DE Screen On: Cat / Pkg',
-    day_explorer_screen_on_category_package_level_1:
-      'DE Screen On: Cat / Pkg / L1',
-    day_explorer_screen_on_category_package_level_1_level_2:
-      'DE Screen On: Cat / Pkg / L1 / L2',
-  };
-
   async addDayExplorerCommand(
     ctx: Trace,
     features: Set<string>,
@@ -1770,12 +1912,8 @@ export default class implements PerfettoPlugin {
             alert('Positive number required');
             return;
           }
-          await this.addDayExplorerBehaviors(ctx, 'DE Screen Off: Category');
-          for (const [table, desc] of Object.entries(
-            this.DAY_EXPLORER_TABLES,
-          )) {
-            await this.addDayExplorerCounters(ctx, table, desc, limit);
-          }
+          await this.addDayExplorerBehaviors(ctx, 'Day explorer');
+          await this.addDayExplorerCounters(ctx, 'Day explorer', limit);
         },
       });
     }
@@ -1796,6 +1934,9 @@ export default class implements PerfettoPlugin {
     await this.addDeviceState(ctx, features);
     await this.addHighCpu(ctx, features);
     await this.addContainedTraces(ctx, containedTraces);
+    ctx.selection.registerAreaSelectionTab(
+      this.createDayExplorerFlameGraphPanel(ctx),
+    );
 
     if (features.has('google3')) {
       await this.addAtomCounters(ctx);

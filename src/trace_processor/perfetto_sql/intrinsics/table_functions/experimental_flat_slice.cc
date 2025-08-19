@@ -23,14 +23,15 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -38,23 +39,43 @@
 
 namespace perfetto::trace_processor {
 
-ExperimentalFlatSlice::ExperimentalFlatSlice(TraceProcessorContext* context)
-    : context_(context) {}
+ExperimentalFlatSlice::Cursor::Cursor(TraceProcessorContext* context)
+    : context_(context), table_(context_->storage->mutable_string_pool()) {}
 
-base::StatusOr<std::unique_ptr<Table>> ExperimentalFlatSlice::ComputeTable(
+bool ExperimentalFlatSlice::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 2);
+  PERFETTO_DCHECK(arguments.size() == 2);
+  table_.Clear();
+
+  if (arguments[0].is_null() || arguments[1].is_null()) {
+    // ComputeFlatSliceTable might not handle nulls gracefully.
+    // Return an empty table.
+    // No OnFailure needed as this is valid input leading to an empty result.
+    return OnSuccess(&table_.dataframe());
+  }
+
   if (arguments[0].type != SqlValue::kLong) {
-    return base::ErrStatus("start timestamp must be an integer");
+    return OnFailure(base::ErrStatus("start timestamp must be an integer"));
   }
   if (arguments[1].type != SqlValue::kLong) {
-    return base::ErrStatus("end timestamp must be an integer");
+    return OnFailure(base::ErrStatus("end timestamp must be an integer"));
   }
-  return std::unique_ptr<Table>(
-      ComputeFlatSliceTable(context_->storage->slice_table(),
-                            context_->storage->mutable_string_pool(),
-                            arguments[0].AsLong(), arguments[1].AsLong()));
+
+  std::unique_ptr<tables::ExperimentalFlatSliceTable> constructed_table =
+      ExperimentalFlatSlice::ComputeFlatSliceTable(
+          context_->storage->slice_table(),
+          context_->storage->mutable_string_pool(), arguments[0].AsLong(),
+          arguments[1].AsLong());
+  if (!constructed_table) {
+    return OnFailure(
+        base::ErrStatus("Failed to compute ExperimentalFlatSliceTable"));
+  }
+  table_ = std::move(*constructed_table);
+  return OnSuccess(&table_.dataframe());
 }
+
+ExperimentalFlatSlice::ExperimentalFlatSlice(TraceProcessorContext* context)
+    : context_(context) {}
 
 std::unique_ptr<tables::ExperimentalFlatSliceTable>
 ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
@@ -246,16 +267,21 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
   return out;
 }
 
-Table::Schema ExperimentalFlatSlice::CreateSchema() {
-  return tables::ExperimentalFlatSliceTable::ComputeStaticSchema();
+std::unique_ptr<StaticTableFunction::Cursor>
+ExperimentalFlatSlice::MakeCursor() {
+  return std::make_unique<Cursor>(context_);
+}
+
+dataframe::DataframeSpec ExperimentalFlatSlice::CreateSpec() {
+  return tables::ExperimentalFlatSliceTable::kSpec.ToUntypedDataframeSpec();
 }
 
 std::string ExperimentalFlatSlice::TableName() {
   return "experimental_flat_slice";
 }
 
-uint32_t ExperimentalFlatSlice::EstimateRowCount() {
-  return context_->storage->slice_table().row_count();
+uint32_t ExperimentalFlatSlice::GetArgumentCount() const {
+  return 2;
 }
 
 }  // namespace perfetto::trace_processor

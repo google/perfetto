@@ -43,6 +43,11 @@ message TraceSummarySpec {
   //    sharing a single query across many different metrics.
   // 2) computation of trace-wide metadata.
   repeated PerfettoSqlStructuredQuery query = 2;
+
+  // A template for generating multiple v2 trace metrics.
+  //
+  // See documentation for TraceMetricV2TemplateSpec for usage of this field.
+  repeated TraceMetricV2TemplateSpec metric_template_spec = 3;
 }
 
 // Wrapper proto containing a bunch of outputs protos produced when computing
@@ -50,11 +55,16 @@ message TraceSummarySpec {
 //
 // See comments on `TraceSummarySpec` and on individual fields for usage of this
 // proto.
+//
+// Next id: 4
 message TraceSummary {
-  // The result of computing a v2 trace metric.
+  // Was the old non-bundled output format.
+  reserved 1;
+
+  // The v2 trace metrics computed for the trace in a "bundled" form.
   //
-  // See documentation for TraceMetric for usage of this field.
-  repeated TraceMetricV2 metric = 1;
+  // See documentation for TraceMetricV2Bundle for usage of this field.
+  repeated TraceMetricV2Bundle metric_bundles = 3;
 
   // Metadata about the whole trace file as key value pairs. This is intended
   // to put metadata about the trace (e.g. the device trace was collected on,

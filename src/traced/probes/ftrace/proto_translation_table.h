@@ -34,7 +34,7 @@
 #include "src/traced/probes/ftrace/printk_formats_parser.h"
 
 namespace perfetto {
-class FtraceProcfs;
+class Tracefs;
 
 // Used when reading the config to store the group and name info for the
 // ftrace event.
@@ -86,7 +86,7 @@ class ProtoTranslationTable {
   // fill some of the fields and to delete unused events/fields
   // before std:move'ing them into the ProtoTranslationTable.
   static std::unique_ptr<ProtoTranslationTable> Create(
-      const FtraceProcfs* ftrace_procfs,
+      const Tracefs* tracefs,
       std::vector<Event> events,
       std::vector<Field> common_fields);
   virtual ~ProtoTranslationTable();
@@ -94,7 +94,7 @@ class ProtoTranslationTable {
   ProtoTranslationTable(const ProtoTranslationTable&) = delete;
   ProtoTranslationTable& operator=(const ProtoTranslationTable&) = delete;
 
-  ProtoTranslationTable(const FtraceProcfs* ftrace_procfs,
+  ProtoTranslationTable(const Tracefs* tracefs,
                         const std::vector<Event>& events,
                         std::vector<Field> common_fields,
                         FtracePageHeaderSpec ftrace_page_header_spec,
@@ -193,7 +193,7 @@ class ProtoTranslationTable {
                                           uint32_t proto_field_id,
                                           bool keep_proto_descriptor);
 
-  const FtraceProcfs* ftrace_procfs_;
+  const Tracefs* tracefs_;
   std::set<std::string> interned_strings_;
   std::deque<Event> events_;
   std::map<GroupAndName, const Event*> group_and_name_to_event_;

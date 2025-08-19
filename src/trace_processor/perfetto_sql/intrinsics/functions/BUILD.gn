@@ -73,8 +73,7 @@ source_set("functions") {
     "../../../../../protos/perfetto/trace_processor:zero",
     "../../../../base",
     "../../../containers",
-    "../../../db",
-    "../../../db/column",
+    "../../../dataframe",
     "../../../importers/common",
     "../../../importers/ftrace:ftrace_descriptors",
     "../../../perfetto_sql/intrinsics/table_functions",
@@ -82,7 +81,7 @@ source_set("functions") {
     "../../../storage",
     "../../../tables",
     "../../../types",
-    "../../../util",
+    "../../../util:glob",
     "../../../util:profile_builder",
     "../../../util:regex",
     "../../../util:sql_argument",
@@ -92,6 +91,16 @@ source_set("functions") {
     "../types",
   ]
   public_deps = [ ":interface" ]
+  if (enable_perfetto_llvm_symbolizer) {
+    sources += [
+      "symbolize.cc",
+      "symbolize.h",
+    ]
+    deps += [
+      "../../../../profiling/symbolizer:llvm_symbolizer",
+      "../../../../profiling/symbolizer:llvm_symbolizer_c_api",
+    ]
+  }
 }
 
 source_set("interface") {

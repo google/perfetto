@@ -64,6 +64,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../../base:test_support",
     "../../sqlite",
-    "../../util",
   ]
 }

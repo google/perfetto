@@ -314,8 +314,12 @@ TEST_F(SliceTrackerTest, ParentId) {
 
   SliceId parent = context_.storage->slice_table()[0].id();
   SliceId child = context_.storage->slice_table()[1].id();
-  EXPECT_THAT(context_.storage->slice_table().parent_id().ToVectorForTesting(),
-              ElementsAre(std::nullopt, parent, child));
+
+  std::vector<std::optional<SliceId>> parent_ids;
+  for (auto it = context_.storage->slice_table().IterateRows(); it; ++it) {
+    parent_ids.push_back(it.parent_id());
+  }
+  EXPECT_THAT(parent_ids, ElementsAre(std::nullopt, parent, child));
 }
 
 TEST_F(SliceTrackerTest, IgnoreMismatchedEnds) {

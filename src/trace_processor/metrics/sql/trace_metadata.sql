@@ -52,7 +52,7 @@ SELECT TraceMetadata(
     WHERE name = 'trace_config_pbtxt'
   ),
   'sched_duration_ns', (
-    SELECT MAX(ts) - MIN(ts) FROM sched
+    SELECT IFNULL(MAX(TO_MONOTONIC(ts)) - MIN(TO_MONOTONIC(ts)), 0) FROM sched
   ),
   'tracing_started_ns', (
     SELECT int_value FROM metadata

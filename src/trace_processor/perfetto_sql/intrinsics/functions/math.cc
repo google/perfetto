@@ -18,17 +18,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
 
-struct Ln : public SqlFunction {
+struct Ln : public LegacySqlFunction {
   static base::Status Run(Context*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -54,7 +54,7 @@ struct Ln : public SqlFunction {
   }
 };
 
-struct Exp : public SqlFunction {
+struct Exp : public LegacySqlFunction {
   static base::Status Run(Context*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -76,7 +76,7 @@ struct Exp : public SqlFunction {
   }
 };
 
-struct Sqrt : public SqlFunction {
+struct Sqrt : public LegacySqlFunction {
   static base::Status Run(Context*,
                           size_t argc,
                           sqlite3_value** argv,

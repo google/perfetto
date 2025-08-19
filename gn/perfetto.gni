@@ -120,6 +120,7 @@ if (perfetto_build_standalone || is_perfetto_build_generator) {
   import("//gn/standalone/android.gni")  # For android_api_level
   import("//gn/standalone/libc++/libc++.gni")  # For use_custom_libcxx
   import("//gn/standalone/sanitizers/vars.gni")  # For is_fuzzer
+  import("//gn/standalone/toolchain/llvm.gni")
 } else if (!defined(perfetto_root_path)) {
   perfetto_root_path = "//third_party/perfetto/"
   import("//build/config/android/config.gni")  # For android_api_level
@@ -323,8 +324,8 @@ declare_args() {
   # Disabled in chromium due to some fuzzer related build failure (b/363347029).
   enable_perfetto_trace_processor_mac_instruments =
       enable_perfetto_trace_processor &&
-      (perfetto_build_standalone || perfetto_build_with_android ||
-       is_perfetto_build_generator)
+      (perfetto_build_standalone || perfetto_build_with_android) &&
+      !is_perfetto_build_generator
 
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
@@ -359,7 +360,17 @@ declare_args() {
   # this point and it requires extra libraries so we only enable it in selected
   # builds.
   enable_perfetto_etm_importer =
-      is_linux && enable_perfetto_trace_processor && perfetto_build_standalone
+      is_linux && enable_perfetto_trace_processor &&
+      perfetto_build_standalone && !is_perfetto_build_generator
+
+  # Enables the use of the LLVM symbolizer in trace_processor.
+  enable_perfetto_llvm_symbolizer = false
+
+  # Enables Winscope features in trace_processor. These are used by the
+  # standalone Winscope tool, Android prebuilts, and trace extractor metrics.
+  enable_perfetto_winscope =
+      enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || is_perfetto_build_generator)
 }
 
 declare_args() {
@@ -454,3 +465,10 @@ assert(!enable_perfetto_traced_probes || enable_perfetto_platform_services)
 # |perfetto_use_system_protobuf| must be set.
 assert(!perfetto_use_pkgconfig || perfetto_use_system_protobuf,
        "perfetto_use_pkgconfig requires perfetto_use_system_protobuf")
+
+# enable_perfetto_llvm_symbolizer is not compatible with use_custom_libcxx
+# because the former dynamically links to system llvm which is compiled using
+# libstdc++ which makes it incompatible with building using libcxx.
+assert(
+    !enable_perfetto_llvm_symbolizer || !use_custom_libcxx,
+    "enable_perfetto_llvm_symbolizer and use_custom_libcxx are mutually exclusive. If you are seeing this error then you have set enable_perfetto_llvm_symbolizer=true and must set use_custom_libcxx=false to use llvm_symbolizer.")

@@ -52,7 +52,7 @@ export default class implements PerfettoPlugin {
       name: 'Chrome Navigation: Pin relevant tracks',
       callback: () => {
         trace.workspace.flatTracks
-          .filter((t) => PIN_TRACK_NAME_PATTERNS.some((p) => t.title.match(p)))
+          .filter((t) => PIN_TRACK_NAME_PATTERNS.some((p) => t.name.match(p)))
           .forEach((t) => t.pin());
       },
     });
@@ -83,7 +83,7 @@ export default class implements PerfettoPlugin {
         // Find all tracks that we want to be visible.
         trace.workspace.flatTracks
           .filter((t) =>
-            INTERESTING_TRACKS_NAME_PATTERNS.some((p) => t.title.match(p)),
+            INTERESTING_TRACKS_NAME_PATTERNS.some((p) => t.name.match(p)),
           )
           .forEach((e) => flatIds.add(e.id));
 
@@ -100,7 +100,7 @@ export default class implements PerfettoPlugin {
           // We need to create a new node if we have added any children
           // or this track itself should be copied because the name matches.
           const nameMatch = INTERESTING_TRACKS_NAME_PATTERNS.some((p) =>
-            track.title.match(p),
+            track.name.match(p),
           );
           if (children.length === 0 && !nameMatch) {
             return undefined;

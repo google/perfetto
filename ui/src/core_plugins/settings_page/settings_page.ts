@@ -17,9 +17,9 @@ import {SettingsManagerImpl} from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
-import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
-import {Card, CardList} from '../../widgets/card';
-import {SettingsShell as SettingsPageWidget} from '../../widgets/settings_shell';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Card, CardStack} from '../../widgets/card';
+import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
@@ -27,6 +27,8 @@ import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {classNames} from '../../base/classnames';
+import {Stack, StackAuto} from '../../widgets/stack';
+import {FuzzyFinder} from '../../base/fuzzy';
 
 export class SettingsPage implements m.ClassComponent {
   private filterText = '';
@@ -39,42 +41,36 @@ export class SettingsPage implements m.ClassComponent {
 
     // Filter settings based on the search text
     const isFiltering = this.filterText.trim() !== '';
+    const finder = new FuzzyFinder(allSettings, (s) => {
+      return `${s.name} ${s.description ?? ''}`;
+    });
     const filteredSettings = isFiltering
-      ? allSettings.filter(
-          (setting) =>
-            setting.name
-              .toLowerCase()
-              .includes(this.filterText.toLowerCase()) ||
-            (setting.description &&
-              setting.description
-                .toLowerCase()
-                .includes(this.filterText.toLowerCase())),
-        )
-      : allSettings;
+      ? finder.find(this.filterText)
+      : allSettings.map((item) => ({item, segments: []}));
     return m(
-      SettingsPageWidget,
+      SettingsShell,
       {
         title: 'Settings',
+        className: 'page',
         stickyHeaderContent: m(
-          '.pf-settings-page__topbar',
-          m(
-            ButtonBar,
+          Stack,
+          {orientation: 'horizontal'},
+          m(Button, {
+            icon: 'restore',
+            label: 'Restore Defaults',
+            onclick: () => settingsManager.resetAll(),
+          }),
+          reloadRequired &&
             m(Button, {
-              icon: 'restore',
-              label: 'Restore Defaults',
-              onclick: () => settingsManager.resetAll(),
+              icon: 'refresh',
+              label: 'Reload required',
+              variant: ButtonVariant.Filled,
+              intent: Intent.Primary,
+              onclick: () => window.location.reload(),
             }),
-            reloadRequired &&
-              m(Button, {
-                icon: 'refresh',
-                label: 'Reload required',
-                variant: ButtonVariant.Filled,
-                intent: Intent.Primary,
-                onclick: () => window.location.reload(),
-              }),
-          ),
+          m(StackAuto),
           m(TextInput, {
-            placeholder: 'Filter settings...',
+            placeholder: 'Search...',
             value: this.filterText,
             leftIcon: 'search',
             oninput: (e: Event) => {
@@ -89,9 +85,9 @@ export class SettingsPage implements m.ClassComponent {
         filteredSettings.length === 0
           ? this.renderEmptyState(isFiltering)
           : m(
-              CardList,
-              filteredSettings.map((setting) => {
-                return this.renderSettingCard(setting);
+              CardStack,
+              filteredSettings.map(({item}) => {
+                return this.renderSettingCard(item);
               }),
             ),
       ),
@@ -128,7 +124,6 @@ export class SettingsPage implements m.ClassComponent {
     return m(
       Card,
       {
-        borderless: true,
         className: classNames(
           'pf-settings-page__card',
           !setting.isDefault && 'pf-settings-page__card--changed',

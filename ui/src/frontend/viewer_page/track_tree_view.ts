@@ -48,8 +48,8 @@ import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
-  SELECTION_STROKE_COLOR,
-  TRACK_BORDER_COLOR,
+  COLOR_ACCENT,
+  COLOR_BORDER_SECONDARY,
   TRACK_SHELL_WIDTH,
 } from '../css_constants';
 import {renderFlows} from './flow_events_renderer';
@@ -290,7 +290,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const track = trackNode.uri
       ? this.trace.tracks.getTrack(trackNode.uri)
       : undefined;
-    const tooltipNodes = track?.track.renderTooltip?.();
+    const tooltipNodes = track?.renderer.renderTooltip?.();
     if (!Boolean(tooltipNodes)) {
       return;
     }
@@ -399,12 +399,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timescale: TimeScale,
     size: Size2D,
   ): void {
-    ctx.strokeStyle = TRACK_BORDER_COLOR;
+    ctx.strokeStyle = COLOR_BORDER_SECONDARY;
     ctx.lineWidth = 1;
 
     if (size.width > 0 && timescale.timeSpan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.getTimeAxisOrigin();
       for (const {type, time} of generateTicks(
         timescale.timeSpan.toTimeSpan(),
         maxMajorTicks,
@@ -542,7 +542,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         onClick: () => {
           // If a track hasn't intercepted the click, treat this as a
           // deselection event.
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         drag: {
           minDistance: 1,
@@ -555,6 +555,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               );
             }
             this.areaDrag.update(e, timescale);
+            this.trace.raf.scheduleCanvasRedraw();
             trace.timeline.selectedSpan = this.areaDrag.timeSpan().toTimeSpan();
           },
           onDragEnd: (e) => {
@@ -608,7 +609,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     size: Size2D,
   ) {
     if (this.areaDrag) {
-      ctx.strokeStyle = SELECTION_STROKE_COLOR;
+      ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 1;
       const rect = this.areaDrag.rect(timescale);
       ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
@@ -617,7 +618,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     if (this.handleDrag) {
       const rect = this.handleDrag.hBounds(timescale);
 
-      ctx.strokeStyle = SELECTION_STROKE_COLOR;
+      ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 1;
 
       ctx.beginPath();
@@ -638,7 +639,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const startPx = timescale.timeToPx(selection.start);
       const endPx = timescale.timeToPx(selection.end);
 
-      ctx.strokeStyle = '#8398e6';
+      ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 2;
 
       ctx.beginPath();

@@ -22,7 +22,6 @@ source_set("minimal") {
   deps = [
     "../../../../gn:default_deps",
     "../common:parser_types",
-    "../common:trace_parser_hdr",
     "../proto:proto_importer_module",
   ]
 }
@@ -41,6 +40,8 @@ source_set("full") {
     "ftrace_sched_event_tracker.h",
     "ftrace_tokenizer.cc",
     "ftrace_tokenizer.h",
+    "generic_ftrace_tracker.cc",
+    "generic_ftrace_tracker.h",
     "gpu_work_period_tracker.cc",
     "gpu_work_period_tracker.h",
     "iostat_tracker.cc",

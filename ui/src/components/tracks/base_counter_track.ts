@@ -180,6 +180,11 @@ export interface CounterOptions {
   // unit for the counter. This is displayed in the tooltip and
   // legend.
   unit?: string;
+
+  // unit to use when yMode is set to 'rate'. This rateUnit should be
+  // equivalent to unit/s. For example, if the 'unit' is Joules, the 'rateUnit'
+  // may be set to Watts. If not specified, unit/s will be used.
+  rateUnit?: string;
 }
 
 export abstract class BaseCounterTrack implements TrackRenderer {
@@ -239,7 +244,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       case 'delta':
         return `${value.toLocaleString()} \u0394${unit}`;
       case 'rate':
-        return `${value.toLocaleString()} \u0394${unit}/s`;
+        return `${value.toLocaleString()} ${this.rateUnit}`;
       default:
         assertUnreachable(options.yMode);
     }
@@ -479,7 +484,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render({ctx, size, timescale}: TrackRenderContext): void {
+  render({ctx, size, timescale, theme}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -519,8 +524,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const expCapped = Math.min(exp - 3, 9);
     const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
 
-    ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+    ctx.fillStyle = `hsla(${hue}, 45%, 50%, 0.6)`;
+    ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
 
     const calculateX = (ts: time) => {
       return Math.floor(timescale.timeToPx(ts));
@@ -624,12 +629,14 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
 
     // Write the Y scale on the top left corner.
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillRect(0, 0, 42, 13);
-    ctx.fillStyle = '#666';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`${yLabel}`, 5, 11);
+    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(0, 0, 42, 18);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = theme.COLOR_TEXT;
+    ctx.textAlign = 'left';
+    ctx.fillText(`${yLabel}`, 4, 14);
 
     // TODO(hjd): Refactor this into checkerboardExcept
     {
@@ -759,7 +766,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         yLabel += `\u0394${unit}`;
         break;
       case 'rate':
-        yLabel += `\u0394${unit}/s`;
+        yLabel += ` ${this.rateUnit}`;
         break;
       default:
         assertUnreachable(options.yMode);
@@ -910,6 +917,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   get unit(): string {
     return this.getCounterOptions().unit ?? '';
+  }
+
+  get rateUnit(): string {
+    return this.getCounterOptions().rateUnit ?? `\u0394${this.unit}/s`;
   }
 
   protected get engine() {

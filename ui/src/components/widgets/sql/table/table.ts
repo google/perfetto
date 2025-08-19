@@ -17,11 +17,7 @@ import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {sqliteString} from '../../../../base/string_utils';
-import {
-  ColumnType,
-  Row,
-  SqlValue,
-} from '../../../../trace_processor/query_result';
+import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
 import {BasicTable} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
@@ -166,7 +162,7 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
               // checked matters: string, number (floating), and bigint.
               if (this.inputValue === '') return;
 
-              let filterValue: ColumnType;
+              let filterValue: SqlValue;
 
               if (Number.isNaN(Number.parseFloat(this.inputValue))) {
                 filterValue = sqliteString(this.inputValue);
@@ -189,7 +185,7 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
             id: 'column_filter_value',
             ref: 'COLUMN_FILTER_VALUE',
             autofocus: true,
-            oninput: (e: KeyboardEvent) => {
+            oninput: (e: InputEvent) => {
               if (!e.target) return;
 
               this.inputValue = (e.target as HTMLInputElement).value;

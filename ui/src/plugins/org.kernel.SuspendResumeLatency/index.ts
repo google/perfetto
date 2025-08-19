@@ -36,7 +36,7 @@ export default class implements PerfettoPlugin {
           group_concat(distinct t.id) as trackIds,
           count() as trackCount
         from track t
-        where t.name = "Suspend/Resume Latency"
+        where t.type = 'suspend_resume'
       )
       select
         t.trackIds as trackIds,
@@ -62,15 +62,13 @@ export default class implements PerfettoPlugin {
     const maxDepth = it.maxDepth;
 
     const uri = `/suspend_resume_latency`;
-    const displayName = `Suspend/Resume Latency`;
     ctx.tracks.registerTrack({
       uri,
-      title: displayName,
       tags: {
         trackIds,
         kind: SLICE_TRACK_KIND,
       },
-      track: await createTraceProcessorSliceTrack({
+      renderer: await createTraceProcessorSliceTrack({
         trace: ctx,
         uri,
         maxDepth,
@@ -80,7 +78,7 @@ export default class implements PerfettoPlugin {
     });
 
     // Display the track in the UI.
-    const track = new TrackNode({uri, title: displayName});
+    const track = new TrackNode({uri, name: 'Suspend/Resume Latency'});
     ctx.workspace.addChildInOrder(track);
   }
 }

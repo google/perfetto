@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -31,7 +32,6 @@
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/util/gzip_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -76,9 +76,13 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
 base::Status ReadTrace(
     TraceProcessor* tp,
     const char* filename,
-    const std::function<void(uint64_t parsed_size)>& progress_callback) {
+    const std::function<void(uint64_t parsed_size)>& progress_callback,
+    bool call_notify_end_of_file) {
   RETURN_IF_ERROR(ReadTraceUnfinalized(tp, filename, progress_callback));
-  return tp->NotifyEndOfFile();
+  if (call_notify_end_of_file) {
+    return tp->NotifyEndOfFile();
+  }
+  return base::OkStatus();
 }
 
 base::Status DecompressTrace(const uint8_t* data,

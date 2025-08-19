@@ -19,38 +19,37 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
-#include <utility>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/perf_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 
+namespace perfetto::trace_processor::etm {
+class EtmTracker;
+}
+
 namespace perfetto::trace_processor::perf_importer {
 
 class AuxDataTokenizer;
 
-class PerfTracker : public Destructible {
+class PerfTracker {
  public:
-  static PerfTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->perf_tracker) {
-      context->perf_tracker.reset(new PerfTracker(context));
-    }
-    return static_cast<PerfTracker*>(context->perf_tracker.get());
-  }
-  ~PerfTracker() override;
+  explicit PerfTracker(TraceProcessorContext* context);
 
   using AuxDataTokenizerFactory =
       std::function<base::StatusOr<std::unique_ptr<AuxDataTokenizer>>(
           TraceProcessorContext*,
+          etm::EtmTracker*,
           AuxtraceInfoRecord)>;
   void RegisterAuxTokenizer(uint32_t type, AuxDataTokenizerFactory factory);
 
@@ -66,34 +65,17 @@ class PerfTracker : public Destructible {
                                UniquePid upid,
                                CreateMappingParams params);
 
-  void NotifyEndOfFile();
+  base::Status NotifyEndOfFile();
 
  private:
-  struct Dso {
-    uint64_t load_bias;
-    AddressRangeMap<std::string> symbols;
-  };
-  explicit PerfTracker(TraceProcessorContext* context);
-
-  // Tries to symbolize any `STACK_PROFILE_FRAME` frame missing the `name`
-  // attribute. This should be called at the end of parsing when all packets
-  // have been processed and all tables updated.
-  void SymbolizeFrames();
-
-  void SymbolizeKernelFrame(tables::StackProfileFrameTable::RowReference frame);
-  // Returns true it the frame was symbolized.
-  bool TrySymbolizeFrame(tables::StackProfileFrameTable::RowReference frame);
-
   void AddMapping(int64_t trace_ts,
                   std::optional<UniquePid> upid,
                   const VirtualMemoryMapping& mapping);
 
   TraceProcessorContext* const context_;
-  const tables::StackProfileMappingTable& mapping_table_;
-  base::FlatHashMap<uint32_t, AuxDataTokenizerFactory> factories_;
+  std::unique_ptr<Destructible> etm_tracker_;
 
-  base::FlatHashMap<StringId, Dso> files_;
-  AddressRangeMap<std::string> kernel_symbols_;
+  base::FlatHashMap<uint32_t, AuxDataTokenizerFactory> factories_;
 };
 
 }  // namespace perfetto::trace_processor::perf_importer

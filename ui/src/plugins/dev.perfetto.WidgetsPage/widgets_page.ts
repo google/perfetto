@@ -18,7 +18,13 @@ import {Hotkey, Platform} from '../../base/hotkeys';
 import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {Anchor} from '../../widgets/anchor';
-import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
+import {
+  Button,
+  ButtonAttrs,
+  ButtonBar,
+  ButtonGroup,
+  ButtonVariant,
+} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Checkbox} from '../../widgets/checkbox';
 import {Editor} from '../../widgets/editor';
@@ -53,7 +59,7 @@ import {
 import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
-import {Chip, ChipBar} from '../../widgets/chip';
+import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -66,10 +72,14 @@ import {
   DataGrid,
   DataGridAttrs,
 } from '../../components/widgets/data_grid/data_grid';
-import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
 import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
 import {App} from '../../public/app';
 import {Engine} from '../../trace_processor/engine';
+import {Card, CardStack} from '../../widgets/card';
+import {Stack} from '../../widgets/stack';
+import {Tooltip} from '../../widgets/tooltip';
+import {TabStrip} from '../../widgets/tabs';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -309,6 +319,8 @@ const options: {[key: string]: boolean} = {
   thud: false,
 };
 
+let currentTab: string = 'foo';
+
 function PortalButton() {
   let portalOpen = false;
 
@@ -433,7 +445,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     if (listItems.length === 0) {
       return null;
     }
-    return m('.widget-controls', m('h3', 'Options'), m('ul', listItems));
+    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
   }
 
   oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
@@ -469,13 +481,13 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       m(WidgetTitle, {label}),
       description && m('p', description),
       m(
-        '.widget-block',
+        '.pf-widget-block',
         m(
           'div',
           {
             class: classNames(
-              'widget-container',
-              wide && 'widget-container-wide',
+              'pf-widget-container',
+              wide && 'pf-widget-container--wide',
             ),
           },
           renderWidget(this.optValues),
@@ -675,10 +687,45 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
+function RadioButtonGroupDemo() {
+  let setting: 'yes' | 'maybe' | 'no' = 'no';
+  console.log(setting);
+  return {
+    view: ({attrs}: m.Vnode<ButtonAttrs>) => {
+      return m(ButtonGroup, [
+        m(Button, {
+          ...attrs,
+          label: 'Yes',
+          active: setting === 'yes',
+          onclick: () => {
+            setting = 'yes';
+          },
+        }),
+        m(Button, {
+          ...attrs,
+          label: 'Maybe',
+          active: setting === 'maybe',
+          onclick: () => {
+            setting = 'maybe';
+          },
+        }),
+        m(Button, {
+          ...attrs,
+          label: 'No',
+          active: setting === 'no',
+          onclick: () => {
+            setting = 'no';
+          },
+        }),
+      ]);
+    },
+  };
+}
+
 export class WidgetsPage implements m.ClassComponent<{app: App}> {
   view({attrs}: m.Vnode<{app: App}>) {
     return m(
-      '.widgets-page',
+      '.pf-widgets-page',
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
@@ -720,7 +767,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   icon: arg(icon, 'send'),
                   rightIcon: arg(rightIcon, 'arrow_forward'),
                   label: arg(label, 'Button', ''),
-                  onclick: () => alert('button pressed'),
+                  onclick: () => console.log('button pressed'),
                   ...rest,
                 }),
                 Boolean(showInlineWithText) && 'text',
@@ -740,6 +787,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
           showAsGrid: false,
           showInlineWithText: false,
+          rounded: false,
         },
       }),
       m(WidgetShowcase, {
@@ -754,6 +802,31 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'ButtonGroup',
+        renderWidget: (opts) =>
+          m(Stack, [
+            m(ButtonGroup, [
+              m(Button, {
+                label: 'Commit',
+                ...opts,
+              }),
+              m(Button, {
+                icon: Icons.ContextMenu,
+                ...opts,
+              }),
+            ]),
+            m(RadioButtonGroupDemo, opts),
+          ]),
+        initialOpts: {
+          variant: new EnumOption(
+            ButtonVariant.Filled,
+            Object.values(ButtonVariant),
+          ),
+          disabled: false,
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
+      }),
+      m(WidgetShowcase, {
         label: 'Checkbox',
         renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
         initialOpts: {
@@ -763,10 +836,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        renderWidget: ({label, ...rest}: any) =>
-          m(Switch, {label: arg(label, 'Switch'), ...rest}),
+        renderWidget: ({label, labelLeft, ...rest}: any) =>
+          m(Switch, {
+            label: arg(label, 'Switch'),
+            labelLeft: arg(labelLeft, 'Left Label'),
+            ...rest,
+          }),
         initialOpts: {
           label: true,
+          labelLeft: false,
           disabled: false,
         },
       }),
@@ -837,6 +915,46 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'Card',
+        description: `A card is a simple container with a shadow and rounded
+          corners. It can be used to display grouped content in a visually
+          appealing way.`,
+        renderWidget: ({interactive}) =>
+          m(Card, {interactive}, [
+            m('h1', {style: {margin: 'unset'}}, 'Welcome!'),
+            m('p', 'Would you like to start your journey?'),
+            m(Stack, {orientation: 'horizontal'}, [
+              m(Button, {
+                variant: ButtonVariant.Filled,
+                label: 'No thanks...',
+              }),
+              m(Button, {
+                intent: Intent.Primary,
+                variant: ButtonVariant.Filled,
+                label: "Let's go!",
+              }),
+            ]),
+          ]),
+        initialOpts: {interactive: true},
+      }),
+      m(WidgetShowcase, {
+        label: 'CardStack',
+        description: `A container component that can be used to display
+          multiple Card elements in a vertical stack. Cards placed in this list
+          automatically have their borders adjusted to appear as one continuous
+          card with thin borders between them.`,
+        renderWidget: ({direction, interactive}) =>
+          m(CardStack, {direction}, [
+            m(Card, {interactive}, m(Switch, {label: 'Option 1'})),
+            m(Card, {interactive}, m(Switch, {label: 'Option 2'})),
+            m(Card, {interactive}, m(Switch, {label: 'Option 3'})),
+          ]),
+        initialOpts: {
+          direction: new EnumOption('vertical', ['vertical', 'horizontal']),
+          interactive: true,
+        },
+      }),
+      m(WidgetShowcase, {
         label: 'CopyableLink',
         renderWidget: ({noicon}) =>
           m(CopyableLink, {
@@ -903,7 +1021,32 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Icon',
         renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
-        initialOpts: {filled: false},
+        initialOpts: {
+          filled: false,
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Tooltip',
+        description: `A tooltip is a hover-only, useful as an alternative to the browser's inbuilt 'title' tooltip.`,
+        renderWidget: (opts) =>
+          m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'Warning'}),
+              ...opts,
+            },
+            lorem(),
+          ),
+        initialOpts: {
+          position: new EnumOption(
+            PopupPosition.Auto,
+            Object.values(PopupPosition),
+          ),
+          showArrow: true,
+          offset: 0,
+          edgeOffset: 0,
+        },
       }),
       m(WidgetShowcase, {
         label: 'MultiSelect panel',
@@ -1179,17 +1322,21 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       }),
       m(WidgetShowcase, {
         label: 'Callout',
-        renderWidget: () =>
+        renderWidget: (opts) =>
           m(
             Callout,
             {
               icon: 'info',
+              ...opts,
             },
             'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
               'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
               'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
               'finibus est.',
           ),
+        initialOpts: {
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
       }),
       m(WidgetShowcase, {
         label: 'Editor',
@@ -1311,7 +1458,20 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             onclick: () => {
               showModal({
                 title: 'Attention',
-                content: () => 'This is a modal dialog',
+                icon: Icons.Help,
+                content: () => [
+                  m('', 'This is a modal dialog'),
+                  m(
+                    Popup,
+                    {
+                      trigger: m(Button, {
+                        variant: ButtonVariant.Filled,
+                        label: 'Open Popup',
+                      }),
+                    },
+                    'Popup content',
+                  ),
+                ],
                 buttons: [
                   {
                     text: 'Cancel',
@@ -1407,14 +1567,23 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         renderWidget: (opts) => {
           const {icon, ...rest} = opts;
           return m(
-            ChipBar,
+            Stack,
+            {orientation: 'horizontal'},
             m(Chip, {
               label: 'Foo',
               icon: icon === true ? 'info' : undefined,
               ...rest,
             }),
-            m(Chip, {label: 'Bar', ...rest}),
-            m(Chip, {label: 'Baz', ...rest}),
+            m(Chip, {
+              label: 'Bar',
+              icon: icon === true ? 'warning' : undefined,
+              ...rest,
+            }),
+            m(Chip, {
+              label: 'Baz',
+              icon: icon === true ? 'error' : undefined,
+              ...rest,
+            }),
           );
         },
         initialOpts: {
@@ -1422,6 +1591,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           icon: true,
           compact: false,
           rounded: false,
+          disabled: false,
+          removable: true,
         },
       }),
       m(WidgetShowcase, {
@@ -1488,7 +1659,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           return m(
             VirtualOverlayCanvas,
             {
-              className: 'virtual-canvas',
+              className: 'pf-virtual-canvas',
               overflowY: 'auto',
               onCanvasRedraw({ctx, canvasRect}) {
                 ctx.strokeStyle = 'red';
@@ -1580,34 +1751,119 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           showCloseButtons: true,
         },
       }),
-
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
-        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) =>
-          m(DataGridShowcase, {
+        renderWidget: ({
+          readonlyFilters,
+          readonlySorting,
+          aggregation,
+          ...rest
+        }) =>
+          m(DataGrid, {
             ...rest,
             filters: readonlyFilters ? [] : undefined,
-            sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+            sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
+            columns: [
+              {
+                name: 'id',
+                title: 'ID',
+                aggregation: aggregation ? 'COUNT' : undefined,
+              },
+              {name: 'ts', title: 'Timestamp'},
+              {
+                name: 'dur',
+                aggregation: aggregation ? 'SUM' : undefined,
+                title: 'Duration',
+              },
+              {name: 'name', title: 'Name'},
+              {name: 'data', title: 'Data'},
+              {name: 'maybe_null', title: 'Maybe Null?'},
+              {name: 'category', title: 'Category'},
+            ],
+            data: [
+              {
+                id: 1,
+                name: 'foo',
+                ts: 123n,
+                dur: 16n,
+                data: new Uint8Array(),
+                maybe_null: null,
+                category: 'aaa',
+              },
+              {
+                id: 2,
+                name: 'bar',
+                ts: 185n,
+                dur: 4n,
+                data: new Uint8Array([1, 2, 3]),
+                maybe_null: 'Non null',
+                category: 'aaa',
+              },
+              {
+                id: 3,
+                name: 'baz',
+                ts: 575n,
+                dur: 12n,
+                data: new Uint8Array([1, 2, 3]),
+                maybe_null: null,
+                category: 'aaa',
+              },
+            ],
           }),
         initialOpts: {
           showFiltersInToolbar: true,
           readonlyFilters: false,
           readonlySorting: false,
+          aggregation: false,
         },
       }),
 
       renderWidgetShowcase({
         label: 'DataGrid (query backed)',
         description: `An interactive data explorer and viewer - fetched from SQL.`,
-        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) => {
+        renderWidget: ({
+          readonlyFilters,
+          readonlySorting,
+          aggregation,
+          ...rest
+        }) => {
           const trace = attrs.app.trace;
           if (trace) {
-            return m(DataGridSqlShowcase, {
+            return m(QueryDataGrid, {
               ...rest,
               engine: trace.engine,
+              query: `
+                SELECT
+                  ts.id as id,
+                  dur,
+                  state,
+                  thread.name as thread_name,
+                  dur,
+                  io_wait,
+                  ucpu
+                FROM thread_state ts
+                JOIN thread USING(utid)
+              `,
               filters: readonlyFilters ? [] : undefined,
-              sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+              sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
+              columns: [
+                {
+                  name: 'id',
+                  title: 'ID',
+                  aggregation: aggregation ? 'COUNT' : undefined,
+                },
+                {
+                  name: 'dur',
+                  title: 'Duration',
+                  aggregation: aggregation ? 'SUM' : undefined,
+                },
+                {name: 'state', title: 'State'},
+                {name: 'thread_name', title: 'Thread'},
+                {name: 'ucpu', title: 'CPU'},
+                {name: 'io_wait', title: 'IO Wait'},
+              ],
+              maxRowsPerPage: 10,
             });
           } else {
             return 'Load a trace to start';
@@ -1617,6 +1873,40 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           showFiltersInToolbar: true,
           readonlyFilters: false,
           readonlySorting: false,
+          aggregation: false,
+        },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'TabStrip',
+        description: `A simple tab strip`,
+        renderWidget: () => {
+          return m(TabStrip, {
+            tabs: [
+              {key: 'foo', title: 'Foo'},
+              {key: 'bar', title: 'Bar'},
+              {key: 'baz', title: 'Baz'},
+            ],
+            currentTabKey: currentTab,
+            onTabChange: (key) => {
+              currentTab = key;
+            },
+          });
+        },
+        initialOpts: {},
+      }),
+
+      m(WidgetShowcase, {
+        label: 'CodeSnippet',
+        renderWidget: ({wide}) =>
+          m(CodeSnippet, {
+            language: 'SQL',
+            text: Boolean(wide)
+              ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
+              : 'SELECT * FROM slice LIMIT 10;',
+          }),
+        initialOpts: {
+          wide: false,
         },
       }),
     );
@@ -1687,68 +1977,17 @@ function MultiselectInputDemo() {
   };
 }
 
-function DataGridShowcase() {
-  const dataSource = new InMemoryDataSource([
-    {
-      id: 1,
-      name: 'foo',
-      ts: 123n,
-      dur: 16n,
-      data: new Uint8Array(),
-      maybe_null: null,
-    },
-    {
-      id: 2,
-      name: 'bar',
-      ts: 185n,
-      dur: 4n,
-      data: new Uint8Array([1, 2, 3]),
-      maybe_null: 'Non null',
-    },
-    {
-      id: 3,
-      name: 'baz',
-      ts: 575n,
-      dur: 12n,
-      data: new Uint8Array([1, 2, 3]),
-      maybe_null: null,
-    },
-  ]);
+type QueryDataGridAttrs = Omit<DataGridAttrs, 'data'> & {
+  readonly query: string;
+  readonly engine: Engine;
+};
+
+function QueryDataGrid(vnode: m.Vnode<QueryDataGridAttrs>) {
+  const dataSource = new SQLDataSource(vnode.attrs.engine, vnode.attrs.query);
 
   return {
-    view({attrs}: m.Vnode<Partial<DataGridAttrs>>) {
-      return m(DataGrid, {
-        ...attrs,
-        columns: [
-          {name: 'id'},
-          {name: 'ts'},
-          {name: 'dur'},
-          {name: 'name'},
-          {name: 'data'},
-          {name: 'maybe_null'},
-        ],
-        dataSource,
-      });
-    },
-  };
-}
-
-function DataGridSqlShowcase(
-  vnode: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>,
-) {
-  const dataSource = new SQLDataSource(
-    vnode.attrs.engine,
-    'SELECT * FROM slice',
-  );
-
-  return {
-    view({attrs}: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>) {
-      return m(DataGrid, {
-        ...attrs,
-        columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
-        dataSource,
-        maxRowsPerPage: 10,
-      });
+    view({attrs}: m.Vnode<QueryDataGridAttrs>) {
+      return m(DataGrid, {...attrs, data: dataSource});
     },
   };
 }
@@ -1771,7 +2010,10 @@ class ModalShowcase implements m.ClassComponent {
 
     let content;
     if (staticContent) {
-      content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+      content = m(
+        '.pf-modal-pre',
+        'Content of the modal dialog.\nEnd of content',
+      );
     } else {
       // The humble counter is basically the VDOM 'Hello world'!
       function CounterComponent() {

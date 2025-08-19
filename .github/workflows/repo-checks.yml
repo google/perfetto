@@ -17,11 +17,6 @@ name: Perfetto CI [repo-checks]
 on:
   workflow_call:
 env:
-  # /tmp/cache contains {ccache, bazelcache} and generally any other cache
-  # that should be persisted across jobs, but only updated from the main
-  # branch. This is populated by the "actions/cache/restore" step below.
-  PERFETTO_CACHE_DIR: /tmp/cache
-  PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
 jobs:
   repo-checks:
@@ -33,37 +28,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # Fetches the merge commit and its parents, which is required for
+          # the presubmit script to parse the commit message (for
+          # CheckChromeStdlib in tools/run_presubmit).
+          fetch-depth: 2
 
       # Fetch the upstream branch as well, so we can diff and see the list of
       # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
         if: ${{ github.base_ref != '' }}
+        shell: bash
         run: git fetch origin ${{ github.base_ref }} --depth=1
-
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - uses: ./.github/actions/install-build-deps
         with:
           install-flags: --ui
 
-      - name: Run tools/presubmits
+      - name: Run tools/run_presubmit
         # base_ref is "" in post-submit, skip the presubmit check in postsubmit
         # as there is nothing do diff against.
         if: ${{ github.base_ref != '' }}
-        run: tools/run_presubmit \
-                --merge-base origin/${{ github.base_ref }} \
-                --skip-formatters=eslint,prettier
+        shell: bash
+        run: |
+          tools/run_presubmit \
+            --skip-formatters "eslint,prettier" \
+            --merge-base origin/${{ github.base_ref }}
 
       - name: Check merged protos (tools/gen_all)
+        shell: bash
         run: |
           tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
           tools/gen_all --check-only out/tmp.protoc
           rm -rf out/tmp.protoc
 
       - name: Check amalgamated SDK
+        shell: bash
         run: python3 tools/test_gen_amalgamated.py
 
       - name: Build docs
+        shell: bash
         run: infra/perfetto.dev/build

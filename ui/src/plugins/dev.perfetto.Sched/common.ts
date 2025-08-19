@@ -14,7 +14,7 @@
 
 import {HSLColor} from '../../base/color';
 import {ColorScheme} from '../../base/color_scheme';
-import {GRAY, GRAY_COLOR, makeColorScheme} from '../../components/colorizer';
+import {GRAY, makeColorScheme, WHITE_COLOR} from '../../components/colorizer';
 
 export const CPU_SLICE_URI_PREFIX = '/sched_cpu';
 
@@ -26,20 +26,15 @@ export function uriForSchedTrack(cpu: number): string {
 const DESAT_RED = makeColorScheme(new HSLColor([3, 30, 49]));
 const DARK_GREEN = makeColorScheme(new HSLColor([120, 44, 34]));
 const LIME_GREEN = makeColorScheme(new HSLColor([75, 55, 47]));
-const TRANSLUCENT_GRAY = {
-  base: new HSLColor([0, 1, 50], 0),
-  variant: new HSLColor([0, 1, 50], 0.2),
-  disabled: GRAY_COLOR,
-  // Make the text invisible
-  textBase: new HSLColor([0, 0, 0], 0),
-  textVariant: new HSLColor([0, 0, 0], 0),
-  textDisabled: new HSLColor([0, 0, 0], 0),
-};
+const WHITE = makeColorScheme(WHITE_COLOR);
+const LIGHT_GRAY = makeColorScheme(new HSLColor([0, 0, 70]));
 const ORANGE = makeColorScheme(new HSLColor([36, 100, 50]));
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
 
 export function colorForThreadState(state: string): ColorScheme {
-  if (state === 'Running') {
+  if (state === 'Created') {
+    return LIGHT_GRAY;
+  } else if (state === 'Running') {
     return DARK_GREEN;
   } else if (state.startsWith('Runnable')) {
     return LIME_GREEN;
@@ -51,7 +46,7 @@ export function colorForThreadState(state: string): ColorScheme {
   } else if (state.includes('Dead')) {
     return GRAY;
   } else if (state.includes('Sleeping') || state.includes('Idle')) {
-    return TRANSLUCENT_GRAY;
+    return WHITE;
   }
   return INDIGO;
 }

@@ -1,0 +1,107 @@
+# Test for SIBLING_MERGE_BEHAVIOR_NONE name resolution.
+# The track should take the name of the last descriptor, even if an event comes
+# between descriptors.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_descriptor {
+    uuid: 1
+    name: "First Name"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_event {
+    track_uuid: 1
+    name: "Event"
+    type: TYPE_INSTANT
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 300
+  track_descriptor {
+    uuid: 1
+    name: "Second Name"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+
+# Test for SIBLING_MERGE_BEHAVIOR_NONE with no named descriptor.
+# The track should take the name of the first event.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 400
+  track_descriptor {
+    uuid: 2
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 500
+  track_event {
+    track_uuid: 2
+    name: "Event Name"
+    type: TYPE_INSTANT
+  }
+}
+
+# Test for default name resolution with a descriptor after the event.
+# The track should take the name of the first event, ignoring the later
+# descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 600
+  track_descriptor {
+    uuid: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 700
+  track_event {
+    track_uuid: 3
+    name: "Event Name 2"
+    type: TYPE_INSTANT
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 800
+  track_descriptor {
+    uuid: 3
+    name: "After Event"
+  }
+}
+
+# Test for descendant track name resolution.
+# The parent track should take the name of the descriptor emitted before the
+# event on the child track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 900
+  track_descriptor {
+    uuid: 4
+    name: "Parent"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_descriptor {
+    uuid: 5
+    parent_uuid: 4
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1100
+  track_event {
+    track_uuid: 5
+    name: "Child Event"
+    type: TYPE_INSTANT
+  }
+}

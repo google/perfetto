@@ -16,13 +16,17 @@
 
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 
-#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -49,7 +53,6 @@ class ThreadStateTrackerUnittest : public testing::Test {
         new GlobalArgsTracker(context_.storage.get()));
     context_.machine_tracker.reset(new MachineTracker(&context_, 0));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
-    context_.args_tracker.reset(new ArgsTracker(&context_));
     tracker_.reset(new ThreadStateTracker(&context_));
   }
 
@@ -58,7 +61,7 @@ class ThreadStateTrackerUnittest : public testing::Test {
   }
 
   tables::ThreadStateTable::ConstIterator ThreadStateIterator() {
-    return context_.storage->thread_state_table().FilterToIterator({});
+    return context_.storage->thread_state_table().IterateRows();
   }
 
   void VerifyThreadState(

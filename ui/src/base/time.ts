@@ -102,32 +102,39 @@ export class Time {
     return Number(t) / TIME_UNITS_PER_MICROSEC;
   }
 
-  // Convert a Date object to a time value, given an offset from the unix epoch.
-  // Note: number -> BigInt conversion is relatively slow.
-  static fromDate(d: Date, offset: duration): time {
-    const millis = d.getTime();
-    const t = Time.fromMillis(millis);
-    return Time.add(t, offset);
+  /**
+   * Convert a JavaScript Date to trace time.
+   *
+   * @param date - The date. Note that Date objects are time zone agnostic, they
+   * are a simple wrapper around a unix timestamp. A time zone is applied only
+   * when extracting data from it such as printing it to a string.
+   * @param unixOffset - This represents the trace time at the unix epoch
+   * (usually some large negative number).
+   * @returns The time represented in trace time.
+   */
+  static fromDate(date: Date, unixOffset: duration): time {
+    const unixTimeMillis = date.getTime();
+    const traceTime = Time.add(Time.fromMillis(unixTimeMillis), unixOffset);
+    return traceTime;
   }
 
   // Convert time value to a Date object, given an offset from the unix epoch.
   // Warning: This function is lossy, i.e. precision is lost when converting
   // BigInt -> number.
   // Note: BigInt -> number conversion is relatively slow.
-  static toDate(t: time, offset: duration): Date {
-    const timeSinceEpoch = Time.sub(t, offset);
-    const millis = Time.toMillis(timeSinceEpoch);
-    return new Date(millis);
-  }
 
-  // Find the closest previous midnight for a given time value.
-  static getLatestMidnight(time: time, offset: duration): time {
-    const date = Time.toDate(time, offset);
-    const floorDay = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-    );
-
-    return Time.fromDate(floorDay, offset);
+  /**
+   * Converts trace time to a JavaScript Date object.
+   *
+   * @param time - A trace time.
+   * @param unixOffset - This represents the trace time at the unix epoch
+   * (usually some large negative number).
+   * @returns A JavaScript Date object. Remember Date objects don't contain any
+   * timezone information, they are a simple wrapper around unix time.
+   */
+  static toDate(time: time, unixOffset: duration): Date {
+    const unixTimeMillis = Time.toMillis(Time.sub(time, unixOffset));
+    return new Date(unixTimeMillis);
   }
 
   static add(t: time, d: duration): time {
@@ -140,6 +147,13 @@ export class Time {
 
   static diff(a: time, b: time): duration {
     return a - b;
+  }
+
+  // Similar to Time.diff(), but you put the cardinality of the arguments are
+  // swapped.
+  // E.g: durationBetween(start, end);
+  static durationBetween(a: time, b: time): duration {
+    return b - a;
   }
 
   static min(a: time, b: time): time {
@@ -171,21 +185,11 @@ export class Time {
   }
 
   static formatMicroseconds(time: time): string {
-    return Time.toMicros(time).toString() + ' us';
+    return Time.toMicros(time).toString() + ' µs';
   }
 
   static toTimecode(time: time): Timecode {
     return new Timecode(time);
-  }
-
-  static formatTimezone(minutes: number): string {
-    const sign = minutes >= 0 ? '+' : '-';
-    const absMins = Math.abs(minutes);
-    const hours = Math.floor(absMins / 60);
-    const mins = absMins % 60;
-    const hoursStr = String(hours).padStart(2, '0');
-    const minsStr = String(mins).padStart(2, '0');
-    return `UTC${sign}${hoursStr}:${minsStr}`;
   }
 }
 
@@ -276,7 +280,7 @@ export class Duration {
   //           1,230,000,023 -> 1.230s
   static humanise(dur: duration): string {
     if (dur < 1) return '0s';
-    const units = ['ns', 'us', 'ms', 's'];
+    const units = ['ns', 'µs', 'ms', 's'];
     let n = Math.abs(Number(dur));
     let u = 0;
     while (n >= 1000 && u + 1 < units.length) {
@@ -291,11 +295,13 @@ export class Duration {
     let result = '';
     if (duration < 1) return '0s';
     const unitAndValue: [string, bigint][] = [
+      ['y', 31_536_000_000_000_000n],
+      ['d', 86_400_000_000_000n],
       ['h', 3_600_000_000_000n],
       ['m', 60_000_000_000n],
       ['s', 1_000_000_000n],
       ['ms', 1_000_000n],
-      ['us', 1_000n],
+      ['µs', 1_000n],
       ['ns', 1n],
     ];
     unitAndValue.forEach(([unit, unitSize]) => {
@@ -317,7 +323,7 @@ export class Duration {
   }
 
   static formatMicroseconds(dur: duration): string {
-    return Duration.toMicroSeconds(dur).toString() + ' us';
+    return Duration.toMicroSeconds(dur).toString() + ' µs';
   }
 }
 
@@ -436,11 +442,150 @@ export class TimeSpan {
   }
 }
 
-// Print the date only for a given date in ISO format.
-export function toISODateOnly(date: Date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
+/**
+ * Formats a Date object (unix timestamp) to a string in a specified timezone.
+ *
+ * @description
+ * The output format is a customizable combination of `YYYY-MM-DD`,
+ * `HH:mm:ss.SSS`, and the timezone offset `(±HH:MM)`.
+ *
+ * @param date The original JavaScript `Date` object to format.
+ * @param options An optional configuration object.
+ * @param {number} [options.tzOffsetMins] - The timezone offset in minutes from
+ * UTC. For example, -420 for UTC-7 or 330 for UTC+5:30. Defaults to 0 (UTC).
+ * @param {boolean} [options.printDate] - Whether to include the date part
+ * (`YYYY-MM-DD`).
+ * @param {boolean} [options.printTime] - Whether to include the time part
+ * (`HH:mm:ss.SSS`).
+ * @param {boolean} [options.printTimezone] - Whether to include the timezone
+ * offset.
+ *
+ * @returns A formatted string representing the date and time in the specified
+ * timezone.
+ *
+ * @example
+ * const myDate = new Date('2025-06-15T10:00:00.000Z');
+ *
+ * // Format for Indian Standard Time (UTC+5:30)
+ * // tzOffsetMins = 5 * 60 + 30 = 330
+ * const istString = formatDate(myDate, { tzOffsetMins: 330 });
+ * console.log(istString); // "2025-06-15 15:30:00.000 UTC+05:30"
+ *
+ * // Format for Pacific Daylight Time (UTC-7)
+ * // tzOffsetMins = -7 * 60 = -420
+ * const pdtString = formatDate(myDate, { tzOffsetMins: -420 });
+ * console.log(pdtString); // "2025-06-15 03:00:00.000 UTC-07:00"
+ *
+ * // Format with only the date and timezone
+ * const dateOnly = formatDate(myDate, { tzOffsetMins: -420, printTime: false });
+ * console.log(dateOnly); // "2025-06-15 UTC-07:00"
+ *
+ * // Format as UTC with no timezone part
+ * const utcOnly = formatDate(myDate, { printTimezone: false });
+ * console.log(utcOnly); // "2025-06-15 10:00:00.000"
+ */
+export function formatDate(
+  date: Date,
+  {
+    tzOffsetMins = 0,
+    printDate = true,
+    printTime = true,
+    printTimezone = true,
+  }: {
+    printDate?: boolean;
+    printTime?: boolean;
+    printTimezone?: boolean;
+    tzOffsetMins?: number;
+  } = {},
+) {
+  const originalTimestamp = date.getTime();
+  const timezoneOffsetInMilliseconds = tzOffsetMins * 60 * 1000;
+  const dateInTimezone = new Date(
+    originalTimestamp + timezoneOffsetInMilliseconds,
+  );
 
-  return `${year}-${month}-${day}`;
+  const dateStringParts: string[] = [];
+
+  if (printDate) {
+    const year = dateInTimezone.getUTCFullYear();
+    const month = String(dateInTimezone.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateInTimezone.getUTCDate()).padStart(2, '0');
+    dateStringParts.push(`${year}-${month}-${day}`);
+  }
+
+  if (printTime) {
+    const hours = String(dateInTimezone.getUTCHours()).padStart(2, '0');
+    const mins = String(dateInTimezone.getUTCMinutes()).padStart(2, '0');
+    const sec = String(dateInTimezone.getUTCSeconds()).padStart(2, '0');
+    const ms = String(dateInTimezone.getUTCMilliseconds()).padStart(3, '0');
+    dateStringParts.push(`${hours}:${mins}:${sec}.${ms}`);
+  }
+
+  if (printTimezone) {
+    dateStringParts.push(formatTimezone(tzOffsetMins));
+  }
+
+  return dateStringParts.join(' ');
 }
+
+/**
+ * Given a timezone as an offset from UTC in minutes, format it in the usual ISO
+ * standard way. E.g.: UTC+01:00
+ *
+ * @param tzOffsetMins - The timezone offset in minutes.
+ * @returns A string representing the timezone in ISO format.
+ */
+export function formatTimezone(tzOffsetMins: number): string {
+  const sign = tzOffsetMins >= 0 ? '+' : '-';
+  const absMins = Math.abs(tzOffsetMins);
+  const hours = Math.floor(absMins / 60);
+  const mins = absMins % 60;
+  const hoursStr = String(hours).padStart(2, '0');
+  const minsStr = String(mins).padStart(2, '0');
+  return `UTC${sign}${hoursStr}:${minsStr}`;
+}
+
+/**
+ * A TypeScript Map that pairs user-friendly timezone descriptions
+ * with their corresponding UTC offset in minutes.
+ */
+export const timezoneOffsetMap: {[key: string]: number} = {
+  '(UTC-12:00) International Date Line West': -720,
+  '(UTC-11:00) Coordinated Universal Time-11': -660,
+  '(UTC-10:00) Hawaii': -600,
+  '(UTC-09:30) Marquesas Islands': -570,
+  '(UTC-09:00) Alaska': -540,
+  '(UTC-08:00) Pacific Time (US & Canada)': -480,
+  '(UTC-07:00) Mountain Time (US & Canada)': -420,
+  '(UTC-06:00) Central Time (US & Canada), Mexico City': -360,
+  '(UTC-05:00) Eastern Time (US & Canada), Bogota, Lima': -300,
+  '(UTC-04:00) Atlantic Time (Canada), La Paz': -240,
+  '(UTC-03:30) Newfoundland': -210,
+  '(UTC-03:00) Buenos Aires, São Paulo': -180,
+  '(UTC-02:00) Coordinated Universal Time-02': -120,
+  '(UTC-01:00) Azores, Cape Verde Is.': -60,
+  '(UTC+00:00) London, Dublin, Lisbon, Casablanca': 0,
+  '(UTC+01:00) Amsterdam, Berlin, Paris, Rome, Madrid': 60,
+  '(UTC+02:00) Athens, Cairo, Johannesburg, Helsinki': 120,
+  '(UTC+03:00) Moscow, Istanbul, Riyadh, Nairobi': 180,
+  '(UTC+03:30) Tehran': 210,
+  '(UTC+04:00) Dubai, Abu Dhabi, Muscat, Baku': 240,
+  '(UTC+04:30) Kabul': 270,
+  '(UTC+05:00) Karachi, Tashkent': 300,
+  '(UTC+05:30) Mumbai, New Delhi, Kolkata, Colombo': 330,
+  '(UTC+05:45) Kathmandu': 345,
+  '(UTC+06:00) Almaty, Dhaka': 360,
+  '(UTC+06:30) Yangon (Rangoon)': 390,
+  '(UTC+07:00) Bangkok, Hanoi, Jakarta': 420,
+  '(UTC+08:00) Beijing, Hong Kong, Singapore, Taipei, Perth': 480,
+  '(UTC+08:45) Eucla': 525,
+  '(UTC+09:00) Tokyo, Seoul, Osaka, Sapporo': 540,
+  '(UTC+09:30) Adelaide, Darwin': 570,
+  '(UTC+10:00) Sydney, Melbourne, Brisbane, Guam': 600,
+  '(UTC+10:30) Lord Howe Island': 630,
+  '(UTC+11:00) Solomon Is., New Caledonia': 660,
+  '(UTC+12:00) Auckland, Wellington, Fiji': 720,
+  '(UTC+12:45) Chatham Islands': 765,
+  "(UTC+13:00) Nuku'alofa": 780,
+  '(UTC+14:00) Kiritimati': 840,
+};

@@ -21,7 +21,7 @@ RETURNS LONG AS
 SELECT
   cast_int!(reverse(str_split(reverse(str_split($name, ' ', 1)), ':', 0)));
 
--- Converts a pid to a upid using the timestamp of occurence of an event from
+-- Converts a pid to a upid using the timestamp of occurrence of an event from
 -- |pid| to disambiguate duplicate pids.
 --
 -- This is still best effort because it relies on having information about

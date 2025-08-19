@@ -16,27 +16,12 @@ import("../../../gn/perfetto_tp_tables.gni")
 import("../../../gn/test.gni")
 
 source_set("tables") {
-  sources = [ "table_destructors.cc" ]
+  sources = [ "macros_internal.h" ]
   deps = [
-    ":macros_internal",
     "../../../gn:default_deps",
+    "../dataframe",
   ]
   public_deps = [ ":tables_python" ]
-}
-
-source_set("macros_internal") {
-  sources = [
-    "macros_internal.cc",
-    "macros_internal.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base",
-    "../../../include/perfetto/trace_processor",
-    "../containers",
-    "../db:minimal",
-    "../db/column",
-  ]
 }
 
 perfetto_tp_tables("tables_python") {
@@ -58,41 +43,4 @@ perfetto_tp_tables("tables_python") {
     "winscope_tables.py",
   ]
   generate_docs = true
-}
-
-perfetto_tp_tables("py_tables_unittest") {
-  sources = [ "py_tables_unittest.py" ]
-}
-
-source_set("unittests") {
-  testonly = true
-  sources = [ "py_tables_unittest.cc" ]
-  deps = [
-    ":py_tables_unittest",
-    ":tables",
-    "../../../gn:default_deps",
-    "../../../gn:gtest_and_gmock",
-    "../containers",
-    "../db",
-    "../db/column",
-  ]
-}
-
-if (enable_perfetto_benchmarks) {
-  source_set("benchmarks") {
-    testonly = true
-    deps = [
-      ":py_tables_benchmark",
-      "../../../gn:benchmark",
-      "../../../gn:default_deps",
-      "../../../include/perfetto/trace_processor",
-      "../containers",
-      "../db",
-      "../db/column",
-    ]
-    sources = [ "py_tables_benchmark.cc" ]
-  }
-  perfetto_tp_tables("py_tables_benchmark") {
-    sources = [ "py_tables_benchmark.py" ]
-  }
 }

@@ -652,6 +652,16 @@ message AppWakelocksConfig {
 
 // End of protos/perfetto/config/android/app_wakelock_config.proto
 
+// Begin of protos/perfetto/config/android/cpu_per_uid_config.proto
+
+// Data source that records CPU per UID data.
+message CpuPerUidConfig {
+  // Record at this frequency.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/cpu_per_uid_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -709,6 +719,12 @@ message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
   // (exact match, no regex). Otherwise, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If present and non-zero, the data source will periodically poll for CPU
+  // use by packages and only emit results for those that it sees. If absent,
+  // the data source will emit results for all packages at startup. The package
+  // name filter applies either way.
+  optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
 // End of protos/perfetto/config/android/packages_list_config.proto
@@ -993,6 +1009,14 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
@@ -1012,21 +1036,6 @@ message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
 
-  message KprobeEvent {
-    enum KprobeType {
-      KPROBE_TYPE_UNKNOWN = 0;
-      KPROBE_TYPE_KPROBE = 1;
-      KPROBE_TYPE_KRETPROBE = 2;
-      KPROBE_TYPE_BOTH = 3;
-    }
-    // Kernel function name to attach to, for example "fuse_file_write_iter"
-    optional string probe = 1;
-    optional KprobeType type = 2;
-  }
-
-  // Ftrace events to record, specific for kprobes and kretprobes
-  repeated KprobeEvent kprobe_events = 30;
-
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
@@ -1034,11 +1043,34 @@ message FtraceConfig {
   // the "track_event" data source. For these categories, the SDK will be
   // preferred, if possible, for this config.
   repeated string atrace_categories_prefer_sdk = 28;
+  // If true, do *not* add in extra ftrace events when |atrace_categories| are
+  // set. This skips the legacy "atrace" behaviour of adding hardcoded ftrace
+  // events for convenience (and the vendor-specific events on top).
+  // Introduced in: perfetto v52.
+  optional bool atrace_userspace_only = 34;
 
   // Size of each per-cpu kernel ftrace ring buffer.
   // Not guaranteed if there are multiple concurrent tracing sessions, as the
   // buffers cannot be resized without pausing recording in the kernel.
   optional uint32 buffer_size_kb = 10;
+
+  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
+  // implementation to choose a bigger buffer size.
+  //
+  // Most configs for perfetto v43+ should simply leave both fields unset.
+  //
+  // If you need a config compatible with a range of perfetto builds and you
+  // used to set a non-default buffer_size_kb, consider setting both fields.
+  // Example:
+  //   buffer_size_kb: 4096
+  //   buffer_size_lower_bound: true
+  // On older builds, the per-cpu buffers will be exactly 4 MB.
+  // On v43+, buffers will be at least 4 MB.
+  // In both cases, neither is guaranteed if there are other concurrent
+  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
+  // the recording in the kernel.
+  // Introduced in: perfetto v43.
+  optional bool buffer_size_lower_bound = 27;
 
   // If set, specifies how often the tracing daemon reads from the kernel ring
   // buffer. Not guaranteed if there are multiple concurrent tracing sessions.
@@ -1119,16 +1151,6 @@ message FtraceConfig {
   }
   optional KsymsMemPolicy ksyms_mem_policy = 17;
 
-  // By default the kernel symbolizer is lazily initialized on a deferred task
-  // to reduce ftrace's time-to-start-recording. Unfortunately that makes
-  // ksyms integration tests hard. This flag forces the kernel symbolizer to be
-  // initialized synchronously on the data source start and hence avoiding
-  // timing races in tests.
-  // DEPRECATED in v28 / Android U. This is now the default behavior, setting it
-  // to true is a no-op.
-  optional bool initialize_ksyms_synchronously_for_testing = 14
-      [deprecated = true];
-
   // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
   // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
   // event instead if present, and fall back to "kmem/rss_stat" if not present.
@@ -1205,11 +1227,39 @@ message FtraceConfig {
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
 
-  // If true, does not clear ftrace buffers before the start of the program.
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
+
+  message KprobeEvent {
+    enum KprobeType {
+      KPROBE_TYPE_UNKNOWN = 0;
+      KPROBE_TYPE_KPROBE = 1;
+      KPROBE_TYPE_KRETPROBE = 2;
+      KPROBE_TYPE_BOTH = 3;
+    }
+    // Kernel function name to attach to, for example "fuse_file_write_iter"
+    optional string probe = 1;
+    optional KprobeType type = 2;
+  }
+  // Ftrace events to record, specific for kprobes and kretprobes
+  repeated KprobeEvent kprobe_events = 30;
+
+  // If true, does not clear kernel ftrace buffers when starting the trace.
   // This makes sense only if this is the first ftrace data source instance
   // created after the daemon has been started. Can be useful for gathering boot
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
+  // NB: when configuring the pre-perfetto ftrace, prefer to set
+  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
+  // anything besides ftrace. Otherwise timestamps might be skewed.
   optional bool preserve_ftrace_buffer = 23;
 
   // If true, overrides the default timestamp clock and uses a raw hardware
@@ -1221,7 +1271,7 @@ message FtraceConfig {
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
   //
-  // The name "hyp" is reserved.
+  // Names "hyp" and "hypervisor" are reserved.
   //
   // The instance must already exist, the tracing daemon *will not* create it
   // for you as it typically doesn't have such permissions.
@@ -1231,41 +1281,17 @@ message FtraceConfig {
   //  * buffer_size_kb
   optional string instance_name = 25;
 
-  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
-  // implementation to choose a bigger buffer size.
-  //
-  // Most configs for perfetto v43+ should simply leave both fields unset.
-  //
-  // If you need a config compatible with a range of perfetto builds and you
-  // used to set a non-default buffer_size_kb, consider setting both fields.
-  // Example:
-  //   buffer_size_kb: 4096
-  //   buffer_size_lower_bound: true
-  // On older builds, the per-cpu buffers will be exactly 4 MB.
-  // On v43+, buffers will be at least 4 MB.
-  // In both cases, neither is guaranteed if there are other concurrent
-  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
-  // the recording in the kernel.
-  // Introduced in: perfetto v43.
-  optional bool buffer_size_lower_bound = 27;
-
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
 
+  // No-op in perfetto v28+. Name preserved because of existing references in
+  // textproto configs.
+  optional bool initialize_ksyms_synchronously_for_testing = 14
+      [deprecated = true];
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
-
-  // If |enable_function_graph| is true, only trace the specified
-  // number of calls down the stack. Sets the max_graph_depth value
-  // in sys/kernel/tracing/
-  //
-  // Only respected for the first tracing session that enables
-  // function_graph tracing.
-  //
-  // Introduced in: perfetto v51.
-  // Supported on: Android 25Q3+.
-  optional uint32 function_graph_max_depth = 33;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -1323,6 +1349,8 @@ message VulkanMemoryConfig {
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
+// WARNING: unmaintained and deprecated. Likely won't work at all on modern
+// systems.
 message InodeFileConfig {
   message MountPointMappingEntry {
     optional string mountpoint = 1;
@@ -1418,8 +1446,35 @@ message AndroidPowerConfig {
 
 // End of protos/perfetto/config/power/android_power_config.proto
 
+// Begin of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
+// Configuration that allows to boost the priority of the 'traced' or
+// 'traced_probs' processes, by changing the scheduler configuration.
+// Only supported on Linux and Android the boosted process must have
+// 'CAP_SYS_NICE' capability.
+message PriorityBoostConfig {
+  enum BoostPolicy {
+    POLICY_UNSPECIFIED = 0;
+    // The default policy (e.g., CFS on Linux). Priority range: [0; 20]
+    // priority is interpreted as -(nice), i.e., 1 is slightly higher prio
+    // than default 0, 20 is the highest priority.
+    // Note: this is the opposite semantic of the cmdline nice, and is done for
+    // consistency with POLICY_SCHED_FIFO, so higher number == higher prio.
+    POLICY_SCHED_OTHER = 1;
+    // The Real-time policy, Priority range: [1; 99]
+    POLICY_SCHED_FIFO = 2;
+  };
+  optional BoostPolicy policy = 1;
+  optional uint32 priority = 2;
+}
+// End of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
+// Config for polling process-related information from /proc/pid/status and
+// related files on Linux.
+//
+// Data source name: "linux.process_stats".
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
@@ -1429,6 +1484,9 @@ message ProcessStatsConfig {
     // |scan_all_processes_on_start| arg.
     DISABLE_INITIAL_DUMP = 1 [deprecated = true];
 
+    // If set, disables the special interaction with "linux.ftrace" data source,
+    // where the process stats rescrapes any thread id seen in the ftrace
+    // stream.
     DISABLE_ON_DEMAND = 2;
   }
   repeated Quirks quirks = 1;
@@ -1442,28 +1500,21 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
-  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   optional uint32 proc_stats_poll_ms = 4;
 
   // id 5 never used
 
-  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
-  // (default: |proc_stats_poll_ms|). If = 0, will be set to
-  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
-  // multiple.
+  // Explicit caching period during which the polling won't re-emit identical
+  // counter values. This is required to be either = 0 or a multiple of
+  // |proc_stats_poll_ms| (default: |proc_stats_poll_ms|). Non-multiples will be
+  // rounded down to the nearest multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Niche feature: If true this will resolve file descriptors for each process
-  // so these can be mapped to their actual device or file.
-  // Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled or
-  // new fds opened after initially scanning a process will not be
-  // recognized.
-  optional bool resolve_process_fds = 9;
-
-  // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  // If true and |proc_stats_poll_ms| is set, sample memory stats from
+  // /proc/pid/smaps_rollup.
   //
-  // Does NOT work with the Android system daemon by default, as it requires
+  // Android: does NOT work with the system daemons by default, as it requires
   // running the recording process (traced_probes or tracebox) as root. It is
   // possible to avoid the root requirement, but the exact steps depend on the
   // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
@@ -1475,10 +1526,17 @@ message ProcessStatsConfig {
   // Introduced in: perfetto v44.
   optional bool record_process_age = 11;
 
-  // If true and |proc_stats_poll_ms| is true, process stats will include time
+  // If true and |proc_stats_poll_ms| is set, process stats will include time
   // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
+
+  // WARNING: unmaintained and deprecated. If true this will resolve file
+  // descriptors for each process so these can be mapped to their actual device
+  // or file. Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled
+  // or new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 
   // record_thread_time_in_state
   reserved 7;
@@ -1990,7 +2048,7 @@ message PerfEventConfig {
   optional uint32 max_daemon_memory_kb = 13;
 
   //
-  // Uncommon options:
+  // Niche options:
   //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
@@ -2003,10 +2061,17 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the unwinder. This is a heavy
-  // operation that is only necessary for traces that target a wide set of
-  // processes, and require the memory footprint to be reset periodically.
-  // If unset, the cached state will not be cleared.
+  // Optional period for clearing state cached by the userspace unwinder. This
+  // is a heavy operation that is only necessary for traces that target a wide
+  // set of processes, and require the memory footprint to be reset
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
+  //
+  // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
+  //
+  // If zero or unset:
+  // * before perfetto v52: no cache clearing.
+  // * perfetto v52+: implementation chooses an infrequent default.
   optional uint32 unwind_state_clear_period_ms = 10;
 
   // If set, only profile target if it was installed by a package with one of
@@ -3775,14 +3840,12 @@ message TrackEventConfig {
   // still be emitted even if set to true.
   optional bool filter_debug_annotations = 7;
 
-  // Default : false (i.e. disabled)
+  // Default: false (i.e. disabled)
   // When true, the SDK samples and emits the current thread time counter value
   // for each event on the current thread's track. This value represents the
-  // total CPU time consumed by that thread since its creation. Note that if a
-  // thread is not scheduled by OS for some duration, that time won't be
-  // included in thread_time.
-  // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
-  // https://linux.die.net/man/3/clock_gettime
+  // total CPU time consumed by that thread since its creation.
+  // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
+  // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
@@ -3796,7 +3859,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 137
+// Next id: 138
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3868,6 +3931,8 @@ message DataSourceConfig {
   // buffer. This is only honored by some data sources (in the SDK, the data
   // sources registered with a configurable buffer exhausted policy).
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
+
+  optional PriorityBoostConfig priority_boost = 10;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
@@ -3991,6 +4056,9 @@ message DataSourceConfig {
   // Data source name: android.app_wakelocks
   optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
 
+  // Data source name: android.cpu_per_uid
+  optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4016,7 +4084,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 40.
+// Next id: 42.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4077,6 +4145,16 @@ message TraceConfig {
     // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
     repeated string producer_name_filter = 2;
     repeated string producer_name_regex_filter = 3;
+
+    // Filter by machine names. The name of a machine is determined by the
+    // PERFETTO_MACHINE_NAME env variable. In Android systems, if the env
+    // variable is not set then the
+    // persist.traced_relay.machine_name system property is used. If the
+    // sysprop isn't set or not in an Android system, then the machine name by
+    // default is set to the utsname sysname (e.g. Linux), which can be obtained
+    // via the 'uname -s' command. As a convenience, one can use "host" to refer
+    // to the host machine, which is the machine running traced.
+    repeated string machine_name_filter = 4;
   }
   repeated DataSource data_sources = 2;
 
@@ -4724,6 +4802,24 @@ message TraceConfig {
     optional uint64 max_other_session_count = 2;
   }
   repeated SessionSemaphore session_semaphores = 39;
+
+  // Priority boost to be applied to the traced process, when the session is
+  // running.
+  optional PriorityBoostConfig priority_boost = 40;
+
+  // When set to a value > 0, this tracing session will be started in
+  // "exclusive mode". This has the following semantics:
+  // - It can only be set by shell or root users.
+  // - A new exclusive session will only be started if its priority is strictly
+  //   higher than any other active tracing session.
+  // - If a new exclusive session is started, all other existing tracing
+  //   sessions (exclusive or not) are aborted.
+  // - While an exclusive session is active, any new non-exclusive session (or
+  //   any exclusive session with a lower or equal priority) will be rejected.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional uint32 exclusive_prio = 41;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5347,6 +5443,32 @@ message AndroidCameraSessionStats {
 
 // End of protos/perfetto/trace/android/camera_event.proto
 
+// Begin of protos/perfetto/trace/android/cpu_per_uid_data.proto
+
+message CpuPerUidData {
+  // Number of clusters in the device. This will only be filled in the first
+  // packet in a sequence.
+  optional uint32 cluster_count = 1;
+
+  // The UIDs for which we have data in this packet.
+  repeated uint32 uid = 2 [packed = true];
+
+  // List of times for {UID, cluster} tuples. This will be cluster_count
+  // times as long as the UID list.
+  //
+  // Ordered like:
+  // [{UID 0, cluster 0}, {UID 0, cluster 1}, {UID 0, cluster 2},
+  //  {UID 1, cluster 0}, {UID 1, cluster 1}, {UID 1, cluster 2}, ...]
+  //
+  // Each value is an absolute count for the first packet in a sequence, and a
+  // delta thereafter. UIDs for which all clusters have a zero delta are
+  // omitted; a single non-zero value for any cluster for a UID will cause
+  // values for all clusters to be recorded.
+  repeated uint64 total_time_ms = 3 [packed = true];
+}
+
+// End of protos/perfetto/trace/android/cpu_per_uid_data.proto
+
 // Begin of protos/perfetto/trace/android/frame_timeline_event.proto
 
 // Generated by SurfaceFlinger's FrameTimeline (go/adaptive-scheduling-fr).
@@ -5640,8 +5762,8 @@ message NetworkPacketEvent {
   // The direction traffic is flowing for this event.
   optional TrafficDirection direction = 1;
 
-  // The name of the interface if available (e.g. 'rmnet0').
-  optional string interface = 2;
+  // The name of the network interface if available (e.g. 'rmnet0').
+  optional string network_interface = 2;
 
   // The length of the packet in bytes (wire_size - L2_header_size). Ignored
   // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or
@@ -6160,8 +6282,8 @@ message LayerProto {
   // If active_buffer is not null, record its transform.
   optional TransformProto buffer_transform = 39;
   optional int32 effective_scaling_mode = 40;
-  // Layer's corner radius.
-  optional float corner_radius = 41;
+  // Layer's corner radius
+  optional float corner_radius = 41 [deprecated = true];
   // Metadata map. May be empty.
   map<int32, string> metadata = 42;
 
@@ -6192,7 +6314,7 @@ message LayerProto {
   optional bool is_trusted_overlay = 55;
 
   // Corner radius explicitly set on layer rather than inherited
-  optional float requested_corner_radius = 56;
+  optional float requested_corner_radius = 56 [deprecated = true];
 
   optional RectProto destination_frame = 57;
 
@@ -6202,6 +6324,18 @@ message LayerProto {
 
   // Layer's scale during background blur, relative to 1.0f=100%
   optional float background_blur_scale = 60;
+
+  // Layer's corner radius.
+  optional CornerRadiiProto corner_radii = 61;
+
+  // Corner radius explicitly set on layer rather than inherited
+  optional CornerRadiiProto requested_corner_radii = 62;
+
+  // Corner radius explicity set as drawn by client
+  optional CornerRadiiProto client_drawn_corner_radii = 63;
+
+  // Priority value of the layer set by the system.
+  optional int32 system_content_priority = 64;
 }
 
 message PositionProto {
@@ -6214,6 +6348,13 @@ message FloatRectProto {
   optional float top = 2;
   optional float right = 3;
   optional float bottom = 4;
+}
+
+message CornerRadiiProto {
+  optional float tl = 1;
+  optional float tr = 2;
+  optional float bl = 3;
+  optional float br = 4;
 }
 
 message ActiveBufferProto {
@@ -6309,6 +6450,11 @@ message Transform {
   optional float ty = 6;
 }
 
+message TransactionBarrier {
+  optional string barrier_token = 1;
+  optional uint32 kind = 2;
+}
+
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -6319,6 +6465,8 @@ message TransactionState {
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
   repeated uint64 merged_transaction_ids = 9;
+  optional uint64 apply_token = 10;
+  repeated TransactionBarrier transaction_barriers = 11;
 }
 
 // Keep insync with layer_state_t
@@ -6385,6 +6533,8 @@ message LayerState {
     eStretchChanged = 0x2000;
     eTrustedOverlayChanged = 0x4000;
     eDropInputModeChanged = 0x8000;
+    eClientDrawnCornerRadiusChanged = 0x00010000;
+    eSystemContentPriorityChanged = 0x00020000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -6412,8 +6562,15 @@ message LayerState {
     optional float dtdy = 3;
     optional float dsdy = 4;
   };
+
+  message CornerRadii {
+    optional float tl = 1;
+    optional float tr = 2;
+    optional float bl = 3;
+    optional float br = 4;
+  }
   optional Matrix22 matrix = 11;
-  optional float corner_radius = 12;
+  optional float corner_radius = 12 [deprecated = true];
   optional uint32 background_blur_radius = 13;
   optional uint32 parent_id = 14;
   optional uint32 relative_parent_id = 15;
@@ -6514,6 +6671,12 @@ message LayerState {
   optional TrustedOverlay trusted_overlay = 43;
 
   optional float background_blur_scale = 44;
+
+  optional CornerRadii corner_radii = 45;
+
+  optional CornerRadii client_drawn_corner_radii = 46;
+
+  optional int32 system_content_priority = 47;
 }
 
 message DisplayState {
@@ -7102,9 +7265,13 @@ message ClockSnapshot {
     optional bool is_incremental = 3;
 
     // Allows to specify a custom unit different than the default (ns) for this
-    // clock domain. A multiplier of 1000 means that a timestamp = 3 should be
-    // interpreted as 3000 ns = 3 us. All snapshots for the same clock within a
-    // trace need to use the same unit.
+    // clock domain.
+    //
+    // * A multiplier of 1000 means that a timestamp = 3 should be interpreted
+    //   as 3000 ns = 3 us.
+    // * All snapshots for the same clock within a trace need to use the same
+    //   unit.
+    // * `unit_multiplier_ns` is *not* supported for the `primary_trace_clock`.
     optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;
@@ -7266,9 +7433,51 @@ message ReadyThreadEtwEvent {
 
   oneof flag_enum_or_int {
     TraceFlag flag = 4;
-    TraceFlag flag_int = 6;
+    int32 flag_int = 6;
   }
 }
+
+// Proto definition based on the type of MemInfoArgs_V1, found here and observed
+// on local traces using tracerpt:
+// https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-Kernel-Memory.xml
+message MemInfoEtwEvent {
+  // Number of memory priorities on the system.
+  optional uint32 priority_levels = 1;
+
+  // Number of pages in the zero list.
+  optional uint64 zero_page_count = 2;
+
+  // Number of pages in the free list.
+  optional uint64 free_page_count = 3;
+
+  // Number of pages in the modified list.
+  optional uint64 modified_page_count = 4;
+
+  // Number of modified non-paged pool pages.
+  optional uint64 modified_no_write_page_count = 5;
+
+  // Number of bad pages.
+  optional uint64 bad_page_count = 6;
+
+  // Number of standby pages by memory priority.
+  repeated uint64 standby_page_counts = 7;
+
+  // Number of repurposed pages by memory priority.
+  repeated uint64 repurposed_page_counts = 8;
+
+  // Modified paged pages.
+  optional uint64 modified_page_count_page_file = 9;
+  // Pool page counts.
+  optional uint64 paged_pool_page_count = 10;
+  optional uint64 non_paged_pool_page_count = 11;
+
+  // Memory Descriptor List page count.
+  optional uint64 mdl_page_count = 12;
+
+  // Commit weight.
+  optional uint64 commit_page_count = 13;
+}
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -7276,12 +7485,15 @@ message ReadyThreadEtwEvent {
 message EtwTraceEvent {
   optional uint64 timestamp = 1;
   optional uint32 cpu = 4;
+  optional uint32 thread_id = 5;
 
   oneof event {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
+    MemInfoEtwEvent mem_info = 6;
   }
 }
+
 // End of protos/perfetto/trace/etw/etw_event.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event_bundle.proto
@@ -7294,6 +7506,45 @@ message EtwTraceEventBundle {
   repeated EtwTraceEvent event = 2;
 }
 // End of protos/perfetto/trace/etw/etw_event_bundle.proto
+
+// Begin of protos/perfetto/trace/evdev.proto
+
+// Records an event in the evdev protocol, as used by Linux and some other *nix
+// kernels to report events from human interface devices.
+//
+// Next ID: 3
+message EvdevEvent {
+  // The device's unique ID number. This need not be the number of its
+  // /dev/input/event node.
+  optional uint32 device_id = 1;
+
+  oneof event {
+    InputEvent input_event = 2;
+  }
+
+  // Proto version of Linux's struct input_event. The meaning of types and codes
+  // are described in the Linux kernel documentation at
+  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
+  //
+  // Next ID: 5
+  message InputEvent {
+    // The monotonic timestamp at which the event occurred, as reported by the
+    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
+    // since the previous event.
+    optional uint64 kernel_timestamp = 1;
+
+    // The code grouping for this event, used to distinguish signals, absolute
+    // and relative axis changes, and other types of event.
+    optional uint32 type = 2;
+    // The precise type of the event, such as the axis code for absolute and
+    // relative events.
+    optional uint32 code = 3;
+    // The new value of the axis described by type and code.
+    optional sint32 value = 4;
+  }
+}
+
+// End of protos/perfetto/trace/evdev.proto
 
 // Begin of protos/perfetto/common/descriptor.proto
 
@@ -7926,6 +8177,14 @@ message CmaAllocInfoFtraceEvent {
   optional uint64 nr_reclaimed = 9;
   optional uint64 pfn = 10;
 }
+message CmaAllocFinishFtraceEvent {
+  optional string name = 1;
+  optional uint64 pfn = 2;
+  optional uint64 page = 3;
+  optional uint64 count = 4;
+  optional uint32 align = 5;
+  optional int32 errorno = 6;
+}
 
 // End of protos/perfetto/trace/ftrace/cma.proto
 
@@ -8198,6 +8457,147 @@ message DrmVblankEventDeliveredFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/drm.proto
+
+// Begin of protos/perfetto/trace/ftrace/dwc3.proto
+
+message Dwc3AllocRequestFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3CompleteTrbFtraceEvent {
+  optional string name = 1;
+  optional uint64 trb = 2;
+  optional uint32 allocated = 3;
+  optional uint32 queued = 4;
+  optional uint32 bpl = 5;
+  optional uint32 bph = 6;
+  optional uint32 size = 7;
+  optional uint32 ctrl = 8;
+  optional uint32 type = 9;
+  optional uint32 enqueue = 10;
+  optional uint32 dequeue = 11;
+}
+message Dwc3CtrlReqFtraceEvent {
+  optional uint32 bRequestType = 1;
+  optional uint32 bRequest = 2;
+  optional uint32 wValue = 3;
+  optional uint32 wIndex = 4;
+  optional uint32 wLength = 5;
+  optional string str = 6;
+}
+message Dwc3EpDequeueFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3EpQueueFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3EventFtraceEvent {
+  optional uint32 event = 1;
+  optional uint32 ep0state = 2;
+  optional string str = 3;
+}
+message Dwc3FreeRequestFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3GadgetEpCmdFtraceEvent {
+  optional string name = 1;
+  optional uint32 cmd = 2;
+  optional uint32 param0 = 3;
+  optional uint32 param1 = 4;
+  optional uint32 param2 = 5;
+  optional int32 cmd_status = 6;
+}
+message Dwc3GadgetEpDisableFtraceEvent {
+  optional string name = 1;
+  optional uint32 maxpacket = 2;
+  optional uint32 maxpacket_limit = 3;
+  optional uint32 max_streams = 4;
+  optional uint32 maxburst = 5;
+  optional uint32 flags = 6;
+  optional uint32 direction = 7;
+  optional uint32 trb_enqueue = 8;
+  optional uint32 trb_dequeue = 9;
+}
+message Dwc3GadgetEpEnableFtraceEvent {
+  optional string name = 1;
+  optional uint32 maxpacket = 2;
+  optional uint32 maxpacket_limit = 3;
+  optional uint32 max_streams = 4;
+  optional uint32 maxburst = 5;
+  optional uint32 flags = 6;
+  optional uint32 direction = 7;
+  optional uint32 trb_enqueue = 8;
+  optional uint32 trb_dequeue = 9;
+}
+message Dwc3GadgetGenericCmdFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 param = 2;
+  optional int32 status = 3;
+}
+message Dwc3GadgetGivebackFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3PrepareTrbFtraceEvent {
+  optional string name = 1;
+  optional uint64 trb = 2;
+  optional uint32 allocated = 3;
+  optional uint32 queued = 4;
+  optional uint32 bpl = 5;
+  optional uint32 bph = 6;
+  optional uint32 size = 7;
+  optional uint32 ctrl = 8;
+  optional uint32 type = 9;
+  optional uint32 enqueue = 10;
+  optional uint32 dequeue = 11;
+}
+message Dwc3ReadlFtraceEvent {
+  optional uint64 base = 1;
+  optional uint32 offset = 2;
+  optional uint32 value = 3;
+  optional string msg = 4;
+}
+message Dwc3WritelFtraceEvent {
+  optional uint64 base = 1;
+  optional uint32 offset = 2;
+  optional uint32 value = 3;
+  optional string msg = 4;
+}
+
+// End of protos/perfetto/trace/ftrace/dwc3.proto
 
 // Begin of protos/perfetto/trace/ftrace/ext4.proto
 
@@ -9442,8 +9842,60 @@ message HostMemAbortFtraceEvent {
   optional uint64 esr = 1;
   optional uint64 addr = 2;
 }
+message HostFfaCallFtraceEvent {
+  optional uint64 func_id = 1;
+  optional uint64 res_a1 = 2;
+  optional uint64 res_a2 = 3;
+  optional uint64 res_a3 = 4;
+  optional uint64 res_a4 = 5;
+  optional int32 handled = 6;
+  optional int32 err = 7;
+}
+message IommuIdmapFtraceEvent {
+  optional uint64 from = 1;
+  optional uint64 to = 2;
+  optional int32 prot = 3;
+}
+message PsciMemProtectFtraceEvent {
+  optional uint64 count = 1;
+  optional uint64 was = 2;
+}
 
 // End of protos/perfetto/trace/ftrace/hyp.proto
+
+// Begin of protos/perfetto/trace/ftrace/hypervisor.proto
+
+message HypervisorHostHcallFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 invalid = 2;
+}
+message HypervisorHostSmcFtraceEvent {
+  optional uint64 id = 1;
+  optional uint32 forwarded = 2;
+}
+message HypervisorHypExitFtraceEvent {}
+message HypervisorIommuIdmapFtraceEvent {
+  optional uint64 from = 1;
+  optional uint64 to = 2;
+  optional int32 prot = 3;
+}
+message HypervisorPsciMemProtectFtraceEvent {
+  optional uint64 count = 1;
+  optional uint64 was = 2;
+}
+message HypervisorHostMemAbortFtraceEvent {
+  optional uint64 esr = 1;
+  optional uint64 addr = 2;
+}
+message HypervisorHypEnterFtraceEvent {}
+message HypervisorIommuIdmapCompleteFtraceEvent {
+  optional uint32 map = 1;
+}
+message HypervisorVcpuIllegalTrapFtraceEvent {
+  optional uint64 esr = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/hypervisor.proto
 
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
@@ -9860,6 +10312,19 @@ message IonBufferCreateFtraceEvent {
 message IonBufferDestroyFtraceEvent {
   optional uint64 addr = 1;
   optional uint64 len = 2;
+}
+message MmAllocContigMigrateRangeInfoFtraceEvent {
+  optional uint64 start = 1;
+  optional uint64 end = 2;
+  optional uint64 nr_migrated = 3;
+  optional uint64 nr_reclaimed = 4;
+  optional uint64 nr_mapped = 5;
+  optional int32 migratetype = 6;
+}
+message DmabufRssStatFtraceEvent {
+  optional uint64 rss = 1;
+  optional int64 rss_delta = 2;
+  optional uint64 i_ino = 3;
 }
 
 // End of protos/perfetto/trace/ftrace/kmem.proto
@@ -12011,6 +12476,38 @@ message FtraceEvent {
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
     LocalTimerEntryFtraceEvent local_timer_entry = 559;
     LocalTimerExitFtraceEvent local_timer_exit = 560;
+    Dwc3AllocRequestFtraceEvent dwc3_alloc_request = 561;
+    Dwc3CompleteTrbFtraceEvent dwc3_complete_trb = 562;
+    Dwc3CtrlReqFtraceEvent dwc3_ctrl_req = 563;
+    Dwc3EpDequeueFtraceEvent dwc3_ep_dequeue = 564;
+    Dwc3EpQueueFtraceEvent dwc3_ep_queue = 565;
+    Dwc3EventFtraceEvent dwc3_event = 566;
+    Dwc3FreeRequestFtraceEvent dwc3_free_request = 567;
+    Dwc3GadgetEpCmdFtraceEvent dwc3_gadget_ep_cmd = 568;
+    Dwc3GadgetEpDisableFtraceEvent dwc3_gadget_ep_disable = 569;
+    Dwc3GadgetEpEnableFtraceEvent dwc3_gadget_ep_enable = 570;
+    Dwc3GadgetGenericCmdFtraceEvent dwc3_gadget_generic_cmd = 571;
+    Dwc3GadgetGivebackFtraceEvent dwc3_gadget_giveback = 572;
+    Dwc3PrepareTrbFtraceEvent dwc3_prepare_trb = 573;
+    Dwc3ReadlFtraceEvent dwc3_readl = 574;
+    Dwc3WritelFtraceEvent dwc3_writel = 575;
+    CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
+    MmAllocContigMigrateRangeInfoFtraceEvent
+        mm_alloc_contig_migrate_range_info = 577;
+    HostFfaCallFtraceEvent host_ffa_call = 578;
+    DmabufRssStatFtraceEvent dmabuf_rss_stat = 579;
+    IommuIdmapFtraceEvent iommu_idmap = 580;
+    PsciMemProtectFtraceEvent psci_mem_protect = 581;
+    HypervisorHostHcallFtraceEvent hypervisor_host_hcall = 582;
+    HypervisorHostSmcFtraceEvent hypervisor_host_smc = 583;
+    HypervisorHypExitFtraceEvent hypervisor_hyp_exit = 584;
+    HypervisorIommuIdmapFtraceEvent hypervisor_iommu_idmap = 585;
+    HypervisorPsciMemProtectFtraceEvent hypervisor_psci_mem_protect = 586;
+    HypervisorHostMemAbortFtraceEvent hypervisor_host_mem_abort = 587;
+    HypervisorHypEnterFtraceEvent hypervisor_hyp_enter = 588;
+    HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
+        589;
+    HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
   }
 }
 
@@ -12126,6 +12623,16 @@ message FtraceStats {
 
   // Kprobe profile stats for functions hits and misses
   optional FtraceKprobeStats kprobe_stats = 10;
+
+  // Per-cpu buffer size as returned by buffer_size_kb in pages (rounded up).
+  // Added in: perfetto v52.
+  optional uint32 cpu_buffer_size_pages = 11;
+
+  // Per-cpu buffer size as cached by our implementation (ftrace muxer), based
+  // on the value we're writing into the tracefs control file. Might not be
+  // exactly equal to |cpu_buffer_size_pages| due to the kernel allocating extra
+  // scratch pages (and/or other factors). Added in: perfetto v52.
+  optional uint32 cached_cpu_buffer_size_pages = 12;
 }
 
 enum FtraceParseStatus {
@@ -12202,36 +12709,38 @@ message FtraceEventBundle {
   }
   optional CompactSched compact_sched = 4;
 
-  // traced_probes always sets the ftrace_clock to "boot". That is not available
-  // in older kernels (v3.x). In that case we fallback on "global" or "local".
-  // When we do that, we report the fallback clock in each bundle so we can do
-  // proper clock syncing at parsing time in TraceProcessor. We cannot use the
-  // TracePacket timestamp_clock_id because: (1) there is no per-packet
-  // timestamp for ftrace bundles; (2) "global" does not match CLOCK_MONOTONIC.
-  // Having a dedicated and explicit flag allows us to correct further misakes
-  // in future by looking at the kernel version.
-  // This field has been introduced in perfetto v19 / Android T (13).
-  // This field is omitted when the ftrace clock is just "boot", as that is the
-  // default assumption (and for consistency with the past).
+  // Perfetto will by default try to use the boottime ("boot") clock for ftrace
+  // timestamps as that counts during suspend, is available to userspace, and
+  // is coherent across cpus.
+  //
+  // If this field is set, it means that a different clock was used during
+  // recording. Either because the boot clock is unavailable (e.g. old kernels
+  // before 3.x), or the trace config has set an incompatible option
+  // (use_monotonic_raw_clock / preserve_ftrace_buffer). In that case,
+  // trace_processor will do best-effort clock alignment using timestamp pairs
+  // from |ftrace_timestamp| and |boot_timestamp| fields. This field is omitted
+  // when the ftrace clock is "boot", as that is the default assumption.
+  //
+  // Some clocks (local/global) are technically per-cpu, but we make a
+  // simplifying assumption that they are global, as their inter-cpu skew
+  // should be reasonably bounded on modern systems.
+  //
+  // Added in: perfetto v19. Android T (13).
   optional FtraceClock ftrace_clock = 5;
 
-  // The timestamp according to the ftrace clock, taken at the same instant
-  // as |boot_timestamp|. This is used to sync ftrace events when a non-boot
-  // clock is used as the ftrace clock. We don't use the ClockSnapshot packet
-  // because the ftrace global/local clocks don't match any of the clock_gettime
-  // domains and can be only read by traced_probes.
-  //
-  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
-  //
+  // The timestamp according to the ftrace clock, taken at the same instant as
+  // |boot_timestamp|. Note: timestamping is done at buffer read time, so it
+  // will be in the future relative to the data covered by this bundle.
   // Implementation note: Populated by reading the 'now ts:' field in
-  // tracefs/per_cpu/cpuX/stat.
+  // tracefs/per_cpu/cpu0/stat.
+  //
+  // Set only if |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 ftrace_timestamp = 6;
 
   // The timestamp according to CLOCK_BOOTTIME, taken at the same instant as
-  // |ftrace_timestamp|. See documentation of |ftrace_timestamp| for
-  // more info.
+  // |ftrace_timestamp|.
   //
-  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  // Set only if |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 boot_timestamp = 7;
 
   // Errors encountered during parsing of the raw ftrace data. In case of ring
@@ -12296,7 +12805,20 @@ enum FtraceClock {
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
-// Begin of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+// Begin of protos/perfetto/trace/generic_kernel/generic_power.proto
+
+// GenericKernelCpuFrequencyEvent is the standard proto to capture CPU
+// frequency change events in a generic kernel implementation.
+message GenericKernelCpuFrequencyEvent {
+  // CPU in which the event occurred.
+  optional int32 cpu = 1;
+  // Frequency (Hz) of the CPU.
+  optional int64 freq_hz = 2;
+}
+
+// End of protos/perfetto/trace/generic_kernel/generic_power.proto
+
+// Begin of protos/perfetto/trace/generic_kernel/generic_task.proto
 
 // GenericKernelTaskStateEvent is the standard proto to capture thread state
 // change events in a generic kernel implementation. This is mainly for the
@@ -12308,19 +12830,22 @@ enum FtraceClock {
 // parity as possible with established tracing frameworks such as
 // Linux's ftrace.
 message GenericKernelTaskStateEvent {
-  // CPU in which the event occured.
+  // CPU in which the event occurred.
   // This field is only relevant with the TASK_STATE_RUNNING state. There is
   // no specific meaning to the cpu field in a non-running state event.
   optional int32 cpu = 1;
   // Command name for the thread.
   optional string comm = 2;
   // Thread id.
-  optional int32 tid = 3;
+  optional int64 tid = 3;
 
   // TaskStateEnum represents the valid states of a thread.
   // These states are a generic representation of the actual thread state and
   // don't necessarily map one-to-one to the states the actual OS kernel
   // tracks internally.
+  //
+  // Note: Consecutive TASK_STATE_RUNNING states for the same TID is considered
+  // an error resulting in potential data loss.
   enum TaskStateEnum {
     TASK_STATE_UNKNOWN = 0;
     TASK_STATE_CREATED = 1;
@@ -12341,7 +12866,17 @@ message GenericKernelTaskStateEvent {
   optional int32 prio = 5;
 }
 
-// End of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+// GenericKernelTaskRenameEvent is the standard proto to capture the renaming
+// of a thread.
+message GenericKernelTaskRenameEvent {
+  // Thread id.
+  optional int64 tid = 1;
+  // New command name for the thread.
+  optional string comm = 2;
+}
+
+
+// End of protos/perfetto/trace/generic_kernel/generic_task.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
@@ -12438,6 +12973,11 @@ message GpuRenderStageEvent {
 
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
+
+  // optional. An ID for the render pass instance. This is used to correlate
+  // different events on different queues produced by the same Vulkan render
+  // pass instance.
+  optional uint64 render_pass_instance_id = 16;
 
   // optional. A bit mask representing which render subpasses contributed to
   // this render stage event.  Subpass index 0 is represented by setting the
@@ -14769,6 +15309,10 @@ message HeapGraphObject {
   // To reduce the space required we only emit the heap type if it has changed
   // from the previous object we recorded.
   optional HeapType heap_type_delta = 9;
+
+  // Ids of the Objects referred by this object, not via fields, but via
+  // internal runtime structures.
+  repeated uint64 runtime_internal_object_id = 10 [packed = true];
 }
 
 message HeapGraph {
@@ -15970,6 +16514,10 @@ message ChromeThreadDescriptor {
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;
+
+  // Indicates whether the thread's tid specified in the thread descriptor is
+  // namespaced by Chromium's sandbox. Only set on Linux, and from Chrome M140.
+  optional bool is_sandboxed_tid = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_thread_descriptor.proto
@@ -16050,6 +16598,15 @@ message CounterDescriptor {
 
   // TODO(eseckler): Support arguments describing the counter (?).
   // repeated DebugAnnotation debug_annotations;
+
+  // When visualizing multiple counter tracks, it is often useful to have them
+  // share the same Y-axis range. This allows for easy comparison of their
+  // values.
+  //
+  // All counter tracks with the same |y_axis_share_key| and the same parent
+  // track (e.g. grouped under the same process track) will share their y-axis
+  // range in the UI.
+  optional string y_axis_share_key = 7;
 }
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
@@ -16069,7 +16626,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 14.
+// Next id: 18.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -16095,7 +16652,7 @@ message TrackDescriptor {
   //
   // Note: if the parent is set to a track with `thread` or `process` fields
   // set, the track will *not* be nested under the parent in the UI and in the
-  // trace processor data model. Instead, the track will inherit the parent'
+  // trace processor data model. Instead, the track will inherit the parent's
   // thread/process association and will appear as a *sibling* of the parent.
   // This semantic exists for back-compat reasons as the UI used to work this
   // way for years and changing this leads to a lot of traces subtly breaking.
@@ -16103,9 +16660,63 @@ message TrackDescriptor {
   // the parent.
   optional uint64 parent_uuid = 5;
 
-  // Name of the track. Optional - if unspecified, it may be derived from the
-  // process/thread name (process/thread tracks), the first event's name (async
-  // tracks), or counter name (counter tracks).
+  // Name of the track.
+  //
+  // Optional but *strongly recommended* to be specified in a `TrackDescriptor`
+  // emitted before any `TrackEvent`s on the same track.
+  //
+  // Note: any name specified here will be *ignored* for the root thread scoped
+  // tracks when `disallow_merging_with_system_tracks` is not set, as in this
+  // case, the name of the track is shared by many different data sources and so
+  // is centrally controlled by trace processor.
+  //
+  // It's strongly recommended to only emit the name for a track uuid *once*. If
+  // a descriptor *has* to be emitted multiple times (e.g. between different
+  // processes), it's recommended to ensure that the name is consistent across
+  // all TrackDescriptors with the same `uuid`.
+  //
+  // If the the above recommendation is not followed and the same uuid is
+  // emitted with different names, it is implementation defined how the final
+  // name will be chosen and may change at any time.
+  //
+  // The current implementation of trace processor chooses the name in the
+  // following way, depending on the value of the `sibling_merge_behavior`
+  // field:
+  //
+  // 1. If `sibling_merge_behavior` is set to `SIBLING_MERGE_BEHAVIOR_NONE`:
+  //   * The *last* non-null name in the whole trace according to trace order
+  //     will be used.
+  //   * If no non-null name is present in the whole trace, the trace processor
+  //     may fall back to other sources to provide a name for the track (e.g.
+  //     the first event name for slice tracks, the counter name for counter
+  //     tracks). This is implementation defined and may change at any time.
+  //
+  // 2. If `sibling_merge_behavior` is set to any other value:
+  //   * The first non-null name before the first event on the track *or on any
+  //     descendant tracks* is processed will be used. For example, consider
+  //     the following sequence of events:
+  //       ts=100: TrackDescriptor(uuid=A)
+  //       ts=200: TrackDescriptor(uuid=B, parent_uuid=A)
+  //       ts=300: TrackDescriptor(uuid=A, name="Track A")
+  //       ts=400: TrackEvent(track_uuid=B)
+  //     In this case, the name for track A will be "Track A" because the
+  //     descriptor with the name was emitted before the first event on a
+  //     descendant track (B).
+  //   * If no non-null name is present before the event is processed, the trace
+  //     processor may fall back to other sources to provide a name for the
+  //     track (e.g. the first event name for slice tracks, the counter name for
+  //     counter tracks). This is implementation defined and may change at any
+  //     time.
+  //   * Note on processing order: In the standard trace processor pipeline,
+  //     `TrackDescriptor`s are processed during a "tokenization" phase, which
+  //     occurs before any `TrackEvent`s are parsed. This means that for a given
+  //     track, all its descriptors in the trace are processed before its
+  //     events. Consequently, the "first non-null name before the first event"
+  //     will be the name from the first `TrackDescriptor` for that track in the
+  //     trace file that has a non-null name. However, in a streaming parsing
+  //     scenario, the timestamp order of descriptors and events is significant,
+  //     and a descriptor arriving after an event has been processed will not be
+  //     used to name the track.
   oneof static_or_dynamic_name {
     string name = 2;
     // This field is only set by the SDK when perfetto::StaticString is
@@ -16115,6 +16726,11 @@ message TrackDescriptor {
     // android.os.Trace.
     string atrace_name = 13;
   }
+
+  // A human-readable description of the track providing more context about its
+  // data. In the UI, this is shown in a popup when the track's help button is
+  // clicked.
+  optional string description = 14;
 
   // Associate the track with a process, making it the process-global track.
   // There should only be one such track per process (usually for instant
@@ -16144,6 +16760,7 @@ message TrackDescriptor {
 
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.
+  //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
   // track events and system events share a track.
@@ -16180,9 +16797,137 @@ message TrackDescriptor {
   // tracks with higher ranks. An unspecified rank will be treated as a rank of
   // 0.
   //
+  // Note: this option is only relevant for tracks where the parent has
+  // `child_ordering` set to `EXPLICIT`. It is ignored otherwise.
+  //
   // Note: for tracks where the parent has `thread` or `process` are set, this
-  // option is *ignored*. See `parent_uuid` for details.
+  // option is *ignored* (even if the parent's `child_ordering` is `EXPLICIT``).
+  // See `parent_uuid` for details.
   optional int32 sibling_order_rank = 12;
+
+  // Specifies how the analysis tools should "merge" different sibling
+  // TrackEvent tracks.
+  //
+  // For two or more tracks to be merged, they must be "eligible" siblings.
+  // Eligibility is determined by the following rules:
+  // 1. All tracks must have the same parent.
+  // 2. All tracks must have the same `sibling_merge_behavior`. The only
+  //    exception is `SIBLING_MERGE_BEHAVIOR_UNSPECIFIED` which is treated as
+  //    `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`.
+  // 3. Depending on the behavior, the corresponding key must match (e.g. `name`
+  //    for `BY_TRACK_NAME`, `sibling_merge_key` for `BY_SIBLING_MERGE_KEY`).
+  //
+  // Specifically:
+  //   - in the UI, all tracks which are merged together will be
+  //     displayed as a single "visual" track.
+  //   - in the trace processor, all tracks which are merged together will be
+  //     "multiplexed" into n "analysis" tracks where n is the maximum number
+  //     of tracks which have an active event at the same time.
+  //
+  // When tracks are merged togther, the properties for the merged track will be
+  // chosen from the source tracks based on the following rules:
+  //   - for `sibling_order_rank`: the rank of the merged track will be the
+  //     smallest rank among the source tracks.
+  //   - for all other properties: the property taken is unspecified and can
+  //     be any value provided by one of the source tracks. This can lead to
+  //     non-deterministic behavior.
+  //      - examples of other properties include `name`, `child_ordering` etc.
+  //      - because of this, it's strongly recommended to ensure that all source
+  //        tracks have the same value for these properties.
+  //      - the trace processor will also emit an error stat if it detects
+  //        that the properties are not the same across all source tracks.
+  //
+  // Note: merging is done *recursively* so entire trees of tracks can be merged
+  // together. To make this clearer, consider an example track hierarchy (in
+  // the diagrams: "smk" refers to "sibling_merge_key", the first word on a
+  // track line, like "Updater", is its 'name' property):
+  //
+  //   Initial track hierarchy:
+  //     SystemActivity
+  //     ├── AuthService (smk: "auth_main_cluster")
+  //     │   └── LoginOp (smk: "login_v1")
+  //     ├── AuthService (smk: "auth_main_cluster")
+  //     │   └── LoginOp (smk: "login_v1")
+  //     ├── AuthService (smk: "auth_backup_cluster")
+  //     │   └── GuestOp (smk: "guest_v1")
+  //     └── UserProfileService (smk: "profile_cluster")
+  //         └── GetProfileOp (smk: "getprofile_v1")
+  //
+  // Merging outcomes:
+  //
+  // Scenario 1: Merging by `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`
+  //   - The first two "AuthService" tracks merge because they share
+  //     `smk: "auth_main_cluster"`. Their names are consistent ("AuthService"),
+  //     aligning with recommendations. The merged track is named "AuthService".
+  //   - The third "AuthService" track (with `smk: "auth_backup_cluster"`)
+  //     remains separate, as its `sibling_merge_key` is different.
+  //   - "UserProfileService" also remains separate.
+  //   - Within the merged "AuthService" (from "auth_main_cluster"):
+  //     "LoginOp" get merged as they have the same sibling merge key.
+  //
+  //   Resulting UI (when merging by SIBLING_MERGE_KEY):
+  //     SystemActivity
+  //     ├── AuthService (merged by smk: "auth_main_cluster")
+  //     │   ├── LoginOp (merged by smk: "login_v1")
+  //     ├── AuthService (smk: "auth_backup_cluster")
+  //     │   └── GuestOp (smk: "guest_v1")
+  //     └── UserProfileService (smk: "profile_cluster")
+  //         └── GetProfileOp (smk: "getprofile_v1")
+  //
+  // Scenario 2: Merging by `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`
+  //   - All three tracks named "AuthService" merge because they share the same
+  //     name. The merged track is named "AuthService". The `sibling_merge_key`
+  //     for this merged track would be taken from one of the source tracks
+  //     (e.g., "auth_main_cluster" or "auth_backup_cluster"), which could be
+  //     relevant if its children had key-based merge behaviors.
+  //   - "UserProfileService" remains separate due to its different name.
+  //   - Within the single merged "AuthService" track:
+  //     "LoginOp", "GuestOp" become siblings. "LoginOp" tracks gets merged as
+  //     they have the same name.
+  //
+  //   Resulting UI (when merging by SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME):
+  //     SystemActivity
+  //     ├── AuthService (merged from 3 "AuthService" tracks)
+  //     │   ├── LoginOp (smk: "login_v1")
+  //     │   └── GuestOp (smk: "guest_v1")
+  //     └── UserProfileService (smk: "profile_cluster")
+  //         └── GetProfileOp (smk: "getprofile_v1")
+  //
+  // Note: for tracks where `thread` or `process` are set, this option is
+  // *ignored*. See `parent_uuid` for details.
+  enum SiblingMergeBehavior {
+    // When unspecified or not set, defaults to
+    // `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`.
+    SIBLING_MERGE_BEHAVIOR_UNSPECIFIED = 0;
+
+    // Merge this track with eligible siblings which have the same `name`.
+    //
+    // This is the default behavior.option.
+    //
+    // Fun fact: this is the default beahavior for legacy reasons as the UI has
+    // worked this way for years and inherited this behavior from
+    // chrome://tracing which has worked this way for even longer
+    SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME = 1;
+
+    // Never merge this track with any siblings. Useful if if this track has a
+    // specific meaning and you want to see separately from any others.
+    SIBLING_MERGE_BEHAVIOR_NONE = 2;
+
+    // Merge this track with eligible siblings which have the same
+    // `sibling_merge_key`.
+    SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = 3;
+  }
+  optional SiblingMergeBehavior sibling_merge_behavior = 15;
+
+  // An opaque value which allows specifying which tracks should be merged
+  // together.
+  //
+  // Only meaningful when `sibling_merge_behavior` is set to
+  // `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`.
+  oneof sibling_merge_key_field {
+    string sibling_merge_key = 16;
+    uint64 sibling_merge_key_int = 17;
+  }
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
@@ -16315,7 +17060,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 118.
+// Next id: 122.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16464,6 +17209,12 @@ message TracePacket {
 
     // Generic events for a standard kernel implementation
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
+    GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
+    GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+
+    CpuPerUidData cpu_per_uid_data = 119;
+
+    EvdevEvent evdev_event = 121;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

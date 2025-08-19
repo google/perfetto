@@ -36,6 +36,10 @@ interface QueryResultBypass {
 }
 
 export interface TraceProcessorConfig {
+  // When true, the trace processor will only tokenize the trace without
+  // performing a full parse. This is a performance optimization that allows for
+  // a faster, albeit partial, import of the trace.
+  tokenizeOnly: boolean;
   cropTrackEvents: boolean;
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
@@ -102,7 +106,7 @@ export interface Engine {
 
   summarizeTrace(
     summarySpecs: protos.TraceSummarySpec[] | string[],
-    metricIds: string[],
+    metricIds: string[] | undefined,
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult>;
@@ -146,7 +150,6 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingRegisterSqlPackage?: Deferred<void>;
   private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private pendingTraceSummary?: Deferred<protos.TraceSummaryResult>;
-  private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
   private _queryLog: Array<QueryLog> = [];
@@ -322,6 +325,10 @@ export abstract class EngineBase implements Engine, Disposable {
         x.resolve(analyzeRes);
         this.pendingAnalyzeStructuredQueries = undefined;
         break;
+      case TPM.TPM_ENABLE_METATRACE:
+        // We don't have any pending promises for this request so just
+        // return.
+        break;
       default:
         console.log(
           'Unexpected TraceProcessor response received: ',
@@ -368,6 +375,7 @@ export abstract class EngineBase implements Engine, Disposable {
   // TraceProcessor instance, so it should be called before passing any trace
   // data.
   resetTraceProcessor({
+    tokenizeOnly,
     cropTrackEvents,
     ingestFtraceInRawTable,
     analyzeTraceProtoContent,
@@ -386,6 +394,9 @@ export abstract class EngineBase implements Engine, Disposable {
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
     args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
+    args.parsingMode = tokenizeOnly
+      ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
+      : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
     this.rpcSendRequest(rpc);
     return asyncRes;
   }
@@ -427,7 +438,7 @@ export abstract class EngineBase implements Engine, Disposable {
 
   summarizeTrace(
     summarySpecs: protos.TraceSummarySpec[] | string[],
-    metricIds: string[],
+    metricIds: string[] | undefined,
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {
@@ -442,7 +453,11 @@ export abstract class EngineBase implements Engine, Disposable {
     rpc.request = TPM.TPM_SUMMARIZE_TRACE;
     const args = (rpc.traceSummaryArgs = new protos.TraceSummaryArgs());
     const computationSpec = new protos.TraceSummaryArgs.ComputationSpec();
-    computationSpec.metricIds = metricIds;
+    if (metricIds) {
+      computationSpec.metricIds = metricIds;
+    } else {
+      computationSpec.runAllMetrics = true;
+    }
     if (metadataId) {
       computationSpec.metadataQueryId = metadataId;
     }
@@ -557,10 +572,6 @@ export abstract class EngineBase implements Engine, Disposable {
     }
   }
 
-  isMetatracingEnabled(): boolean {
-    return this._isMetatracingEnabled;
-  }
-
   enableMetatrace(categories?: protos.MetatraceCategories) {
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
@@ -571,7 +582,6 @@ export abstract class EngineBase implements Engine, Disposable {
       rpc.enableMetatraceArgs = new protos.EnableMetatraceArgs();
       rpc.enableMetatraceArgs.categories = categories;
     }
-    this._isMetatracingEnabled = true;
     this.rpcSendRequest(rpc);
   }
 
@@ -585,7 +595,6 @@ export abstract class EngineBase implements Engine, Disposable {
 
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_DISABLE_AND_READ_METATRACE;
-    this._isMetatracingEnabled = false;
     this.pendingReadMetatrace = result;
     this.rpcSendRequest(rpc);
     return result;
@@ -711,7 +720,7 @@ export class EngineProxy implements Engine, Disposable {
 
   summarizeTrace(
     summarySpecs: protos.TraceSummarySpec[] | string[],
-    metricIds: string[],
+    metricIds: string[] | undefined,
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {

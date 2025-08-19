@@ -13,15 +13,13 @@
 // limitations under the License.
 
 import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
-import type {Modifier, StrictModifiers} from '@popperjs/core';
+import type {Modifier} from '@popperjs/core';
 import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
 import {assertExists} from '../base/logging';
-
-type CustomModifier = Modifier<'sameWidth', {}>;
-type ExtendedModifiers = StrictModifiers | CustomModifier;
+import {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
 // union of string literals corresponding to the values in this enum, but having
@@ -96,6 +94,11 @@ export interface PopupAttrs {
   // of the popup.
   // If position is not *-end or *-start, this setting has no effect.
   edgeOffset?: number;
+  // If true, the popup will not have a maximum width and will instead fit its
+  // content. This is useful for popups that have a lot of buttons or other
+  // content that should not be constrained by a maximum width.
+  // Defaults to false.
+  fitContent?: boolean;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -162,18 +165,31 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       createNewGroup = true,
       onPopupMount = () => {},
       onPopupUnMount = () => {},
+      matchWidth,
+      fitContent,
     } = attrs;
 
     const portalAttrs: PortalAttrs = {
       className: 'pf-popup-portal',
       onBeforeContentMount: (dom: Element): MountOptions => {
-        // Check to see if dom is a descendant of a popup
+        // Check to see if dom is a descendant of a popup or modal
         // If so, get the popup's "container" and put it in there instead
         // This handles the case where popups are placed inside the other popups
         // we nest outselves in their containers instead of document body which
         // means we become part of their hitbox for mouse events.
         const closestPopup = dom.closest(`[ref=${Popup.POPUP_REF}]`);
-        return {container: closestPopup ?? undefined};
+        if (closestPopup) {
+          return {container: closestPopup};
+        }
+        const closestModal = dom.closest('.pf-modal-dialog');
+        if (closestModal) {
+          return {container: closestModal};
+        }
+        const closestContainer = dom.closest('.pf-overlay-container');
+        if (closestContainer) {
+          return {container: closestContainer};
+        }
+        return {container: undefined};
       },
       onContentMount: (dom: HTMLElement) => {
         const popupElement = toHTMLElement(
@@ -213,6 +229,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           class: classNames(
             className,
             createNewGroup && Popup.POPUP_GROUP_CLASS,
+            matchWidth && 'pf-popup--match-width',
+            fitContent && 'pf-popup--fit-content',
           ),
           ref: Popup.POPUP_REF,
         },

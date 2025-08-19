@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -30,10 +31,10 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 
@@ -50,7 +51,13 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
 
 AndroidBatteryStatsReader::AndroidBatteryStatsReader(
     TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      history_string_tracker_(
+          std::make_unique<AndroidBatteryStatsHistoryStringTracker>()),
+      stream_(context->sorter->CreateStream(
+          std::make_unique<AndroidDumpstateEventParser>(
+              context,
+              history_string_tracker_.get()))) {}
 
 AndroidBatteryStatsReader::~AndroidBatteryStatsReader() = default;
 
@@ -86,9 +93,8 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     size_t substr_end = remainder.rfind('"');
     base::StringView hsp_string =
         remainder.substr(substr_start, substr_end - substr_start);
-    AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
-        ->SetStringPoolItem(index, possible_uid.value(),
-                            hsp_string.ToStdString());
+    history_string_tracker_->SetStringPoolItem(index, possible_uid.value(),
+                                               hsp_string.ToStdString());
   } else if (possible_event_type == "h") {
     const base::StringView time_adjustment_marker = ":TIME:";
     const base::StringView possible_timestamp = splitter.NextToken();
@@ -123,9 +129,8 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
       if (info_type == "vers") {
         ASSIGN_OR_RETURN(int64_t battery_stats_version,
                          StringToStatusOrInt64(splitter.NextToken()));
-        AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
-            ->battery_stats_version(
-                static_cast<uint32_t>(battery_stats_version));
+        history_string_tracker_->battery_stats_version(
+            static_cast<uint32_t>(battery_stats_version));
       }
     }
   } else {
@@ -150,7 +155,7 @@ base::Status AndroidBatteryStatsReader::SendToSorter(
       int64_t trace_ts,
       context_->clock_tracker->ToTraceTime(
           protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count()));
-  context_->sorter->PushAndroidDumpstateEvent(trace_ts, std::move(event));
+  stream_->Push(trace_ts, std::move(event));
   return base::OkStatus();
 }
 

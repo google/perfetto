@@ -41,13 +41,14 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
@@ -65,6 +66,7 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
 using ::testing::_;
 using ::testing::Args;
 using ::testing::AtLeast;
@@ -81,6 +83,7 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAreArray;
+
 class MockSchedEventTracker : public FtraceSchedEventTracker {
  public:
   explicit MockSchedEventTracker(TraceProcessorContext* context)
@@ -90,11 +93,11 @@ class MockSchedEventTracker : public FtraceSchedEventTracker {
               PushSchedSwitch,
               (uint32_t cpu,
                int64_t timestamp,
-               uint32_t prev_pid,
+               int64_t prev_pid,
                base::StringView prev_comm,
                int32_t prev_prio,
                int64_t prev_state,
-               uint32_t next_pid,
+               int64_t next_pid,
                base::StringView next_comm,
                int32_t next_prio),
               (override));
@@ -105,32 +108,15 @@ class MockProcessTracker : public ProcessTracker {
   explicit MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
 
-  MOCK_METHOD(UniquePid,
-              SetProcessMetadata,
-              (uint32_t pid,
-               std::optional<uint32_t> ppid,
-               base::StringView process_name,
-               base::StringView cmdline),
-              (override));
-
-  MOCK_METHOD(UniqueTid,
-              UpdateThreadName,
-              (uint32_t tid,
-               StringId thread_name_id,
-               ThreadNamePriority priority),
-              (override));
   MOCK_METHOD(void,
-              UpdateThreadNameByUtid,
+              UpdateThreadName,
               (UniqueTid utid,
                StringId thread_name_id,
                ThreadNamePriority priority),
               (override));
-  MOCK_METHOD(UniqueTid,
-              UpdateThread,
-              (uint32_t tid, uint32_t tgid),
-              (override));
+  MOCK_METHOD(UniqueTid, UpdateThread, (int64_t tid, int64_t tgid), (override));
 
-  MOCK_METHOD(UniquePid, GetOrCreateProcess, (uint32_t pid), (override));
+  MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
   MOCK_METHOD(void,
               SetProcessNameIfUnset,
               (UniquePid upid, StringId process_name_id),
@@ -139,7 +125,8 @@ class MockProcessTracker : public ProcessTracker {
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
   MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u), tracker_(nullptr) {
+      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
+        tracker_(nullptr) {
     ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
 
@@ -182,13 +169,12 @@ class MockEventTracker : public EventTracker {
 class FuchsiaTraceParserTest : public ::testing::Test {
  public:
   FuchsiaTraceParserTest() {
-    context_.storage = std::make_shared<TraceStorage>();
+    context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
-        std::make_shared<GlobalArgsTracker>(context_.storage.get());
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker =
         std::make_unique<MetadataTracker>(context_.storage.get());
@@ -208,16 +194,11 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.fuchsia_record_parser =
-        std::make_unique<FuchsiaTraceParser>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-
-    RegisterDefaultModules(&context_);
-    RegisterAdditionalModules(&context_);
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    tokenizer_ = std::make_unique<FuchsiaTraceTokenizer>(&context_);
   }
 
   void push_word(uint64_t word) { trace_bytes_.push_back(word); }
@@ -234,9 +215,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     const size_t num_bytes = trace_bytes_.size() * sizeof(uint64_t);
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[num_bytes]);
     memcpy(raw_trace.get(), trace_bytes_.data(), num_bytes);
-    context_.chunk_readers.push_back(
-        std::make_unique<FuchsiaTraceTokenizer>(&context_));
-    auto status = context_.chunk_readers.back()->Parse(TraceBlobView(
+
+    auto status = tokenizer_->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), num_bytes)));
 
     ResetTraceBuffers();
@@ -252,6 +232,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   MockProcessTracker* process_;
   ClockTracker* clock_;
   TraceStorage* storage_;
+  std::unique_ptr<FuchsiaTraceTokenizer> tokenizer_;
 };
 
 TEST_F(FuchsiaTraceParserTest, CorruptedFxt) {
@@ -442,8 +423,8 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   StringId unknown_cat = storage_->InternString("unknown(1)");
   ASSERT_NE(storage_, nullptr);
 
-  constexpr TrackId track{0u};
-  constexpr TrackId thread_time_track{1u};
+  constexpr TrackId track{1u};
+  constexpr TrackId thread_time_track{0u};
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
   // Only the begin thread time can be imported into the counter table.

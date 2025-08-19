@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_DEBUG_ANNOTATION_PARSER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_DEBUG_ANNOTATION_PARSER_H_
 
+#include <optional>
 #include <string>
 
 #include "perfetto/base/status.h"
@@ -51,10 +52,6 @@ class DebugAnnotationParser {
       protos::pbzero::DebugAnnotation::Decoder& annotation,
       ProtoToArgsParser::Delegate& delegate,
       std::string& result);
-  ParseResult ParseDebugAnnotationValue(
-      protos::pbzero::DebugAnnotation::Decoder& annotation,
-      ProtoToArgsParser::Delegate& delegate,
-      const ProtoToArgsParser::Key& context_name);
   ParseResult ParseNestedValueArgs(protozero::ConstBytes nested_value,
                                    const ProtoToArgsParser::Key& context_name,
                                    ProtoToArgsParser::Delegate& delegate);

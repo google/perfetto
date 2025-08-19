@@ -17,17 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_TRACE_PARSER_H_
 
+#include <cstdint>
 #include <deque>
-#include <regex>
+#include <memory>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class SystraceTraceParser : public ChunkedTraceReader {
  public:
@@ -59,9 +61,10 @@ class SystraceTraceParser : public ChunkedTraceReader {
   SystraceLineTokenizer line_tokenizer_;
   SystraceLineParser line_parser_;
   TraceProcessorContext* ctx_;
+
+  std::unique_ptr<TraceSorter::Stream<SystraceLine>> stream_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_TRACE_PARSER_H_

@@ -90,17 +90,22 @@ message PerfettoSqlStructuredQuery {
   message Sql {
     // The SQL string. Required.
     //
-    // Note: this string is currently required to be a single well-formed select
-    // statement. This means you cannot use CREATE PERFETTO TABLE/VIEW but *can*
-    // use WITH clauses, UNION and INTERSECT. This restriction may be dropped
-    // in the future.
+    // `sql` can contain multiple, semi-colon separated statements but must
+    // adhere to the following principles:
+    // 1) Only the final statement can return results (i.e. be a `SELECT`
+    // statement): every other statement must be a statement returning no output
+    // (e.g. INCLUDE PERFETTO MODULE, CREATE PERFETTO TABLE etc.).
+    // 2) The final statement *must* be a valid `SELECT` statement returning
+    // results with at least one column.
     optional string sql = 1;
 
     // The name of columns which will be returned by the SQL. Required.
     repeated string column_names = 2;
 
-    // SQL string that has to be run before running the SQL. Supports multi
-    // statement queries. Optional.
+    // DEPRECATED, as `sql` field supports multi-statement queries.
+    //
+    // SQL string that has to be run before running the SQL.
+    // Supports multi statement queries. Optional.
     optional string preamble = 3;
   }
 

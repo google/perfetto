@@ -17,15 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_H_
 
-#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
@@ -69,7 +74,7 @@ class ArtHprofParser : public ChunkedTraceReader {
     // This method does not advance the iterator.
     bool CanReadRecord() const override;
     // Pushes more HPROF chunks in for parsin.
-    void PushBlob(TraceBlobView&& data) override;
+    void PushBlob(TraceBlobView blob) override;
     // Shrinks the backing HPROF data to discard all consumed bytes.
     void Shrink() override;
 

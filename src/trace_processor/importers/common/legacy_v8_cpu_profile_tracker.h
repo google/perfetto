@@ -24,19 +24,26 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
 
 // Stores interned callsites for given pid for legacy v8 samples.
-class LegacyV8CpuProfileTracker {
+class LegacyV8CpuProfileTracker
+    : public TraceSorter::Sink<LegacyV8CpuProfileEvent,
+                               LegacyV8CpuProfileTracker> {
  public:
   explicit LegacyV8CpuProfileTracker(TraceProcessorContext*);
+  ~LegacyV8CpuProfileTracker() override;
+
+  void Parse(int64_t ts, LegacyV8CpuProfileEvent);
 
   // Sets the start timestamp for the given pid.
   void SetStartTsForSessionAndPid(uint64_t session_id,
@@ -77,7 +84,7 @@ class LegacyV8CpuProfileTracker {
   };
   struct Hasher {
     uint64_t operator()(const std::pair<uint64_t, uint32_t>& res) {
-      return base::Hasher::Combine(res.first, res.second);
+      return base::FnvHasher::Combine(res.first, res.second);
     }
   };
   base::FlatHashMap<std::pair<uint64_t, uint32_t>, State, Hasher>

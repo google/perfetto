@@ -37,6 +37,7 @@ import "protos/perfetto/trace/ftrace/dma_fence.proto";
 import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
 import "protos/perfetto/trace/ftrace/drm.proto";
+import "protos/perfetto/trace/ftrace/dwc3.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
 import "protos/perfetto/trace/ftrace/f2fs.proto";
 import "protos/perfetto/trace/ftrace/fastrpc.proto";
@@ -50,6 +51,7 @@ import "protos/perfetto/trace/ftrace/google_irm_trace.proto";
 import "protos/perfetto/trace/ftrace/gpu_mem.proto";
 import "protos/perfetto/trace/ftrace/gpu_scheduler.proto";
 import "protos/perfetto/trace/ftrace/hyp.proto";
+import "protos/perfetto/trace/ftrace/hypervisor.proto";
 import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
@@ -706,5 +708,37 @@ message FtraceEvent {
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
     LocalTimerEntryFtraceEvent local_timer_entry = 559;
     LocalTimerExitFtraceEvent local_timer_exit = 560;
+    Dwc3AllocRequestFtraceEvent dwc3_alloc_request = 561;
+    Dwc3CompleteTrbFtraceEvent dwc3_complete_trb = 562;
+    Dwc3CtrlReqFtraceEvent dwc3_ctrl_req = 563;
+    Dwc3EpDequeueFtraceEvent dwc3_ep_dequeue = 564;
+    Dwc3EpQueueFtraceEvent dwc3_ep_queue = 565;
+    Dwc3EventFtraceEvent dwc3_event = 566;
+    Dwc3FreeRequestFtraceEvent dwc3_free_request = 567;
+    Dwc3GadgetEpCmdFtraceEvent dwc3_gadget_ep_cmd = 568;
+    Dwc3GadgetEpDisableFtraceEvent dwc3_gadget_ep_disable = 569;
+    Dwc3GadgetEpEnableFtraceEvent dwc3_gadget_ep_enable = 570;
+    Dwc3GadgetGenericCmdFtraceEvent dwc3_gadget_generic_cmd = 571;
+    Dwc3GadgetGivebackFtraceEvent dwc3_gadget_giveback = 572;
+    Dwc3PrepareTrbFtraceEvent dwc3_prepare_trb = 573;
+    Dwc3ReadlFtraceEvent dwc3_readl = 574;
+    Dwc3WritelFtraceEvent dwc3_writel = 575;
+    CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
+    MmAllocContigMigrateRangeInfoFtraceEvent
+        mm_alloc_contig_migrate_range_info = 577;
+    HostFfaCallFtraceEvent host_ffa_call = 578;
+    DmabufRssStatFtraceEvent dmabuf_rss_stat = 579;
+    IommuIdmapFtraceEvent iommu_idmap = 580;
+    PsciMemProtectFtraceEvent psci_mem_protect = 581;
+    HypervisorHostHcallFtraceEvent hypervisor_host_hcall = 582;
+    HypervisorHostSmcFtraceEvent hypervisor_host_smc = 583;
+    HypervisorHypExitFtraceEvent hypervisor_hyp_exit = 584;
+    HypervisorIommuIdmapFtraceEvent hypervisor_iommu_idmap = 585;
+    HypervisorPsciMemProtectFtraceEvent hypervisor_psci_mem_protect = 586;
+    HypervisorHostMemAbortFtraceEvent hypervisor_host_mem_abort = 587;
+    HypervisorHypEnterFtraceEvent hypervisor_hyp_enter = 588;
+    HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
+        589;
+    HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
   }
 }

@@ -16,10 +16,9 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 StaticTableFunction::~StaticTableFunction() = default;
+StaticTableFunction::Cursor::~Cursor() = default;
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -39,7 +39,7 @@ class SchedEventState {
     // (its "next_*" fields). There is some duplication with respect to the
     // slices storage, but we don't always have a slice when decoding events in
     // the compact format.
-    uint32_t last_pid = std::numeric_limits<uint32_t>::max();
+    int64_t last_pid = std::numeric_limits<int64_t>::max();
     UniqueTid last_utid = std::numeric_limits<UniqueTid>::max();
     int32_t last_prio = std::numeric_limits<int32_t>::max();
   };

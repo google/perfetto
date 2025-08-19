@@ -16,26 +16,23 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
 
-#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <queue>
-#include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
@@ -43,16 +40,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-ConnectedFlowTable::~ConnectedFlowTable() = default;
-
-}  // namespace tables
-
-ConnectedFlow::ConnectedFlow(Mode mode, const TraceStorage* storage)
-    : mode_(mode), storage_(storage) {}
-
-ConnectedFlow::~ConnectedFlow() = default;
 
 namespace {
 
@@ -83,7 +70,14 @@ enum RelativesVisitMode : uint8_t {
 //  bfs.TakeResultingFlows();
 class BFS {
  public:
-  explicit BFS(const TraceStorage* storage) : storage_(storage) {}
+  explicit BFS(const TraceStorage* storage,
+               tables::FlowTable::ConstCursor& incoming_cursor,
+               tables::FlowTable::ConstCursor& outgoing_cursor,
+               tables::SliceTable::ConstCursor& descendant_cursor)
+      : storage_(storage),
+        incoming_cursor_(incoming_cursor),
+        outgoing_cursor_(outgoing_cursor),
+        descendant_cursor_(descendant_cursor) {}
 
   std::vector<tables::FlowTable::RowNumber> TakeResultingFlows() && {
     return std::move(flow_rows_);
@@ -91,7 +85,7 @@ class BFS {
 
   // Includes a starting slice ID to search.
   BFS& Start(SliceId start_id) {
-    slices_to_visit_.push({start_id, VisitType::START});
+    slices_to_visit_.emplace(start_id, VisitType::START);
     known_slices_.insert(start_id);
     return *this;
   }
@@ -126,26 +120,30 @@ class BFS {
   BFS& GoToRelatives(SliceId slice_id, RelativesVisitMode visit_relatives) {
     const auto& slice_table = storage_->slice_table();
     if (visit_relatives & VISIT_ANCESTORS) {
-      auto opt_ancestors = Ancestor::GetAncestorSlices(slice_table, slice_id);
-      if (opt_ancestors)
-        GoToRelativesImpl(*opt_ancestors);
+      slice_rows_.clear();
+      if (Ancestor::GetAncestorSlices(slice_table, slice_id, slice_rows_,
+                                      status_)) {
+        GoToRelativesImpl(slice_rows_);
+      }
     }
     if (visit_relatives & VISIT_DESCENDANTS) {
-      auto opt_descendants =
-          Descendant::GetDescendantSlices(slice_table, slice_id);
-      if (opt_descendants)
-        GoToRelativesImpl(*opt_descendants);
+      slice_rows_.clear();
+      if (Descendant::GetDescendantSlices(slice_table, descendant_cursor_,
+                                          slice_id, slice_rows_, status_)) {
+        GoToRelativesImpl(slice_rows_);
+      }
     }
     return *this;
   }
 
+  const base::Status& status() const { return status_; }
+
  private:
-  enum class FlowDirection {
+  enum class FlowDirection : uint8_t {
     INCOMING,
     OUTGOING,
   };
-
-  enum class VisitType {
+  enum class VisitType : uint8_t {
     START,
     VIA_INCOMING_FLOW,
     VIA_OUTGOING_FLOW,
@@ -155,28 +153,24 @@ class BFS {
   void GoByFlow(SliceId slice_id, FlowDirection flow_direction) {
     PERFETTO_DCHECK(known_slices_.count(slice_id) != 0);
 
-    const auto& flow = storage_->flow_table();
-
-    const TypedColumn<SliceId>& start_col =
-        flow_direction == FlowDirection::OUTGOING ? flow.slice_out()
-                                                  : flow.slice_in();
-    Query q;
-    q.constraints = {start_col.eq(slice_id.value)};
-    auto it = flow.FilterToIterator(q);
-    for (; it; ++it) {
-      flow_rows_.push_back(it.row_number());
+    auto& cursor = flow_direction == FlowDirection::OUTGOING ? outgoing_cursor_
+                                                             : incoming_cursor_;
+    cursor.SetFilterValueUnchecked(0, slice_id.value);
+    for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
+      flow_rows_.push_back(cursor.ToRowNumber());
 
       SliceId next_slice_id = flow_direction == FlowDirection::OUTGOING
-                                  ? it.slice_in()
-                                  : it.slice_out();
-      if (known_slices_.count(next_slice_id))
+                                  ? cursor.slice_in()
+                                  : cursor.slice_out();
+      if (known_slices_.count(next_slice_id)) {
         continue;
+      }
 
       known_slices_.insert(next_slice_id);
-      slices_to_visit_.push(
-          {next_slice_id, flow_direction == FlowDirection::INCOMING
-                              ? VisitType::VIA_INCOMING_FLOW
-                              : VisitType::VIA_OUTGOING_FLOW});
+      slices_to_visit_.emplace(next_slice_id,
+                               flow_direction == FlowDirection::INCOMING
+                                   ? VisitType::VIA_INCOMING_FLOW
+                                   : VisitType::VIA_OUTGOING_FLOW);
     }
   }
 
@@ -188,42 +182,65 @@ class BFS {
       if (known_slices_.count(relative_slice_id))
         continue;
       known_slices_.insert(relative_slice_id);
-      slices_to_visit_.push({relative_slice_id, VisitType::VIA_RELATIVE});
+      slices_to_visit_.emplace(relative_slice_id, VisitType::VIA_RELATIVE);
     }
   }
 
-  std::queue<std::pair<SliceId, VisitType>> slices_to_visit_;
-  std::set<SliceId> known_slices_;
-  std::vector<tables::FlowTable::RowNumber> flow_rows_;
-
   const TraceStorage* storage_;
+  tables::FlowTable::ConstCursor& incoming_cursor_;
+  tables::FlowTable::ConstCursor& outgoing_cursor_;
+  tables::SliceTable::ConstCursor& descendant_cursor_;
+
+  std::queue<std::pair<SliceId, VisitType>> slices_to_visit_;
+  std::unordered_set<SliceId> known_slices_;
+  std::vector<tables::FlowTable::RowNumber> flow_rows_;
+  std::vector<tables::SliceTable::RowNumber> slice_rows_;
+  base::Status status_;
 };
 
 }  // namespace
 
-base::StatusOr<std::unique_ptr<Table>> ConnectedFlow::ComputeTable(
-    const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 1);
+ConnectedFlow::Cursor::Cursor(Mode mode, TraceStorage* storage)
+    : mode_(mode),
+      storage_(storage),
+      table_(storage->mutable_string_pool()),
+      outgoing_cursor_(
+          storage->flow_table().CreateCursor({dataframe::FilterSpec{
+              tables::FlowTable::ColumnIndex::slice_out,
+              0,
+              dataframe::Eq{},
+              std::nullopt,
+          }})),
+      incoming_cursor_(
+          storage->flow_table().CreateCursor({dataframe::FilterSpec{
+              tables::FlowTable::ColumnIndex::slice_in,
+              0,
+              dataframe::Eq{},
+              std::nullopt,
+          }})),
+      descendant_cursor_(Descendant::MakeCursor(storage->slice_table())) {}
+
+bool ConnectedFlow::Cursor::Run(const std::vector<SqlValue>& arguments) {
+  PERFETTO_DCHECK(arguments.size() == 1);
+
+  // Clear all our temporary state.
+  table_.Clear();
 
   const auto& flow = storage_->flow_table();
   const auto& slice = storage_->slice_table();
 
   if (arguments[0].type == SqlValue::Type::kNull) {
     // Nothing matches a null id so return an empty table.
-    return std::unique_ptr<Table>(
-        tables::ConnectedFlowTable::SelectAndExtendParent(flow, {}, {}));
+    return OnSuccess(&table_.dataframe());
   }
   if (arguments[0].type != SqlValue::Type::kLong) {
-    return base::ErrStatus("start id should be an integer.");
+    return OnFailure(base::ErrStatus("start id should be an integer."));
   }
-
   SliceId start_id{static_cast<uint32_t>(arguments[0].AsLong())};
   if (!slice.FindById(start_id)) {
-    return base::ErrStatus("invalid slice id %" PRIu32 "",
-                           static_cast<uint32_t>(start_id.value));
+    return OnFailure(base::ErrStatus("invalid slice id %u", start_id.value));
   }
-
-  BFS bfs(storage_);
+  BFS bfs(storage_, incoming_cursor_, outgoing_cursor_, descendant_cursor_);
   switch (mode_) {
     case Mode::kDirectlyConnectedFlow:
       bfs.Start(start_id).VisitAll(VISIT_INCOMING_AND_OUTGOING,
@@ -236,22 +253,34 @@ base::StatusOr<std::unique_ptr<Table>> ConnectedFlow::ComputeTable(
       bfs.Start(start_id).VisitAll(VISIT_INCOMING, VISIT_ANCESTORS);
       break;
   }
-
+  if (!bfs.status().ok()) {
+    return OnFailure(bfs.status());
+  }
   std::vector<tables::FlowTable::RowNumber> result_rows =
       std::move(bfs).TakeResultingFlows();
-
-  // Additional column for start_id
-  ColumnStorage<uint32_t> start_ids;
-  for (size_t i = 0; i < result_rows.size(); i++) {
-    start_ids.Append(start_id.value);
+  for (auto row : result_rows) {
+    auto ref = row.ToRowReference(flow);
+    table_.Insert(tables::ConnectedFlowTable::Row{
+        ref.slice_out(),
+        ref.slice_in(),
+        ref.trace_id(),
+        ref.arg_set_id(),
+    });
   }
-  return std::unique_ptr<Table>(
-      tables::ConnectedFlowTable::SelectAndExtendParent(flow, result_rows,
-                                                        std::move(start_ids)));
+  return OnSuccess(&table_.dataframe());
 }
 
-Table::Schema ConnectedFlow::CreateSchema() {
-  return tables::ConnectedFlowTable::ComputeStaticSchema();
+ConnectedFlow::ConnectedFlow(Mode mode, TraceStorage* storage)
+    : mode_(mode), storage_(storage) {}
+
+ConnectedFlow::~ConnectedFlow() = default;
+
+std::unique_ptr<StaticTableFunction::Cursor> ConnectedFlow::MakeCursor() {
+  return std::make_unique<Cursor>(mode_, storage_);
+}
+
+dataframe::DataframeSpec ConnectedFlow::CreateSpec() {
+  return tables::ConnectedFlowTable::kSpec.ToUntypedDataframeSpec();
 }
 
 std::string ConnectedFlow::TableName() {
@@ -266,7 +295,8 @@ std::string ConnectedFlow::TableName() {
   PERFETTO_FATAL("Unexpected ConnectedFlowType");
 }
 
-uint32_t ConnectedFlow::EstimateRowCount() {
+uint32_t ConnectedFlow::GetArgumentCount() const {
   return 1;
 }
+
 }  // namespace perfetto::trace_processor

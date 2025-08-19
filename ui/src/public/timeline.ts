@@ -14,6 +14,7 @@
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {time} from '../base/time';
+import {Setting} from './settings';
 
 export enum TimestampFormat {
   Timecode = 'timecode',
@@ -23,6 +24,7 @@ export enum TimestampFormat {
   Milliseconds = 'milliseconds',
   Microseconds = 'microseconds',
   UTC = 'utc',
+  CustomTimezone = 'customTimezone',
   TraceTz = 'traceTz',
 }
 
@@ -50,8 +52,13 @@ export interface Timeline {
   hoveredUtid: number | undefined;
   hoveredPid: number | undefined;
 
-  // Get the current timestamp offset.
-  timestampOffset(): time;
+  // This value defines the time of the origin of the time axis in trace time.
+  // Depending on the timestamp format setting, this value can change:
+  // E.g.
+  // - Raw - origin = 0
+  // - Seconds - origin = trace.start.
+  // - Realtime - origin = midnight before trace.start.
+  getTimeAxisOrigin(): time;
 
   // Get a time in the current domain as specified by timestampOffset.
   toDomainTime(ts: time): time;
@@ -59,4 +66,6 @@ export interface Timeline {
   // These control how timestamps and durations are formatted throughout the UI
   timestampFormat: TimestampFormat;
   durationPrecision: DurationPrecision;
+  customTimezoneOffset: number;
+  timezoneOverride: Setting<string>;
 }

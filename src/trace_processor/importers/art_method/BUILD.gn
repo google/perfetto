@@ -24,8 +24,8 @@ source_set("art_method_event") {
 
 source_set("art_method") {
   sources = [
-    "art_method_parser_impl.cc",
-    "art_method_parser_impl.h",
+    "art_method_parser.cc",
+    "art_method_parser.h",
     "art_method_tokenizer.cc",
     "art_method_tokenizer.h",
   ]
@@ -39,7 +39,6 @@ source_set("art_method") {
     "../../sorter",
     "../../storage",
     "../../types",
-    "../../util",
     "../../util:trace_blob_view_reader",
   ]
 }

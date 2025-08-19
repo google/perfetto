@@ -12,42 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Area,
-  AreaSelection,
-  AreaSelectionAggregator,
-} from '../../public/selection';
+import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {CPUSS_ESTIMATE_TRACK_KIND} from './track_kinds';
+import {
+  CPUSS_ESTIMATE_TRACK_KIND,
+  GPUSS_ESTIMATE_TRACK_KIND,
+} from './track_kinds';
+import {Aggregator} from '../../components/aggregation_adapter';
+import {WattsonAggregationPanel} from './aggregation_panel';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 
-export class WattsonEstimateSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class WattsonEstimateSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_estimate_aggregation';
+  readonly Panel = WattsonAggregationPanel;
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    await engine.query(`drop view if exists ${this.id};`);
-
+  probe(area: AreaSelection) {
     const estimateTracks: string[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
+        (trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND ||
+          trackInfo?.tags?.kind === GPUSS_ESTIMATE_TRACK_KIND) &&
         exists(trackInfo.tags?.wattson)
       ) {
         estimateTracks.push(`${trackInfo.tags.wattson}`);
       }
     }
-    if (estimateTracks.length === 0) return false;
+    if (estimateTracks.length === 0) return undefined;
 
-    const query = this.getEstimateTracksQuery(area, estimateTracks);
-    engine.query(query);
+    return {
+      prepareData: async (engine: Engine) => {
+        await engine.query(`drop view if exists ${this.id};`);
+        const query = this.getEstimateTracksQuery(area, estimateTracks);
+        await engine.query(query);
 
-    return true;
+        return {
+          tableName: this.id,
+        };
+      },
+    };
   }
 
-  getEstimateTracksQuery(
+  private getEstimateTracksQuery(
     area: Area,
     estimateTracks: ReadonlyArray<string>,
   ): string {
@@ -60,8 +66,8 @@ export class WattsonEstimateSelectionAggregator
         ${area.start} as ts,
         ${duration} as dur;
 
-      DROP TABLE IF EXISTS wattson_plugin_windowed_cpuss_estimate;
-      CREATE VIRTUAL TABLE wattson_plugin_windowed_cpuss_estimate
+      DROP TABLE IF EXISTS wattson_plugin_windowed_subsystems_estimate;
+      CREATE VIRTUAL TABLE wattson_plugin_windowed_subsystems_estimate
       USING
         SPAN_JOIN(wattson_plugin_ui_selection_window, _system_state_mw);
 
@@ -77,9 +83,9 @@ export class WattsonEstimateSelectionAggregator
       query += `
         SELECT
         '${estimateTrack}' as name,
-        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power,
-        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy
-        FROM wattson_plugin_windowed_cpuss_estimate
+        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power_mw,
+        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy_mws
+        FROM wattson_plugin_windowed_subsystems_estimate
       `;
     });
     query += `;`;
@@ -91,22 +97,16 @@ export class WattsonEstimateSelectionAggregator
     return [
       {
         title: 'Name',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'name',
       },
       {
         title: 'Power (estimated mW)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
-        columnId: 'power',
+        columnId: 'power_mw',
         sum: true,
       },
       {
         title: 'Energy (estimated mWs)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
-        columnId: 'energy',
+        columnId: 'energy_mws',
         sum: true,
       },
     ];

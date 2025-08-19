@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-section {
-  border-radius: $pf-border-radius;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: $border-radius;
+  border: 1px solid var(--pf-color-border-secondary);
   header {
     padding: 6px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid var(--pf-color-border-secondary);
   }
   article {
     padding: 6px;

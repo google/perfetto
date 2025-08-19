@@ -150,7 +150,7 @@ FROM
     SELECT upid, NULL AS reliable_from
     FROM chrome_processes_with_missing_main
   )
-ORDER BY start DESC
+ORDER BY start DESC, upid
 LIMIT 1;
 
 DROP VIEW IF EXISTS chrome_reliable_range;

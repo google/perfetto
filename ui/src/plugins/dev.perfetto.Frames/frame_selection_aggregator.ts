@@ -12,45 +12,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {
+  Aggregation,
+  Aggregator,
+  createIITable,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {LONG, STR} from '../../trace_processor/query_result';
-import {Dataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
-export class FrameSelectionAggregator implements AreaSelectionAggregator {
+export class FrameSelectionAggregator implements Aggregator {
   readonly id = 'frame_aggregation';
-  readonly schema = {
-    ts: LONG,
-    dur: LONG,
-    jank_type: STR,
-  } as const;
-  readonly trackKind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
 
-  async createAggregateView(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ) {
-    if (!dataset) return false;
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(
+      area.tracks,
+      {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        jank_type: STR,
+      },
+      ACTUAL_FRAMES_SLICE_TRACK_KIND,
+    );
 
-    await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        jank_type,
-        count(1) as occurrences,
-        min(dur) as minDur,
-        avg(dur) as meanDur,
-        max(dur) as maxDur
-      from (${dataset.query()})
-      where ts + dur > ${area.start}
-        AND ts < ${area.end}
-      group by jank_type
-    `);
-    return true;
+    if (!dataset) return undefined;
+
+    return {
+      prepareData: async (engine: Engine) => {
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
+        await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            jank_type,
+            count(1) as occurrences,
+            min(dur) as minDur,
+            avg(dur) as meanDur,
+            max(dur) as maxDur
+          from (${iiTable.name})
+          group by jank_type
+        `);
+
+        return {
+          tableName: this.id,
+        };
+      },
+    };
   }
 
   getTabName() {
@@ -65,32 +81,25 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
     return [
       {
         title: 'Jank Type',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'jank_type',
       },
       {
         title: 'Min duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        formatHint: 'DURATION_NS',
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        formatHint: 'DURATION_NS',
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        formatHint: 'DURATION_NS',
         columnId: 'meanDur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'occurrences',
         sum: true,
       },

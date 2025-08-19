@@ -23,10 +23,18 @@ import sys
 import time
 from typing import List, Optional, Tuple, Iterable
 
-# The script can be executed as a git hook symlink which is why we also
-# do realpath.
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
+# The script can be executed as a git hook symlink. Using `git` to find the
+# repo root is more resilient for worktree usage as a git hook.
+try:
+  REPO_ROOT = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'],
+                                      text=True,
+                                      stderr=subprocess.PIPE).strip()
+except (subprocess.CalledProcessError, FileNotFoundError) as e:
+  print(
+      f"Error: Could not determine repository root via git. {e}",
+      file=sys.stderr)
+  sys.exit(1)
+
 IS_WIN = sys.platform.startswith('win')
 
 
@@ -176,11 +184,37 @@ def get_git_file_content(ref: str, filepath: str) -> Optional[List[str]]:
     return None  # Indicate error
 
 
-def get_commit_message() -> str:
-  """Gets the commit message of the HEAD commit."""
+def get_presubmit_commit_message() -> str:
+  """
+  Gets the relevant commit message for presubmit testing.
+
+  When GitHub CI is checking a pull request, HEAD is a temporary merge commit.
+  In that scenario, we want the message from the pull request's actual branch,
+  which is the second parent (HEAD^2). For local runs, this is not a merge
+  commit, so we fall back to HEAD.
+  """
   try:
-    result = run_command(['git', 'log', '-1', '--pretty=%B'])
+    # Check if HEAD is a merge commit by seeing if it has a second parent. We
+    # use --verify to ensure the ref exists, and check=False to handle the
+    # failure gracefully when HEAD isn't a merge commit.
+    proc = run_command(
+        ['git', 'rev-parse', '--verify', 'HEAD^2'],
+        check=False,
+        stdout=subprocess.PIPE,  # So we can read the hash below.
+        stderr=subprocess.DEVNULL)
+
+    if proc.returncode == 0:
+      # It's a merge commit. Get the message from the second parent.
+      head_ref = proc.stdout.strip()
+      print("Detected merge commit. Reading message from pull request HEAD "
+            f"({head_ref[:8]}).")
+    else:
+      # Not a merge commit (e.g., local run). Get the message from HEAD.
+      head_ref = 'HEAD'
+
+    result = run_command(['git', 'log', '-1', '--pretty=%B', head_ref])
     return result.stdout
+
   except (subprocess.CalledProcessError, FileNotFoundError) as e:
     print(f"Error getting commit message: {e}", file=sys.stderr)
     return ""  # Return empty string on error
@@ -210,11 +244,13 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
       files_to_skip=[
           '*.cc',
           '*.h',
+          '*.md',
           '*.pb',
           '*.png',
           '*.jpg',
           '*/test/data/*',
           'Makefile',
+          'rules',
           '*.descriptor',
       ])
 
@@ -228,15 +264,21 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckCodeFormatted(skip_formatters: str) -> List[str]:
+def CheckCodeFormatted(merge_base: str, skip_formatters: str) -> List[str]:
   # NOTE: format-sources does its own invocation of git diff ... to detect
   # changed file. We use that, rather than passing the list here, to avoid
   # ending in a situation where run_presubmit fails, but then
   # tools/format_sources succeeds because they diverge in their diff logic.
   tool = os.path.join(REPO_ROOT, 'tools/format-sources')
   try:
-    run_command([tool, '--quiet', '--check-only', '--skip=' + skip_formatters],
-                stderr=subprocess.STDOUT)
+    args = [
+        tool,
+        '--quiet',
+        '--check-only',
+        '--skip=' + skip_formatters,
+        '--upstream=' + merge_base,
+    ]
+    run_command(args, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
     return [f'Please run {tool} to format sources.']
   return []
@@ -300,7 +342,9 @@ def CheckIncludeViolations(changed_files: List[str]) -> List[str]:
 def CheckIncludePaths(changed_files: List[str]) -> List[str]:
   # Uses fnmatch patterns
   files_to_check_list = filter_files(
-      changed_files, files_to_check=['*.h', '*.cc'])
+      changed_files,
+      files_to_check=['*.h', '*.cc'],
+      files_to_skip=['examples/sdk/example.cc'])
   error_lines = []
 
   pattern = re.compile(r'^#include "(.*\.h)"')
@@ -713,7 +757,7 @@ def CheckChromeStdlib(changed_files: List[str]) -> List[str]:
     return []
 
   # Check commit message for exceptions
-  commit_message = get_commit_message()
+  commit_message = get_presubmit_commit_message()
   # Use regex for more robust check in commit message
   if re.search(r'COPYBARA_IMPORT', commit_message, re.IGNORECASE):
     print(
@@ -862,7 +906,7 @@ def main():
 
   # Use RunAndReportIfLong for all checks
   checks_to_run = [
-      (CheckCodeFormatted, [args.skip_formatters]),
+      (CheckCodeFormatted, [merge_base, args.skip_formatters]),
       (CheckDoNotSubmit, [changed_files]),
       (CheckChangeHasNoTabs, [changed_files]),
       (CheckIncludeGuards, [changed_files]),

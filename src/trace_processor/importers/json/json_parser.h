@@ -29,9 +29,9 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 
 namespace perfetto::trace_processor::json {
@@ -517,6 +517,17 @@ inline ReturnCode ParseNumber(const char* start,
   return ReturnCode::kOk;
 }
 
+}  // namespace internal
+
+// Public return codes for the Iterator.
+enum class ReturnCode : uint8_t {
+  kOk = uint8_t(internal::ReturnCode::kOk),
+  kError = uint8_t(internal::ReturnCode::kError),
+  kIncompleteInput = uint8_t(internal::ReturnCode::kIncompleteInput),
+  // Indicates the end of the current JSON object or array scope.
+  kEndOfScope = 3,
+};
+
 // Parses the next JSON value from the input stream.
 // |cur| is an in/out parameter pointing to the current position in the buffer.
 // |end| points to the end of the buffer.
@@ -535,19 +546,19 @@ inline ReturnCode ParseValue(const char*& cur,
       auto e = internal::ScanToEndOfDelimitedBlock(start, end, '{', '}', cur,
                                                    status);
       value = Object{std::string_view(start, static_cast<size_t>(cur - start))};
-      return e;
+      return static_cast<ReturnCode>(e);
     }
     case '[': {
       auto e = internal::ScanToEndOfDelimitedBlock(start, end, '[', ']', cur,
                                                    status);
       value = Array{std::string_view(start, static_cast<size_t>(cur - start))};
-      return e;
+      return static_cast<ReturnCode>(e);
     }
     case '"':
       value = std::string_view();
-      return internal::ParseString(start, end, cur,
-                                   base::unchecked_get<std::string_view>(value),
-                                   unescaped_str, status);
+      return static_cast<ReturnCode>(internal::ParseString(
+          start, end, cur, base::unchecked_get<std::string_view>(value),
+          unescaped_str, status));
     case 't':
       if (static_cast<size_t>(end - start) < 4) {
         return ReturnCode::kIncompleteInput;
@@ -588,20 +599,10 @@ inline ReturnCode ParseValue(const char*& cur,
       value = Null{};
       return ReturnCode::kOk;
     default:
-      return internal::ParseNumber(start, end, cur, value, status);
+      return static_cast<ReturnCode>(
+          internal::ParseNumber(start, end, cur, value, status));
   }
 }
-
-}  // namespace internal
-
-// Public return codes for the Iterator.
-enum class ReturnCode : uint8_t {
-  kOk = uint8_t(internal::ReturnCode::kOk),
-  kError = uint8_t(internal::ReturnCode::kError),
-  kIncompleteInput = uint8_t(internal::ReturnCode::kIncompleteInput),
-  // Indicates the end of the current JSON object or array scope.
-  kEndOfScope = 3,
-};
 
 // An iterator-style parser for JSON.
 // Allows for token-by-token processing of a JSON structure.
@@ -673,10 +674,9 @@ class Iterator {
       return e;
     }
     // Parse the value itself.
-    if (auto e = internal::ParseValue(cur, end_, value_, unescaped_str_value_,
-                                      status_);
-        PERFETTO_UNLIKELY(e != internal::ReturnCode::kOk)) {
-      return static_cast<ReturnCode>(e);
+    if (auto e = ParseValue(cur, end_, value_, unescaped_str_value_, status_);
+        PERFETTO_UNLIKELY(e != ReturnCode::kOk)) {
+      return e;
     }
     // Handle comma or closing brace after the value.
     if (auto e = OnPostValue(cur); e != ReturnCode::kOk) {
@@ -737,10 +737,9 @@ class Iterator {
       return ReturnCode::kOk;
     }
     // Otherwise, parse the primitive value.
-    if (auto e = internal::ParseValue(cur, end_, value_, unescaped_str_value_,
-                                      status_);
-        PERFETTO_UNLIKELY(e != internal::ReturnCode::kOk)) {
-      return static_cast<ReturnCode>(e);
+    if (auto e = ParseValue(cur, end_, value_, unescaped_str_value_, status_);
+        PERFETTO_UNLIKELY(e != ReturnCode::kOk)) {
+      return e;
     }
     // Handle comma or closing brace/bracket after the value.
     if (auto e = OnPostValue(cur); e != ReturnCode::kOk) {

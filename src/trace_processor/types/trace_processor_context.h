@@ -20,198 +20,222 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <vector>
+#include <tuple>
+#include <utility>
 
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 
 namespace perfetto::trace_processor {
 
-class AndroidDumpstateEventParser;
-class AndroidLogEventParser;
-class ArgsTracker;
 class ArgsTranslationTable;
-class ArtMethodParser;
-class ArtHprofParser;
-class TrackCompressor;
-class ChunkedTraceReader;
 class ClockConverter;
 class ClockTracker;
 class CpuTracker;
-class DeobfuscationMappingTable;
-class DeobfuscationTracker;
 class DescriptorPool;
-class EtwModule;
 class EventTracker;
 class FlowTracker;
-class ForwardingTraceParser;
-class FtraceModule;
-class FuchsiaRecordParser;
-class GeckoTraceParser;
 class GlobalArgsTracker;
-class HeapGraphTracker;
-class InstrumentsRowParser;
-class JsonTraceParser;
-class LegacyV8CpuProfileTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
-class MultiMachineTraceManager;
-class PacketAnalyzer;
-class PerfRecordParser;
-class PerfSampleTracker;
-class PerfTextTraceParser;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
-class ProtoImporterModule;
-class ProtoTraceParser;
+class ProtoTraceReader;
+class RegisteredFileTracker;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
-class SpeRecordParser;
 class StackProfileTracker;
+class SymbolTracker;
 class TraceFileTracker;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
-class TrackEventModule;
+class TrackCompressor;
 class TrackTracker;
+struct ProtoImporterModuleContext;
 
 using MachineId = tables::MachineTable::Id;
 
 class TraceProcessorContext {
  public:
-  struct InitArgs {
-    Config config;
-    std::shared_ptr<TraceStorage> storage;
-    uint32_t raw_machine_id = 0;
+  template <typename T>
+  using GlobalPtr = TraceProcessorContextPtr<T>;
+
+  template <typename T>
+  using RootPtr = TraceProcessorContextPtr<T>;
+
+  template <typename T>
+  using PerMachinePtr = TraceProcessorContextPtr<T>;
+
+  template <typename T>
+  using PerTracePtr = TraceProcessorContextPtr<T>;
+
+  template <typename T>
+  using PerTraceAndMachinePtr = TraceProcessorContextPtr<T>;
+
+  class ForkedContextState;
+
+  struct TraceState {
+    uint32_t raw_trace_id = 0;
   };
 
-  explicit TraceProcessorContext(const InitArgs&);
+  struct UuidState {
+    // Marks whether the uuid was read from the trace.
+    // If the uuid was NOT read, the uuid will be made from the hash of the
+    // first 4KB of the trace.
+    bool uuid_found_in_trace = false;
+  };
 
   // The default constructor is used in testing.
   TraceProcessorContext();
   ~TraceProcessorContext();
 
-  TraceProcessorContext(TraceProcessorContext&&);
-  TraceProcessorContext& operator=(TraceProcessorContext&&);
+  TraceProcessorContext(const TraceProcessorContext&) = delete;
+  TraceProcessorContext& operator=(const TraceProcessorContext&) = delete;
+
+  // Creates the root TraceProcessorContext. Should only be called by
+  // TraceProcessor top level class.
+  static TraceProcessorContext CreateRootContext(const Config& config) {
+    return TraceProcessorContext(config);
+  }
+
+  // Destroys all state related to parsing the trace, keeping only state
+  // required for querying traces. Must only be called on the root context.
+  void DestroyParsingState();
+
+  // Forks the current TraceProcessorContext into a context for parsing a new
+  // trace with the given trace id and for adding events for the given machine
+  // id.
+  TraceProcessorContext* ForkContextForTrace(
+      uint32_t raw_trace_id,
+      uint32_t default_raw_machine_id) const;
+
+  // Forks the current TraceProcessorContext into a context for parsing a new
+  // machine on the same as the current trace.
+  TraceProcessorContext* ForkContextForMachineInCurrentTrace(
+      uint32_t raw_machine_id) const;
+
+  // Global State
+  // ============
+  //
+  // This state is shared between all machines in a trace.
+  // It is initialized once when the root TraceProcessorContext is created and
+  // then shared between all machines.
 
   Config config;
+  GlobalPtr<TraceStorage> storage;
+  GlobalPtr<TraceSorter> sorter;
+  GlobalPtr<TraceReaderRegistry> reader_registry;
+  GlobalPtr<GlobalArgsTracker> global_args_tracker;
+  GlobalPtr<TraceFileTracker> trace_file_tracker;
+  GlobalPtr<DescriptorPool> descriptor_pool_;
+  GlobalPtr<ForkedContextState> forked_context_state;
+  GlobalPtr<ClockConverter> clock_converter;
 
-  // |storage| is shared among multiple contexts in multi-machine tracing.
-  std::shared_ptr<TraceStorage> storage;
+  // The registration function for additional proto modules.
+  // This is populated by TraceProcessorImpl to allow for late registration of
+  // modules.
+  using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
+                                                TraceProcessorContext*);
+  RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
 
-  std::unique_ptr<TraceReaderRegistry> reader_registry;
+  // Per-Trace State (Miscategorized)
+  // ==========================
+  //
+  // This state is shared between all machines in a trace but is specific to a
+  // single trace.
+  //
+  // TODO(lalitm): this is miscategorized due to legacy reasons. It needs to be
+  // moved to a "per-trace" category.
 
-  // We might create multiple `ChunkedTraceReader` instances (e.g. one for each
-  // file in a ZIP ). The instances are kept around here as some tokenizers
-  // might keep state that is later needed after sorting.
-  std::vector<std::unique_ptr<ChunkedTraceReader>> chunk_readers;
+  GlobalPtr<MetadataTracker> metadata_tracker;
+  GlobalPtr<RegisteredFileTracker> registered_file_tracker;
+  GlobalPtr<UuidState> uuid_state;
+  GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
 
-  // The sorter is used to sort trace data by timestamp and is shared among
-  // multiple machines.
-  std::shared_ptr<TraceSorter> sorter;
+  // Per-Trace State
+  // ==========================
+  //
+  // This state is shared between all machines in a trace but is specific to a
+  // single trace.
+  // It is initialized when a new trace is discovered.
 
-  // Keep the global tracker before the args tracker as we access the global
-  // tracker in the destructor of the args tracker. Also keep it before other
-  // trackers, as they may own ArgsTrackers themselves.
-  std::shared_ptr<GlobalArgsTracker> global_args_tracker;
-  std::unique_ptr<ArgsTracker> args_tracker;
-  std::unique_ptr<ArgsTranslationTable> args_translation_table;
+  PerTracePtr<TraceState> trace_state;
+  PerTracePtr<Destructible> content_analyzer;
 
-  std::unique_ptr<TrackTracker> track_tracker;
-  std::unique_ptr<TrackCompressor> track_compressor;
-  std::unique_ptr<SliceTracker> slice_tracker;
-  std::unique_ptr<SliceTranslationTable> slice_translation_table;
-  std::unique_ptr<FlowTracker> flow_tracker;
-  std::unique_ptr<ProcessTracker> process_tracker;
-  std::unique_ptr<ProcessTrackTranslationTable> process_track_translation_table;
-  std::unique_ptr<EventTracker> event_tracker;
-  std::unique_ptr<SchedEventTracker> sched_event_tracker;
-  std::unique_ptr<ClockTracker> clock_tracker;
-  std::unique_ptr<ClockConverter> clock_converter;
-  std::unique_ptr<MappingTracker> mapping_tracker;
-  std::unique_ptr<MachineTracker> machine_tracker;
-  std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
-  std::unique_ptr<StackProfileTracker> stack_profile_tracker;
-  std::unique_ptr<MetadataTracker> metadata_tracker;
-  std::unique_ptr<CpuTracker> cpu_tracker;
-  std::unique_ptr<TraceFileTracker> trace_file_tracker;
-  std::unique_ptr<LegacyV8CpuProfileTracker> legacy_v8_cpu_profile_tracker;
+  // Per-Machine State
+  // =================
+  //
+  // This state is unique to each machine in a trace.
+  // It is initialized when a new machine is discovered.
+
+  PerMachinePtr<SymbolTracker> symbol_tracker;
+  PerMachinePtr<ProcessTracker> process_tracker;
+  PerMachinePtr<ClockTracker> clock_tracker;
+  PerMachinePtr<MappingTracker> mapping_tracker;
+  PerMachinePtr<MachineTracker> machine_tracker;
+  PerMachinePtr<CpuTracker> cpu_tracker;
+
+  // Per-Machine, Per-Trace State
+  // ==========================
+  //
+  // This state is unique to each (machine, trace) pair.
+
+  PerTraceAndMachinePtr<ArgsTranslationTable> args_translation_table;
+  PerTraceAndMachinePtr<ProcessTrackTranslationTable>
+      process_track_translation_table;
+  PerTraceAndMachinePtr<SliceTranslationTable> slice_translation_table;
+  PerTraceAndMachinePtr<TrackTracker> track_tracker;
+  PerTraceAndMachinePtr<TrackCompressor> track_compressor;
+  PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<FlowTracker> flow_tracker;
+  PerTraceAndMachinePtr<EventTracker> event_tracker;
+  PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
+  PerTraceAndMachinePtr<StackProfileTracker> stack_profile_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
   // type is only available in storage_full target. To access these fields use
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
-  // clang-format off
-  std::unique_ptr<Destructible> android_probes_tracker;                 // AndroidProbesTracker
-  std::unique_ptr<Destructible> android_battery_stats_history_tracker;  // AndroidBatteryStatsHistoryStringTracker
-  std::unique_ptr<Destructible> binder_tracker;                         // BinderTracker
-  std::unique_ptr<Destructible> heap_graph_tracker;                     // HeapGraphTracker
-  std::unique_ptr<Destructible> syscall_tracker;                        // SyscallTracker
-  std::unique_ptr<Destructible> system_info_tracker;                    // SystemInfoTracker
-  std::unique_ptr<Destructible> v4l2_tracker;                           // V4l2Tracker
-  std::unique_ptr<Destructible> virtio_video_tracker;                   // VirtioVideoTracker
-  std::unique_ptr<Destructible> systrace_parser;                        // SystraceParser
-  std::unique_ptr<Destructible> thread_state_tracker;                   // ThreadStateTracker
-  std::unique_ptr<Destructible> i2c_tracker;                            // I2CTracker
-  std::unique_ptr<Destructible> perf_data_tracker;                      // PerfDataTracker
-  std::unique_ptr<Destructible> content_analyzer;                       // ProtoContentAnalyzer
-  std::unique_ptr<Destructible> shell_transitions_tracker;              // ShellTransitionsTracker
-  std::unique_ptr<Destructible> protolog_messages_tracker;              // ProtoLogMessagesTracker
-  std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
-  std::unique_ptr<Destructible> v8_tracker;                             // V8Tracker
-  std::unique_ptr<Destructible> jit_tracker;                            // JitTracker
-  std::unique_ptr<Destructible> protolog_message_decoder;               // ProtoLogMessageDecoder
-  std::unique_ptr<Destructible> instruments_row_data_tracker;           // RowDataTracker
-  std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
-  std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
-  std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
-  std::unique_ptr<Destructible> file_tracker;                           // FileTracker
-  // clang-format on
-
-  std::unique_ptr<ProtoTraceParser> proto_trace_parser;
-
-  // These fields are trace parsers which will be called by |forwarding_parser|
-  // once the format of the trace is discovered. They are placed here as they
-  // are only available in the lib target.
-  std::unique_ptr<JsonTraceParser> json_trace_parser;
-  std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
-  std::unique_ptr<PerfRecordParser> perf_record_parser;
-  std::unique_ptr<SpeRecordParser> spe_record_parser;
-  std::unique_ptr<InstrumentsRowParser> instruments_row_parser;
-  std::unique_ptr<AndroidDumpstateEventParser> android_dumpstate_event_parser;
-  std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
-  std::unique_ptr<GeckoTraceParser> gecko_trace_parser;
-  std::unique_ptr<ArtMethodParser> art_method_parser;
-  std::unique_ptr<PerfTextTraceParser> perf_text_parser;
-
-  // This field contains the list of proto descriptors that can be used by
-  // reflection-based parsers.
-  std::unique_ptr<DescriptorPool> descriptor_pool_;
-
-  // The module at the index N is registered to handle field id N in
-  // TracePacket.
-  std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
-  std::vector<std::unique_ptr<ProtoImporterModule>> modules;
-  // Pointers to modules from the modules vector that need to be called for
-  // all fields.
-  std::vector<ProtoImporterModule*> modules_for_all_fields;
-  FtraceModule* ftrace_module = nullptr;
-  EtwModule* etw_module = nullptr;
-  TrackEventModule* track_module = nullptr;
-
-  // Marks whether the uuid was read from the trace.
-  // If the uuid was NOT read, the uuid will be made from the hash of the first
-  // 4KB of the trace.
-  bool uuid_found_in_trace = false;
+  PerTraceAndMachinePtr<Destructible> binder_tracker;       // BinderTracker
+  PerTraceAndMachinePtr<Destructible> syscall_tracker;      // SyscallTracker
+  PerTraceAndMachinePtr<Destructible> system_info_tracker;  // SystemInfoTracker
+  PerTraceAndMachinePtr<Destructible> systrace_parser;      // SystraceParser
+  PerTraceAndMachinePtr<Destructible>
+      thread_state_tracker;  // ThreadStateTracker
+  PerTraceAndMachinePtr<Destructible>
+      ftrace_sched_tracker;  // FtraceSchedEventTracker
 
   std::optional<MachineId> machine_id() const;
 
-  // Manages the contexts for reading trace data emitted from remote machines.
-  std::unique_ptr<MultiMachineTraceManager> multi_machine_trace_manager;
+ private:
+  explicit TraceProcessorContext(const Config& config);
+
+  TraceProcessorContext(TraceProcessorContext&&) = default;
+  TraceProcessorContext& operator=(TraceProcessorContext&&) = default;
+};
+
+class TraceProcessorContext::ForkedContextState {
+ public:
+  using TraceIdAndMachineId = std::pair<uint32_t, uint32_t>;
+  struct Hasher {
+    uint64_t operator()(const TraceIdAndMachineId& key) {
+      return base::MurmurHashCombine(key.first, key.second);
+    }
+  };
+  base::FlatHashMap<TraceIdAndMachineId,
+                    std::unique_ptr<TraceProcessorContext>,
+                    Hasher>
+      trace_and_machine_to_context;
+  base::FlatHashMap<uint32_t, TraceProcessorContext*> trace_to_context;
+  base::FlatHashMap<uint32_t, TraceProcessorContext*> machine_to_context;
 };
 
 }  // namespace perfetto::trace_processor

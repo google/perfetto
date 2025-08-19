@@ -12,33 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-keycap {
   user-select: none;
   line-height: 1;
-  background-color: #fafbfc;
-  border: 1px solid #d1d5da;
-  border-bottom-color: #c6cbd1;
+  background-color: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-bottom-width: 2px;
   border-radius: 3px;
-  box-shadow: inset 0 -1px 0 #c6cbd1;
-  color: #444d56;
+  color: var(--pf-color-text-muted);
   display: inline-block;
-  font-family: $pf-font;
   vertical-align: baseline;
-
-  i {
-    font-size: inherit;
-    vertical-align: baseline;
-    line-height: 1;
-    float: left;
-  }
-
   padding: 2px 4px;
+
+  &.pf-spacing-large {
+    padding: 4px 6px;
+  }
 }
 
 .pf-hotkey {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
   gap: 2px;
 }

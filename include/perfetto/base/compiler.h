@@ -156,44 +156,6 @@ namespace perfetto::base {
 template <typename... T>
 inline void ignore_result(const T&...) {}
 
-// Given a std::variant and a type T, returns the index of the T in the variant.
-template <typename VariantType, typename T, size_t i = 0>
-constexpr size_t variant_index() {
-  static_assert(i < std::variant_size_v<VariantType>,
-                "Type not found in variant");
-  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
-    return i;
-  } else {
-    return variant_index<VariantType, T, i + 1>();
-  }
-}
-
-template <typename T, typename VariantType, size_t i = 0>
-constexpr T& unchecked_get(VariantType& variant) {
-  static_assert(i < std::variant_size_v<VariantType>,
-                "Type not found in variant");
-  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
-    auto* v = std::get_if<T>(&variant);
-    PERFETTO_ASSUME(v);
-    return *v;
-  } else {
-    return unchecked_get<T, VariantType, i + 1>(variant);
-  }
-}
-
-template <typename T, typename VariantType, size_t i = 0>
-constexpr const T& unchecked_get(const VariantType& variant) {
-  static_assert(i < std::variant_size_v<VariantType>,
-                "Type not found in variant");
-  if constexpr (std::is_same_v<std::variant_alternative_t<i, VariantType>, T>) {
-    const auto* v = std::get_if<T>(&variant);
-    PERFETTO_ASSUME(v != nullptr);
-    return *v;
-  } else {
-    return unchecked_get<T, VariantType, i + 1>(variant);
-  }
-}
-
 }  // namespace perfetto::base
 
 #endif  // INCLUDE_PERFETTO_BASE_COMPILER_H_

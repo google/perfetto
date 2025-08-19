@@ -284,13 +284,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: 'CPM Counters',
   },
   {
-    type: 'power_rails',
-    group: 'Power Rails',
-    topLevelGroup: 'POWER',
-    shareYAxis: true,
-    mode: 'rate',
-  },
-  {
     type: 'proc_stat_runtime',
     topLevelGroup: 'PROCESS',
     group: undefined,

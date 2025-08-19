@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import {SortDirection} from '../base/comparison_utils';
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
 import {Engine} from './engine';
-import {NUM, SqlValue} from './query_result';
+import {SqlValue} from './query_result';
 
 export interface OrderClause {
   fieldName: string;
@@ -39,15 +39,6 @@ export interface SQLConstraints {
 
 function isDefined<T>(t: T | undefined): t is T {
   return t !== undefined;
-}
-
-export function constraintsToQueryPrefix(c: SQLConstraints): string {
-  const ctes = Object.entries(c.commonTableExpressions ?? {}).filter(
-    ([_, value]) => isDefined(value),
-  );
-  if (ctes.length === 0) return '';
-  const cteStatements = ctes.map(([name, query]) => `${name} AS (${query})`);
-  return `WITH ${cteStatements.join(',\n')}`;
 }
 
 // Formatting given constraints into a string which can be injected into
@@ -133,143 +124,187 @@ export function sqlValueToSqliteString(
   return `${val}`;
 }
 
-// Return a SQL predicate that can be used to compare with the given `value`,
-// correctly handling NULLs.
-export function matchesSqlValue(value: SqlValue): string {
-  if (value === null) {
-    return 'IS NULL';
-  }
-  return `= ${sqlValueToSqliteString(value)}`;
+function makeTempName(): string {
+  // Generate a temporary name for a sql entity, which is guaranteed to be unique
+  // within the current trace.
+  return `__temp_${Math.random().toString(36).substring(2, 15)}`;
 }
-
-export async function getTableRowCount(
-  engine: Engine,
-  tableName: string,
-): Promise<number | undefined> {
-  const result = await engine.query(
-    `SELECT COUNT() as count FROM ${tableName}`,
-  );
-  if (result.numRows() === 0) {
-    return undefined;
-  }
-  return result.firstRow({
-    count: NUM,
-  }).count;
-}
-
-export {SqlValue};
 
 /**
- * Asynchronously creates a 'perfetto' table using the given engine and returns
- * an disposable object to handle its cleanup.
+ * Represents a disposable SQL entity, like a table or view.
+ * In addition to being async disposable, it also has a name.
+ */
+export interface DisposableSqlEntity extends AsyncDisposable {
+  readonly name: string;
+}
+
+async function createDisposableSqlEntity(
+  engine: Engine,
+  name: string,
+  entityType: 'TABLE' | 'VIEW' | 'INDEX',
+): Promise<DisposableSqlEntity> {
+  return {
+    name,
+    [Symbol.asyncDispose]: async () => {
+      await engine.tryQuery(`DROP ${entityType} IF EXISTS ${name}`);
+    },
+  };
+}
+
+type CreateTableArgs = {
+  readonly engine: Engine;
+  readonly as: string;
+  readonly name?: string;
+};
+
+/**
+ * Asynchronously creates a "perfetto" SQL table using the given engine and
+ * returns a disposable object to handle its cleanup.
  *
- * @param engine - The database engine to execute the query.
- * @param tableName - The name of the table to be created.
- * @param expression - The SQL expression to define the table.
+ * @param args The arguments for creating the table.
+ * @param args.engine The database engine to execute the query.
+ * @param args.as The SQL expression to define the table.
+ * @param args.name The name of the table to be created.
  * @returns An AsyncDisposable which drops the created table when disposed.
- *
- * @example
- * const engine = new Engine();
- * const tableName = 'my_perfetto_table';
- * const expression = 'SELECT * FROM source_table';
- *
- * const table = await createPerfettoTable(engine, tableName, expression);
- *
- * // Use the table...
- *
- * // Cleanup the table when done
- * await table[Symbol.asyncDispose]();
  */
 export async function createPerfettoTable(
-  engine: Engine,
-  tableName: string,
-  expression: string,
-): Promise<AsyncDisposable> {
-  await engine.query(`CREATE PERFETTO TABLE ${tableName} AS ${expression}`);
-  return {
-    [Symbol.asyncDispose]: async () => {
-      await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
-    },
-  };
+  args: CreateTableArgs,
+): Promise<DisposableSqlEntity> {
+  const {engine, as, name = makeTempName()} = args;
+  await engine.query(`CREATE PERFETTO TABLE ${name} AS ${as}`);
+  return createDisposableSqlEntity(engine, name, 'TABLE');
 }
 
 /**
- * Asynchronously creates a SQL view using the given engine and returns an
- * disposable object to handle its cleanup.
+ * Asynchronously creates a standard SQL table using the given engine and
+ * returns a disposable object to handle its cleanup.
  *
- * @param engine - The database engine to execute the query.
- * @param viewName - The name of the view to be created.
- * @param as - The SQL expression to define the table.
+ * @param args The arguments for creating the table.
+ * @param args.engine The database engine to execute the query.
+ * @param args.as The SQL expression to define the table.
+ * @param args.name The name of the table to be created.
  * @returns An AsyncDisposable which drops the created table when disposed.
+ */
+export async function createTable(
+  args: CreateTableArgs,
+): Promise<DisposableSqlEntity> {
+  const {engine, as, name = makeTempName()} = args;
+  await engine.query(`CREATE TABLE ${name} AS ${as}`);
+  return createDisposableSqlEntity(engine, name, 'TABLE');
+}
+
+type CreateViewArgs = {
+  readonly engine: Engine;
+  readonly as: string;
+  readonly name?: string;
+};
+
+/**
+ * Asynchronously creates a "perfetto" SQL view using the given engine and
+ * returns a disposable object to handle its cleanup.
  *
- * @example
- * const engine = new Engine();
- * const viewName = 'my_view';
- * const expression = 'SELECT * FROM source_table';
+ * @param args The arguments for creating the view.
+ * @param args.engine The database engine to execute the query.
+ * @param args.as The SQL expression to define the view.
+ * @param args.name The name of the view to be created.
+ * @returns An AsyncDisposable which drops the created view when disposed.
+ */
+export async function createPerfettoView(
+  args: CreateViewArgs,
+): Promise<DisposableSqlEntity> {
+  const {engine, as, name = makeTempName()} = args;
+  await engine.query(`CREATE PERFETTO VIEW ${name} AS ${as}`);
+  return createDisposableSqlEntity(engine, name, 'VIEW');
+}
+
+/**
+ * Asynchronously creates a standard SQL view using the given engine and
+ * returns a disposable object to handle its cleanup.
  *
- * const view = await createView(engine, viewName, expression);
- *
- * // Use the view...
- *
- * // Cleanup the view when done
- * await view[Symbol.asyncDispose]();
+ * @param args The arguments for creating the view.
+ * @param args.engine The database engine to execute the query.
+ * @param args.as The SQL expression to define the view.
+ * @param args.name The name of the view to be created.
+ * @returns An AsyncDisposable which drops the created view when disposed.
  */
 export async function createView(
-  engine: Engine,
-  viewName: string,
-  as: string,
-): Promise<AsyncDisposable> {
-  await engine.query(`CREATE VIEW ${viewName} AS ${as}`);
-  return {
-    [Symbol.asyncDispose]: async () => {
-      await engine.tryQuery(`DROP VIEW IF EXISTS ${viewName}`);
-    },
-  };
+  args: CreateViewArgs,
+): Promise<DisposableSqlEntity> {
+  const {engine, as, name = makeTempName()} = args;
+  await engine.query(`CREATE VIEW ${name} AS ${as}`);
+  return createDisposableSqlEntity(engine, name, 'VIEW');
 }
 
-export async function createVirtualTable(
-  engine: Engine,
-  tableName: string,
-  using: string,
-): Promise<AsyncDisposable> {
-  await engine.query(`CREATE VIRTUAL TABLE ${tableName} USING ${using}`);
-  return {
-    [Symbol.asyncDispose]: async () => {
-      await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
-    },
-  };
+type CreateIndexArgs = {
+  readonly engine: Engine;
+  readonly on: string;
+  readonly name?: string;
+};
+
+/**
+ * Asynchronously creates a "perfetto" SQL index using the given engine and
+ * returns a disposable object to handle its cleanup.
+ *
+ * @param args The arguments for creating the index.
+ * @param args.engine The database engine to execute the query.
+ * @param args.on The table and columns to create the index on.
+ * @param args.name The name of the index to be created.
+ * @returns An AsyncDisposable which drops the created index when disposed.
+ */
+export async function createPerfettoIndex(
+  args: CreateIndexArgs,
+): Promise<DisposableSqlEntity> {
+  const {engine, on, name = makeTempName()} = args;
+  await engine.query(`CREATE PERFETTO INDEX ${name} ON ${on}`);
+  return createDisposableSqlEntity(engine, name, 'INDEX');
 }
 
 /**
- * Asynchronously creates a 'perfetto' index using the given engine and returns
- * an disposable object to handle its cleanup.
+ * Asynchronously creates a standard SQL index using the given engine and
+ * returns a disposable object to handle its cleanup.
  *
- * @param engine - The database engine to execute the query.
- * @param indexName - The name of the index to be created.
- * @param expression - The SQL expression containing the table and columns.
+ * @param args The arguments for creating the index.
+ * @param args.engine The database engine to execute the query.
+ * @param args.on The table and columns to create the index on.
+ * @param args.name The name of the index to be created.
+ * @returns An AsyncDisposable which drops the created index when disposed.
+ */
+export async function createIndex(
+  args: CreateIndexArgs,
+): Promise<DisposableSqlEntity> {
+  const {engine, on, name = makeTempName()} = args;
+  await engine.query(`CREATE INDEX ${name} ON ${on}`);
+  return createDisposableSqlEntity(engine, name, 'INDEX');
+}
+
+/**
+ * Asynchronously creates a virtual SQL table using the given engine and returns
+ * a disposable object to handle its cleanup.
+ *
+ * @param args The arguments for creating the virtual table.
+ * @param args.engine The database engine to execute the query.
+ * @param args.using The module to use for the virtual table.
+ * @param args.name The name of the table to be created.
  * @returns An AsyncDisposable which drops the created table when disposed.
  *
  * @example
- * const engine = new Engine();
- * const indexName = 'my_perfetto_index';
- * const expression = 'my_perfetto_table(foo)';
- *
- * const index = await createPerfettoIndex(engine, indexName, expression);
- *
- * // Use the index...
- *
- * // Cleanup the index when done
- * await index[Symbol.asyncDispose]();
+ * await using table = await createVirtualTable({
+ *   engine,
+ *   name: 'my_virtual_table',
+ *   using: 'some_module',
+ * });
  */
-export async function createPerfettoIndex(
-  engine: Engine,
-  indexName: string,
-  expression: string,
-): Promise<AsyncDisposable> {
-  await engine.query(`create perfetto index ${indexName} on ${expression}`);
+export async function createVirtualTable(args: {
+  readonly engine: Engine;
+  readonly name?: string;
+  readonly using: string;
+}): Promise<DisposableSqlEntity> {
+  const {engine, using, name = makeTempName()} = args;
+  await engine.query(`CREATE VIRTUAL TABLE ${name} USING ${using}`);
   return {
+    name,
     [Symbol.asyncDispose]: async () => {
-      await engine.tryQuery(`drop perfetto index ${indexName}`);
+      await engine.tryQuery(`DROP TABLE IF EXISTS ${name}`);
     },
   };
 }

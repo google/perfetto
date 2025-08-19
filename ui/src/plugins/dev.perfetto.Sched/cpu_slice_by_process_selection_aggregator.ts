@@ -12,49 +12,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {
+  Aggregation,
+  Aggregator,
+  createIITable,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {Dataset} from '../../trace_processor/dataset';
+import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 
-export class CpuSliceByProcessSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class CpuSliceByProcessSelectionAggregator implements Aggregator {
   readonly id = 'cpu_by_process_aggregation';
-  readonly trackKind = CPU_SLICE_TRACK_KIND;
-  readonly schema = {
-    dur: LONG,
-    ts: LONG,
-    utid: NUM,
-  } as const;
 
-  async createAggregateView(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ) {
-    if (!dataset) return false;
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(
+      area.tracks,
+      {
+        id: NUM,
+        dur: LONG,
+        ts: LONG,
+        utid: NUM,
+      },
+      CPU_SLICE_TRACK_KIND,
+    );
 
-    await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        process.name as process_name,
-        process.pid,
-        sum(dur) AS total_dur,
-        sum(dur) / count() as avg_dur,
-        count() as occurrences
-      from (${dataset.query()})
-      join thread USING (utid)
-      join process USING (upid)
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
-      group by upid
-    `);
-    return true;
+    if (!dataset) return undefined;
+
+    return {
+      prepareData: async (engine: Engine) => {
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
+        await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            process.name as process_name,
+            process.pid,
+            sum(dur) AS total_dur,
+            sum(dur) / count() as avg_dur,
+            count() as occurrences
+          from (${iiTable.name})
+          join thread USING (utid)
+          join process USING (upid)
+          group by upid
+        `);
+
+        return {
+          tableName: this.id,
+        };
+      },
+    };
   }
 
   getTabName() {
@@ -69,33 +82,25 @@ export class CpuSliceByProcessSelectionAggregator
     return [
       {
         title: 'Process',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'process_name',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'pid',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'occurrences',
         sum: true,
       },

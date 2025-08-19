@@ -33,7 +33,6 @@ source_set("archive") {
     "../../storage",
     "../../tables:tables_python",
     "../../types",
-    "../../util",
     "../../util:gzip",
     "../../util:trace_blob_view_reader",
     "../../util:trace_type",

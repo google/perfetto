@@ -17,10 +17,11 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/json/json_parser.h"
@@ -35,6 +36,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -43,6 +45,40 @@
 #endif
 
 namespace perfetto::trace_processor::json {
+
+namespace {
+
+void InsertLeaf(TraceStorage* storage,
+                ArgsTracker::BoundInserter* inserter,
+                const JsonValue& value,
+                std::string_view flat_key,
+                std::string_view key) {
+  StringPool::Id flat_key_id = storage->InternString(flat_key);
+  StringPool::Id key_id = storage->InternString(key);
+  switch (value.index()) {
+    case base::variant_index<json::JsonValue, double>():
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::Real(base::unchecked_get<double>(value)));
+      break;
+    case base::variant_index<json::JsonValue, int64_t>():
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::Integer(base::unchecked_get<int64_t>(value)));
+      break;
+    case base::variant_index<json::JsonValue, std::string_view>():
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::String(storage->InternString(
+                           base::unchecked_get<std::string_view>(value))));
+      break;
+    case base::variant_index<json::JsonValue, bool>():
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::Boolean(base::unchecked_get<bool>(value)));
+      break;
+    default:
+      PERFETTO_FATAL("Unreachable");
+  }
+}
+
+}  // namespace
 
 std::optional<Json::Value> ParseJsonString(base::StringView raw_string) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -69,6 +105,18 @@ bool AddJsonValueToArgs(Iterator& it,
                         ArgsTracker::BoundInserter* inserter) {
   it.Reset(start, end);
   if (!it.ParseStart()) {
+    JsonValue value;
+    std::string unescaped_str;
+    base::Status status;
+    if (ParseValue(start, end, value, unescaped_str, status) !=
+        ReturnCode::kOk) {
+      return false;
+    }
+    // This should never happen: the iterator should have been able to parse
+    // this if it was a valid JSON value.
+    PERFETTO_CHECK(!std::holds_alternative<Object>(value) &&
+                   !std::holds_alternative<Array>(value));
+    InsertLeaf(storage, inserter, value, flat_key, key);
     return false;
   }
   struct Frame {
@@ -138,33 +186,7 @@ bool AddJsonValueToArgs(Iterator& it,
     // Only for leaf values we actually insert into the args table.
     frame.inserted = true;
 
-    StringPool::Id flat_key_id = storage->InternString(flat_key_str);
-    StringPool::Id key_id = storage->InternString(key_str);
-    switch (it.value().index()) {
-      case base::variant_index<json::JsonValue, double>():
-        inserter->AddArg(
-            flat_key_id, key_id,
-            Variadic::Real(base::unchecked_get<double>(it.value())));
-        break;
-      case base::variant_index<json::JsonValue, int64_t>():
-        inserter->AddArg(
-            flat_key_id, key_id,
-            Variadic::Integer(base::unchecked_get<int64_t>(it.value())));
-        break;
-      case base::variant_index<json::JsonValue, std::string_view>():
-        inserter->AddArg(
-            flat_key_id, key_id,
-            Variadic::String(storage->InternString(
-                base::unchecked_get<std::string_view>(it.value()))));
-        break;
-      case base::variant_index<json::JsonValue, bool>():
-        inserter->AddArg(
-            flat_key_id, key_id,
-            Variadic::Boolean(base::unchecked_get<bool>(it.value())));
-        break;
-      default:
-        PERFETTO_FATAL("Unreachable");
-    }
+    InsertLeaf(storage, inserter, it.value(), flat_key_str, key_str);
   }
 }
 

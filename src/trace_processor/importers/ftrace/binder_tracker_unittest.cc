@@ -41,7 +41,6 @@ class BinderTrackerTest : public ::testing::Test {
     context.storage.reset(new TraceStorage());
     context.global_args_tracker.reset(
         new GlobalArgsTracker(context.storage.get()));
-    context.args_tracker.reset(new ArgsTracker(&context));
     context.args_translation_table.reset(
         new ArgsTranslationTable(context.storage.get()));
     context.slice_tracker.reset(new SliceTracker(&context));
@@ -58,7 +57,7 @@ class BinderTrackerTest : public ::testing::Test {
     const auto& track = context.storage->track_table();
     const auto& slice = context.storage->slice_table();
     auto rr = track.FindById(slice[row].track_id());
-    return thread[*rr->utid()].tid();
+    return static_cast<uint32_t>(thread[*rr->utid()].tid());
   }
 
  protected:

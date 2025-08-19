@@ -21,12 +21,12 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto ::trace_processor {
 
@@ -44,19 +44,22 @@ TraceBlobView Append(const TraceBlobView& head, const TraceBlobView& tail) {
 }
 
 struct SpliceResult {
-  // Full line including '\n'. Empty if no full line was found.
+  // Full line including '\n'.
   TraceBlobView line;
   // Any leftovers
   TraceBlobView leftovers;
+  // True if a complete line was found (even if it's empty)
+  bool found_line;
 };
 
 SpliceResult SpliceAtNewLine(TraceBlobView data) {
   for (size_t i = 0; i < data.size(); ++i) {
     if (data.data()[i] == '\n') {
-      return {data.slice_off(0, i), data.slice_off(i + 1, data.size() - i - 1)};
+      return {data.slice_off(0, i), data.slice_off(i + 1, data.size() - i - 1),
+              true};
     }
   }
-  return {TraceBlobView(), std::move(data)};
+  return {TraceBlobView(), std::move(data), false};
 }
 }  // namespace
 
@@ -69,7 +72,7 @@ base::StatusOr<TraceBlobView> ChunkedLineReader::SpliceLoop(
     TraceBlobView data) {
   while (true) {
     SpliceResult res = SpliceAtNewLine(std::move(data));
-    if (res.line.size() == 0) {
+    if (!res.found_line) {
       return std::move(res.leftovers);
     }
     RETURN_IF_ERROR(OnLine(res.line));
@@ -88,7 +91,7 @@ base::Status ChunkedLineReader::Parse(TraceBlobView data) {
   }
 
   SpliceResult res = SpliceAtNewLine(std::move(data));
-  if (res.line.size() == 0) {
+  if (!res.found_line) {
     buffer_ = Append(buffer_, res.leftovers);
     return base::OkStatus();
   }

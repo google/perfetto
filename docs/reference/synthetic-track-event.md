@@ -1,772 +1,822 @@
-# Writing synthetic traces using TrackEvent protobufs
+# Advanced Guide to Programmatic Trace Generation
 
-This page acts as a reference guide to synthetically generate TrackEvent,
-Perfetto's native protobuf based tracing format. This allows using Perfetto's
-analysis and visualization without collecting traces using the Perfetto SDK.
+This page serves as an advanced reference for programmatically creating Perfetto
+trace files. It builds upon the foundational concepts and examples presented in
+"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)".
 
-TrackEvent protos can be written using the [official protobuf
-library](https://protobuf.dev/reference/) or any other protobuf-compatible
-library. To be language-agnostic, the rest of this page will show examples using
-the [text format](https://protobuf.dev/reference/protobuf/textformat-spec/)
-representation of protobufs.
+We assume you are familiar with:
 
-The root container of the protobuf-based traces is the
-[Trace](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace.proto)
-message, which is simply a repeated field of
+- The basic structure of Perfetto traces (a `Trace` message containing a stream
+  of `TracePacket` messages).
+- Using the `TrackEvent` payload within `TracePacket` to create custom tracks
+  with various types of slices (simple, nested, asynchronous), counters, and
+  flows.
+- The Python script template (`trace_converter_template.py`) for generating
+  traces, and that the Python examples provided here are intended to be used
+  within its `populate_packets(builder)` function.
+
+This guide will currently focus on advanced `TrackEvent` features, such as:
+
+- Associating your timeline data with operating system (OS) processes and
+  threads for richer integration.
+- Explicit track sorting and data interning for optimizing trace size and
+  detail.
+
+While `TrackEvent` is a primary method for representing timeline data,
+`TracePacket` is a versatile container. In the future, this guide may expand to
+cover other `TracePacket` payloads useful for synthetic trace generation.
+
+The examples will continue to use Python, but the principles apply to any
+language with Protocol Buffer support. For complete definitions of all available
+fields, always refer to the official Perfetto protobuf sources, particularly
 [TracePacket](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace_packet.proto)
-messages. The submessage used for synthetic traces is the
-[TrackEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/track_event.proto?q=class:TrackEvent).
+and its various sub-messages, including
+[TrackEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/track_event.proto).
 
-To tinker with the textproto examples below, you can build or install `protoc`
-and invoke it as following from a perfetto checkout (but to reiterate, a tracing
-tool should write binary protos directly):
-```bash
-protoc --encode=perfetto.protos.Trace protos/perfetto/trace/perfetto_trace.proto < /tmp/input.txtpb > /tmp/output.pftrace
+## Associating Tracks with Operating System Concepts
+
+While the
+"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)"
+guide demonstrated creating generic custom tracks, you can provide more specific
+context to Perfetto by associating your tracks with operating system (OS)
+processes and threads. This allows Perfetto's UI and analysis tools to offer
+richer integration and better correlation with other system-wide data.
+
+### Associating Tracks with Processes
+
+You can create a top-level track that represents an OS process. Any other custom
+tracks (which might contain slices or counters) can then be parented to this
+process track. This helps in:
+
+- **UI Grouping:** Your custom tracks will appear under the specified process
+  name and PID in the Perfetto UI, alongside any other data collected for that
+  process (e.g., CPU scheduling, memory counters).
+- **Correlation:** Events on your custom tracks can be more easily correlated
+  with system-level activity related to that process.
+- **Clear Identification:** Explicitly naming the process and providing its PID
+  makes it unambiguous which process your custom data pertains to.
+
+To define a process track, you populate the `process` field within its
+`TrackDescriptor`. At a minimum, you should provide a `pid` and ideally a
+`process_name`.
+
+It is also recommended to add a `timestamp` to the `TracePacket` containing the
+process's `TrackDescriptor`. This is especially important when the trace
+contains data from other sources (e.g. scheduling information from the kernel).
+Unlike with "global" tracks, these track types may interact with other data
+sources and as such having a timestamp makes sure that Trace Processor can
+accurately sort the descriptor into the right place.
+
+#### Python Example
+
+Let's say you want to emit a custom counter (e.g. "Active DB Connections") and
+have it appear under a specific process named "MyDatabaseService" with PID 1234.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 8008
+
+    # --- Define OS Process ---
+    PROCESS_ID = 1234
+    PROCESS_NAME = "MyDatabaseService"
+
+    # Define a UUID for the process track
+    process_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # 1. Define the Process Track
+    # This packet establishes "MyDatabaseService (1234)" in the trace.
+    packet = builder.add_packet()
+    # It's good practice to timestamp the descriptor to be before the first
+    # event.
+    packet.timestamp = 9999
+    desc = packet.track_descriptor
+    desc.uuid = process_track_uuid
+    desc.process.pid = PROCESS_ID
+    desc.process.process_name = PROCESS_NAME
+    # This track itself usually doesn't have events, it serves as a parent.
+
+    # --- Define a Custom Counter Track parented to the Process ---
+    db_connections_counter_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = db_connections_counter_track_uuid
+    desc.parent_uuid = process_track_uuid # Link to the process track
+    desc.name = "Active DB Connections"
+    # Mark this track as a counter track
+    desc.counter.unit_name = "connections" # Optional: specify units
+
+    # Helper to add a counter event
+    def add_counter_event(ts, value, counter_track_uuid):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = TrackEvent.TYPE_COUNTER
+        packet.track_event.track_uuid = counter_track_uuid
+        packet.track_event.counter_value = value
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 3. Emit counter values on the custom counter track
+    add_counter_event(ts=10000, value=5, counter_track_uuid=db_connections_counter_track_uuid)
+    add_counter_event(ts=10100, value=7, counter_track_uuid=db_connections_counter_track_uuid)
+    add_counter_event(ts=10200, value=6, counter_track_uuid=db_connections_counter_track_uuid)
 ```
 
-## Thread-scoped (sync) slices
+</details>
 
-NOTE: in the [legacy JSON tracing format](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview),
-this section correspond to B/E/I/X events with the associated M (metadata)
-events.
+![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
 
-Thread scoped slices are used to trace execution of functions on a single
-thread. As only one function runs on a single thread over time, this requires
-that child slices nest perfectly inside parent slices and do not partially
-overlap.
+Once you have defined a process track, you can parent various other kinds of
+tracks to it. This includes tracks for specific threads within that process (see
+next section), as well as custom tracks for process-wide counters (as shown
+above) or groups of asynchronous operations related to this process (using the
+techniques for asynchronous slices described in the
+"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)"
+guide).
 
-![Thread track event in UI](/docs/images/synthetic-track-event-thread.png)
+### Associating Tracks with Threads
 
-This corresponds to the following protos:
+You can create tracks that are explicitly associated with specific threads
+within an OS process. This is the most common way to represent thread-specific
+activity, such as function call stacks or thread-local counters.
 
-```
-# Emit this packet once *before* you emit the first event for this process.
-packet {
-  track_descriptor: {
-    uuid: 894893984                     # 64-bit random number.
-    process: {
-      pid: 1234                         # PID for your process.
-      process_name: "My process name"
-    }
-  }
-}
+**Benefits:**
 
-# Emit this packet once *before* you emit the first event for this thread.
-packet {
-  track_descriptor: {
-    uuid: 49083589894                   # 64-bit random number.
-    thread: {
-      pid: 1234                         # PID for your process.
-      tid: 5678                         # TID for your thread.
-      thread_name: "My thread name"
-    }
-  }
-}
+- **Correct UI Placement:** When a thread track's `pid` and `tid` are specified
+  in its `TrackDescriptor`, the Perfetto UI typically groups it under the
+  corresponding process (identified by that `pid`). This helps organize the
+  trace.
+- **Correlation with System Data:** Perfetto can automatically correlate events
+  on your thread track with system-level data for that thread, such as CPU
+  scheduling slices.
+- **Clear Naming:** You can provide a human-readable name for your thread.
 
-# The events for this thread.
-packet {
-  timestamp: 200
-  track_event: {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 49083589894             # Same random number from above.
-    name: "My special parent"
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
-}
-packet {
-  timestamp: 250
-  track_event: {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 49083589894
-    name: "My special child"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 285
-  track_event {
-    type: TYPE_INSTANT
-    track_uuid: 49083589894
-    name: "My instantaneous event"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 290
-  track_event: {
-    type: TYPE_SLICE_END
-    track_uuid: 49083589894
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 300
-  track_event: {
-    type: TYPE_SLICE_END
-    track_uuid: 49083589894
-  }
-  trusted_packet_sequence_id: 3903809
-}
-```
+To define a thread track:
 
-## Process-scoped (async) slices
+1.  Create a `TrackDescriptor` for the thread.
+2.  Populate its `thread` field, providing the `pid` of the process this thread
+    belongs to and the unique `tid` of the thread. You should also set
+    `thread_name`.
+3.  Optionally and encouraged, you can also define a separate `TrackDescriptor`
+    for the parent process itself (using its `process` field and `pid`), though
+    it's not strictly required for the thread track to be recognized _as a
+    thread of that PID_. The UI often infers process groupings from PIDs present
+    in thread tracks.
 
-NOTE: in the legacy JSON tracing format, this section corresponds to b/e/n
-events with the associated M (metadata) events.
+Similarly to process tracks, it is also recommended to add a `timestamp` to the
+`TracePacket` containing the thread's `TrackDescriptor`. This is especially
+important when the trace contains data from other sources (e.g. scheduling
+information from the kernel). Unlike with "global" tracks, these track types may
+interact with other data sources and as such having a timestamp makes sure that
+Trace Processor can accurately sort the descriptor into the right place.
 
-Process-scoped slices are useful to trace execution of a "piece of work" across
-multiple threads of a process. A process-scoped slice can start on a thread A
-and end on a thread B. Examples include work submitted to thread pools and
-coroutines.
+**Python Example: Thread-Specific Slices**
 
-Process tracks can be named corresponding to the executor and can also have
-child slices in an identical way to thread-scoped slices. Importantly, this
-means slices on a single track must **strictly nest** inside each other without
-overlapping.
+This example defines a thread "MainWorkLoop" (TID 5678) belonging to process
+"MyApplication" (PID 1234). It then emits a couple of slices directly onto this
+thread's track. We also define a track for the process itself for clarity,
+though the thread track's association is primarily through its `pid` and `tid`
+fields.
 
-As separating each track in the UI can cause a lot of clutter, the UI visually
-merges process tracks with the same name in each process. Note that this **does
-not** change the data model (e.g. in trace processor tracks remain separated) as
-this is simply a visual grouping.
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
 
-![Process track event in UI](/docs/images/synthetic-track-event-process.png)
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
 
-This is corresponds to the following protos:
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 8009
 
-```
-# The first track associated with this process.
-packet {
-  track_descriptor {
-    uuid: 48948                         # 64-bit random number.
-    name: "My special track"
-    process {
-      pid: 1234                         # PID for your process
-      process_name: "My process name"
-    }
-  }
-}
-# The events for the first track.
-packet {
-  timestamp: 200
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 48948                   # Same random number from above.
-    name: "My special parent A"
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
-}
-packet {
-  timestamp: 250
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 48948
-    name: "My special child"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 290
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 48948
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 300
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 48948
-  }
-  trusted_packet_sequence_id: 3903809
-}
+    # --- Define OS Process and Thread IDs and Names ---
+    APP_PROCESS_ID = 1234
+    APP_PROCESS_NAME = "MyApplication"
+    MAIN_THREAD_ID = 5678
+    MAIN_THREAD_NAME = "MainWorkLoop"
 
-# The second track associated with this process. Note how we make the above
-# track the "parent" of this track: this means that this track also is
-# associated to the same process. Note further this shows as the same visual
-# track in the UI but remains separate in the trace and data model. Emitting
-# these events on a separate track is necessary because these events overlap
-# *without* nesting with the above events.
-packet {
-  track_descriptor {
-      uuid: 2390190934                  # 64-bit random number.
-      name: "My special track"
-      parent_uuid: 48948
-  }
-}
-# The events for the second track.
-packet {
-  timestamp: 230
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 2390190934              # Same random number from above.
-    name: "My special parent A"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 260
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 2390190934
-    name: "My special child"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 270
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 2390190934
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 295
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 2390190934
-  }
-  trusted_packet_sequence_id: 3903809
-}
+    # --- Define UUIDs for the tracks ---
+    # While not strictly necessary to parent a thread track to a process track
+    # for the UI to group them by PID, defining a process track can be good practice
+    # if you want to name the process explicitly or attach process-scoped tracks later.
+    app_process_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    main_thread_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # 1. Define the Process Track (Optional, but good for naming the process)
+    packet = builder.add_packet()
+    packet.timestamp = 14998
+    desc = packet.track_descriptor
+    desc.uuid = app_process_track_uuid
+    desc.process.pid = APP_PROCESS_ID
+    desc.process.process_name = APP_PROCESS_NAME
+
+    # 2. Define the Thread Track
+    # The .thread.pid field associates it with the process.
+    # No parent_uuid is set here; UI will group by PID.
+    packet = builder.add_packet()
+    packet.timestamp = 14999
+    desc = packet.track_descriptor
+    desc.uuid = main_thread_track_uuid
+    # desc.parent_uuid = app_process_track_uuid # This line is NOT used
+    desc.thread.pid = APP_PROCESS_ID
+    desc.thread.tid = MAIN_THREAD_ID
+    desc.thread.thread_name = MAIN_THREAD_NAME
+
+    # Helper to add a slice event to a specific track
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 3. Emit slices on the main_thread_track_uuid
+    add_slice_event(ts=15000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=main_thread_track_uuid, name="ProcessInputEvent")
+    # Nested slice
+    add_slice_event(ts=15050, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=main_thread_track_uuid, name="UpdateState")
+    add_slice_event(ts=15150, event_type=TrackEvent.TYPE_SLICE_END, # Ends UpdateState
+                    event_track_uuid=main_thread_track_uuid)
+    add_slice_event(ts=15200, event_type=TrackEvent.TYPE_SLICE_END, # Ends ProcessInputEvent
+                    event_track_uuid=main_thread_track_uuid)
+
+    add_slice_event(ts=16000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=main_thread_track_uuid, name="RenderFrame")
+    add_slice_event(ts=16500, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=main_thread_track_uuid)
 ```
 
-## Custom-scoped slices
+</details>
 
-NOTE: there is no equivalent in the JSON tracing format.
+![Associating Tracks with Threads](/docs/images/synthetic-track-event-thread-slice.png)
 
-As well as thread-scoped and process-scoped slices, Perfetto supports creating
-tracks which are not scoped to any OS-level concept. Moreover, these tracks can
-be recursively nested in a tree structure. This is useful to model the timeline
-of execution of GPUs, network traffic, IRQs etc.
+## Advanced Track Customization
 
-Note: in the past, modelling such slices may have been done by abusing
-processes/threads slices, due to limitations with the data model and the
-Perfetto UI. Those workarounds are no longer necessary, and are _strongly_
-discouraged.
+Beyond associating tracks with OS concepts, Perfetto offers ways to fine-tune
+how your tracks are presented and how data is encoded.
 
-![Process track event in UI](/docs/images/synthetic-track-event-custom-tree.png)
+### Controlling Track Sorting Order
 
-This is corresponds to the following protos:
+By default, the Perfetto UI applies its own heuristics to sort tracks (e.g.,
+alphabetically by name, or by track UUID). However, for complex custom traces,
+you might want to explicitly define the order in which sibling tracks appear
+under a parent. This is achieved using the `child_ordering` field on the parent
+`TrackDescriptor` and, for `EXPLICIT` ordering, the `sibling_order_rank` on the
+child `TrackDescriptor`s.
 
-```
-packet {
-  track_descriptor {
-    uuid: 48948                         # 64-bit random number.
-    name: "Root"
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 50001                         # 64-bit random number.
-    parent_uuid: 48948                  # UUID of root track.
-    name: "Parent B"
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 50000                         # 64-bit random number.
-    parent_uuid: 48948                  # UUID of root track.
-    name: "Parent A"
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 60000                         # 64-bit random number.
-    parent_uuid: 50000                  # UUID of Parent A track.
-    name: "Child A1"
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 60001                         # 64-bit random number.
-    parent_uuid: 50000                  # UUID of Parent A track.
-    name: "Child A2"
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 70000                         # 64-bit random number.
-    parent_uuid: 50001                  # UUID of Parent B track.
-    name: "Child B1"
-  }
-}
+This `child_ordering` setting on a parent track only affects its direct
+children.
 
-# The events for the Child A1 track.
-packet {
-  timestamp: 200
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 60000                   # Same random number from above.
-    name: "A1"
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
-}
-packet {
-  timestamp: 250
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 60000
-  }
-  trusted_packet_sequence_id: 3903809
-}
+Available `child_ordering` modes (defined in
+`TrackDescriptor.ChildTracksOrdering`):
 
-# The events for the Child A2 track.
-packet {
-  timestamp: 220
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 60001                   # Same random number from above.
-    name: "A2"
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
-}
-packet {
-  timestamp: 240
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 60001
-  }
-  trusted_packet_sequence_id: 3903809
-}
+- `ORDERING_UNSPECIFIED`: The default. The UI will use its own heuristics.
+- `LEXICOGRAPHIC`: Child tracks are sorted alphabetically by their `name`.
+- `CHRONOLOGICAL`: Child tracks are sorted based on the timestamp of the
+  earliest `TrackEvent` that occurs on each of them. Tracks with earlier events
+  appear first.
+- `EXPLICIT`: Child tracks are sorted based on the `sibling_order_rank` field
+  set in their respective `TrackDescriptor`s. Lower ranks appear first. If ranks
+  are equal, or if `sibling_order_rank` is not set, the tie-breaking order is
+  undefined.
 
-# The events for the Child B1 track.
-packet {
-  timestamp: 210
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 70000                   # Same random number from above.
-    name: "B1"
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
-}
-packet {
-  timestamp: 230
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 70000
-  }
-  trusted_packet_sequence_id: 3903809
-}
-```
+**Note:** The UI treats these as strong hints. While it generally respects these
+orderings, there are contexts in which the UI reserves the right _not_ to show
+them in this order; generally this would be if the user explicitly requested
+this or if the UI has some special handling for these tracks.
 
-## Track sorting order
+**Python Example: Demonstrating All Sorting Types**
 
-NOTE: the closest equivalent to this in the JSON format is `process_sort_index`
-but the Perfetto approach is significantly more flexible.
+This example defines three parent tracks, each demonstrating a different
+`child_ordering` mode.
 
-Perfetto also supports specifying of how the tracks should be visualized in the
-UI by default. This is done via the use of the `child_ordering` field which can
-be set on `TrackDescriptor`.
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
 
-For example, to sort the tracks lexicographically (i.e. in alphabetical order):
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
 
-```
-packet {
-  track_descriptor {
-    uuid: 10
-    name: "Root"
-    # Any children of the `Root` track will appear in alphabetical order. This
-    # does *not* propogate to any indirect descendants, just the direct
-    # children.
-    child_ordering: LEXICOGRAPHIC
-  }
-}
-# B will appear nested under `Root` but *after* `A` in the UI, even though it
-# appears first in the trace and has a smaller UUID.
-packet {
-  track_descriptor {
-    uuid: 11
-    parent_uuid: 10
-    name: "B"
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 12
-    parent_uuid: 10
-    name: "A"
-  }
-}
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9000
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name, parent_track_uuid=None, child_ordering_mode=None, order_rank=None):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        if parent_track_uuid:
+            desc.parent_uuid = parent_track_uuid
+        if child_ordering_mode:
+            desc.child_ordering = child_ordering_mode
+        if order_rank is not None:
+            desc.sibling_order_rank = order_rank
+
+    # Helper to add a simple instant event
+    def add_instant_event(ts, track_uuid, event_name):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = TrackEvent.TYPE_INSTANT
+        packet.track_event.track_uuid = track_uuid
+        packet.track_event.name = event_name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # --- 1. Lexicographical Sorting Example ---
+    parent_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    define_custom_track(parent_lex_uuid, "Lexicographic Parent",
+                        child_ordering_mode=TrackDescriptor.LEXICOGRAPHIC)
+
+    child_c_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    child_a_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    child_b_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    define_custom_track(child_c_lex_uuid, "C-Item (Lex)", parent_track_uuid=parent_lex_uuid)
+    define_custom_track(child_a_lex_uuid, "A-Item (Lex)", parent_track_uuid=parent_lex_uuid)
+    define_custom_track(child_b_lex_uuid, "B-Item (Lex)", parent_track_uuid=parent_lex_uuid)
+
+    add_instant_event(ts=100, track_uuid=child_c_lex_uuid, event_name="Event C")
+    add_instant_event(ts=100, track_uuid=child_a_lex_uuid, event_name="Event A")
+    add_instant_event(ts=100, track_uuid=child_b_lex_uuid, event_name="Event B")
+    # Expected UI order under "Lexicographic Parent": A-Item, B-Item, C-Item
+
+    # --- 2. Chronological Sorting Example ---
+    parent_chrono_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    define_custom_track(parent_chrono_uuid, "Chronological Parent",
+                        child_ordering_mode=TrackDescriptor.CHRONOLOGICAL)
+
+    child_late_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    child_early_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    child_middle_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    define_custom_track(child_late_uuid, "Late Event Track", parent_track_uuid=parent_chrono_uuid)
+    define_custom_track(child_early_uuid, "Early Event Track", parent_track_uuid=parent_chrono_uuid)
+    define_custom_track(child_middle_uuid, "Middle Event Track", parent_track_uuid=parent_chrono_uuid)
+
+    add_instant_event(ts=2000, track_uuid=child_late_uuid, event_name="Late Event")
+    add_instant_event(ts=1000, track_uuid=child_early_uuid, event_name="Early Event")
+    add_instant_event(ts=1500, track_uuid=child_middle_uuid, event_name="Middle Event")
+    # Expected UI order under "Chronological Parent": Early, Middle, Late Event Track
+
+    # --- 3. Explicit Sorting Example ---
+    parent_explicit_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    define_custom_track(parent_explicit_uuid, "Explicit Parent",
+                        child_ordering_mode=TrackDescriptor.EXPLICIT)
+
+    child_rank10_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    child_rank_neg5_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    child_rank0_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    define_custom_track(child_rank10_uuid, "Explicit Rank 10",
+                        parent_track_uuid=parent_explicit_uuid, order_rank=10)
+    define_custom_track(child_rank_neg5_uuid, "Explicit Rank -5",
+                        parent_track_uuid=parent_explicit_uuid, order_rank=-5)
+    define_custom_track(child_rank0_uuid, "Explicit Rank 0",
+                        parent_track_uuid=parent_explicit_uuid, order_rank=0)
+
+    add_instant_event(ts=3000, track_uuid=child_rank10_uuid, event_name="Event Rank 10")
+    add_instant_event(ts=3000, track_uuid=child_rank_neg5_uuid, event_name="Event Rank -5")
+    add_instant_event(ts=3000, track_uuid=child_rank0_uuid, event_name="Event Rank 0")
+    # Expected UI order under "Explicit Parent": Rank -5, Rank 0, Rank 10
 ```
 
-Chronological order is also supported, this sorts the tracks with the earliest
-event first:
+</details>
 
-```
-packet {
-  track_descriptor {
-    uuid: 10
-    name: "Root"
-    # Any children of the `Root` track will appear in the order based on the
-    # timestamp of the first event on the trace: earlier timestamps will appear
-    # higher in the trace. This does *not* propogate to any indirect
-    # descendants, just the direct children.
-    child_ordering: CHRONOLOGICAL
-  }
-}
+![Controlling Track Sorting Order](/docs/images/synthetic-track-event-sorting.png)
 
-# B will appear before A because B's first slice starts earlier than A's first
-# slice.
-packet {
-  track_descriptor {
-    uuid: 11
-    parent_uuid: 10
-    name: "A"
-  }
-}
-packet {
-  timestamp: 220
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 11
-    name: "A1"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 230
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 60000
-  }
-  trusted_packet_sequence_id: 3903809
-}
+### Sharing Y-Axis Between Counters
 
-packet {
-  track_descriptor {
-    uuid: 12
-    parent_uuid: 10
-    name: "B"
-  }
-}
-packet {
-  timestamp: 210
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 12
-    name: "B1"
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 240
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 12
-  }
-  trusted_packet_sequence_id: 3903809
-}
+When visualizing multiple counter tracks, it is often useful to have them share the same Y-axis range. This allows for easy comparison of their values. Perfetto supports this feature through the `y_axis_share_key` field in the `CounterDescriptor`.
+
+All counter tracks that have the same `y_axis_share_key` and the same parent track will share their Y-axis range in the UI.
+
+**Python Example: Sharing Y-Axis**
+
+In this example, we create two counter tracks with the same `y_axis_share_key`. This will cause them to be rendered with the same Y-axis range in the Perfetto UI.
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9005
+
+    # --- Define Track UUIDs ---
+    counter1_uuid = 1
+    counter2_uuid = 2
+
+    # Helper to define a Counter TrackDescriptor
+    def define_counter_track(track_uuid, name, share_key=None):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        if share_key:
+            desc.counter.y_axis_share_key = share_key
+
+    # 1. Define the counter tracks with the same share key
+    define_counter_track(counter1_uuid, "Counter 1", "group1")
+    define_counter_track(counter2_uuid, "Counter 2", "group1")
+
+    # Helper to add a counter event
+    def add_counter_event(ts, value, counter_track_uuid):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = TrackEvent.TYPE_COUNTER
+        packet.track_event.track_uuid = counter_track_uuid
+        packet.track_event.counter_value = value
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_counter_event(ts=1000, value=100, counter_track_uuid=counter1_uuid)
+    add_counter_event(ts=2000, value=200, counter_track_uuid=counter1_uuid)
+
+    add_counter_event(ts=1000, value=300, counter_track_uuid=counter2_uuid)
+    add_counter_event(ts=2000, value=400, counter_track_uuid=counter2_uuid)
 ```
 
-Finally, for exact control, you can use the `EXPLICIT` ordering and specify
-`sibling_order_rank` on each child track:
+</details>
 
-```
-packet {
-  track_descriptor {
-    uuid: 10
-    name: "Root"
-    # Any children of the `Root` track will appear in order specified by
-    # `sibling_order_rank` exactly: any unspecified rank is treated as 0
-    # implicitly.
-    child_ordering: EXPLICIT
-  }
-}
-# C will appear first, then B then A following the order specified by
-# `sibling_order_rank`.
-packet {
-  track_descriptor {
-    uuid: 11
-    parent_uuid: 10
-    name: "B"
-    sibling_order_rank: 1
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 12
-    parent_uuid: 10
-    name: "A"
-    sibling_order_rank: 100
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 13
-    parent_uuid: 10
-    name: "C"
-    sibling_order_rank: -100
-  }
-}
-```
+![Sharing Y-Axis](/docs/images/synthetic-track-event-share-y-axis.png)
 
-NOTE: using `EXPLICIT` is strongly discouraged where there is another option.
-Other orders are significantly more efficient and also allows for trace
-processor and the UI to better understand what you want to do with those tracks.
-Moreover, it gives the flexibility for having custom visualization (e.g. Gannt
-charts for CHRONOLOGICAL view) based on the type specified.
+### Interning Data for Trace Size Optimization
 
-Further documentation about the sorting order is available on the protos for
-[TrackDescriptor](/docs/reference/trace-packet-proto.autogen#TrackDescriptor)
-and
-[ChildTracksOrdering](/docs/reference/trace-packet-proto.autogen#TrackDescriptor.ChildTracksOrdering).
+Interning is a technique used to reduce the size of trace files by emitting
+frequently repeated strings (like event names or categories) only once in the
+trace. Subsequent references to these strings use a compact integer identifier
+(an "interning ID" or `iid`). This is particularly useful when you have many
+events that share the same name or other string-based attributes.
 
-NOTE: the order specified in the trace is a treated as a hint in the UI not a
-gurantee. The UI reserves the right to change the ordering as it sees fit.
+**How it works:**
 
-## Flows
+1.  **Define Interned Data:** In a `TracePacket`, you include an `interned_data`
+    message. Inside this, you map your strings to `iid`s. For example, you can
+    define `event_names` where each entry has an `iid` (a non-zero integer you
+    choose) and a `name` string. This packet _establishes_ the mapping.
+2.  **Reference by IID:** In subsequent `TrackEvent`s (within the same
+    `trusted_packet_sequence_id` and before the interned state is cleared),
+    instead of setting the `name` field directly, you set the corresponding
+    `name_iid` field to the integer `iid` you defined.
+3.  **Sequence Flags:** The `TracePacket.sequence_flags` field is crucial:
 
-NOTE: in the legacy JSON tracing format, this section corresponds to s/t/f
-events.
+    - `SEQ_INCREMENTAL_STATE_CLEARED` (value 1): Set this on a packet if the
+      interning dictionary (and other incremental state) for this sequence
+      should be considered reset _before_ processing this packet's
+      `interned_data`. This is often used on the first packet of a sequence that
+      defines interned entries.
+    - `SEQ_NEEDS_INCREMENTAL_STATE` (value 2): Set this on any packet that
+      _either defines new interned data entries OR uses iids_ that were defined
+      in previous packets (within the current valid state of the sequence).
 
-Flows allow connecting any number of slices with arrows. The semantic meaning of
-the arrow varies across different applications but most commonly it is used to
-track work passing between threads or processes: e.g. the UI thread asks a
-background thread to do some work and notify when the result is available.
+    A typical packet that _initializes_ the interning dictionary for a sequence
+    will set both flags:
+    `TracePacket.SEQ_INCREMENTAL_STATE_CLEARED | TracePacket.SEQ_NEEDS_INCREMENTAL_STATE`.
+    Packets that _use_ these established interned entries (or add more entries
+    to the existing valid dictionary) will set
+    `TracePacket.SEQ_NEEDS_INCREMENTAL_STATE`.
 
-NOTE: a single flow _cannot_ fork and simply represents a single stream of
-arrows from one slice to the next. See
-[this](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/perfetto_trace.proto;drc=ba05b783d9c29fe334a02913cf157ea1d415d37c;l=9604)
-comment for information.
+**Python Example: Interning Event Names**
 
-![TrackEvent flows in UI](/docs/images/synthetic-track-event-flow.png)
+This example shows how to define an interned string for an event name and then
+use it multiple times.
 
-```
-# The main thread of the process.
-packet {
-  track_descriptor {
-    uuid: 93094
-    thread {
-        pid: 100
-        tid: 100
-        thread_name: "Main thread"
-    }
-  }
-}
-packet {
-  timestamp: 200
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 93094
-    name: "Request generation"
-    flow_ids: 1055895987                  # Random number used to track work
-                                          # across threads/processes.
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 300
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 93094
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 400
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 93094
-    name: "Process background result"
-    flow_ids: 1055895987                  # Same as above.
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 500
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 93094
-  }
-  trusted_packet_sequence_id: 3903809
-}
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
 
-# The background thread of the process.
-packet {
-  track_descriptor {
-    uuid: 40489498
-    thread {
-      pid: 100
-      tid: 101
-      thread_name: "Background thread"
-    }
-  }
-}
-packet {
-  timestamp: 310
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 40489498
-    name: "Background work"
-    flow_ids: 1055895987                  # Same as above.
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 385
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 40489498
-  }
-  trusted_packet_sequence_id: 3903809
-}
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9002
+
+    # --- Define Track UUID ---
+    interning_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+
+    # 1. Define the track
+    define_custom_track(interning_track_uuid, "Interning Demo Track")
+
+    # --- Define Interned Event Name ---
+    INTERNED_EVENT_NAME_IID = 1 # Choose a unique iid (non-zero)
+    VERY_LONG_EVENT_NAME = "MyFrequentlyRepeatedLongEventNameThatTakesUpSpace"
+
+    # Helper to add a TrackEvent packet, managing interning and sequence flags
+    def add_slice_with_interning(ts, event_type, name_iid=None, name_literal=None, define_new_internment=False, new_intern_iid=None, new_intern_name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        tev = packet.track_event
+        tev.type = event_type
+        tev.track_uuid = interning_track_uuid
+
+        if name_iid:
+            tev.name_iid = name_iid
+        elif name_literal and event_type != TrackEvent.TYPE_SLICE_END:
+            tev.name = name_literal
+
+        if define_new_internment:
+            # This packet defines new interned data.
+            # We'll also clear any prior state for this sequence.
+            if new_intern_iid and new_intern_name:
+                entry = packet.interned_data.event_names.add()
+                entry.iid = new_intern_iid
+                entry.name = new_intern_name
+            packet.sequence_flags = TracePacket.SEQ_INCREMENTAL_STATE_CLEARED | TracePacket.SEQ_NEEDS_INCREMENTAL_STATE
+        else:
+            # This packet uses existing interned data (or has no interned fields)
+            # but is part of a sequence that relies on incremental state.
+            packet.sequence_flags = TracePacket.SEQ_NEEDS_INCREMENTAL_STATE
+
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+        return packet
+
+    # --- Packet 1: Define the interned name and start a slice using it ---
+    add_slice_with_interning(
+        ts=1000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name_iid=INTERNED_EVENT_NAME_IID,
+        define_new_internment=True, # This packet defines/resets internment
+        new_intern_iid=INTERNED_EVENT_NAME_IID,
+        new_intern_name=VERY_LONG_EVENT_NAME
+    )
+
+    # End the first slice
+    add_slice_with_interning(
+        ts=1100,
+        event_type=TrackEvent.TYPE_SLICE_END
+        # No name_iid needed for END, uses existing interned state context
+    )
+
+    # --- Packet 2: Use the Interned Event Name Again ---
+    add_slice_with_interning(
+        ts=1200,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name_iid=INTERNED_EVENT_NAME_IID # Re-use the iid
+        # define_new_internment is False by default, so this uses existing state
+    )
+
+    # End the second slice
+    add_slice_with_interning(
+        ts=1300,
+        event_type=TrackEvent.TYPE_SLICE_END
+    )
 ```
 
-## Counters
+</details>
 
-NOTE: in the legacy JSON tracing format, this section correspond to C events.
+![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
 
-Counters are useful to represent continuous values which change with time.
-Common examples include CPU frequency, memory usage, battery charge etc.
+## {#controlling-track-merging} Controlling Track Merging
 
-![TrackEvent counter in UI](/docs/images/synthetic-track-event-counter.png)
+By default, the Perfetto UI merges tracks that share the same name. This is
+often the desired behavior for grouping related asynchronous events. However,
+there are scenarios where you need more explicit control. You can override this
+default merging logic using the `sibling_merge_behavior` and `sibling_merge_key`
+fields in the `TrackDescriptor`.
 
-This corresponds to the following protos:
+This allows you to:
 
+- **Prevent merging**: Force tracks, even with the same name, to always be
+  displayed separately.
+- **Merge by key**: Force tracks to merge based on a custom key, regardless of
+  their names.
+
+The `sibling_merge_behavior` field can be set to one of the following values:
+
+- `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME` (the default): Merges sibling tracks
+  that have the same `name`.
+- `SIBLING_MERGE_BEHAVIOR_NONE`: Prevents the track from being merged with any
+  of its siblings.
+- `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`: Merges sibling tracks that have
+  the same `sibling_merge_key` string.
+
+### Python Example: Preventing Merging
+
+In this example, we create two tracks with the same name. By setting their
+`sibling_merge_behavior` to `SIBLING_MERGE_BEHAVIOR_NONE`, we ensure they are
+always displayed as distinct tracks in the UI.
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9003
+
+    # --- Define Track UUIDs ---
+    track1_uuid = 1
+    track2_uuid = 2
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_NONE
+
+    # 1. Define the tracks
+    define_custom_track(track1_uuid, "My Separate Track")
+    define_custom_track(track2_uuid, "My Separate Track")
+
+    # Helper to add a slice event
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="Slice 1")
+    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
+
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="Slice 2")
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
 ```
-# Counter track scoped to a process.
-packet {
-  track_descriptor {
-    uuid: 1388
-    process {
-      pid: 1024
-      process_name: "MySpecialProcess"
-    }
-  }
-}
-packet {
-  track_descriptor {
-    uuid: 4489498
-    parent_uuid: 1388
-    name: "My special counter"
-    counter {}
-  }
-}
-packet {
-  timestamp: 200
-  track_event {
-    type: TYPE_COUNTER
-    track_uuid: 4489498
-    counter_value: 34567    # Value at start
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 250
-  track_event {
-    type: TYPE_COUNTER
-    track_uuid: 4489498
-    counter_value: 67890    # Value goes up
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 300
-  track_event {
-    type: TYPE_COUNTER
-    track_uuid: 4489498
-    counter_value: 12345   # Value goes down
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 400
-  track_event {
-    type: TYPE_COUNTER
-    track_uuid: 4489498
-    counter_value: 12345   # Final value
-  }
-  trusted_packet_sequence_id: 3903809
-}
+
+</details>
+
+![Preventing Merging](/docs/images/synthetic-track-event-no-merge.png)
+
+### Python Example: Merging by Key
+
+In this example, we create two tracks with different names but the same
+`sibling_merge_key`. By setting their `sibling_merge_behavior` to
+`SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`, we instruct the UI to merge them
+into a single visual track. The name of the merged group will be taken from one
+of the tracks (usually the one with the lower UUID).
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9004
+
+    # --- Define Track UUIDs ---
+    track1_uuid = 1
+    track2_uuid = 2
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name, merge_key):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY
+        desc.sibling_merge_key = merge_key
+
+    # 1. Define the tracks with the same merge key
+    define_custom_track(track1_uuid, "HTTP GET", "conn-123")
+    define_custom_track(track2_uuid, "HTTP POST", "conn-123")
+
+    # Helper to add a slice event
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="GET /data")
+    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
+
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="POST /submit")
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
 ```
 
-## Interning
+</details>
 
-NOTE: there is no equivalent to interning in the JSON tracing format.
+![Merging by Key](/docs/images/synthetic-track-event-merge-by-key.png)
 
-Interning is an advanced but powerful feature of the protobuf tracing format
-which allows allows for reducing the number of times long strings are emitted in
-the trace.
+## {#handling-large-traces-with-streaming} Handling Large Traces with Streaming
 
-Specifically, certain fields in the protobuf format allow associating an "iid"
-(interned id) to a string and using the iid to reference the string in all
-future packets. The most commonly used cases are slice names and category names
+All the examples so far have used the `TraceProtoBuilder`, which builds the
+entire trace in memory before writing it to a file. This is simple and effective
+for moderately sized traces, but can lead to high memory consumption if you are
+generating traces with millions of events.
 
-Here is an example of a trace which makes use of interning to reduce the number
-of times a very long slice name is emitted:
-![TrackEvent interning](/docs/images/synthetic-track-event-interned.png)
+For these scenarios, the `StreamingTraceProtoBuilder` is the recommended
+solution. It writes each `TracePacket` to a file as it's created, keeping
+memory usage minimal regardless of the trace size.
 
-This corresponds to the following protos:
+### How it Works
 
+The API for the streaming builder is slightly different:
+
+1.  **Initialization**: You initialize `StreamingTraceProtoBuilder` with a
+    file-like object opened in binary write mode.
+2.  **Packet Creation**: Instead of `builder.add_packet()`, you call
+    `builder.create_packet()` to get a new, empty `TracePacket`.
+3.  **Packet Writing**: After populating the packet, you must explicitly call
+    `builder.write_packet(packet)` to serialize and write it to the file.
+
+### Python Example: Complete Streaming Script
+
+Here is a complete, standalone Python script that demonstrates how to use the
+`StreamingTraceProtoBuilder`. It is based on the "Creating Basic Timeline
+Slices" example from the [Getting Started guide](/docs/getting-started/converting.md).
+
+You can save this code as a new file (e.g., `streaming_converter.py`) and run it.
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+#!/usr/bin/env python3
+import uuid
+
+from perfetto.trace_builder.proto_builder import StreamingTraceProtoBuilder
+from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import TrackEvent
+
+def populate_packets(builder: StreamingTraceProtoBuilder):
+    """
+    This function defines and writes TracePackets to the stream.
+
+    Args:
+        builder: An instance of StreamingTraceProtoBuilder.
+    """
+    # Define a unique ID for this sequence of packets
+    TRUSTED_PACKET_SEQUENCE_ID = 1001
+
+    # Define a unique UUID for your custom track
+    CUSTOM_TRACK_UUID = 12345678
+
+    # 1. Define the Custom Track
+    packet = builder.create_packet()
+    packet.track_descriptor.uuid = CUSTOM_TRACK_UUID
+    packet.track_descriptor.name = "My Custom Data Timeline"
+    builder.write_packet(packet)
+
+    # 2. Emit events for this custom track
+    # Example Event 1: "Task A"
+    packet = builder.create_packet()
+    packet.timestamp = 1000
+    packet.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+    packet.track_event.track_uuid = CUSTOM_TRACK_UUID
+    packet.track_event.name = "Task A"
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    builder.write_packet(packet)
+
+    packet = builder.create_packet()
+    packet.timestamp = 1500
+    packet.track_event.type = TrackEvent.TYPE_SLICE_END
+    packet.track_event.track_uuid = CUSTOM_TRACK_UUID
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    builder.write_packet(packet)
+
+    # Example Event 2: "Task B"
+    packet = builder.create_packet()
+    packet.timestamp = 1600
+    packet.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+    packet.track_event.track_uuid = CUSTOM_TRACK_UUID
+    packet.track_event.name = "Task B"
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    builder.write_packet(packet)
+
+    packet = builder.create_packet()
+    packet.timestamp = 1800
+    packet.track_event.type = TrackEvent.TYPE_SLICE_END
+    packet.track_event.track_uuid = CUSTOM_TRACK_UUID
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    builder.write_packet(packet)
+
+    # Example Event 3: An instantaneous event
+    packet = builder.create_packet()
+    packet.timestamp = 1900
+    packet.track_event.type = TrackEvent.TYPE_INSTANT
+    packet.track_event.track_uuid = CUSTOM_TRACK_UUID
+    packet.track_event.name = "Milestone Y"
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    builder.write_packet(packet)
+
+def main():
+    """
+    Initializes the StreamingTraceProtoBuilder and calls populate_packets
+    to write the trace to a file.
+    """
+    output_filename = "my_streamed_trace.pftrace"
+    with open(output_filename, 'wb') as f:
+        builder = StreamingTraceProtoBuilder(f)
+        populate_packets(builder)
+
+    print(f"Trace written to {output_filename}")
+    print(f"Open with [https://ui.perfetto.dev](https://ui.perfetto.dev).")
+
+if __name__ == "__main__":
+    main()
 ```
-packet {
-  track_descriptor {
-    uuid: 48948                         # 64-bit random number.
-    name: "My special track"
-    process {
-      pid: 1234                         # PID for your process
-      process_name: "My process name"
-    }
-  }
-}
-packet {
-  timestamp: 200
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 48948                   # Same random number from above.
-    name_iid: 1                         # References the string in interned_data
-                                        # (see below)
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
 
-  interned_data {
-    # Creates a mapping from the iid "1" to the string name: any |name_iid| field
-    # in this packet onwards will transparently be remapped to this string by trace
-    # processor.
-    # Note: iid 0 is *not* a valid IID and should not be used.
-    event_names {
-      iid: 1
-      name: "A very very very long slice name which we don't want to repeat"
-    }
-  }
-
-  first_packet_on_sequence: true        # Indicates to trace processor that
-                                        # this is the first packet on the
-                                        # sequence.
-  previous_packet_dropped: true         # Same as |first_packet_on_sequence|.
-
-  # Indicates to trace processor that this sequence resets the incremental state but
-  # also depends on incrtemental state state.
-  # 3 = SEQ_INCREMENTAL_STATE_CLEARED | SEQ_NEEDS_INCREMENTAL_STATE
-  sequence_flags: 3
-}
-packet {
-  timestamp: 201
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 48948
-  }
-  trusted_packet_sequence_id: 3903809
-}
-packet {
-  timestamp: 202
-  track_event {
-    type: TYPE_SLICE_BEGIN
-    track_uuid: 48948                   # Same random number from above.
-    name_iid: 1                         # References the string in interned_data
-                                        # above.
-  }
-  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
-  # 2 = SEQ_NEEDS_INCREMENTAL_STATE
-  sequence_flags: 2
-}
-packet {
-  timestamp: 203
-  track_event {
-    type: TYPE_SLICE_END
-    track_uuid: 48948
-  }
-  trusted_packet_sequence_id: 3903809
-}
-```
+</details>

@@ -14,18 +14,21 @@
 """Contains metadata tables for a wide range of usecases."""
 
 from python.generators.trace_processor_table.public import Alias
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
+from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
-from python.generators.trace_processor_table.public import CppSelfTableId
+from python.generators.trace_processor_table.public import SqlAccess
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 MACHINE_TABLE = Table(
@@ -34,6 +37,46 @@ MACHINE_TABLE = Table(
     sql_name='machine',
     columns=[
         C('raw_id', CppUint32()),
+        C(
+            'sysname',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'release',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'version',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'arch',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'num_cpus',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'android_build_fingerprint',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'android_device_manufacturer',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'android_sdk_version',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -45,7 +88,40 @@ MACHINE_TABLE = Table(
                 '''
                   Raw machine identifier in the trace packet, non-zero for
                   remote machines.
+                ''',
+            'sysname':
                 '''
+                  The name of the operating system (e.g. "Linux").
+                ''',
+            'release':
+                '''
+                  The current release of the operating system.
+                ''',
+            'version':
+                '''
+                  The current version of the operating system.
+                ''',
+            'arch':
+                '''
+                  Hardware architecture of the machine (e.g. x86_64).
+                ''',
+            'num_cpus':
+                '''
+                  Number of cpus available to the machine.
+                ''',
+            'android_build_fingerprint':
+                '''
+                  A unique string that identifies a specific build of
+                  the Android operating system.
+                ''',
+            'android_device_manufacturer':
+                '''
+                  The Android's device manufacturer.
+                ''',
+            'android_sdk_version':
+                '''
+                  The Android SDK version used in the machine.
+                ''',
         }))
 
 PROCESS_TABLE = Table(
@@ -54,16 +130,67 @@ PROCESS_TABLE = Table(
     sql_name='__intrinsic_process',
     columns=[
         C('upid', Alias(underlying_column='id')),
-        C('pid', CppUint32()),
-        C('name', CppOptional(CppString())),
-        C('start_ts', CppOptional(CppInt64())),
-        C('end_ts', CppOptional(CppInt64())),
-        C('parent_upid', CppOptional(CppSelfTableId())),
-        C('uid', CppOptional(CppUint32())),
-        C('android_appid', CppOptional(CppUint32())),
-        C('android_user_id', CppOptional(CppUint32())),
-        C('cmdline', CppOptional(CppString())),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C('pid',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C(
+            'name',
+            CppOptional(CppString()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'start_ts',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'end_ts',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'parent_upid',
+            CppOptional(CppSelfTableId()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'uid',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'android_appid',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'android_user_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'cmdline',
+            CppOptional(CppString()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='process',),
@@ -131,7 +258,9 @@ PROCESS_TABLE = Table(
                   Machine identifier, non-null for processes on a remote
                   machine.
                 ''',
-        }))
+        },
+    ),
+)
 
 THREAD_TABLE = Table(
     python_module=__file__,
@@ -139,14 +268,48 @@ THREAD_TABLE = Table(
     sql_name='__intrinsic_thread',
     columns=[
         C('utid', Alias(underlying_column='id')),
-        C('tid', CppUint32()),
-        C('name', CppOptional(CppString())),
-        C('start_ts', CppOptional(CppInt64())),
-        C('end_ts', CppOptional(CppInt64())),
-        C('upid', CppOptional(CppTableId(PROCESS_TABLE))),
-        C('is_main_thread', CppOptional(CppUint32())),
+        C('tid',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C(
+            'name',
+            CppOptional(CppString()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'start_ts',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'end_ts',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'upid',
+            CppOptional(CppTableId(PROCESS_TABLE)),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'is_main_thread',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C('is_idle', CppUint32()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='thread',),
     tabledoc=TableDoc(
@@ -203,19 +366,45 @@ THREAD_TABLE = Table(
                 '''
                   Machine identifier, non-null for threads on a remote machine.
                 ''',
-        }))
+        },
+    ),
+)
 
 CPU_TABLE = Table(
     python_module=__file__,
     class_name='CpuTable',
     sql_name='__intrinsic_cpu',
     columns=[
-        C('cpu', CppOptional(CppUint32())),
-        C('cluster_id', CppUint32()),
-        C('processor', CppString()),
+        C(
+            'cpu',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'cluster_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'processor',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-        C('capacity', CppOptional(CppUint32())),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C(
+            'capacity',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('cpu'),
     tabledoc=TableDoc(
@@ -250,10 +439,31 @@ CHROME_RAW_TABLE = Table(
     class_name='ChromeRawTable',
     sql_name='__intrinsic_chrome_raw',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('name', CppString()),
-        C('utid', CppTableId(THREAD_TABLE)),
-        C('arg_set_id', CppUint32()),
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppTableId(THREAD_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'arg_set_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ])
 
 FTRACE_EVENT_TABLE = Table(
@@ -261,12 +471,32 @@ FTRACE_EVENT_TABLE = Table(
     class_name='FtraceEventTable',
     sql_name='__intrinsic_ftrace_event',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('name', CppString()),
-        C('utid', CppTableId(THREAD_TABLE)),
-        C('arg_set_id', CppUint32()),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('utid',
+          CppTableId(THREAD_TABLE),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C(
+            'arg_set_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('common_flags', CppUint32()),
-        C('ucpu', CppTableId(CPU_TABLE)),
+        C('ucpu',
+          CppTableId(CPU_TABLE),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
     ],
     wrapping_sql_view=WrappingSqlView('ftrace_event'),
     tabledoc=TableDoc(
@@ -307,15 +537,51 @@ ARG_TABLE = Table(
     class_name='ArgTable',
     sql_name='__intrinsic_args',
     columns=[
-        C('arg_set_id',
-          CppUint32(),
-          flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
-        C('flat_key', CppString()),
-        C('key', CppString()),
-        C('int_value', CppOptional(CppInt64())),
-        C('string_value', CppOptional(CppString())),
-        C('real_value', CppOptional(CppDouble())),
-        C('value_type', CppString()),
+        C(
+            'arg_set_id',
+            CppUint32(),
+            flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
+        ),
+        C(
+            'flat_key',
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'key',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
+        ),
+        C(
+            'int_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'string_value',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'real_value',
+            CppOptional(CppDouble()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'value_type',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='args'),
     tabledoc=TableDoc(
@@ -336,10 +602,27 @@ METADATA_TABLE = Table(
     class_name='MetadataTable',
     sql_name='metadata',
     columns=[
-        C('name', CppString()),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('key_type', CppString()),
-        C('int_value', CppOptional(CppInt64())),
-        C('str_value', CppOptional(CppString())),
+        C(
+            'int_value',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'str_value',
+            CppOptional(CppString()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -426,10 +709,23 @@ CLOCK_SNAPSHOT_TABLE = Table(
     class_name='ClockSnapshotTable',
     sql_name='clock_snapshot',
     columns=[
-        C('ts', CppInt64()),
-        C('clock_id', CppInt64()),
+        C(
+            'ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'clock_id',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('clock_name', CppOptional(CppString())),
-        C('clock_value', CppInt64()),
+        C('clock_value',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('snapshot_id', CppUint32()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
@@ -467,9 +763,18 @@ TRACE_FILE_TABLE = Table(
     columns=[
         C('parent_id', CppOptional(CppSelfTableId())),
         C('name', CppOptional(CppString())),
-        C('size', CppInt64()),
-        C('trace_type', CppString()),
-        C('processing_order', CppOptional(CppInt64())),
+        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'trace_type',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'processing_order',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('trace_file'),
     tabledoc=TableDoc(
@@ -495,9 +800,46 @@ TRACE_FILE_TABLE = Table(
                 '''In which order where the files were processed.''',
         }))
 
+BUILD_FLAGS_TABLE = Table(
+    python_module=__file__,
+    class_name='BuildFlagsTable',
+    sql_name='__intrinsic_build_flags',
+    columns=[
+        C('name', CppString()),
+        C('enabled', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Contains all the build flags used in the project.
+        ''',
+        group='Misc',
+        columns={
+            'name':
+                '''Name of the build flag.''',
+            'enabled':
+                '''Whether the build flag is enabled (1) or disabled (0).''',
+        }))
+
+MODULES_TABLE = Table(
+    python_module=__file__,
+    class_name='ModulesTable',
+    sql_name='__intrinsic_modules',
+    columns=[
+        C('name', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Contains all the modules enabled.
+        ''',
+        group='Misc',
+        columns={
+            'name': '''Name of the enabled module.''',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
+    BUILD_FLAGS_TABLE,
     CHROME_RAW_TABLE,
     CLOCK_SNAPSHOT_TABLE,
     CPU_FREQ_TABLE,
@@ -507,6 +849,7 @@ ALL_TABLES = [
     FTRACE_EVENT_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
+    MODULES_TABLE,
     PROCESS_TABLE,
     THREAD_TABLE,
     TRACE_FILE_TABLE,

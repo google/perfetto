@@ -30,6 +30,7 @@ import {
   LONG,
   LONG_NULL,
   NUM,
+  NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
 import m from 'mithril';
@@ -51,6 +52,7 @@ const schema = {
   thread_dur: LONG_NULL,
   category: STR_NULL,
   correlation_id: STR_NULL,
+  arg_set_id: NUM_NULL,
 };
 
 export async function createTraceProcessorSliceTrack({
@@ -86,7 +88,9 @@ export async function createTraceProcessorSliceTrack({
       : () => new ThreadSliceDetailsPanel(trace),
     colorizer: (row) => {
       if (row.correlation_id) {
-        return getColorForSlice(row.correlation_id);
+        return getColorForSlice(row.correlation_id, {
+          stripTrailingDigits: false,
+        });
       }
       if (row.name) {
         return getColorForSlice(row.name);
@@ -112,7 +116,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           thread_dur,
           track_id,
           category,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id
+          extract_arg(arg_set_id, 'correlation_id') as correlation_id,
+          arg_set_id
         from slice
       `,
       filter: {
@@ -132,8 +137,7 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
       select
         id,
         layout_depth as depth
-      from experimental_slice_layout
-      where filter_track_ids = '${trackIds.join(',')}'
+      from experimental_slice_layout('${trackIds.join(',')}')
     `);
 
     // The (inner) join acts as a filter as well as providing the depth.
@@ -149,7 +153,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           thread_dur,
           track_id,
           category,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id
+          extract_arg(arg_set_id, 'correlation_id') as correlation_id,
+          arg_set_id
         from slice
         join ${tableName} d using (id)
       `,

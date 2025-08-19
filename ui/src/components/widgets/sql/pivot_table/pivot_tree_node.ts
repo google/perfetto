@@ -17,8 +17,7 @@ import {
   assertDefined,
   assertTrue,
 } from '../../../../base/logging';
-import {Row} from '../../../../trace_processor/query_result';
-import {SqlValue} from '../../../../trace_processor/sql_utils';
+import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {Filter, StandardFilters} from '../table/filters';
 import {TableColumn} from '../table/table_column';
 import {

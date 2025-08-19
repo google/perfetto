@@ -59,6 +59,8 @@ interface CommonAttrs extends HTMLButtonAttrs {
   //   on toolbars.
   // Defaults to Filled.
   variant?: ButtonVariant;
+  // Turns the button into a pill shape.
+  rounded?: boolean;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -87,6 +89,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       iconFilled,
       intent = Intent.None,
       variant = ButtonVariant.Minimal,
+      rounded,
       ...htmlAttrs
     } = attrs;
 
@@ -100,6 +103,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       classForIntent(intent),
       iconOnly && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
+      rounded && 'pf-button--rounded',
       className,
     );
 
@@ -152,5 +156,21 @@ function classForVariant(variant: ButtonVariant) {
 export class ButtonBar implements m.ClassComponent<HTMLAttrs> {
   view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
     return m('.pf-button-bar', attrs, children);
+  }
+}
+
+/**
+ * A set of buttons that are visually grouped together into one super-widget.
+ * The inside borders are de-duplicated, and the inside rounded corners removed.
+ *
+ * This is useful for when you have a set of radio buttons, or a button with an
+ * additional dropdown button to allow for additional actions to be selected.
+ *
+ * Very similar to the SegmentedButtons widget, but offers more control over the
+ * individual buttons.
+ */
+export class ButtonGroup implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
+    return m('.pf-button-group', attrs, children);
   }
 }

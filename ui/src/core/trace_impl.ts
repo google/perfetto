@@ -17,7 +17,7 @@ import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
-import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
+import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
@@ -34,7 +34,7 @@ import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {FlowManager} from './flow_manager';
-import {AppContext, AppImpl} from './app_impl';
+import {AppContext, AppImpl, OpenTraceArrayBufArgs} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
 import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
@@ -46,9 +46,8 @@ import {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
-import {featureFlags} from './feature_flags';
 import {SerializedAppState} from './state_serialization_schema';
-import {PostedTrace} from './trace_source';
+import {featureFlags} from './feature_flags';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
@@ -101,6 +100,7 @@ export class TraceContext implements Disposable {
       traceInfo,
       this.appCtx.timestampFormat,
       this.appCtx.durationPrecision,
+      this.appCtx.timezoneOverride,
     );
 
     this.scrollHelper = new ScrollHelper(
@@ -112,6 +112,7 @@ export class TraceContext implements Disposable {
 
     this.selectionMgr = new SelectionManagerImpl(
       this.engine,
+      this.timeline,
       this.trackMgr,
       this.noteMgr,
       this.scrollHelper,
@@ -123,7 +124,7 @@ export class TraceContext implements Disposable {
         this.selectionMgr.selection.kind === 'note' &&
         this.selectionMgr.selection.id === noteId
       ) {
-        this.selectionMgr.clear();
+        this.selectionMgr.clearSelection();
       }
     };
 
@@ -269,9 +270,6 @@ export class TraceImpl implements Trace {
         return settingInstance;
       },
     });
-
-    // TODO(primiano): remove this injection once we plumb Trace everywhere.
-    setScrollToFunction((x: ScrollToArgs) => ctx.scrollHelper.scrollTo(x));
   }
 
   scrollTo(where: ScrollToArgs): void {
@@ -454,8 +452,11 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromUrl(url, serializedAppState);
   }
 
-  openTraceFromBuffer(args: PostedTrace): void {
-    this.appImpl.openTraceFromBuffer(args);
+  openTraceFromBuffer(
+    args: OpenTraceArrayBufArgs,
+    serializedAppState?: SerializedAppState,
+  ): void {
+    this.appImpl.openTraceFromBuffer(args, serializedAppState);
   }
 
   closeCurrentTrace(): void {

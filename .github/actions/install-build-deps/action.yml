@@ -23,33 +23,81 @@ runs:
   using: "composite"
   steps:
     - name: Compute cache key
-      id: cachekey
+      id: cache_key
+      env:
+        INSTALL_FLAGS: ${{ inputs.install-flags }}
       shell: bash
       run: |
-        # Replace spaces with underscores to keep the cache key valid
-        flags="${{ inputs.install-flags }}"
-        if [ -z "$flags" ]; then
-          echo "suffix=default" >> "$GITHUB_OUTPUT"
+        # Create buildtools cache key.
+        flags="${INSTALL_FLAGS:-default}"
+        echo "key=buildtools-$flags" >> "$GITHUB_OUTPUT"
+
+    # When restoring the buildtools cache, we don't want to overwrite files or
+    # folders that are stored in git.
+    # We also use this file to prevent writing such files back to cache at the
+    # "Save buildtools cache" step.
+    - name: Generate list of files to ignore
+      id: files_to_ignore
+      shell: bash
+      run: |
+        # Generate list of files in 'buildtools/' stored in git.
+        FILES_TO_IGNORE_PATH=$(mktemp /tmp/files-to-ignore-XXXXX.txt)
+        git ls-tree HEAD:buildtools --name-only > "$FILES_TO_IGNORE_PATH"
+        echo "file_path=$FILES_TO_IGNORE_PATH" >> "$GITHUB_OUTPUT"
+
+    - name: Save local buildtools hash
+      id: local_buildtools_hash
+      env:
+        BUILDTOOLS_HASH: ${{ hashFiles('buildtools/**', 'tools/install-build-deps') }}
+      shell: bash
+      run: echo "hash=$BUILDTOOLS_HASH" >> "$GITHUB_OUTPUT"
+
+    - name: Restore buildtools from cache
+      id: restore_buildtools_cache
+      uses: ./.github/actions/cache-on-google-cloud-storage/restore
+      with:
+        cache_key: ${{ steps.cache_key.outputs.key }}
+        directory: buildtools
+        exclude_files: ${{ steps.files_to_ignore.outputs.file_path }}
+
+    - name: Check if need to update buildtools cache
+      id: check_if_need_update
+      env:
+        LOCAL_BUILDTOOLS_HASH: ${{ steps.local_buildtools_hash.outputs.hash }}
+        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools/buildtools_hash_revision_for_cache_on_ci.txt
+      shell: bash
+      run: |
+        # Compare cached buildtools hash with the local (stored in git) hash.
+        
+        # Content of 'buildtools/' rarely changes, so we don't want to re-upload
+        # unchanged cache on each build.
+        # It changes when the 'tools/install-build-deps' or the files added to
+        # git inside `buildtools/' changes, so we calculate and save the sha256
+        # hash of that files.
+        if [ -f "$CACHED_BUILDTOOLS_HASH_FILE_PATH" ]; then
+          CACHED_BUILDTOOLS_HASH=$(cat "$CACHED_BUILDTOOLS_HASH_FILE_PATH")
         else
-          echo "suffix=$(echo "$flags" | tr ' -' '_')" >> "$GITHUB_OUTPUT"
+          CACHED_BUILDTOOLS_HASH="0"
+        fi
+        
+        if [[ "$CACHED_BUILDTOOLS_HASH" != "$LOCAL_BUILDTOOLS_HASH" ]]; then
+          # Rewrite the hash file, it is saved as part of 'buildtools/' cache.
+          echo "$LOCAL_BUILDTOOLS_HASH" > "$CACHED_BUILDTOOLS_HASH_FILE_PATH"
+          echo "update_cache=true" >> "$GITHUB_OUTPUT" 
         fi
 
-    - name: Restore build-deps from cache
-      uses: actions/cache/restore@v4
-      with:
-        path: buildtools
-        key: buildtools-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
-        restore-keys: |
-          buildtools-${{ steps.cachekey.outputs.suffix }}-
-          buildtools
-
-    - name: install-build-deps
-      run: tools/install-build-deps ${{ inputs.install-flags }}
+    - name: Run install-build-deps
       shell: bash
+      # 'tools/install-build-deps' script will check the hashes and download the
+      # correct deps if the restored cache is too old or too new.
+      run: tools/install-build-deps ${{ inputs.install-flags }}
 
-    - name: Save build-deps cache (only on main)
-      if: github.ref == 'refs/heads/main'
-      uses: actions/cache/save@v4
+    - name: Save buildtools cache (only on main)
+      if: |
+        github.ref == 'refs/heads/main' &&
+        steps.check_if_need_update.outputs.update_cache == 'true'
+      uses: ./.github/actions/cache-on-google-cloud-storage/save
       with:
-        path: buildtools
-        key: buildtools-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+        cache_key: ${{ steps.cache_key.outputs.key }}
+        directory: buildtools
+        exclude_files: ${{ steps.files_to_ignore.outputs.file_path }}

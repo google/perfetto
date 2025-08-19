@@ -74,6 +74,10 @@ enum class PerfettoStatsdAtom {
   kTracedEnableTracingInvalidTriggerMode = 52,
   kTracedEnableTracingInvalidBrFilename = 54,
   kTracedEnableTracingFailedSessionSemaphoreCheck = 57,
+  kTracedEnablePriorityBoostInvalidConfig = 61,
+  kTracedEnablePriorityBoostOtherError = 62,
+  kTracedEnableTracingExclusiveSessionRejected = 63,
+  kTracedEnableTracingExclusiveSessionNotAllowed = 64,
 
   // Checkpoints inside perfetto_cmd after tracing has finished.
   kOnTracingDisabled = 4,

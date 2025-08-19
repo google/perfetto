@@ -1,0 +1,77 @@
+# Test that incremental counters are correctly handled on a per-sequence basis.
+
+# Sequence 1, with incremental counter track uuid 10.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 10
+    name: "MyIncrementalCounter"
+    counter {
+      is_incremental: true
+    }
+  }
+}
+
+# Sequence 2, also with incremental counter track uuid 10.
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 10
+    name: "MyIncrementalCounter"
+    counter {
+      is_incremental: true
+    }
+  }
+}
+
+# Event on sequence 1.
+packet {
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2 # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 100
+  track_event {
+    type: 4 # TYPE_COUNTER
+    track_uuid: 10
+    counter_value: 100
+  }
+}
+
+# Event on sequence 2. Should not be affected by sequence 1.
+packet {
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2 # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 150
+  track_event {
+    type: 4 # TYPE_COUNTER
+    track_uuid: 10
+    counter_value: 50
+  }
+}
+
+# Another event on sequence 1.
+packet {
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2 # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 200
+  track_event {
+    type: 4 # TYPE_COUNTER
+    track_uuid: 10
+    counter_value: 10
+  }
+}
+
+# Another event on sequence 2.
+packet {
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2 # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 250
+  track_event {
+    type: 4 # TYPE_COUNTER
+    track_uuid: 10
+    counter_value: 5
+  }
+}

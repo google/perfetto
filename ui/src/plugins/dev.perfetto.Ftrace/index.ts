@@ -57,26 +57,28 @@ export default class implements PerfettoPlugin {
 
     const cpus = await this.lookupCpuCores(ctx);
     const group = new TrackNode({
-      title: 'Ftrace Events',
+      name: 'Ftrace Events',
       sortOrder: -5,
       isSummary: true,
     });
 
     for (const cpu of cpus) {
       const uri = `/ftrace/cpu${cpu.ucpu}`;
-      const title = `Ftrace Track for CPU ${cpu.toString()}`;
 
       ctx.tracks.registerTrack({
         uri,
-        title,
+        description: `Ftrace events for CPU ${cpu.toString()}`,
         tags: {
           cpu: cpu.cpu,
           groupName: 'Ftrace Events',
         },
-        track: createFtraceTrack(ctx, uri, cpu, filterStore),
+        renderer: createFtraceTrack(ctx, uri, cpu, filterStore),
       });
 
-      const track = new TrackNode({uri, title});
+      const track = new TrackNode({
+        uri,
+        name: `Ftrace Track for CPU ${cpu.toString()}`,
+      });
       group.addChildInOrder(track);
     }
 

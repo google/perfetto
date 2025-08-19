@@ -279,10 +279,9 @@ export class FlowManager {
           id,
           layout_depth as depth
         FROM
-          experimental_slice_layout
+          experimental_slice_layout('${info.siblingTrackIds.join(',')}')
         WHERE
-          filter_track_ids = '${info.siblingTrackIds.join(',')}'
-          AND id in (${info.sliceIds.join(', ')})
+          id in (${info.sliceIds.join(', ')})
       `);
 
       // Create the sliceId -> new depth map:
@@ -373,7 +372,7 @@ export class FlowManager {
       //
       // TODO(stevegolton): We can remove this check entirely once flows are
       // made more generic.
-      const rootTableName = trackInfo.track.rootTableName;
+      const rootTableName = trackInfo.renderer.rootTableName;
       if (rootTableName === 'slice') {
         if (trackInfo?.tags?.trackIds) {
           for (const trackId of trackInfo.tags.trackIds) {
@@ -463,7 +462,7 @@ export class FlowManager {
 
     if (
       selection.kind === 'track_event' &&
-      this.trackMgr.getTrack(selection.trackUri)?.track.rootTableName ===
+      this.trackMgr.getTrack(selection.trackUri)?.renderer.rootTableName ===
         'slice'
     ) {
       this.sliceSelected(selection.eventId);

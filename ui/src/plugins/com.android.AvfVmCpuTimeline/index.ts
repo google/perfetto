@@ -52,7 +52,7 @@ export default class implements PerfettoPlugin {
   }
 
   async createTargetVmTrack(ctx: Trace, targetUtid: number) {
-    const title = `Avf VM CPU Timeline utid:${targetUtid}`;
+    const name = `Avf VM CPU Timeline utid:${targetUtid}`;
     const uri = `com.android.AvfVmCpuTimeline#AvfVmCpuTimeline${targetUtid}`;
 
     this.validTargets.delete(targetUtid);
@@ -76,8 +76,7 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track: new DatasetSliceTrack({
+      renderer: new DatasetSliceTrack({
         trace: ctx,
         uri,
         dataset: new SourceDataset({
@@ -103,7 +102,7 @@ export default class implements PerfettoPlugin {
       }),
     });
 
-    const trackNode = new TrackNode({uri, title, sortOrder: -90});
+    const trackNode = new TrackNode({uri, name, sortOrder: -90});
     ctx.workspace.addChildInOrder(trackNode);
   }
 

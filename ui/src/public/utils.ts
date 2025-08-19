@@ -75,6 +75,8 @@ export function getTrackName(
     return `${name} (${userName})`;
   } else if (isUidTrack && hasName && hasUid) {
     return `${name} ${uid}`;
+  } else if (hasName && !hasUpid && !hasUtid) {
+    return `${name}${machineLabel}`;
   } else if (hasName) {
     return `${name}`;
   } else if (hasThreadName && hasTid) {
@@ -123,7 +125,7 @@ export function getThreadUriPrefix(upid: number | null, utid: number): string {
 export async function getTimeSpanOfSelectionOrVisibleWindow(
   trace: Trace,
 ): Promise<TimeSpan> {
-  const range = await trace.selection.findTimeRangeOfSelection();
+  const range = await trace.selection.getTimeSpanOfSelection();
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {

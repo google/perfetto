@@ -33,7 +33,8 @@ namespace perfetto::trace_processor {
 
 class TrackEventModule : public ProtoImporterModule {
  public:
-  explicit TrackEventModule(TraceProcessorContext* context);
+  explicit TrackEventModule(ProtoImporterModuleContext* module_context,
+                            TraceProcessorContext* context);
 
   ~TrackEventModule() override;
 
@@ -48,8 +49,6 @@ class TrackEventModule : public ProtoImporterModule {
                             int64_t ts,
                             const TracePacketData& data,
                             uint32_t field_id) override;
-
-  void OnIncrementalStateCleared(uint32_t) override;
 
   void OnFirstPacketOnSequence(uint32_t) override;
 

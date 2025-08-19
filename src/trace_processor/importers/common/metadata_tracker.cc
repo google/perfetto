@@ -90,7 +90,7 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   std::optional<tables::MetadataTable::RowReference> row;
   for (auto it = metadata_table.IterateRows(); it; ++it) {
     if (key_id == it.name()) {
-      row = it.row_reference();
+      row = it.ToRowReference();
       break;
     }
   }

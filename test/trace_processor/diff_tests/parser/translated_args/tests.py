@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -36,9 +36,12 @@ class TranslatedArgs(TestSuite):
           "event.category","event.category","[NULL]","cat1"
           "event.name","event.name","[NULL]","name1"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "merge_key_type","merge_key_type",0,"[NULL]"
+          "merge_key_value","merge_key_value","[NULL]","Default Track"
+          "parent_track_uuid","parent_track_uuid",0,"[NULL]"
           "source","source","[NULL]","descriptor"
           "trace_id","trace_id",0,"[NULL]"
-          "track_uuid","track_uuid",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
         '''))
 
   def test_chrome_histogram(self):

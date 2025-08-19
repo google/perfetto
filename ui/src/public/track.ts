@@ -22,6 +22,7 @@ import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
+import {Theme} from './theme';
 
 export interface TrackFilterCriteria {
   readonly name: string;
@@ -107,6 +108,8 @@ export interface TrackRenderContext extends TrackContext {
    * A time scale used for translating between pixels and time.
    */
   readonly timescale: TimeScale;
+
+  readonly theme: Theme;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -115,13 +118,11 @@ export interface Track {
   readonly uri: string;
 
   // Describes how to render the track.
-  readonly track: TrackRenderer;
+  readonly renderer: TrackRenderer;
 
-  // Human readable title. Always displayed.
-  readonly title: string;
-
-  // Optional: A human readable description of the track.
-  readonly description?: string;
+  // Optional: A human readable description of the track. This can be a simple
+  // string or a render function that returns Mithril vnodes.
+  readonly description?: string | (() => m.Children);
 
   // Optional: Human readable subtitle. Sometimes displayed if there is room.
   readonly subtitle?: string;
@@ -212,7 +213,7 @@ export interface TrackRenderer {
    * track uses.
    */
   getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
-  getHeight(): number;
+  getHeight?(): number;
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
@@ -295,6 +296,7 @@ export interface Slice {
   readonly endNs: time;
   readonly durNs: duration;
   readonly ts: time;
+  readonly count: number;
   readonly dur: duration;
   readonly depth: number;
   readonly flags: number;

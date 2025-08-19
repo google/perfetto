@@ -42,33 +42,18 @@ std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveEq("bool")) {
     return Type::kBool;
   }
-  if (str.CaseInsensitiveOneOf(
-          {"long", "timestamp", "duration", "id", "joinid", "argsetid"})) {
+  if (str.CaseInsensitiveOneOf({"long", "timestamp", "duration", "id", "joinid",
+                                "argsetid", "int", "uint"})) {
     return Type::kLong;
   }
-  if (str.CaseInsensitiveEq("double")) {
+  if (str.CaseInsensitiveOneOf({"double", "float"})) {
     return Type::kDouble;
   }
   if (str.CaseInsensitiveEq("string")) {
     return Type::kString;
   }
-  if (str.CaseInsensitiveEq("bytes")) {
+  if (str.CaseInsensitiveOneOf({"bytes", "proto"})) {
     return Type::kBytes;
-  }
-
-  // Deprecated types.
-  // TODO(b/380259828): Remove.
-  if (str.CaseInsensitiveEq("int")) {
-    return Type::kInt;
-  }
-  if (str.CaseInsensitiveEq("uint")) {
-    return Type::kUint;
-  }
-  if (str.CaseInsensitiveEq("float")) {
-    return Type::kFloat;
-  }
-  if (str.CaseInsensitiveEq("proto")) {
-    return Type::kProto;
   }
   return std::nullopt;
 }
@@ -78,20 +63,12 @@ const char* TypeToHumanFriendlyString(sql_argument::Type type) {
   switch (type) {
     case Type::kBool:
       return "BOOL";
-    case Type::kInt:
-      return "INT";
-    case Type::kUint:
-      return "UINT";
     case Type::kLong:
       return "LONG";
-    case Type::kFloat:
-      return "FLOAT";
     case Type::kDouble:
       return "DOUBLE";
     case Type::kString:
       return "STRING";
-    case Type::kProto:
-      return "PROTO";
     case Type::kBytes:
       return "BYTES";
   }
@@ -102,16 +79,12 @@ SqlValue::Type TypeToSqlValueType(sql_argument::Type type) {
   using Type = sql_argument::Type;
   switch (type) {
     case Type::kBool:
-    case Type::kInt:
-    case Type::kUint:
     case Type::kLong:
       return SqlValue::kLong;
-    case Type::kFloat:
     case Type::kDouble:
       return SqlValue::kDouble;
     case Type::kString:
       return SqlValue::kString;
-    case Type::kProto:
     case Type::kBytes:
       return SqlValue::kBytes;
   }

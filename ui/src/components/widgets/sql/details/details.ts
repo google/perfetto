@@ -18,22 +18,20 @@ import {Time} from '../../../../base/time';
 import {exists} from '../../../../base/utils';
 import {raf} from '../../../../core/raf_scheduler';
 import {Engine} from '../../../../trace_processor/engine';
-import {Row} from '../../../../trace_processor/query_result';
-import {
-  SqlValue,
-  sqlValueToReadableString,
-} from '../../../../trace_processor/sql_utils';
+import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {Arg, getArgs} from '../../../sql_utils/args';
 import {asArgSetId} from '../../../sql_utils/core_types';
 import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
 import {SqlRef} from '../../../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../../../widgets/tree';
-import {hasArgs, renderArguments} from '../../../details/slice_args';
+import {hasArgs} from '../../../details/args';
 import {DurationWidget} from '../../../widgets/duration';
 import {Timestamp as TimestampWidget} from '../../../widgets/timestamp';
 import {sqlIdRegistry} from './sql_ref_renderer_registry';
 import {Trace} from '../../../../public/trace';
+import {renderSliceArguments} from '../../../details/slice_args';
 
 // This file contains the helper to render the details tree (based on Tree
 // widget) for an object represented by a SQL row in some table. The user passes
@@ -811,7 +809,7 @@ function renderValue(
           {
             left: key,
           },
-          renderArguments(trace, args),
+          renderSliceArguments(trace, args),
         )
       );
     case 'array': {

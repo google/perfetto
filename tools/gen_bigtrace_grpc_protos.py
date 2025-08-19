@@ -33,6 +33,7 @@ def main():
       "protos/perfetto/trace_processor/trace_processor.proto",
       "protos/perfetto/common/descriptor.proto",
       "protos/perfetto/trace_processor/metatrace_categories.proto",
+      "protos/perfetto/perfetto_sql/structured_query.proto",
   ])
   subprocess.run([
       "python",
@@ -54,6 +55,8 @@ def main():
       "python/perfetto/bigtrace/protos/perfetto/bigtrace/orchestrator_pb2.pyi",
       "python/perfetto/bigtrace/protos/perfetto/trace_processor/trace_processor_pb2.py",
       "python/perfetto/bigtrace/protos/perfetto/trace_processor/trace_processor_pb2.pyi",
+      "python/perfetto/bigtrace/protos/perfetto/perfetto_sql/structured_query_pb2.py",
+      "python/perfetto/bigtrace/protos/perfetto/perfetto_sql/structured_query_pb2.pyi",
   ])
   return 0
 

@@ -17,34 +17,59 @@
 #ifndef SRC_PROTOVM_OWNED_PTR_H_
 #define SRC_PROTOVM_OWNED_PTR_H_
 
-#include <memory>
-
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace protovm {
 
-// Custom deleter for std::unique_ptr to ensure the resource is released and its
-// memory deallocated upon destruction.
-struct Deleter {
-  void operator()(void* p) const { PERFETTO_DCHECK(p == nullptr); }
-};
-
 // OwnedPtr is essentially a std::unique_ptr that doesn't perform any deletion
 // itself. Its purpose is to clearly express ownership semantics for objects
 // that are managed with a custom allocators.
 //
-// Note that objects allocated/deallocated through a custom allocator cannot be
-// correctly deleted by the default std::unique_ptr (which calls "delete"),
-// whereas OwnedPtr uses a no-op deleter.
-//
-// This allows us to leverage the benefits of std::unique_ptr without
-// interfering with the custom deallocation logic.
+// It is not a unique_ptr, because that's not guaranteed to be standard layout
 //
 // OwnedPtr is extensively used within RwProto to manage the lifecycle and
 // clarify ownership of the internal, manually-allocated nodes.
 template <class T>
-using OwnedPtr = std::unique_ptr<T, Deleter>;
+class OwnedPtr {
+ public:
+  using pointer = T*;
+  OwnedPtr(const OwnedPtr&) = delete;
+  OwnedPtr(OwnedPtr&& other) {
+    p_ = other.p_;
+    other.p_ = nullptr;
+  }
+  OwnedPtr(T* p) noexcept : p_(p) {}  // NOLINT: explicit
+  ~OwnedPtr() noexcept { reset(); }
+  OwnedPtr& operator=(const OwnedPtr&) = delete;
+  OwnedPtr& operator=(OwnedPtr&& other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+    reset();
+    p_ = other.p_;
+    other.p_ = nullptr;
+    return *this;
+  }
+  T* get() const noexcept { return p_; }
+  T* release() noexcept {
+    T* p = p_;
+    p_ = nullptr;
+    return p;
+  }
+  typename std::add_lvalue_reference<T>::type operator*() const noexcept {
+    return *p_;
+  }
+  explicit operator bool() const noexcept { return get() != nullptr; }
+  T* operator->() const noexcept { return p_; }
+  void reset(T* p = pointer()) noexcept {
+    PERFETTO_DCHECK(p_ == nullptr);
+    p_ = p;
+  }
+
+ private:
+  T* p_ = nullptr;
+};
 
 }  // namespace protovm
 }  // namespace perfetto

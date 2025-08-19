@@ -69,7 +69,7 @@ class FullTraceJankMetricHandler implements MetricHandler {
       jankTypeFilter = ' android_is_sf_jank_type(display_value)';
       jankTypeDisplayName = 'sf';
     } else {
-      jankTypeFilter = " display_value != 'None'";
+      jankTypeFilter = ' android_is_missed_frame_type(display_value)';
       jankTypeDisplayName = 'all';
     }
     const processName = metricData.process;
@@ -118,7 +118,7 @@ class FullTraceJankMetricHandler implements MetricHandler {
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: fullTraceJankColumns,
-      tableName: trackName,
+      title: trackName,
     };
   }
 }

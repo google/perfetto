@@ -24,7 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -95,14 +95,14 @@ inline std::optional<const std::string> GetGroupIdColName(
   return std::nullopt;
 }
 
-inline std::optional<const Table*> GetInternedDataTable(
+inline const tables::ViewCaptureInternedDataTable* GetInternedDataTable(
     const std::string& table_name,
     TraceStorage* storage) {
   if (table_name == tables::ViewCaptureTable::Name() ||
       table_name == tables::ViewCaptureViewTable::Name()) {
     return storage->mutable_viewcapture_interned_data_table();
   }
-  return std::nullopt;
+  return nullptr;
 }
 
 }  // namespace perfetto::trace_processor::util::winscope_proto_mapping

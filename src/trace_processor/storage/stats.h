@@ -86,6 +86,9 @@ namespace perfetto::trace_processor::stats {
        "enable. See ftrace_setup_errors in the metadata table for details."),  \
   F(ftrace_abi_errors_skipped_zero_data_length,                                \
                                           kSingle,  kInfo,     kAnalysis, ""), \
+  F(ftrace_generic_descriptor_errors,     kSingle,  kError,    kAnalysis,      \
+       "The config is setting denser_generic_event_encoding, but there are "   \
+       "issues with parsing or matching up the in-trace proto descriptors."),  \
   F(ftrace_thermal_exynos_acpm_unknown_tz_id,                                  \
                                           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
@@ -96,6 +99,8 @@ namespace perfetto::trace_processor::stats {
   F(fuchsia_invalid_event_arg_name,       kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_unknown_event_arg,            kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_string_ref,           kSingle,  kError,    kAnalysis, ""), \
+  F(generic_task_state_invalid_order,     kSingle,  kError,    kAnalysis,      \
+       "Invalid order of generic task state events. Should never happen."),    \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, ""), \
@@ -120,6 +125,9 @@ namespace perfetto::trace_processor::stats {
        "Implausibly large increment to value received from "                   \
        "SuspendControlService. Indicates a transient error in "                \
        "SuspendControlService."),                                              \
+  F(kernel_trackevent_format_error,       kSingle,  kError,    kAnalysis,      \
+       "Ftrace event payloads did not match the format file while being "      \
+       "parsed as kernel track events."),                                      \
   F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \
@@ -331,7 +339,6 @@ namespace perfetto::trace_processor::stats {
       "config. This will cause a process to be completely absent from the "    \
       "trace, but does *not* imply data loss for processes that do have "      \
       "samples in this trace."),                                               \
-  F(perf_counter_skipped_because_no_cpu,  kSingle,  kError,    kAnalysis, ""), \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, ""), \
   F(perf_samples_cpu_mode_unknown,        kSingle,  kError,    kAnalysis, ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,         \
@@ -411,31 +418,31 @@ namespace perfetto::trace_processor::stats {
   F(v8_code_load_missing_code_range,      kSingle,  kError,    kAnalysis,      \
       "V8 load had no code range or an empty one. Event ignored."),            \
   F(winscope_inputmethod_clients_parse_errors,                                 \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "InputMethod clients packet has unknown fields, which results in "       \
       "some arguments missing. You may need a newer version of trace "         \
       "processor to parse them."),                                             \
   F(winscope_inputmethod_manager_service_parse_errors,                         \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "InputMethod manager service packet has unknown fields, which results "  \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
   F(winscope_inputmethod_service_parse_errors,                                 \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "InputMethod service packet has unknown fields, which results in "       \
       "some arguments missing. You may need a newer version of trace "         \
       "processor to parse them."),                                             \
-  F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
+  F(winscope_sf_layers_parse_errors,      kSingle,  kError,    kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \
       "processor to parse them."),                                             \
   F(winscope_sf_transactions_parse_errors,                                     \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "SurfaceFlinger transactions packet has unknown fields, which results "  \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
   F(winscope_shell_transitions_parse_errors,                                   \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "Shell transition packet has unknown fields, which results "             \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
@@ -455,14 +462,14 @@ namespace perfetto::trace_processor::stats {
                                           kSingle,  kInfo,     kAnalysis,      \
       "Got a viewer config collision!"),                                       \
   F(winscope_viewcapture_parse_errors,                                         \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "ViewCapture packet has unknown fields, which results in some "          \
       "arguments missing. You may need a newer version of trace processor "    \
       "to parse them."),                                                       \
   F(winscope_viewcapture_missing_interned_string_parse_errors,                 \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "Failed to find interned ViewCapture string."),                          \
-  F(winscope_windowmanager_parse_errors, kSingle,  kInfo,     kAnalysis,       \
+  F(winscope_windowmanager_parse_errors, kSingle,   kError,    kAnalysis,      \
       "WindowManager state packet has unknown fields, which results "          \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
@@ -558,7 +565,11 @@ namespace perfetto::trace_processor::stats {
       "slice. This can happen e.g. in JSON traces using X events or in other " \
       "cases where a duration is part of the trace. To solve this problem "    \
       "make sure that your X events do not overlap on the same track (e.g. "   \
-      "thread/process) ")
+      "thread/process)"),                                                      \
+  F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace,     \
+      "A perf sample was encountered that has no frames. This can happen "     \
+      "if the kernel is unable to unwind the stack while sampling. Check "     \
+      "Linux kernel documentation for causes of this and potential fixes.")
 // clang-format on
 
 enum Type {

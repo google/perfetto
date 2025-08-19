@@ -16,15 +16,20 @@
 
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
@@ -33,9 +38,9 @@
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -54,8 +59,7 @@ base::Status AuxStreamManager::OnAuxtraceInfoRecord(AuxtraceInfoRecord info) {
     return base::ErrStatus("Multiple PERF_RECORD_AUXTRACE_INFO not supported.");
   }
   ASSIGN_OR_RETURN(tokenizer_,
-                   PerfTracker::GetOrCreate(context_)->CreateAuxDataTokenizer(
-                       std::move(info)));
+                   perf_tracker_->CreateAuxDataTokenizer(std::move(info)));
   return base::OkStatus();
 }
 
@@ -155,7 +159,7 @@ base::Status AuxStream::OnAuxtraceRecord(AuxtraceRecord auxtrace,
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(auxtrace.offset - auxtrace_end_));
   }
-  outstanding_auxtrace_data_.emplace_back(std::move(auxtrace), std::move(data));
+  outstanding_auxtrace_data_.emplace_back(auxtrace, std::move(data));
   auxtrace_end_ = outstanding_auxtrace_data_.back().end();
   return MaybeParse();
 }
@@ -163,7 +167,7 @@ base::Status AuxStream::OnAuxtraceRecord(AuxtraceRecord auxtrace,
 base::Status AuxStream::MaybeParse() {
   while (!outstanding_records_.empty()) {
     auto& record = outstanding_records_.front();
-    if (auto r = std::get_if<ItraceStartRecord>(&record); r) {
+    if (auto* r = std::get_if<ItraceStartRecord>(&record); r) {
       RETURN_IF_ERROR(data_stream_->OnItraceStartRecord(std::move(*r)));
       outstanding_records_.pop_front();
       continue;
