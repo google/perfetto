@@ -27,6 +27,7 @@ import {
   createGroupByProto,
 } from './operations/operation_component';
 import {ColumnInfo, newColumnInfoList} from './column_info';
+import {assertExists} from '../../../base/logging';
 
 export class SubQueryNode implements QueryNode {
   readonly nodeId: string;
@@ -38,6 +39,8 @@ export class SubQueryNode implements QueryNode {
   readonly state: QueryNodeState;
 
   constructor(state: QueryNodeState) {
+    assertExists(state.prevNode, 'SubQueryNode requires a previous node');
+
     this.nodeId = nextNodeId();
     this.state = state;
     this.prevNode = state.prevNode;
@@ -86,7 +89,7 @@ export class SubQueryNode implements QueryNode {
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    if (groupByProto) sq.groupBy = groupByProto;
+    if (groupByProto !== undefined) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;

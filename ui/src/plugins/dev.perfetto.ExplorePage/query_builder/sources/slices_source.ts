@@ -98,7 +98,7 @@ export class SlicesSourceNode extends SourceNode {
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    if (groupByProto) sq.groupBy = groupByProto;
+    if (groupByProto !== undefined) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
