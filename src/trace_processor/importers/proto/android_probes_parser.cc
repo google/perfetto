@@ -158,7 +158,9 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
   auto it = evt.energy_data();
   protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
 
-  auto opt_track = tracker_->GetPowerRailTrack(desc.index());
+  auto opt_track =
+      tracker_->GetPowerRailTrack(evt.session_uuid(), desc.index());
+
   if (opt_track.has_value()) {
     // The tokenization makes sure that this field is always present and
     // is equal to the packet's timestamp that was passed to us via the sorter.

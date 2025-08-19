@@ -222,7 +222,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
           kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
           tracks::DynamicName(id), args_fn);
     }
-    tracker_->SetPowerRailTrack(desc.index(), track);
+    tracker_->SetPowerRailTrack(evt.session_uuid(), desc.index(), track);
   }
 
   // For each energy data message, turn it into its own trace packet
