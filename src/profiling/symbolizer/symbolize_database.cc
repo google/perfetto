@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -54,7 +55,6 @@ constexpr const char* kQueryUnsymbolized =
         spm.load_bias
       from stack_profile_frame spf
       join stack_profile_mapping spm on spf.mapping = spm.id
-
       where (
           spm.build_id != ''
           -- The [[] is *not* a typo: that's how you escape [ inside a glob.
@@ -100,7 +100,8 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
 std::optional<std::string> GetOsRelease(trace_processor::TraceProcessor* tp) {
   Iterator it = tp->ExecuteQuery(
       "select str_value from metadata where name = 'system_release'");
-  if (it.Next()) {
+  if (it.Next() && it.ColumnCount() > 0 &&
+      it.Get(0).type == trace_processor::SqlValue::kString) {
     return it.Get(0).AsString();
   }
   return std::nullopt;
