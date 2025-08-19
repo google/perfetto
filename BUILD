@@ -3310,6 +3310,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/slices/flat_slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/flow.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/hierarchy.sql",
+        "src/trace_processor/perfetto_sql/stdlib/slices/self_dur.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/time_in_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/slices/with_context.sql",
     ],
