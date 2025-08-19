@@ -17,8 +17,6 @@
 // rather than passing them positionally.
 export type EvtListener<T> = (args: T) => unknown | Promise<unknown>;
 
-    // some bad code formatting
-
 // For use in interfaces, when we want to expose only the listen() method and
 // not the emit().
 export interface Evt<T> {
