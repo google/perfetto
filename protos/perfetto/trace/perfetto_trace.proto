@@ -6103,6 +6103,21 @@ enum TrustedOverlay {
   DISABLED = 1;
   ENABLED = 2;
 };
+message BoxShadowSettings {
+  message BoxShadowParams {
+    optional float blur_radius = 1;
+    optional float spread_radius = 2;
+    optional int32 color = 3;
+    optional float offset_x = 4;
+    optional float offset_y = 5;
+  }
+  repeated BoxShadowParams box_shadows = 1;
+}
+
+message BorderSettings {
+  optional float stroke_width = 1;
+  optional int32 color = 2;
+}
 // End of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -6336,6 +6351,12 @@ message LayerProto {
 
   // Priority value of the layer set by the system.
   optional int32 system_content_priority = 64;
+
+  // Settings which specify how shadows should be drawn for a layer.
+  optional BoxShadowSettings box_shadow_settings = 65;
+
+  // Settings which specify how an outline should be drawn for a layer.
+  optional BorderSettings border_settings = 66;
 }
 
 message PositionProto {
@@ -6535,6 +6556,8 @@ message LayerState {
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
     eSystemContentPriorityChanged = 0x00020000;
+    eBoxShadowSettingsChanged = 0x00040000;
+    eBorderSettingsChanged = 0x00080000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -6677,6 +6700,10 @@ message LayerState {
   optional CornerRadii client_drawn_corner_radii = 46;
 
   optional int32 system_content_priority = 47;
+
+  optional BoxShadowSettings box_shadow_settings = 48;
+
+  optional BorderSettings border_settings = 49;
 }
 
 message DisplayState {
