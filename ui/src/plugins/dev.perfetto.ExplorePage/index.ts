@@ -26,7 +26,7 @@ export default class implements PerfettoPlugin {
   // state/charts for the lifecycle of a single
   // trace.
   private readonly state: ExplorePageState = {
-    mode: ExplorePageModes.DATA_VISUALISER,
+    mode: ExplorePageModes.QUERY_BUILDER,
     rootNodes: [],
   };
 
