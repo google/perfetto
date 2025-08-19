@@ -18,6 +18,7 @@
 #define SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
