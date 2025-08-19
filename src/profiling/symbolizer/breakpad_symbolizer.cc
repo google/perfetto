@@ -16,16 +16,20 @@
 
 #include "src/profiling/symbolizer/breakpad_symbolizer.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/symbolizer/breakpad_parser.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 namespace {
 
@@ -69,7 +73,7 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
   // Check to see if the |file_path_for_testing_| member is populated. If it is,
   // this file must be used.
   if (file_path_for_testing_.empty()) {
-    file_path = MakeFilePath(raw_build_id, symbol_dir_path_).c_str();
+    file_path = MakeFilePath(raw_build_id, symbol_dir_path_);
   } else {
     file_path = file_path_for_testing_;
   }
@@ -101,5 +105,4 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
   return result;
 }
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling

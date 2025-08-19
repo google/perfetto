@@ -18,7 +18,7 @@ import {classNames} from '../../../base/classnames';
 import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {QueryNode} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
 import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
@@ -41,6 +41,8 @@ export interface NodeBoxAttrs {
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onAddSubQuery: (node: QueryNode) => void;
+  readonly onAddAggregation: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }
 
@@ -59,7 +61,8 @@ function renderWarningIcon(node: QueryNode): m.Child {
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onDuplicateNode, onDeleteNode} = attrs;
+  const {node, onDuplicateNode, onDeleteNode, onAddSubQuery, onAddAggregation} =
+    attrs;
   return m(
     PopupMenu,
     {
@@ -68,6 +71,16 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
         icon: Icons.ContextMenuAlt,
       }),
     },
+    node.type !== NodeType.kSqlSource && [
+      m(MenuItem, {
+        label: 'Add sub-query',
+        onclick: () => onAddSubQuery(node),
+      }),
+      m(MenuItem, {
+        label: 'Add aggregation',
+        onclick: () => onAddAggregation(node),
+      }),
+    ],
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => onDuplicateNode(node),
@@ -75,6 +88,23 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
     m(MenuItem, {
       label: 'Delete',
       onclick: () => onDeleteNode(node),
+    }),
+  );
+}
+
+function renderAddButton(attrs: NodeBoxAttrs): m.Child {
+  const {node, onAddAggregation} = attrs;
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Icon, {
+        className: 'pf-node-box-add-button',
+        icon: 'add',
+      }),
+    },
+    m(MenuItem, {
+      label: 'Aggregate',
+      onclick: () => onAddAggregation(node),
     }),
   );
 }
@@ -118,9 +148,18 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         draggable: true,
         ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
       },
+      node.prevNode && m('.pf-node-box-port.pf-node-box-port-top'),
       renderWarningIcon(node),
       m('span.pf-node-box__title', node.getTitle()),
       renderContextMenu(attrs),
+      node.nextNodes.map((_, i) => {
+        const portCount = node.nextNodes.length;
+        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+        return m('.pf-node-box-port.pf-node-box-port-bottom', {
+          style: {left},
+        });
+      }),
+      node.type !== NodeType.kSqlSource && renderAddButton(attrs),
     );
   },
 };
