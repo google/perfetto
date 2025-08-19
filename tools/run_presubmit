@@ -250,6 +250,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.jpg',
           '*/test/data/*',
           'Makefile',
+          'rules',
           '*.descriptor',
       ])
 
