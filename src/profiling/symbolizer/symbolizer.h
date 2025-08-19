@@ -33,12 +33,19 @@ struct SymbolizedFrame {
 
 class Symbolizer {
  public:
+  struct Environment {
+    // The kernel version; on Linux, corresponds to `uname -r` output
+    // (e.g. 6.12.27-1rodete1-amd64).
+    std::optional<std::string> os_release;
+  };
+
   // For each address in the input vector, output a vector of SymbolizedFrame
   // representing the functions corresponding to that address. When inlining
   // occurs, this can be more than one function for a single address.
   //
   // On failure, return an empty vector.
   virtual std::vector<std::vector<SymbolizedFrame>> Symbolize(
+      const Environment& env,
       const std::string& mapping_name,
       const std::string& build_id,
       uint64_t load_bias,
