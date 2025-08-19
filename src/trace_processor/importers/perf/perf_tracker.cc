@@ -144,6 +144,19 @@ void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
       params.memory_range.size() == std::numeric_limits<uint64_t>::max()) {
     return;
   }
+
+  // Linux perf synthesises special MMAP/MMAP2 records for the kernel image.
+  // In particular, the KASLR address of _text is stored in the `pgoff` field.
+  // This needs special treatment since the kernel ELF is not in fact
+  // 0xffffff... in size. See:
+  // * https://elixir.bootlin.com/linux/v6.16/source/tools/perf/util/synthetic-events.c#L1156
+  // * https://lore.kernel.org/lkml/20201214105457.543111-1-jolsa@kernel.org
+  //
+  // TODO(lalitm): we are not correctly handling guest kernels, add support for
+  // that once we have some real traces with those present.
+  if (base::StartsWith(params.name, "[kernel.kallsyms]")) {
+    params.exact_offset = 0;
+  }
   AddMapping(
       trace_ts, std::nullopt,
       context_->mapping_tracker->CreateKernelMemoryMapping(std::move(params)));
