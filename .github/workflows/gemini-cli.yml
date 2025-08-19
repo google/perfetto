@@ -28,7 +28,9 @@ permissions:
 
 jobs:
   gemini-cli:
-    # This condition is complex to ensure we only run when explicitly invoked.
+    # This condition seeks to ensure the action is only run when it is triggered by a trusted user.
+    # For private repos, users who have access to the repo are considered trusted.
+    # For public repos, users who members, owners, or collaborators are considered trusted.
     if: |-
       github.event_name == 'workflow_dispatch' ||
       (
@@ -36,7 +38,10 @@ jobs:
         contains(github.event.issue.body, '@gemini-cli') &&
         !contains(github.event.issue.body, '@gemini-cli /review') &&
         !contains(github.event.issue.body, '@gemini-cli /triage') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)
+        (
+          github.event.repository.private == true ||
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)
+        )
       ) ||
       (
         (
@@ -46,18 +51,23 @@ jobs:
         contains(github.event.comment.body, '@gemini-cli') &&
         !contains(github.event.comment.body, '@gemini-cli /review') &&
         !contains(github.event.comment.body, '@gemini-cli /triage') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+        (
+          github.event.repository.private == true ||
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+        )
       ) ||
       (
         github.event_name == 'pull_request_review' &&
         contains(github.event.review.body, '@gemini-cli') &&
         !contains(github.event.review.body, '@gemini-cli /review') &&
         !contains(github.event.review.body, '@gemini-cli /triage') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+        (
+          github.event.repository.private == true ||
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+        )
       )
     timeout-minutes: 10
     runs-on: 'ubuntu-latest'
-
     steps:
       - name: 'Generate GitHub App Token'
         id: 'generate_token'
@@ -205,6 +215,7 @@ jobs:
           use_gemini_code_assist: '${{ vars.GOOGLE_GENAI_USE_GCA }}'
           settings: |-
             {
+              "debug": ${{ fromJSON(env.DEBUG || env.ACTIONS_STEP_DEBUG || false) }},
               "maxSessionTurns": 50,
               "telemetry": {
                 "enabled": false,
