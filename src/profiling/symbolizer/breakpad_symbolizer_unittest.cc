@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
+#include <string>
+#include <vector>
 
+#include "perfetto/ext/base/utils.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 #include "test/gtest_and_gmock.h"
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/profiling/symbolizer/breakpad_symbolizer.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 namespace {
 
@@ -86,5 +89,4 @@ TEST(BreakpadSymbolizerTest, SymbolFrames) {
 }
 
 }  // namespace
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
