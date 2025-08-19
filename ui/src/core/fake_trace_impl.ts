@@ -60,6 +60,13 @@ export function initializeAppImplForTesting(): AppImpl {
         schema: z.enum(['dummy']),
         defaultValue: 'dummy',
       }),
+      analyticsSetting: settingsManager.register({
+        id: 'analyticsEnable',
+        name: 'Enable UI Telemetry',
+        description: '',
+        schema: z.boolean(),
+        defaultValue: true,
+      }),
     });
   }
   return AppImpl.instance;
