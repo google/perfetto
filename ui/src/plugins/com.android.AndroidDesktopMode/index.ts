@@ -34,7 +34,7 @@ const TRACK_NAME = 'Desktop Mode Windows';
 const TRACK_URI = '/desktop_windows';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidDesktopMode';
+  static readonly id = 'com.android.AndroidDesktopMode';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);

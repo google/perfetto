@@ -44,7 +44,7 @@ async function registerAllocsTrack(
 }
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidDmabuf';
+  static readonly id = 'com.android.AndroidDmabuf';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     StandardGroupsPlugin,

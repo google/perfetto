@@ -843,7 +843,7 @@ const BT_ACTIVITY = `
 `;
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
+  static readonly id = 'com.android.AndroidLongBatteryTracing';
   static readonly dependencies = [StandardGroupsPlugin];
 
   private readonly groups = new Map<string, TrackNode>();

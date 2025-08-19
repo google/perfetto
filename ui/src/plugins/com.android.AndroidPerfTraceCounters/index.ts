@@ -27,12 +27,12 @@ const PERF_TRACE_COUNTERS_PRECONDITION = `
 `;
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidPerfTraceCounters';
+  static readonly id = 'com.android.AndroidPerfTraceCounters';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
     if (resp.numRows() === 0) return;
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerfTraceCounters#ThreadRuntimeIPC',
+      id: 'com.android.AndroidPerfTraceCounters#ThreadRuntimeIPC',
       name: 'Add a track to show a thread runtime ipc',
       callback: async (tid) => {
         if (tid === undefined) {

@@ -21,7 +21,7 @@ import {Trace} from '../../../public/trace';
 import {
   addJankCUJDebugTrack,
   addLatencyCUJDebugTrack,
-} from '../../dev.perfetto.AndroidCujs';
+} from '../../com.android.AndroidCujs';
 import {
   addDebugSliceTrack,
   DebugSliceTrackArgs,

@@ -17,7 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidNetwork';
+  static readonly id = 'com.android.AndroidNetwork';
   // Adds a debug track using the provided query and given columns. The columns
   // must be start with ts, dur, and a name column. The name column and all
   // following columns are shown as arguments in slice details.
@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidNetwork#batteryEvents',
+      id: 'com.android.AndroidNetwork#batteryEvents',
       name: 'Add track: battery events',
       callback: async (track) => {
         if (track === undefined) {
@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidNetwork#activityTrack',
+      id: 'com.android.AndroidNetwork#activityTrack',
       name: 'Add track: network activity',
       callback: async (groupby, filter, trackName) => {
         if (groupby === undefined) {

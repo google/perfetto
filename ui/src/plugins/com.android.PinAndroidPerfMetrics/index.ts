@@ -16,16 +16,18 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
-import {PLUGIN_ID} from './pluginId';
-import AndroidCujsPlugin from '../dev.perfetto.AndroidCujs';
+import AndroidCujsPlugin from '../com.android.AndroidCujs';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
 `;
 
 function getMetricsFromHash(): string[] {
+  // TODO(stevegolton): this uses `dev.perfetto.PinAndroidPerfMetrics` for
+  // back-compat reasons only. Figure out a way to preserve backwards
+  // compatibility of plugin arguments when plugins change id.
   const metricVal = location.hash;
-  const regex = new RegExp(`${PLUGIN_ID}:metrics=(.*)`);
+  const regex = new RegExp(`dev.perfetto.PinAndroidPerfMetrics:metrics=(.*)`);
   const match = metricVal.match(regex);
   if (match === null) {
     return [];
@@ -53,7 +55,7 @@ let metrics: string[];
  * slices related to the regressed metric
  */
 export default class implements PerfettoPlugin {
-  static readonly id = PLUGIN_ID;
+  static readonly id = 'com.android.PinAndroidPerfMetrics';
   static readonly dependencies = [AndroidCujsPlugin];
 
   static onActivate(): void {
@@ -73,10 +75,10 @@ export default class implements PerfettoPlugin {
     });
     if (metrics.length !== 0) {
       // Add track: Android jank CUJs
-      ctx.commands.runCommand('dev.perfetto.AndroidCujs#PinJankCUJs');
+      ctx.commands.runCommand('com.android.AndroidCujs#PinJankCUJs');
 
       // Add track: Android latency CUJs
-      ctx.commands.runCommand('dev.perfetto.AndroidCujs#PinLatencyCUJs');
+      ctx.commands.runCommand('com.android.AndroidCujs#PinLatencyCUJs');
 
       this.callHandlers(metrics, ctx);
     }

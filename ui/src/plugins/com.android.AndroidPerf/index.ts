@@ -23,7 +23,7 @@ import {
 import {STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidPerf';
+  static readonly id = 'com.android.AndroidPerf';
   async addAppProcessStartsDebugTrack(
     ctx: Trace,
     reason: string,
@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#BinderSystemServerIncoming',
+      id: 'com.android.AndroidPerf#BinderSystemServerIncoming',
       name: 'Run query: system_server incoming binder graph',
       callback: () =>
         addQueryResultsTab(ctx, {
@@ -73,7 +73,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#BinderSystemServerOutgoing',
+      id: 'com.android.AndroidPerf#BinderSystemServerOutgoing',
       name: 'Run query: system_server outgoing binder graph',
       callback: () =>
         addQueryResultsTab(ctx, {
@@ -84,7 +84,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#MonitorContentionSystemServer',
+      id: 'com.android.AndroidPerf#MonitorContentionSystemServer',
       name: 'Run query: system_server monitor_contention graph',
       callback: () =>
         addQueryResultsTab(ctx, {
@@ -95,7 +95,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#BinderAll',
+      id: 'com.android.AndroidPerf#BinderAll',
       name: 'Run query: all process binder graph',
       callback: () =>
         addQueryResultsTab(ctx, {
@@ -106,7 +106,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#ThreadClusterDistribution',
+      id: 'com.android.AndroidPerf#ThreadClusterDistribution',
       name: 'Run query: runtime cluster distribution for a thread',
       callback: async (tid) => {
         if (tid === undefined) {
@@ -140,7 +140,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#SchedLatency',
+      id: 'com.android.AndroidPerf#SchedLatency',
       name: 'Run query: top 50 sched latency for a thread',
       callback: async (tid) => {
         if (tid === undefined) {
@@ -164,7 +164,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#SchedLatencyInSelectedWindow',
+      id: 'com.android.AndroidPerf#SchedLatencyInSelectedWindow',
       name: 'Top 50 sched latency in selected time window',
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
@@ -192,7 +192,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#AppProcessStarts',
+      id: 'com.android.AndroidPerf#AppProcessStarts',
       name: 'Add tracks: app process starts',
       callback: async () => {
         await ctx.engine.query(
@@ -207,7 +207,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#AppIntentStarts',
+      id: 'com.android.AndroidPerf#AppIntentStarts',
       name: 'Add tracks: app intent starts',
       callback: async () => {
         await ctx.engine.query(
@@ -222,7 +222,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidPerf#CounterByFtraceEventArgs',
+      id: 'com.android.AndroidPerf#CounterByFtraceEventArgs',
       name: 'Add tracks: counter by ftrace event arguments',
       callback: async (event, value, filter, filterValue) => {
         if (event === undefined) {

@@ -20,7 +20,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidBinderVizPlugin';
+  static readonly id = 'com.android.AndroidBinderVizPlugin';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const binderCounterBreakdowns = new BreakdownTracks({

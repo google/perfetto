@@ -14,7 +14,7 @@
 
 import {CujMetricData, MetricHandler} from './metricUtils';
 import {Trace} from '../../../public/trace';
-import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
+import {addJankCUJDebugTrack} from '../../com.android.AndroidCujs';
 
 /** Pins a single CUJ from CUJ scoped metrics. */
 class PinCujMetricHandler implements MetricHandler {

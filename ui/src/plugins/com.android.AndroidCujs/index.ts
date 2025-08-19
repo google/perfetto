@@ -271,10 +271,10 @@ function generateCujTrackConfig(
 }
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidCujs';
+  static readonly id = 'com.android.AndroidCujs';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
+      id: 'com.android.AndroidCujs#PinJankCUJs',
       name: 'Add track: Android jank CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
@@ -284,7 +284,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
+      id: 'com.android.AndroidCujs#ListJankCUJs',
       name: 'Run query: Android jank CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
@@ -297,7 +297,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidCujs#PinLatencyCUJs',
+      id: 'com.android.AndroidCujs#PinLatencyCUJs',
       name: 'Add track: Android latency CUJs',
       callback: () => {
         addDebugSliceTrack({
@@ -312,7 +312,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
+      id: 'com.android.AndroidCujs#ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
       callback: () =>
         addQueryResultsTab(ctx, {
@@ -322,7 +322,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.AndroidCujs#PinBlockingCalls',
+      id: 'com.android.AndroidCujs#PinBlockingCalls',
       name: 'Add track: Android Blocking calls during CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>

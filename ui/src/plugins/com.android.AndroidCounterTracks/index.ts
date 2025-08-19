@@ -18,7 +18,7 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidCounterTracks';
+  static readonly id = 'com.android.AndroidCounterTracks';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;

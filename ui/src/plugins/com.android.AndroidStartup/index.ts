@@ -20,7 +20,7 @@ import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.AndroidStartup';
+  static readonly id = 'com.android.AndroidStartup';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
