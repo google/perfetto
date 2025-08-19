@@ -650,39 +650,26 @@ std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
   return std::nullopt;
 }
 
-std::optional<FoundBinary> FindKernelBinaryAtPath(const char* path) {
-  return IsCorrectFile(path, std::nullopt);
-}
-
 std::optional<FoundBinary> FindKernelBinary(const std::string& os_release) {
-  base::StackString<1024> path("/boot/vmlinux-%s", os_release.c_str());
-  std::optional<FoundBinary> binary = FindKernelBinaryAtPath(path.c_str());
-  if (binary) {
-    return binary;
+  using SS = base::StackString<512>;
+  const char* rel = os_release.c_str();
+  auto find_kernel = [](base::StackString<512> path) {
+    return IsCorrectFile(path.c_str(), std::nullopt);
+  };
+  if (auto b = find_kernel(SS("/boot/vmlinux-%s", rel))) {
+    return b;
   }
-  path = base::StackString<1024>("/usr/lib/debug/boot/vmlinux-%s",
-                                 os_release.c_str());
-  binary = FindKernelBinaryAtPath(path.c_str());
-  if (binary) {
-    return binary;
+  if (auto b = find_kernel(SS("/usr/lib/debug/boot/vmlinux-%s", rel))) {
+    return b;
   }
-  path = base::StackString<1024>("/lib/modules/%s/build/vmlinux",
-                                 os_release.c_str());
-  binary = FindKernelBinaryAtPath(path.c_str());
-  if (binary) {
-    return binary;
+  if (auto b = find_kernel(SS("/lib/modules/%s/build/vmlinux", rel))) {
+    return b;
   }
-  path = base::StackString<1024>("/usr/lib/debug/lib/modules/%s/vmlinux",
-                                 os_release.c_str());
-  binary = FindKernelBinaryAtPath(path.c_str());
-  if (binary) {
-    return binary;
+  if (auto b = find_kernel(SS("/usr/lib/debug/lib/modules/%s/vmlinux", rel))) {
+    return b;
   }
-  path = base::StackString<1024>("/usr/lib/debug/boot/vmlinux-%s.debug",
-                                 os_release.c_str());
-  binary = FindKernelBinaryAtPath(path.c_str());
-  if (binary) {
-    return binary;
+  if (auto b = find_kernel(SS("/usr/lib/debug/boot/vmlinux-%s.debug", rel))) {
+    return b;
   }
   return std::nullopt;
 }
