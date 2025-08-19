@@ -330,8 +330,9 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   return upid;
 }
 
-void ProcessTracker::AssociateProcessToParentUtid(UniquePid upid,
-                                                  UniqueTid parent_utid) {
+void ProcessTracker::AssociateCreatedProcessToParentThread(
+    UniquePid upid,
+    UniqueTid parent_utid) {
   auto& process_table = *context_->storage->mutable_process_table();
   auto& thread_table = *context_->storage->mutable_thread_table();
 

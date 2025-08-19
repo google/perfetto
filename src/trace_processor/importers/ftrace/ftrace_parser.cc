@@ -2490,7 +2490,7 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
 
-    proc_tracker->AssociateProcessToParentUtid(upid, source_utid);
+    proc_tracker->AssociateCreatedProcessToParentThread(upid, source_utid);
 
     ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
         timestamp, new_utid, source_utid);

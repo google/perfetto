@@ -121,7 +121,8 @@ class ProcessTracker {
   // Associates a process with its parent thread. Used when the tid that
   // created the process is known, but not the parent process. Exclusively,
   // used by Ftrace on new task events where only the parent tid is provided.
-  void AssociateProcessToParentUtid(UniquePid upid, UniqueTid parent_utid);
+  void AssociateCreatedProcessToParentThread(UniquePid upid,
+                                             UniqueTid parent_utid);
 
   // Updates a process' parent. If the upid was previously associated with
   // a different parent process, then the upid process is considered reused
