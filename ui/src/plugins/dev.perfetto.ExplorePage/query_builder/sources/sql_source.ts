@@ -25,10 +25,6 @@ import {Editor} from '../../../../widgets/editor';
 import {Icon} from '../../../../widgets/icon';
 import {Icons} from '../../../../base/semantic_icons';
 import {
-  createFiltersProto,
-  createGroupByProto,
-} from '../operations/operation_component';
-import {
   QueryHistoryComponent,
   queryHistoryStorage,
 } from '../../../../components/widgets/query_history';
@@ -87,23 +83,12 @@ export class SqlSourceNode extends SourceNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `sql_source`;
+    sq.id = this.nodeId;
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
     sqlProto.columnNames = this.state.sourceCols.map((c) => c.column.name);
     sq.sql = sqlProto;
-
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
-    if (filtersProto) sq.filters = filtersProto;
-    const groupByProto = createGroupByProto(
-      this.state.groupByColumns,
-      this.state.aggregations,
-    );
-    if (groupByProto) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
