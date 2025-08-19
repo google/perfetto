@@ -44,9 +44,15 @@ export interface BuilderAttrs {
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
+
+  // Add source nodes.
   readonly onAddStdlibTableSource: () => void;
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
+
+  // Add derived nodes.
+  readonly onAddSubQueryNode: (node: QueryNode) => void;
+
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -163,6 +169,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAddSqlSource,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
+          onAddSubQuery: attrs.onAddSubQueryNode,
           onDeleteNode: (node: QueryNode) => {
             if (
               node.state.isExecuted &&
