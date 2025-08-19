@@ -27,6 +27,8 @@ message EtwConfig {
   enum KernelFlag {
     CSWITCH = 0;
     DISPATCHER = 1;
+    FILE_IO = 2;
+    FILE_IO_INIT = 3;
   }
 
   // The kernel_flags determines the flags that will be used by the etw tracing
@@ -41,4 +43,6 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }

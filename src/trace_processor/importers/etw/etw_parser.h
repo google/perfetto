@@ -40,6 +40,12 @@ class EtwParser {
                         uint32_t waker_tid,
                         protozero::ConstBytes);
   void ParseMemInfo(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoCreate(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoDirEnum(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoInfo(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoReadWrite(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoSimpleOp(int64_t timestamp, protozero::ConstBytes);
+  void ParseFileIoOpEnd(int64_t timestamp, protozero::ConstBytes);
   void PushSchedSwitch(uint32_t cpu,
                        int64_t timestamp,
                        uint32_t prev_pid,
