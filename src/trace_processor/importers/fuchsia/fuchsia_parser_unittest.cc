@@ -108,14 +108,6 @@ class MockProcessTracker : public ProcessTracker {
   explicit MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
 
-  MOCK_METHOD(UniquePid,
-              SetProcessMetadata,
-              (UniquePid upid,
-               std::optional<UniquePid> pupid,
-               base::StringView process_name,
-               base::StringView cmdline),
-              (override));
-
   MOCK_METHOD(void,
               UpdateThreadName,
               (UniqueTid utid,

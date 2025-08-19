@@ -111,7 +111,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   if (event.pid_is_string_id) {
     UniquePid upid = procs->GetOrCreateProcess(event.pid);
     procs->SetProcessMetadata(
-        upid, std::nullopt, storage->GetString(StringPool::Id::Raw(event.pid)),
+        upid, storage->GetString(StringPool::Id::Raw(event.pid)),
         base::StringView());
   }
   if (event.tid_is_string_id) {
@@ -427,8 +427,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         } else if (name == "process_name") {
           UniquePid upid = procs->GetOrCreateProcess(event.pid);
           procs->SetProcessMetadata(
-              upid, std::nullopt,
-              base::StringView(args_name.data(), args_name.size()),
+              upid, base::StringView(args_name.data(), args_name.size()),
               base::StringView());
         }
       }
