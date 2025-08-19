@@ -30,7 +30,7 @@ NC = '\033[0m'  # No Color
 
 # Constants for paths. Assumes the script is run from the repository root.
 SETUP_PY_PATH = 'python/setup.py'
-VENV_PYTHON = '.venv/bin/python'
+VENV_PYTHON = os.path.abspath('.venv/bin/python')
 
 
 def info(msg: str) -> None:
@@ -152,7 +152,14 @@ def publish(commit: str) -> None:
     run_cmd(VENV_PYTHON, '-m', 'build', cwd='python')
 
     confirm("Ready to upload to PyPI. This is not reversible. Continue?")
-    run_cmd(VENV_PYTHON, '-m', 'twine', 'upload', 'dist/*', cwd='python')
+    run_cmd(
+        VENV_PYTHON,
+        '-m',
+        'twine',
+        'upload',
+        'dist/*',
+        '--verbose',
+        cwd='python')
     info("Successfully published to PyPI.")
 
   finally:
