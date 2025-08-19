@@ -39,8 +39,8 @@ enum BinaryType : uint8_t {
 
 struct FoundBinary {
   std::string file_name;
-  uint64_t vaddr;
-  uint64_t poffset;
+  uint64_t p_vaddr;
+  uint64_t p_offset;
   BinaryType type;
 };
 

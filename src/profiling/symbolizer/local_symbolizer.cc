@@ -845,15 +845,15 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
   if (!binary) {
     return {};
   }
-  uint64_t binary_load_bias = binary->vaddr - binary->poffset;
+  uint64_t binary_load_bias = binary->p_vaddr - binary->p_offset;
   uint64_t addr_correction = 0;
   if (is_kernel) {
     // We expect this branch to be hit when symbolizing kernel frames with Linux
     // perf (*not* simpleperf). In that case, we need to add the vaddr
     // because llvm-symbolizer expects that we provide absolute addresses unlike
     // all other files where it expects relative addresses.
-    addr_correction = binary->vaddr;
-  } else if (binary->poffset > 0 && binary_load_bias > load_bias) {
+    addr_correction = binary->p_vaddr;
+  } else if (binary->p_offset > 0 && binary_load_bias > load_bias) {
     // On Android 10, there was a bug in libunwindstack that would incorrectly
     // calculate the load_bias, and thus the relative PC. This would end up in
     // frames that made no sense. We can fix this up after the fact if we
@@ -861,10 +861,11 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     //
     // Note that the `binary->poffset > 0` check above accounts for perf.data
     // files: in those, load_bias from the trace is always zero but we should
-    // *not* enter this codepath. Thankfully, in those cases `poffset` is zero
-    // while in cases where we need enter this branch to workaround
-    // libunwindstack, `poffset` should always be greater than zero.
-    addr_correction = (binary->vaddr - binary->poffset) - load_bias;
+    // *not* enter this codepath. Thankfully, in those cases `p_offset` is zero:
+    // symbol elfs always seem to have the text segment's `p_offset` zeroed out.
+    // Whereas with libunwindstack, `p_offset` should always be greater than
+    // zero.
+    addr_correction = (binary->p_vaddr - binary->p_offset) - load_bias;
     PERFETTO_LOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
                  mapping_name.c_str());
   }
