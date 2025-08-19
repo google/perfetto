@@ -1,8 +1,0 @@
-[Unit]
-Description=Perfetto sampling and profiling data source
-Documentation=https://perfetto.dev/docs/
-
-[Service]
-ExecStart=/usr/sbin/traced_perf
-User=root
-Group=root
