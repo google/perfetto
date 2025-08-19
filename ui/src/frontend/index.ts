@@ -184,12 +184,35 @@ function main() {
     defaultValue: DurationPrecision.Full,
   });
 
+  const analyticsSetting = settingsManager.register({
+    id: 'analyticsEnable',
+    name: 'Enable UI telemetry',
+    description: `
+      This setting controls whether the Perfetto UI logs coarse-grained
+      information about your usage of the UI and any errors encountered. This
+      information helps us understand how the UI is being used and allows us to
+      better prioritise features and fix bugs. If this option is disabled,
+      no information will be logged.
+
+      Note: even if this option is enabled, information about the *contents* of
+      traces is *not* logged.
+
+      Note: this setting only has an effect on the ui.perfetto.dev and localhost
+      origins: all other origins do not log telemetry even if this option is
+      enabled.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+    requiresReload: true,
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
     timezoneOverrideSetting,
+    analyticsSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -208,7 +231,10 @@ function main() {
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
   function initAnalyticsOnScriptLoad() {
-    AppImpl.instance.analytics.initialize(globals.isInternalUser);
+    AppImpl.instance.analytics.initialize(
+      globals.isInternalUser,
+      analyticsSetting,
+    );
   }
   const script = document.createElement('script');
   script.src =
