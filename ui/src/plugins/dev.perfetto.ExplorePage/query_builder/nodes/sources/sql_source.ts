@@ -18,24 +18,21 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
-} from '../../query_node';
-import {columnInfoFromName, newColumnInfoList} from '../column_info';
-import protos from '../../../../protos';
-import {Editor} from '../../../../widgets/editor';
-import {Icon} from '../../../../widgets/icon';
-import {Icons} from '../../../../base/semantic_icons';
+} from '../../../query_node';
+import {columnInfoFromName, newColumnInfoList} from '../../column_info';
+import protos from '../../../../../protos';
+import {Editor} from '../../../../../widgets/editor';
 
 import {
   QueryHistoryComponent,
   queryHistoryStorage,
-} from '../../../../components/widgets/query_history';
-import {Trace} from '../../../../public/trace';
-import {SourceNode} from '../source_node';
+} from '../../../../../components/widgets/query_history';
+import {Trace} from '../../../../../public/trace';
+import {SourceNode} from '../../source_node';
 
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
   onExecute?: (sql: string) => void;
-  responseError?: Error;
   trace: Trace;
 }
 
@@ -46,6 +43,7 @@ export class SqlSourceNode extends SourceNode {
     super(attrs);
     this.state = attrs;
     this.nextNodes = [];
+    this.finalCols = this.state.sourceCols;
   }
 
   get type() {
@@ -54,6 +52,7 @@ export class SqlSourceNode extends SourceNode {
 
   setSourceColumns(columns: string[]) {
     this.state.sourceCols = columns.map((c) => columnInfoFromName(c));
+    this.finalCols = this.state.sourceCols;
     m.redraw();
   }
 
@@ -69,6 +68,7 @@ export class SqlSourceNode extends SourceNode {
       filters: [],
       customTitle: this.state.customTitle,
       trace: this.state.trace,
+      issues: this.state.issues,
     };
     return new SqlSourceNode(stateCopy);
   }
@@ -115,22 +115,6 @@ export class SqlSourceNode extends SourceNode {
             position: 'relative',
           },
         },
-        this.state.responseError &&
-          m(Icon, {
-            icon: Icons.Warning,
-            filled: true,
-            style: {
-              color: 'yellow',
-              position: 'absolute',
-              top: '10px',
-              right: '10px',
-              zIndex: 1,
-              fontSize: '2rem',
-            } as m.Attributes['style'],
-            title:
-              `NOT A VALID NODE.\nCan't generate proto based on provided query.\n\n` +
-              `Response error: ${this.state.responseError.message}`,
-          }),
         m(Editor, {
           text: this.state.sql ?? '',
           onUpdate: (text: string) => {

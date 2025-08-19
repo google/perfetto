@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import protos from '../../../protos';
+import protos from '../../../../protos';
 import {
   createFinalColumns,
   createSelectColumnsProto,
@@ -21,10 +21,10 @@ import {
   NodeType,
   QueryNode,
   QueryNodeState,
-} from '../query_node';
-import {createFiltersProto} from './operations/operation_component';
-import {ColumnInfo, newColumnInfoList} from './column_info';
-import {assertExists} from '../../../base/logging';
+} from '../../query_node';
+import {createFiltersProto} from '../operations/operation_component';
+import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {assertExists} from '../../../../base/logging';
 
 export class SubQueryNode implements QueryNode {
   readonly nodeId: string;
@@ -65,6 +65,7 @@ export class SubQueryNode implements QueryNode {
       filters: this.state.filters.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
+      issues: this.state.issues,
     };
     return new SubQueryNode(stateCopy);
   }
