@@ -231,10 +231,7 @@ function main() {
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
   function initAnalyticsOnScriptLoad() {
-    AppImpl.instance.analytics.initialize(
-      globals.isInternalUser,
-      analyticsSetting,
-    );
+    AppImpl.instance.analytics.initialize(globals.isInternalUser);
   }
   const script = document.createElement('script');
   script.src =
