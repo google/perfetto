@@ -401,8 +401,8 @@ def setup_arguments():
   help = 'The web address used to open trace files'
   parser.add_argument('--origin', default='https://ui.perfetto.dev', help=help)
 
-  help = 'The URL Params to open the trace file'
-  parser.add_argument('--url-params', default=None, help=help)
+  help = 'The URL Params to pass to browser when open the trace file'
+  parser.add_argument('--url-params', nargs='+', default=None, help=help)
 
   help = 'Force the use of the sideloaded binaries rather than system daemons'
   parser.add_argument('--sideload', action='store_true', help=help)
@@ -759,7 +759,7 @@ def open_trace_in_browser(path, open_browser, origin, url_params):
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
     address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=record_android_trace'
     if url_params:
-      address += '&' + url_params
+      address += '&' + '&'.join(url_params)
     if open_browser:
       webbrowser.open_new_tab(address)
     else:
