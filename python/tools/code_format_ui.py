@@ -27,48 +27,16 @@ def node_env(repo_root):
   return env
 
 
-class UICodeFormatter(CodeFormatterBase):
+class Prettier(CodeFormatterBase):
 
-  def __init__(self, name: str, exts: list[str], tool: str):
-    super().__init__(name=name, exts=exts)
-    self.tool = tool
+  def __init__(self):
+    super().__init__(name='prettier', exts=['.ts', '.js', '.scss'])
 
   def filter_files(self, files):
     # Filter based on extension first.
     filtered = super().filter_files(files)
     # Filter out changes outside of ui/
-    return [f for f in filtered if f.startswith('ui/')]
-
-  def create_tool_cmd(self, check_only: bool, files: list[str]) -> list[str]:
-    raise NotImplementedError('Subclasses must implement this')
-
-  def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
-    tool = self.tool
-    ui_dir = os.path.join(repo_root, 'ui')
-    if not os.path.exists(os.path.join(ui_dir, tool)):
-      err = f'Cannot find ${tool}\nRun tools/install-build-deps --ui'
-      print(err, file=sys.stderr)
-      return 127
-    files = [os.path.relpath(os.path.abspath(f), ui_dir) for f in files]
-    cmd = self.create_tool_cmd(check_only, files)
-    return self.check_call(cmd, cwd=ui_dir, env=node_env(repo_root))
-
-  def print_fix_hint(self):
-    print('Run ui/format-sources to fix', file=sys.stderr)
-
-
-class Prettier(UICodeFormatter):
-
-  def __init__(self):
-    super().__init__(
-        name='prettier',
-        exts=['.ts', '.js', '.scss'],
-        tool='node_modules/.bin/prettier')
-
-  def filter_files(self, files):
-    # Start from the common UI filtering.
-    filtered = super().filter_files(files)
-    # Apply .prettierignore within ui/
+    filtered = [f for f in filtered if f.startswith('ui/')]
     with open('ui/.prettierignore', 'r') as fd:
       ignorelist = fd.read().strip().split('\n')
       filtered = [
@@ -76,19 +44,47 @@ class Prettier(UICodeFormatter):
       ]
     return filtered
 
-  def create_tool_cmd(self, check_only: bool, files: list[str]) -> list[str]:
-    return [self.tool, '--log-level=warn'
-           ] + ['--check' if check_only else '--write'] + files
+  def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
+    tool = 'node_modules/.bin/prettier'
+    ui_dir = os.path.join(repo_root, 'ui')
+    if not os.path.exists(os.path.join(ui_dir, tool)):
+      err = f'Cannot find ${tool}\nRun tools/install-build-deps --ui'
+      print(err, file=sys.stderr)
+      return 127
+    files = [os.path.relpath(os.path.abspath(f), ui_dir) for f in files]
+    cmd = [tool, '--log-level=warn'] + ['--check' if check_only else '--write']
+    cmd += files
+    return self.check_call(cmd, cwd=ui_dir, env=node_env(repo_root))
+
+  def print_fix_hint(self):
+    print('Run ui/format-sources to fix', file=sys.stderr)
 
 
-class Eslint(UICodeFormatter):
+class Eslint(CodeFormatterBase):
 
   def __init__(self):
-    super().__init__(
-        name='eslint', exts=['.ts', '.js'], tool='node_modules/.bin/eslint')
+    super().__init__(name='eslint', exts=['.ts', '.js'])
 
-  def create_tool_cmd(self, check_only: bool, files: list[str]) -> list[str]:
-    return [self.tool] + ([] if check_only else ['--fix']) + files
+  def filter_files(self, files):
+    # Filter based on extension first.
+    filtered = super().filter_files(files)
+    # Filter out changes outside of ui/
+    filtered = [f for f in filtered if f.startswith('ui/')]
+    return filtered
+
+  def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
+    tool = 'node_modules/.bin/eslint'
+    ui_dir = os.path.join(repo_root, 'ui')
+    if not os.path.exists(os.path.join(ui_dir, tool)):
+      err = f'Cannot find ${tool}\nRun tools/install-build-deps --ui'
+      print(err, file=sys.stderr)
+      return 127
+    files = [os.path.relpath(os.path.abspath(f), ui_dir) for f in files]
+    cmd = [tool] + ([] if check_only else ['--fix']) + files
+    return self.check_call(cmd, cwd=ui_dir, env=node_env(repo_root))
+
+  def print_fix_hint(self):
+    print('Run ui/format-sources to fix', file=sys.stderr)
 
 
 UI_CODE_FORMATTERS = [Prettier(), Eslint()]
