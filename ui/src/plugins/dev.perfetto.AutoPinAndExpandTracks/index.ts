@@ -28,14 +28,19 @@ const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
 const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
 const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
 
-// Parse the plugin parameters values, which are split by -- and wrapped by ()
-// Examples: (value1--value2)
+// Parse the plugin parameters values, only one value support for now
 function getParamValues(pluginParams: string): string[] {
-  const match = pluginParams.match(/^\((.*)\)$/);
-  if (match) {
-    return match[1].split('--').map((v) => v.trim());
+  if (pluginParams == null) {
+    return [];
   }
-  return [];
+
+  const trimmed = pluginParams.trim();
+
+  if (trimmed === '') {
+    return [];
+  }
+
+  return [trimmed];
 }
 
 /**
@@ -226,7 +231,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
           return {restored: true, track: trackToRestore};
         } else {
           console.warn(
-            '[RestorePinnedTracks] No track found that matches',
+            '[AutoPinAndExpandTracks] No track found that matches',
             trackToRestore,
           );
           return {restored: false, track: trackToRestore};
@@ -237,7 +242,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
 
     if (unrestoredTracks.length > 0) {
       alert(
-        `[RestorePinnedTracks]\nUnable to restore the following tracks:\n${unrestoredTracks.join('\n')}`,
+        `[AutoPinAndExpandTracks]\nUnable to restore the following tracks:\n${unrestoredTracks.join('\n')}`,
       );
     }
   }
