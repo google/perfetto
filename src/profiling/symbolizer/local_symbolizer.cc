@@ -39,17 +39,12 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/profiling/symbolizer/elf.h"
 #include "src/profiling/symbolizer/filesystem.h"
 #include "src/profiling/symbolizer/symbolizer.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-#include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/utils.h"
-
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 constexpr const char* kDefaultSymbolizer = "llvm-symbolizer.exe";
@@ -58,6 +53,8 @@ constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 #endif
 
 namespace perfetto::profiling {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 namespace {
 
 std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
@@ -326,7 +323,7 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
         PERFETTO_PLOG("Failed to open %s", fname);
         return;
       }
-      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
+      auto rd = base::Read(*fd, &magic, sizeof(magic));
       if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
                                   !IsMachO64(magic, static_cast<size_t>(rd)))) {
         PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
@@ -838,6 +835,8 @@ LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
 
 LocalSymbolizer::~LocalSymbolizer() = default;
 
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+
 // TODO(fmayer): Fix up name. This suggests it always returns a symbolizer or
 // dies, which isn't the case.
 std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
@@ -865,5 +864,3 @@ std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
 }
 
 }  // namespace perfetto::profiling
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
