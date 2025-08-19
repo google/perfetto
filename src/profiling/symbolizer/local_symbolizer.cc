@@ -656,6 +656,12 @@ std::optional<FoundBinary> FindKernelBinary(const std::string& os_release) {
   auto find_kernel = [](base::StackString<512> path) {
     return IsCorrectFile(path.c_str(), std::nullopt);
   };
+  // This list comes from the perf symbolization code [1]: it's an incomplete
+  // list (it doesn't include pre-symbolized kernels or reading /proc/kallsyns)
+  // but works if you just install e.g. the symbol packages for the kernel.
+  //
+  // [1]
+  // https://elixir.bootlin.com/linux/v6.12.2/source/tools/perf/util/symbol.c#L2294
   if (auto b = find_kernel(SS("/boot/vmlinux-%s", rel))) {
     return b;
   }
