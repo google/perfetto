@@ -78,14 +78,15 @@ base::Status BuildSyntheticThreads::Build(Context* context) const {
 
   auto& system_info = context->system_info.value();
 
-  // Add an extra tid for the main thread.
-  std::vector<int32_t> tids(system_info.cpu_count() + 1);
+  auto tgid = system_info.AllocateSynthThread();
+
+  std::vector<int32_t> tids(system_info.cpu_count());
 
   for (uint32_t i = 0; i < tids.size(); ++i) {
     tids[i] = system_info.AllocateSynthThread();
   }
 
-  context->synthetic_process = std::make_unique<SyntheticProcess>(tids);
+  context->synthetic_process = std::make_unique<SyntheticProcess>(tgid, tids);
 
   return base::OkStatus();
 }

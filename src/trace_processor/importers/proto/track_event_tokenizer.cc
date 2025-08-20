@@ -52,6 +52,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
@@ -140,10 +141,41 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.sibling_order_rank = track.sibling_order_rank();
   }
 
-  if (track.has_name())
+  if (track.has_sibling_merge_behavior()) {
+    using B = TrackDescriptorProto::SiblingMergeBehavior;
+    switch (track.sibling_merge_behavior()) {
+      case B::SIBLING_MERGE_BEHAVIOR_UNSPECIFIED:
+      case B::SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kByName;
+        break;
+      case B::SIBLING_MERGE_BEHAVIOR_NONE:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kNone;
+        break;
+      case B::SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kByKey;
+        if (track.has_sibling_merge_key()) {
+          reservation.sibling_merge_key =
+              context_->storage->InternString(track.sibling_merge_key());
+        }
+        break;
+    }
+  }
+
+  if (track.has_name()) {
     reservation.name = context_->storage->InternString(track.name());
-  else if (track.has_static_name())
+  } else if (track.has_static_name()) {
     reservation.name = context_->storage->InternString(track.static_name());
+  } else if (track.has_atrace_name()) {
+    reservation.name = context_->storage->InternString(track.atrace_name());
+  }
+
+  if (track.has_description()) {
+    reservation.description =
+        context_->storage->InternString(track.description());
+  }
 
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
@@ -161,17 +193,26 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       return ModuleResult::Handled();
     }
 
-    if (state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(*state, thread);
-    }
-
     reservation.min_timestamp = packet_timestamp;
-    reservation.pid = static_cast<uint32_t>(thread.pid());
-    reservation.tid = static_cast<uint32_t>(thread.tid());
+    reservation.pid = static_cast<int64_t>(thread.pid());
+    reservation.tid = static_cast<int64_t>(thread.tid());
     reservation.use_separate_track =
         track.disallow_merging_with_system_tracks();
 
+    // If tid is sandboxed then use a unique synthetic tid, to avoid
+    // having concurrent threads with the same tid.
+    if (track.has_chrome_thread()) {
+      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_thread(
+          track.chrome_thread());
+      if (chrome_thread.has_is_sandboxed_tid()) {
+        reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
+      }
+    }
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+
+    if (state->IsIncrementalStateValid()) {
+      TokenizeThreadDescriptor(*state, thread, reservation.use_synthetic_tid);
+    }
 
     return ModuleResult::Ignored();
   }
@@ -287,7 +328,7 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   }
 
   protos::pbzero::ThreadDescriptor::Decoder thread(packet.thread_descriptor());
-  TokenizeThreadDescriptor(*state, thread);
+  TokenizeThreadDescriptor(*state, thread, /*use_synthetic_tid=*/false);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
@@ -295,10 +336,11 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
     PacketSequenceStateGeneration& state,
-    const protos::pbzero::ThreadDescriptor::Decoder& thread) {
+    const protos::pbzero::ThreadDescriptor::Decoder& thread,
+    bool use_synthetic_tid) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.SetThreadDescriptor(thread);
+  state.SetThreadDescriptor(thread, use_synthetic_tid);
 }
 
 ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(

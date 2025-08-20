@@ -17,7 +17,6 @@
 #include "src/trace_processor/dataframe/impl/bytecode_interpreter.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -28,7 +27,6 @@
 #include <numeric>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -41,15 +39,14 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
-#include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_interpreter_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/dataframe/impl/bytecode_interpreter_test_utils.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/types.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
@@ -63,353 +60,6 @@ using testing::IsEmpty;
 using testing::Pointee;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
-
-using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
-
-struct Fetcher : ValueFetcher {
-  using Type = size_t;
-  [[maybe_unused]] static constexpr Type kInt64 =
-      base::variant_index<FilterValue, int64_t>();
-  [[maybe_unused]] static constexpr Type kDouble =
-      base::variant_index<FilterValue, double>();
-  [[maybe_unused]] static constexpr Type kString =
-      base::variant_index<FilterValue, const char*>();
-  [[maybe_unused]] static constexpr Type kNull =
-      base::variant_index<FilterValue, std::nullptr_t>();
-
-  // Fetches an int64_t value at the given index.
-  int64_t GetInt64Value(uint32_t idx) const {
-    PERFETTO_CHECK(idx == 0);
-    return std::get<int64_t>(value[i]);
-  }
-  // Fetches a double value at the given index.
-  double GetDoubleValue(uint32_t idx) const {
-    PERFETTO_CHECK(idx == 0);
-    return std::get<double>(value[i]);
-  }
-  // Fetches a string value at the given index.
-  const char* GetStringValue(uint32_t idx) const {
-    PERFETTO_CHECK(idx == 0);
-    return std::get<const char*>(value[i]);
-  }
-  // Fetches the type of the value at the given index.
-  Type GetValueType(uint32_t idx) const {
-    PERFETTO_CHECK(idx == 0);
-    return value[i].index();
-  }
-  bool IteratorInit(uint32_t idx) {
-    PERFETTO_CHECK(idx == 0);
-    i = 0;
-    return i < value.size();
-  }
-  bool IteratorNext(uint32_t idx) {
-    PERFETTO_CHECK(idx == 0);
-    i++;
-    return i < value.size();
-  }
-
-  std::vector<FilterValue> value;
-  uint32_t i = 0;
-};
-
-std::string FixNegativeAndDecimal(const std::string& str) {
-  return base::ReplaceAll(base::ReplaceAll(str, ".", "_"), "-", "neg_");
-}
-
-std::string ValToString(const FilterValue& value) {
-  switch (value.index()) {
-    case base::variant_index<FilterValue, std::nullptr_t>():
-      return "nullptr";
-    case base::variant_index<FilterValue, int64_t>(): {
-      auto res = base::unchecked_get<int64_t>(value);
-      return FixNegativeAndDecimal(std::to_string(res));
-    }
-    case base::variant_index<FilterValue, double>(): {
-      auto res = base::unchecked_get<double>(value);
-      return FixNegativeAndDecimal(std::to_string(res));
-    }
-    case base::variant_index<FilterValue, const char*>():
-      return {base::unchecked_get<const char*>(value)};
-    default:
-      PERFETTO_FATAL("Unknown filter value type");
-  }
-}
-
-std::string OpToString(const Op& op) {
-  switch (op.index()) {
-    case Op::GetTypeIndex<Eq>():
-      return "Eq";
-    case Op::GetTypeIndex<Ne>():
-      return "Ne";
-    case Op::GetTypeIndex<Lt>():
-      return "Lt";
-    case Op::GetTypeIndex<Le>():
-      return "Le";
-    case Op::GetTypeIndex<Gt>():
-      return "Gt";
-    case Op::GetTypeIndex<Ge>():
-      return "Ge";
-    case Op::GetTypeIndex<Glob>():
-      return "Glob";
-    case Op::GetTypeIndex<Regex>():
-      return "Regex";
-    default:
-      PERFETTO_FATAL("Unknown op");
-  }
-}
-
-std::string ResultToString(const CastFilterValueResult& res) {
-  if (res.validity == CastFilterValueResult::Validity::kValid) {
-    switch (res.value.index()) {
-      case base::variant_index<CastFilterValueResult::Value,
-                               CastFilterValueResult::Id>(): {
-        const auto& id =
-            base::unchecked_get<CastFilterValueResult::Id>(res.value);
-        return "Id_" + FixNegativeAndDecimal(std::to_string(id.value));
-      }
-      case base::variant_index<CastFilterValueResult::Value, uint32_t>(): {
-        const auto& uint32 = base::unchecked_get<uint32_t>(res.value);
-        return "Uint32_" + FixNegativeAndDecimal(std::to_string(uint32));
-      }
-      case base::variant_index<CastFilterValueResult::Value, int32_t>(): {
-        const auto& int32 = base::unchecked_get<int32_t>(res.value);
-        return "Int32_" + FixNegativeAndDecimal(std::to_string(int32));
-      }
-      case base::variant_index<CastFilterValueResult::Value, int64_t>(): {
-        const auto& int64 = base::unchecked_get<int64_t>(res.value);
-        return "Int64_" + FixNegativeAndDecimal(std::to_string(int64));
-      }
-      case base::variant_index<CastFilterValueResult::Value, double>(): {
-        const auto& d = base::unchecked_get<double>(res.value);
-        return "Double_" + FixNegativeAndDecimal(std::to_string(d));
-      }
-      case base::variant_index<CastFilterValueResult::Value, const char*>(): {
-        return base::unchecked_get<const char*>(res.value);
-      }
-      default:
-        PERFETTO_FATAL("Unknown filter value type");
-    }
-  }
-  return res.validity == CastFilterValueResult::Validity::kNoneMatch
-             ? "NoneMatch"
-             : "AllMatch";
-}
-
-template <typename T>
-Span<T> GetSpan(std::vector<T>& vec) {
-  return Span<T>{vec.data(), vec.data() + vec.size()};
-}
-
-Bytecode ParseBytecode(const std::string& bytecode_str) {
-  static constexpr uint32_t kNumBytecodeCount =
-      std::variant_size_v<BytecodeVariant>;
-
-#define PERFETTO_DATAFRAME_BYTECODE_AS_STRING(...) #__VA_ARGS__,
-  static constexpr std::array<const char*, kNumBytecodeCount> bytecode_names{
-      PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_AS_STRING)};
-
-#define PERFETTO_DATAFRAME_BYTECODE_OFFSETS(...) __VA_ARGS__::kOffsets,
-  static constexpr std::array<std::array<uint32_t, 9>, kNumBytecodeCount>
-      offsets{PERFETTO_DATAFRAME_BYTECODE_LIST(
-          PERFETTO_DATAFRAME_BYTECODE_OFFSETS)};
-
-#define PERFETTO_DATAFRAME_BYTECODE_NAMES(...) __VA_ARGS__::kNames,
-  static constexpr std::array<std::array<const char*, 8>, kNumBytecodeCount>
-      names{
-          PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_NAMES)};
-
-  Bytecode bc;
-  size_t colon_pos = bytecode_str.find(": ");
-  PERFETTO_CHECK(colon_pos != std::string::npos);
-  {
-    const auto* it = std::find(bytecode_names.data(),
-                               bytecode_names.data() + bytecode_names.size(),
-                               bytecode_str.substr(0, colon_pos));
-    PERFETTO_CHECK(it != bytecode_names.data() + bytecode_names.size());
-    bc.option = static_cast<uint32_t>(it - bytecode_names.data());
-  }
-
-  // Trim away the [ and ] from the bytecode string.
-  std::string args_str = bytecode_str.substr(colon_pos + 2);
-  PERFETTO_CHECK(args_str.front() == '[');
-  PERFETTO_CHECK(args_str.back() == ']');
-  args_str = args_str.substr(1, args_str.size() - 2);
-
-  const auto& cur_offset = offsets[bc.option];
-  std::vector<std::string> args = base::SplitString(args_str, ", ");
-  for (const auto& arg : args) {
-    size_t eq_pos = arg.find('=');
-    PERFETTO_CHECK(eq_pos != std::string::npos);
-    std::string arg_name = arg.substr(0, eq_pos);
-    std::string arg_val = arg.substr(eq_pos + 1);
-
-    // Remove everything before the first "(" (which may not be the first
-    // character) and after the last ")".
-    if (size_t open = arg_val.find('('); open != std::string_view::npos) {
-      arg_val = arg_val.substr(open + 1, arg_val.rfind(')') - open - 1);
-    }
-
-    const auto& n = names[bc.option];
-    const auto* it = std::find(n.data(), n.data() + n.size(), arg_name);
-    PERFETTO_CHECK(it != n.data() + n.size());
-    auto arg_idx = static_cast<uint32_t>(it - n.data());
-    uint32_t size = cur_offset[arg_idx + 1] - cur_offset[arg_idx];
-    if (size == 2) {
-      auto val = base::StringToInt64(arg_val);
-      PERFETTO_CHECK(val.has_value());
-      auto cast = static_cast<uint16_t>(*val);
-      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &cast, 2);
-    } else if (size == 4) {
-      auto val = base::StringToInt64(arg_val);
-      PERFETTO_CHECK(val.has_value());
-      auto cast = static_cast<uint32_t>(*val);
-      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &cast, 4);
-    } else if (size == 8) {
-      auto val = base::StringToInt64(arg_val);
-      PERFETTO_CHECK(val.has_value());
-      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &val, 8);
-    } else {
-      PERFETTO_CHECK(false);
-    }
-  }
-  return bc;
-}
-
-template <typename T, typename U>
-Column CreateNonNullColumn(std::initializer_list<U> data,
-                           SortState sort_state,
-                           DuplicateState duplicate_state) {
-  impl::FlexVector<T> vec;
-  for (const U& val : data) {
-    vec.push_back(val);
-  }
-  return impl::Column{impl::Storage{std::move(vec)},
-                      impl::NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
-}
-
-template <typename U>
-Column CreateNonNullStringColumn(std::initializer_list<U> data,
-                                 SortState sort_state,
-                                 DuplicateState duplicate_state,
-                                 StringPool* pool) {
-  PERFETTO_CHECK(pool);
-  impl::FlexVector<StringPool::Id> vec;
-  for (const auto& str_like : data) {
-    vec.push_back(pool->InternString(str_like));
-  }
-  return impl::Column{impl::Storage{std::move(vec)},
-                      impl::NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
-}
-
-template <typename T>
-FlexVector<T> CreateFlexVectorForTesting(std::initializer_list<T> values) {
-  FlexVector<T> vec;
-  for (const auto& value : values) {
-    vec.push_back(value);
-  }
-  return vec;
-}
-
-template <typename T>
-Column CreateSparseNullableColumn(
-    const std::vector<std::optional<T>>& data_with_nulls,
-    SortState sort_state,
-    DuplicateState duplicate_state) {
-  auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<T>::CreateWithCapacity(num_rows);
-  auto bv = BitVector::CreateWithSize(num_rows);
-  for (uint32_t i = 0; i < num_rows; ++i) {
-    if (data_with_nulls[i].has_value()) {
-      data_vec.push_back(*data_with_nulls[i]);
-      bv.set(i);
-    }
-  }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
-}
-
-Column CreateSparseNullableStringColumn(
-    const std::vector<std::optional<const char*>>& data_with_nulls,
-    StringPool* pool,
-    SortState sort_state,
-    DuplicateState duplicate_state) {
-  auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<StringPool::Id>::CreateWithCapacity(num_rows);
-  auto bv = BitVector::CreateWithSize(num_rows);
-  for (uint32_t i = 0; i < num_rows; ++i) {
-    if (data_with_nulls[i].has_value()) {
-      data_vec.push_back(pool->InternString(*data_with_nulls[i]));
-      bv.set(i);
-    }
-  }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
-}
-
-template <typename T>
-Column CreateDenseNullableColumn(
-    const std::vector<std::optional<T>>& data_with_nulls,
-    SortState sort_state,
-    DuplicateState duplicate_state) {
-  auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<T>::CreateWithSize(num_rows);
-  auto bv = BitVector::CreateWithSize(num_rows);
-
-  for (uint32_t i = 0; i < num_rows; ++i) {
-    if (data_with_nulls[i].has_value()) {
-      data_vec[i] = *data_with_nulls[i];
-      bv.set(i);
-    } else {
-      data_vec[i] = T{};  // Default construct T for null storage slot
-    }
-  }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::DenseNull{std::move(bv)}},
-      sort_state, duplicate_state};
-}
-
-Column CreateDenseNullableStringColumn(
-    const std::vector<std::optional<const char*>>& data_with_nulls,
-    StringPool* pool,
-    SortState sort_state,
-    DuplicateState duplicate_state) {
-  auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<StringPool::Id>::CreateWithSize(num_rows);
-  auto bv = BitVector::CreateWithSize(num_rows);
-
-  for (uint32_t i = 0; i < num_rows; ++i) {
-    if (data_with_nulls[i].has_value()) {
-      data_vec[i] = pool->InternString(*data_with_nulls[i]);
-      bv.set(i);
-    } else {
-      data_vec[i] = StringPool::Id::Null();
-    }
-  }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::DenseNull{std::move(bv)}},
-      sort_state, duplicate_state};
-}
-
-PERFETTO_NO_INLINE BytecodeVector
-ParseBytecodeToVec(const std::string& bytecode_str) {
-  BytecodeVector bytecode_vector;
-  std::vector<std::string> lines = base::SplitString(bytecode_str, "\n");
-  for (const auto& line : lines) {
-    std::string trimmed = base::TrimWhitespace(line);
-    if (!trimmed.empty()) {
-      bytecode_vector.emplace_back(ParseBytecode(trimmed));
-    }
-  }
-  return bytecode_vector;
-}
 
 class BytecodeInterpreterTest : public testing::Test {
  protected:
@@ -525,6 +175,19 @@ TEST_F(BytecodeInterpreterTest, Iota) {
   ASSERT_THAT(update.e, AllOf(testing::Ge(res.data()),
                               testing::Le(res.data() + res.size())));
   EXPECT_THAT(update, ElementsAreArray({5u, 6u, 7u, 8u, 9u}));
+}
+
+TEST_F(BytecodeInterpreterTest, Reverse) {
+  std::vector<uint32_t> res = {1, 2, 3, 4, 5};
+  SetRegistersAndExecute("Reverse: [update_register=Register(0)]",
+                         GetSpan(res));
+
+  const auto& update = GetRegister<Span<uint32_t>>(0);
+  ASSERT_THAT(update.b, AllOf(testing::Ge(res.data()),
+                              testing::Le(res.data() + res.size())));
+  ASSERT_THAT(update.e, AllOf(testing::Ge(res.data()),
+                              testing::Le(res.data() + res.size())));
+  EXPECT_THAT(update, ElementsAre(5, 4, 3, 2, 1));
 }
 
 using CastResult = CastFilterValueResult;
@@ -2348,6 +2011,24 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
   ASSERT_EQ(list.size(), 2u);
   EXPECT_EQ(spool_.Get(list[0]), "hello");
   EXPECT_EQ(spool_.Get(list[1]), "world");
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
+  std::string bytecode =
+      "SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(0)]";
+
+  auto values = CreateFlexVectorForTesting<uint32_t>(
+      {0u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u,  5u, 5u,
+       5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 10u, 10u});
+  AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Sorted{},
+                         HasDuplicates{}});
+
+  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                         Range{0u, 25u});
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 2u);
+  EXPECT_EQ(result.e, 22u);
 }
 
 }  // namespace

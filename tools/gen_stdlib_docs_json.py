@@ -24,7 +24,7 @@ from typing import Dict
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.docs_parse import parse_file
+from python.generators.sql_processing.docs_parse import DocParseOptions, parse_file
 
 
 def _summary_desc(s: str) -> str:
@@ -32,7 +32,7 @@ def _summary_desc(s: str) -> str:
 
 
 def _long_type_to_table(s: str):
-  pattern = '(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
+  pattern = r'(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
   m = re.match(pattern, s)
   if not m:
     return (None, None)
@@ -85,7 +85,11 @@ def main():
     package_name = path.split("/")[0]
     module_name = path.split(".sql")[0].replace("/", ".")
 
-    docs = parse_file(path, sql)
+    docs = parse_file(
+        path,
+        sql,
+        options=DocParseOptions(enforce_every_column_set_is_documented=True),
+    )
 
     # Some modules (i.e `deprecated`) should not generate docs.
     if not docs:

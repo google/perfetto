@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  ii,
-  selectTracksAndGetDataset,
-} from '../../components/aggregation_adapter';
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
-  AreaSelection,
-  AreaSelectionAggregator,
-} from '../../public/selection';
+  Aggregator,
+  createIITable,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
-export class SliceSelectionAggregator implements AreaSelectionAggregator {
+export class SliceSelectionAggregator implements Aggregator {
   readonly id = 'slice_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
@@ -40,7 +38,12 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
@@ -48,7 +51,7 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
             sum(dur) AS total_dur,
             sum(dur)/count() as avg_dur,
             count() as occurrences
-          from (${iiDataset.query()})
+          from (${iiTable.name})
           group by name
         `);
 
@@ -71,27 +74,21 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
     return [
       {
         title: 'Name',
-        kind: 'STRING',
-        columnConstructor: Uint32Array,
         columnId: 'name',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
-        columnConstructor: Uint32Array,
         columnId: 'occurrences',
         sum: true,
       },

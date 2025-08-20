@@ -107,18 +107,22 @@ class SummaryMetricsV2(TestSuite):
         '''),
         out=Csv("""
           row {
-            value: 37351104642.0
+            values: {
+              double_value: 37351104642.0
+            }
             dimension {
               int64_value: 0
             }
           }
           row {
-            value: 37351520078.0
+            values: {
+              double_value: 37351520078.0
+            }
             dimension {
             int64_value: 1
             }
           }
-          spec {
+          specs {
             id: "memory_per_process"
             dimensions: "id"
             value: "ts"
@@ -151,18 +155,22 @@ class SummaryMetricsV2(TestSuite):
         '''),
         out=Csv("""
           row {
-            value: 37351104642.0
+            values: {
+              double_value: 37351104642.0
+            }
             dimension {
               int64_value: 0
             }
           }
           row {
-            value: 37351520078.0
+            values: {
+              double_value: 37351520078.0
+            }
             dimension {
-            int64_value: 1
+              int64_value: 1
             }
           }
-          spec {
+          specs {
             id: "memory_per_process"
             dimensions: "id"
             value: "ts"
@@ -196,18 +204,22 @@ class SummaryMetricsV2(TestSuite):
         '''),
         out=Csv("""
           row {
-            value: 37351104642.0
+            values: {
+              double_value: 37351104642.0
+            }
             dimension {
               int64_value: 0
             }
           }
           row {
-            value: 37351520078.0
+            values: {
+              double_value: 37351520078.0
+            }
             dimension {
             int64_value: 1
             }
           }
-          spec {
+          specs {
             id: "preamble_view_metric"
             dimensions: "id"
             value: "ts"
@@ -241,18 +253,22 @@ class SummaryMetricsV2(TestSuite):
         '''),
         out=Csv("""
           row {
-            value: 37351104642.0
+            values: {
+              double_value: 37351104642.0
+            }
             dimension {
               int64_value: 0
             }
           }
           row {
-            value: 37351520078.0
+            values: {
+              double_value: 37351520078.0
+            }
             dimension {
             int64_value: 1
             }
           }
-          spec {
+          specs {
             id: "preamble_view_metric"
             dimensions: "id"
             value: "ts"

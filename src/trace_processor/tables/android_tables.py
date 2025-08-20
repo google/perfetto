@@ -182,6 +182,10 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('source', CppOptional(CppUint32())),
+        C('action', CppOptional(CppInt64())),
+        C('device_id', CppOptional(CppInt64())),
+        C('display_id', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Contains Android MotionEvents processed by the system',
@@ -200,6 +204,14 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
                     joinable='args.arg_set_id'),
             'base64_proto_id':
                 'String id for raw proto message',
+            'source':
+                'Input source e.g. touchscreen, keyboard',
+            'action':
+                'Input action e.g. move, down',
+            'device_id':
+                'Device id',
+            'display_id':
+                'Display id',
         },
     ),
 )
@@ -222,6 +234,11 @@ ANDROID_KEY_EVENTS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('source', CppOptional(CppUint32())),
+        C('action', CppOptional(CppInt64())),
+        C('device_id', CppOptional(CppInt64())),
+        C('display_id', CppOptional(CppInt64())),
+        C('key_code', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Contains Android KeyEvents processed by the system',
@@ -240,6 +257,16 @@ ANDROID_KEY_EVENTS_TABLE = Table(
                     joinable='args.arg_set_id'),
             'base64_proto_id':
                 'String id for raw proto message',
+            'source':
+                'Input source e.g. touchscreen, keyboard',
+            'action':
+                'Input action e.g. move, down',
+            'device_id':
+                'Device id',
+            'display_id':
+                'Display id',
+            'key_code':
+                'Key code',
         },
     ),
 )

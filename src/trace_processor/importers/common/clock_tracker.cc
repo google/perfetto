@@ -23,12 +23,10 @@
 #include <iterator>
 #include <limits>
 #include <optional>
-#include <queue>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/storage/stats.h"
@@ -56,7 +54,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
 
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
-  base::Hasher hasher;
+  base::FnvHasher hasher;
   for (const auto& clock_ts : clock_timestamps)
     hasher.Update(clock_ts.clock.id);
   const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());
@@ -202,17 +200,14 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
   // the full path to reach that node.
   // We assume the graph is acyclic, if it isn't the ClockPath::kMaxLen will
   // stop the search anyways.
-  std::queue<ClockPath> queue;
-  queue.emplace(src);
+  queue_find_path_cache_.clear();
+  queue_find_path_cache_.emplace_back(src);
 
-  while (!queue.empty()) {
-    ClockPath cur_path = queue.front();
-    queue.pop();
+  while (!queue_find_path_cache_.empty()) {
+    ClockPath cur_path = queue_find_path_cache_.front();
+    queue_find_path_cache_.pop_front();
 
     const ClockId cur_clock_id = cur_path.last;
-    if (cur_clock_id == target)
-      return cur_path;
-
     if (cur_path.len >= ClockPath::kMaxLen)
       continue;
 
@@ -223,7 +218,10 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
          it != graph_.end() && std::get<0>(*it) == cur_clock_id; ++it) {
       ClockId next_clock_id = std::get<1>(*it);
       SnapshotHash hash = std::get<2>(*it);
-      queue.push(ClockPath(cur_path, next_clock_id, hash));
+      if (next_clock_id == target)
+        return ClockPath(cur_path, next_clock_id, hash);
+      queue_find_path_cache_.emplace_back(
+          ClockPath(cur_path, next_clock_id, hash));
     }
   }
   return ClockPath();  // invalid path.
@@ -243,37 +241,35 @@ std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
   return maybe_found_trace_time_clock->timestamp;
 }
 
-base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
-                                                      int64_t src_timestamp,
-                                                      ClockId target_clock_id) {
+base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(
+    ClockId src_clock_id,
+    int64_t src_timestamp,
+    std::optional<int64_t> src_timestamp_ns,
+    ClockId target_clock_id) {
   PERFETTO_DCHECK(!IsSequenceClock(src_clock_id));
   PERFETTO_DCHECK(!IsSequenceClock(target_clock_id));
-
   context_->storage->IncrementStats(stats::clock_sync_cache_miss);
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
-
   if (!path.valid()) {
     // Too many logs maybe emitted when path is invalid.
-    context_->storage->IncrementStats(stats::clock_sync_failure);
     return base::ErrStatus("No path from clock %" PRId64 " to %" PRId64
                            " at timestamp %" PRId64,
                            src_clock_id, target_clock_id, src_timestamp);
   }
 
-  // We can cache only single-path resolutions between two clocks.
-  // Caching multi-path resolutions is harder because the (src,target) tuple
-  // is not enough as a cache key: at any step the |ns| value can yield to a
-  // different choice of the next snapshot. Multi-path resolutions don't seem
-  // too frequent these days, so we focus only on caching the more frequent
-  // one-step resolutions (typically from any clock to the trace clock).
-  const bool cacheable = path.len == 1;
-  CachedClockPath cache_entry{};
-
   // Iterate trough the path found and translate timestamps onto the new clock
   // domain on each step, until the target domain is reached.
   ClockDomain* src_domain = GetClock(src_clock_id);
-  int64_t ns = src_domain->ToNs(src_timestamp);
+  int64_t ns =
+      src_timestamp_ns ? *src_timestamp_ns : src_domain->ToNs(src_timestamp);
+
+  // These will track the overall translation and valid range for the whole
+  // path.
+  int64_t total_translation_ns = 0;
+  int64_t path_min_ts_ns = std::numeric_limits<int64_t>::min();
+  int64_t path_max_ts_ns = std::numeric_limits<int64_t>::max();
+
   for (uint32_t i = 0; i < path.len; ++i) {
     const ClockGraphEdge edge = path.at(i);
     ClockDomain* cur_clock = GetClock(std::get<0>(edge));
@@ -316,32 +312,52 @@ base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
     // The translated timestamp is the relative delta of the source timestamp
     // from the closest snapshot found (ns - *it), plus the timestamp in
     // the new clock domain for the same snapshot id.
-    const int64_t adj = next_timestamp_ns - *it;
-    ns += adj;
+    const int64_t hop_translation_ns = next_timestamp_ns - *it;
+    ns += hop_translation_ns;
 
-    // On the first iteration, keep track of the bounds for the cache entry.
-    // This will allow future Convert() calls to skip the pathfinder logic
-    // as long as the query stays within the bound.
-    if (cacheable) {
-      PERFETTO_DCHECK(i == 0);
-      const int64_t kInt64Min = std::numeric_limits<int64_t>::min();
-      const int64_t kInt64Max = std::numeric_limits<int64_t>::max();
-      cache_entry.min_ts_ns = it == ts_vec.begin() ? kInt64Min : *it;
-      auto ubound = it + 1;
-      cache_entry.max_ts_ns = ubound == ts_vec.end() ? kInt64Max : *ubound;
-      cache_entry.translation_ns = adj;
-    }
+    // Now, calculate the valid range for this specific hop and intersect it
+    // with the accumulated valid range for the whole path.
+    // The range for this hop needs to be translated back to the source clock's
+    // coordinate system.
+    const int64_t kInt64Min = std::numeric_limits<int64_t>::min();
+    const int64_t kInt64Max = std::numeric_limits<int64_t>::max();
+
+    int64_t hop_min_ts_ns = (it == ts_vec.begin()) ? kInt64Min : *it;
+    auto ubound = it + 1;
+    int64_t hop_max_ts_ns = (ubound == ts_vec.end()) ? kInt64Max : *ubound;
+
+    // Translate the hop's valid range back to the original source clock's
+    // domain. `total_translation_ns` is the translation from the *start* of
+    // the path to the *start* of the current hop.
+    int64_t hop_min_in_src_domain_ns =
+        (hop_min_ts_ns == kInt64Min) ? kInt64Min
+                                     : hop_min_ts_ns - total_translation_ns;
+    int64_t hop_max_in_src_domain_ns =
+        (hop_max_ts_ns == kInt64Max) ? kInt64Max
+                                     : hop_max_ts_ns - total_translation_ns;
+
+    // Intersect with the path's current valid range.
+    path_min_ts_ns = std::max(path_min_ts_ns, hop_min_in_src_domain_ns);
+    path_max_ts_ns = std::min(path_max_ts_ns, hop_max_in_src_domain_ns);
+
+    // Accumulate the translation.
+    total_translation_ns += hop_translation_ns;
 
     // The last clock in the path must be the target clock.
     PERFETTO_DCHECK(i < path.len - 1 || std::get<1>(edge) == target_clock_id);
   }
 
-  if (cacheable) {
-    cache_entry.src = src_clock_id;
-    cache_entry.src_domain = src_domain;
-    cache_entry.target = target_clock_id;
-    cache_[rnd_() % cache_.size()] = cache_entry;
-  }
+  // After the loop, we have the final converted timestamp `ns`, and the
+  // total translation and valid range for the entire path.
+  // We can now cache this result.
+  CachedClockPath cache_entry{};
+  cache_entry.src = src_clock_id;
+  cache_entry.target = target_clock_id;
+  cache_entry.src_domain = src_domain;
+  cache_entry.min_ts_ns = path_min_ts_ns;
+  cache_entry.max_ts_ns = path_max_ts_ns;
+  cache_entry.translation_ns = total_translation_ns;
+  cache_[rnd_() % cache_.size()] = cache_entry;
 
   return ns;
 }

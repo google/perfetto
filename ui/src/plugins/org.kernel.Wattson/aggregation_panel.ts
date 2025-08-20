@@ -13,45 +13,46 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {createBaseAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {Duration} from '../../base/time';
+import {BarChartData, ColumnDef} from '../../components/aggregation';
+import {AggregationPanelAttrs} from '../../components/aggregation_panel';
 import {
-  AggState,
-  AggregationPanel,
-  AggregationPanelAttrs,
-} from '../../components/aggregation_panel';
-import {translateState} from '../../components/sql_utils/thread_state';
-import {AggregateData, Column} from '../../public/aggregation';
+  ColumnDefinition,
+  DataGridDataSource,
+  Sorting,
+} from '../../components/widgets/data_grid/common';
 import {
-  AreaSelectionAggregator,
-  AreaSelectionTab,
-} from '../../public/selection';
-import {Trace} from '../../public/trace';
+  DataGrid,
+  renderCell,
+} from '../../components/widgets/data_grid/data_grid';
+import {SqlValue} from '../../trace_processor/query_result';
+import {Box} from '../../widgets/box';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
-
-export function createWattsonAggregationToTabAdaptor(
-  trace: Trace,
-  aggregator: AreaSelectionAggregator,
-  tabPriorityOverride?: number,
-): AreaSelectionTab {
-  return createBaseAggregationToTabAdaptor(
-    trace,
-    aggregator,
-    WattsonAggregationPanel,
-    tabPriorityOverride,
-  );
-}
+import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 
 export class WattsonAggregationPanel
-  extends AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
   private scaleNumericData: boolean = false;
 
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    return m(
-      '.details-panel',
-      m(
-        '.details-panel-heading.aggregation',
+    const {dataSource, sorting, columns, barChartData} = attrs;
+
+    return m(Stack, {fillHeight: true}, [
+      barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
+      m(StackAuto, this.renderTable(dataSource, sorting, columns)),
+    ]);
+  }
+
+  private renderTable(
+    dataSource: DataGridDataSource,
+    sorting: Sorting,
+    columns: ReadonlyArray<ColumnDef>,
+  ) {
+    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
+    return m(DataGrid, {
+      toolbarItemsLeft: m(
+        Box,
         m(SegmentedButtons, {
           options: [{label: 'µW'}, {label: 'mW'}],
           selectedOption: this.scaleNumericData ? 0 : 1,
@@ -60,90 +61,65 @@ export class WattsonAggregationPanel
           },
           title: 'Select power units',
         }),
-        this.showTimeRange(),
-        m(
-          'table',
-          m(
-            'tr',
-            attrs.data.columns.map((col) =>
-              this.formatColumnHeading(col, attrs.model),
-            ),
-          ),
-          m(
-            'tr.sum',
-            attrs.data.columnSums.map((sum) => {
-              let sumClass: string;
-              let displaySum: string;
-
-              if (sum === '') {
-                sumClass = 'td';
-                displaySum = String(sum);
-              } else {
-                sumClass = 'td.sum-data';
-                displaySum = String(
-                  this.scaleNumericData ? parseFloat(sum) * 1000 : sum,
-                );
-              }
-
-              return m(sumClass, displaySum);
-            }),
-          ),
-        ),
       ),
-      m('.details-table.aggregation', m('table', this.getRows(attrs.data))),
-    );
-  }
-
-  formatColumnHeading(col: Column, model: AggState) {
-    const pref = model.getSortingPrefs();
-    let sortIcon = '';
-    if (pref && pref.column === col.columnId) {
-      sortIcon =
-        pref.direction === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
-    }
-
-    // Replace title units if necessary (i.e. swap µW/mW)
-    let displayTitle = col.title;
-    if (this.scaleNumericData) {
-      displayTitle = displayTitle.replace('estimated mW', 'estimated µW');
-    }
-    return m(
-      'th',
-      {
-        onclick: () => {
-          model.toggleSortingColumn(col.columnId);
-        },
+      fillHeight: true,
+      showResetButton: false,
+      columns: columns.map((c): ColumnDefinition => {
+        const displayTitle = this.scaleNumericData
+          ? c.title.replace('estimated mW', 'estimated µW')
+          : c.title;
+        return {
+          name: c.columnId,
+          title: displayTitle,
+          aggregation: c.sum ? 'SUM' : undefined,
+        };
+      }),
+      data: dataSource,
+      initialSorting: sorting,
+      cellRenderer: (value: SqlValue, columnName: string) => {
+        const formatHint = columnsById.get(columnName)?.formatHint;
+        return this.renderValue(value, columnName, formatHint);
       },
-      displayTitle,
-      m('i.material-icons', sortIcon),
+    });
+  }
+
+  private renderBarChart(data: ReadonlyArray<BarChartData>) {
+    const summedValues = data.reduce((sum, item) => sum + item.value, 0);
+    return m(
+      '.pf-aggregation-panel__bar-chart',
+      data.map((d) => {
+        const width = (d.value / summedValues) * 100;
+        return m(
+          '.pf-aggregation-panel__bar-chart-bar',
+          {
+            style: {
+              background: d.color.base.cssString,
+              color: d.color.textBase.cssString,
+              borderColor: d.color.variant.cssString,
+              width: `${width}%`,
+            },
+          },
+          d.title,
+        );
+      }),
     );
   }
 
-  getFormattedData(data: AggregateData, rowIndex: number, columnIndex: number) {
-    const column = data.columns[columnIndex];
-    const value = column.data[rowIndex];
-
-    switch (column.kind) {
-      case 'STRING':
-        return data.strings?.[value as number] ?? value;
-      case 'TIMESTAMP_NS':
-        return `${Number(value) / 1000000}`;
-      case 'STATE': {
-        const concatState = data.strings?.[value as number];
-        if (typeof concatState !== 'string') return value;
-        const split = concatState.split(',');
-        const ioWait =
-          split[1] === 'NULL' ? undefined : !!Number.parseInt(split[1], 10);
-        return translateState(split[0], ioWait);
+  private renderValue(value: SqlValue, colName: string, formatHint?: string) {
+    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
+    } else if (formatHint === 'PERCENT') {
+      return m('span.pf-data-grid__cell--number', `${value}%`);
+    } else {
+      let v = value;
+      if (
+        this.scaleNumericData &&
+        colName.includes('_mw') &&
+        typeof value === 'number'
+      ) {
+        v = value * 1000;
       }
-      case 'NUMBER':
-      default:
-        if (typeof value === 'number') {
-          return this.scaleNumericData && column.title.includes('estimated mW')
-            ? value * 1000
-            : value;
-        }
-        return value;
+      return renderCell(v, colName);
     }
   }
 }

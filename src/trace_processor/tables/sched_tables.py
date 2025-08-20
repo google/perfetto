@@ -14,6 +14,7 @@
 """Contains tables for relevant for sched."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt32
@@ -34,8 +35,15 @@ SCHED_SLICE_TABLE = Table(
     class_name='SchedSliceTable',
     sql_name='__intrinsic_sched_slice',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
-        C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('dur',
+          CppInt64(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('utid', CppUint32(), cpp_access=CppAccess.READ),
         C(
             'end_state',
@@ -127,8 +135,15 @@ THREAD_STATE_TABLE = Table(
     class_name='ThreadStateTable',
     sql_name='__intrinsic_thread_state',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
-        C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('dur',
+          CppInt64(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('utid', CppUint32(), cpp_access=CppAccess.READ),
         C('state', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C(

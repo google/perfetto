@@ -26,11 +26,13 @@
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/priority_boost_config.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/traced/probes/android_cpu_per_uid/android_cpu_per_uid_data_source.h"
 #include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
@@ -204,6 +206,17 @@ ProbesProducer::CreateDSInstance<LinuxPowerSysfsDataSource>(
 
 template <>
 std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<AndroidCpuPerUidDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::make_unique<AndroidCpuPerUidDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
 ProbesProducer::CreateDSInstance<AndroidKernelWakelocksDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
@@ -334,6 +347,7 @@ constexpr DataSourceTraits Ds() {
 
 constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<AndroidGameInterventionListDataSource>(),
+    Ds<AndroidCpuPerUidDataSource>(),
     Ds<AndroidKernelWakelocksDataSource>(),
     Ds<AndroidLogDataSource>(),
     Ds<AndroidPowerDataSource>(),
@@ -431,6 +445,22 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
   if (!data_source) {
     PERFETTO_ELOG("Failed to create data source '%s'", config.name().c_str());
     return;
+  }
+
+  if (config.has_priority_boost()) {
+    auto sched_policy = CreateSchedPolicyFromConfig(config.priority_boost());
+    if (!sched_policy.ok()) {
+      PERFETTO_ELOG("Invalid priority boost config for data source '%s': %s",
+                    config.name().c_str(), sched_policy.status().c_message());
+    } else {
+      auto boost = base::ScopedSchedBoost::Boost(sched_policy.value());
+      if (!boost.ok()) {
+        PERFETTO_ELOG("Failed to boost priority for data source '%s': %s",
+                      config.name().c_str(), boost.status().c_message());
+      } else {
+        data_source->priority_boost = std::move(*boost);
+      }
+    }
   }
 
   session_data_sources_[session_id].emplace(data_source->descriptor,

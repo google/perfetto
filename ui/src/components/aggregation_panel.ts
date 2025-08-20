@@ -13,146 +13,87 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  AggregateData,
-  Column,
-  Sorting,
-  BarChartData,
-} from '../public/aggregation';
-import {DurationWidget} from './widgets/duration';
-import {translateState} from './sql_utils/thread_state';
-import {Trace} from '../public/trace';
+import {Duration} from '../base/time';
+import {SqlValue} from '../trace_processor/query_result';
+import {Box} from '../widgets/box';
+import {Stack, StackAuto, StackFixed} from '../widgets/stack';
+import {BarChartData, ColumnDef, Sorting} from './aggregation';
+import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
+import {DataGrid, renderCell} from './widgets/data_grid/data_grid';
 
 export interface AggregationPanelAttrs {
-  readonly trace: Trace;
-  readonly data: AggregateData;
-  readonly model: AggState;
-}
-
-export interface AggState {
-  getSortingPrefs(): Sorting | undefined;
-  toggleSortingColumn(column: string): void;
+  readonly dataSource: DataGridDataSource;
+  readonly sorting: Sorting;
+  readonly columns: ReadonlyArray<ColumnDef>;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
 }
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
-  private trace: Trace;
-
-  constructor({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    this.trace = attrs.trace;
-  }
-
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    return m(
-      '.details-panel',
-      m(
-        '.details-panel-heading.aggregation',
-        attrs.data.barChart !== undefined &&
-          this.renderBarChart(attrs.data.barChart),
-        this.showTimeRange(),
-        m(
-          'table',
-          m(
-            'tr',
-            attrs.data.columns.map((col) =>
-              this.formatColumnHeading(col, attrs.model),
-            ),
-          ),
-          m(
-            'tr.sum',
-            attrs.data.columnSums.map((sum) => {
-              const sumClass = sum === '' ? 'td' : 'td.sum-data';
-              return m(sumClass, sum);
-            }),
-          ),
-        ),
-      ),
-      m('.details-table.aggregation', m('table', this.getRows(attrs.data))),
-    );
+    const {dataSource, sorting, columns, barChartData} = attrs;
+
+    return m(Stack, {fillHeight: true, spacing: 'none'}, [
+      barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
+      m(StackAuto, this.renderTable(dataSource, sorting, columns)),
+    ]);
   }
 
-  formatColumnHeading(col: Column, model: AggState) {
-    const pref = model.getSortingPrefs();
-    let sortIcon = '';
-    if (pref && pref.column === col.columnId) {
-      sortIcon =
-        pref.direction === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
-    }
-    return m(
-      'th',
-      {
-        onclick: () => {
-          model.toggleSortingColumn(col.columnId);
-        },
+  private renderTable(
+    dataSource: DataGridDataSource,
+    sorting: Sorting,
+    columns: ReadonlyArray<ColumnDef>,
+  ) {
+    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
+    return m(DataGrid, {
+      fillHeight: true,
+      showResetButton: false,
+      columns: columns.map((c): ColumnDefinition => {
+        return {
+          name: c.columnId,
+          title: c.title,
+          aggregation: c.sum ? 'SUM' : undefined,
+        };
+      }),
+      data: dataSource,
+      initialSorting: sorting,
+      cellRenderer: (value: SqlValue, columnName: string) => {
+        const formatHint = columnsById.get(columnName)?.formatHint;
+        return this.renderCell(value, columnName, formatHint);
       },
-      col.title,
-      m('i.material-icons', sortIcon),
-    );
+    });
   }
 
-  getRows(data: AggregateData) {
-    if (data.columns.length === 0) return;
-    const rows = [];
-    for (let i = 0; i < data.columns[0].data.length; i++) {
-      const row = [];
-      for (let j = 0; j < data.columns.length; j++) {
-        row.push(m('td', this.getFormattedData(data, i, j)));
-      }
-      rows.push(m('tr', row));
-    }
-    return rows;
-  }
-
-  getFormattedData(data: AggregateData, rowIndex: number, columnIndex: number) {
-    switch (data.columns[columnIndex].kind) {
-      case 'STRING':
-        return data.strings[data.columns[columnIndex].data[rowIndex]];
-      case 'TIMESTAMP_NS':
-        return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
-      case 'STATE': {
-        const concatState =
-          data.strings[data.columns[columnIndex].data[rowIndex]];
-        const split = concatState.split(',');
-        const ioWait =
-          split[1] === 'NULL' ? undefined : !!Number.parseInt(split[1], 10);
-        return translateState(split[0], ioWait);
-      }
-      case 'NUMBER':
-      default:
-        return data.columns[columnIndex].data[rowIndex];
-    }
-  }
-
-  showTimeRange() {
-    const selection = this.trace.selection.selection;
-    if (selection.kind !== 'area') return undefined;
-    const duration = selection.end - selection.start;
+  private renderBarChart(data: ReadonlyArray<BarChartData>) {
+    const summedValues = data.reduce((sum, item) => sum + item.value, 0);
     return m(
-      '.time-range',
-      'Selected range: ',
-      m(DurationWidget, {dur: duration}),
-    );
-  }
-
-  renderBarChart(data: ReadonlyArray<BarChartData>) {
-    const totalTime = data.reduce((sum, item) => sum + item.timeInStateMs, 0);
-    return m(
-      '.states',
+      '.pf-aggregation-panel__bar-chart',
       data.map((d) => {
-        const width = (d.timeInStateMs / totalTime) * 100;
+        const width = (d.value / summedValues) * 100;
         return m(
-          '.state',
+          '.pf-aggregation-panel__bar-chart-bar',
           {
             style: {
               background: d.color.base.cssString,
               color: d.color.textBase.cssString,
+              borderColor: d.color.variant.cssString,
               width: `${width}%`,
             },
           },
-          `${d.name}: ${d.timeInStateMs} ms`,
+          d.title,
         );
       }),
     );
+  }
+
+  private renderCell(value: SqlValue, colName: string, formatHint?: string) {
+    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
+    } else if (formatHint === 'PERCENT') {
+      return m('span.pf-data-grid__cell--number', `${value}%`);
+    } else {
+      return renderCell(value, colName);
+    }
   }
 }

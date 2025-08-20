@@ -13,17 +13,21 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../base/classnames';
 
 export interface EmptyStateAttrs {
   // Which material icon to show.
   // Defaults to 'search'.
-  icon?: string;
+  readonly icon?: string;
 
   // Some text to show under the icon. No text shown if omitted.
-  title?: string;
+  readonly title?: string;
 
   // Additional class name applied to our container.
-  className?: string;
+  readonly className?: string;
+
+  // Fill the height of the parent container.
+  readonly fillHeight?: boolean;
 }
 
 // Something to show when there's nothing else to show!
@@ -36,13 +40,19 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
       icon = 'search', // Icon defaults to the search symbol
       title,
       className,
+      fillHeight,
     } = attrs;
     return m(
       '.pf-empty-state',
-      {className},
+      {
+        className: classNames(
+          className,
+          fillHeight && 'pf-empty-state--fill-height',
+        ),
+      },
       m('i.material-icons', icon),
-      title && m('.pf-empty-state-title', title),
-      m('.pf-empty-state-content', children),
+      title && m('.pf-empty-state__title', title),
+      m('.pf-empty-state__content', children),
     );
   }
 }

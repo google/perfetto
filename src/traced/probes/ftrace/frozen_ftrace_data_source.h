@@ -18,17 +18,14 @@
 #define SRC_TRACED_PROBES_FTRACE_FROZEN_FTRACE_DATA_SOURCE_H_
 
 #include <functional>
-#include <map>
 #include <memory>
 
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
-#include "src/traced/probes/ftrace/ftrace_stats.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/probes_data_source.h"
 
 #include "protos/perfetto/config/ftrace/frozen_ftrace_config.gen.h"
@@ -76,7 +73,7 @@ class FrozenFtraceDataSource : public ProbesDataSource {
 
   protos::gen::FrozenFtraceConfig ds_config_;
 
-  std::unique_ptr<FtraceProcfs> tracefs_;
+  std::unique_ptr<Tracefs> tracefs_;
   std::unique_ptr<ProtoTranslationTable> translation_table_;
   std::unique_ptr<FtraceDataSourceConfig> parsing_config_;
   CpuReader::ParsingBuffers parsing_mem_;

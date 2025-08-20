@@ -110,8 +110,8 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       Section,
       {title: 'Scheduling Latency'},
       m(
-        '.slice-details-latency-panel',
-        m('img.slice-details-image', {
+        '.pf-sched-latency',
+        m('img.pf-sched-latency__background', {
           src: assetSrc('assets/scheduling_latency.png'),
         }),
         this.renderWakeupText(data),
@@ -133,7 +133,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       return null;
     }
     return m(
-      '.slice-details-wakeup-text',
+      '.pf-sched-latency__wakeup-text',
       m(
         '',
         `Wakeup @ `,
@@ -152,10 +152,10 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
 
     const latency = data.sched.ts - data.wakeup?.wakeupTs;
     return m(
-      '.slice-details-latency-text',
+      '.pf-sched-latency__latency-text',
       m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
       m(
-        '.text-detail',
+        '.pf-sched-latency__explanation',
         `This is the interval from when the task became eligible to run
         (e.g. because of notifying a wait queue it was suspended on) to
         when it started running.`,

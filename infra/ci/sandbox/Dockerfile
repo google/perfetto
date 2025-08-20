@@ -54,6 +54,7 @@ RUN set -ex; \
         openjdk-11-jdk \
         clang-8 \
         libc++-8-dev \
+        llvm-dev \
         libc++abi-8-dev; \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1; \
     python3 -m pip install --no-cache-dir protobuf pandas grpcio; \
@@ -136,6 +137,13 @@ RUN set -ex; \
     apt-get -y clean; \
     rm -rf /var/lib/apt/lists/*; \
     rm -rf /root/.cache/ /usr/share/man/* /usr/share/doc/*;
+
+# Install gcloud
+RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+    gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+    | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list; \
+    apt-get update && apt-get install -y google-cloud-cli;
 
 WORKDIR /opt/ci
 

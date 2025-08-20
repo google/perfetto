@@ -16,7 +16,11 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {sqliteString} from '../base/string_utils';
 import {Time} from '../base/time';
 import {exists} from '../base/utils';
-import {ResultStepEventHandler} from '../public/search';
+import {
+  ResultStepEventHandler,
+  SearchManager,
+  SearchProvider,
+} from '../public/search';
 import {
   ANDROID_LOGS_TRACK_KIND,
   CPU_SLICE_TRACK_KIND,
@@ -49,7 +53,7 @@ export interface SearchResults {
   totalResults: number;
 }
 
-export class SearchManagerImpl {
+export class SearchManagerImpl implements SearchManager {
   private _searchGeneration = 0;
   private _searchText = '';
   private _results?: SearchResults;
@@ -65,6 +69,8 @@ export class SearchManagerImpl {
   private _limiter = new AsyncLimiter();
   private _onResultStep?: ResultStepEventHandler;
 
+  private readonly _providers: SearchProvider[] = [];
+
   constructor(args?: {
     timeline: TimelineImpl;
     trackManager: TrackManagerImpl;
@@ -77,6 +83,10 @@ export class SearchManagerImpl {
     this._engine = args?.engine;
     this._workspace = args?.workspace;
     this._onResultStep = args?.onResultStep;
+  }
+
+  registerSearchProvider(provider: SearchProvider): void {
+    this._providers.push(provider);
   }
 
   search(text: string) {
@@ -353,6 +363,7 @@ export class SearchManagerImpl {
     const allResults = await searchTrackEvents(
       engine,
       trackManager.getAllTracks(),
+      this._providers,
       this._searchText,
     );
 

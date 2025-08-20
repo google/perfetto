@@ -5,8 +5,17 @@ working with the Perfetto codebase. This page is mainly targetted towards
 frequent contributors to Perfetto (e.g. team members or external contribtors
 sending a lot of PRs).
 
-These tools have a bit of a learning curve to them but can signficantly
+These tools have a bit of a learning curve to them but can significantly
 accelerate the developer experience.
+
+## Continuous integration
+
+The Perfetto CI on GitHub Actions covers building and testing
+on most platforms and toolchains within ~30 mins. Anecdotally most build
+failures and bugs are detected at the Perfetto CI level.
+
+You can also
+[test a pending Perfetto CL against Chrome's TryBots](testing.md#chromium).
 
 ## "Stacked diffs" with GitHub
 
@@ -93,7 +102,7 @@ git new-branch my-feature
 git commit -a -m 'My feature'
 
 # Create a new branch for adding something on top of the feature.
-git new-branch my-feature-2
+git new-branch my-feature-2 --current-parent
 
 # ... hack away, make changes
 
@@ -120,7 +129,7 @@ git sync-all
 # ... my-feature is approved and merged on GitHub.
 
 # Do a merge again to make everything up-to-date.
-git-update-stack
+git update-stack
 
 # Prune my-feature now it's no longer necessary
 git prune-all

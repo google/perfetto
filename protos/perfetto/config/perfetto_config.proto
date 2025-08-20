@@ -652,6 +652,16 @@ message AppWakelocksConfig {
 
 // End of protos/perfetto/config/android/app_wakelock_config.proto
 
+// Begin of protos/perfetto/config/android/cpu_per_uid_config.proto
+
+// Data source that records CPU per UID data.
+message CpuPerUidConfig {
+  // Record at this frequency.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/cpu_per_uid_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -1012,21 +1022,6 @@ message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
 
-  message KprobeEvent {
-    enum KprobeType {
-      KPROBE_TYPE_UNKNOWN = 0;
-      KPROBE_TYPE_KPROBE = 1;
-      KPROBE_TYPE_KRETPROBE = 2;
-      KPROBE_TYPE_BOTH = 3;
-    }
-    // Kernel function name to attach to, for example "fuse_file_write_iter"
-    optional string probe = 1;
-    optional KprobeType type = 2;
-  }
-
-  // Ftrace events to record, specific for kprobes and kretprobes
-  repeated KprobeEvent kprobe_events = 30;
-
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
@@ -1034,11 +1029,34 @@ message FtraceConfig {
   // the "track_event" data source. For these categories, the SDK will be
   // preferred, if possible, for this config.
   repeated string atrace_categories_prefer_sdk = 28;
+  // If true, do *not* add in extra ftrace events when |atrace_categories| are
+  // set. This skips the legacy "atrace" behaviour of adding hardcoded ftrace
+  // events for convenience (and the vendor-specific events on top).
+  // Introduced in: perfetto v52.
+  optional bool atrace_userspace_only = 34;
 
   // Size of each per-cpu kernel ftrace ring buffer.
   // Not guaranteed if there are multiple concurrent tracing sessions, as the
   // buffers cannot be resized without pausing recording in the kernel.
   optional uint32 buffer_size_kb = 10;
+
+  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
+  // implementation to choose a bigger buffer size.
+  //
+  // Most configs for perfetto v43+ should simply leave both fields unset.
+  //
+  // If you need a config compatible with a range of perfetto builds and you
+  // used to set a non-default buffer_size_kb, consider setting both fields.
+  // Example:
+  //   buffer_size_kb: 4096
+  //   buffer_size_lower_bound: true
+  // On older builds, the per-cpu buffers will be exactly 4 MB.
+  // On v43+, buffers will be at least 4 MB.
+  // In both cases, neither is guaranteed if there are other concurrent
+  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
+  // the recording in the kernel.
+  // Introduced in: perfetto v43.
+  optional bool buffer_size_lower_bound = 27;
 
   // If set, specifies how often the tracing daemon reads from the kernel ring
   // buffer. Not guaranteed if there are multiple concurrent tracing sessions.
@@ -1119,16 +1137,6 @@ message FtraceConfig {
   }
   optional KsymsMemPolicy ksyms_mem_policy = 17;
 
-  // By default the kernel symbolizer is lazily initialized on a deferred task
-  // to reduce ftrace's time-to-start-recording. Unfortunately that makes
-  // ksyms integration tests hard. This flag forces the kernel symbolizer to be
-  // initialized synchronously on the data source start and hence avoiding
-  // timing races in tests.
-  // DEPRECATED in v28 / Android U. This is now the default behavior, setting it
-  // to true is a no-op.
-  optional bool initialize_ksyms_synchronously_for_testing = 14
-      [deprecated = true];
-
   // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
   // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
   // event instead if present, and fall back to "kmem/rss_stat" if not present.
@@ -1205,11 +1213,39 @@ message FtraceConfig {
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
 
-  // If true, does not clear ftrace buffers before the start of the program.
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
+
+  message KprobeEvent {
+    enum KprobeType {
+      KPROBE_TYPE_UNKNOWN = 0;
+      KPROBE_TYPE_KPROBE = 1;
+      KPROBE_TYPE_KRETPROBE = 2;
+      KPROBE_TYPE_BOTH = 3;
+    }
+    // Kernel function name to attach to, for example "fuse_file_write_iter"
+    optional string probe = 1;
+    optional KprobeType type = 2;
+  }
+  // Ftrace events to record, specific for kprobes and kretprobes
+  repeated KprobeEvent kprobe_events = 30;
+
+  // If true, does not clear kernel ftrace buffers when starting the trace.
   // This makes sense only if this is the first ftrace data source instance
   // created after the daemon has been started. Can be useful for gathering boot
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
+  // NB: when configuring the pre-perfetto ftrace, prefer to set
+  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
+  // anything besides ftrace. Otherwise timestamps might be skewed.
   optional bool preserve_ftrace_buffer = 23;
 
   // If true, overrides the default timestamp clock and uses a raw hardware
@@ -1231,41 +1267,17 @@ message FtraceConfig {
   //  * buffer_size_kb
   optional string instance_name = 25;
 
-  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
-  // implementation to choose a bigger buffer size.
-  //
-  // Most configs for perfetto v43+ should simply leave both fields unset.
-  //
-  // If you need a config compatible with a range of perfetto builds and you
-  // used to set a non-default buffer_size_kb, consider setting both fields.
-  // Example:
-  //   buffer_size_kb: 4096
-  //   buffer_size_lower_bound: true
-  // On older builds, the per-cpu buffers will be exactly 4 MB.
-  // On v43+, buffers will be at least 4 MB.
-  // In both cases, neither is guaranteed if there are other concurrent
-  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
-  // the recording in the kernel.
-  // Introduced in: perfetto v43.
-  optional bool buffer_size_lower_bound = 27;
-
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
 
+  // No-op in perfetto v28+. Name preserved because of existing references in
+  // textproto configs.
+  optional bool initialize_ksyms_synchronously_for_testing = 14
+      [deprecated = true];
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
-
-  // If |enable_function_graph| is true, only trace the specified
-  // number of calls down the stack. Sets the max_graph_depth value
-  // in sys/kernel/tracing/
-  //
-  // Only respected for the first tracing session that enables
-  // function_graph tracing.
-  //
-  // Introduced in: perfetto v51.
-  // Supported on: Android 25Q3+.
-  optional uint32 function_graph_max_depth = 33;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -1417,6 +1429,29 @@ message AndroidPowerConfig {
 }
 
 // End of protos/perfetto/config/power/android_power_config.proto
+
+// Begin of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
+// Configuration that allows to boost the priority of the 'traced' or
+// 'traced_probs' processes, by changing the scheduler configuration.
+// Only supported on Linux and Android the boosted process must have
+// 'CAP_SYS_NICE' capability.
+message PriorityBoostConfig {
+  enum BoostPolicy {
+    POLICY_UNSPECIFIED = 0;
+    // The default policy (e.g., CFS on Linux). Priority range: [0; 20]
+    // priority is interpreted as -(nice), i.e., 1 is slightly higher prio
+    // than default 0, 20 is the highest priority.
+    // Note: this is the opposite semantic of the cmdline nice, and is done for
+    // consistency with POLICY_SCHED_FIFO, so higher number == higher prio.
+    POLICY_SCHED_OTHER = 1;
+    // The Real-time policy, Priority range: [1; 99]
+    POLICY_SCHED_FIFO = 2;
+  };
+  optional BoostPolicy policy = 1;
+  optional uint32 priority = 2;
+}
+// End of protos/perfetto/config/priority_boost/priority_boost_config.proto
 
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
@@ -3775,14 +3810,12 @@ message TrackEventConfig {
   // still be emitted even if set to true.
   optional bool filter_debug_annotations = 7;
 
-  // Default : false (i.e. disabled)
+  // Default: false (i.e. disabled)
   // When true, the SDK samples and emits the current thread time counter value
   // for each event on the current thread's track. This value represents the
-  // total CPU time consumed by that thread since its creation. Note that if a
-  // thread is not scheduled by OS for some duration, that time won't be
-  // included in thread_time.
-  // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
-  // https://linux.die.net/man/3/clock_gettime
+  // total CPU time consumed by that thread since its creation.
+  // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
+  // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
@@ -3796,7 +3829,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 137
+// Next id: 138
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3868,6 +3901,8 @@ message DataSourceConfig {
   // buffer. This is only honored by some data sources (in the SDK, the data
   // sources registered with a configurable buffer exhausted policy).
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
+
+  optional PriorityBoostConfig priority_boost = 10;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
@@ -3991,6 +4026,9 @@ message DataSourceConfig {
   // Data source name: android.app_wakelocks
   optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
 
+  // Data source name: android.cpu_per_uid
+  optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4016,7 +4054,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 40.
+// Next id: 41.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4077,6 +4115,16 @@ message TraceConfig {
     // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
     repeated string producer_name_filter = 2;
     repeated string producer_name_regex_filter = 3;
+
+    // Filter by machine names. The name of a machine is determined by the
+    // PERFETTO_MACHINE_NAME env variable. In Android systems, if the env
+    // variable is not set then the
+    // persist.traced_relay.machine_name system property is used. If the
+    // sysprop isn't set or not in an Android system, then the machine name by
+    // default is set to the utsname sysname (e.g. Linux), which can be obtained
+    // via the 'uname -s' command. As a convenience, one can use "host" to refer
+    // to the host machine, which is the machine running traced.
+    repeated string machine_name_filter = 4;
   }
   repeated DataSource data_sources = 2;
 
@@ -4724,6 +4772,10 @@ message TraceConfig {
     optional uint64 max_other_session_count = 2;
   }
   repeated SessionSemaphore session_semaphores = 39;
+
+  // Priority boost to be applied to the traced process, when the session is
+  // running.
+  optional PriorityBoostConfig priority_boost = 40;
 }
 
 // End of protos/perfetto/config/trace_config.proto

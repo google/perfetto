@@ -2,8 +2,66 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
-    *
+    * Added `android.bitmaps` module with timeseries information about bitmap
+      usage in Android.
   Trace Processor:
+    * Added support for `sibling_merge_behavior` and `sibling_merge_key` in
+      `TrackDescriptor` for TrackEvent, allowing for finer-grained control over
+      how tracks are merged. See UI section for more details.
+    * Changed how track_event tracks are parsed in trace processor when tracks
+      are merged together. Instead of merging happening only in the UI, the
+      merging now happens in trace processor. This causes the number of tracks
+      in the `track` table to significantly lower, leading to better query
+      performance. As a result, track_uuid is no longer included in the
+      arguments as multiple track_event tracks could have contributed to a
+      single trace processor track. If you want the previous behaviour, specify
+      `sibling_merge_behaviour: SIBLING_MERGE_BEHAVIOR_NONE`.
+  UI:
+    * Added support for controlling TrackEvent track merging through the
+      `TrackDescriptor` proto. This is especially useful for users converting
+      external traces into Perfetto format or using the SDK. Tracks can now
+      specify a `sibling_merge_behavior` and a `sibling_merge_key` to override
+      the default name-based merging. This allows for forcing tracks with the
+      same name to be displayed separately, or forcing tracks with different
+      names to be merged into a single UI track.
+    * Improved the performance of merging large number of track_event tracks
+      both during loading and during panning/zooming operations.
+  SDK:
+    * "slow" tag is no longer implicitly added to trace categories with
+      "disabled-by-default-" prefix. Instead, clients should explicitly specify
+      the tag. enabled_categories="disabled-by-default-*" also no longer has
+      a special priority, and the same can be achieved with enable_tags="slow".
+
+v51.2 - 2025-07-03:
+  Trace Processor:
+    * Fixed issue with trace summarization crashing with released trace
+      processor prebuilt. Builds from source with GN and default configuration
+      is unaffected.
+
+v51.1 - 2025-06-26:
+  Build system:
+    * Fixed issue with Bazel copts/cxxopts. Embedders are required to add a
+      default_cxxopts to their perfetto.bzl file in their repository.
+
+v51.0 - 2025-06-24:
+  Tracing service and probes:
+    * Added a new data source to poll for CPU time per UID and cluster.
+  SQL Standard library:
+    * Added a new standard library table for filtering IRQ slices.
+    * Added a new standard library module for Android's Low Memory Killer.
+  Trace Processor:
+    * Reworked core database engine to be more performant and better architected
+      for future imporvements.
+    * Added new "trace summarization" functionality to trace processor as a more
+      flexible replacement to old metrics system.
+    * Added support for executing all available metrics when summarizing the
+      trace with `--summary-metrics-v2 all`.
+    * Added `trace_summary()` function to the Python API to execute the
+      trace summaries and, specifically, v2 metrics.
+    * Added support to adding SQL packages to Python API. This is the
+      counterpart to the `--add-sql-package` shell option and allow loading SQL
+      packages and modules from a filesystem path. These are then available to
+      load using `INCLUDE PERFETTO MODULE` PerfettoSQL statements.
     * Improved handling of traces containing overlapping "complete" events
       (i.e. events with a duration, AKA 'X' events in the JSON format).
       While overlapping events are prohibited by the JSON spec, they do
@@ -13,20 +71,26 @@ Unreleased:
       glitches and an error stat is emitted to make the user aware.
     * Improved performance of parsing JSON by 7x. JSON traces should now load
       much faster in the Perfetto UI and the trace processor.
-    * Added `trace_summary()` function to the Python API to execute metrics v2.
-    * Executing `--summary-metrics-v2 all` will run all available metrics when
-      summarizing the trace.
   UI:
     * Improved JSON loading performance. See `Trace Processor` section above.
     * Improved duration based slice aggregators - slices are now trimmed to the
       width of the area selection.
+    * Added the ability for users to set a custom timezone in the UI.
+    * Added the ability to add descriptive text to tracks.
     * Added touchscreen support. The UI can now be used from tablets and other
       touch devices.
+    * Removed the Viz page; it was an experiment which did not go anywhere.
   SDK:
-    * TrackEvent priority of enabled/disabled category and tags were reorded.
+    * Changed the implementation of TrackEvent to only have a single data source
+      for multiple namespace; categories will be exported correctly only on
+      recent perfetto tracing services that support UpdateDataSource.
+    * Changed the priority of TrackEvent enabled/disabled category and tags.
       The new logic ranks (in this order)
       specific > pattern > single char "*" wildcard,
       categories (enabled > disabled) > tags (disabled > enabled).
+  Docs:
+    * Signifcantly improved the project's documentation with a team-wide
+      collaboration to make it more user-friendly and up to date.
 
 
 v50.1 - 2025-04-17:

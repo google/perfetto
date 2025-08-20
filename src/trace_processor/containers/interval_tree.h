@@ -39,6 +39,23 @@ struct Interval {
   Id id;
 };
 
+inline bool IsOverlapping(bool query_is_instant,
+                          Ts s,
+                          Ts e,
+                          const Interval& i) {
+  bool interval_is_instant = (i.start == i.end);
+  if (query_is_instant && interval_is_instant) {
+    return s == i.start;
+  }
+  if (query_is_instant) {
+    return i.start <= s && s < i.end;
+  }
+  if (interval_is_instant) {
+    return s <= i.start && i.start < e;
+  }
+  return e > i.start && s < i.end;
+}
+
 // An implementation of a centered interval tree data structure, designed to
 // efficiently find all overlap queries on a set of intervals. Centered interval
 // tree has a build complexity of O(N*logN) and a query time of O(logN + k),
@@ -60,6 +77,7 @@ class IntervalTree {
   // overlaps)).
   void FindOverlaps(uint64_t s, uint64_t e, std::vector<Id>& res) const {
     std::vector<const Node*> stack{nodes_.data() + root_};
+    bool query_is_instant = (s == e);
     while (!stack.empty()) {
       const Node* n = stack.back();
       stack.pop_back();
@@ -72,7 +90,7 @@ class IntervalTree {
           break;
         }
 
-        if (e > i.start && s < i.end) {
+        if (IsOverlapping(query_is_instant, s, e, i)) {
           res.push_back(i.id);
         }
       }
@@ -88,10 +106,13 @@ class IntervalTree {
     }
   }
 
-  // Modifies |res| to contain all overlaps (as Intervals) that overlap interval
-  // (s, e). Has a complexity of O(log(size of tree) + (number of overlaps)).
+  // Modifies |res| to contain all overlaps (as Intervals) that overlap
+  // interval (s, e). Has a complexity of O(log(size of tree) + (number of
+  // overlaps)).
   void FindOverlaps(Ts s, Ts e, std::vector<Interval>& res) const {
     std::vector<const Node*> stack{nodes_.data() + root_};
+    bool query_is_instant = (s == e);
+
     while (!stack.empty()) {
       const Node* n = stack.back();
       stack.pop_back();
@@ -104,11 +125,19 @@ class IntervalTree {
           break;
         }
 
-        if (e > i.start && s < i.end) {
+        if (IsOverlapping(query_is_instant, s, e, i)) {
           Interval new_int;
-          new_int.start = std::max(s, i.start);
-          new_int.end = std::min(e, i.end);
           new_int.id = i.id;
+          if (query_is_instant) {
+            new_int.start = s;
+            new_int.end = s;
+          } else if (i.start == i.end) {
+            new_int.start = i.start;
+            new_int.end = i.start;
+          } else {
+            new_int.start = std::max(s, i.start);
+            new_int.end = std::min(e, i.end);
+          }
           res.push_back(new_int);
         }
       }
@@ -138,9 +167,10 @@ class IntervalTree {
       center_ = (mid_interval.start + mid_interval.end) / 2;
 
       // Find intervals that overlap the center_ and intervals that belong to
-      // the left node (finish before the center_). If an interval starts after
-      // the center break and assign all remaining intervals to the right node.
-      // We can do this as the provided intervals are in sorted order.
+      // the left node (finish before the center_). If an interval starts
+      // after the center break and assign all remaining intervals to the
+      // right node. We can do this as the provided intervals are in sorted
+      // order.
       std::vector<Interval> left;
       for (uint32_t i = 0; i < intervals_size; i++) {
         const Interval& inter = intervals[i];

@@ -19,7 +19,7 @@
 #include <random>
 #include <set>
 
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -180,7 +180,7 @@ TEST(IntrusiveTreeTest, Golden) {
   for (size_t n = 0; n < N; n++) {
     IdEntry& entry = storage[n];
     entry.id = static_cast<uint64_t>(rnd_engine());
-    entry.hash = base::Hash<uint64_t>()(entry.id);
+    entry.hash = base::FnvHash<uint64_t>()(entry.id);
     auto res_std_set = std_set.emplace(entry);
     auto res_tree = tree.Insert(entry);
     ASSERT_EQ(res_std_set.second, res_tree.second);

@@ -46,10 +46,10 @@ export async function createVisualizedArgsTrack({
   const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
   const viewName = `__arg_visualisation_helper_${escapedArgName}_${uuid}_slice`;
 
-  await createView(
-    trace.engine,
-    viewName,
-    `
+  await createView({
+    engine: trace.engine,
+    name: viewName,
+    as: `
       with slice_with_arg as (
         select
           slice.id,
@@ -72,7 +72,7 @@ export async function createVisualizedArgsTrack({
       from slice_with_arg s1
       order by id
     `,
-  );
+  });
 
   return new DatasetSliceTrack({
     trace,

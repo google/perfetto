@@ -151,7 +151,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_eos_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
+            INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
             SELECT
               SUM(estimated_mw * dur) / 1000000000 as idle_transition_cost_mws,
               utid,
@@ -418,3 +418,60 @@ class WattsonStdlib(TestSuite):
             1,250118842121,137102890041
             1,387221732162,2321209555
             """))
+
+  # Tests that IRQ stacks are properly flattened and have unique IDs
+  def test_wattson_irq_flattening(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_irq_gpu_markers.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
+
+        SELECT
+          SUM(dur) AS total_dur, irq_name, irq_id
+        FROM  _all_irqs_flattened_slices
+        GROUP BY irq_name
+        LIMIT 10
+        """,
+        out=Csv("""
+          "total_dur","irq_name","irq_id"
+          1118451,"BLOCK",-7563548160659491326
+          1701414,"IRQ (100a0000.BIG)",-8960469306195608742
+          769330,"IRQ (100a0000.LITTLE)",2595235052520049942
+          741289,"IRQ (100a0000.MID)",709594339438163430
+          2179935,"IRQ (10840000.pinctrl)",6369664009351169759
+          1192993,"IRQ (10970000.hsi2c)",-1238860297262945668
+          7840694,"IRQ (176a0000.mbox)",442503679933451729
+          2110993,"IRQ (1c0b0000.drmdpp)",3108582083943637163
+          2132254,"IRQ (1c0b1000.drmdpp)",2330704911466106250
+          1187454,"IRQ (1c0b2000.drmdpp)",-4397375750993244671
+          """))
+
+  # Tests that all tasks are correct after accounting for preemption and idle
+  # exits
+  def test_wattson_all_tasks_flattening_and_idle_exits(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_irq_gpu_markers.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
+
+        SELECT
+          SUM(dur) AS dur,
+          thread_name
+        FROM _wattson_task_slices
+        GROUP BY thread_name
+        ORDER BY dur DESC
+        LIMIT 10
+        """,
+        out=Csv("""
+          "dur","thread_name"
+          80559339989,"swapper"
+          1617087785,"Runner: gl_tess"
+          800487950,"mali-cmar-backe"
+          469271586,"mali_jd_thread"
+          426019439,"surfaceflinger"
+          326858956,"IRQ (exynos-mct)"
+          323531361,"s.nexuslauncher"
+          312153973,"RenderThread"
+          251889143,"50000.corporate"
+          241043219,"traced_probes"
+          """))

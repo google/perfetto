@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
+import signal
 import dataclasses as dc
 from urllib.parse import urlparse
 from typing import List, Optional, Union
@@ -41,24 +44,56 @@ TraceProcessorException = PerfettoException
 
 @dc.dataclass
 class TraceProcessorConfig:
-  bin_path: Optional[str]
-  unique_port: bool
-  verbose: bool
-  ingest_ftrace_in_raw: bool
-  enable_dev_features: bool
-  resolver_registry: Optional[ResolverRegistry]
-  load_timeout: int
-  extra_flags: Optional[List[str]]
+  # The path to the trace processor binary. If not specified, the trace
+  # processor will be automatically downloaded and run from the latest
+  # avaialble prebuilts.
+  bin_path: Optional[str] = None
 
-  def __init__(self,
-               bin_path: Optional[str] = None,
-               unique_port: bool = True,
-               verbose: bool = False,
-               ingest_ftrace_in_raw: bool = False,
-               enable_dev_features=False,
-               resolver_registry: Optional[ResolverRegistry] = None,
-               load_timeout: int = 2,
-               extra_flags: Optional[List[str]] = None):
+  # If True, the trace processor will use a unique port for each instance.
+  unique_port: bool = True
+
+  # If True, the trace processor will print verbose output to stdout.
+  verbose: bool = False
+
+  # If True, the trace processor will ingest ftrace in the `ftrace_event`
+  # table.
+  ingest_ftrace_in_raw: bool = False
+
+  # If True, the trace processor will enable development features.
+  # Any feature gated behind this flag is not guaranteed to be stable
+  # and may change or be removed in future versions.
+  # This flag is intended for use by developers and testers.
+  enable_dev_features: bool = False
+
+  # A registry of custom URI resolvers to use when resolving trace URIs.
+  resolver_registry: Optional[ResolverRegistry] = None
+
+  # The timeout in seconds for the trace processor binary starting up. If the
+  # binary does not start within this time, an exception will be raised.
+  load_timeout: int = 2
+
+  # Any extra flags to pass to the trace processor binary.
+  # Warning: this is a low-level option and should be used with caution.
+  extra_flags: Optional[List[str]] = None
+
+  # Optional list of paths to additional PerfettoSQL package to load.
+  # All SQL modules inside these packages will be available to include using
+  # `INCLUDE PERFETTO MODULE` PerfettoSQL statements with the root package
+  # name being the dirname of the path.
+  add_sql_packages: Optional[List[str]] = None
+
+  def __init__(
+      self,
+      bin_path: Optional[str] = None,
+      unique_port: bool = True,
+      verbose: bool = False,
+      ingest_ftrace_in_raw: bool = False,
+      enable_dev_features=False,
+      resolver_registry: Optional[ResolverRegistry] = None,
+      load_timeout: int = 2,
+      extra_flags: Optional[List[str]] = None,
+      add_sql_packages: Optional[List[str]] = None,
+  ):
     self.bin_path = bin_path
     self.unique_port = unique_port
     self.verbose = verbose
@@ -67,6 +102,7 @@ class TraceProcessorConfig:
     self.resolver_registry = resolver_registry
     self.load_timeout = load_timeout
     self.extra_flags = extra_flags
+    self.add_sql_packages = add_sql_packages
 
 
 class TraceProcessor:
@@ -148,37 +184,27 @@ class TraceProcessor:
     return TraceProcessor.QueryResultIterator(response.column_names,
                                               response.batch)
 
-  def metric(self, metrics: List[str]):
-    """Returns the metrics data corresponding to the passed in trace metric.
-    Raises TraceProcessorException if the response returns with an error.
-
-    Args:
-      metrics: A list of valid metrics as defined in TraceMetrics
-
-    Returns:
-      The metrics data as a proto message
-    """
-    response = self.http.compute_metric(metrics)
-    if response.error:
-      raise TraceProcessorException(response.error)
-
-    metrics = self.protos.TraceMetrics()
-    metrics.ParseFromString(response.metrics)
-    return metrics
-
   def trace_summary(self,
                     specs: List[Union[str, bytes]],
                     metric_ids: Optional[List[str]] = None,
                     metadata_query_id: Optional[str] = None):
-    """Returns the trace summary data corresponding to the passed in metric
-    IDs and specs. Raises TraceProcessorException if the response returns with
-    an error.
+    """Computes a structuted summary of the trace.
+
+    This function allows you to create a structured summary of the trace
+    data output in as a structured protobuf message, allowing consumption by
+    other tools for charting or bulk analysis.
+
+    This function is the replacement for the `metric` function, which is now
+    deprecated (but without any plans to remove it).
+
+    Raises TraceProcessorException if there was an error computing the summary.
 
     Args:
-      specs: A list of textproto (as str) or binary proto (as bytes) specs to be
-        used for the summary
-      metric_ids: Optional list of metric IDs as defined in TraceMetrics. 
-        If `None` all metrics will be executed.
+      specs: a list of `TraceSummarySpec` protos either as a textproto or in
+        binary format. Please see the definition of the `TraceSummarySpec`
+        proto for more details on how to construct these.
+      metric_ids: Optional list of metric IDs to compute in the summary.
+        If `None`, all metrics in the specs will be computed.
       metadata_query_id: Optional query ID for metadata
 
     Returns:
@@ -209,6 +235,28 @@ class TraceProcessor:
 
     return response.metatrace
 
+  def metric(self, metrics: List[str]):
+    """Returns the metrics data corresponding to the passed in trace metric.
+    Raises TraceProcessorException if the response returns with an error.
+
+    Note: this function is deprecated but there are no plans to remove it.
+    Consider using `trace_summary` instead, which is an indirect replacement,
+    providing much of the same functionality but in a more flexible way.
+
+    Args:
+      metrics: A list of valid metrics as defined in TraceMetrics
+
+    Returns:
+      The metrics data as a proto message
+    """
+    response = self.http.compute_metric(metrics)
+    if response.error:
+      raise TraceProcessorException(response.error)
+
+    metrics = self.protos.TraceMetrics()
+    metrics.ParseFromString(response.metrics)
+    return metrics
+
   def _create_tp_http(self, addr: str) -> TraceProcessorHttp:
     if addr:
       p = urlparse(addr)
@@ -216,10 +264,16 @@ class TraceProcessor:
       return TraceProcessorHttp(parsed, protos=self.protos)
 
     url, self.subprocess = load_shell(
-        self.config.bin_path, self.config.unique_port, self.config.verbose,
-        self.config.ingest_ftrace_in_raw, self.config.enable_dev_features,
-        self.platform_delegate, self.config.load_timeout,
-        self.config.extra_flags)
+        self.config.bin_path,
+        self.config.unique_port,
+        self.config.verbose,
+        self.config.ingest_ftrace_in_raw,
+        self.config.enable_dev_features,
+        self.platform_delegate,
+        self.config.load_timeout,
+        self.config.extra_flags,
+        self.config.add_sql_packages,
+    )
     return TraceProcessorHttp(url, protos=self.protos)
 
   def _parse_trace(self, trace: TraceReference):
@@ -251,9 +305,16 @@ class TraceProcessor:
     return False
 
   def close(self):
-    if hasattr(self, 'subprocess'):
-      self.subprocess.kill()
+    if hasattr(self, 'subprocess') and self.subprocess:
+      # On Windows, we need to send a break signal to terminate the whole process group.
+      # On other platforms, killing the parent process is sufficient.
+      if sys.platform == 'win32':
+        self.subprocess.send_signal(signal.CTRL_BREAK_EVENT)
+      else:
+        self.subprocess.kill()
       self.subprocess.wait()
+      # Set to None so __del__ doesn't call this again.
+      self.subprocess = None
 
     if hasattr(self, 'http'):
       self.http.conn.close()

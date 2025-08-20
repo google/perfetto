@@ -29,8 +29,14 @@
   }
 
   &__centred {
-    width: 700px;
+    max-width: 700px;
+    min-width: 300px;
     margin-inline: auto;
+    padding-inline: 8px;
+  }
+
+  &__content {
+    margin-block: 16px;
   }
 
   &__title {

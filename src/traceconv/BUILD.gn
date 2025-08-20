@@ -83,16 +83,16 @@ source_set("lib") {
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:zero",
-    "../../src/profiling:deobfuscator",
-    "../../src/profiling/symbolizer",
-    "../../src/profiling/symbolizer:symbolize_database",
-    "../../src/protozero:proto_ring_buffer",
-    "../../src/trace_processor:lib",
-    "../../src/trace_processor:storage_minimal",
-    "../../src/trace_processor/util:descriptors",
-    "../../src/trace_processor/util:gzip",
-    "../../src/trace_processor/util:protozero_to_text",
-    "../../src/trace_processor/util:trace_type",
+    "../profiling:deobfuscator",
+    "../profiling/symbolizer",
+    "../profiling/symbolizer:symbolize_database",
+    "../protozero:proto_ring_buffer",
+    "../trace_processor:lib",
+    "../trace_processor:storage_minimal",
+    "../trace_processor/util:descriptors",
+    "../trace_processor/util:gzip",
+    "../trace_processor/util:protozero_to_text",
+    "../trace_processor/util:trace_type",
   ]
   sources = [
     "deobfuscate_profile.cc",
@@ -119,10 +119,12 @@ source_set("lib") {
 
 source_set("main") {
   deps = [
+    ":gen_cc_trace_descriptor",
     ":lib",
     "../../gn:default_deps",
     "../../include/perfetto/ext/base:base",
     "../base:version",
+    "../protozero/text_to_proto",
   ]
   sources = [ "main.cc" ]
 }

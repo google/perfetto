@@ -53,19 +53,19 @@ export default class implements PerfettoPlugin {
     // Makes the queries in `ProcessSchedulingTrack` significantly faster.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
-    await createPerfettoIndex(
-      ctx.engine,
-      `__process_scheduling_${uuidv4Sql()}`,
-      `__intrinsic_sched_slice(utid)`,
-    );
+    await createPerfettoIndex({
+      engine: ctx.engine,
+      name: `__process_scheduling_${uuidv4Sql()}`,
+      on: `__intrinsic_sched_slice(utid)`,
+    });
     // Makes the queries in `ProcessSummaryTrack` significantly faster.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
-    await createPerfettoIndex(
-      ctx.engine,
-      `__process_summary_${uuidv4Sql()}`,
-      `__intrinsic_slice(track_id)`,
-    );
+    await createPerfettoIndex({
+      engine: ctx.engine,
+      name: `__process_summary_${uuidv4Sql()}`,
+      on: `__intrinsic_slice(track_id)`,
+    });
 
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
     const cpuCountByMachine = this.getCpuCountByMachine(ctx);

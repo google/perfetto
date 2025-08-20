@@ -4,10 +4,10 @@ packet {
   timestamp: 0
   track_descriptor {
     uuid: 10
+    name: "parent"
     child_ordering: 3
   }
 }
-
 # Sequence 1 defaults to track for "t1"
 packet {
   trusted_packet_sequence_id: 1
@@ -16,6 +16,7 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 1
+    name: "child_1"
     parent_uuid: 10
     sibling_order_rank: -10
   }
@@ -23,6 +24,13 @@ packet {
     track_event_defaults {
       track_uuid: 1
     }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_event {
+    type: TYPE_INSTANT
   }
 }
 # Sequence 2 defaults to track for "t2".
@@ -33,6 +41,7 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 2
+    name: "child_2"
     parent_uuid: 10
     sibling_order_rank: -2
   }
@@ -40,6 +49,13 @@ packet {
     track_event_defaults {
       track_uuid: 2
     }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  track_event {
+    type: TYPE_INSTANT
   }
 }
 
@@ -56,12 +72,28 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_event {
+    track_uuid: 11
+    type: TYPE_INSTANT
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
   timestamp: 100
   track_descriptor {
     uuid: 12
     parent_uuid: 10
     name: "async2"
     sibling_order_rank: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_event {
+    track_uuid: 12
+    type: TYPE_INSTANT
   }
 }
 packet {
@@ -84,6 +116,14 @@ packet {
     name: "async3"
   }
 }
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_event {
+    track_uuid: 14
+    type: TYPE_INSTANT
+  }
+}
 # If we later see another track descriptor for tid 1, but with a different uuid,
 # we should detect tid reuse and start a new thread.
 packet {
@@ -93,6 +133,7 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 3
+    name: "child_3"
     parent_uuid: 10
   }
 }
@@ -118,6 +159,7 @@ packet {
       pid: 5
       process_name: "p1"
     }
+    name: "p1"
     child_ordering: 3
     chrome_process {
       host_app_package_name: "host_app"
@@ -133,6 +175,7 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 15
+    name: "p1_child_1"
     parent_uuid: 20
     sibling_order_rank: -10
   }
@@ -140,6 +183,14 @@ packet {
     track_event_defaults {
       track_uuid: 1
     }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 4
+  timestamp: 11001
+  track_event {
+    track_uuid: 15
+    type: TYPE_INSTANT
   }
 }
 # Sequence 5 defaults to track for "t4".
@@ -150,6 +201,7 @@ packet {
   first_packet_on_sequence: true
   track_descriptor {
     uuid: 16
+    name: "p1_child_2"
     parent_uuid: 20
     sibling_order_rank: -2
   }
@@ -157,5 +209,13 @@ packet {
     track_event_defaults {
       track_uuid: 2
     }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 5
+  timestamp: 11002
+  track_event {
+    track_uuid: 16
+    type: TYPE_INSTANT
   }
 }

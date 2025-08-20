@@ -76,9 +76,13 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
 base::Status ReadTrace(
     TraceProcessor* tp,
     const char* filename,
-    const std::function<void(uint64_t parsed_size)>& progress_callback) {
+    const std::function<void(uint64_t parsed_size)>& progress_callback,
+    bool call_notify_end_of_file) {
   RETURN_IF_ERROR(ReadTraceUnfinalized(tp, filename, progress_callback));
-  return tp->NotifyEndOfFile();
+  if (call_notify_end_of_file) {
+    return tp->NotifyEndOfFile();
+  }
+  return base::OkStatus();
 }
 
 base::Status DecompressTrace(const uint8_t* data,

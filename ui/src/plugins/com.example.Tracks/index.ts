@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
@@ -35,6 +36,7 @@ export default class implements PerfettoPlugin {
     await addFlatSliceTrack(trace);
     await addFixedColorSliceTrack(trace);
     await addNestedTrackGroup(trace);
+    addTracksWithHelpText(trace);
   }
 }
 
@@ -305,4 +307,56 @@ async function addNestedTrackGroup(trace: Trace): Promise<void> {
       trace.workspaces.switchWorkspace(ws);
     },
   });
+}
+
+function addTracksWithHelpText(trace: Trace) {
+  const uri = `com.example.Tracks#TrackWithHelpText`;
+
+  trace.tracks.registerTrack({
+    uri,
+    renderer: new DatasetSliceTrack({
+      trace: trace,
+      uri,
+      dataset: new SourceDataset({
+        src: 'example_events', // Use the whole dummy table
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
+    }),
+    description: () => [
+      'This track demonstrates how to add help text.',
+      m('br'),
+      'Use Mithril vnodes for formatting.',
+    ],
+  });
+
+  const groupNode = addGroupWithHelpText(trace);
+
+  // Add to workspace
+  groupNode.addChildLast(new TrackNode({uri, name: 'Track with Help Text'}));
+}
+
+function addGroupWithHelpText(trace: Trace) {
+  const uri = `com.example.Tracks#GroupWithHelpText`;
+
+  trace.tracks.registerTrack({
+    uri,
+    renderer: {
+      render: () => {},
+    },
+    description: () => [
+      'This is a group track with some help text.',
+      m('br'),
+      'Use Mithril vnodes for formatting.',
+    ],
+  });
+
+  // Add to workspace
+  const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
+  trace.workspace.addChildInOrder(groupNode);
+  return groupNode;
 }

@@ -34,7 +34,6 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
-#include "src/traced/probes/ftrace/predefined_tracepoints.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 
@@ -66,11 +65,10 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 // Enabled by the "use_monotonic_raw_clock" option in the ftrace config.
 constexpr const char* kClockMonoRaw = "mono_raw";
 
-std::set<GroupAndName> ReadEventsInGroupFromFs(
-    const FtraceProcfs& ftrace_procfs,
-    const std::string& group) {
+std::set<GroupAndName> ReadEventsInGroupFromFs(const Tracefs& tracefs,
+                                               const std::string& group) {
   std::set<std::string> names =
-      ftrace_procfs.GetEventNamesForGroup("events/" + group);
+      tracefs.GetEventNamesForGroup("events/" + group);
   std::set<GroupAndName> events;
   for (const auto& name : names)
     events.insert(GroupAndName(group, name));
@@ -196,12 +194,28 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
       events.insert(GroupAndName(group, name));
     }
   }
+
   if (RequiresAtrace(request)) {
     InsertEvent("ftrace", "print", &events);
-
+  }
+  if (!request.atrace_userspace_only()) {
+    // Legacy: some atrace categories enable not just userspace tracing, but
+    // also a predefined set of kernel tracepoints, as that's what the original
+    // "atrace" binary did.
     for (const std::string& category : request.atrace_categories()) {
       if (predefined_events_.count(category)) {
         for (const GroupAndName& event : predefined_events_[category]) {
+          events.insert(event);
+        }
+      }
+    }
+
+    // Android: vendors can provide a set of extra ftrace categories to be
+    // enabled when a specific atrace category is used
+    // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
+    for (const std::string& category : request.atrace_categories()) {
+      if (vendor_events_.count(category)) {
+        for (const GroupAndName& event : vendor_events_[category]) {
           events.insert(event);
         }
       }
@@ -346,7 +360,7 @@ void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
 }
 
 FtraceConfigMuxer::FtraceConfigMuxer(
-    FtraceProcfs* ftrace,
+    Tracefs* ftrace,
     AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
@@ -386,37 +400,25 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     current_state_.saved_tracing_on = ftrace_->GetTracingOn();
     if (!request.preserve_ftrace_buffer()) {
       ftrace_->SetTracingOn(false);
-      // This will fail on release ("user") builds due to ACLs, but that's
-      // acceptable since the per-event enabling/disabling should still be
-      // balanced.
+      // Android: this will fail on release ("user") builds due to ACLs, but
+      // that's acceptable since the per-event enabling/disabling should still
+      // be balanced.
       ftrace_->DisableAllEvents();
       ftrace_->ClearTrace();
     }
 
-    // Set up the rest of the tracefs state, without starting it.
-    // Notes:
-    // * resizing buffers can be quite slow (up to hundreds of ms).
-    // * resizing buffers may truncate existing contents if the new size is
-    // smaller, which matters to the preserve_ftrace_buffer option.
+    // Set up the new tracefs state, without starting recording.
     if (!request.preserve_ftrace_buffer()) {
       SetupClock(request);
       SetupBufferSize(request);
+    } else {
+      // If preserving the existing ring buffer contents, we cannot change the
+      // clock or buffer sizes because that clears the kernel buffers.
+      RememberActiveClock();
     }
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
-
-  // Android: vendors can provide a set of extra ftrace categories to be enabled
-  // when a specific atrace category is used
-  // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
-  // Merge them with the hardcoded events for each categories.
-  for (const std::string& category : request.atrace_categories()) {
-    if (vendor_events_.count(category)) {
-      for (const GroupAndName& event : vendor_events_[category]) {
-        events.insert(event);
-      }
-    }
-  }
 
   // Android: update userspace tracing control state if necessary.
   if (RequiresAtrace(request)) {
@@ -773,14 +775,12 @@ const FtraceDataSourceConfig* FtraceConfigMuxer::GetDataSourceConfig(
 }
 
 void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
-  std::string current_clock = ftrace_->GetClock();
   std::set<std::string> clocks = ftrace_->AvailableClocks();
 
-  if (config.has_use_monotonic_raw_clock() &&
-      config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
+  if (config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
     ftrace_->SetClock(kClockMonoRaw);
-    current_clock = kClockMonoRaw;
   } else {
+    std::string current_clock = ftrace_->GetClock();
     for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
       std::string clock = std::string(kClocks[i]);
       if (!clocks.count(clock))
@@ -788,11 +788,15 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
       if (current_clock == clock)
         break;
       ftrace_->SetClock(clock);
-      current_clock = clock;
       break;
     }
   }
 
+  RememberActiveClock();
+}
+
+void FtraceConfigMuxer::RememberActiveClock() {
+  std::string current_clock = ftrace_->GetClock();
   namespace pb0 = protos::pbzero;
   if (current_clock == "boot") {
     // "boot" is the default expectation on modern kernels, which is why we

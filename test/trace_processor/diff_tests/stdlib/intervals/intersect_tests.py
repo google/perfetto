@@ -328,13 +328,6 @@ class IntervalsIntersect(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE intervals.intersect;
 
-        CREATE PERFETTO TABLE A AS
-          WITH data(id, ts, dur) AS (
-            VALUES
-            (0, 1, 6)
-          )
-          SELECT * FROM data;
-
         CREATE PERFETTO TABLE B AS
           WITH data(id, ts, dur) AS (
             VALUES
@@ -353,6 +346,254 @@ class IntervalsIntersect(TestSuite):
         0,1,1
         1,3,2
         2,6,1
+        """))
+
+  def test_overlap_start_and_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 1, 1)
+          )
+          SELECT * FROM data;
+
+        SELECT *
+        FROM _interval_intersect_single!(2, 1, A)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","dur"
+        """))
+
+  def test_instants(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ _ - * - - _ _
+        # B:   - _ _ _ _ _ _ -
+        # res: - _ - * - - _ -
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 0, 2),
+            (1, 3, 0),
+            (2, 6, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT *
+        FROM _interval_intersect_single!(1, 6, A)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","dur"
+        0,1,1
+        1,3,0
+        2,6,1
+        """))
+
+  def test_instants_intersect_interval(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ _ _ . _ _ _ _ (instant at ts=3, dur=0)
+        # B:   _ - - - - - - _
+        # res: _ _ _ . _ _ _ _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 3, 0)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (10, 1, 6)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        3,0,0,10
+        """))
+
+  def test_instants_intersect_interval_outside(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   . _ _ _ _ _ _ _ (instant at ts=0, dur=0)
+        # B:   _ - - - - - - _
+        # res: _ _ _ _ _ _ _ _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 0, 0)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (10, 1, 6)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        """))
+
+  def test_two_instants_intersect(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ _ _ . _ _ _ _ (instant at ts=3, dur=0)
+        # B:   _ _ _ . _ _ _ _ (instant at ts=3, dur=0)
+        # res: _ _ _ . _ _ _ _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 3, 0)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (10, 3, 0)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        3,0,0,10
+        """))
+
+  def test_two_instants_no_intersect(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ _ . _ _ _ _ _ (instant at ts=2, dur=0)
+        # B:   _ _ _ . _ _ _ _ (instant at ts=3, dur=0)
+        # res: _ _ _ _ _ _ _ _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 2, 0)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (10, 3, 0)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        """))
+
+  def test_instant_intersect_multiple_intervals(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ _ _ . _ _ _ _ (instant at ts=3, dur=0)
+        # B:   - - _ - - _ - -
+        # res: _ _ _ . _ _ _ _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 3, 0)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (1, 0, 2),
+            (2, 3, 2),
+            (3, 6, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        3,0,0,2
+        """))
+
+  def test_multiple_instants_intersect_interval_single_func(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ - - - - - - _
+        # B:   . _ . . _ . _ .
+        # res: _ _ . . _ . _ _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE B_instants AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 0, 0),
+            (1, 2, 0),
+            (2, 3, 0),
+            (3, 5, 0),
+            (4, 7, 0)
+          )
+          SELECT * FROM data;
+
+        SELECT *
+        FROM _interval_intersect_single!(1, 6, B_instants)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","dur"
+        1,2,0
+        2,3,0
+        3,5,0
         """))
 
   def test_ii_wrong_partition(self):
@@ -625,35 +866,6 @@ class IntervalsIntersect(TestSuite):
         70731196731,196563,4,4,5
         70731435690,22916,6,6,7
         70730062200,125364,0,0,1
-        """))
-
-  def test_sanity_multiple_tables_and_partitions(self):
-    return DiffTestBlueprint(
-        trace=DataPath('example_android_trace_30s.pb'),
-        query="""
-        INCLUDE PERFETTO MODULE intervals.intersect;
-
-        SELECT * FROM _interval_intersect!(
-          (
-            (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
-            (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
-            (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10)
-          ),
-          (utid, cpu)
-        );
-        """,
-        out=Csv("""
-        "ts","dur","id_0","id_1","id_2","utid","cpu"
-        70730062200,125364,0,0,0,1,0
-        70730187564,20297242,1,1,1,0,0
-        70731483398,24583,9,9,9,10,3
-        70731458606,24792,8,8,8,9,3
-        70731393294,42396,5,5,5,6,3
-        70731435690,22916,6,6,6,7,3
-        70731161731,35000,3,3,3,4,3
-        70731196731,196563,4,4,4,5,3
-        70731438502,55261,7,7,7,8,6
-        70731135898,25833,2,2,2,2,3
         """))
 
   def test_sanity_multiple_tables_and_partitions(self):

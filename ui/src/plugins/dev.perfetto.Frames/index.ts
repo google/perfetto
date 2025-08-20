@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {createActualFramesTrack} from './actual_frames_track';
 import {createExpectedFramesTrack} from './expected_frames_track';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
 } from './frame_selection_aggregator';
-import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
 
 // Build a standardized URI for a frames track
 function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
@@ -38,7 +38,7 @@ export default class implements PerfettoPlugin {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new FrameSelectionAggregator(), 10),
+      createAggregationTab(ctx, new FrameSelectionAggregator(), 10),
     );
   }
 

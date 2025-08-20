@@ -140,18 +140,20 @@ TEST_F(ProcessTrackerTest, UpdateThreadName) {
   auto name2 = context.storage->InternString("name2");
   auto name3 = context.storage->InternString("name3");
 
-  context.process_tracker->UpdateThreadName(1, name1,
+  auto utid = context.process_tracker->GetOrCreateThread(1);
+
+  context.process_tracker->UpdateThreadName(utid, name1,
                                             ThreadNamePriority::kFtrace);
   ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
   ASSERT_EQ(context.storage->thread_table()[1].name(), name1);
 
-  context.process_tracker->UpdateThreadName(1, name2,
+  context.process_tracker->UpdateThreadName(utid, name2,
                                             ThreadNamePriority::kProcessTree);
   // The priority is higher: the name should change.
   ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
   ASSERT_EQ(context.storage->thread_table()[1].name(), name2);
 
-  context.process_tracker->UpdateThreadName(1, name3,
+  context.process_tracker->UpdateThreadName(utid, name3,
                                             ThreadNamePriority::kFtrace);
   // The priority is lower: the name should stay the same.
   ASSERT_EQ(context.storage->thread_table().row_count(), 2u);

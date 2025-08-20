@@ -348,30 +348,40 @@ mdtargets = []
 foreach(source, mdfiles) {
   filename = rebase_path(string_replace(source, ".md", ""),
                          rebase_path("../../docs", root_build_dir))
-
-  md_to_html("mdfile_${source}") {
+  md_to_html("mdfile_${filename}") {
     markdown = rebase_path(source, ".", root_build_dir)
     html_template = "src/template_markdown.html"
     out_html = "docs/${filename}"
     deps = [ ":gen_toc" ]
   }
-  mdtargets += [ ":mdfile_${source}" ]
+  mdtargets += [ ":mdfile_${filename}" ]
 }
 
 # Files which have been removed/renamed/moved and now have HTTP redirections in
 # src/assets/script.js
-removed_renamed_moved_files = [ "analysis/common-queries.md" ]
+removed_renamed_moved_files = [
+  "analysis/common-queries.md",
+  "analysis/pivot-tables.md",
+  "contributing/embedding.md",
+  "contributing/perfetto-in-the-press.md",
+  "contributing/ui-development.md",
+  "quickstart/android-tracing.md",
+  "quickstart/callstack-sampling.md",
+  "quickstart/chrome-tracing.md",
+  "quickstart/heap-profiling.md",
+  "quickstart/linux-tracing.md",
+  "quickstart/trace-analysis.md",
+]
 
 foreach(source, removed_renamed_moved_files) {
-  filename = rebase_path(string_replace(source, ".md", ""),
-                         rebase_path("../../docs", root_build_dir))
-  md_to_html("mdfile_${source}") {
+  filename = string_replace(source, ".md", "")
+  md_to_html("mdfile_${filename}") {
     markdown = "src/empty.md"
     html_template = "src/template_markdown.html"
     out_html = "docs/${filename}"
     deps = [ ":gen_toc" ]
   }
-  mdtargets += [ ":mdfile_${source}" ]
+  mdtargets += [ ":mdfile_${filename}" ]
 }
 
 group("all_mdfiles") {

@@ -673,7 +673,6 @@ void Rpc::ComputeTraceSummaryInternal(
     default:
       PERFETTO_FATAL("Unknown format");
   }
-
   std::vector<uint8_t> output;
   base::Status status = trace_processor_->Summarize(
       computation_spec, summary_specs, &output, output_spec);

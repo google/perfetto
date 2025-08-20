@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
-  ii,
+  Aggregation,
+  Aggregator,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
-export class FrameSelectionAggregator implements AreaSelectionAggregator {
+export class FrameSelectionAggregator implements Aggregator {
   readonly id = 'frame_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
@@ -43,7 +44,12 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
@@ -52,7 +58,7 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
             min(dur) as minDur,
             avg(dur) as meanDur,
             max(dur) as maxDur
-          from (${iiDataset.query()})
+          from (${iiTable.name})
           group by jank_type
         `);
 
@@ -75,32 +81,25 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
     return [
       {
         title: 'Jank Type',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'jank_type',
       },
       {
         title: 'Min duration',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        formatHint: 'DURATION_NS',
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        formatHint: 'DURATION_NS',
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        formatHint: 'DURATION_NS',
         columnId: 'meanDur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'occurrences',
         sum: true,
       },

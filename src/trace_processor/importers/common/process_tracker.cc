@@ -133,23 +133,7 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
 }
 
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(int64_t tid) {
-  auto opt_utid = GetThreadOrNull(tid, std::nullopt);
-  if (!opt_utid)
-    return std::nullopt;
-
-  auto& threads = *context_->storage->mutable_thread_table();
-  UniqueTid utid = *opt_utid;
-  auto rr = threads[utid];
-
-  // Ensure that the tid matches the tid we were looking for.
-  PERFETTO_DCHECK(rr.tid() == tid);
-  // Ensure that the thread's machine ID matches the context's machine ID.
-  PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
-  // If the thread is being tracked by the process tracker, it should not be
-  // known to have ended.
-  PERFETTO_DCHECK(!rr.end_ts().has_value());
-
-  return utid;
+  return GetThreadOrNull(tid, std::nullopt);
 }
 
 UniqueTid ProcessTracker::GetOrCreateThread(int64_t tid) {
@@ -157,17 +141,9 @@ UniqueTid ProcessTracker::GetOrCreateThread(int64_t tid) {
   return utid ? *utid : StartNewThread(std::nullopt, tid);
 }
 
-UniqueTid ProcessTracker::UpdateThreadName(int64_t tid,
-                                           StringId thread_name_id,
-                                           ThreadNamePriority priority) {
-  auto utid = GetOrCreateThread(tid);
-  UpdateThreadNameByUtid(utid, thread_name_id, priority);
-  return utid;
-}
-
-void ProcessTracker::UpdateThreadNameByUtid(UniqueTid utid,
-                                            StringId thread_name_id,
-                                            ThreadNamePriority priority) {
+void ProcessTracker::UpdateThreadName(UniqueTid utid,
+                                      StringId thread_name_id,
+                                      ThreadNamePriority priority) {
   if (thread_name_id.is_null())
     return;
 
@@ -228,6 +204,10 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
     UniqueTid current_utid = *it;
     auto rr = threads[current_utid];
 
+    // Ensure that the tid matches the tid we were looking for.
+    PERFETTO_DCHECK(rr.tid() == tid);
+    // Ensure that the thread's machine ID matches the context's machine ID.
+    PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
     // If we finished this thread, we should have removed it from the vector
     // entirely.
     PERFETTO_DCHECK(!rr.end_ts().has_value());
@@ -327,7 +307,7 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
   UniqueTid utid = StartNewThread(timestamp, /*tid=*/pid);
-  UpdateThreadNameByUtid(utid, main_thread_name, priority);
+  UpdateThreadName(utid, main_thread_name, priority);
 
   // Note that we erased the pid above so this should always return a new
   // process.
@@ -423,7 +403,8 @@ void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
   auto& tt = *context_->storage->mutable_thread_table();
   auto& pt = *context_->storage->mutable_process_table();
 
-  UniqueTid utid = UpdateThreadName(tid, thread_name, priority);
+  auto utid = GetOrCreateThread(tid);
+  UpdateThreadName(utid, thread_name, priority);
   auto trr = tt[utid];
   std::optional<UniquePid> opt_upid = trr.upid();
   if (!opt_upid.has_value()) {
@@ -585,7 +566,9 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
   pids_.Insert(0, swapper_upid_);
 
   auto swapper_id = context_->storage->InternString("swapper");
-  UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
+  auto utid = GetOrCreateThread(0);
+  UpdateThreadName(utid, swapper_id,
+                   ThreadNamePriority::kTraceProcessorConstant);
 }
 
 ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {

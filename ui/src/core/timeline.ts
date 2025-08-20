@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../base/logging';
-import {Time, time, TimeSpan} from '../base/time';
+import {Time, time, TimeSpan, timezoneOffsetMap} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
@@ -87,6 +87,7 @@ export class TimelineImpl implements Timeline {
     private readonly traceInfo: TraceInfo,
     private readonly _timestampFormat: Setting<TimestampFormat>,
     private readonly _durationPrecision: Setting<DurationPrecision>,
+    readonly timezoneOverride: Setting<string>,
   ) {
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
       traceInfo.start,
@@ -204,6 +205,12 @@ export class TimelineImpl implements Timeline {
           this.traceInfo.unixOffset,
           0, // UTC
         );
+      case TimestampFormat.CustomTimezone:
+        return getTraceMidnightInTimezone(
+          this.traceInfo.start,
+          this.traceInfo.unixOffset,
+          timezoneOffsetMap[this.timezoneOverride.get()],
+        );
       case TimestampFormat.TraceTz:
         return getTraceMidnightInTimezone(
           this.traceInfo.start,
@@ -234,6 +241,10 @@ export class TimelineImpl implements Timeline {
 
   set durationPrecision(precision: DurationPrecision) {
     this._durationPrecision.set(precision);
+  }
+
+  get customTimezoneOffset(): number {
+    return timezoneOffsetMap[this.timezoneOverride.get()];
   }
 }
 

@@ -20,6 +20,7 @@ service traced /system/bin/traced
     user nobody
     group nobody
     task_profiles ProcessCapacityHigh
+    capabilities SYS_NICE
 
 # traced_relay relays its local producer's data to a central traced service
 # running in a different VM or in the host. traced and traced_relay are mutually
@@ -48,7 +49,7 @@ service traced_probes /system/bin/traced_probes
     # unexpectedly.
     onrestart exec_background - nobody shell -- /system/bin/traced_probes --cleanup-after-crash
     file /dev/kmsg w
-    capabilities DAC_READ_SEARCH
+    capabilities DAC_READ_SEARCH SYS_NICE
     shared_kallsyms
 
 on property:persist.device_config.global_settings.sys_traced=1

@@ -94,7 +94,7 @@ static_assert(std::is_trivial_v<LastNonNullAggregateContext>,
               "Must be able to be destroyed by just calling free (i.e. no "
               "destructor called)");
 
-class LastNonNull : public SqliteWindowFunction {
+class LastNonNull : public sqlite::WindowFunction {
  public:
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     if (argc != 1) {

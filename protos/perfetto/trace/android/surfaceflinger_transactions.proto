@@ -95,6 +95,11 @@ message Transform {
   optional float ty = 6;
 }
 
+message TransactionBarrier {
+  optional string barrier_token = 1;
+  optional uint32 kind = 2;
+}
+
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -105,6 +110,8 @@ message TransactionState {
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
   repeated uint64 merged_transaction_ids = 9;
+  optional uint64 apply_token = 10;
+  repeated TransactionBarrier transaction_barriers = 11;
 }
 
 // Keep insync with layer_state_t
@@ -171,6 +178,7 @@ message LayerState {
     eStretchChanged = 0x2000;
     eTrustedOverlayChanged = 0x4000;
     eDropInputModeChanged = 0x8000;
+    eClientDrawnCornerRadiusChanged = 0x00010000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -198,8 +206,15 @@ message LayerState {
     optional float dtdy = 3;
     optional float dsdy = 4;
   };
+
+  message CornerRadii {
+    optional float tl = 1;
+    optional float tr = 2;
+    optional float bl = 3;
+    optional float br = 4;
+  }
   optional Matrix22 matrix = 11;
-  optional float corner_radius = 12;
+  optional float corner_radius = 12 [deprecated = true];
   optional uint32 background_blur_radius = 13;
   optional uint32 parent_id = 14;
   optional uint32 relative_parent_id = 15;
@@ -300,6 +315,10 @@ message LayerState {
   optional TrustedOverlay trusted_overlay = 43;
 
   optional float background_blur_scale = 44;
+
+  optional CornerRadii corner_radii = 45;
+
+  optional CornerRadii client_drawn_corner_radii = 46;
 }
 
 message DisplayState {

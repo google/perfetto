@@ -96,7 +96,7 @@ trace.add_atrace_begin(
     ts=to_s(300),
     tid=3,
     pid=3,
-    buf='reportFullyDrawn() for \{com.google.android.calendar\}')
+    buf='reportFullyDrawn() for {{com.google.android.calendar}}')
 trace.add_atrace_end(ts=to_s(305), tid=2, pid=2)
 
 # Start intent for calendar, we failed to launch the activity.

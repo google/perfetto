@@ -58,6 +58,64 @@ class ChromeProcesses(TestSuite):
         """,
         out=Path('chrome_threads.out'))
 
+  def test_chrome_threads_skip_swapper_tid_override(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 543825535000
+          sequence_flags: 1
+          track_descriptor {
+            uuid: 12845869133155057863
+            process {
+              pid: 17547
+              process_name: "Browser"
+            }
+            chrome_process {
+              process_type: PROCESS_BROWSER
+            }
+          }
+          trusted_packet_sequence_id: 5
+        }
+        # Need to parse at least one ThreadDescriptor packet
+        # to have valid pid and tid in the sequence.
+        packet {
+          timestamp: 545825535000
+          sequence_flags: 1
+          track_descriptor {
+            uuid: 12845869133155043208
+            parent_uuid: 12845869133155057863
+            thread {
+              pid: 17547
+              tid: 18255
+              thread_name: "SomeThread"
+            }
+          }
+          trusted_packet_sequence_id: 5
+        }
+        packet {
+          timestamp: 546825535000
+          track_event {
+            track_uuid: 0
+            legacy_event {
+              phase: 77
+              tid_override: 0 # Swapper tid should be ignored
+            }
+          }
+          trusted_packet_sequence_id: 5
+        }
+        """),
+        query="""
+        SELECT RUN_METRIC('chrome/chrome_processes.sql');
+        SELECT tid, name, is_main_thread, canonical_name
+        FROM chrome_thread
+        ORDER BY tid, name;
+        """,
+        out=Csv("""
+        "tid","name","is_main_thread","canonical_name"
+        17547,"[NULL]",1,"Unknown"
+        18255,"SomeThread",0,"SomeThread"
+        """))
+
   def test_chrome_threads_android_systrace(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_android_systrace.pftrace'),

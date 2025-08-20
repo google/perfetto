@@ -18,7 +18,6 @@ import {PostedTrace} from '../core/trace_source';
 import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
 import {toggleHelp} from './help_modal';
-import {scrollTo} from '../public/scroll_helper';
 import {AppImpl} from '../core/app_impl';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
@@ -208,9 +207,6 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   }
 
   const openTrace = () => {
-    // For external traces, we need to disable other features such as
-    // downloading and sharing a trace.
-    postedTrace.localOnly = true;
     AppImpl.instance.openTraceFromBuffer(postedTrace);
   };
 
@@ -255,6 +251,9 @@ function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
     title: sanitizeString(postedTrace.title),
     buffer: postedTrace.buffer,
     keepApiOpen: postedTrace.keepApiOpen,
+    // For external traces, we need to disable other features such as
+    // downloading and sharing a trace, unless the caller allows it.
+    localOnly: postedTrace.localOnly ?? true,
   };
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);
@@ -272,8 +271,15 @@ async function scrollToTimeRange(
   postedScrollToRange: PostedScrollToRange,
   maxAttempts?: number,
 ) {
-  const ready = AppImpl.instance.trace && !AppImpl.instance.isLoadingTrace;
-  if (!ready) {
+  const app = AppImpl.instance;
+  const trace = app.trace;
+  if (trace && !app.isLoadingTrace) {
+    const start = Time.fromSeconds(postedScrollToRange.timeStart);
+    const end = Time.fromSeconds(postedScrollToRange.timeEnd);
+    trace.scrollTo({
+      time: {start, end, viewPercentage: postedScrollToRange.viewPercentage},
+    });
+  } else {
     if (maxAttempts === undefined) {
       maxAttempts = 0;
     }
@@ -282,12 +288,6 @@ async function scrollToTimeRange(
       return;
     }
     setTimeout(scrollToTimeRange, 200, postedScrollToRange, maxAttempts + 1);
-  } else {
-    const start = Time.fromSeconds(postedScrollToRange.timeStart);
-    const end = Time.fromSeconds(postedScrollToRange.timeEnd);
-    scrollTo({
-      time: {start, end, viewPercentage: postedScrollToRange.viewPercentage},
-    });
   }
 }
 

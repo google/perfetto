@@ -23,7 +23,6 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
@@ -95,7 +94,7 @@ class V8Tracker : public Destructible {
  private:
   struct JsFunctionHash {
     size_t operator()(const tables::V8JsFunctionTable::Row& v) const {
-      return static_cast<size_t>(base::Hasher::Combine(
+      return static_cast<size_t>(base::FnvHasher::Combine(
           v.name.raw_id(), v.v8_js_script_id.value, v.is_toplevel,
           v.kind.raw_id(), v.line.value_or(0), v.col.value_or(0)));
     }
@@ -119,7 +118,7 @@ class V8Tracker : public Destructible {
   struct IsolateKey {
     struct Hasher {
       size_t operator()(const IsolateKey& v) const {
-        return base::Hasher::Combine(v.upid, v.isolate_id);
+        return base::FnvHasher::Combine(v.upid, v.isolate_id);
       }
     };
 
@@ -135,7 +134,7 @@ class V8Tracker : public Destructible {
   struct ScriptIndexHash {
     size_t operator()(const std::pair<IsolateId, int32_t>& v) const {
       return static_cast<size_t>(
-          base::Hasher::Combine(v.first.value, v.second));
+          base::FnvHasher::Combine(v.first.value, v.second));
     }
   };
 

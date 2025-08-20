@@ -196,8 +196,8 @@ message LayerProto {
   // If active_buffer is not null, record its transform.
   optional TransformProto buffer_transform = 39;
   optional int32 effective_scaling_mode = 40;
-  // Layer's corner radius.
-  optional float corner_radius = 41;
+  // Layer's corner radius
+  optional float corner_radius = 41 [deprecated = true];
   // Metadata map. May be empty.
   map<int32, string> metadata = 42;
 
@@ -228,7 +228,7 @@ message LayerProto {
   optional bool is_trusted_overlay = 55;
 
   // Corner radius explicitly set on layer rather than inherited
-  optional float requested_corner_radius = 56;
+  optional float requested_corner_radius = 56 [deprecated = true];
 
   optional RectProto destination_frame = 57;
 
@@ -238,6 +238,15 @@ message LayerProto {
 
   // Layer's scale during background blur, relative to 1.0f=100%
   optional float background_blur_scale = 60;
+
+  // Layer's corner radius.
+  optional CornerRadiiProto corner_radii = 61;
+
+  // Corner radius explicitly set on layer rather than inherited
+  optional CornerRadiiProto requested_corner_radii = 62;
+
+  // Corner radius explicity set as drawn by client
+  optional CornerRadiiProto client_drawn_corner_radii = 63;
 }
 
 message PositionProto {
@@ -250,6 +259,13 @@ message FloatRectProto {
   optional float top = 2;
   optional float right = 3;
   optional float bottom = 4;
+}
+
+message CornerRadiiProto {
+  optional float tl = 1;
+  optional float tr = 2;
+  optional float bl = 3;
+  optional float br = 4;
 }
 
 message ActiveBufferProto {

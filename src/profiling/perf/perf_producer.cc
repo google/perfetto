@@ -110,8 +110,8 @@ std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg) {
     // check explicit mask from cfg, or allow all by default
     if (!target_cpus.empty() && target_cpus.count(cpu) == 0)
       continue;
-    // consider cpu0 to always be online
-    if (cpu > 0 && !IsCpuOnline(cpu))
+
+    if (!IsCpuOnline(cpu))
       continue;
     ret.push_back(cpu);
   }
@@ -440,7 +440,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   auto tracepoint_id_lookup = [this](const std::string& group,
                                      const std::string& name) {
     if (!tracefs_)  // lazy init or retry
-      tracefs_ = FtraceProcfs::CreateGuessingMountPoint();
+      tracefs_ = Tracefs::CreateGuessingMountPoint();
     if (!tracefs_)  // still didn't find an accessible tracefs
       return 0u;
     return tracefs_->ReadEventId(group, name);

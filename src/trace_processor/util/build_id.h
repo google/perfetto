@@ -23,7 +23,6 @@
 #include <string>
 #include <utility>
 
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto::trace_processor {
@@ -36,7 +35,7 @@ namespace perfetto::trace_processor {
 // trace_processor.
 class BuildId {
  public:
-  // Allow hashing with base::Hash.
+  // Allow hashing with base::FnvHash.
   static constexpr bool kHashable = true;
   size_t size() const { return raw_.size(); }
   const char* data() const { return raw_.data(); }
@@ -78,7 +77,7 @@ template <>
 struct std::hash<perfetto::trace_processor::BuildId> {
   std::size_t operator()(
       const perfetto::trace_processor::BuildId& o) const noexcept {
-    return perfetto::base::Hasher::Combine(o);
+    return perfetto::base::FnvHasher::Combine(o);
   }
 };
 

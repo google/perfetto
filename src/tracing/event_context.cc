@@ -23,12 +23,10 @@
 namespace perfetto {
 
 EventContext::EventContext(
-    TraceWriterBase* trace_writer,
     EventContext::TracePacketHandle trace_packet,
     internal::TrackEventIncrementalState* incremental_state,
     internal::TrackEventTlsState* tls_state)
-    : trace_writer_(trace_writer),
-      trace_packet_(std::move(trace_packet)),
+    : trace_packet_(std::move(trace_packet)),
       event_(trace_packet_->set_track_event()),
       incremental_state_(incremental_state),
       tls_state_(tls_state) {}

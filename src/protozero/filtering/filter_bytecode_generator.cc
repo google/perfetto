@@ -17,10 +17,8 @@
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
-#include "perfetto/protozero/proto_utils.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/protozero/filtering/filter_bytecode_common.h"
 
 namespace protozero {
@@ -87,7 +85,7 @@ std::string FilterBytecodeGenerator::Serialize() {
   PERFETTO_CHECK(endmessage_called_);
   PERFETTO_CHECK(max_msg_index_ < num_messages_);
   protozero::PackedVarInt words;
-  perfetto::base::Hasher hasher;
+  perfetto::base::FnvHasher hasher;
   for (uint32_t word : bytecode_) {
     words.Append(word);
     hasher.Update(word);

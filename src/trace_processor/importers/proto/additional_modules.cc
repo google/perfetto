@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
@@ -39,7 +40,10 @@
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
+#endif
 
 namespace perfetto::trace_processor {
 
@@ -60,11 +64,14 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new AndroidCameraEventModule(context));
   context->modules.emplace_back(new MetadataModule(context));
   context->modules.emplace_back(new V8Module(context));
-  context->modules.emplace_back(new WinscopeModule(context));
   context->modules.emplace_back(new PixelModemModule(context));
   context->modules.emplace_back(new ProfileModule(context));
   context->modules.emplace_back(new AppWakelockModule(context));
   context->modules.emplace_back(new GenericKernelModule(context));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  context->modules.emplace_back(new WinscopeModule(context));
+#endif
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.

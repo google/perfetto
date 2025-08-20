@@ -338,7 +338,7 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
 
   trace.add_atrace_begin(
       ts=127_000_000, buf="animation", tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
-  trace.add_atrace_end(ts=140_000_000, tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
+  trace.add_atrace_end(ts=138_000_000, tid=LAUNCHER_UI_TID, pid=LAUNCHER_PID)
 
   # Add expected and actual frames.
   add_expected_surface_frame_events(
@@ -352,9 +352,9 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
       ts=121_000_000, dur=7_000_000, token=80, layer=LAYER_2, pid=LAUNCHER_PID)
 
   add_expected_surface_frame_events(
-      ts=138_000_000, dur=16_000_000, token=82, pid=LAUNCHER_PID)
+      ts=139_000_000, dur=16_000_000, token=82, pid=LAUNCHER_PID)
   add_actual_surface_frame_events(
-      ts=138_000_000, dur=6_000_000, token=82, layer=LAYER_2, pid=LAUNCHER_PID)
+      ts=139_000_000, dur=6_000_000, token=82, layer=LAYER_2, pid=LAUNCHER_PID)
 
 
 def add_ignored_latency_cujs(trace):

@@ -333,7 +333,9 @@ def CheckIncludeViolations(changed_files: List[str]) -> List[str]:
 def CheckIncludePaths(changed_files: List[str]) -> List[str]:
   # Uses fnmatch patterns
   files_to_check_list = filter_files(
-      changed_files, files_to_check=['*.h', '*.cc'])
+      changed_files,
+      files_to_check=['*.h', '*.cc'],
+      files_to_skip=['examples/sdk/example.cc'])
   error_lines = []
 
   pattern = re.compile(r'^#include "(.*\.h)"')

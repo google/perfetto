@@ -14,29 +14,13 @@
 
 import {Trace} from '../../public/trace';
 import {STR, LONG, NUM} from '../../trace_processor/query_result';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
-
-// The metadata container that keeps track of optimizations for packages that have startup events.
-interface Startup {
-  // The startup id.
-  id: number;
-  // The package name.
-  package: string;
-  // Time start
-  ts: bigint;
-  // Time end
-  ts_end: bigint;
-  // compilation filter
-  filter?: string;
-  // optimization status
-  optimized?: boolean;
-}
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {DebugSliceTrackDetailsPanel} from '../../components/tracks/debug_slice_track_details_panel';
 
 // The log tag
 const tag = 'DexOptInsights';
-// The pattern for the optimization filter.
-const FILTER_PATTERN = /filter=([^\s]+)/;
 
 /**
  * Returns a track node that contains optimization status
@@ -48,141 +32,143 @@ const FILTER_PATTERN = /filter=([^\s]+)/;
 export async function optimizationsTrack(
   trace: Trace,
 ): Promise<TrackNode | undefined> {
-  const startups: Array<Startup> = [];
-  const classLoadingTracks: Array<Promise<TrackNode>> = [];
-
-  // Find app startups
-  let result = await trace.engine.query(
+  const startupsResult = await trace.engine.query(
     `
-        INCLUDE PERFETTO MODULE android.startup.startups;
-        SELECT startup_id AS id, package, ts, ts_end FROM android_startups;`,
+      INCLUDE PERFETTO MODULE android.startup.startups;
+      SELECT startup_id as id, package FROM android_startups;
+    `,
     tag,
   );
 
-  const it = result.iter({id: NUM, package: STR, ts: LONG, ts_end: LONG});
-  for (; it.valid(); it.next()) {
-    startups.push({
-      id: it.id,
-      package: it.package,
-      ts: it.ts,
-      ts_end: it.ts_end,
-    });
-  }
-
-  if (startups.length === 0) {
-    // Nothing interesting to report.
+  // Nothing interesting to report.
+  if (startupsResult.numRows() === 0) {
     return undefined;
   }
 
-  for (const startup of startups) {
-    // For each startup id get the optimization status
-    result = await trace.engine.query(
-      `
-        INCLUDE PERFETTO MODULE android.startup.startups;
-        SELECT slice_name AS name FROM
-          android_slices_for_startup_and_slice_name(${startup.id}, 'location=* status=* filter=* reason=*');`,
-      tag,
-    );
-    const it = result.iter({name: STR});
-    for (; it.valid(); it.next()) {
-      const name = it.name;
-      const relevant = name.indexOf(startup.package) >= 0;
-      if (relevant) {
-        const matches = name.match(FILTER_PATTERN);
-        if (matches) {
-          const filter = matches[1];
-          startup.filter = filter;
-          startup.optimized = filter === 'speed-profile';
-        }
-      }
-    }
-    const childTrack = classLoadingTrack(trace, startup);
+  const classLoadingTracks: Array<TrackNode> = [];
+  const it = startupsResult.iter({id: NUM, package: STR});
+  for (; it.valid(); it.next()) {
+    const childTrack = classLoadingTrack(trace, {
+      id: it.id,
+      package: it.package,
+    });
     classLoadingTracks.push(childTrack);
   }
 
-  // Create the optimizations track and also avoid re-querying for the data we already have.
-  const sqlSource = startups
-    .map((startup) => {
-      return `SELECT
-        ${startup.ts} AS ts,
-        ${startup.ts_end - startup.ts} AS dur,
-        '${buildName(startup)}' AS name,
-        '${buildDetails(startup)}' AS details
-      `;
-    })
-    .join('UNION ALL '); // The trailing space is important.
+  await trace.engine.query(
+    `
+      CREATE PERFETTO FUNCTION _startup_compilation_state(filter STRING)
+      RETURNS STRING
+      AS
+      SELECT CASE
+        WHEN $filter IN ('verify', 'speed') OR $filter IS NULL
+          THEN FORMAT('Sub-optimal compilation state (%s)', ifnull($filter, 'unknown'))
+        WHEN $filter = 'speed-profile'
+          THEN 'Ideal compilation state (speed-profile)'
+        ELSE
+          FORMAT('Unknown compilation state (%s)', $filter)
+      END;
+
+      CREATE PERFETTO FUNCTION _startup_compilation_state_details(filter STRING)
+      RETURNS STRING
+      AS
+      SELECT CASE
+        WHEN $filter = 'verify' or $filter IS NULL
+          THEN 'No methods are precompiled, and class loading is unoptimized'
+        WHEN $filter = 'speed'
+          THEN 'Methods are all precompiled, and class loading is unoptimized'
+        WHEN $filter = 'speed-profile'
+          THEN 'Methods and classes in the profile are optimized'
+        ELSE
+          FORMAT('Unknown compilation state (%s)', $filter)
+      END;
+
+      CREATE PERFETTO FUNCTION _startup_filter_extraction(startup_id INT)
+      RETURNS TABLE(compile_ts LONG, filter STRING)
+      AS
+      SELECT
+        MAX(slice_ts) AS compile_ts,
+        regexp_extract(slice_name, 'filter=([^\\s]+)') as filter
+      FROM android_thread_slices_for_all_startups
+      WHERE slice_name GLOB 'location=* status=* filter=* reason=*'
+        AND startup_id = $startup_id;
+
+      CREATE PERFETTO TABLE _startup_optimization_slices AS
+      SELECT
+        s.ts,
+        s.ts_end - s.ts as dur,
+        s.startup_id as id,
+        _startup_compilation_state(f.filter) AS name,
+        _startup_compilation_state_details(f.filter) AS raw_details
+      FROM android_startups s
+      LEFT JOIN _startup_filter_extraction(s.startup_id) f
+    `,
+    tag,
+  );
 
   const uri = '/android_startups_optimization_status';
-  const track = await createQuerySliceTrack({
-    trace: trace,
-    uri,
-    data: {
-      sqlSource: sqlSource,
-      columns: ['ts', 'dur', 'name', 'details'],
-    },
-    argColumns: ['details'],
-  });
+  const tableName = `_startup_optimization_slices`;
   trace.tracks.registerTrack({
     uri,
-    renderer: track,
+    renderer: new DatasetSliceTrack({
+      trace: trace,
+      uri,
+      dataset: new SourceDataset({
+        src: tableName,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+          raw_details: STR,
+        },
+      }),
+      detailsPanel: (row) => {
+        return new DebugSliceTrackDetailsPanel(trace, tableName, row.id);
+      },
+    }),
   });
   const trackNode = new TrackNode({name: 'Optimization Status', uri});
-  for await (const classLoadingTrack of classLoadingTracks) {
+  for (const classLoadingTrack of classLoadingTracks) {
     trackNode.addChildLast(classLoadingTrack);
   }
   return trackNode;
 }
 
-async function classLoadingTrack(
+function classLoadingTrack(
   trace: Trace,
-  startup: Startup,
-): Promise<TrackNode> {
-  const sqlSource = `
-    SELECT slice_ts as ts, slice_dur as dur, slice_name AS name FROM
-      android_class_loading_for_startup
-      WHERE startup_id = ${startup.id}
-  `;
+  startup: {id: number; package: string},
+): TrackNode {
   const uri = `/android_startups/${startup.id}/classloading`;
-  const track = await createQuerySliceTrack({
-    trace: trace,
-    uri,
-    data: {
-      sqlSource: sqlSource,
-      columns: ['ts', 'dur', 'name'],
-    },
-  });
   trace.tracks.registerTrack({
     uri,
-    renderer: track,
+    renderer: new DatasetSliceTrack({
+      trace,
+      uri,
+      dataset: new SourceDataset({
+        src: `
+          SELECT
+            slice_ts as ts,
+            slice_dur as dur,
+            slice_name AS name,
+            slice_id as id
+          FROM android_class_loading_for_startup
+        `,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+        filter: {
+          col: 'id',
+          eq: startup.id,
+        },
+      }),
+    }),
   });
   return new TrackNode({
     name: `Unoptimized Class Loading in (${startup.package})`,
     uri,
   });
-}
-
-function buildName(startup: Startup): string {
-  if (
-    !!startup.filter === false ||
-    startup.filter === 'verify' ||
-    startup.filter === 'speed'
-  ) {
-    return `Sub-optimal compilation state (${startup.filter})`;
-  } else if (startup.filter === 'speed-profile') {
-    return 'Ideal compilation state (speed-profile)';
-  } else {
-    return `Unknown compilation state (${startup.filter})`;
-  }
-}
-
-function buildDetails(startup: Startup): string {
-  if (startup.filter === 'verify' || !!startup.filter === false) {
-    return `No methods are precompiled, and class loading is unoptimized`;
-  } else if (startup.filter === 'speed') {
-    return 'Methods are all precompiled, and class loading is unoptimized';
-  } else if (startup.filter === 'speed-profile') {
-    return 'Methods and classes in the profile are optimized';
-  } else {
-    return `Unknown compilation state (${startup.filter})`;
-  }
 }

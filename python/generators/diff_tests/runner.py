@@ -287,15 +287,17 @@ class TestCaseRunner:
       # Expected will be in text proto format and we'll need to parse it to
       # a real proto.
       expected_summary = summary_message_factory()
-      text_format.Merge(self.test.expected_str, expected_summary.metric.add())
+      text_format.Merge(self.test.expected_str,
+                        expected_summary.metric_bundles.add())
 
       # Actual will be the raw bytes of the proto and we'll need to parse it
       # into a message.
       actual_summary = summary_message_factory()
       actual_summary.ParseFromString(stdout)
 
-      actual = text_format.MessageToString(actual_summary.metric[0]) if len(
-          actual_summary.metric) > 0 else ''
+      actual = text_format.MessageToString(
+          actual_summary.metric_bundles[0]) if len(
+              actual_summary.metric_bundles) > 0 else ''
 
       os.remove(tmp_perf_file.name)
       if not keep_input:
@@ -305,7 +307,7 @@ class TestCaseRunner:
           self.test,
           trace_path,
           cmd,
-          text_format.MessageToString(expected_summary.metric[0]),
+          text_format.MessageToString(expected_summary.metric_bundles[0]),
           actual,
           stderr.decode('utf8'),
           tp.returncode,
@@ -450,10 +452,13 @@ class TestCaseRunner:
                                    or self.test.trace_path.endswith('.py')):
         res += 'Command to generate trace:\n'
         res += 'tools/serialize_test_trace.py '
-        res += '--descriptor {} {} > {}\n'.format(
-            os.path.relpath(self.trace_descriptor_path, ROOT_DIR),
-            os.path.relpath(self.test.trace_path, ROOT_DIR),
-            os.path.relpath(trace_path, ROOT_DIR))
+        res += '--descriptor {} {} {} > {}\n'.format(
+            os.path.relpath(self.trace_descriptor_path, ROOT_DIR), " ".join([
+                "--extension-descriptor {}".format(
+                    os.path.relpath(p, ROOT_DIR))
+                for p in extension_descriptor_paths
+            ]), os.path.relpath(self.test.trace_path, ROOT_DIR),
+            os.path.relpath(trace_path, ROOT_DIR), extension_descriptor_paths)
       res += f"Command line:\n{' '.join(result.cmd)}\n"
       return res
 

@@ -28,8 +28,7 @@
 namespace perfetto::trace_processor::dataframe {
 
 void TypedCursor::ExecuteUnchecked() {
-  if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                        dataframe_->mutations_)) {
+  if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
     PrepareCursorInternal();
   }
   Fetcher fetcher{{}, filter_values_.data()};
@@ -40,7 +39,7 @@ void TypedCursor::PrepareCursorInternal() {
   auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
   PERFETTO_CHECK(plan.ok());
   dataframe_->PrepareCursor(*plan, cursor_);
-  last_execution_mutation_count_ = dataframe_->mutations_;
+  last_execution_mutation_count_ = GetMutations();
   for (const auto& spec : filter_specs_) {
     filter_value_mapping_[spec.source_index] =
         spec.value_index.value_or(std::numeric_limits<uint32_t>::max());

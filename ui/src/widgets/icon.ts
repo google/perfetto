@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
+import {classForIntent, HTMLAttrs, Intent} from './common';
 
 export interface IconAttrs extends HTMLAttrs {
   // The material icon name.
@@ -22,16 +22,22 @@ export interface IconAttrs extends HTMLAttrs {
   // Whether to show the filled version of the icon.
   // Defaults to false.
   filled?: boolean;
+  // Color the icon by specifying an intent.
+  intent?: Intent;
 }
 
 export class Icon implements m.ClassComponent<IconAttrs> {
   view({attrs}: m.Vnode<IconAttrs>): m.Child {
-    const {icon, filled, className, ...htmlAttrs} = attrs;
+    const {icon, filled, className, intent = Intent.None, ...htmlAttrs} = attrs;
     return m(
       'i.pf-icon',
       {
         ...htmlAttrs,
-        className: classNames(className, filled && 'pf-filled'),
+        className: classNames(
+          className,
+          filled && 'pf-filled',
+          classForIntent(intent),
+        ),
       },
       icon,
     );

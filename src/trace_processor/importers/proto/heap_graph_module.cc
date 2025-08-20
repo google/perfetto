@@ -131,6 +131,15 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
           });
     }
 
+    if (!parse_error) {
+      // grep-friendly: runtime_internal_object_id
+      parse_error = ForEachVarInt<
+          protos::pbzero::HeapGraphObject::kRuntimeInternalObjectIdFieldNumber>(
+          object, [&obj](uint64_t value) {
+            obj.runtime_internal_objects.push_back(value);
+          });
+    }
+
     if (object.has_native_allocation_registry_size_field()) {
       obj.native_allocation_registry_size =
           object.native_allocation_registry_size_field();

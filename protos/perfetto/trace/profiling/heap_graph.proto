@@ -126,6 +126,10 @@ message HeapGraphObject {
   // To reduce the space required we only emit the heap type if it has changed
   // from the previous object we recorded.
   optional HeapType heap_type_delta = 9;
+
+  // Ids of the Objects referred by this object, not via fields, but via
+  // internal runtime structures.
+  repeated uint64 runtime_internal_object_id = 10 [packed = true];
 }
 
 message HeapGraph {

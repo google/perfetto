@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {InMemoryDataSource} from './in_memory_data_source';
-import {FilterDefinition, RowDef, SortBy} from './common';
+import {AggregateSpec, FilterDefinition, RowDef, Sorting} from './common';
 
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<RowDef> = [
@@ -86,7 +86,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'name', op: '=', value: 'Alice'},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].name).toBe('Alice');
@@ -96,7 +96,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'active', op: '!=', value: 1},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(3); // Bob, David, Mallory
       result.rows.forEach((row) => expect(row.active).toBe(0));
@@ -106,7 +106,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'value', op: '<', value: 150},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       // David (null), Alice (100), Eve (100)
       expect(result.totalRows).toBe(3);
@@ -117,7 +117,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'value', op: '<=', value: 150},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       // David (null), Alice (100), Charlie (150), Eve (100)
       expect(result.totalRows).toBe(4);
@@ -128,7 +128,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'value', op: '>', value: 200},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(2); // Mallory (300n), Trent (250n)
       expect(result.rows.map((r) => r.id).sort()).toEqual([6, 7]);
@@ -138,7 +138,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'value', op: '>=', value: 250n},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(2); // Mallory, Trent
       expect(result.rows.map((r) => r.id).sort()).toEqual([6, 7]);
@@ -146,7 +146,7 @@ describe('InMemoryDataSource', () => {
 
     test('is null filter', () => {
       const filters: FilterDefinition[] = [{column: 'value', op: 'is null'}];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].id).toBe(4); // David
@@ -154,7 +154,7 @@ describe('InMemoryDataSource', () => {
 
     test('is not null filter', () => {
       const filters: FilterDefinition[] = [{column: 'blob', op: 'is not null'}];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(6); // All except Charlie
       expect(result.rows.find((r) => r.id === 3)).toBeUndefined();
@@ -164,7 +164,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'name', op: 'glob', value: 'A*e'},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].name).toBe('Alice');
@@ -174,7 +174,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'name', op: 'glob', value: 'B?b'},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
       expect(result.rows[0].name).toBe('Bob');
@@ -185,7 +185,7 @@ describe('InMemoryDataSource', () => {
         {column: 'active', op: '=', value: 1},
         {column: 'tag', op: '=', value: 'A'},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(3); // Alice, Charlie, Trent
       result.rows.forEach((row) => {
@@ -198,7 +198,7 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'name', op: '=', value: 'NonExistent'},
       ];
-      dataSource.notifyUpdate({direction: 'unsorted'}, filters);
+      dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(0);
       expect(result.rows.length).toBe(0);
@@ -207,8 +207,8 @@ describe('InMemoryDataSource', () => {
 
   describe('sorting', () => {
     test('sort by string ascending', () => {
-      const sortBy: SortBy = {column: 'name', direction: 'asc'};
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'name', direction: 'ASC'};
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       expect(result.rows.map((r) => r.name)).toEqual([
         'Alice',
@@ -222,8 +222,8 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by string descending', () => {
-      const sortBy: SortBy = {column: 'name', direction: 'desc'};
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'name', direction: 'DESC'};
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       expect(result.rows.map((r) => r.name)).toEqual([
         'Trent',
@@ -237,31 +237,31 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by number ascending (includes nulls)', () => {
-      const sortBy: SortBy = {column: 'value', direction: 'asc'};
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'value', direction: 'ASC'};
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       // Nulls first, then 100, 100, 150, 200, 250n, 300n
       expect(result.rows.map((r) => r.id)).toEqual([4, 1, 5, 3, 2, 7, 6]);
     });
 
     test('sort by number descending (includes nulls and bigint)', () => {
-      const sortBy: SortBy = {column: 'value', direction: 'desc'};
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'value', direction: 'DESC'};
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       // 300n, 250n, 200, 150, 100, 100, Nulls last
       expect(result.rows.map((r) => r.id)).toEqual([6, 7, 2, 3, 1, 5, 4]);
     });
 
     test('sort by boolean ascending', () => {
-      const sortBy: SortBy = {column: 'active', direction: 'asc'}; // 0 then 1
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'active', direction: 'ASC'}; // 0 then 1
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       expect(result.rows.map((r) => r.active)).toEqual([0, 0, 0, 1, 1, 1, 1]);
     });
 
     test('sort by Uint8Array ascending (by length)', () => {
-      const sortBy: SortBy = {column: 'blob', direction: 'asc'};
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'blob', direction: 'ASC'};
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       // null (Charlie, id:3), len 1 (David id:4, Mallory id:6), len 2 (Alice id:1, Trent id:7), len 3 (Bob id:2), len 4 (Eve id:5)
       // Original order for same length: David before Mallory, Alice before Trent.
@@ -269,19 +269,20 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by Uint8Array descending (by length)', () => {
-      const sortBy: SortBy = {column: 'blob', direction: 'desc'};
-      dataSource.notifyUpdate(sortBy, []);
+      const sorting: Sorting = {column: 'blob', direction: 'DESC'};
+      dataSource.notifyUpdate({sorting, filters: []});
       const result = dataSource.rows;
       // len 4, len 3, len 2, len 2, len 1, len 0, null
       expect(result.rows.map((r) => r.id)).toEqual([5, 2, 1, 7, 4, 6, 3]);
     });
 
     test('unsorted', () => {
-      const sortBy: SortBy = {direction: 'unsorted'};
       // Apply some sort first
-      dataSource.notifyUpdate({column: 'name', direction: 'asc'}, []);
+      dataSource.notifyUpdate({
+        sorting: {column: 'name', direction: 'ASC'},
+      });
       // Then unsort
-      dataSource.notifyUpdate(sortBy, []);
+      dataSource.notifyUpdate({});
       const result = dataSource.rows;
       // Should revert to original order if no filters applied
       expect(result.rows.map((r) => r.id)).toEqual(sampleData.map((r) => r.id));
@@ -293,8 +294,8 @@ describe('InMemoryDataSource', () => {
       const filters: FilterDefinition[] = [
         {column: 'active', op: '=', value: 1},
       ];
-      const sortBy: SortBy = {column: 'value', direction: 'desc'};
-      dataSource.notifyUpdate(sortBy, filters);
+      const sorting: Sorting = {column: 'value', direction: 'DESC'};
+      dataSource.notifyUpdate({sorting, filters});
       const result = dataSource.rows;
       // Active: Alice (100), Charlie (150), Eve (100), Trent (250n)
       // Sorted by value desc: Trent, Charlie, Alice, Eve (Alice/Eve order by original due to stable sort on value)
@@ -304,34 +305,34 @@ describe('InMemoryDataSource', () => {
   });
 
   describe('caching behavior', () => {
-    test('data is not reprocessed if sortBy and filters are identical', () => {
+    test('data is not reprocessed if sorting and filters are identical', () => {
       const filters: FilterDefinition[] = [
         {column: 'tag', op: '=', value: 'A'},
       ];
-      const sortBy: SortBy = {column: 'name', direction: 'asc'};
+      const sorting: Sorting = {column: 'name', direction: 'ASC'};
 
-      dataSource.notifyUpdate(sortBy, filters);
+      dataSource.notifyUpdate({sorting, filters});
       const result1 = dataSource.rows.rows; // Access internal array
 
       // Spy on internal methods if possible, or check object identity
       // For this test, we'll check if the returned array reference is the same
-      dataSource.notifyUpdate(sortBy, filters); // Identical call
+      dataSource.notifyUpdate({sorting, filters}); // Identical call
       const result2 = dataSource.rows.rows;
 
       expect(result1).toBe(result2); // Should be the same array instance due to caching
     });
 
-    test('data is reprocessed if sortBy changes', () => {
+    test('data is reprocessed if sorting changes', () => {
       const filters: FilterDefinition[] = [
         {column: 'tag', op: '=', value: 'A'},
       ];
-      const sortBy1: SortBy = {column: 'name', direction: 'asc'};
-      const sortBy2: SortBy = {column: 'name', direction: 'desc'};
+      const sorting1: Sorting = {column: 'name', direction: 'ASC'};
+      const sorting2: Sorting = {column: 'name', direction: 'DESC'};
 
-      dataSource.notifyUpdate(sortBy1, filters);
+      dataSource.notifyUpdate({sorting: sorting1, filters});
       const result1 = dataSource.rows.rows;
 
-      dataSource.notifyUpdate(sortBy2, filters); // Different sort
+      dataSource.notifyUpdate({sorting: sorting2, filters}); // Different sort
       const result2 = dataSource.rows.rows;
 
       expect(result1).not.toBe(result2);
@@ -345,12 +346,12 @@ describe('InMemoryDataSource', () => {
       const filters2: FilterDefinition[] = [
         {column: 'tag', op: '=', value: 'B'},
       ];
-      const sortBy: SortBy = {column: 'name', direction: 'asc'};
+      const sorting: Sorting = {column: 'name', direction: 'ASC'};
 
-      dataSource.notifyUpdate(sortBy, filters1);
+      dataSource.notifyUpdate({sorting, filters: filters1});
       const result1 = dataSource.rows.rows;
 
-      dataSource.notifyUpdate(sortBy, filters2); // Different filters
+      dataSource.notifyUpdate({sorting, filters: filters2}); // Different filters
       const result2 = dataSource.rows.rows;
 
       expect(result1).not.toBe(result2);
@@ -364,14 +365,13 @@ describe('InMemoryDataSource', () => {
       const filters2: FilterDefinition[] = [
         {column: 'blob', op: '=', value: new Uint8Array([3, 4, 5])},
       ];
-      const sortBy: SortBy = {direction: 'unsorted'};
 
-      dataSource.notifyUpdate(sortBy, filters1);
+      dataSource.notifyUpdate({filters: filters1});
       const result1 = dataSource.rows.rows;
       expect(result1.length).toBe(1);
       expect(result1[0].id).toBe(1);
 
-      dataSource.notifyUpdate(sortBy, filters2);
+      dataSource.notifyUpdate({filters: filters2});
       const result2 = dataSource.rows.rows;
       expect(result2.length).toBe(1);
       expect(result2[0].id).toBe(2);
@@ -387,11 +387,30 @@ describe('InMemoryDataSource', () => {
     expect(result.totalRows).toBe(0);
     expect(result.rows).toEqual([]);
 
-    emptyDataSource.notifyUpdate({column: 'id', direction: 'asc'}, [
-      {column: 'name', op: '=', value: 'test'},
-    ]);
+    emptyDataSource.notifyUpdate({
+      sorting: {column: 'id', direction: 'DESC'},
+      filters: [{column: 'name', op: '=', value: 'test'}],
+    });
     const resultAfterUpdate = emptyDataSource.rows;
     expect(resultAfterUpdate.totalRows).toBe(0);
     expect(resultAfterUpdate.rows).toEqual([]);
+  });
+
+  test('data source with aggregates', () => {
+    const aggregates: AggregateSpec[] = [
+      {col: 'value', func: 'AVG'},
+      {col: 'active', func: 'SUM'},
+      {col: 'name', func: 'COUNT'},
+      {col: 'tag', func: 'MAX'},
+      {col: 'id', func: 'MIN'},
+    ];
+    dataSource.notifyUpdate({aggregates});
+
+    const result = dataSource.rows;
+    expect(result.aggregates.value).toBeCloseTo(183.33333);
+    expect(result.aggregates.active).toBeCloseTo(4);
+    expect(result.aggregates.name).toBe(7);
+    expect(result.aggregates.tag).toBe('C'); // Max tag alphabetically
+    expect(result.aggregates.id).toBe(1);
   });
 });

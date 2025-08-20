@@ -181,8 +181,8 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
           }
           UniqueTid utid =
               ctx_->process_tracker->UpdateThread(tid.value(), tgid.value());
-          ctx_->process_tracker->UpdateThreadNameByUtid(
-              utid, cmd_id, ThreadNamePriority::kOther);
+          ctx_->process_tracker->UpdateThreadName(utid, cmd_id,
+                                                  ThreadNamePriority::kOther);
         }
       }
     } else if (state_ == ParseState::kCgroupDump) {

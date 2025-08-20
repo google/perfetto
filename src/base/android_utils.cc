@@ -67,6 +67,24 @@ std::string GetAndroidProp(const char* name) {
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
+Utsname GetUtsname() {
+  Utsname utsname_info;
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  struct utsname uname_info;
+  if (uname(&uname_info) == 0) {
+    utsname_info.sysname = uname_info.sysname;
+    utsname_info.version = uname_info.version;
+    utsname_info.machine = uname_info.machine;
+    utsname_info.release = uname_info.release;
+  } else {
+    PERFETTO_ELOG("Unable to read Utsname information");
+  }
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return utsname_info;
+}
+
 SystemInfo GetSystemInfo() {
   SystemInfo info;
 
@@ -75,16 +93,7 @@ SystemInfo GetSystemInfo() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
-  struct utsname uname_info;
-  if (uname(&uname_info) == 0) {
-    Utsname utsname_info;
-    utsname_info.sysname = uname_info.sysname;
-    utsname_info.version = uname_info.version;
-    utsname_info.machine = uname_info.machine;
-    utsname_info.release = uname_info.release;
-
-    info.utsname_info = utsname_info;
-  }
+  info.utsname_info = GetUtsname();
   info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
   info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -135,6 +144,22 @@ SystemInfo GetSystemInfo() {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
   return info;
+}
+
+std::string GetPerfettoMachineName() {
+  const char* env_name = getenv("PERFETTO_MACHINE_NAME");
+  if (env_name) {
+    return env_name;
+  }
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  std::string name = base::GetAndroidProp("traced.machine_name");
+  if (name.empty()) {
+    name = GetUtsname().sysname;
+  }
+  return name;
+#else
+  return GetUtsname().sysname;
+#endif
 }
 
 }  // namespace base

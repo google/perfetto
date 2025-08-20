@@ -299,8 +299,4 @@ uint32_t ConnectedFlow::GetArgumentCount() const {
   return 1;
 }
 
-uint32_t ConnectedFlow::EstimateRowCount() {
-  return 1;
-}
-
 }  // namespace perfetto::trace_processor

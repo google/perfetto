@@ -20,16 +20,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.GlobalGroups';
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.onTraceReady.addListener(() => {
-      // Move groups underneath tracks
-      Array.from(trace.workspace.children)
-        .sort((a, b) => {
-          // Get the index in the order array
-          const indexA = a.hasChildren ? 1 : 0;
-          const indexB = b.hasChildren ? 1 : 0;
-          return indexA - indexB;
-        })
-        .forEach((n) => trace.workspace.addChildLast(n));
-
       // If there is only one group, expand it
       const rootLevelChildren = trace.workspace.children;
       if (rootLevelChildren.length === 1 && rootLevelChildren[0].hasChildren) {
