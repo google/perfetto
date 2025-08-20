@@ -17,76 +17,45 @@
 #include "src/profiling/symbolizer/local_symbolizer.h"
 
 #include <fcntl.h>
-
-#include <charconv>
+#include <algorithm>
+#include <cctype>
 #include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <functional>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "src/profiling/symbolizer/elf.h"
-#include "src/profiling/symbolizer/filesystem.h"
-
-namespace perfetto {
-namespace profiling {
-
-// TODO(fmayer): Fix up name. This suggests it always returns a symbolizer or
-// dies, which isn't the case.
-std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
-    std::vector<std::string> binary_path,
-    const char* mode) {
-  std::unique_ptr<Symbolizer> symbolizer;
-
-  if (!binary_path.empty()) {
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-    std::unique_ptr<BinaryFinder> finder;
-    if (!mode || strncmp(mode, "find", 4) == 0)
-      finder.reset(new LocalBinaryFinder(std::move(binary_path)));
-    else if (strncmp(mode, "index", 5) == 0)
-      finder.reset(new LocalBinaryIndexer(std::move(binary_path)));
-    else
-      PERFETTO_FATAL("Invalid symbolizer mode [find | index]: %s", mode);
-    symbolizer.reset(new LocalSymbolizer(std::move(finder)));
-#else
-    base::ignore_result(mode);
-    PERFETTO_FATAL("This build does not support local symbolization.");
-#endif
-  }
-  return symbolizer;
-}
-
-}  // namespace profiling
-}  // namespace perfetto
-
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/profiling/symbolizer/elf.h"
+#include "src/profiling/symbolizer/filesystem.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 
-#include <signal.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+namespace perfetto::profiling {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+namespace {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 constexpr const char* kDefaultSymbolizer = "llvm-symbolizer.exe";
 #else
 constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 #endif
-
-namespace perfetto {
-namespace profiling {
-
-namespace {
 
 std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
   std::string line;
@@ -116,7 +85,8 @@ bool InRange(const void* base,
 }
 
 template <typename E>
-std::optional<uint64_t> GetElfLoadBias(void* mem, size_t size) {
+std::optional<std::pair<uint64_t, uint64_t>> GetElfPVAddrPOffset(void* mem,
+                                                                 size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
@@ -129,10 +99,10 @@ std::optional<uint64_t> GetElfLoadBias(void* mem, size_t size) {
       return std::nullopt;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
-      return phdr->p_vaddr - phdr->p_offset;
+      return std::make_pair(phdr->p_vaddr, phdr->p_offset);
     }
   }
-  return 0u;
+  return std::make_pair(0, 0);
 }
 
 template <typename E>
@@ -154,7 +124,7 @@ std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
 
     auto offset = shdr->sh_offset;
     while (offset < shdr->sh_offset + shdr->sh_size) {
-      typename E::Nhdr* nhdr =
+      auto* nhdr =
           reinterpret_cast<typename E::Nhdr*>(static_cast<char*>(mem) + offset);
 
       if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
@@ -242,7 +212,8 @@ struct segment_64_command {
 
 struct BinaryInfo {
   std::string build_id;
-  uint64_t load_bias;
+  uint64_t p_vaddr;
+  uint64_t p_offset;
   BinaryType type;
 };
 
@@ -257,7 +228,7 @@ std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
     return {};
 
   std::optional<std::string> build_id;
-  uint64_t load_bias = 0;
+  uint64_t vaddr = 0;
 
   char* pcmd = mem + sizeof(mach_header_64);
   char* pcmds_end = pcmd + header.sizeofcmds;
@@ -278,7 +249,7 @@ std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
         segment_64_command seg_cmd;
         memcpy(&seg_cmd, pcmd, sizeof(segment_64_command));
         if (strcmp(seg_cmd.segname, "__TEXT") == 0) {
-          load_bias = seg_cmd.vmaddr;
+          vaddr = seg_cmd.vmaddr;
         }
         break;
       }
@@ -293,15 +264,16 @@ std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
     constexpr uint32_t MH_DSYM = 0xa;
     BinaryType type = header.filetype == MH_DSYM ? BinaryType::kMachODsym
                                                  : BinaryType::kMachO;
-    return BinaryInfo{*build_id, load_bias, type};
+    return BinaryInfo{*build_id, vaddr, 0, type};
   }
   return {};
 }
 
 std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS)
+  if (size <= EI_CLASS) {
     return std::nullopt;
+  }
   base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
   if (!map.IsValid()) {
     PERFETTO_PLOG("Failed to mmap %s", fname);
@@ -310,22 +282,27 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   char* mem = static_cast<char*>(map.data());
 
   std::optional<std::string> build_id;
-  std::optional<uint64_t> load_bias;
+  std::optional<std::pair<uint64_t, uint64_t>> vaddr_and_poffset;
   if (IsElf(mem, size)) {
     switch (mem[EI_CLASS]) {
       case ELFCLASS32:
         build_id = GetElfBuildId<Elf32>(mem, size);
-        load_bias = GetElfLoadBias<Elf32>(mem, size);
+        vaddr_and_poffset = GetElfPVAddrPOffset<Elf32>(mem, size);
         break;
       case ELFCLASS64:
         build_id = GetElfBuildId<Elf64>(mem, size);
-        load_bias = GetElfLoadBias<Elf64>(mem, size);
+        vaddr_and_poffset = GetElfPVAddrPOffset<Elf64>(mem, size);
         break;
       default:
         return std::nullopt;
     }
-    if (build_id && load_bias) {
-      return BinaryInfo{*build_id, *load_bias, BinaryType::kElf};
+    if (build_id && vaddr_and_poffset) {
+      return BinaryInfo{
+          *build_id,
+          vaddr_and_poffset->first,
+          vaddr_and_poffset->second,
+          BinaryType::kElf,
+      };
     }
   } else if (IsMachO64(mem, size)) {
     return GetMachOBinaryInfo(mem, size);
@@ -346,7 +323,7 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
         PERFETTO_PLOG("Failed to open %s", fname);
         return;
       }
-      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
+      auto rd = base::Read(*fd, &magic, sizeof(magic));
       if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
                                   !IsMachO64(magic, static_cast<size_t>(rd)))) {
         PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
@@ -358,9 +335,12 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
       PERFETTO_DLOG("Failed to extract build id from %s.", fname);
       return;
     }
-    auto it = result.emplace(
-        binary_info->build_id,
-        FoundBinary{fname, binary_info->load_bias, binary_info->type});
+    auto it = result.emplace(binary_info->build_id, FoundBinary{
+                                                        fname,
+                                                        binary_info->p_vaddr,
+                                                        binary_info->p_offset,
+                                                        binary_info->type,
+                                                    });
 
     // If there was already an existing FoundBinary, the emplace wouldn't insert
     // anything. But, for Mac binaries, we prefer dSYM files over the original
@@ -372,7 +352,8 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
         PERFETTO_LOG("Overwriting index entry for %s to %s.",
                      base::ToHex(binary_info->build_id).c_str(), fname);
         it.first->second =
-            FoundBinary{fname, binary_info->load_bias, binary_info->type};
+            FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
+                        binary_info->type};
       } else {
         PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
                       base::ToHex(binary_info->build_id).c_str());
@@ -563,6 +544,113 @@ bool SkipJsonValue(const char*& it, const char* end) {
   return false;
 }
 
+std::optional<FoundBinary> IsCorrectFile(
+    const std::string& symbol_file,
+    std::optional<std::string_view> build_id) {
+  if (!base::FileExists(symbol_file)) {
+    return std::nullopt;
+  }
+  // Openfile opens the file with an exclusive lock on windows.
+  std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
+  if (!file_size.has_value()) {
+    PERFETTO_PLOG("Failed to get file size %s", symbol_file.c_str());
+    return std::nullopt;
+  }
+
+  static_assert(sizeof(size_t) <= sizeof(uint64_t));
+  size_t size = static_cast<size_t>(
+      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
+
+  if (size == 0) {
+    return std::nullopt;
+  }
+
+  std::optional<BinaryInfo> binary_info =
+      GetBinaryInfo(symbol_file.c_str(), size);
+  if (!binary_info)
+    return std::nullopt;
+  if (build_id && binary_info->build_id != *build_id) {
+    return std::nullopt;
+  }
+  return FoundBinary{symbol_file, binary_info->p_vaddr, binary_info->p_offset,
+                     binary_info->type};
+}
+
+std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
+                                            const std::string& abspath,
+                                            const std::string& build_id) {
+  constexpr char kApkPrefix[] = "base.apk!";
+
+  std::string filename;
+  std::string dirname;
+
+  for (base::StringSplitter sp(abspath, '/'); sp.Next();) {
+    if (!dirname.empty())
+      dirname += "/";
+    dirname += filename;
+    filename = sp.cur_token();
+  }
+
+  // Return the first match for the following options:
+  // * absolute path of library file relative to root.
+  // * absolute path of library file relative to root, but with base.apk!
+  //   removed from filename.
+  // * only filename of library file relative to root.
+  // * only filename of library file relative to root, but with base.apk!
+  //   removed from filename.
+  // * in the subdirectory .build-id: the first two hex digits of the build-id
+  //   as subdirectory, then the rest of the hex digits, with ".debug"appended.
+  //   See
+  //   https://fedoraproject.org/wiki/RolandMcGrath/BuildID#Find_files_by_build_ID
+  //
+  // For example, "/system/lib/base.apk!foo.so" with build id abcd1234,
+  // is looked for at
+  // * $ROOT/system/lib/base.apk!foo.so
+  // * $ROOT/system/lib/foo.so
+  // * $ROOT/base.apk!foo.so
+  // * $ROOT/foo.so
+  // * $ROOT/.build-id/ab/cd1234.debug
+
+  std::optional<FoundBinary> result;
+
+  std::string symbol_file = root_str + "/" + dirname + "/" + filename;
+  result = IsCorrectFile(symbol_file, build_id);
+  if (result)
+    return result;
+
+  if (base::StartsWith(filename, kApkPrefix)) {
+    symbol_file = root_str + "/" + dirname + "/" +
+                  filename.substr(sizeof(kApkPrefix) - 1);
+    result = IsCorrectFile(symbol_file, build_id);
+    if (result)
+      return result;
+  }
+
+  symbol_file = root_str + "/" + filename;
+  result = IsCorrectFile(symbol_file, build_id);
+  if (result)
+    return result;
+
+  if (base::StartsWith(filename, kApkPrefix)) {
+    symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix) - 1);
+    result = IsCorrectFile(symbol_file, build_id);
+    if (result)
+      return result;
+  }
+
+  std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
+  std::string split_hex_build_id = SplitBuildID(hex_build_id);
+  if (!split_hex_build_id.empty()) {
+    symbol_file =
+        root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
+    result = IsCorrectFile(symbol_file, build_id);
+    if (result)
+      return result;
+  }
+
+  return std::nullopt;
+}
+
 }  // namespace
 
 bool ParseLlvmSymbolizerJsonLine(const std::string& line,
@@ -638,8 +726,9 @@ std::optional<FoundBinary> LocalBinaryIndexer::FindBinary(
     const std::string& abspath,
     const std::string& build_id) {
   auto it = buildid_to_file_.find(build_id);
-  if (it != buildid_to_file_.end())
+  if (it != buildid_to_file_.end()) {
     return it->second;
+  }
   PERFETTO_ELOG("Could not find Build ID: %s (file %s).",
                 base::ToHex(build_id).c_str(), abspath.c_str());
   return std::nullopt;
@@ -674,118 +763,6 @@ std::optional<FoundBinary> LocalBinaryFinder::FindBinary(
   PERFETTO_ELOG("Could not find %s (Build ID: %s).", abspath.c_str(),
                 base::ToHex(build_id).c_str());
   return cache_entry;
-}
-
-std::optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
-    const std::string& symbol_file,
-    const std::string& build_id) {
-  if (!base::FileExists(symbol_file)) {
-    return std::nullopt;
-  }
-  // Openfile opens the file with an exclusive lock on windows.
-  std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
-  if (!file_size.has_value()) {
-    PERFETTO_PLOG("Failed to get file size %s", symbol_file.c_str());
-    return std::nullopt;
-  }
-
-  static_assert(sizeof(size_t) <= sizeof(uint64_t));
-  size_t size = static_cast<size_t>(
-      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
-
-  if (size == 0) {
-    return std::nullopt;
-  }
-
-  std::optional<BinaryInfo> binary_info =
-      GetBinaryInfo(symbol_file.c_str(), size);
-  if (!binary_info)
-    return std::nullopt;
-  if (binary_info->build_id != build_id) {
-    return std::nullopt;
-  }
-  return FoundBinary{symbol_file, binary_info->load_bias, binary_info->type};
-}
-
-std::optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
-    const std::string& root_str,
-    const std::string& abspath,
-    const std::string& build_id) {
-  constexpr char kApkPrefix[] = "base.apk!";
-
-  std::string filename;
-  std::string dirname;
-
-  for (base::StringSplitter sp(abspath, '/'); sp.Next();) {
-    if (!dirname.empty())
-      dirname += "/";
-    dirname += filename;
-    filename = sp.cur_token();
-  }
-
-  // Return the first match for the following options:
-  // * absolute path of library file relative to root.
-  // * absolute path of library file relative to root, but with base.apk!
-  //   removed from filename.
-  // * only filename of library file relative to root.
-  // * only filename of library file relative to root, but with base.apk!
-  //   removed from filename.
-  // * in the subdirectory .build-id: the first two hex digits of the build-id
-  //   as subdirectory, then the rest of the hex digits, with ".debug"appended.
-  //   See
-  //   https://fedoraproject.org/wiki/RolandMcGrath/BuildID#Find_files_by_build_ID
-  //
-  // For example, "/system/lib/base.apk!foo.so" with build id abcd1234,
-  // is looked for at
-  // * $ROOT/system/lib/base.apk!foo.so
-  // * $ROOT/system/lib/foo.so
-  // * $ROOT/base.apk!foo.so
-  // * $ROOT/foo.so
-  // * $ROOT/.build-id/ab/cd1234.debug
-
-  std::optional<FoundBinary> result;
-
-  std::string symbol_file = root_str + "/" + dirname + "/" + filename;
-  result = IsCorrectFile(symbol_file, build_id);
-  if (result) {
-    return result;
-  }
-
-  if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + dirname + "/" +
-                  filename.substr(sizeof(kApkPrefix) - 1);
-    result = IsCorrectFile(symbol_file, build_id);
-    if (result) {
-      return result;
-    }
-  }
-
-  symbol_file = root_str + "/" + filename;
-  result = IsCorrectFile(symbol_file, build_id);
-  if (result) {
-    return result;
-  }
-
-  if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix) - 1);
-    result = IsCorrectFile(symbol_file, build_id);
-    if (result) {
-      return result;
-    }
-  }
-
-  std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
-  std::string split_hex_build_id = SplitBuildID(hex_build_id);
-  if (!split_hex_build_id.empty()) {
-    symbol_file =
-        root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
-    result = IsCorrectFile(symbol_file, build_id);
-    if (result) {
-      return result;
-    }
-  }
-
-  return std::nullopt;
 }
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
@@ -831,21 +808,22 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
       finder_->FindBinary(mapping_name, build_id);
   if (!binary)
     return {};
-  uint64_t load_bias_correction = 0;
-  if (binary->load_bias > load_bias) {
+  uint64_t addr_correction = 0;
+  if ((binary->vaddr - binary->poffset) > load_bias) {
     // On Android 10, there was a bug in libunwindstack that would incorrectly
     // calculate the load_bias, and thus the relative PC. This would end up in
     // frames that made no sense. We can fix this up after the fact if we
     // detect this situation.
-    load_bias_correction = binary->load_bias - load_bias;
-    PERFETTO_LOG("Correcting load bias by %" PRIu64 " for %s",
-                 load_bias_correction, mapping_name.c_str());
+    addr_correction = (binary->vaddr - binary->poffset) - load_bias;
+    PERFETTO_LOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
+                 mapping_name.c_str());
   }
   std::vector<std::vector<SymbolizedFrame>> result;
   result.reserve(addresses.size());
-  for (uint64_t address : addresses)
-    result.emplace_back(llvm_symbolizer_.Symbolize(
-        binary->file_name, address + load_bias_correction));
+  for (uint64_t address : addresses) {
+    result.emplace_back(llvm_symbolizer_.Symbolize(binary->file_name,
+                                                   address + addr_correction));
+  }
   return result;
 }
 
@@ -858,7 +836,32 @@ LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
 
 LocalSymbolizer::~LocalSymbolizer() = default;
 
-}  // namespace profiling
-}  // namespace perfetto
-
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+
+// TODO(fmayer): Fix up name. This suggests it always returns a symbolizer or
+// dies, which isn't the case.
+std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
+    std::vector<std::string> binary_path,
+    const char* mode) {
+  std::unique_ptr<Symbolizer> symbolizer;
+
+  if (!binary_path.empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+    std::unique_ptr<BinaryFinder> finder;
+    if (!mode || strncmp(mode, "find", 4) == 0) {
+      finder = std::make_unique<LocalBinaryFinder>(std::move(binary_path));
+    } else if (strncmp(mode, "index", 5) == 0) {
+      finder = std::make_unique<LocalBinaryIndexer>(std::move(binary_path));
+    } else {
+      PERFETTO_FATAL("Invalid symbolizer mode [find | index]: %s", mode);
+    }
+    symbolizer = std::make_unique<LocalSymbolizer>(std::move(finder));
+#else
+    base::ignore_result(mode);
+    PERFETTO_FATAL("This build does not support local symbolization.");
+#endif
+  }
+  return symbolizer;
+}
+
+}  // namespace perfetto::profiling
