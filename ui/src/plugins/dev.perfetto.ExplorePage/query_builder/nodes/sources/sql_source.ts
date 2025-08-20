@@ -19,7 +19,7 @@ import {
   QueryNodeState,
   NodeType,
 } from '../../../query_node';
-import {columnInfoFromName, newColumnInfoList} from '../../column_info';
+import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
 
@@ -30,10 +30,13 @@ import {
 import {Trace} from '../../../../../public/trace';
 import {SourceNode} from '../../source_node';
 
+import {ColumnInfo} from '../../column_info';
+
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
   onExecute?: (sql: string) => void;
   trace: Trace;
+  sourceCols?: ColumnInfo[];
 }
 
 export class SqlSourceNode extends SourceNode {
@@ -42,17 +45,21 @@ export class SqlSourceNode extends SourceNode {
   constructor(attrs: SqlSourceState) {
     super(attrs);
     this.state = attrs;
+    this.state.sourceCols = [];
     this.nextNodes = [];
-    this.finalCols = this.state.sourceCols;
   }
 
   get type() {
     return NodeType.kSqlSource;
   }
 
+  get sourceCols() {
+    return this.state.sourceCols ?? [];
+  }
+
   setSourceColumns(columns: string[]) {
     this.state.sourceCols = columns.map((c) => columnInfoFromName(c));
-    this.finalCols = this.state.sourceCols;
+    this.finalCols = this.sourceCols;
     m.redraw();
   }
 
@@ -64,7 +71,6 @@ export class SqlSourceNode extends SourceNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
       onExecute: this.state.onExecute,
-      sourceCols: newColumnInfoList(this.sourceCols),
       filters: [],
       customTitle: this.state.customTitle,
       trace: this.state.trace,
@@ -87,7 +93,7 @@ export class SqlSourceNode extends SourceNode {
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
-    sqlProto.columnNames = this.state.sourceCols.map((c) => c.column.name);
+    sqlProto.columnNames = this.sourceCols.map((c) => c.column.name);
     sq.sql = sqlProto;
 
     const selectedColumns = createSelectColumnsProto(this);

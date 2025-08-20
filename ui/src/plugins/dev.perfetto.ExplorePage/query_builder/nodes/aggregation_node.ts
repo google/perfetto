@@ -35,8 +35,7 @@ import {NodeIssues} from '../node_issues';
 
 export interface AggregationNodeState extends QueryNodeState {
   readonly prevNode: QueryNode;
-  readonly sourceCols: ColumnInfo[];
-  readonly groupByColumns: ColumnInfo[];
+  groupByColumns: ColumnInfo[];
   readonly aggregations: Aggregation[];
 }
 
@@ -53,8 +52,11 @@ export class AggregationNode implements QueryNode {
   readonly type = NodeType.kAggregation;
   readonly prevNode?: QueryNode;
   nextNodes: QueryNode[];
-  readonly sourceCols: ColumnInfo[];
   readonly state: AggregationNodeState;
+
+  get sourceCols() {
+    return this.prevNode?.finalCols ?? this.prevNode?.sourceCols ?? [];
+  }
 
   get finalCols(): ColumnInfo[] {
     const selected = this.state.groupByColumns.filter((c) => c.checked);
@@ -70,11 +72,23 @@ export class AggregationNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
-      groupByColumns: newColumnInfoList(state.sourceCols, false),
     };
     this.prevNode = state.prevNode;
-    this.sourceCols = state.sourceCols;
     this.nextNodes = [];
+    this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
+  }
+
+  updateGroupByColumns() {
+    const newGroupByColumns = newColumnInfoList(this.sourceCols, false);
+    for (const oldCol of this.state.groupByColumns) {
+      if (oldCol.checked) {
+        const newCol = newGroupByColumns.find((c) => c.name === oldCol.name);
+        if (newCol) {
+          newCol.checked = true;
+        }
+      }
+    }
+    this.state.groupByColumns = newGroupByColumns;
   }
 
   validate(): boolean {
@@ -111,7 +125,6 @@ export class AggregationNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
       prevNode: this.state.prevNode,
-      sourceCols: newColumnInfoList(this.sourceCols),
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: [],

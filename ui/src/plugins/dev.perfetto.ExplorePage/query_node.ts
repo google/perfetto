@@ -38,7 +38,6 @@ export enum NodeType {
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNode?: QueryNode;
-  sourceCols: ColumnInfo[];
   customTitle?: string;
 
   // Operations
@@ -61,7 +60,7 @@ export interface QueryNode {
   nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
-  readonly sourceCols: ColumnInfo[];
+  get sourceCols(): ColumnInfo[];
 
   // Columns that are available after applying all operations.
   readonly finalCols: ColumnInfo[];
