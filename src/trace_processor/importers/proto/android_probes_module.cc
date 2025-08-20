@@ -240,7 +240,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     // not read this.
     data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
 
-    auto* energy = data_packet->set_power_rails()->add_energy_data();
+    auto* power_rails = data_packet->set_power_rails();
+    power_rails->set_session_uuid(evt.session_uuid());
+    auto* energy = power_rails->add_energy_data();
     energy->set_energy(data.energy());
     energy->set_index(data.index());
     energy->set_timestamp_ms(static_cast<uint64_t>(actual_ts / 1000000));
