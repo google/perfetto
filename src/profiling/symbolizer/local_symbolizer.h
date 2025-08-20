@@ -110,7 +110,7 @@ class LocalSymbolizer : public Symbolizer {
   std::unique_ptr<BinaryFinder> finder_;
 };
 
-std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
+std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
     std::vector<std::string> binary_path,
     const char* mode);
 
