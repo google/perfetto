@@ -227,11 +227,7 @@ class PowerPowerRails(TestSuite):
           ts,
           value
         FROM counters
-        -- where name GLOB "power.*"
-        -- FROM counter c
-        -- JOIN counter_track t ON t.id = c.track_id
-        -- WHERE t.name GLOB "power.*"
-        -- ORDER BY t.name, c.ts;
+        WHERE name GLOB "power.*"
         ORDER BY name, ts;
         """,
         out=Csv("""
