@@ -68,7 +68,8 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
 base::Status ArtHprofParser::NotifyEndOfFile() {
   const HeapGraph graph = parser_->BuildGraph();
 
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
+  UniquePid upid =
+      context_->process_tracker->GetOrCreateProcessWithMainThread(0);
 
   if (graph.GetClassCount() == 0 || graph.GetObjectCount() == 0) {
     return base::OkStatus();

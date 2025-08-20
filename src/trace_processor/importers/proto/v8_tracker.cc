@@ -151,7 +151,8 @@ std::optional<IsolateId> V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
   InternedV8Isolate::Decoder isolate(bytes);
 
   const IsolateKey isolate_key{
-      context_->process_tracker->GetOrCreateProcess(isolate.pid()),
+      context_->process_tracker->GetOrCreateProcessWithMainThread(
+          isolate.pid()),
       isolate.isolate_id()};
 
   if (auto* id = isolate_index_.Find(isolate_key); id) {
@@ -267,7 +268,8 @@ tables::V8IsolateTable::ConstRowReference V8Tracker::InsertIsolate(
   InternedV8Isolate::CodeRange::Decoder code_range(isolate.code_range());
   return context_->storage->mutable_v8_isolate_table()
       ->Insert(
-          {context_->process_tracker->GetOrCreateProcess(isolate.pid()),
+          {context_->process_tracker->GetOrCreateProcessWithMainThread(
+               isolate.pid()),
            isolate.isolate_id(),
            static_cast<int64_t>(isolate.embedded_blob_code_start_address()),
            static_cast<int64_t>(isolate.embedded_blob_code_size()),

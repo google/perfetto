@@ -95,7 +95,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
                                      protozero::ConstBytes blob) {
   auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
       static_cast<uint32_t>(heap_graph.pid()));
   heap_graph_tracker->SetPacketIndex(seq_id, heap_graph.index());
   for (auto it = heap_graph.objects(); it; ++it) {

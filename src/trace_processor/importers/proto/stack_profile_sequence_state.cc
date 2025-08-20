@@ -65,7 +65,7 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
     uint64_t iid) {
   if (pid_and_tid_valid()) {
     return FindOrInsertMappingImpl(
-        context_->process_tracker->GetOrCreateProcess(
+        context_->process_tracker->GetOrCreateProcessWithMainThread(
             static_cast<uint32_t>(pid())),
         iid);
   }

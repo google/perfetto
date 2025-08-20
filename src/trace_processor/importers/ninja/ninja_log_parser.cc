@@ -162,7 +162,8 @@ base::Status NinjaLogParser::NotifyEndOfFile() {
       // All workers are busy, allocate a new one.
       uint32_t worker_id = static_cast<uint32_t>(workers.size()) + 1;
       ctx_->process_tracker->SetProcessNameIfUnset(
-          ctx_->process_tracker->GetOrCreateProcess(kSyntheticNinjaPid),
+          ctx_->process_tracker->GetOrCreateProcessWithMainThread(
+              kSyntheticNinjaPid),
           ctx_->storage->InternString("Build"));
       auto utid =
           ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);

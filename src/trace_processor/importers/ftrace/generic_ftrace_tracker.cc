@@ -261,7 +261,8 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
       // Trusting that this is a real tgid, but *not* assuming that the
       // emitting thread is inside the tgid.
       UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(scope_tgid.as_int64());
+          context_->process_tracker->GetOrCreateProcessWithMainThread(
+              scope_tgid.as_int64());
 
       const auto& track_kind = (info.kind == KernelTrackEvent::kSlice)
                                    ? kProcessSliceTrackBp

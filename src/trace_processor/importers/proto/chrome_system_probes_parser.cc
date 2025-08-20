@@ -49,14 +49,16 @@ void ChromeSystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
     for (auto fld = proc.ReadField(); fld.valid(); fld = proc.ReadField()) {
       using ProcessStats = protos::pbzero::ProcessStats;
       if (fld.id() == ProcessStats::Process::kIsPeakRssResettableFieldNumber) {
-        UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+        UniquePid upid =
+            context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
         context_->process_tracker->AddArgsTo(upid).AddArg(
             is_peak_rss_resettable_id_, Variadic::Boolean(fld.as_bool()));
         continue;
       }
       if (fld.id() ==
           ProcessStats::Process::kChromePrivateFootprintKbFieldNumber) {
-        UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+        UniquePid upid =
+            context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
         TrackId track = context_->track_tracker->InternTrack(
             tracks::kChromeProcessStatsBlueprint,
             tracks::Dimensions(upid, "private_footprint_kb"));
@@ -67,7 +69,8 @@ void ChromeSystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       }
       if (fld.id() ==
           ProcessStats::Process::kChromePeakResidentSetKbFieldNumber) {
-        UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+        UniquePid upid =
+            context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
         TrackId track = context_->track_tracker->InternTrack(
             tracks::kChromeProcessStatsBlueprint,
             tracks::Dimensions(upid, "peak_resident_set_kb"));

@@ -312,7 +312,7 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
     int64_t packet_timestamp,
     protozero::ConstBytes process_descriptor) {
   protos::pbzero::ProcessDescriptor::Decoder decoder(process_descriptor);
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
       static_cast<uint32_t>(decoder.pid()));
   active_chrome_processes_tracker_.AddProcessDescriptor(packet_timestamp, upid);
   if (decoder.has_process_name() && decoder.process_name().size) {
@@ -434,8 +434,8 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
 }
 
 void TrackEventParser::AddActiveProcess(int64_t packet_timestamp, int32_t pid) {
-  UniquePid upid =
-      context_->process_tracker->GetOrCreateProcess(static_cast<uint32_t>(pid));
+  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
+      static_cast<uint32_t>(pid));
   active_chrome_processes_tracker_.AddActiveProcessMetadata(packet_timestamp,
                                                             upid);
 }

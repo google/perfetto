@@ -206,8 +206,9 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
 
   for (auto const& it_process : graph.process_node_graphs()) {
     tables::ProcessMemorySnapshotTable::Row process_row;
-    process_row.upid = context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(it_process.first));
+    process_row.upid =
+        context_->process_tracker->GetOrCreateProcessWithMainThread(
+            static_cast<uint32_t>(it_process.first));
     process_row.snapshot_id = snapshot_row_id;
     tables::ProcessMemorySnapshotTable::Id proc_snapshot_row_id =
         context_->storage->mutable_process_memory_snapshot_table()
@@ -222,7 +223,8 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
   // TODO(mobica-google-contributors@mobica.com): Track the shared memory graph
   // in a separate table.
   tables::ProcessMemorySnapshotTable::Row fake_process_row;
-  fake_process_row.upid = context_->process_tracker->GetOrCreateProcess(0u);
+  fake_process_row.upid =
+      context_->process_tracker->GetOrCreateProcessWithMainThread(0u);
   fake_process_row.snapshot_id = snapshot_row_id;
   tables::ProcessMemorySnapshotTable::Id fake_proc_snapshot_row_id =
       context_->storage->mutable_process_memory_snapshot_table()

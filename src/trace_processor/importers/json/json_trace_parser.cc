@@ -109,7 +109,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   FlowTracker* flow_tracker = context_->flow_tracker.get();
 
   if (event.pid_is_string_id) {
-    UniquePid upid = procs->GetOrCreateProcess(event.pid);
+    UniquePid upid = procs->GetOrCreateProcessWithMainThread(event.pid);
     procs->SetProcessMetadata(
         upid, storage->GetString(StringPool::Id::Raw(event.pid)),
         base::StringView());
@@ -173,7 +173,9 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         context_->storage->IncrementStats(stats::json_parser_failure);
         return;
       }
-      UniquePid upid = context_->process_tracker->GetOrCreateProcess(event.pid);
+      UniquePid upid =
+          context_->process_tracker->GetOrCreateProcessWithMainThread(
+              event.pid);
       TrackId track_id;
       if (event.async_cookie_type == JsonEvent::AsyncCookieType::kId ||
           event.async_cookie_type == JsonEvent::AsyncCookieType::kId2Global) {
@@ -308,7 +310,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           break;
         }
         UniquePid upid =
-            context_->process_tracker->GetOrCreateProcess(event.pid);
+            context_->process_tracker->GetOrCreateProcessWithMainThread(
+                event.pid);
         track_id = context_->track_tracker->InternTrack(
             tracks::kChromeProcessInstantBlueprint, tracks::Dimensions(upid),
             tracks::BlueprintName(),
@@ -425,7 +428,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           procs->UpdateThreadName(utid, thread_name_id,
                                   ThreadNamePriority::kOther);
         } else if (name == "process_name") {
-          UniquePid upid = procs->GetOrCreateProcess(event.pid);
+          UniquePid upid = procs->GetOrCreateProcessWithMainThread(event.pid);
           procs->SetProcessMetadata(
               upid, base::StringView(args_name.data(), args_name.size()),
               base::StringView());

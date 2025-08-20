@@ -302,7 +302,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
 
   if (reservation.pid) {
     UniquePid upid =
-        context_->process_tracker->GetOrCreateProcess(*reservation.pid);
+        context_->process_tracker->GetOrCreateProcessWithMainThread(
+            *reservation.pid);
     auto [it, inserted] = descriptor_uuids_by_upid_.Insert(upid, uuid);
     if (!inserted) {
       // We already saw a another track with a different uuid for this process.
@@ -318,7 +319,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
                     *reservation.pid, old_uuid, uuid,
                     reservation.min_timestamp);
 
-      upid = context_->process_tracker->StartNewProcess(
+      upid = context_->process_tracker->StartNewProcessWithMainThread(
           std::nullopt, std::nullopt, *reservation.pid, kNullStringId,
           ThreadNamePriority::kTrackDescriptor);
     }
