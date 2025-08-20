@@ -18,11 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ZIP_TRACE_READER_H_
 
 #include <cstddef>
-#include <map>
+#include <memory>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/zip_reader.h"
@@ -31,6 +31,7 @@ namespace perfetto::trace_processor {
 
 class ForwardingTraceParser;
 class TraceProcessorContext;
+class AndroidBugreportReader;
 
 // Forwards files contained in a ZIP to the appropriate ChunkedTraceReader. It
 // is guaranteed that proto traces will be parsed first.
@@ -50,6 +51,8 @@ class ZipTraceReader : public ChunkedTraceReader {
   };
   TraceProcessorContext* const context_;
   util::ZipReader zip_reader_;
+  std::unique_ptr<AndroidBugreportReader> android_bugreport_reader_;
+  std::vector<std::unique_ptr<ChunkedTraceReader>> parsers_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -72,13 +72,13 @@ test('query page', async () => {
   }
 
   // Now test the query history.
-  page.locator('.pf-query-history .pf-history-item').nth(0).click();
+  page.locator('.pf-query-history .pf-query-history__item').nth(0).click();
   await pth.waitForPerfettoIdle();
   expect(await textbox.textContent()).toEqual(
     'select id, ts, dur, name from slices limit 3',
   );
 
-  page.locator('.pf-query-history .pf-history-item').nth(2).click();
+  page.locator('.pf-query-history .pf-query-history__item').nth(2).click();
   await pth.waitForPerfettoIdle();
   expect(await textbox.textContent()).toEqual(
     'select id, ts, dur, name from slices limit 1',
@@ -86,7 +86,7 @@ test('query page', async () => {
 
   // Double click on the 2nd one and expect the query is re-ran.
   page
-    .locator('.pf-query-page .pf-query-history .pf-history-item')
+    .locator('.pf-query-page .pf-query-history .pf-query-history__item')
     .nth(1)
     .dblclick();
   await pth.waitForPerfettoIdle();

@@ -125,6 +125,9 @@ namespace perfetto::trace_processor::stats {
        "Implausibly large increment to value received from "                   \
        "SuspendControlService. Indicates a transient error in "                \
        "SuspendControlService."),                                              \
+  F(kernel_trackevent_format_error,       kSingle,  kError,    kAnalysis,      \
+       "Ftrace event payloads did not match the format file while being "      \
+       "parsed as kernel track events."),                                      \
   F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \
@@ -336,7 +339,6 @@ namespace perfetto::trace_processor::stats {
       "config. This will cause a process to be completely absent from the "    \
       "trace, but does *not* imply data loss for processes that do have "      \
       "samples in this trace."),                                               \
-  F(perf_counter_skipped_because_no_cpu,  kSingle,  kError,    kAnalysis, ""), \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, ""), \
   F(perf_samples_cpu_mode_unknown,        kSingle,  kError,    kAnalysis, ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,         \

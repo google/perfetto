@@ -20,8 +20,9 @@
 #include <cstdint>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -31,12 +32,12 @@
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class NetworkTraceModule : public ProtoImporterModule {
  public:
-  explicit NetworkTraceModule(TraceProcessorContext* context);
+  explicit NetworkTraceModule(ProtoImporterModuleContext* module_context,
+                              TraceProcessorContext* context);
   ~NetworkTraceModule() override = default;
 
   // Tokenize and de-intern NetworkPacketBundles so that bundles of multiple
@@ -95,7 +96,6 @@ class NetworkTraceModule : public ProtoImporterModule {
   const StringId packet_count_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_NETWORK_TRACE_MODULE_H_

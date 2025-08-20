@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE counters.intervals;
+
 -- Raw ftrace events
 CREATE PERFETTO TABLE _raw_dmabuf_events AS
 SELECT
@@ -144,3 +146,30 @@ LEFT JOIN process
   USING (upid)
 ORDER BY
   ts;
+
+-- Provides a timeseries of dmabuf allocations for each process.
+-- To populate this table, tracing must be enabled with the "dmabuf_allocs" ftrace event.
+CREATE PERFETTO TABLE android_memory_cumulative_dmabuf (
+  -- upid of process responsible for the allocation (matches utid)
+  upid JOINID(process.id),
+  -- process name
+  process_name STRING,
+  -- utid of thread responsible for the allocation
+  -- if a dmabuf is allocated by gralloc we follow the binder transaction
+  -- to the requesting thread (requires binder tracing)
+  utid JOINID(thread.id),
+  -- thread name
+  thread_name STRING,
+  -- timestamp of the allocation
+  ts TIMESTAMP,
+  -- total allocation size per process and thread
+  value LONG
+) AS
+SELECT
+  upid,
+  process_name,
+  utid,
+  thread_name,
+  ts,
+  sum(buf_size) OVER (PARTITION BY coalesce(upid, utid) ORDER BY ts) AS value
+FROM android_dmabuf_allocs;

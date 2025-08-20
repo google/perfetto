@@ -184,8 +184,14 @@ export function randomColor(): string {
   }
 }
 
-export function getColorForSlice(sliceName: string): ColorScheme {
-  const name = sliceName.replace(/( )?\d+/g, '');
+export function getColorForSlice(
+  sliceName: string,
+  {stripTrailingDigits = true}: {stripTrailingDigits?: boolean} = {},
+): ColorScheme {
+  const name = stripTrailingDigits
+    ? sliceName.replace(/( )?\d+/g, '')
+    : sliceName;
+
   if (USE_CONSISTENT_COLORS.get()) {
     return materialColorScheme(name);
   } else {

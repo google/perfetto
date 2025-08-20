@@ -13,20 +13,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import os
 import signal
-from typing import List
-import subprocess
+import sys
+from typing import Any, Dict, IO, List
 
-from google.protobuf import descriptor_pb2, message_factory, text_format
+from google.protobuf import descriptor_pb2, message_factory
+from python.generators.diff_tests import models
 
-from python.generators.diff_tests import testing
+
+class ProtoManager:
+  """A helper class for all proto related tasks."""
+
+  def __init__(self, descriptor_file_paths: List[str]):
+    files = []
+    for file_path in descriptor_file_paths:
+      files.extend(self.read_descriptor(file_path).file)
+    self.messages = message_factory.GetMessages(files)
+
+  def read_descriptor(self, file_name: str) -> descriptor_pb2.FileDescriptorSet:
+    """Reads a file descriptor set from a file."""
+    with open(file_name, 'rb') as f:
+      contents = f.read()
+
+    descriptor = descriptor_pb2.FileDescriptorSet()
+    descriptor.MergeFromString(contents)
+
+    return descriptor
+
+  def create_message(self, proto_type: str) -> Any:
+    return self.messages[proto_type]
+
 
 USE_COLOR_CODES = sys.stderr.isatty()
 
 
 class ColorFormatter:
+  """A helper class for color formatting in the terminal."""
 
   def __init__(self, no_colors: bool):
     self.no_colors = no_colors
@@ -53,7 +76,8 @@ class ColorFormatter:
     return self.__yellow_str() + s + self.__end_color()
 
 
-def get_env(root_dir):
+def get_env(root_dir: str) -> Dict[str, str]:
+  """Returns the environment variables for running trace_processor."""
   env = {
       'PERFETTO_BINARY_PATH': os.path.join(root_dir, 'test', 'data'),
   }
@@ -70,74 +94,37 @@ def get_env(root_dir):
   return env
 
 
-def ctrl_c_handler(_num, _frame):
+def ctrl_c_handler(_num: int, _frame: Any):
+  """Handles Ctrl+C by killing the whole process group."""
   # Send a sigkill to the whole process group. Our process group looks like:
   # - Main python interpreter running the main()
   #   - N python interpreters coming from ProcessPoolExecutor workers.
-  #     - 1 trace_processor_shell subprocess coming from the subprocess.Popen().
+  #     - 1 trace_processor_shell subprocess from subprocess.Popen().
   # We don't need any graceful termination as the diff tests are stateless and
   # don't write any file. Just kill them all immediately.
   os.killpg(os.getpid(), signal.SIGKILL)
 
 
-def create_message_factory(descriptor_file_paths, proto_type):
-  files = []
-  for file_path in descriptor_file_paths:
-    files.extend(read_descriptor(file_path).file)
-
-  # We use this method rather than working directly with DescriptorPool
-  # because, when the pure-Python protobuf runtime is used, extensions
-  # need to be explicitly registered with the message type. See
-  # https://github.com/protocolbuffers/protobuf/blob/9e09343a49e9e75be576b31ed7402bf8502b080c/python/google/protobuf/message_factory.py#L145
-  return message_factory.GetMessages(files)[proto_type]
+def serialize_textproto_trace(trace_descriptor_path: str,
+                              extension_descriptor_paths: List[str],
+                              text_proto_path: str, out_stream: IO[bytes]):
+  from python.generators.diff_tests.trace_generator import TraceGenerator
+  TraceGenerator(trace_descriptor_path,
+                 extension_descriptor_paths).serialize_textproto_trace(
+                     text_proto_path, out_stream)
 
 
-def create_metrics_message_factory(metrics_descriptor_paths):
-  return create_message_factory(metrics_descriptor_paths,
-                                'perfetto.protos.TraceMetrics')
-
-
-def read_descriptor(file_name):
-  with open(file_name, 'rb') as f:
-    contents = f.read()
-
-  descriptor = descriptor_pb2.FileDescriptorSet()
-  descriptor.MergeFromString(contents)
-
-  return descriptor
-
-
-def serialize_textproto_trace(trace_descriptor_path, extension_descriptor_paths,
-                              text_proto_path, out_stream):
-  proto = create_message_factory([trace_descriptor_path] +
-                                 extension_descriptor_paths,
-                                 'perfetto.protos.Trace')()
-
-  with open(text_proto_path, 'r') as text_proto_file:
-    text_format.Merge(text_proto_file.read(), proto)
-  out_stream.write(proto.SerializeToString())
-  out_stream.flush()
-
-
-def serialize_python_trace(root_dir, trace_descriptor_path, python_trace_path,
-                           out_stream):
-  python_cmd = [
-      'python3',
-      python_trace_path,
-      trace_descriptor_path,
-  ]
-
-  # Add the test dir to the PYTHONPATH to allow synth_common to be found.
-  env = os.environ.copy()
-  if 'PYTHONPATH' in env:
-    env['PYTHONPATH'] = "{}:{}".format(
-        os.path.join(root_dir, 'test'), env['PYTHONPATH'])
-  else:
-    env['PYTHONPATH'] = os.path.join(root_dir, 'test')
-  subprocess.check_call(python_cmd, env=env, stdout=out_stream)
+def serialize_python_trace(root_dir: str, trace_descriptor_path: str,
+                           extension_descriptor_paths: List[str],
+                           python_trace_path: str, out_stream: IO[bytes]):
+  from python.generators.diff_tests.trace_generator import TraceGenerator
+  TraceGenerator(trace_descriptor_path,
+                 extension_descriptor_paths).serialize_python_trace(
+                     root_dir, python_trace_path, out_stream)
 
 
 def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
+  """Returns the path to the trace descriptor."""
   if trace_descriptor:
     return trace_descriptor
 
@@ -149,29 +136,18 @@ def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
   return trace_descriptor_path
 
 
-def modify_trace(trace_descriptor_path, extension_descriptor_paths,
-                 in_trace_path, out_trace_path, modifier):
-  trace_proto = create_message_factory([trace_descriptor_path] +
-                                       extension_descriptor_paths,
-                                       'perfetto.protos.Trace')()
-
-  with open(in_trace_path, "rb") as f:
-    # This may raise DecodeError when |in_trace_path| isn't protobuf.
-    trace_proto.ParseFromString(f.read())
-    # Modify the trace proto object with the provided modifier function.
-    modifier.inject(trace_proto)
-
-  with open(out_trace_path, "wb") as f:
-    f.write(trace_proto.SerializeToString())
-    f.flush()
+def read_all_tests(name_filter: str,
+                   root_dir: os.PathLike) -> List[models.TestCase]:
+  """Reads all diff tests from the given directory."""
+  from python.generators.diff_tests.test_loader import TestLoader
+  return TestLoader(root_dir).discover_and_load_tests(name_filter)
 
 
-def read_all_tests(name_filter: str, root_dir: str) -> List[testing.TestCase]:
-  # Import
-  INCLUDE_PATH = os.path.join(root_dir, 'test', 'trace_processor', 'diff_tests')
-  sys.path.append(INCLUDE_PATH)
-  from include_index import fetch_all_diff_tests
-  sys.path.pop()
-  diff_tests = fetch_all_diff_tests(INCLUDE_PATH)
-
-  return [test for test in diff_tests if test.validate(name_filter)]
+def write_diff(expected: str, actual: str) -> str:
+  """Returns a unified diff of the two strings."""
+  import difflib
+  expected_lines = expected.splitlines(True)
+  actual_lines = actual.splitlines(True)
+  diff = difflib.unified_diff(
+      expected_lines, actual_lines, fromfile='expected', tofile='actual')
+  return "".join(list(diff))

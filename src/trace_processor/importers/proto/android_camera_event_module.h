@@ -18,24 +18,21 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_CAMERA_EVENT_MODULE_H_
 
 #include <cstdint>
-#include <optional>
-#include <unordered_map>
 
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/tables/sched_tables_py.h"
-#include "src/trace_processor/tables/slice_tables_py.h"
-#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class AndroidCameraEventModule : public ProtoImporterModule {
  public:
-  explicit AndroidCameraEventModule(TraceProcessorContext* context);
+  explicit AndroidCameraEventModule(ProtoImporterModuleContext* module_context,
+                                    TraceProcessorContext* context);
 
   ~AndroidCameraEventModule() override;
 
@@ -57,7 +54,6 @@ class AndroidCameraEventModule : public ProtoImporterModule {
   TraceProcessorContext* context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_CAMERA_EVENT_MODULE_H_

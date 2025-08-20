@@ -19,14 +19,20 @@
 
 #include "test/gtest_and_gmock.h"
 
-using testing::AnyNumber;
-using testing::IsEmpty;
-using testing::Return;
-using testing::UnorderedElementsAre;
-
 namespace perfetto {
 namespace {
 
+using testing::_;
+using testing::AnyNumber;
+using testing::DoAll;
+using testing::ElementsAre;
+using testing::IsEmpty;
+using testing::MatchesRegex;
+using testing::Mock;
+using testing::Optional;
+using testing::Return;
+using testing::SetArgPointee;
+using testing::UnorderedElementsAre;
 class MockTracefs : public Tracefs {
  public:
   MockTracefs() : Tracefs("/root/") {}
@@ -37,11 +43,20 @@ class MockTracefs : public Tracefs {
               (override));
   MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
   MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
+  MOCK_METHOD(bool,
+              ReadFile,
+              (const std::string& path, std::string* contents),
+              (const, override));
   MOCK_METHOD(std::string,
               ReadFileIntoString,
               (const std::string& path),
               (const, override));
   MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
+  MOCK_METHOD(size_t, NumberOfOnlineCpus, (), (const, override));
+  MOCK_METHOD(std::optional<std::vector<uint32_t>>,
+              GetOfflineCpus,
+              (),
+              (const, override));
 };
 
 TEST(TracefsTest, ParseAvailableClocks) {
@@ -141,6 +156,90 @@ TEST(TracefsTest, ReadBufferSizeInPages) {
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
       .WillOnce(Return("\n\n\n\n"));
   EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 1);
+}
+
+TEST(TracefsTest, ClearTrace) {
+  MockTracefs ftrace;
+
+  // Test: Fast path when all CPUs are online.
+  EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
+  EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(4));
+  EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
+  EXPECT_CALL(ftrace, GetOfflineCpus()).Times(0);
+  EXPECT_CALL(ftrace, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
+      .Times(0);
+  ftrace.ClearTrace();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&ftrace));
+
+  // Test: Only the buffers for the specified offline CPUs are cleared.
+  EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
+  EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(2));
+  EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
+  EXPECT_CALL(ftrace, GetOfflineCpus())
+      .WillOnce(Return(std::vector<uint32_t>{1, 3}));
+  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu0/trace")).Times(0);
+  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu1/trace"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu2/trace")).Times(0);
+  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu3/trace"))
+      .WillOnce(Return(true));
+  ftrace.ClearTrace();
+
+  // Test: Fallback behavior when the offline CPU list can't be read.
+  EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
+  EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(2));
+  EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
+  EXPECT_CALL(ftrace, GetOfflineCpus()).WillOnce(Return(std::nullopt));
+  for (size_t cpu = 0; cpu < 4; cpu++) {
+    EXPECT_CALL(ftrace,
+                ClearFile("/root/per_cpu/cpu" + std::to_string(cpu) + "/trace"))
+        .WillOnce(Return(true));
+  }
+  ftrace.ClearTrace();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&ftrace));
+}
+
+TEST(TracefsTest, GetOfflineCpus) {
+  class MockReadFileTracefs : public Tracefs {
+   public:
+    MockReadFileTracefs() : Tracefs("/root/") {}
+    using Tracefs::GetOfflineCpus;
+
+    MOCK_METHOD(bool,
+                ReadFile,
+                (const std::string& path, std::string* contents),
+                (const, override));
+  } ftrace;
+
+  // ReadFile fails.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(Return(false));
+  EXPECT_EQ(ftrace.GetOfflineCpus(), std::nullopt);
+
+  // Invalid value.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("1,a,3"), Return(true)));
+  EXPECT_EQ(ftrace.GetOfflineCpus(), std::nullopt);
+
+  // Empty offline CPU list.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>(""), Return(true)));
+  EXPECT_THAT(ftrace.GetOfflineCpus(), Optional(IsEmpty()));
+
+  // Comma-separated list of single offline CPUs.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("1,3\n"), Return(true)));
+  EXPECT_THAT(ftrace.GetOfflineCpus(), Optional(ElementsAre(1, 3)));
+
+  // Range of offline CPUs (e.g., "0-2").
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("0-2,4-5\n"), Return(true)));
+  EXPECT_THAT(ftrace.GetOfflineCpus(), Optional(ElementsAre(0, 1, 2, 4, 5)));
+
+  // Combination of single CPUs and ranges.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("0,2-3,5\n"), Return(true)));
+  EXPECT_THAT(ftrace.GetOfflineCpus(), Optional(ElementsAre(0, 2, 3, 5)));
 }
 
 }  // namespace

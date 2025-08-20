@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -14,7 +14,7 @@
 # limitations under the License.
 import os
 import sys
-from typing import List
+from typing import List, Tuple
 
 from python.generators.diff_tests import testing
 
@@ -49,6 +49,7 @@ from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
 from diff_tests.parser.android.tests_android_input_event import AndroidInputEvent
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
+from diff_tests.parser.android.tests_cpu_per_uid import AndroidCpuPerUid
 from diff_tests.parser.android.tests_dumpstate import AndroidDumpstate
 from diff_tests.parser.android.tests_games import AndroidGames
 from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClients
@@ -74,6 +75,7 @@ from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
 from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
+from diff_tests.parser.ftrace.kernel_trackevent_tests import KernelTrackevent
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
 from diff_tests.parser.generic_kernel.tests import GenericKernelParser
@@ -92,6 +94,7 @@ from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
+from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
 from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
@@ -152,6 +155,7 @@ from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
@@ -172,9 +176,11 @@ from diff_tests.summary.metrics_v2_tests import SummaryMetricsV2
 sys.path.pop()
 
 
-def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
+def fetch_all_diff_tests(
+    index_path: str) -> List[Tuple[str, 'testing.DiffTestBlueprint']]:
   parser_tests = [
       AndroidBugreport,
+      AndroidCpuPerUid,
       AndroidDumpstate,
       AndroidFs,
       AndroidGames,
@@ -195,8 +201,10 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       GraphicsGpuTrace,
       GraphicsParser,
       JsonParser,
+      KernelTrackevent,
       MemoryParser,
       NetworkParser,
+      BatteryStats,
       PowerEnergyBreakdown,
       PowerPowerRails,
       PowerVoltageAndScaling,
@@ -214,6 +222,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      Symbolize,
       InputMethodClients,
       InputMethodManagerService,
       InputMethodService,

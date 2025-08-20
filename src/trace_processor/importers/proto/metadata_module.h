@@ -17,20 +17,24 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
 
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include <cstdint>
+
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 class MetadataModule : public ProtoImporterModule {
  public:
   using ConstBytes = protozero::ConstBytes;
-  explicit MetadataModule(TraceProcessorContext* context);
+  explicit MetadataModule(ProtoImporterModuleContext* module_context,
+                          TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -67,7 +71,6 @@ class MetadataModule : public ProtoImporterModule {
   const StringId chrome_trigger_hash_id_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_

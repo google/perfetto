@@ -59,12 +59,11 @@ import {
 import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
-import {Chip, ChipBar} from '../../widgets/chip';
+import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {SplitPanel} from '../../widgets/split_panel';
-import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
+import {SplitPanel, Tab} from '../../widgets/split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {MultiselectInput} from '../../widgets/multiselect_input';
@@ -78,6 +77,8 @@ import {Engine} from '../../trace_processor/engine';
 import {Card, CardStack} from '../../widgets/card';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
+import {TabStrip} from '../../widgets/tabs';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -317,6 +318,8 @@ const options: {[key: string]: boolean} = {
   thud: false,
 };
 
+let currentTab: string = 'foo';
+
 function PortalButton() {
   let portalOpen = false;
 
@@ -441,7 +444,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     if (listItems.length === 0) {
       return null;
     }
-    return m('.widget-controls', m('h3', 'Options'), m('ul', listItems));
+    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
   }
 
   oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
@@ -477,13 +480,13 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       m(WidgetTitle, {label}),
       description && m('p', description),
       m(
-        '.widget-block',
+        '.pf-widget-block',
         m(
           'div',
           {
             class: classNames(
-              'widget-container',
-              wide && 'widget-container-wide',
+              'pf-widget-container',
+              wide && 'pf-widget-container--wide',
             ),
           },
           renderWidget(this.optValues),
@@ -721,7 +724,7 @@ function RadioButtonGroupDemo() {
 export class WidgetsPage implements m.ClassComponent<{app: App}> {
   view({attrs}: m.Vnode<{app: App}>) {
     return m(
-      '.widgets-page',
+      '.pf-widgets-page',
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
@@ -763,7 +766,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   icon: arg(icon, 'send'),
                   rightIcon: arg(rightIcon, 'arrow_forward'),
                   label: arg(label, 'Button', ''),
-                  onclick: () => alert('button pressed'),
+                  onclick: () => console.log('button pressed'),
                   ...rest,
                 }),
                 Boolean(showInlineWithText) && 'text',
@@ -783,6 +786,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
           showAsGrid: false,
           showInlineWithText: false,
+          rounded: false,
         },
       }),
       m(WidgetShowcase, {
@@ -831,10 +835,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        renderWidget: ({label, ...rest}: any) =>
-          m(Switch, {label: arg(label, 'Switch'), ...rest}),
+        renderWidget: ({label, labelLeft, ...rest}: any) =>
+          m(Switch, {
+            label: arg(label, 'Switch'),
+            labelLeft: arg(labelLeft, 'Left Label'),
+            ...rest,
+          }),
         initialOpts: {
           label: true,
+          labelLeft: false,
           disabled: false,
         },
       }),
@@ -1448,7 +1457,20 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             onclick: () => {
               showModal({
                 title: 'Attention',
-                content: () => 'This is a modal dialog',
+                icon: Icons.Help,
+                content: () => [
+                  m('', 'This is a modal dialog'),
+                  m(
+                    Popup,
+                    {
+                      trigger: m(Button, {
+                        variant: ButtonVariant.Filled,
+                        label: 'Open Popup',
+                      }),
+                    },
+                    'Popup content',
+                  ),
+                ],
                 buttons: [
                   {
                     text: 'Cancel',
@@ -1544,14 +1566,23 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         renderWidget: (opts) => {
           const {icon, ...rest} = opts;
           return m(
-            ChipBar,
+            Stack,
+            {orientation: 'horizontal'},
             m(Chip, {
               label: 'Foo',
               icon: icon === true ? 'info' : undefined,
               ...rest,
             }),
-            m(Chip, {label: 'Bar', ...rest}),
-            m(Chip, {label: 'Baz', ...rest}),
+            m(Chip, {
+              label: 'Bar',
+              icon: icon === true ? 'warning' : undefined,
+              ...rest,
+            }),
+            m(Chip, {
+              label: 'Baz',
+              icon: icon === true ? 'error' : undefined,
+              ...rest,
+            }),
           );
         },
         initialOpts: {
@@ -1559,6 +1590,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           icon: true,
           compact: false,
           rounded: false,
+          disabled: false,
+          removable: true,
         },
       }),
       m(WidgetShowcase, {
@@ -1625,7 +1658,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           return m(
             VirtualOverlayCanvas,
             {
-              className: 'virtual-canvas',
+              className: 'pf-virtual-canvas',
               overflowY: 'auto',
               onCanvasRedraw({ctx, canvasRect}) {
                 ctx.strokeStyle = 'red';
@@ -1660,53 +1693,35 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
 
       m(WidgetShowcase, {
         label: 'SplitPanel',
-        description: `Horizontal split panel with draggable handle and controls.`,
+        description: `Resizeable split panel with optional tabs.`,
         renderWidget: (opts) => {
           return m(
             '',
-            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            {
+              style: {
+                height: '400px',
+                width: '400px',
+                border: 'solid 2px gray',
+              },
+            },
             m(
               SplitPanel,
               {
-                drawerContent: 'Drawer Content',
-                handleContent: Boolean(opts.handleContent) && 'Handle Content',
-              },
-              'Main Content',
-            ),
-          );
-        },
-        initialOpts: {
-          handleContent: false,
-        },
-      }),
-
-      m(WidgetShowcase, {
-        label: 'TabbedSplitPanel',
-        description: `SplitPanel + tabs.`,
-        renderWidget: (opts) => {
-          return m(
-            '',
-            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
-            m(
-              TabbedSplitPanel,
-              {
-                leftHandleContent:
-                  Boolean(opts.leftContent) &&
-                  m(Button, {icon: 'Menu', compact: true}),
-                tabs: [
-                  {
-                    key: 'foo',
-                    title: 'Foo',
-                    content: 'Foo content',
-                    hasCloseButton: opts.showCloseButtons,
-                  },
-                  {
-                    key: 'bar',
-                    title: 'Bar',
-                    content: 'Bar content',
-                    hasCloseButton: opts.showCloseButtons,
-                  },
+                leftHandleContent: [
+                  Boolean(opts.leftContent) && m(Button, {icon: 'Menu'}),
                 ],
+                drawerContent: 'Drawer Content',
+                tabs:
+                  Boolean(opts.tabs) &&
+                  m(
+                    '.pf-split-panel__tabs',
+                    m(
+                      Tab,
+                      {active: true, hasCloseButton: opts.showCloseButtons},
+                      'Foo',
+                    ),
+                    m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
+                  ),
               },
               'Main Content',
             ),
@@ -1714,10 +1729,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
         initialOpts: {
           leftContent: true,
+          tabs: true,
           showCloseButtons: true,
         },
       }),
-
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
@@ -1843,6 +1858,39 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           aggregation: false,
         },
       }),
+
+      m(WidgetShowcase, {
+        label: 'TabStrip',
+        description: `A simple tab strip`,
+        renderWidget: () => {
+          return m(TabStrip, {
+            tabs: [
+              {key: 'foo', title: 'Foo'},
+              {key: 'bar', title: 'Bar'},
+              {key: 'baz', title: 'Baz'},
+            ],
+            currentTabKey: currentTab,
+            onTabChange: (key) => {
+              currentTab = key;
+            },
+          });
+        },
+        initialOpts: {},
+      }),
+
+      m(WidgetShowcase, {
+        label: 'CodeSnippet',
+        renderWidget: ({wide}) =>
+          m(CodeSnippet, {
+            language: 'SQL',
+            text: Boolean(wide)
+              ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
+              : 'SELECT * FROM slice LIMIT 10;',
+          }),
+        initialOpts: {
+          wide: false,
+        },
+      }),
     );
   }
 }
@@ -1944,7 +1992,10 @@ class ModalShowcase implements m.ClassComponent {
 
     let content;
     if (staticContent) {
-      content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+      content = m(
+        '.pf-modal-pre',
+        'Content of the modal dialog.\nEnd of content',
+      );
     } else {
       // The humble counter is basically the VDOM 'Hello world'!
       function CounterComponent() {

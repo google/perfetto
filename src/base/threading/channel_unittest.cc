@@ -26,7 +26,8 @@
 #include "test/gtest_and_gmock.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
+
 #include <synchapi.h>
 #else
 #include <poll.h>

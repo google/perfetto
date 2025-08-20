@@ -36,10 +36,9 @@ using ::testing::Invoke;
 class ProcessTrackerTest : public ::testing::Test {
  public:
   ProcessTrackerTest() {
-    context.storage = std::make_shared<TraceStorage>();
+    context.storage = std::make_unique<TraceStorage>();
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
-    context.args_tracker = std::make_unique<ArgsTracker>(&context);
     context.process_tracker = std::make_unique<ProcessTracker>(&context);
     context.event_tracker = std::make_unique<EventTracker>(&context);
   }
@@ -47,13 +46,6 @@ class ProcessTrackerTest : public ::testing::Test {
  protected:
   TraceProcessorContext context;
 };
-
-TEST_F(ProcessTrackerTest, PushProcess) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
-  ASSERT_EQ(opt_upid.value_or(-1), 1u);
-}
 
 TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
   auto upid = context.process_tracker->GetOrCreateProcess(123);
@@ -67,31 +59,39 @@ TEST_F(ProcessTrackerTest, StartNewProcess) {
   ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
 }
 
-TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
-  ASSERT_EQ(opt_upid.value_or(-1), 1u);
+TEST_F(ProcessTrackerTest, UpdateProcessWithParent) {
+  UniquePid cur_upid;
+  std::optional<UniquePid> cur_pupid;
+  UniquePid pupid1 = context.process_tracker->GetOrCreateProcess(123);
+  UniquePid pupid2 = context.process_tracker->GetOrCreateProcess(234);
+  UniquePid upid = context.process_tracker->GetOrCreateProcess(345);
+
+  cur_upid = context.process_tracker->UpdateProcessWithParent(upid, pupid1);
+  cur_pupid = context.storage->process_table()[cur_upid].parent_upid();
+
+  ASSERT_EQ(upid, cur_upid);
+  ASSERT_EQ(pupid1, *cur_pupid);
+
+  // Must create new process
+  cur_upid = context.process_tracker->UpdateProcessWithParent(upid, pupid2);
+  cur_pupid = context.storage->process_table()[cur_upid].parent_upid();
+
+  ASSERT_NE(upid, cur_upid);
+  ASSERT_EQ(pupid2, *cur_pupid);
 }
 
-TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  context.process_tracker->SetProcessMetadata(3, std::nullopt, "test",
-                                              base::StringView());
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
-  ASSERT_EQ(opt_upid.value_or(-1), 1u);
-  opt_upid = context.process_tracker->UpidForPidForTesting(3);
-  ASSERT_EQ(opt_upid.value_or(-1), 2u);
-}
+TEST_F(ProcessTrackerTest, SetProcessMetadata) {
+  UniquePid upid = context.process_tracker->GetOrCreateProcess(123);
 
-TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  auto name = context.storage->process_table()[1].name();
+  context.process_tracker->SetProcessMetadata(upid, "test", "cmdline blah");
+
+  auto opt_upid = context.process_tracker->UpidForPidForTesting(123);
+  auto name = context.storage->process_table()[upid].name();
+  auto cmdline = *context.storage->process_table()[upid].cmdline();
+
+  ASSERT_EQ(opt_upid.value_or(-1), upid);
   ASSERT_EQ(context.storage->GetString(*name), "test");
+  ASSERT_EQ(context.storage->GetString(cmdline), "cmdline blah");
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
@@ -126,13 +126,6 @@ TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
   ASSERT_EQ(context.storage->process_table().row_count(), 3u);
   // We expect 5 threads: Invalid thread, 2x (main thread + sub thread).
   ASSERT_EQ(context.storage->thread_table().row_count(), 5u);
-}
-
-TEST_F(ProcessTrackerTest, Cmdline) {
-  UniquePid upid = context.process_tracker->SetProcessMetadata(
-      1, std::nullopt, "test", "cmdline blah");
-  auto cmdline = *context.storage->process_table()[upid].cmdline();
-  ASSERT_EQ(context.storage->GetString(cmdline), "cmdline blah");
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadName) {

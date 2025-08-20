@@ -16,15 +16,21 @@
 
 #include "src/trace_processor/iterator_impl.h"
 
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
-#include "perfetto/trace_processor/trace_processor_storage.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 IteratorImpl::IteratorImpl(
     TraceProcessorImpl* trace_processor,
@@ -38,7 +44,7 @@ IteratorImpl::~IteratorImpl() {
   if (trace_processor_) {
     base::TimeNanos t_end = base::GetWallTimeNs();
     auto* sql_stats =
-        trace_processor_.get()->context_.storage->mutable_sql_stats();
+        trace_processor_.get()->context()->storage->mutable_sql_stats();
     sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
   }
 }
@@ -46,7 +52,7 @@ IteratorImpl::~IteratorImpl() {
 void IteratorImpl::RecordFirstNextInSqlStats() {
   base::TimeNanos t_first_next = base::GetWallTimeNs();
   auto* sql_stats =
-      trace_processor_.get()->context_.storage->mutable_sql_stats();
+      trace_processor_.get()->context()->storage->mutable_sql_stats();
   sql_stats->RecordQueryFirstNext(sql_stats_row_, t_first_next.count());
 }
 
@@ -89,5 +95,4 @@ std::string Iterator::LastStatementSql() {
   return iterator_->LastStatementSql();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

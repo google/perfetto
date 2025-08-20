@@ -301,6 +301,12 @@ message ContentAttributes {
   ContentAttributeType attribute_type = 3 [features = { field_presence: EXPLICIT }];
 
   // This is the geometry of the common_ancestor_dom_node_id.
+  //
+  // In the default mode, this is only populated if this is the
+  // `accessibility_focused_dom_node_id`.
+  //
+  // Populated for all nodes in
+  // `ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.`
   Geometry geometry = 4 [features = { field_presence: EXPLICIT }];
 
   // The interaction information for the content node.
@@ -627,7 +633,7 @@ message IframeData {
 
 // The data for a frame in the web page. This is the common data structure for
 // both the root frame and embedded iframes.
-// Next ID: 9
+// Next ID: 12
 message FrameData {
   // The security origin of the frame.
   SecurityOrigin security_origin = 1 [features = { field_presence: EXPLICIT }];
@@ -654,7 +660,15 @@ message FrameData {
   // session web API.
   MediaData media_data = 8 [features = { field_presence: EXPLICIT }];
 
-  reserved 7;
+  // The set of tools supported by this Document.
+  repeated ScriptTool script_tools = 9;
+
+  // The results of executing script tools.
+  // TODO(khushalsagar): Remove this field once all consumers move to using
+  // the field in ActionsResult.
+  repeated ScriptToolResult script_tool_results = 11;
+
+  reserved 7, 10;
 }
 
 // The interaction information for the frame. This is for interactions that
@@ -742,6 +756,39 @@ message MediaTranscript {
 
   // Non-negative time since the start of the media.
   int64 start_timestamp_milliseconds = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// The data for tools exposed by the Document.
+message ScriptTool {
+  // The name of the tool. This must be unique within the source Document's
+  // scope.
+  string name = 2 [features = { field_presence: EXPLICIT }];
+
+  // A description of the tool used to understand the capabilities of the tool.
+  string description = 3 [features = { field_presence: EXPLICIT }];
+
+  // A JSON schema string describing the input expected by the tool.
+  string input_schema = 4 [features = { field_presence: EXPLICIT }];
+
+  // Annotations for the tool.
+  ScriptToolAnnotations annotations = 5 [features = { field_presence: EXPLICIT }];
+}
+
+// Annotations for the script tool.
+message ScriptToolAnnotations {
+  bool read_only = 1 [features = { field_presence: EXPLICIT }];
+}
+
+// Result of executing a script tool.
+// Next ID: 3
+// TODO(khushalsagar): Move this to actions_data.proto.
+message ScriptToolResult {
+  // The index of the ScriptToolAction in the Actions proto. This is used to
+  // match the result to the corresponding action.
+  int32 index_of_script_tool_action = 1 [features = { field_presence: EXPLICIT }];
+
+  // The result from executing the tool, if the execution was successful.
+  string result = 2 [features = { field_presence: EXPLICIT }];
 }
 
 message TableRowData {
@@ -1447,7 +1494,7 @@ enum AXStringAttribute {
 }
 
 // AX Int attribute enum.
-// Next ID: 68
+// Next ID: 69
 enum AXIntAttribute {
   AX_IA_NONE = 0;
 
@@ -1584,6 +1631,8 @@ enum AXIntAttribute {
   AX_IA_DETAILSFROM = 66;
 
   AX_IA_MAXLENGTH = 67;
+
+  AX_IA_PAINTORDER = 68;
 }
 
 // AX Float attribute enum.
@@ -1817,7 +1866,7 @@ enum ContentAttributeType {
 }
 
 // The reason why a node is clickable.
-// Next ID: 10
+// Next ID: 12
 enum ClickabilityReason {
   // The node is a native form control.
   CLICKABILITY_REASON_CLICKABLE_CONTROL = 0;
@@ -1854,6 +1903,13 @@ enum ClickabilityReason {
   // visibility of other elements. This reason implies that the associated
   // control is currently collapsed.
   CLICKABILITY_REASON_ARIA_EXPANDED_FALSE = 9;
+
+  // The node has the tabIndex attribute set to a valid value.
+  CLICKABILITY_REASON_TAB_INDEX = 10;
+
+  // The node has autocomplete, as indicated by the same-named attribute or
+  // aria-autocomplete.
+  CLICKABILITY_REASON_AUTOCOMPLETE = 11;
 }
 
 // Next ID: 5

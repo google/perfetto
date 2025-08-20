@@ -38,7 +38,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
         await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
         const cpusCsv = `(` + selectedCpus.join() + `)`;
-        engine.query(`
+        await engine.query(`
           INCLUDE PERFETTO MODULE wattson.tasks.attribution;
           INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
           INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;

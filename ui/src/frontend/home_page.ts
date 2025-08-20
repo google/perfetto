@@ -17,33 +17,34 @@ import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {assetSrc} from '../base/assets';
+import {Stack} from '../widgets/stack';
 
 export class Hints implements m.ClassComponent {
   view() {
     return m(
-      '.home-page-hints',
-      m('.tagline', 'New!'),
+      '.pf-home-page__hints',
+      m('.pf-home-page__tagline', 'New!'),
       m(
         'ul',
         m(
           'li',
-          'New updated ',
-          m(
-            Anchor,
-            {
-              href: 'https://perfetto.dev/docs/visualization/perfetto-ui#tabs-v2',
-            },
-            'tabs',
-          ),
-          ' are extensible and user friendly.',
+          'Press ',
+          m(HotkeyGlyphs, {hotkey: 'Mod+P'}),
+          ' to quickly find tracks with fuzzy search.',
         ),
         m(
           'li',
           'Use ',
-          m(HotkeyGlyphs, {hotkey: 'W'}),
-          m(HotkeyGlyphs, {hotkey: 'A'}),
-          m(HotkeyGlyphs, {hotkey: 'S'}),
-          m(HotkeyGlyphs, {hotkey: 'D'}),
+          m(
+            Stack,
+            {inline: true, spacing: 'small', orientation: 'horizontal'},
+            [
+              m(HotkeyGlyphs, {hotkey: 'W'}),
+              m(HotkeyGlyphs, {hotkey: 'A'}),
+              m(HotkeyGlyphs, {hotkey: 'S'}),
+              m(HotkeyGlyphs, {hotkey: 'D'}),
+            ],
+          ),
           ' to navigate the trace.',
         ),
         m(
@@ -68,27 +69,32 @@ export class Hints implements m.ClassComponent {
 export class HomePage implements m.ClassComponent {
   view() {
     return m(
-      '.page.home-page',
+      '.pf-home-page',
       m(
-        '.home-page-center',
+        '.pf-home-page__center',
         m(
-          '.home-page-title',
+          '.pf-home-page__title',
           m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
           'Perfetto',
         ),
         m(Hints),
         m(
-          '.channel-select',
+          '.pf-home-page__channel-select',
           m('', 'Feeling adventurous? Try our bleeding edge Canary version'),
-          m('fieldset', mkChan('stable'), mkChan('canary'), m('.highlight')),
           m(
-            `.home-page-reload${channelChanged() ? '.show' : ''}`,
+            'fieldset',
+            mkChan('stable'),
+            mkChan('canary'),
+            m('.pf-home-page__highlight'),
+          ),
+          m(
+            `.pf-home-page__reload${channelChanged() ? '.show' : ''}`,
             'You need to reload the page for the changes to have effect',
           ),
         ),
       ),
       m(
-        'a.privacy',
+        'a.pf-privacy',
         {href: 'https://policies.google.com/privacy', target: '_blank'},
         'Privacy policy',
       ),

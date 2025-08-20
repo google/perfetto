@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -174,18 +174,30 @@ class PowerPowerRails(TestSuite):
             }
           }
         }
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 5
+              rail_name: "L14S_ALIVE"
+              subsys_name: "system"
+              sampling_rate: 1024
+            }
+          }
+        }
         """),
         query="""
         INCLUDE PERFETTO MODULE android.power_rails;
         SELECT
           power_rail_name,
           raw_power_rail_name,
+          friendly_name,
           subsystem_name
         FROM android_power_rails_metadata
         ORDER BY power_rail_name;
         """,
         out=Csv("""
-        "power_rail_name","raw_power_rail_name","subsystem_name"
-        "power.rails.cpu.mid","S3M_VDD_CPUCL1","cpu"
-        "power.rails.gpu","S2S_VDD_G3D","gpu"
+        "power_rail_name","raw_power_rail_name","friendly_name","subsystem_name"
+        "power.L14S_ALIVE_uws","L14S_ALIVE","[NULL]","system"
+        "power.rails.cpu.mid","S3M_VDD_CPUCL1","cpu.mid","cpu"
+        "power.rails.gpu","S2S_VDD_G3D","gpu","gpu"
         """))
