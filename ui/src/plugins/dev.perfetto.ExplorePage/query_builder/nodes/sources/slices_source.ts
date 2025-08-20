@@ -18,18 +18,18 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
-} from '../../query_node';
+} from '../../../query_node';
 import {
   ColumnInfo,
   columnInfoFromSqlColumn,
   newColumnInfoList,
-} from '../column_info';
-import protos from '../../../../protos';
-import {TextInput} from '../../../../widgets/text_input';
-import {SqlColumn} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {TableAndColumnImpl} from '../../../dev.perfetto.SqlModules/sql_modules_impl';
-import {createFiltersProto} from '../operations/operation_component';
-import {SourceNode} from '../source_node';
+} from '../../column_info';
+import protos from '../../../../../protos';
+import {TextInput} from '../../../../../widgets/text_input';
+import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
+import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
+import {createFiltersProto} from '../../operations/operation_component';
+import {SourceNode} from '../../source_node';
 
 export interface SlicesSourceState extends QueryNodeState {
   slice_name?: string;

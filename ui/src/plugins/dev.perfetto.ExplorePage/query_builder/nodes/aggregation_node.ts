@@ -19,14 +19,19 @@ import {
   nextNodeId,
   NodeType,
   createSelectColumnsProto,
-} from '../query_node';
-import protos from '../../../protos';
-import {ColumnInfo, columnInfoFromName, newColumnInfoList} from './column_info';
-import {createFiltersProto} from './operations/operation_component';
-import {MultiselectInput} from '../../../widgets/multiselect_input';
-import {Select} from '../../../widgets/select';
-import {TextInput} from '../../../widgets/text_input';
-import {Button} from '../../../widgets/button';
+} from '../../query_node';
+import protos from '../../../../protos';
+import {
+  ColumnInfo,
+  columnInfoFromName,
+  newColumnInfoList,
+} from '../column_info';
+import {createFiltersProto} from '../operations/operation_component';
+import {MultiselectInput} from '../../../../widgets/multiselect_input';
+import {Select} from '../../../../widgets/select';
+import {TextInput} from '../../../../widgets/text_input';
+import {Button} from '../../../../widgets/button';
+import {NodeIssues} from '../node_issues';
 
 export interface AggregationNodeState extends QueryNodeState {
   readonly prevNode: QueryNode;
@@ -73,7 +78,22 @@ export class AggregationNode implements QueryNode {
   }
 
   validate(): boolean {
-    return this.prevNode !== undefined;
+    if (this.state.issues) {
+      this.state.issues.queryError = undefined;
+    }
+    if (this.prevNode === undefined) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error(
+        'Aggregation node has no previous node',
+      );
+      return false;
+    }
+    if (!this.prevNode.validate()) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error('Previous node is invalid');
+      return false;
+    }
+    return true;
   }
 
   getTitle(): string {
@@ -97,6 +117,7 @@ export class AggregationNode implements QueryNode {
       filters: [],
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
+      issues: this.state.issues,
     };
     return new AggregationNode(stateCopy);
   }

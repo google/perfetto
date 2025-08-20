@@ -16,27 +16,27 @@ import m from 'mithril';
 import {
   SqlTable,
   SqlModules,
-} from '../../../dev.perfetto.SqlModules/sql_modules';
+} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {
   QueryNode,
   createSelectColumnsProto,
   QueryNodeState,
   NodeType,
-} from '../../query_node';
+} from '../../../query_node';
 import {
   ColumnInfo,
   columnInfoFromSqlColumn,
   newColumnInfoList,
-} from '../column_info';
-import protos from '../../../../protos';
-import {TextParagraph} from '../../../../widgets/text_paragraph';
-import {Button} from '../../../../widgets/button';
-import {Trace} from '../../../../public/trace';
-import {createFiltersProto} from '../operations/operation_component';
-import {closeModal, showModal} from '../../../../widgets/modal';
-import {TableList} from '../table_list';
-import {redrawModal} from '../../../../widgets/modal';
-import {SourceNode} from '../source_node';
+} from '../../column_info';
+import protos from '../../../../../protos';
+import {TextParagraph} from '../../../../../widgets/text_paragraph';
+import {Button} from '../../../../../widgets/button';
+import {Trace} from '../../../../../public/trace';
+import {createFiltersProto} from '../../operations/operation_component';
+import {closeModal, showModal} from '../../../../../widgets/modal';
+import {TableList} from '../../table_list';
+import {redrawModal} from '../../../../../widgets/modal';
+import {SourceNode} from '../../source_node';
 
 export interface TableSourceState extends QueryNodeState {
   readonly trace: Trace;

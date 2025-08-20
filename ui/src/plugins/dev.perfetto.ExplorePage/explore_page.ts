@@ -21,14 +21,14 @@ import {QueryNode} from './query_node';
 import {
   TableSourceNode,
   modalForTableSelection,
-} from './query_builder/sources/table_source';
+} from './query_builder/nodes/sources/table_source';
 import {
   SlicesSourceNode,
   slicesSourceNodeColumns,
-} from './query_builder/sources/slices_source';
-import {SqlSourceNode} from './query_builder/sources/sql_source';
-import {SubQueryNode} from './query_builder/sub_query_node';
-import {AggregationNode} from './query_builder/aggregation_node';
+} from './query_builder/nodes/sources/slices_source';
+import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
+import {SubQueryNode} from './query_builder/nodes/sub_query_node';
+import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
 import {VisViewSource} from './data_visualiser/view_source';
 

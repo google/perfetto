@@ -17,6 +17,7 @@ import m from 'mithril';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
 import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
+import {NodeIssues} from './query_builder/node_issues';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -43,10 +44,7 @@ export interface QueryNodeState {
   // Operations
   filters: FilterDefinition[];
 
-  // Errors
-  queryError?: Error;
-  responseError?: Error;
-  dataError?: Error;
+  issues?: NodeIssues;
 
   onchange?: () => void;
 
