@@ -45,8 +45,8 @@ export default class implements PerfettoPlugin {
       name: 'Add track: battery events',
       callback: async (track) => {
         if (track === undefined) {
-          track = prompt('Battery Track', '');
-          if (track === null) return;
+          track = await ctx.omnibox.prompt('Battery Track');
+          if (track === undefined) return;
         }
 
         await ctx.engine.query(`SELECT IMPORT('android.battery_stats');`);
@@ -66,13 +66,13 @@ export default class implements PerfettoPlugin {
       name: 'Add track: network activity',
       callback: async (groupby, filter, trackName) => {
         if (groupby === undefined) {
-          groupby = prompt('Group by', 'package_name');
-          if (groupby === null) return;
+          groupby = await ctx.omnibox.prompt('Group by', 'package_name');
+          if (groupby === undefined) return;
         }
 
         if (filter === undefined) {
-          filter = prompt('Filter', 'TRUE');
-          if (filter === null) return;
+          filter = await ctx.omnibox.prompt('Filter', 'TRUE');
+          if (filter === undefined) return;
         }
 
         const suffix = new Date().getTime();
