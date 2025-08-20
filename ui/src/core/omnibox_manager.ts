@@ -24,7 +24,6 @@ export enum OmniboxMode {
 
 interface Prompt {
   text: string;
-  defaultValue?: string;
   options?: ReadonlyArray<{key: string; displayName: string}>;
   resolve(result: unknown): void;
 }
@@ -171,9 +170,11 @@ export class OmniboxManagerImpl implements OmniboxManager {
         ? choicesOrDefaultValue
         : undefined;
     return new Promise<string | undefined>((resolve) => {
+      if (defaultValue !== undefined) {
+        this.setText(defaultValue);
+      }
       this._pendingPrompt = {
         text,
-        defaultValue,
         resolve,
       };
     });
