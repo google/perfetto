@@ -18,12 +18,15 @@ import {NodeBoxLayout} from './node_box';
 export interface ArrowAttrs {
   from: NodeBoxLayout;
   to: NodeBoxLayout;
+  portIndex: number;
+  portCount: number;
 }
 
 export const Arrow: m.Component<ArrowAttrs> = {
   view({attrs}) {
-    const {from, to} = attrs;
-    const x1 = from.x + (from.width ?? 0) / 2;
+    const {from, to, portIndex, portCount} = attrs;
+    const fromWidth = from.width ?? 0;
+    const x1 = from.x + (fromWidth * (portIndex + 1)) / (portCount + 1);
     const y1 = from.y + (from.height ?? 0);
     const x2 = to.x + (to.width ?? 0) / 2;
     const y2 = to.y;

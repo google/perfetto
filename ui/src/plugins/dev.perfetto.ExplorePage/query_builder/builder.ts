@@ -28,7 +28,7 @@ import {
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
+import {columnInfoFromSqlColumn} from './column_info';
 import {TableSourceNode} from './sources/table_source';
 import {SqlSourceNode} from './sources/sql_source';
 import {QueryService} from './query_service';
@@ -52,6 +52,7 @@ export interface BuilderAttrs {
 
   // Add derived nodes.
   readonly onAddSubQueryNode: (node: QueryNode) => void;
+  readonly onAddAggregationNode: (node: QueryNode) => void;
 
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
@@ -139,17 +140,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             const sourceCols = sqlTable.columns.map((c) =>
               columnInfoFromSqlColumn(c, true),
             );
-            const groupByColumns = newColumnInfoList(sourceCols, false);
-
             onRootNodeCreated(
               new TableSourceNode({
                 trace,
                 sqlModules,
                 sqlTable,
                 sourceCols,
-                groupByColumns,
                 filters: [],
-                aggregations: [],
               }),
             );
           },
@@ -170,6 +167,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onAddSubQuery: attrs.onAddSubQueryNode,
+          onAddAggregation: attrs.onAddAggregationNode,
           onDeleteNode: (node: QueryNode) => {
             if (
               node.state.isExecuted &&
