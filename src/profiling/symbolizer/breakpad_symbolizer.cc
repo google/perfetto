@@ -60,6 +60,7 @@ BreakpadSymbolizer::BreakpadSymbolizer(const std::string& symbol_dir_path)
     : symbol_dir_path_(symbol_dir_path) {}
 
 std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
+    const Environment&,
     const std::string&,
     const std::string& build_id,
     uint64_t,
