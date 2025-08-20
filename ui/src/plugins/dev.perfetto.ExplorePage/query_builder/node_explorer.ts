@@ -33,7 +33,7 @@ import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {SqlSourceNode} from './sources/sql_source';
+import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 
 export interface NodeExplorerAttrs {
@@ -65,24 +65,12 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       '.pf-node-explorer__title-row',
       m(
         '.title',
-        (!node.validate() ||
-          node.state.queryError ||
-          node.state.responseError ||
-          node.state.dataError) &&
+        !node.validate() &&
           m(Icon, {
             icon: Icons.Warning,
             filled: true,
-            className: classNames(
-              (!node.validate() || node.state.queryError) &&
-                'pf-node-explorer__warning-icon--error',
-              node.state.responseError &&
-                'pf-node-explorer__warning-icon--warning',
-            ),
-            title:
-              `Invalid node: \n` +
-              (node.state.queryError?.message ?? '') +
-              (node.state.responseError?.message ?? '') +
-              (node.state.dataError?.message ?? ''),
+            className: classNames('pf-node-explorer__warning-icon--error'),
+            title: `Invalid node: \n${node.state.issues?.getTitle() ?? ''}`,
           }),
         m(TextInput, {
           placeholder: node.getTitle(),
@@ -115,10 +103,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           node.state.filters = newFilters as FilterDefinition[];
           onchange?.();
         },
-      },
-      groupby: {
-        groupByColumns: node.state.groupByColumns,
-        aggregations: node.state.aggregations,
       },
       onchange: () => {
         setOperationChanged(node);

@@ -21,13 +21,14 @@ import {QueryNode} from './query_node';
 import {
   TableSourceNode,
   modalForTableSelection,
-} from './query_builder/sources/table_source';
+} from './query_builder/nodes/sources/table_source';
 import {
   SlicesSourceNode,
   slicesSourceNodeColumns,
-} from './query_builder/sources/slices_source';
-import {SqlSourceNode} from './query_builder/sources/sql_source';
-import {SubQueryNode} from './query_builder/sub_query_node';
+} from './query_builder/nodes/sources/slices_source';
+import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
+import {SubQueryNode} from './query_builder/nodes/sub_query_node';
+import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
 import {VisViewSource} from './data_visualiser/view_source';
 
@@ -50,8 +51,16 @@ interface ExplorePageAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  private addNode(state: ExplorePageState, newNode: QueryNode) {
-    state.rootNodes.push(newNode);
+  private addNode(
+    state: ExplorePageState,
+    newNode: QueryNode,
+    prevNode?: QueryNode,
+  ) {
+    if (prevNode) {
+      prevNode.nextNodes.push(newNode);
+    } else {
+      state.rootNodes.push(newNode);
+    }
     this.selectNode(state, newNode);
   }
 
@@ -81,11 +90,20 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           sqlTable: selection.sqlTable,
           sourceCols: selection.sourceCols,
           filters: [],
-          groupByColumns: selection.groupByColumns,
-          aggregations: [],
         }),
       );
     }
+  }
+
+  handleAddAggregation(state: ExplorePageState, node: QueryNode) {
+    const newNode = new AggregationNode({
+      prevNode: node,
+      sourceCols: node.finalCols,
+      groupByColumns: [],
+      aggregations: [],
+      filters: [],
+    });
+    this.addNode(state, newNode, node);
   }
 
   handleAddSlicesSource(state: ExplorePageState) {
@@ -94,8 +112,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       new SlicesSourceNode({
         sourceCols: slicesSourceNodeColumns(true),
         filters: [],
-        groupByColumns: slicesSourceNodeColumns(false),
-        aggregations: [],
       }),
     );
   }
@@ -107,8 +123,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         trace: attrs.trace,
         sourceCols: [],
         filters: [],
-        groupByColumns: [],
-        aggregations: [],
       }),
     );
   }
@@ -123,12 +137,25 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   handleDeleteNode(state: ExplorePageState, node: QueryNode) {
-    const idx = state.rootNodes.indexOf(node);
-    if (idx !== -1) {
-      state.rootNodes.splice(idx, 1);
-      if (state.selectedNode === node) {
-        this.deselectNode(state);
+    // If the node is a root node, remove it from the root nodes array.
+    const rootIdx = state.rootNodes.indexOf(node);
+    if (rootIdx !== -1) {
+      state.rootNodes.splice(rootIdx, 1);
+    }
+
+    // If the node is a child of another node, remove it from the parent's
+    // nextNodes array.
+    if (node.prevNode) {
+      const prevNode = node.prevNode;
+      const childIdx = prevNode.nextNodes.indexOf(node);
+      if (childIdx !== -1) {
+        prevNode.nextNodes.splice(childIdx, 1);
       }
+    }
+
+    // If the deleted node was selected, deselect it.
+    if (state.selectedNode === node) {
+      this.deselectNode(state);
     }
   }
 
@@ -137,10 +164,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       prevNode: node,
       sourceCols: node.finalCols,
       filters: [],
-      groupByColumns: [],
-      aggregations: [],
     });
-    this.addNode(state, newNode);
+    this.addNode(state, newNode, node);
   }
 
   private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
@@ -208,6 +233,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
           onDeleteNode: (node) => this.handleDeleteNode(state, node),
           onAddSubQueryNode: (node) => this.handleAddSubQuery(state, node),
+          onAddAggregationNode: (node) =>
+            this.handleAddAggregation(state, node),
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
         state.rootNodes.length !== 0 &&
