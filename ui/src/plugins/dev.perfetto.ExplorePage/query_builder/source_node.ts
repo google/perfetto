@@ -26,7 +26,7 @@ import protos from '../../../protos';
 export abstract class SourceNode implements QueryNode {
   readonly nodeId: string;
   readonly prevNode = undefined;
-  nextNode?: QueryNode;
+  nextNodes: QueryNode[];
 
   sourceCols: ColumnInfo[];
   finalCols: ColumnInfo[];
@@ -38,6 +38,7 @@ export abstract class SourceNode implements QueryNode {
     this.state = state;
     this.sourceCols = state.sourceCols ?? [];
     this.finalCols = createFinalColumns(this);
+    this.nextNodes = [];
   }
 
   abstract get type(): NodeType;

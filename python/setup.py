@@ -21,7 +21,7 @@ setup(
     author='Perfetto',
     author_email='perfetto-pypi@google.com',
     url='https://perfetto.dev/',
-    download_url='https://github.com/google/perfetto/archive/aeddce7011258bffbb8a870923202db97c34e655.zip',
+    download_url='https://github.com/google/perfetto/archive/ec431ee0017f2bac783ab950dc77a97d3c5ceeb2.zip',
     keywords=['trace processor', 'tracing', 'perfetto'],
     install_requires=[
         'protobuf',

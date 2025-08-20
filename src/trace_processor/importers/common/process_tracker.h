@@ -113,18 +113,29 @@ class ProcessTracker {
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
   UniquePid StartNewProcess(std::optional<int64_t> timestamp,
-                            std::optional<int64_t> parent_tid,
+                            std::optional<UniquePid> parent_upid,
                             int64_t pid,
                             StringId main_thread_name,
                             ThreadNamePriority priority);
 
-  // Called when a process is seen in a process tree. Retrieves the UniquePid
-  // for that pid or assigns a new one.
+  // Associates a process with its parent thread. Used when the tid that
+  // created the process is known, but not the parent process. Exclusively,
+  // used by Ftrace on new task events where only the parent tid is provided.
+  void AssociateCreatedProcessToParentThread(UniquePid upid,
+                                             UniqueTid parent_utid);
+
+  // Updates a process' parent. If the upid was previously associated with
+  // a different parent process, then the upid process is considered reused
+  // and a new upid for a new process is returned. If no new process is
+  // created, the same upid is returned.
   // Virtual for testing.
-  virtual UniquePid SetProcessMetadata(int64_t pid,
-                                       std::optional<int64_t> ppid,
-                                       base::StringView name,
-                                       base::StringView cmdline);
+  virtual UniquePid UpdateProcessWithParent(UniquePid upid, UniquePid pupid);
+
+  // Set the process metadata. Called when a process is seen in a process tree.
+  // Virtual for testing.
+  virtual void SetProcessMetadata(UniquePid upid,
+                                  base::StringView name,
+                                  base::StringView cmdline);
 
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);

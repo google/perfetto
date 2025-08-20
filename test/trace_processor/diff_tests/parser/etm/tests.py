@@ -75,7 +75,10 @@ class Etm(TestSuite):
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         module_dependencies=['etm'],
         query='''
-          SELECT *
+          SELECT
+            chunk_index, element_index, element_type, timestamp, cycle_count,
+            last_seen_timestamp, cumulative_cycles, exception_level,
+            context_id, isa, start_address, end_address, mapping_id
           FROM
             __intrinsic_etm_decode_chunk
           WHERE chunk_id = 0
