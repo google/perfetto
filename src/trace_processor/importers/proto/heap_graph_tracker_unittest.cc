@@ -73,7 +73,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
   context.process_tracker = std::make_unique<ProcessTracker>(&context);
-  context.process_tracker->GetOrCreateProcessWithMainThread(kPid);
+  context.process_tracker->GetOrCreateProcess(kPid);
 
   HeapGraphTracker tracker(context.storage.get());
 
@@ -211,7 +211,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.process_tracker.reset(new ProcessTracker(&context));
-  context.process_tracker->GetOrCreateProcessWithMainThread(kPid);
+  context.process_tracker->GetOrCreateProcess(kPid);
 
   HeapGraphTracker tracker(context.storage.get());
 
@@ -339,7 +339,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.process_tracker.reset(new ProcessTracker(&context));
-  context.process_tracker->GetOrCreateProcessWithMainThread(kPid);
+  context.process_tracker->GetOrCreateProcess(kPid);
 
   HeapGraphTracker tracker(context.storage.get());
 

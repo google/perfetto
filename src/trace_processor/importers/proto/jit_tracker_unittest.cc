@@ -79,8 +79,7 @@ class JitTrackerTest : public testing::Test {
 };
 
 TEST_F(JitTrackerTest, BasicFunctionality) {
-  const UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(1234);
+  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
   const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
   const AddressRange jit_range(0, 1000);
   auto& mapping = AddMapping(upid, jit_range);
@@ -119,8 +118,7 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
 }
 
 TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
-  const UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(1234);
+  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
   const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
   const AddressRange jit_range(0, 1000);
   auto& mapping = AddMapping(upid, jit_range);

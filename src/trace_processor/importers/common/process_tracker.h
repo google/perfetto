@@ -110,21 +110,22 @@ class ProcessTracker {
   std::optional<int64_t> ResolveNamespacedTid(int64_t root_level_pid,
                                               int64_t tid);
 
-  // Forces the tracker to start a new UPID.
+  // Called when a task_newtask without the CLONE_THREAD flag is observed.
+  // This force the tracker to start both a new UTID and a new UPID.
   UniquePid StartNewProcess(std::optional<int64_t> timestamp,
                             std::optional<UniquePid> parent_upid,
                             int64_t pid,
                             StringId process_name,
                             ThreadNamePriority priority);
 
-  // Same as StartNewProcess, but also creates a main thread associated with
-  // the process. Called when a task_newtask without the CLONE_THREAD flag is
-  // observed.
-  UniquePid StartNewProcessWithMainThread(std::optional<int64_t> timestamp,
-                                          std::optional<UniquePid> parent_upid,
-                                          int64_t pid,
-                                          StringId process_name,
-                                          ThreadNamePriority priority);
+  // Same as StartNewProcess, but doesn't create a main thread associated with
+  // the process.
+  UniquePid StartNewProcessWithoutMainThread(
+      std::optional<int64_t> timestamp,
+      std::optional<UniquePid> parent_upid,
+      int64_t pid,
+      StringId process_name,
+      ThreadNamePriority priority);
 
   // Associates a process with its parent thread. Used when the tid that
   // created the process is known, but not the parent process. Exclusively,
@@ -166,12 +167,11 @@ class ProcessTracker {
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
-  UniquePid GetOrCreateProcess(int64_t pid);
+  virtual UniquePid GetOrCreateProcess(int64_t pid);
 
-  // Same as GetOrCreateProcess, but also creates a new main thread associated
+  // Same as GetOrCreateProcess, but doesn't create a new main thread associated
   // to the pid.
-  // Virtual for testing.
-  virtual UniquePid GetOrCreateProcessWithMainThread(int64_t pid);
+  UniquePid GetOrCreateProcessWithoutMainThread(int64_t pid);
 
   // Returns the upid for a given pid.
   std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {

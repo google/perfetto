@@ -116,10 +116,7 @@ class MockProcessTracker : public ProcessTracker {
               (override));
   MOCK_METHOD(UniqueTid, UpdateThread, (int64_t tid, int64_t tgid), (override));
 
-  MOCK_METHOD(UniquePid,
-              GetOrCreateProcessWithMainThread,
-              (int64_t pid),
-              (override));
+  MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
   MOCK_METHOD(void,
               SetProcessNameIfUnset,
               (UniquePid upid, StringId process_name_id),

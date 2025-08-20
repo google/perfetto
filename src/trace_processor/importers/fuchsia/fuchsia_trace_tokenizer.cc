@@ -491,9 +491,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // support 32 bits. This is usually not an issue except for
           // artificial koids which have the 2^63 bit set. This is used for
           // things such as virtual threads.
-          UniquePid upid =
-              context_->process_tracker->GetOrCreateProcessWithMainThread(
-                  static_cast<uint32_t>(obj_id));
+          UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+              static_cast<uint32_t>(obj_id));
           procs->SetProcessMetadata(upid,
                                     base::StringView(storage->GetString(name)),
                                     base::StringView());

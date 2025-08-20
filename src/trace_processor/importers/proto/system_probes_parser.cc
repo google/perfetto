@@ -661,10 +661,8 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       joined_cmdline = base::StringView(cmdline_str);
     }
 
-    UniquePid pupid =
-        context_->process_tracker->GetOrCreateProcessWithMainThread(ppid);
-    UniquePid upid =
-        context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
+    UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
     upid =
         context_->process_tracker->UpdateProcessWithParent(upid, pupid, true);
@@ -742,8 +740,7 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
         continue;
       }
 
-      UniquePid upid =
-          context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
+      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
       if (fld.id() == Process::kOomScoreAdjFieldNumber) {
         TrackId track = context_->track_tracker->InternTrack(
             tracks::kOomScoreAdjBlueprint, tracks::DimensionBlueprints(upid));
@@ -832,7 +829,7 @@ void SystemProbesParser::ParseProcessFds(int64_t ts,
   row.fd = static_cast<int64_t>(fd_info.fd());
   row.ts = ts;
   row.path = context_->storage->InternString(fd_info.path());
-  row.upid = context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
+  row.upid = context_->process_tracker->GetOrCreateProcess(pid);
 
   auto* fd_table = context_->storage->mutable_filedescriptor_table();
   fd_table->Insert(row);

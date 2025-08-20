@@ -196,8 +196,7 @@ void SystraceParser::ParseSystracePoint(
       StringId name_id = context_->storage->InternString(point.name);
       int64_t cookie = point.int_value;
       UniquePid upid =
-          context_->process_tracker->GetOrCreateProcessWithMainThread(
-              point.tgid);
+          context_->process_tracker->GetOrCreateProcess(point.tgid);
 
       if (point.phase == 'S') {
         // Historically, async slices on Android did not support nesting async
@@ -345,8 +344,7 @@ void SystraceParser::ParseSystracePoint(
       // from arbitrary threads but expect to be per process (b/123560328).
       // This affects both userspace and kernel counters.
       UniquePid upid =
-          context_->process_tracker->GetOrCreateProcessWithMainThread(
-              point.tgid);
+          context_->process_tracker->GetOrCreateProcess(point.tgid);
       auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
       TrackId track_id = context_->track_tracker->InternTrack(
           tracks::kAndroidAtraceCounterBlueprint,
@@ -380,8 +378,7 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
     }
 
     UniquePid killed_upid =
-        context_->process_tracker->GetOrCreateProcessWithMainThread(
-            *killed_pid);
+        context_->process_tracker->GetOrCreateProcess(*killed_pid);
 
     // Add the oom score entry
     TrackId counter_track = context_->track_tracker->InternTrack(

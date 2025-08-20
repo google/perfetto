@@ -55,8 +55,7 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   uint32_t pid = static_cast<uint32_t>(process->pid);
 
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
-  UniquePid upid =
-      context_->process_tracker->GetOrCreateProcessWithMainThread(pid);
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
   // TODO(leszeks): Avoid setting thread/process name if we've already seen this
   // Thread* / Process*.

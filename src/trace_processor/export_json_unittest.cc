@@ -876,7 +876,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 }
 
 TEST_F(ExportJsonTest, DuplicatePidAndTid) {
-  UniquePid upid1 = context_.process_tracker->StartNewProcessWithMainThread(
+  UniqueTid upid1 = context_.process_tracker->StartNewProcess(
       std::nullopt, std::nullopt, 1, kNullStringId,
       ThreadNamePriority::kTrackDescriptor);
   UniqueTid utid1a = context_.process_tracker->UpdateThread(1, 1);
@@ -885,7 +885,7 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
   // Associate the new thread with its process.
   ASSERT_EQ(utid1c, context_.process_tracker->UpdateThread(2, 1));
 
-  UniquePid upid2 = context_.process_tracker->StartNewProcessWithMainThread(
+  UniqueTid upid2 = context_.process_tracker->StartNewProcess(
       std::nullopt, std::nullopt, 1, kNullStringId,
       ThreadNamePriority::kTrackDescriptor);
   UniqueTid utid2a = context_.process_tracker->UpdateThread(1, 1);
@@ -996,8 +996,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   const char* kArgName = "arg_name";
   const int kArgValue = 123;
 
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   StringId name2_id = context_.storage->InternString(base::StringView(kName2));
@@ -1144,8 +1143,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   const char* kName2 = "name2";
   const char* kName3 = "name3";
 
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   StringId name2_id = context_.storage->InternString(base::StringView(kName2));
@@ -1292,8 +1290,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
@@ -1357,8 +1354,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
@@ -1409,8 +1405,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   const char* kArgName = "arg_name";
   const int kArgValue = 123;
 
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
@@ -1480,8 +1475,7 @@ TEST_F(ExportJsonTest, RawEvent) {
   TraceStorage* storage = context_.storage.get();
 
   UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
 
   auto& tt = *context_.storage->mutable_thread_table();
   tt[utid].set_upid(upid);
@@ -1605,8 +1599,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   TraceStorage* storage = context_.storage.get();
 
   UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
 
   auto& tt = *context_.storage->mutable_thread_table();
   tt[utid].set_upid(upid);
@@ -1882,8 +1875,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
       "track_event",
       tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint));
 
-  UniquePid upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   TrackId track =
       context_.track_tracker->InternTrack(kBlueprint, tracks::Dimensions(upid));
   StringId level_of_detail_id =
@@ -2007,7 +1999,7 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
       tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint));
 
   UniquePid os_upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(kOsProcessID);
+      context_.process_tracker->GetOrCreateProcess(kOsProcessID);
   TrackId track = context_.track_tracker->InternTrack(
       kBlueprint, tracks::Dimensions(os_upid));
   StringId level_of_detail_id =
@@ -2017,8 +2009,7 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
                          .id;
 
   UniquePid chrome_upid =
-      context_.process_tracker->GetOrCreateProcessWithMainThread(
-          kChromeProcessID);
+      context_.process_tracker->GetOrCreateProcess(kChromeProcessID);
   auto process_id = context_.storage->mutable_process_memory_snapshot_table()
                         ->Insert({snapshot_id, chrome_upid})
                         .id;

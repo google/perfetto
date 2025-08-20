@@ -219,7 +219,7 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
   int64_t token = event.token();
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
-  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
 
@@ -246,7 +246,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
   int64_t token = event.token();
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
-  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
 
@@ -342,7 +342,7 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
 
@@ -393,7 +393,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  UniquePid upid = context_->process_tracker->GetOrCreateProcessWithMainThread(
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
 

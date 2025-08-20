@@ -205,10 +205,7 @@ class MockProcessTracker : public ProcessTracker {
               (override));
   MOCK_METHOD(UniqueTid, UpdateThread, (int64_t tid, int64_t tgid), (override));
 
-  MOCK_METHOD(UniquePid,
-              GetOrCreateProcessWithMainThread,
-              (int64_t pid),
-              (override));
+  MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
 
   MOCK_METHOD(void,
               SetProcessNameIfUnset,
@@ -390,7 +387,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
   static const char buf_value[] = "This is a print event";
   print->set_buf(buf_value);
 
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(123));
+  EXPECT_CALL(*process_, GetOrCreateProcess(123));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -769,10 +766,8 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   process->set_pid(1);
   process->set_ppid(3);
 
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(3))
-      .WillOnce(testing::Return(2u));
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(1))
-      .WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u, true))
       .WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
@@ -792,10 +787,8 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->set_pid(1);
   process->set_ppid(3);
 
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(3))
-      .WillOnce(testing::Return(2u));
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(1))
-      .WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u, true))
       .WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
@@ -841,10 +834,9 @@ TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
     process_desc->set_process_name("DifferentProcessName");
   }
 
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(15))
+  EXPECT_CALL(*process_, GetOrCreateProcess(15))
       .WillRepeatedly(testing::Return(1u));
-  EXPECT_CALL(*process_, GetOrCreateProcessWithMainThread(16))
-      .WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(16)).WillOnce(testing::Return(2u));
 
   EXPECT_CALL(*process_, SetProcessNameIfUnset(
                              1u, storage_->InternString("OldProcessName")));

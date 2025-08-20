@@ -245,7 +245,7 @@ UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
 
   // Find matching process or create new one.
   if (!rr.upid().has_value()) {
-    AssociateThreadToProcess(utid, GetOrCreateProcessWithMainThread(pid));
+    AssociateThreadToProcess(utid, GetOrCreateProcess(pid));
   }
   ResolvePendingAssociations(utid, *rr.upid());
   return utid;
@@ -314,9 +314,9 @@ UniquePid ProcessTracker::StartNewProcessInternal(
     // entry in case of TID recycling.
     UniqueTid utid = StartNewThread(timestamp, /*tid=*/pid);
     UpdateThreadName(utid, process_name, priority);
-    upid = GetOrCreateProcessWithMainThread(pid);
-  } else {
     upid = GetOrCreateProcess(pid);
+  } else {
+    upid = GetOrCreateProcessWithoutMainThread(pid);
   }
 
   auto& process_table = *context_->storage->mutable_process_table();
@@ -342,17 +342,17 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
                                           StringId process_name,
                                           ThreadNamePriority priority) {
   return StartNewProcessInternal(timestamp, parent_upid, pid, process_name,
-                                 priority, /*associate_main_thread=*/false);
+                                 priority, /*associate_main_thread=*/true);
 }
 
-UniquePid ProcessTracker::StartNewProcessWithMainThread(
+UniquePid ProcessTracker::StartNewProcessWithoutMainThread(
     std::optional<int64_t> timestamp,
     std::optional<UniquePid> parent_upid,
     int64_t pid,
     StringId process_name,
     ThreadNamePriority priority) {
   return StartNewProcessInternal(timestamp, parent_upid, pid, process_name,
-                                 priority, /*associate_main_thread=*/true);
+                                 priority, /*associate_main_thread=*/false);
 }
 
 void ProcessTracker::AssociateCreatedProcessToParentThread(
@@ -479,11 +479,11 @@ UniquePid ProcessTracker::GetOrCreateProcessInternal(
 }
 
 UniquePid ProcessTracker::GetOrCreateProcess(int64_t pid) {
-  return GetOrCreateProcessInternal(pid, /*associate_main_thread=*/false);
+  return GetOrCreateProcessInternal(pid, /*associate_main_thread=*/true);
 }
 
-UniquePid ProcessTracker::GetOrCreateProcessWithMainThread(int64_t pid) {
-  return GetOrCreateProcessInternal(pid, /*associate_main_thread=*/true);
+UniquePid ProcessTracker::GetOrCreateProcessWithoutMainThread(int64_t pid) {
+  return GetOrCreateProcessInternal(pid, /*associate_main_thread=*/false);
 }
 
 void ProcessTracker::AssociateThreads(UniqueTid utid1, UniqueTid utid2) {

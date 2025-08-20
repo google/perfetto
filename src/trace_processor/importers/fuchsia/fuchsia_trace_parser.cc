@@ -322,8 +322,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           break;
         }
         case kCounter: {
-          UniquePid upid = procs->GetOrCreateProcessWithMainThread(
-              static_cast<uint32_t>(tinfo.pid));
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           std::string name_str =
               context_->storage->GetString(name).ToStdString();
           uint64_t counter_id;
@@ -433,8 +433,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             context_->storage->IncrementStats(stats::fuchsia_record_read_error);
             return;
           }
-          UniquePid upid = procs->GetOrCreateProcessWithMainThread(
-              static_cast<uint32_t>(tinfo.pid));
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_compressor->InternLegacyAsyncTrack(
               name, upid, correlation_id, false, kNullStringId,
               TrackCompressor::AsyncSliceType::kBegin);
@@ -447,8 +447,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             context_->storage->IncrementStats(stats::fuchsia_record_read_error);
             return;
           }
-          UniquePid upid = procs->GetOrCreateProcessWithMainThread(
-              static_cast<uint32_t>(tinfo.pid));
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_compressor->InternLegacyAsyncTrack(
               name, upid, correlation_id, false, kNullStringId,
               TrackCompressor::AsyncSliceType::kInstant);
@@ -461,8 +461,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             context_->storage->IncrementStats(stats::fuchsia_record_read_error);
             return;
           }
-          UniquePid upid = procs->GetOrCreateProcessWithMainThread(
-              static_cast<uint32_t>(tinfo.pid));
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_compressor->InternLegacyAsyncTrack(
               name, upid, correlation_id, false, kNullStringId,
               TrackCompressor::AsyncSliceType::kEnd);

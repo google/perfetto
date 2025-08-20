@@ -2483,9 +2483,9 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
-    auto upid = proc_tracker->StartNewProcessWithMainThread(
-        timestamp, std::nullopt, new_tid, new_comm,
-        ThreadNamePriority::kFtrace);
+    auto upid =
+        proc_tracker->StartNewProcess(timestamp, std::nullopt, new_tid,
+                                      new_comm, ThreadNamePriority::kFtrace);
 
     auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);

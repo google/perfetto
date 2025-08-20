@@ -546,9 +546,8 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               Variadic::Integer(static_cast<int64_t>(hw_queue_id)));
           inserter->AddArg(
               upid_id_,
-              Variadic::Integer(
-                  context_->process_tracker->GetOrCreateProcessWithMainThread(
-                      static_cast<uint32_t>(pid))));
+              Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
+                  static_cast<uint32_t>(pid))));
         });
   }
 }
@@ -689,8 +688,7 @@ void GpuEventParser::ParseVulkanMemoryEvent(
               vulkan_memory_event.operation()));
   vulkan_memory_event_row.timestamp = vulkan_memory_event.timestamp();
   vulkan_memory_event_row.upid =
-      context_->process_tracker->GetOrCreateProcessWithMainThread(
-          vulkan_memory_event.pid());
+      context_->process_tracker->GetOrCreateProcess(vulkan_memory_event.pid());
   if (vulkan_memory_event.has_device()) {
     vulkan_memory_event_row.device =
         static_cast<int64_t>(vulkan_memory_event.device());

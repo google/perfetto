@@ -163,7 +163,7 @@ void ProfileModule::ParseStreamingProfilePacket(
   uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
   uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
   const UniqueTid utid = procs->UpdateThread(tid, pid);
-  const UniquePid upid = procs->GetOrCreateProcessWithMainThread(pid);
+  const UniquePid upid = procs->GetOrCreateProcess(pid);
 
   // Iterate through timestamps and callstacks simultaneously.
   auto timestamp_it = packet.timestamp_delta_us();
@@ -270,7 +270,7 @@ void ProfileModule::ParsePerfSample(
   const UniqueTid utid =
       context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
   const UniquePid upid =
-      context_->process_tracker->GetOrCreateProcessWithMainThread(sample.pid());
+      context_->process_tracker->GetOrCreateProcess(sample.pid());
 
   std::optional<CallsiteId> cs_id;
   StackProfileSequenceState& stack_profile_sequence_state =
@@ -497,8 +497,7 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
 
 void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
   protos::pbzero::SmapsPacket::Decoder sp(blob.data, blob.size);
-  auto upid =
-      context_->process_tracker->GetOrCreateProcessWithMainThread(sp.pid());
+  auto upid = context_->process_tracker->GetOrCreateProcess(sp.pid());
 
   for (auto it = sp.entries(); it; ++it) {
     protos::pbzero::SmapsEntry::Decoder e(*it);

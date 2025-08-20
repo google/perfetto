@@ -50,40 +50,37 @@ class ProcessTrackerTest : public ::testing::Test {
 TEST_F(ProcessTrackerTest, GetOrCreateProcess) {
   auto upid = context.process_tracker->GetOrCreateProcess(123);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
-  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(123).has_value());
 }
 
-TEST_F(ProcessTrackerTest, GetOrCreateNewProcessWithMainThread) {
-  auto upid = context.process_tracker->GetOrCreateProcessWithMainThread(123);
+TEST_F(ProcessTrackerTest, GetOrCreateProcessWithoutMainThread) {
+  auto upid = context.process_tracker->GetOrCreateProcessWithoutMainThread(123);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
-  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(123).has_value());
+  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
 }
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
   auto upid = context.process_tracker->StartNewProcess(
       1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
-  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(123).has_value());
   ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
 }
 
-TEST_F(ProcessTrackerTest, StartNewProcessWithMainThread) {
-  auto upid = context.process_tracker->StartNewProcessWithMainThread(
+TEST_F(ProcessTrackerTest, StartNewProcessWithoutMainThread) {
+  auto upid = context.process_tracker->StartNewProcessWithoutMainThread(
       1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
-  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(123).has_value());
+  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
   ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
 }
 
 TEST_F(ProcessTrackerTest, UpdateProcessWithParent) {
   UniquePid cur_upid;
   std::optional<UniquePid> cur_pupid;
-  UniquePid pupid1 =
-      context.process_tracker->GetOrCreateProcessWithMainThread(123);
-  UniquePid pupid2 =
-      context.process_tracker->GetOrCreateProcessWithMainThread(234);
-  UniquePid upid =
-      context.process_tracker->GetOrCreateProcessWithMainThread(345);
+  UniquePid pupid1 = context.process_tracker->GetOrCreateProcess(123);
+  UniquePid pupid2 = context.process_tracker->GetOrCreateProcess(234);
+  UniquePid upid = context.process_tracker->GetOrCreateProcess(345);
 
   cur_upid =
       context.process_tracker->UpdateProcessWithParent(upid, pupid1, true);
@@ -130,12 +127,12 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
 }
 
 TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
-  UniquePid p1 = context.process_tracker->StartNewProcessWithMainThread(
+  UniquePid p1 = context.process_tracker->StartNewProcess(
       std::nullopt, std::nullopt, /*pid=*/1, kNullStringId,
       ThreadNamePriority::kFtrace);
   UniqueTid t1 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
 
-  UniquePid p2 = context.process_tracker->StartNewProcessWithMainThread(
+  UniquePid p2 = context.process_tracker->StartNewProcess(
       std::nullopt, std::nullopt, /*pid=*/1, kNullStringId,
       ThreadNamePriority::kFtrace);
   UniqueTid t2 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
@@ -175,7 +172,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadName) {
 }
 
 TEST_F(ProcessTrackerTest, SetStartTsIfUnset) {
-  auto upid = context.process_tracker->StartNewProcessWithMainThread(
+  auto upid = context.process_tracker->StartNewProcess(
       /*timestamp=*/std::nullopt, 0u, 123, kNullStringId,
       ThreadNamePriority::kFtrace);
   context.process_tracker->SetStartTsIfUnset(upid, 1000);
@@ -186,12 +183,10 @@ TEST_F(ProcessTrackerTest, SetStartTsIfUnset) {
 }
 
 TEST_F(ProcessTrackerTest, PidReuseAfterExplicitEnd) {
-  UniquePid upid =
-      context.process_tracker->GetOrCreateProcessWithMainThread(123);
+  UniquePid upid = context.process_tracker->GetOrCreateProcess(123);
   context.process_tracker->EndThread(100, 123);
 
-  UniquePid reuse =
-      context.process_tracker->GetOrCreateProcessWithMainThread(123);
+  UniquePid reuse = context.process_tracker->GetOrCreateProcess(123);
   ASSERT_NE(upid, reuse);
 }
 
@@ -207,7 +202,7 @@ TEST_F(ProcessTrackerTest, TidReuseAfterExplicitEnd) {
 }
 
 TEST_F(ProcessTrackerTest, EndThreadAfterProcessEnd) {
-  context.process_tracker->StartNewProcessWithMainThread(
+  context.process_tracker->StartNewProcess(
       100, std::nullopt, 123, kNullStringId, ThreadNamePriority::kFtrace);
   context.process_tracker->UpdateThread(124, 123);
 
