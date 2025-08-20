@@ -15176,10 +15176,10 @@ message PowerRails {
 
   repeated EnergyData energy_data = 2;
 
-  // A unique session id that can be use to mach energy data to sets of
+  // A unique session id that can be used to match energy data to sets of
   // descriptors. The indices used by rail descriptors and energy data packets
-  // are meant to e unique to a given session uuid. When multi data sources are
-  // running in parallel they should each data source should use a unique id.
+  // are meant to be unique to a given session uuid. When multiple data sources
+  // are running in parallel, each data source should use a unique id.
   optional uint32 session_uuid = 3;
 }
 
