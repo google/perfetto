@@ -78,6 +78,9 @@ export class AggregationNode implements QueryNode {
   }
 
   validate(): boolean {
+    if (this.state.issues) {
+      this.state.issues.queryError = undefined;
+    }
     if (this.prevNode === undefined) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error(
@@ -90,7 +93,6 @@ export class AggregationNode implements QueryNode {
       this.state.issues.queryError = new Error('Previous node is invalid');
       return false;
     }
-    this.state.issues = undefined;
     return true;
   }
 
