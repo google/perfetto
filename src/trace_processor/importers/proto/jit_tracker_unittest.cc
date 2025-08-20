@@ -48,12 +48,11 @@ using ::testing::SaveArg;
 
 class JitTrackerTest : public testing::Test {
  public:
-  JitTrackerTest() {
+  JitTrackerTest() : jit_tracker_(&context_) {
     context_.storage.reset(new TraceStorage());
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
-    jit_tracker_ = JitTracker::GetOrCreate(&context_);
   }
 
  protected:
@@ -76,7 +75,7 @@ class JitTrackerTest : public testing::Test {
   }
 
   TraceProcessorContext context_;
-  JitTracker* jit_tracker_;
+  JitTracker jit_tracker_;
 };
 
 TEST_F(JitTrackerTest, BasicFunctionality) {
@@ -84,7 +83,7 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
   const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
   const AddressRange jit_range(0, 1000);
   auto& mapping = AddMapping(upid, jit_range);
-  JitCache* cache = jit_tracker_->CreateJitCache("name", upid, jit_range);
+  JitCache* cache = jit_tracker_.CreateJitCache("name", upid, jit_range);
 
   const StringId function_name = context_.storage->InternString("Function 1");
   const StringId source_file = context_.storage->InternString("SourceFile");
@@ -123,7 +122,7 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
   const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
   const AddressRange jit_range(0, 1000);
   auto& mapping = AddMapping(upid, jit_range);
-  JitCache* cache = jit_tracker_->CreateJitCache("name", upid, jit_range);
+  JitCache* cache = jit_tracker_.CreateJitCache("name", upid, jit_range);
 
   const StringId function_name_1 = context_.storage->InternString("Function 1");
   const StringId function_name_2 = context_.storage->InternString("Function 2");

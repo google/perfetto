@@ -19,12 +19,13 @@
 
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
-void RegisterDefaultModules(TraceProcessorContext*);
+struct ProtoImporterModuleContext;
 
-}  // namespace trace_processor
-}  // namespace perfetto
+void RegisterDefaultModules(ProtoImporterModuleContext*,
+                            TraceProcessorContext*);
+
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEFAULT_MODULES_H_

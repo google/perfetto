@@ -68,6 +68,11 @@ message GpuRenderStageEvent {
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
 
+  // optional. An ID for the render pass instance. This is used to correlate
+  // different events on different queues produced by the same Vulkan render
+  // pass instance.
+  optional uint64 render_pass_instance_id = 16;
+
   // optional. A bit mask representing which render subpasses contributed to
   // this render stage event.  Subpass index 0 is represented by setting the
   // LSB of the mask.  Additional mask can be added for subpass index greater

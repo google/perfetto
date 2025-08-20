@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 // This checkbox element is expected to contain a checkbox type input followed
 // by an empty span element.
@@ -32,14 +32,13 @@
 // and the border width is set to 0 right at the end in order to make the tick
 // completely invisible again.
 .pf-switch {
-  display: inline-block;
-  position: relative; // Turns this container into a positioned element
-  font-family: $pf-font;
+  display: inline-flex;
+  align-items: center;
+  position: relative;
   font-size: inherit;
-  color: $pf-minimal-foreground;
   user-select: none;
   cursor: pointer;
-  padding-left: 32px + 6px;
+  gap: 6px;
 
   // Hide the default checkbox
   input {
@@ -48,22 +47,21 @@
     pointer-events: none;
   }
 
-  // The span forms the "box" of the checkbox
-  span {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    margin-top: auto;
-    margin-bottom: auto;
+  .pf-switch-label-left {
+    order: 1;
+  }
+
+  .pf-switch-visual {
+    order: 2;
+    position: relative;
     height: 16px;
     width: 32px;
     border-radius: 8px;
-    transition: background $pf-anim-timing;
-    background: grey;
+    transition: background $anim-timing;
+    background: var(--pf-color-neutral);
     vertical-align: middle;
 
-    // The :after element forms the "tick" of the checkbox
+    // The :after element forms the "thumb" of the switch
     &:after {
       content: "";
       display: block;
@@ -75,40 +73,32 @@
       margin-bottom: auto;
       width: 12px;
       height: 12px;
-      background: $pf-primary-foreground;
+      background: white;
       box-sizing: border-box;
       border-radius: 50%;
-      transition: left $pf-anim-timing;
+      transition: left $anim-timing;
     }
   }
 
-  input:checked + span {
-    background: $pf-primary-background;
+  .pf-switch-label {
+    order: 3;
   }
 
-  input:checked + span:after {
+  input:checked ~ .pf-switch-visual {
+    background: var(--pf-color-primary);
+  }
+
+  input:checked ~ .pf-switch-visual:after {
     left: 18px;
   }
 
-  input:focus-visible + span {
+  input:focus-visible ~ .pf-switch-visual {
     @include focus;
   }
 
   &.pf-disabled {
+    opacity: 0.5;
+    pointer-events: none;
     cursor: not-allowed;
-    color: $pf-minimal-foreground-disabled;
-
-    span {
-      border-color: $pf-minimal-foreground-disabled;
-      background: $pf-minimal-foreground-disabled;
-      &:after {
-        border-color: $pf-minimal-foreground-disabled;
-      }
-    }
-
-    input:checked ~ span {
-      border-color: $pf-primary-background-disabled;
-      background: $pf-primary-background-disabled;
-    }
   }
 }

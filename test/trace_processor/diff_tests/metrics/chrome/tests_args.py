@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -28,16 +28,16 @@ class ChromeArgs(TestSuite):
         out=TextProto(r"""
         [perfetto.protos.chrome_unsymbolized_args]: {
           args {
+            module: "/libmonochrome_64.so"
+            build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
+            address: 234
+            google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
+          }
+          args {
              module: "/liblib.so"
              build_id: "6275696c642d6964"
              address: 123
              google_lookup_id: "6275696c642d6964"
-           }
-           args {
-             module: "/libmonochrome_64.so"
-             build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
-             address: 234
-             google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
            }
         }
         """))

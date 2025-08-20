@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -36,7 +36,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
-              interface: "wlan"
+              network_interface: "wlan"
               uid: 123
             }
             packet_timestamps: [
@@ -54,7 +54,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
-              interface: "wlan"
+              network_interface: "wlan"
               uid: 456
             }
             total_duration: 100
@@ -67,7 +67,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
-              interface: "wlan"
+              network_interface: "wlan"
               uid: 456
             }
             total_duration: 100
@@ -80,7 +80,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_INGRESS
-              interface: "loopback"
+              network_interface: "loopback"
               uid: 123
             }
             packet_timestamps: [6000]
@@ -393,26 +393,26 @@ class AndroidMetrics(TestSuite):
             period_id: 1
             period_dur: 384847255
             cpu_subsystem {
-              estimated_mw: 4568.1772
-              estimated_mws: 1758.050415
+              estimated_mw: 4583.7715
+              estimated_mws: 1764.0519
               policy0 {
-                estimated_mw: 578.31256
-                estimated_mws: 222.561996
+                estimated_mw: 573.6028
+                estimated_mws: 220.74945
                 cpu0 {
-                  estimated_mw: 148.99423
-                  estimated_mws: 57.340019
+                  estimated_mw: 147.79527
+                  estimated_mws: 56.878605
                 }
                 cpu1 {
-                  estimated_mw: 130.13142
-                  estimated_mws: 50.080723
+                  estimated_mw: 128.95555
+                  estimated_mws: 49.62819
                 }
                 cpu2 {
-                  estimated_mw: 127.60357
-                  estimated_mws: 49.107883
+                  estimated_mw: 126.5788
+                  estimated_mws: 48.713505
                 }
                 cpu3 {
-                  estimated_mw: 171.58333
-                  estimated_mws: 66.033371
+                  estimated_mw: 170.27313
+                  estimated_mws: 65.52915
                 }
               }
               policy4 {
@@ -440,8 +440,8 @@ class AndroidMetrics(TestSuite):
                 }
               }
               dsu_scu {
-                estimated_mw: 1142.5181
-                estimated_mws: 439.694946
+                estimated_mw: 1162.8224
+                estimated_mws: 447.50897
               }
             }
           }

@@ -19,7 +19,7 @@ on:
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
-  # branch. This is populated by the "actions/cache/restore" step below.
+  # branch. This is populated by the "Restore cache" step below.
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
@@ -28,31 +28,30 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
-      PERFETTO_CI_JOB_NAME: bazel
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
-
       - name: Setup artifacts
+        shell: bash
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - name: Restore cache
-        uses: actions/cache/restore@v4
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - uses: ./.github/actions/install-build-deps
         with:
           install-flags: --bazel
 
       - name: Build Bazel
+        shell: bash
         run: |
           BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
           # Cleanup the cache if any of the two conditions are true.
@@ -65,6 +64,7 @@ jobs:
           tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
 
       - name: Smoke tests
+        shell: bash
         run: |
           ./bazel-bin/traced &
           ./bazel-bin/traced_probes &
@@ -76,7 +76,7 @@ jobs:
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}

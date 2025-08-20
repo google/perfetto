@@ -16,18 +16,26 @@ import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, NodeType, Query, isAQuery} from '../query_node';
-import {ExplorePageHelp} from './explore_page_help';
-import {QueryNodeExplorer} from './query_node_explorer';
-import {NodeGraph} from './node_graph';
+import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
+import {ExplorePageHelp} from './help';
+import {NodeExplorer} from './node_explorer';
+import {Graph} from './graph';
 import {Trace} from 'src/public/trace';
-import {NodeDataViewer} from './node_data_viewer';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
-import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
-import {StdlibTableNode} from './sources/stdlib_table';
-import {SqlSourceNode} from './sources/sql_source';
+import {DataExplorer} from './data_explorer';
+import {
+  DataGridDataSource,
+  DataGridModel,
+} from '../../../components/widgets/data_grid/common';
+import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
+import {QueryResponse} from '../../../components/query_table/queries';
+import {columnInfoFromSqlColumn} from './column_info';
+import {TableSourceNode} from './nodes/sources/table_source';
+import {SqlSourceNode} from './nodes/sources/sql_source';
+import {QueryService} from './query_service';
+import {findErrors, findWarnings} from './query_builder_utils';
+import {NodeIssues} from './node_issues';
 
-export interface QueryBuilderAttrs {
+export interface BuilderAttrs {
   readonly trace: Trace;
 
   readonly sqlModules: SqlModules;
@@ -37,21 +45,36 @@ export interface QueryBuilderAttrs {
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
+
+  // Add source nodes.
   readonly onAddStdlibTableSource: () => void;
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
+
+  // Add derived nodes.
+  readonly onAddSubQueryNode: (node: QueryNode) => void;
+  readonly onAddAggregationNode: (node: QueryNode) => void;
+
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
 }
 
-export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+export class Builder implements m.ClassComponent<BuilderAttrs> {
+  private queryService: QueryService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
   private previousSelectedNode?: QueryNode;
+  private isNodeDataViewerFullScreen: boolean = false;
+  private response?: QueryResponse;
+  private dataSource?: DataGridDataSource;
 
-  view({attrs}: m.CVnode<QueryBuilderAttrs>) {
+  constructor({attrs}: m.Vnode<BuilderAttrs>) {
+    this.queryService = new QueryService(attrs.trace.engine);
+  }
+
+  view({attrs}: m.CVnode<BuilderAttrs>) {
     const {
       trace,
       rootNodes,
@@ -65,11 +88,12 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
     } = attrs;
 
     if (selectedNode && selectedNode !== this.previousSelectedNode) {
-      if (selectedNode.type === NodeType.kSqlSource) {
+      if (selectedNode instanceof SqlSourceNode) {
         this.tablePosition = 'left';
       } else {
         this.tablePosition = 'bottom';
       }
+      this.runQuery(selectedNode);
     }
     this.previousSelectedNode = selectedNode;
 
@@ -78,20 +102,32 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         'pf-query-builder-layout',
         selectedNode ? 'selection' : 'no-selection',
         selectedNode && `selection-${this.tablePosition}`,
+        this.isNodeDataViewerFullScreen && 'full-page',
       ) || '';
 
     const explorer = selectedNode
-      ? m(QueryNodeExplorer, {
+      ? m(NodeExplorer, {
+          // The key to force mithril to re-create the component when the
+          // selected node changes, preventing state from leaking between
+          // different nodes.
+          key: selectedNode.nodeId,
           trace,
           node: selectedNode,
           onQueryAnalyzed: (query: Query | Error, reexecute = true) => {
             this.query = query;
             if (isAQuery(this.query) && reexecute) {
               this.queryExecuted = false;
+              this.runQuery(selectedNode);
             }
           },
           onExecute: () => {
             this.queryExecuted = false;
+            this.runQuery(selectedNode);
+            m.redraw();
+          },
+          onchange: () => {
+            this.queryExecuted = false;
+            this.runQuery(selectedNode);
             m.redraw();
           },
         })
@@ -105,17 +141,13 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const sourceCols = sqlTable.columns.map((c) =>
               columnInfoFromSqlColumn(c, true),
             );
-            const groupByColumns = newColumnInfoList(sourceCols, false);
-
             onRootNodeCreated(
-              new StdlibTableNode({
+              new TableSourceNode({
                 trace,
                 sqlModules,
                 sqlTable,
                 sourceCols,
-                groupByColumns,
                 filters: [],
-                aggregations: [],
               }),
             );
           },
@@ -125,7 +157,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       `.${layoutClasses.split(' ').join('.')}`,
       m(
         '.pf-qb-node-graph',
-        m(NodeGraph, {
+        m(Graph, {
           rootNodes,
           selectedNode,
           onNodeSelected,
@@ -135,56 +167,127 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           onAddSqlSource,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onDeleteNode: attrs.onDeleteNode,
+          onAddSubQuery: attrs.onAddSubQueryNode,
+          onAddAggregation: attrs.onAddAggregationNode,
+          onDeleteNode: (node: QueryNode) => {
+            if (
+              node.state.isExecuted &&
+              'graphTableName' in node &&
+              node.graphTableName
+            ) {
+              trace.engine.query(`DROP TABLE IF EXISTS ${node.graphTableName}`);
+            }
+            attrs.onDeleteNode(node);
+          },
         }),
       ),
       m('.pf-qb-explorer', explorer),
       selectedNode &&
         m(
           '.pf-qb-viewer',
-          m(NodeDataViewer, {
-            trace,
+          m(DataExplorer, {
+            queryService: this.queryService,
             query: this.query,
+            node: selectedNode,
             executeQuery: !this.queryExecuted,
-            filters:
-              // TODO(mayzner): This is a temporary fix for handling the filtering of SQL node.
-              selectedNode.type === NodeType.kSqlSource
-                ? []
-                : selectedNode.state.filters,
-            onFiltersChanged:
-              selectedNode.type === NodeType.kSqlSource
-                ? undefined
-                : (filters: ReadonlyArray<FilterDefinition>) => {
-                    selectedNode.state.filters = filters as FilterDefinition[];
-                    this.queryExecuted = false;
-                    m.redraw();
-                  },
+            response: this.response,
+            dataSource: this.dataSource,
+            onchange: () => {
+              this.query = undefined;
+              this.queryExecuted = false;
+              m.redraw();
+            },
             onQueryExecuted: ({
               columns,
-              queryError,
-              responseError,
-              dataError,
+              error,
+              warning,
+              noDataWarning,
             }: {
               columns: string[];
-              queryError?: Error;
-              responseError?: Error;
-              dataError?: Error;
+              error?: Error;
+              warning?: Error;
+              noDataWarning?: Error;
             }) => {
               this.queryExecuted = true;
 
-              selectedNode.state.queryError = queryError;
-              selectedNode.state.responseError = responseError;
-              selectedNode.state.dataError = dataError;
+              if (error || warning || noDataWarning) {
+                if (!selectedNode.state.issues) {
+                  selectedNode.state.issues = new NodeIssues();
+                }
+                selectedNode.state.issues.queryError = error;
+                selectedNode.state.issues.responseError = warning;
+                selectedNode.state.issues.dataError = noDataWarning;
+              } else {
+                selectedNode.state.issues = undefined;
+              }
 
               if (selectedNode instanceof SqlSourceNode) {
-                selectedNode.setSourceColumns(columns);
+                selectedNode.onQueryExecuted(columns);
               }
             },
             onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
               this.tablePosition = pos;
             },
+            isFullScreen: this.isNodeDataViewerFullScreen,
+            onFullScreenToggle: () => {
+              this.isNodeDataViewerFullScreen =
+                !this.isNodeDataViewerFullScreen;
+            },
           }),
         ),
     );
+  }
+
+  private runQuery(node: QueryNode) {
+    if (
+      this.query === undefined ||
+      this.query instanceof Error ||
+      this.queryExecuted
+    ) {
+      return;
+    }
+
+    this.queryService.runQuery(queryToRun(this.query)).then((response) => {
+      this.response = response;
+      const ds = new InMemoryDataSource(this.response.rows);
+      this.dataSource = {
+        get rows() {
+          return ds.rows;
+        },
+        notifyUpdate(model: DataGridModel) {
+          // We override the notifyUpdate method to ignore filters, as the data is
+          // assumed to be pre-filtered. We still apply sorting and aggregations.
+          const newModel: DataGridModel = {
+            ...model,
+            filters: [], // Always pass an empty array of filters.
+          };
+          ds.notifyUpdate(newModel);
+        },
+      };
+
+      const error = findErrors(this.query, this.response);
+      const warning = findWarnings(this.response, node);
+      const noDataWarning =
+        this.response?.totalRowCount === 0
+          ? new Error('Query returned no rows')
+          : undefined;
+
+      this.queryExecuted = true;
+      if (error || warning || noDataWarning) {
+        if (!node.state.issues) {
+          node.state.issues = new NodeIssues();
+        }
+        node.state.issues.queryError = error;
+        node.state.issues.responseError = warning;
+        node.state.issues.dataError = noDataWarning;
+      } else {
+        node.state.issues = undefined;
+      }
+
+      if (node instanceof SqlSourceNode) {
+        node.onQueryExecuted(this.response.columns);
+      }
+      m.redraw();
+    });
   }
 }

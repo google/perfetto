@@ -17,7 +17,7 @@
 #include "perfetto/ext/base/thread_checker.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 namespace perfetto {

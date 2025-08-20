@@ -34,7 +34,7 @@ import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {FlowManager} from './flow_manager';
-import {AppContext, AppImpl} from './app_impl';
+import {AppContext, AppImpl, OpenTraceArrayBufArgs} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
 import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
@@ -46,9 +46,8 @@ import {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
-import {featureFlags} from './feature_flags';
 import {SerializedAppState} from './state_serialization_schema';
-import {PostedTrace} from './trace_source';
+import {featureFlags} from './feature_flags';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
@@ -453,8 +452,11 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromUrl(url, serializedAppState);
   }
 
-  openTraceFromBuffer(args: PostedTrace): void {
-    this.appImpl.openTraceFromBuffer(args);
+  openTraceFromBuffer(
+    args: OpenTraceArrayBufArgs,
+    serializedAppState?: SerializedAppState,
+  ): void {
+    this.appImpl.openTraceFromBuffer(args, serializedAppState);
   }
 
   closeCurrentTrace(): void {

@@ -892,7 +892,7 @@ between plugins.
 
 In order to do this we simply give the track a `sortOrder` and call
 `addChildInOrder()` on the parent node and the track will be placed before the
-first track with a higher `sortOrder` in the list. (i.e. lower `sortOrder`s
+first track with a greater `sortOrder` in the list. (i.e. lower `sortOrder`s
 appear higher in the stack).
 
 ```ts
@@ -1290,7 +1290,7 @@ Optional params for all types of sidebar items:
   - `convert_trace`
   - `example_traces`
   - `support`
-- `sortOrder` - The higher the sortOrder the higher the bar.
+- `sortOrder` - The lower the sortOrder the higher the bar.
 
 See the
 [sidebar source](https://github.com/google/perfetto/blob/main/ui/src/public/sidebar.ts)
@@ -1510,7 +1510,7 @@ TBD
 
 Examples:
 
-- [dev.perfetto.AndroidBinderViz](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.AndroidBinderViz/index.ts).
+- [com.android.AndroidBinderViz](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.android.AndroidBinderViz/index.ts).
 
 ### State
 

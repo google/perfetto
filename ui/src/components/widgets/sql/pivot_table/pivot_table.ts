@@ -113,7 +113,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
 
     return [
       m(CustomTable<PivotTreeNode>, {
-        className: 'pivot-table',
+        className: 'pf-pivot-table',
         data: nodes,
         columns: [
           {

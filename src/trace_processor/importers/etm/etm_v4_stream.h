@@ -23,7 +23,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
@@ -60,7 +59,7 @@ class EtmV4Stream : public perf_importer::AuxDataStream, public ITrcDataIn {
     explicit SessionState(tables::EtmV4SessionTable::Id in_session_id)
         : session_id(in_session_id) {}
     tables::EtmV4SessionTable::Id session_id;
-    std::vector<TraceBlobView> traces_;
+    std::vector<TraceBlobView> chunks_;
   };
 
   base::Status ParseFramedData(uint64_t offset, TraceBlobView data);
@@ -70,7 +69,7 @@ class EtmV4Stream : public perf_importer::AuxDataStream, public ITrcDataIn {
   void EndChunkedTrace();
 
   void StartSession(std::optional<int64_t> start_ts);
-  void AddTrace(TraceBlobView trace);
+  void AddChunk(TraceBlobView trace);
   void EndSession();
 
   TraceProcessorContext* const context_;

@@ -30,12 +30,12 @@ export class PerfettoTestHelper {
   constructor(readonly page: Page) {}
 
   resetFocus(): Promise<void> {
-    return this.page.click('.sidebar img.brand');
+    return this.page.click('.pf-sidebar img.pf-sidebar__brand');
   }
 
   async sidebarSize(): Promise<Size2D> {
     if (this.cachedSidebarSize === undefined) {
-      const size = await this.page.locator('main > .sidebar').boundingBox();
+      const size = await this.page.locator('main > .pf-sidebar').boundingBox();
       this.cachedSidebarSize = assertExists(size);
     }
     return this.cachedSidebarSize;
@@ -131,8 +131,6 @@ export class PerfettoTestHelper {
   }
 
   async switchToTab(text: string | RegExp) {
-    await this.page
-      .locator('.pf-tab-handle .pf-tab-handle__tab', {hasText: text})
-      .click();
+    await this.page.locator('.pf-split-panel__tab', {hasText: text}).click();
   }
 }

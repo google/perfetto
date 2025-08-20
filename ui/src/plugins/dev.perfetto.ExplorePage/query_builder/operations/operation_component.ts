@@ -14,38 +14,27 @@
 
 import m from 'mithril';
 import {ALL_FILTER_OPS, FilterAttrs, FilterOperation} from './filter';
-import {
-  Aggregation,
-  GroupByAggregationAttrsToProto,
-  AggregationsOperatorAttrs,
-  AggregationsOperator,
-} from './aggregations';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
-import {Button, ButtonVariant} from '../../../../widgets/button';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 
 export interface OperatorAttrs {
   filter: FilterAttrs;
-  groupby: AggregationsOperatorAttrs;
+  onchange?: () => void;
 }
 
 export class Operator implements m.ClassComponent<OperatorAttrs> {
-  private showAggregations = false;
-
   view({attrs}: m.CVnode<OperatorAttrs>): m.Children {
-    return m('.pf-exp-query-operations', [
-      m(FilterOperation, attrs.filter),
-      this.showAggregations
-        ? m('.pf-exp-query-operations', m(AggregationsOperator, attrs.groupby))
-        : m(Button, {
-            label: 'Aggregate data',
-            onclick: () => {
-              this.showAggregations = true;
-            },
-            variant: ButtonVariant.Filled,
-          }),
-    ]);
+    return m(
+      '.pf-exp-query-operations',
+      m(FilterOperation, {
+        ...attrs.filter,
+        onFiltersChanged: (filters: ReadonlyArray<FilterDefinition>) => {
+          attrs.filter.onFiltersChanged?.(filters);
+          attrs.onchange?.();
+        },
+      }),
+    );
   }
 }
 
@@ -87,31 +76,4 @@ export function createFiltersProto(
     },
   );
   return protoFilters;
-}
-
-export function createGroupByProto(
-  groupByColumns: ColumnInfo[],
-  aggregations: Aggregation[],
-): protos.PerfettoSqlStructuredQuery.GroupBy | undefined {
-  if (!groupByColumns.find((c) => c.checked)) return;
-
-  const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
-  groupByProto.columnNames = groupByColumns
-    .filter((c) => c.checked)
-    .map((c) => c.column.name);
-
-  for (const agg of aggregations) {
-    agg.isValid = validateAggregation(agg);
-  }
-  groupByProto.aggregates = aggregations
-    .filter((agg) => agg.isValid)
-    .map(GroupByAggregationAttrsToProto);
-  return groupByProto;
-}
-
-// Both 'column' and 'aggregationOp' must be present for an aggregation to be considered valid.
-// This ensures that the aggregation operation is applied to a specific column.
-function validateAggregation(aggregation: Aggregation): boolean {
-  if (!aggregation.column || !aggregation.aggregationOp) return false;
-  return true;
 }

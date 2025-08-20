@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -168,24 +168,35 @@ class StdlibSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE sched.runnable;
 
-        SELECT *
-        FROM sched_previous_runnable_on_thread
-        WHERE prev_wakeup_runnable_id IS NOT NULL
-        ORDER BY id DESC
+        SELECT
+          running.ts AS running_ts,
+          running_thread.tid AS running_tid,
+          prev_runnable.ts AS prev_runnable_ts,
+          prev_runnable_thread.tid AS prev_runnable_tid,
+          prev_wakeup.ts AS prev_wakeup_ts,
+          prev_wakeup_thread.tid AS prev_wakeup_tid
+        FROM sched_previous_runnable_on_thread s
+        JOIN thread_state running ON running.id = s.id
+        JOIN thread running_thread ON running_thread.utid = running.utid
+        JOIN thread_state prev_runnable ON prev_runnable.id = s.prev_runnable_id
+        JOIN thread prev_runnable_thread ON prev_runnable_thread.utid = prev_runnable.utid
+        JOIN thread_state prev_wakeup ON prev_wakeup.id = s.prev_wakeup_runnable_id
+        JOIN thread prev_wakeup_thread ON prev_wakeup_thread.utid = prev_wakeup.utid
+        ORDER BY running.ts DESC, running_thread.tid DESC
         LIMIT 10;
         """,
         out=Csv("""
-        "id","prev_runnable_id","prev_wakeup_runnable_id"
-        538199,538191,538191
-        538197,538191,538191
-        538195,538191,538191
-        538190,538136,538136
-        538188,538088,533235
-        538184,538176,524613
-        538181,538178,537492
-        538179,524619,524619
-        538177,537492,537492
-        538175,538174,524613
+        "running_ts","running_tid","prev_runnable_ts","prev_runnable_tid","prev_wakeup_ts","prev_wakeup_tid"
+        9610742069,509,9610595870,509,9610595870,509
+        9610725508,509,9610595870,509,9610595870,509
+        9610687789,509,9610595870,509,9610595870,509
+        9610565596,2246,9609128381,2246,9609128381,2246
+        9610462325,509,9608319340,509,9578107751,509
+        9610366255,889,9610234867,889,9532969161,889
+        9610258305,1469,9610253422,1469,9603595910,1469
+        9610253422,893,9533011926,893,9533011926,893
+        9610234867,1469,9603595910,1469,9603595910,1469
+        9610202640,889,9610190108,889,9532969161,889
         """))
 
   def test_sched_latency(self):
@@ -194,26 +205,29 @@ class StdlibSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE sched.latency;
 
-        SELECT 
-          thread_state_id, 
-          sched_id, 
-          utid, 
-          runnable_latency_id, 
-          latency_dur
-        FROM sched_latency_for_running_interval
-        ORDER BY thread_state_id DESC
+        SELECT
+          running.ts,
+          thread.tid,
+          latency.latency_dur,
+          sched.cpu,
+          sched.dur
+        FROM sched_latency_for_running_interval latency
+        JOIN thread_state running ON running.id = latency.thread_state_id
+        JOIN thread ON thread.utid = latency.utid
+        JOIN sched ON sched.id = latency.sched_id AND sched.utid = latency.utid
+        ORDER BY running.ts DESC, thread.tid DESC
         LIMIT 10;
         """,
         out=Csv("""
-        "thread_state_id","sched_id","utid","runnable_latency_id","latency_dur"
-        538199,269427,2,538191,91919
-        538197,269425,2,538191,91919
-        538195,269423,2,538191,91919
-        538190,269422,1330,538136,1437215
-        538188,269420,2,538088,826823
-        538184,269419,91,538176,131388
-        538181,269418,319,538178,4883
-        538179,269417,1022,524619,469849
-        538177,269416,319,537492,670736
-        538175,269415,91,538174,12532
+        "ts","tid","latency_dur","cpu","dur"
+        9610742069,509,91919,7,6999
+        9610725508,509,91919,7,6633
+        9610687789,509,91919,7,20507
+        9610565596,2246,1437215,7,122193
+        9610462325,509,826823,7,18229
+        9610366255,889,131388,7,96070
+        9610258305,1469,4883,7,107950
+        9610253422,893,469849,7,4883
+        9610234867,1469,670736,7,18555
+        9610202640,889,12532,7,32227
         """))

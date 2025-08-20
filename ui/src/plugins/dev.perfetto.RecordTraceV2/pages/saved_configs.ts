@@ -18,6 +18,10 @@ import {RecordSubpage} from '../config/config_interfaces';
 import {SavedSessionSchema, RecordPluginSchema} from '../serialization_schema';
 import {assertExists} from '../../../base/logging';
 import {shareRecordConfig} from '../config/config_sharing';
+import {Button, ButtonBar, ButtonVariant} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
+import {TextInput} from '../../../widgets/text_input';
+import {Intent} from '../../../widgets/common';
 
 export function savedConfigsPage(recMgr: RecordingManager): RecordSubpage {
   const savedConfigs = new Array<SavedSessionSchema>();
@@ -63,31 +67,29 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
     return [
       m('header', 'Save and load configurations'),
       m('.input-config', [
-        m('input', {
+        m(TextInput, {
           value: this.newConfigName,
           placeholder: 'Title for config',
           oninput: (e: Event) => {
             this.newConfigName = (e.target as HTMLInputElement).value;
           },
         }),
-        m(
-          'button',
-          {
-            class: 'config-button',
-            disabled: !canSave,
-            title: canSave
-              ? 'Save current config'
-              : 'Duplicate name, saving disabled',
-            onclick: () => {
-              this.savedConfigs.push({
-                name: this.newConfigName,
-                config: this.recMgr.serializeSession(),
-              });
-              this.newConfigName = '';
-            },
+        m(Button, {
+          className: 'config-button',
+          disabled: !canSave,
+          variant: ButtonVariant.Filled,
+          title: canSave
+            ? 'Save current config'
+            : 'Duplicate name, saving disabled',
+          onclick: () => {
+            this.savedConfigs.push({
+              name: this.newConfigName,
+              config: this.recMgr.serializeSession(),
+            });
+            this.newConfigName = '';
           },
-          m('i.material-icons', 'save'),
-        ),
+          icon: Icons.Save,
+        }),
       ]),
       this.savedConfigs.map((s) => this.renderSavedSessions(s)),
     ];
@@ -97,21 +99,17 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
     const self = this;
     return m('.config', [
       m('span.title-config', item.name),
-      m(
-        'button',
-        {
-          class: 'config-button',
+      m(ButtonBar, [
+        m(Button, {
+          className: 'config-button',
           title: 'Apply configuration settings',
           onclick: () => {
             this.recMgr.loadSession(item.config);
           },
-        },
-        m('i.material-icons', 'file_upload'),
-      ),
-      m(
-        'button',
-        {
-          class: 'config-button',
+          icon: 'file_upload',
+        }),
+        m(Button, {
+          className: 'config-button',
           title: 'Overwrite configuration with current settings',
           onclick: () => {
             const msg = `Overwrite config "${item.name}" with current settings?`;
@@ -121,23 +119,18 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
             );
             savedCfg.config = this.recMgr.serializeSession();
           },
-        },
-        m('i.material-icons', 'save'),
-      ),
-      m(
-        'button',
-        {
-          class: 'config-button',
+          icon: 'save',
+        }),
+        m(Button, {
+          className: 'config-button',
           title: 'Generate a shareable URL for the saved config',
           onclick: () => shareRecordConfig(item.config),
-        },
-        m('i.material-icons', 'share'),
-      ),
-      m(
-        'button',
-        {
-          class: 'config-button',
+          icon: 'share',
+        }),
+        m(Button, {
+          className: 'config-button',
           title: 'Remove configuration',
+          intent: Intent.Danger,
           onclick: () => {
             const idx = this.savedConfigs.findIndex(
               (s) => s.name === item.name,
@@ -145,9 +138,9 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
             if (idx < 0) return;
             self.savedConfigs.splice(idx, 1);
           },
-        },
-        m('i.material-icons', 'delete'),
-      ),
+          icon: 'delete',
+        }),
+      ]),
     ]);
   }
 }

@@ -165,14 +165,11 @@ function renderValue(name: string, value: Value): m.Children {
       if (!button) {
         return null;
       }
-      return m(
-        'i.material-icons.grey',
-        {
-          onclick: button.action,
-          title: button.hoverText,
-        },
-        button.icon ?? 'call_made',
-      );
+      return m(Button, {
+        onclick: button.action,
+        title: button.hoverText,
+        icon: button.icon ?? 'call_made',
+      });
     };
     if (value.kind === 'STRING') {
       const right = [

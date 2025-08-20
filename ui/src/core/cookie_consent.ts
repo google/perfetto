@@ -33,7 +33,7 @@ export class CookieConsent implements m.ClassComponent {
   view() {
     if (!this.showCookieConsent) return;
     return m(
-      '.cookie-consent',
+      '.pf-cookie-consent',
       m(
         '.cookie-text',
         `This site uses cookies from Google to deliver its services and to

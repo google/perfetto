@@ -41,14 +41,6 @@ class VirtioVideoTracker : public Destructible {
   VirtioVideoTracker& operator=(const VirtioVideoTracker&) = delete;
   ~VirtioVideoTracker() override;
 
-  static VirtioVideoTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->virtio_video_tracker) {
-      context->virtio_video_tracker.reset(new VirtioVideoTracker(context));
-    }
-    return static_cast<VirtioVideoTracker*>(
-        context->virtio_video_tracker.get());
-  }
-
   void ParseVirtioVideoEvent(uint64_t fld_id,
                              int64_t timestamp,
                              const protozero::ConstBytes&);

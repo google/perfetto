@@ -44,6 +44,7 @@ export default class implements PerfettoPlugin {
         g.name,
         g.description,
         g.unit,
+        g.y_axis_share_key as yAxisShareKey,
         g.builtin_counter_type as builtinCounterType,
         g.has_data AS hasData,
         g.has_children AS hasChildren,
@@ -66,6 +67,7 @@ export default class implements PerfettoPlugin {
       name: STR_NULL,
       description: STR_NULL,
       unit: STR_NULL,
+      yAxisShareKey: STR_NULL,
       builtinCounterType: STR_NULL,
       hasData: NUM,
       hasChildren: NUM,
@@ -89,6 +91,7 @@ export default class implements PerfettoPlugin {
         name,
         description,
         unit,
+        yAxisShareKey,
         builtinCounterType,
         hasData,
         hasChildren,
@@ -141,6 +144,12 @@ export default class implements PerfettoPlugin {
             uri,
             {
               unit: unit ?? undefined,
+              // We combine the yAxisShareKey with the parentId to ensure that
+              // only tracks under the same parent are grouped.
+              yRangeSharingKey:
+                yAxisShareKey === null
+                  ? undefined
+                  : `trackEvent-${parentId}-${yAxisShareKey}`,
             },
             trackId,
             trackName,

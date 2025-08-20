@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-cursor-tooltip {
   position: absolute;
-  background: white;
+  background: var(--pf-color-background);
 
-  font-family: $pf-font;
   z-index: 10;
   padding: 2px 6px;
-  border-radius: $pf-border-radius;
-  border: solid 1px $pf-minimal-border;
-  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  border-radius: $border-radius;
+  border: solid 1px var(--pf-color-border);
+  box-shadow: 2px 2px 16px var(--pf-color-box-shadow);
   pointer-events: none;
 }
