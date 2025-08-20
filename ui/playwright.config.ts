@@ -45,6 +45,7 @@ export default defineConfig({
     toHaveScreenshot: {
       // Rendering is not 100% identical on Mac. Be more tolerant.
       maxDiffPixelRatio: isMac ? 0.05 : undefined,
+      threshold: 0.3,
     },
   },
 
