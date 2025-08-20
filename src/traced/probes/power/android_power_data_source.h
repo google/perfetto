@@ -74,6 +74,9 @@ class AndroidPowerDataSource : public ProbesDataSource {
   uint32_t poll_interval_ms_ = 0;
   bool should_emit_descriptors_ = true;
 
+  // Random session UUID for this data source instance.
+  uint32_t session_uuid_ = 0;
+
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
   std::unique_ptr<DynamicLibLoader> lib_;

@@ -179,6 +179,9 @@ AndroidPowerDataSource::AndroidPowerDataSource(
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {
+  // Generate a session UUID based on time and session ID to ensure uniqueness.
+  uint64_t time_ns = static_cast<uint64_t>(base::GetBootTimeNs().count());
+  session_uuid_ = static_cast<uint32_t>(time_ns ^ session_id);
   using protos::pbzero::AndroidPowerConfig;
   AndroidPowerConfig::Decoder pcfg(cfg.android_power_config_raw());
   poll_interval_ms_ = pcfg.battery_poll_ms();
@@ -311,6 +314,8 @@ void AndroidPowerDataSource::WritePowerRailsData() {
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
 
   auto* rails_proto = packet->set_power_rails();
+  rails_proto->set_session_uuid(session_uuid_);
+
   if (should_emit_descriptors_) {
     auto rail_descriptors = lib_->GetRailDescriptors();
     if (rail_descriptors.empty()) {
