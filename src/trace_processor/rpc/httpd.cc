@@ -52,6 +52,8 @@ const char* kDefaultAllowedCORSOrigins[] = {
     "http://127.0.0.1:10000",
 };
 
+constexpr uint32_t kWebSocketGracePeriodMs = 5000;  // 5 second grace period
+
 void SendRpcChunk(base::HttpServerConnection* conn,
                   const void* data,
                   uint32_t len);
@@ -72,10 +74,12 @@ class Httpd : public base::HttpRequestHandler {
 
   static void ServeHelpPage(const base::HttpRequest&);
 
+  void ScheduleDelayedCleanup(base::HttpServerConnection* conn);
+
   struct WebSocketRpcThread {
    public:
     explicit WebSocketRpcThread(base::HttpServerConnection* conn)
-        : conn_(conn) {
+        : is_closing_(false), conn_(conn) {
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
         base::UnixTaskRunner task_runner;
@@ -114,6 +118,7 @@ class Httpd : public base::HttpRequestHandler {
 
     void OnWebsocketMessage(const base::WebsocketMessage& msg) {
       // Queue the message to be processed on the worker thread
+      is_closing_ = false;
       std::unique_lock<std::mutex> lock(init_mutex_);
       init_cv_.wait(lock, [this] { return initialized_; });
 
@@ -124,7 +129,9 @@ class Httpd : public base::HttpRequestHandler {
         });
       }
     }
+
     Rpc* rpc_ = nullptr;
+    bool is_closing_ = false;
 
    private:
     std::thread rpc_thread_;            // Dedicated thread
@@ -357,11 +364,35 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 }
 
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  /**
+   * added a grace period to see if the frontend reinitiates the connection
+   * before closing the thread for good. there are 2 cases where a websocket
+   * connection might disconnect: a user genuinely quits the tab, or the user
+   * closes the laptop lid. in the case of the latter, the frontend ui is still
+   * running and initiates a reconnection by sending a message via the WS
+   * connection. if we receive the websocket connection reinitiation within the
+   * grace period, we don't erase the thread anymore. in the case of the former,
+   * the ui is killed so no websocket reinitiation will be called within the
+   * grace period. in this case, we erase the thread.
+   */
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
   auto it = websocket_rpc_threads_.find(conn);
   if (it != websocket_rpc_threads_.end()) {
-    websocket_rpc_threads_.erase(it);
+    it->second->is_closing_ = true;
+    ScheduleDelayedCleanup(conn);
   }
+}
+
+void Httpd::ScheduleDelayedCleanup(base::HttpServerConnection* conn) {
+  task_runner_.PostDelayedTask(
+      [this, conn]() {
+        std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+        auto it = websocket_rpc_threads_.find(conn);
+        if (it != websocket_rpc_threads_.end() && it->second->is_closing_) {
+          websocket_rpc_threads_.erase(conn);
+        }
+      },
+      kWebSocketGracePeriodMs);
 }
 
 }  // namespace
