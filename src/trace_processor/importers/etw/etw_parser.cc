@@ -41,81 +41,8 @@ namespace perfetto {
 namespace trace_processor {
 
 namespace {
+
 using protozero::ConstBytes;
-
-static constexpr auto kZeroPageCountBlueprint =
-    tracks::CounterBlueprint("zero_page_count",
-                             tracks::StaticUnitBlueprint("pages"),
-                             tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("Zero Page Count"));
-static constexpr auto kFreePageCountBlueprint =
-    tracks::CounterBlueprint("free_page_count",
-                             tracks::StaticUnitBlueprint("pages"),
-                             tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("Free Page Count"));
-static constexpr auto kModifiedPageCountBlueprint = tracks::CounterBlueprint(
-    "modified_page_count",
-    tracks::StaticUnitBlueprint("pages"),
-    tracks::DimensionBlueprints(),
-    tracks::StaticNameBlueprint("Modified Page Count"));
-static constexpr auto kModifiedNoWritePageCountBlueprint =
-    tracks::CounterBlueprint(
-        "modified_no_write_page_count",
-        tracks::StaticUnitBlueprint("pages"),
-        tracks::DimensionBlueprints(),
-        tracks::StaticNameBlueprint("Modified No Write Page Count"));
-static constexpr auto kBadPageCountBlueprint =
-    tracks::CounterBlueprint("bad_page_count",
-                             tracks::StaticUnitBlueprint("pages"),
-                             tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("Bad Page Count"));
-static constexpr auto kModifiedPageCountPageFileBlueprint =
-    tracks::CounterBlueprint("modified_page_count_page_file",
-                             tracks::StaticUnitBlueprint("pages"),
-                             tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint(
-                                 "Modified Page Count Page Pile Page Count"));
-static constexpr auto kPagedPoolPageCountBlueprint = tracks::CounterBlueprint(
-    "paged_pool_page_count",
-    tracks::StaticUnitBlueprint("pages"),
-    tracks::DimensionBlueprints(),
-    tracks::StaticNameBlueprint("Paged Pool Page Count"));
-static constexpr auto kNonPagedPoolPageCountBlueprint =
-    tracks::CounterBlueprint(
-        "non_paged_pool_page_count",
-        tracks::StaticUnitBlueprint("pages"),
-        tracks::DimensionBlueprints(),
-        tracks::StaticNameBlueprint("Non Paged Pool Page Count"));
-static constexpr auto kMdlPageCountBlueprint = tracks::CounterBlueprint(
-    "mdl_page_count",
-    tracks::StaticUnitBlueprint("pages"),
-    tracks::DimensionBlueprints(),
-    tracks::StaticNameBlueprint("Memory Descriptor List Page Count"));
-static constexpr auto kCommitPageCountBlueprint =
-    tracks::CounterBlueprint("commit_page_count",
-                             tracks::StaticUnitBlueprint("pages"),
-                             tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("Commit Page Count"));
-
-static constexpr auto kStandbyPageCountBlueprint = tracks::CounterBlueprint(
-    "standby_page_count",
-    tracks::StaticUnitBlueprint("pages"),
-    tracks::DimensionBlueprints(
-        tracks::UintDimensionBlueprint("priority_level")),
-    tracks::FnNameBlueprint([](uint32_t priority_level) {
-      return base::StackString<255>("Standby Page Count Pri-%ud",
-                                    priority_level);
-    }));
-
-static constexpr auto kRepurposedPageCountBlueprint = tracks::CounterBlueprint(
-    "repurposed_page_count",
-    tracks::StaticUnitBlueprint("pages"),
-    tracks::DimensionBlueprints(
-        tracks::UintDimensionBlueprint("priority_level")),
-    tracks::FnNameBlueprint([](uint32_t priority_level) {
-      return base::StackString<255>("Repurposed Page Count Pri-%ud",
-                                    priority_level);
-    }));
 
 }  // namespace
 
@@ -172,65 +99,78 @@ void EtwParser::ParseReadyThread(int64_t timestamp,
 
 void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::MemInfoEtwEvent::Decoder meminfo(blob);
-  TrackId zero_page_count_track_id =
-      context_->track_tracker->InternTrack(kZeroPageCountBlueprint);
+  static constexpr auto kEtwMeminfoBlueprint = tracks::CounterBlueprint(
+      "etw_meminfo", tracks::StaticUnitBlueprint("pages"),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("counter_type")),
+      tracks::FnNameBlueprint([](base::StringView type) {
+        return base::StackString<255>("%.*s Page Count", int(type.size()),
+                                      type.data());
+      }));
+
+  TrackId zero_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Zero"));
   context_->event_tracker->PushCounter(timestamp, meminfo.zero_page_count(),
                                        zero_page_count_track_id);
 
-  TrackId free_page_count_track_id =
-      context_->track_tracker->InternTrack(kFreePageCountBlueprint);
+  TrackId free_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Free"));
   context_->event_tracker->PushCounter(timestamp, meminfo.free_page_count(),
                                        free_page_count_track_id);
 
-  TrackId modified_page_count_track_id =
-      context_->track_tracker->InternTrack(kModifiedPageCountBlueprint);
+  TrackId modified_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Modified"));
   context_->event_tracker->PushCounter(timestamp, meminfo.modified_page_count(),
                                        modified_page_count_track_id);
 
   TrackId modified_no_write_page_count_track_id =
-      context_->track_tracker->InternTrack(kModifiedNoWritePageCountBlueprint);
+      context_->track_tracker->InternTrack(
+          kEtwMeminfoBlueprint, tracks::Dimensions("ModifiedNoWrite"));
   context_->event_tracker->PushCounter(timestamp,
                                        meminfo.modified_no_write_page_count(),
                                        modified_no_write_page_count_track_id);
 
-  TrackId bad_page_count_track_id =
-      context_->track_tracker->InternTrack(kBadPageCountBlueprint);
+  TrackId bad_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Bad"));
   context_->event_tracker->PushCounter(timestamp, meminfo.bad_page_count(),
                                        bad_page_count_track_id);
 
   TrackId modified_page_count_page_file_track_id =
-      context_->track_tracker->InternTrack(kModifiedPageCountPageFileBlueprint);
+      context_->track_tracker->InternTrack(
+          kEtwMeminfoBlueprint, tracks::Dimensions("ModifiedPageFile"));
   context_->event_tracker->PushCounter(timestamp,
                                        meminfo.modified_page_count_page_file(),
                                        modified_page_count_page_file_track_id);
 
-  TrackId paged_pool_page_count_track_id =
-      context_->track_tracker->InternTrack(kPagedPoolPageCountBlueprint);
+  TrackId paged_pool_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("PagedPool"));
   context_->event_tracker->PushCounter(timestamp,
                                        meminfo.paged_pool_page_count(),
                                        paged_pool_page_count_track_id);
 
   TrackId non_paged_pool_page_count_track_id =
-      context_->track_tracker->InternTrack(kNonPagedPoolPageCountBlueprint);
+      context_->track_tracker->InternTrack(kEtwMeminfoBlueprint,
+                                           tracks::Dimensions("NonPagedPool"));
   context_->event_tracker->PushCounter(timestamp,
                                        meminfo.non_paged_pool_page_count(),
                                        non_paged_pool_page_count_track_id);
 
-  TrackId mdl_page_count_track_id =
-      context_->track_tracker->InternTrack(kMdlPageCountBlueprint);
+  TrackId mdl_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Mdl"));
   context_->event_tracker->PushCounter(timestamp, meminfo.mdl_page_count(),
                                        mdl_page_count_track_id);
 
-  TrackId commit_page_count_track_id =
-      context_->track_tracker->InternTrack(kCommitPageCountBlueprint);
+  TrackId commit_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Commit"));
   context_->event_tracker->PushCounter(timestamp, meminfo.commit_page_count(),
                                        commit_page_count_track_id);
 
   auto standby_page_count_iterator = meminfo.standby_page_counts();
   for (int i = 0; standby_page_count_iterator;
        ++i, ++standby_page_count_iterator) {
+    const std::string name = "Standby Pri-" + std::to_string(i);
     TrackId standby_page_count_track_id = context_->track_tracker->InternTrack(
-        kStandbyPageCountBlueprint, tracks::Dimensions(i));
+        kEtwMeminfoBlueprint, tracks::Dimensions(base::StringView(name)));
     context_->event_tracker->PushCounter(
         timestamp, *standby_page_count_iterator, standby_page_count_track_id);
   }
@@ -238,9 +178,10 @@ void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
   auto repurposed_page_count_iterator = meminfo.repurposed_page_counts();
   for (int i = 0; repurposed_page_count_iterator;
        ++i, ++repurposed_page_count_iterator) {
+    const std::string name = "Repurposed Pri-" + std::to_string(i);
     TrackId repurposed_page_count_track_id =
-        context_->track_tracker->InternTrack(kRepurposedPageCountBlueprint,
-                                             tracks::Dimensions(i));
+        context_->track_tracker->InternTrack(
+            kEtwMeminfoBlueprint, tracks::Dimensions(base::StringView(name)));
     context_->event_tracker->PushCounter(timestamp,
                                          *repurposed_page_count_iterator,
                                          repurposed_page_count_track_id);
