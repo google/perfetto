@@ -7,7 +7,7 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "mermaid": "^11.6.0",
+    "mermaid": "^11.10.0",
     "sass": "^1.69.5",
     "yargs": "^17.7.2"
   },
