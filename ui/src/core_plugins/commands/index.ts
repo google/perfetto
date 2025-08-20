@@ -197,9 +197,9 @@ export default class implements PerfettoPlugin {
 
       private handleSave(): void {
         if (this.textareaValue === undefined || !this.currentSetting) return;
-        if (this.validateAndSetError(this.textareaValue)) {
-          const parsed = JSON.parse(this.textareaValue);
-          this.currentSetting.set(parsed);
+        const validatedMacros = this.validateAndSetError(this.textareaValue);
+        if (validatedMacros) {
+          this.currentSetting.set(validatedMacros);
           this.originalValue = this.textareaValue;
         }
       }
@@ -212,7 +212,7 @@ export default class implements PerfettoPlugin {
         return !!this.jsonError || !this.hasUnsavedChanges();
       }
 
-      private validateAndSetError(text: string): boolean {
+      private validateAndSetError(text: string): MacroConfig | undefined {
         try {
           const parsed = JSON.parse(text);
           const result = macroSchema.safeParse(parsed);
@@ -224,7 +224,7 @@ export default class implements PerfettoPlugin {
                 return `${issue.message} ${path}`.trim();
               })
               .join(', ');
-            return false;
+            return undefined;
           }
 
           // Validate that all commands exist
@@ -240,15 +240,15 @@ export default class implements PerfettoPlugin {
           }
 
           if (invalidCommands.length > 0) {
-            this.jsonError = `Unknown commands: ${invalidCommands.join(', ')}`;
-            return false;
+            this.jsonError = `Unknown commands:\n${invalidCommands.join('\n')}`;
+            return undefined;
           }
 
           this.jsonError = null;
-          return true;
+          return result.data;
         } catch (err) {
           this.jsonError = err instanceof Error ? err.message : 'Invalid JSON';
-          return false;
+          return undefined;
         }
       }
     }
