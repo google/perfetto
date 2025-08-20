@@ -66,6 +66,28 @@
   }
 }
 
+.pf-node-box-port {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: var(--pf-color-border);
+  border-radius: 50%;
+}
+
+.pf-node-box-port-top {
+  top: -5px;
+  left: 50%;
+  margin-left: -5px;
+}
+
+.pf-node-box-port-bottom {
+  bottom: -5px;
+}
+
+.pf-node-box-port-bottom {
+  bottom: -5px;
+}
+
 .pf-source-card {
   display: flex;
   flex-direction: column;

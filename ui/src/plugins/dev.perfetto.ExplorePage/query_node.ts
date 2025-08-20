@@ -14,15 +14,7 @@
 
 import protos from '../../protos';
 import m from 'mithril';
-import {
-  ColumnInfo,
-  columnInfoFromName,
-  newColumnInfoList,
-} from './query_builder/column_info';
-import {
-  Aggregation,
-  placeholderNewColumnName,
-} from './query_builder/operations/aggregations';
+import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
 import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
 
@@ -36,6 +28,10 @@ export enum NodeType {
   kTable,
   kSimpleSlices,
   kSqlSource,
+
+  // Single node operations
+  kSubQuery,
+  kAggregation,
 }
 
 // All information required to create a new node.
@@ -46,8 +42,6 @@ export interface QueryNodeState {
 
   // Operations
   filters: FilterDefinition[];
-  groupByColumns: ColumnInfo[];
-  aggregations: Aggregation[];
 
   // Errors
   queryError?: Error;
@@ -66,7 +60,7 @@ export interface QueryNode {
   readonly graphTableName?: string;
   readonly type: NodeType;
   readonly prevNode?: QueryNode;
-  readonly nextNode?: QueryNode;
+  nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
   readonly sourceCols: ColumnInfo[];
@@ -111,16 +105,6 @@ export function createSelectColumnsProto(
 }
 
 export function createFinalColumns(node: QueryNode) {
-  if (node.state.groupByColumns.find((c) => c.checked)) {
-    const selected = node.state.groupByColumns.filter((c) => c.checked);
-    for (const agg of node.state.aggregations) {
-      selected.push(
-        columnInfoFromName(agg.newColumnName ?? placeholderNewColumnName(agg)),
-      );
-    }
-    return newColumnInfoList(selected, true);
-  }
-
   return newColumnInfoList(node.sourceCols, true);
 }
 
@@ -218,7 +202,11 @@ export function setOperationChanged(node: QueryNode) {
       break;
     }
     curr.state.hasOperationChanged = true;
-    curr = curr.nextNode;
+    const queue: QueryNode[] = [];
+    curr.nextNodes.forEach((child) => {
+      queue.push(child);
+    });
+    curr = queue.shift();
   }
 }
 

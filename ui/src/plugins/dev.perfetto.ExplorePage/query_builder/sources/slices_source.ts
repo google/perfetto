@@ -28,10 +28,7 @@ import protos from '../../../../protos';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlColumn} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {TableAndColumnImpl} from '../../../dev.perfetto.SqlModules/sql_modules_impl';
-import {
-  createFiltersProto,
-  createGroupByProto,
-} from '../operations/operation_component';
+import {createFiltersProto} from '../operations/operation_component';
 import {SourceNode} from '../source_node';
 
 export interface SlicesSourceState extends QueryNodeState {
@@ -50,6 +47,7 @@ export class SlicesSourceNode extends SourceNode {
     this.state = attrs;
     this.state.onchange = attrs.onchange;
     this.sourceCols = slicesSourceNodeColumns(true);
+    this.nextNodes = [];
   }
 
   get type() {
@@ -63,9 +61,7 @@ export class SlicesSourceNode extends SourceNode {
       process_name: this.state.process_name?.slice(),
       track_name: this.state.track_name?.slice(),
       sourceCols: newColumnInfoList(this.sourceCols),
-      groupByColumns: newColumnInfoList(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
-      aggregations: this.state.aggregations.map((a) => ({...a})),
       customTitle: this.state.customTitle,
     };
     return new SlicesSourceNode(stateCopy);
@@ -79,7 +75,7 @@ export class SlicesSourceNode extends SourceNode {
     if (!this.validate()) return;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `simple_slices_source`;
+    sq.id = this.nodeId;
     const ss = new protos.PerfettoSqlStructuredQuery.SimpleSlices();
 
     if (this.state.slice_name) ss.sliceNameGlob = this.state.slice_name;
@@ -94,11 +90,6 @@ export class SlicesSourceNode extends SourceNode {
       this.sourceCols,
     );
     if (filtersProto) sq.filters = filtersProto;
-    const groupByProto = createGroupByProto(
-      this.state.groupByColumns,
-      this.state.aggregations,
-    );
-    if (groupByProto) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
