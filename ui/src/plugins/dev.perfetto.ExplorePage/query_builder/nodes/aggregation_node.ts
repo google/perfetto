@@ -166,7 +166,7 @@ export class AggregationNode implements QueryNode {
     // Otherwise, we can just add the aggregation and filters to the previous
     // query.
     if (filtersProto) {
-      if (prevSq.filters) {
+      if (prevSq.filters !== undefined) {
         prevSq.filters.push(...filtersProto);
       } else {
         prevSq.filters = filtersProto;
