@@ -244,7 +244,6 @@ void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
     context_->event_tracker->PushCounter(timestamp,
                                          *repurposed_page_count_iterator,
                                          repurposed_page_count_track_id);
-    ++i;
   }
 }
 
