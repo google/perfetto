@@ -110,8 +110,8 @@ export default class implements PerfettoPlugin {
       name: 'Run query: runtime cluster distribution for a thread',
       callback: async (tid) => {
         if (tid === undefined) {
-          tid = prompt('Enter a thread tid', '');
-          if (tid === null) return;
+          tid = await ctx.omnibox.prompt('Enter a thread tid');
+          if (tid === undefined) return;
         }
         addQueryResultsTab(ctx, {
           query: `
@@ -144,8 +144,8 @@ export default class implements PerfettoPlugin {
       name: 'Run query: top 50 sched latency for a thread',
       callback: async (tid) => {
         if (tid === undefined) {
-          tid = prompt('Enter a thread tid', '');
-          if (tid === null) return;
+          tid = await ctx.omnibox.prompt('Enter a thread tid');
+          if (tid === undefined) return;
         }
         addQueryResultsTab(ctx, {
           query: `
@@ -275,7 +275,7 @@ export default class implements PerfettoPlugin {
               'ex1: 123,456 \n' +
               'ex2: "task_name1","task_name2"\n',
           );
-          if (filterValue === null) return;
+          if (filterValue === undefined) return;
         }
         await addDebugCounterTrack({
           trace: ctx,
