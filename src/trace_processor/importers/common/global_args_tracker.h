@@ -18,15 +18,14 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 
 #include <cstdint>
-#include <limits>
 #include <type_traits>
 #include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
@@ -65,41 +64,6 @@ class GlobalArgsTracker {
   };
   static_assert(std::is_trivially_destructible<Arg>::value,
                 "Args must be trivially destructible");
-
-  struct ArgHasher {
-    uint64_t operator()(const CompactArg& arg) const noexcept {
-      base::Hasher hash;
-      hash.Update(arg.key.raw_id());
-      // We don't hash arg.flat_key because it's a subsequence of arg.key.
-      switch (arg.value.type) {
-        case Variadic::Type::kInt:
-          hash.Update(arg.value.int_value);
-          break;
-        case Variadic::Type::kUint:
-          hash.Update(arg.value.uint_value);
-          break;
-        case Variadic::Type::kString:
-          hash.Update(arg.value.string_value.raw_id());
-          break;
-        case Variadic::Type::kReal:
-          hash.Update(arg.value.real_value);
-          break;
-        case Variadic::Type::kPointer:
-          hash.Update(arg.value.pointer_value);
-          break;
-        case Variadic::Type::kBool:
-          hash.Update(arg.value.bool_value);
-          break;
-        case Variadic::Type::kJson:
-          hash.Update(arg.value.json_value.raw_id());
-          break;
-        case Variadic::Type::kNull:
-          hash.Update(0);
-          break;
-      }
-      return hash.digest();
-    }
-  };
 
   explicit GlobalArgsTracker(TraceStorage* storage);
 
@@ -141,15 +105,44 @@ class GlobalArgsTracker {
       valid.emplace_back(&arg);
     }
 
-    base::Hasher hash;
+    base::MurmurHashCombiner combiner;
     for (const auto* it : valid) {
-      hash.Update(ArgHasher()(*it));
+      const auto& arg = *it;
+      combiner.Combine(arg.key.raw_id());
+      combiner.Combine(arg.value.type);
+      // We don't hash arg.flat_key because it's a subsequence of arg.key.
+      switch (arg.value.type) {
+        case Variadic::Type::kInt:
+          combiner.Combine(arg.value.int_value);
+          break;
+        case Variadic::Type::kUint:
+          combiner.Combine(arg.value.uint_value);
+          break;
+        case Variadic::Type::kString:
+          combiner.Combine(arg.value.string_value.raw_id());
+          break;
+        case Variadic::Type::kReal:
+          combiner.Combine(arg.value.real_value);
+          break;
+        case Variadic::Type::kPointer:
+          combiner.Combine(arg.value.pointer_value);
+          break;
+        case Variadic::Type::kBool:
+          combiner.Combine(arg.value.bool_value);
+          break;
+        case Variadic::Type::kJson:
+          combiner.Combine(arg.value.json_value.raw_id());
+          break;
+        case Variadic::Type::kNull:
+          combiner.Combine(0);
+          break;
+      }
     }
 
     auto& arg_table = *storage_->mutable_arg_table();
 
     uint32_t arg_set_id = arg_table.row_count();
-    ArgSetHash digest = hash.digest();
+    ArgSetHash digest = combiner.digest();
     auto [it, inserted] = arg_row_for_hash_.Insert(digest, arg_set_id);
     if (!inserted) {
       // Already inserted.

@@ -67,6 +67,7 @@ export default class implements PerfettoPlugin {
 
       ctx.tracks.registerTrack({
         uri,
+        description: `Ftrace events for CPU ${cpu.toString()}`,
         tags: {
           cpu: cpu.cpu,
           groupName: 'Ftrace Events',

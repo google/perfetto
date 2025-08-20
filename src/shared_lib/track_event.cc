@@ -173,8 +173,11 @@ static void DisableRegisteredCategory(PerfettoTeCategoryImpl* cat,
                                       uint32_t instance_index) {
   PERFETTO_DCHECK(instance_index < perfetto::internal::kMaxDataSourceInstances);
   // Matches the acquire_load in DataSource::Trace().
-  cat->instances.fetch_and(static_cast<uint8_t>(~(1u << instance_index)),
-                           std::memory_order_release);
+  uint8_t old = cat->instances.fetch_and(
+      static_cast<uint8_t>(~(1u << instance_index)), std::memory_order_release);
+  if (!(old & static_cast<uint8_t>(1u << instance_index))) {
+    return;
+  }
   bool global_state_changed = false;
   if (!cat->instances.load(std::memory_order_relaxed)) {
     cat->flag.store(false, std::memory_order_relaxed);

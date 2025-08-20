@@ -1022,3 +1022,65 @@ class GenericKernelParser(TestSuite):
         359831239274,0,1500000.000000,"cpufreq","cpu_frequency","[NULL]"
         360831239274,1,2500000.000000,"cpufreq","cpu_frequency",1
         """))
+
+  def test_thread_task_rename(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_CREATED
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_kernel_task_rename_event {
+            tid: 101
+            comm: "newtask1"
+          }
+        }
+        """),
+        query="""
+        select
+          utid,
+          tid,
+          name,
+          start_ts,
+          end_ts
+        from thread
+        """,
+        out=Csv("""
+        "utid","tid","name","start_ts","end_ts"
+        0,0,"swapper","[NULL]","[NULL]"
+        1,101,"newtask1",360831239274,"[NULL]"
+        """))
+
+  def test_thread_new_task_rename(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_rename_event {
+            tid: 101
+            comm: "newtask1"
+          }
+        }
+        """),
+        query="""
+        select
+          utid,
+          tid,
+          name,
+          start_ts,
+          end_ts
+        from thread
+        """,
+        out=Csv("""
+        "utid","tid","name","start_ts","end_ts"
+        0,0,"swapper","[NULL]","[NULL]"
+        1,101,"newtask1","[NULL]","[NULL]"
+        """))

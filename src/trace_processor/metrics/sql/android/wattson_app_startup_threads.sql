@@ -15,7 +15,7 @@
 
 INCLUDE PERFETTO MODULE android.startup.startups;
 INCLUDE PERFETTO MODULE wattson.estimates;
-INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 DROP VIEW IF EXISTS _app_startup_window;
 CREATE PERFETTO VIEW _app_startup_window AS

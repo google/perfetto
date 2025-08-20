@@ -124,6 +124,23 @@ function onScroll(forceHighlight) {
   }
 }
 
+function scrollIntoViewIfNeeded(element, container, margin = 100) {
+  const containerTop = container.scrollTop;
+  const containerBottom = containerTop + container.clientHeight;
+
+  const elementTop = element.offsetTop;
+  const elementBottom = elementTop + element.offsetHeight;
+  if (elementTop < containerTop) {
+    container.scrollTo({
+      top: elementTop - margin,
+    });
+  } else if (elementBottom > containerBottom) {
+    container.scrollTo({
+      top: elementBottom - container.clientHeight + margin,
+    });
+  }
+}
+
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
 function updateNav() {
@@ -133,7 +150,7 @@ function updateNav() {
 
   // First identify all the top-level nav entries (Quickstart, Data Sources,
   // ...) and make them compressible.
-  const toplevelSections = document.querySelectorAll(".docs .nav > ul > li");
+  const toplevelSections = document.querySelectorAll('.docs .nav > ul > li > ul > li');
   const toplevelLinks = [];
   for (const sec of toplevelSections) {
     const childMenu = sec.querySelector("ul");
@@ -174,6 +191,7 @@ function updateNav() {
     };
   }
 
+  const nav = document.querySelector(".docs .nav");
   const exps = document.querySelectorAll(".docs .nav ul a");
   let found = false;
   for (const x of exps) {
@@ -186,10 +204,12 @@ function updateNav() {
       if (toplevelLinks.indexOf(x) < 0) {
         x.removeAttribute("href");
       }
-    } else if (url.pathname === curFileName && !found) {
-      x.classList.add("selected");
-      doAfterLoadEvent(() => x.scrollIntoViewIfNeeded());
-      found = true; // Highlight only the first occurrence.
+    } else if ((url.pathname === curFileName || url.pathname + 'index.html' === curFileName) && !found) {
+      x.classList.add('selected');
+      if (!onloadFired) {
+        scrollIntoViewIfNeeded(x, nav);
+      }
+      found = true;  // Highlight only the first occurrence.
     }
   }
 }
@@ -296,7 +316,35 @@ function setupSearch() {
   });
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+function setupTabs() {
+  const tabs = document.body.querySelectorAll('.tab-box');
+  for (const tab of tabs) {
+    const tabButtons = tab.querySelectorAll('.tab-button');
+    const tabContents = tab.querySelectorAll('.tab-content');
+    if (tabButtons.length !== tabContents.length || tabButtons.length === 0) {
+      continue;
+    }
+    let active = undefined;
+    const updateSelected = (newActive) => {
+      if (active !== undefined) {
+        tabButtons[active].classList.remove('tab-button-selected');
+        tabContents[active].classList.remove('tab-content-selected');
+      }
+      tabButtons[newActive].classList.add('tab-button-selected');
+      tabContents[newActive].classList.add('tab-content-selected');
+      active = newActive;
+    };
+    for (let i = 0; i < tabButtons.length; ++i) {
+      tabButtons[i].addEventListener('click', (e) => {
+        e.preventDefault();
+        updateSelected(i);
+      });
+    }
+    updateSelected(0);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
   updateNav();
   updateTOC();
 });
@@ -319,6 +367,7 @@ window.addEventListener("load", () => {
 
   updateTOC();
   setupSearch();
+  setupTabs();
 
   // Enable animations only after the load event. This is to prevent glitches
   // when switching pages.
@@ -353,10 +402,17 @@ if (fragment in legacyRedirectMap) {
 // Pages which have been been removed/renamed/moved and need to be redirected
 // to their new home.
 const redirectMap = {
-  // stdlib docs is not a perfect replacement but is good enough until we write
-  // a proper, Android specific query codelab page.
-  // TODO(lalitm): switch to that page when it's ready.
-  "/docs/analysis/common-queries": "/docs/analysis/stdlib-docs",
+  '/docs/analysis/common-queries': '/docs/getting-started/android-trace-analysis',
+  '/docs/analysis/pivot-tables': '/docs/visualization/perfetto-ui#pivot-tables',
+  '/docs/contributing/embedding': '/docs/analysis/trace-processor#embedding',
+  '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto',
+  '/docs/contributing/ui-development': '/docs/contributing/ui-getting-started',
+  '/docs/quickstart/android-tracing': '/docs/getting-started/system-tracing',
+  '/docs/quickstart/callstack-sampling': '/docs/getting-started/cpu-profiling',
+  '/docs/quickstart/chrome-tracing': '/docs/getting-started/chrome-tracing',
+  '/docs/quickstart/heap-profiling': '/docs/getting-started/memory-profiling',
+  '/docs/quickstart/linux-tracing': '/docs/getting-started/system-tracing',
+  '/docs/quickstart/trace-analysis': '/docs/analysis/getting-started',
 };
 
 if (location.pathname in redirectMap) {

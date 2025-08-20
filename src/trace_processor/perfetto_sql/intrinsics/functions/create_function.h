@@ -31,7 +31,7 @@ class PerfettoSqlEngine;
 // Implementation of CREATE_FUNCTION SQL function.
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
 // usage of this function.
-struct CreateFunction : public SqlFunction {
+struct CreateFunction : public LegacySqlFunction {
   using Context = PerfettoSqlEngine;
 
   static constexpr bool kVoidReturn = true;
@@ -48,7 +48,7 @@ struct CreateFunction : public SqlFunction {
 // the calls to `my_func`. `my_func` must be a Perfetto SQL function created
 // through CREATE_FUNCTION that takes a single integer argument and returns a
 // int.
-struct ExperimentalMemoize : public SqlFunction {
+struct ExperimentalMemoize : public LegacySqlFunction {
   using Context = PerfettoSqlEngine;
 
   static constexpr bool kVoidReturn = true;

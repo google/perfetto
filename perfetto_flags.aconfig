@@ -7,3 +7,17 @@ flag {
   description: "This flag controls whether dumpstate invokes perfetto --save-for-bugreport (when disabled, old behavrior) or --save-all-for-bugreport (when enabled, new behavior). save-all serializes all the eligible active traces, rather than only the one with the highest bugreport score"
   bug: "321196572"
 }
+flag {
+  name: "test_read_only_flag"
+  namespace: "perfetto"
+  description: "A test flag for verifying that support for read-only flags in Perfetto works correctly."
+  bug: "433766726"
+  is_fixed_read_only: true
+}
+flag {
+  name: "use_murmur_hash_for_flat_hash_map"
+  namespace: "perfetto"
+  description: "Controls whether we will use the new MurmurHash implementation for FlatHashMap. false = use FNV1A (used for ~5 years) true = use MurmurHash"
+  bug: "433766726"
+  is_fixed_read_only: true
+}

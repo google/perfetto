@@ -690,8 +690,9 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 
     if (thd.has_name()) {
       StringId thread_name_id = context_->storage->InternString(thd.name());
+      auto utid = context_->process_tracker->GetOrCreateThread(tid);
       context_->process_tracker->UpdateThreadName(
-          tid, thread_name_id, ThreadNamePriority::kProcessTree);
+          utid, thread_name_id, ThreadNamePriority::kProcessTree);
     }
 
     if (thd.has_nstid()) {
@@ -706,11 +707,6 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
-  // Maps a process counter field it to its value.
-  // E.g., 4 := 1024 -> "mem.rss.anon" := 1024.
-  // std::array<int64_t, kProcStatsProcessSize> counter_values{};
-  // std::array<bool, kProcStatsProcessSize> has_counter{};
-
   using Process = protos::pbzero::ProcessStats::Process;
   protos::pbzero::ProcessStats::Decoder stats(blob);
   for (auto it = stats.processes(); it; ++it) {

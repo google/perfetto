@@ -23,21 +23,6 @@ message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
 
-  message KprobeEvent {
-    enum KprobeType {
-      KPROBE_TYPE_UNKNOWN = 0;
-      KPROBE_TYPE_KPROBE = 1;
-      KPROBE_TYPE_KRETPROBE = 2;
-      KPROBE_TYPE_BOTH = 3;
-    }
-    // Kernel function name to attach to, for example "fuse_file_write_iter"
-    optional string probe = 1;
-    optional KprobeType type = 2;
-  }
-
-  // Ftrace events to record, specific for kprobes and kretprobes
-  repeated KprobeEvent kprobe_events = 30;
-
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
@@ -45,11 +30,34 @@ message FtraceConfig {
   // the "track_event" data source. For these categories, the SDK will be
   // preferred, if possible, for this config.
   repeated string atrace_categories_prefer_sdk = 28;
+  // If true, do *not* add in extra ftrace events when |atrace_categories| are
+  // set. This skips the legacy "atrace" behaviour of adding hardcoded ftrace
+  // events for convenience (and the vendor-specific events on top).
+  // Introduced in: perfetto v52.
+  optional bool atrace_userspace_only = 34;
 
   // Size of each per-cpu kernel ftrace ring buffer.
   // Not guaranteed if there are multiple concurrent tracing sessions, as the
   // buffers cannot be resized without pausing recording in the kernel.
   optional uint32 buffer_size_kb = 10;
+
+  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
+  // implementation to choose a bigger buffer size.
+  //
+  // Most configs for perfetto v43+ should simply leave both fields unset.
+  //
+  // If you need a config compatible with a range of perfetto builds and you
+  // used to set a non-default buffer_size_kb, consider setting both fields.
+  // Example:
+  //   buffer_size_kb: 4096
+  //   buffer_size_lower_bound: true
+  // On older builds, the per-cpu buffers will be exactly 4 MB.
+  // On v43+, buffers will be at least 4 MB.
+  // In both cases, neither is guaranteed if there are other concurrent
+  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
+  // the recording in the kernel.
+  // Introduced in: perfetto v43.
+  optional bool buffer_size_lower_bound = 27;
 
   // If set, specifies how often the tracing daemon reads from the kernel ring
   // buffer. Not guaranteed if there are multiple concurrent tracing sessions.
@@ -130,16 +138,6 @@ message FtraceConfig {
   }
   optional KsymsMemPolicy ksyms_mem_policy = 17;
 
-  // By default the kernel symbolizer is lazily initialized on a deferred task
-  // to reduce ftrace's time-to-start-recording. Unfortunately that makes
-  // ksyms integration tests hard. This flag forces the kernel symbolizer to be
-  // initialized synchronously on the data source start and hence avoiding
-  // timing races in tests.
-  // DEPRECATED in v28 / Android U. This is now the default behavior, setting it
-  // to true is a no-op.
-  optional bool initialize_ksyms_synchronously_for_testing = 14
-      [deprecated = true];
-
   // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
   // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
   // event instead if present, and fall back to "kmem/rss_stat" if not present.
@@ -216,11 +214,39 @@ message FtraceConfig {
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
 
-  // If true, does not clear ftrace buffers before the start of the program.
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
+
+  message KprobeEvent {
+    enum KprobeType {
+      KPROBE_TYPE_UNKNOWN = 0;
+      KPROBE_TYPE_KPROBE = 1;
+      KPROBE_TYPE_KRETPROBE = 2;
+      KPROBE_TYPE_BOTH = 3;
+    }
+    // Kernel function name to attach to, for example "fuse_file_write_iter"
+    optional string probe = 1;
+    optional KprobeType type = 2;
+  }
+  // Ftrace events to record, specific for kprobes and kretprobes
+  repeated KprobeEvent kprobe_events = 30;
+
+  // If true, does not clear kernel ftrace buffers when starting the trace.
   // This makes sense only if this is the first ftrace data source instance
   // created after the daemon has been started. Can be useful for gathering boot
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
+  // NB: when configuring the pre-perfetto ftrace, prefer to set
+  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
+  // anything besides ftrace. Otherwise timestamps might be skewed.
   optional bool preserve_ftrace_buffer = 23;
 
   // If true, overrides the default timestamp clock and uses a raw hardware
@@ -242,39 +268,15 @@ message FtraceConfig {
   //  * buffer_size_kb
   optional string instance_name = 25;
 
-  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
-  // implementation to choose a bigger buffer size.
-  //
-  // Most configs for perfetto v43+ should simply leave both fields unset.
-  //
-  // If you need a config compatible with a range of perfetto builds and you
-  // used to set a non-default buffer_size_kb, consider setting both fields.
-  // Example:
-  //   buffer_size_kb: 4096
-  //   buffer_size_lower_bound: true
-  // On older builds, the per-cpu buffers will be exactly 4 MB.
-  // On v43+, buffers will be at least 4 MB.
-  // In both cases, neither is guaranteed if there are other concurrent
-  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
-  // the recording in the kernel.
-  // Introduced in: perfetto v43.
-  optional bool buffer_size_lower_bound = 27;
-
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
 
+  // No-op in perfetto v28+. Name preserved because of existing references in
+  // textproto configs.
+  optional bool initialize_ksyms_synchronously_for_testing = 14
+      [deprecated = true];
+
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
-
-  // If |enable_function_graph| is true, only trace the specified
-  // number of calls down the stack. Sets the max_graph_depth value
-  // in sys/kernel/tracing/
-  //
-  // Only respected for the first tracing session that enables
-  // function_graph tracing.
-  //
-  // Introduced in: perfetto v51.
-  // Supported on: Android 25Q3+.
-  optional uint32 function_graph_max_depth = 33;
 }

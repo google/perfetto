@@ -59,8 +59,9 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
 base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   const StringId line_task_id{
       context_->storage->InternString(base::StringView(line.task))};
-  auto utid = context_->process_tracker->UpdateThreadName(
-      line.pid,
+  auto utid = context_->process_tracker->GetOrCreateThread(line.pid);
+  context_->process_tracker->UpdateThreadName(
+      utid,
       // Ftrace doesn't always know the thread name (see ftrace documentation
       // for saved_cmdlines) so some lines name a process "<...>". Don't use
       // this bogus name for thread naming otherwise a real name from a previous
@@ -127,8 +128,10 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     StringId name_id = context_->storage->InternString(base::StringView(comm));
-    auto wakee_utid = context_->process_tracker->UpdateThreadName(
-        wakee_pid.value(), name_id, ThreadNamePriority::kFtrace);
+    auto wakee_utid =
+        context_->process_tracker->GetOrCreateThread(wakee_pid.value());
+    context_->process_tracker->UpdateThreadName(wakee_utid, name_id,
+                                                ThreadNamePriority::kFtrace);
 
     ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
         line.ts, wakee_utid, utid);

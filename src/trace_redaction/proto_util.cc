@@ -55,5 +55,17 @@ void AppendField(const protozero::Field& field, protozero::Message* message) {
   PERFETTO_FATAL("Unknown field type %u", static_cast<uint8_t>(type));
 }
 
+// This is a simple wrapper around AppendRawProtoBytes() to better communicate
+// its relationship with AppendField(), This is equavalent to:
+//
+//    for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField())
+//    {
+//      proto_util::AppendField(it, dest);
+//    }
+void AppendFields(const protozero::Field& field, protozero::Message* message) {
+  PERFETTO_DCHECK(field.valid());
+  message->AppendRawProtoBytes(field.data(), field.size());
+}
+
 }  // namespace proto_util
 }  // namespace perfetto::trace_redaction

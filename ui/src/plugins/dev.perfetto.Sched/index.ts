@@ -12,34 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {Trace} from '../../public/trace';
+import {removeFalsyValues} from '../../base/array_utils';
+import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
+import {TrackNode} from '../../public/workspace';
 import {
   LONG,
   NUM,
   NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {createThreadStateTrack} from './thread_state_track';
-import {removeFalsyValues} from '../../base/array_utils';
-import {TrackNode} from '../../public/workspace';
-import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
+import {createThreadStateTrack} from './thread_state_track';
 
+import {duration, time, Time} from '../../base/time';
+import {MinimapRow} from '../../public/minimap';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ThreadPlugin from '../dev.perfetto.Thread';
+import {uriForSchedTrack} from './common';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
-import {uriForSchedTrack} from './common';
 import {CpuSliceTrack} from './cpu_slice_track';
 import {WakerOverlay} from './waker_overlay';
-import {duration, time, Time} from '../../base/time';
-import {createPerfettoTable} from '../../trace_processor/sql_utils';
-import {MinimapRow} from '../../public/minimap';
+import m from 'mithril';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -68,17 +72,45 @@ export default class implements PerfettoPlugin {
         });
       },
     });
+
+    ctx.search.registerSearchProvider({
+      name: 'Sched Slices',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === CPU_SLICE_TRACK_KIND)
+          .filter((track) =>
+            track.renderer.getDataset?.()?.implements({utid: NUM_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        // Look up all the utids of threads and processes that match the search
+        // term, and return a filter on those utids.
+        const searchLiteral = escapeSearchQuery(searchTerm);
+        const utidRes = await ctx.engine.query(`
+          SELECT utid
+          FROM thread
+          JOIN process USING(upid)
+          WHERE
+            thread.name GLOB ${searchLiteral} OR
+            process.name GLOB ${searchLiteral}
+        `);
+        const utids = [];
+        for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
+          utids.push(it.utid);
+        }
+        return {
+          where: `utid IN (${utids.join()})`,
+        };
+      },
+    });
   }
 
   async addCpuSliceTracks(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new CpuSliceSelectionAggregator()),
+      createAggregationTab(ctx, new CpuSliceSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
-        ctx,
-        new CpuSliceByProcessSelectionAggregator(),
-      ),
+      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator()),
     );
 
     // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
@@ -102,6 +134,21 @@ export default class implements PerfettoPlugin {
       const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
 
       ctx.tracks.registerTrack({
+        description: () => {
+          return m('', [
+            `Shows which threads were running on CPU ${cpu.toString()} over time.`,
+            m('br'),
+            m(
+              Anchor,
+              {
+                href: 'https://perfetto.dev/docs/data-sources/cpu-scheduling',
+                target: '_blank',
+                icon: Icons.ExternalLink,
+              },
+              'Documentation',
+            ),
+          ]);
+        },
         uri,
         tags: {
           kind: CPU_SLICE_TRACK_KIND,
@@ -161,7 +208,7 @@ export default class implements PerfettoPlugin {
     const {engine} = ctx;
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new ThreadStateSelectionAggregator()),
+      createAggregationTab(ctx, new ThreadStateSelectionAggregator()),
     );
 
     const result = await engine.query(`
@@ -200,6 +247,21 @@ export default class implements PerfettoPlugin {
       const uri = uriForThreadStateTrack(upid, utid);
       ctx.tracks.registerTrack({
         uri,
+        description: () => {
+          return m('', [
+            `Shows the scheduling state of the thread over time, e.g. Running, Runnable, Sleeping.`,
+            m('br'),
+            m(
+              Anchor,
+              {
+                href: 'https://perfetto.dev/docs/data-sources/cpu-scheduling',
+                target: '_blank',
+                icon: Icons.ExternalLink,
+              },
+              'Documentation',
+            ),
+          ]);
+        },
         tags: {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
@@ -260,10 +322,10 @@ export default class implements PerfettoPlugin {
           // TODO(stevegolton): Obtain source data from the track's datasets
           // instead of repeating it here?
           const schedTableName = '__sched_per_cpu';
-          await using _schedTable = await createPerfettoTable(
-            trace.engine,
-            schedTableName,
-            `
+          await using _schedTable = await createPerfettoTable({
+            engine: trace.engine,
+            name: schedTableName,
+            as: `
               SELECT
                 *
               FROM sched
@@ -272,7 +334,7 @@ export default class implements PerfettoPlugin {
                 ucpu = ${cpu} AND
                 NOT utid IN (SELECT utid FROM thread WHERE is_idle)
             `,
-          );
+          });
 
           const entireQuery = `
             SELECT

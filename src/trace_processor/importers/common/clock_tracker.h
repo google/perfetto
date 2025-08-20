@@ -22,13 +22,16 @@
 #include <array>
 #include <cinttypes>
 #include <cstdint>
+#include <list>
 #include <map>
 #include <optional>
+#include <queue>
 #include <random>
 #include <set>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -228,13 +231,6 @@ class ClockTracker {
         metadata::trace_time_clock_id, Variadic::Integer(trace_time_clock_id_));
   }
 
-  bool HasPathToTraceTime(ClockId clock_id) {
-    if (clock_id == trace_time_clock_id_) {
-      return true;
-    }
-    return FindPath(clock_id, trace_time_clock_id_).valid();
-  }
-
   void set_cache_lookups_disabled_for_testing(bool v) {
     cache_lookups_disabled_for_testing_ = v;
   }
@@ -242,6 +238,8 @@ class ClockTracker {
   const base::FlatHashMap<ClockId, int64_t>& clock_offsets_for_testing() {
     return clock_offsets_;
   }
+
+  uint32_t cache_hits_for_testing() const { return cache_hits_for_testing_; }
 
  private:
   using SnapshotHash = uint32_t;
@@ -336,9 +334,11 @@ class ClockTracker {
   ClockTracker(const ClockTracker&) = delete;
   ClockTracker& operator=(const ClockTracker&) = delete;
 
-  base::StatusOr<int64_t> ConvertSlowpath(ClockId src_clock_id,
-                                          int64_t src_timestamp,
-                                          ClockId target_clock_id);
+  base::StatusOr<int64_t> ConvertSlowpath(
+      ClockId src_clock_id,
+      int64_t src_timestamp,
+      std::optional<int64_t> src_timestamp_ns,
+      ClockId target_clock_id);
 
   // Converts a timestamp between two clock domains. Tries to use the cache
   // first (only for single-path resolutions), then falls back on path finding
@@ -346,18 +346,24 @@ class ClockTracker {
   base::StatusOr<int64_t> Convert(ClockId src_clock_id,
                                   int64_t src_timestamp,
                                   ClockId target_clock_id) {
+    std::optional<int64_t> ns;
     if (PERFETTO_LIKELY(!cache_lookups_disabled_for_testing_)) {
       for (const auto& cached_clock_path : cache_) {
         if (cached_clock_path.src != src_clock_id ||
-            cached_clock_path.target != target_clock_id)
+            cached_clock_path.target != target_clock_id) {
           continue;
-        int64_t ns = cached_clock_path.src_domain->ToNs(src_timestamp);
-        if (ns >= cached_clock_path.min_ts_ns &&
-            ns < cached_clock_path.max_ts_ns)
-          return ns + cached_clock_path.translation_ns;
+        }
+        if (!ns) {
+          ns = cached_clock_path.src_domain->ToNs(src_timestamp);
+        }
+        if (*ns >= cached_clock_path.min_ts_ns &&
+            *ns < cached_clock_path.max_ts_ns) {
+          cache_hits_for_testing_++;
+          return *ns + cached_clock_path.translation_ns;
+        }
       }
     }
-    return ConvertSlowpath(src_clock_id, src_timestamp, target_clock_id);
+    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id);
   }
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
@@ -381,13 +387,18 @@ class ClockTracker {
   std::map<ClockId, ClockDomain> clocks_;
   std::set<ClockGraphEdge> graph_;
   std::set<ClockId> non_monotonic_clocks_;
-  std::array<CachedClockPath, 2> cache_{};
+  std::array<CachedClockPath, 8> cache_{};
   bool cache_lookups_disabled_for_testing_ = false;
+  uint32_t cache_hits_for_testing_ = 0;
   std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
   bool trace_time_clock_id_used_for_conversion_ = false;
   base::FlatHashMap<ClockId, int64_t> clock_offsets_;
   std::optional<int64_t> timezone_offset_;
+
+  // A queue of paths to explore. Stored as a field to reduce allocations
+  // on every call to FindPath().
+  base::CircularQueue<ClockPath> queue_find_path_cache_;
 };
 
 }  // namespace trace_processor

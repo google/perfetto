@@ -16,11 +16,11 @@
 
 #include "src/traceconv/trace_to_text.h"
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
-#include "test/gtest_and_gmock.h"
-
 #include <fstream>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fnv_hash.h"
+#include "test/gtest_and_gmock.h"
 
 using std::string;
 
@@ -28,10 +28,10 @@ namespace perfetto {
 namespace trace_to_text {
 
 // Given a file, compute the checksum/hash of file.
-// Learn more @ base::Hasher.
+// Learn more @ base::FnvHasher.
 // Precondition: File should exist and be accessible.
 static uint64_t FileHash(const string& filename) {
-  base::Hasher hash;
+  base::FnvHasher hash;
   std::ifstream input_f(filename, std::ios::binary);
   PERFETTO_DCHECK(input_f.good());
   char buffer[4096];

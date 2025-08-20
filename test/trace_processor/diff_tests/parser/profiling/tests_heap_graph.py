@@ -195,7 +195,13 @@ class ProfilingHeapGraph(TestSuite):
         )
         LIMIT 10;
         """,
-        out=Path('heap_graph_flamegraph.out'))
+        out=Csv('''
+          "id","depth","name","map_name","count","cumulative_count","size","cumulative_size","parent_id"
+          0,0,"FactoryProducerDelegateImplActor [ROOT_JAVA_FRAME]","JAVA",1,2,64,96,"[NULL]"
+          1,1,"Foo","JAVA",1,1,32,32,0
+          2,0,"DeobfuscatedA[] [ROOT_JAVA_FRAME]","JAVA",1,1,256,256,"[NULL]"
+          3,0,"android.os.Parcel [ROOT_VM_INTERNAL]","JAVA",1,1,256,256,"[NULL]"
+                '''))
 
   def test_heap_graph_object_3(self):
     return DiffTestBlueprint(
@@ -221,7 +227,7 @@ class ProfilingHeapGraph(TestSuite):
           3,2,10,1024,3,0,"HEAP_TYPE_APP","a","DeobfuscatedA","[NULL]"
           4,2,10,256,"[NULL]",1,"HEAP_TYPE_APP","a[]","DeobfuscatedA[]","ROOT_JAVA_FRAME"
           5,2,10,256,"[NULL]",0,"HEAP_TYPE_APP","java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"
-          6,2,10,256,"[NULL]",0,"HEAP_TYPE_ZYGOTE","android.os.Parcel","[NULL]","[NULL]"
+          6,2,10,256,"[NULL]",1,"HEAP_TYPE_ZYGOTE","android.os.Parcel","[NULL]","ROOT_VM_INTERNAL"
         '''))
 
   def test_heap_graph_object_reference_set_id(self):
@@ -512,4 +518,67 @@ class ProfilingHeapGraph(TestSuite):
         "type_name","native_size"
         "android.graphics.Bitmap",123456
         "android.os.BinderProxy",0
+        """))
+
+  def test_heap_graph_runtime_internal_(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          heap_graph {
+            pid: 2
+            types {
+              id: 3
+              class_name: "java.lang.Object"
+            }
+            types {
+              id: 4
+              class_name: "java.lang.DexCache"
+              superclass_id: 3
+            }
+            roots {
+              root_type: ROOT_JAVA_FRAME
+              object_ids: 5
+            }
+            objects {
+              id: 5
+              type_id: 4
+              runtime_internal_object_id: 6
+              self_size: 64
+            }
+            objects {
+              id: 6
+              type_id: 3
+              self_size: 32
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT
+          r.field_name,
+          ca.name owner,
+          cb.name owned
+        FROM heap_graph_reference r
+        JOIN heap_graph_object a ON a.id = r.owner_id
+        JOIN heap_graph_class ca ON ca.id = a.type_id
+        JOIN heap_graph_object b ON b.id = r.owned_id
+        JOIN heap_graph_class cb ON cb.id = b.type_id
+        """,
+        out=Csv("""
+        "field_name","owner","owned"
+        "runtimeInternalObjects","java.lang.DexCache","java.lang.Object"
         """))

@@ -53,7 +53,6 @@ class TableInfo : public StaticTableFunction {
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
   uint32_t GetArgumentCount() const override;
-  uint32_t EstimateRowCount() override;
 
  private:
   StringPool* string_pool_ = nullptr;

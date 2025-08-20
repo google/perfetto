@@ -18,17 +18,22 @@ import {
   DataSourceResult,
   FilterDefinition,
   RowDef,
-  SortBy,
+  Sorting,
   SortByColumn,
+  DataGridModel,
+  AggregateSpec,
+  areAggregateArraysEqual,
 } from './common';
 
 export class InMemoryDataSource implements DataGridDataSource {
   private data: ReadonlyArray<RowDef> = [];
   private filteredSortedData: ReadonlyArray<RowDef> = [];
+  private aggregateResults: RowDef = {};
 
   // Cached state for diffing
-  private oldSortBy: SortBy = {direction: 'unsorted'};
+  private oldSorting: Sorting = {direction: 'UNSORTED'};
   private oldFilters: ReadonlyArray<FilterDefinition> = [];
+  private aggregates?: ReadonlyArray<AggregateSpec>;
 
   constructor(data: ReadonlyArray<RowDef>) {
     this.data = data;
@@ -40,36 +45,100 @@ export class InMemoryDataSource implements DataGridDataSource {
       rowOffset: 0,
       rows: this.filteredSortedData,
       totalRows: this.filteredSortedData.length,
+      aggregates: this.aggregateResults,
     };
   }
 
-  notifyUpdate(sortBy: SortBy, filters: ReadonlyArray<FilterDefinition>): void {
+  notifyUpdate({
+    sorting = {direction: 'UNSORTED'},
+    filters = [],
+    aggregates,
+  }: DataGridModel): void {
     if (
-      !this.isSortByEqual(sortBy, this.oldSortBy) ||
-      !this.areFiltersEqual(filters, this.oldFilters)
+      !this.isSortByEqual(sorting, this.oldSorting) ||
+      !this.areFiltersEqual(filters, this.oldFilters) ||
+      !areAggregateArraysEqual(aggregates, this.aggregates)
     ) {
+      this.oldSorting = sorting;
+      this.oldFilters = filters;
+      this.aggregates = aggregates;
+
       // Apply filters
       let result = this.applyFilters(this.data, filters);
 
       // Apply sorting
-      result = this.applySorting(result, sortBy);
+      result = this.applySorting(result, sorting);
 
       // Store the filtered and sorted data
       this.filteredSortedData = result;
 
-      this.oldSortBy = sortBy;
-      this.oldFilters = filters;
+      if (aggregates) {
+        this.aggregateResults = this.calcAggregates(result, aggregates);
+      }
     }
   }
 
-  private isSortByEqual(a: SortBy, b: SortBy): boolean {
+  private calcAggregates(
+    results: ReadonlyArray<RowDef>,
+    aggregates: ReadonlyArray<AggregateSpec>,
+  ): RowDef {
+    const result: RowDef = {};
+    for (const aggregate of aggregates) {
+      const {col, func} = aggregate;
+      const values = results
+        .map((row) => row[col])
+        .filter((value) => value !== null);
+
+      if (values.length === 0) {
+        result[col] = null;
+        continue;
+      }
+
+      switch (func) {
+        case 'SUM':
+          result[col] = values.reduce(
+            (acc: number, val) => acc + (Number(val) || 0),
+            0,
+          );
+          break;
+        case 'AVG':
+          result[col] =
+            (values.reduce(
+              (acc: number, val) => acc + (Number(val) || 0),
+              0,
+            ) as number) / values.length;
+          break;
+        case 'COUNT':
+          result[col] = values.length;
+          break;
+        case 'MIN':
+          result[col] = values.reduce(
+            (acc, val) => (val < acc ? val : acc),
+            values[0],
+          );
+          break;
+        case 'MAX':
+          result[col] = values.reduce(
+            (acc, val) => (val > acc ? val : acc),
+            values[0],
+          );
+          break;
+        default:
+          // Do nothing for unknown functions
+          break;
+      }
+    }
+    return result;
+  }
+
+  private isSortByEqual(a: Sorting, b: Sorting): boolean {
     if (a === b) return true;
 
-    if (a.direction === 'unsorted' && b.direction === 'unsorted') {
+    if (a.direction === 'UNSORTED' && b.direction === 'UNSORTED') {
       return true;
     }
 
-    if (a.direction !== 'unsorted' && b.direction !== 'unsorted') {
+    if (a.direction !== 'UNSORTED' && b.direction !== 'UNSORTED') {
       const aColumn = a as SortByColumn;
       const bColumn = b as SortByColumn;
       return (
@@ -81,7 +150,7 @@ export class InMemoryDataSource implements DataGridDataSource {
     return false;
   }
 
-  // Helper functions for comparing objects
+  // Helper function to compare arrays of filter definitions for equality.
   private areFiltersEqual(
     filtersA: ReadonlyArray<FilterDefinition>,
     filtersB: ReadonlyArray<FilterDefinition>,
@@ -163,9 +232,9 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   private applySorting(
     data: ReadonlyArray<RowDef>,
-    sortBy: SortBy,
+    sortBy: Sorting,
   ): ReadonlyArray<RowDef> {
-    if (sortBy.direction === 'unsorted') {
+    if (sortBy.direction === 'UNSORTED') {
       return data;
     }
 
@@ -178,28 +247,28 @@ export class InMemoryDataSource implements DataGridDataSource {
 
       // Handle null values - they come first in ascending, last in descending
       if (valueA === null && valueB === null) return 0;
-      if (valueA === null) return sortDirection === 'asc' ? -1 : 1;
-      if (valueB === null) return sortDirection === 'asc' ? 1 : -1;
+      if (valueA === null) return sortDirection === 'ASC' ? -1 : 1;
+      if (valueB === null) return sortDirection === 'ASC' ? 1 : -1;
 
       if (typeof valueA === 'number' && typeof valueB === 'number') {
-        return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
+        return sortDirection === 'ASC' ? valueA - valueB : valueB - valueA;
       }
 
       if (typeof valueA === 'bigint' && typeof valueB === 'bigint') {
-        return sortDirection === 'asc'
+        return sortDirection === 'ASC'
           ? Number(valueA - valueB)
           : Number(valueB - valueA);
       }
 
       if (typeof valueA === 'string' && typeof valueB === 'string') {
-        return sortDirection === 'asc'
+        return sortDirection === 'ASC'
           ? valueA.localeCompare(valueB)
           : valueB.localeCompare(valueA);
       }
 
       if (valueA instanceof Uint8Array && valueB instanceof Uint8Array) {
         // Compare by length for Uint8Arrays
-        return sortDirection === 'asc'
+        return sortDirection === 'ASC'
           ? valueA.length - valueB.length
           : valueB.length - valueA.length;
       }
@@ -207,7 +276,7 @@ export class InMemoryDataSource implements DataGridDataSource {
       // Default comparison using string conversion
       const strA = String(valueA);
       const strB = String(valueB);
-      return sortDirection === 'asc'
+      return sortDirection === 'ASC'
         ? strA.localeCompare(strB)
         : strB.localeCompare(strA);
     });

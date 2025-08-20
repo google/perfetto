@@ -40,7 +40,7 @@ namespace {
 //
 //   Replaces hexadecimal sequences (with at least one digit) in a string with
 //   "<num>" based on specified criteria.
-struct StripHexFunction : public SqlFunction {
+struct StripHexFunction : public LegacySqlFunction {
   static constexpr char kFunctionName[] = "__intrinsic_strip_hex";
   using Context = void;
 

@@ -328,7 +328,7 @@ class Dataframe {
          typename std::tuple_element_t<Is, typename D::columns>, Is>(ts),
      ...);
     ++row_count_;
-    ++mutations_;
+    ++non_column_mutations_;
   }
 
   template <typename D, size_t I>
@@ -462,8 +462,8 @@ class Dataframe {
     PERFETTO_DCHECK(!finalized_);
 
     // Make sure to increment the mutation count. This is important to let
-    // others know that the dataframe has been modified.
-    ++mutations_;
+    // others know that the column has been modified.
+    ++col.mutations;
 
     auto& storage = col.storage.unchecked_get<T>();
     auto& nulls = col.null_storage.unchecked_get<N>();
@@ -556,13 +556,14 @@ class Dataframe {
   // String pool for efficient string storage and interning.
   StringPool* string_pool_;
 
-  // A count of the number of mutations to the dataframe. This includes adding
-  // rows, setting cells to new values, adding indexes and removing indexes.
+  // A count of the number of mutations to the dataframe (e.g. adding rows,
+  // adding indexes). This does *not* include changes to values of the columns,
+  // there is a separate mutation count for that.
   //
   // This is used to determine if the dataframe has changed since the
   // last time an external caller looked at it. This can allow invalidation of
   // external caches of things inside this dataframe.
-  uint32_t mutations_ = 0;
+  uint32_t non_column_mutations_ = 0;
 
   // Whether the dataframe is "finalized". See `Finalize()`.
   bool finalized_ = false;

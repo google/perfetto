@@ -15,7 +15,7 @@
 @import "theme";
 
 .pf-segmented-buttons {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
 
   .pf-button {

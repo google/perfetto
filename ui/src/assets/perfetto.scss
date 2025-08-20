@@ -16,22 +16,22 @@
 @import "common";
 @import "viewer_page";
 @import "home_page";
-@import "query_page";
 @import "metrics_page";
 @import "sidebar";
 @import "topbar";
 @import "record";
-@import "modal";
 @import "details";
+@import "note_editor";
 @import "trace_info_page";
-@import "flags_page";
 @import "hiring_banner";
 @import "statusbar";
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
 @import "components/data_grid";
+@import "components/query_history";
 @import "widgets/anchor";
+@import "widgets/box";
 @import "widgets/button";
 @import "widgets/callout";
 @import "widgets/card";
@@ -47,11 +47,14 @@
 @import "widgets/grid_layout";
 @import "widgets/hotkey";
 @import "widgets/icon";
+@import "widgets/linear_progress";
 @import "widgets/menu";
 @import "widgets/middle_ellipsis";
+@import "widgets/modal";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
 @import "widgets/popup";
+@import "widgets/resize_handle";
 @import "widgets/section";
 @import "widgets/segmented_buttons";
 @import "widgets/select";
@@ -59,6 +62,7 @@
 @import "widgets/spinner";
 @import "widgets/split_panel";
 @import "widgets/sql_table";
+@import "widgets/stack";
 @import "widgets/switch";
 @import "widgets/tabbed_split_panel";
 @import "widgets/tag_input";
@@ -69,6 +73,7 @@
 @import "widgets/track_shell";
 @import "widgets/tree";
 @import "widgets/treetable";
+@import "widgets/ui_main";
 @import "widgets/vega_view";
 @import "widgets/virtual_overlay_canvas";
 @import "widgets/virtual_scroll_container";

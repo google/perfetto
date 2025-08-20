@@ -15,3 +15,28 @@
 .pf-aggregation-loading {
   height: 100%;
 }
+
+.pf-aggregation-panel {
+  &__bar-chart {
+    font-size: 11px;
+    display: flex;
+    overflow: hidden;
+    gap: 1px;
+
+    &-bar {
+      height: 20px;
+      line-height: 20px;
+      padding-left: 3px;
+      padding-right: 3px;
+
+      border-style: solid;
+      border-width: 1px;
+      border-radius: 2px;
+      user-select: none;
+
+      &:hover {
+        min-width: fit-content;
+      }
+    }
+  }
+}

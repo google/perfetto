@@ -352,7 +352,11 @@ class GnParser(object):
       # Used only when custom_action_type == 'perfetto_android_app'
       self.instruments: Optional[str] = None
       # Used only when custom_action_type == 'perfetto_android_library'
-      self.android_bp_generate_java_target = False
+      self.android_bp_java_target_name_suffix: Optional[str] = None
+      # Used only when custom_action_type == 'perfetto_android_library'
+      # and android_bp_java_target_name_suffix != None
+      self.android_bp_copy_java_target_name_suffix: Optional[str] = None
+      self.android_bp_copy_java_target_jarjar: Optional[str] = None
       # Used only when
       # custom_action_type == 'perfetto_android_instrumentation_test'
       self.a_i_t_app: Optional[str] = None
@@ -513,10 +517,19 @@ class GnParser(object):
       if resource_files:
         target.resource_files = resource_files[0]
         assert (target.resource_files.endswith('/**/*'))
-      generate_java_target = target.metadata.get(
-          'perfetto_android_library_android_bp_generate_java_target')
-      if generate_java_target:
-        target.android_bp_generate_java_target = bool(generate_java_target[0])
+      java_target_name_suffix = target.metadata.get(
+          'perfetto_android_library_android_bp_java_target_name_suffix')
+      if java_target_name_suffix:
+        target.android_bp_java_target_name_suffix = java_target_name_suffix[0]
+      copy_java_target_name_suffix = target.metadata.get(
+          'perfetto_android_library_android_bp_copy_java_target_name_suffix')
+      if copy_java_target_name_suffix:
+        target.android_bp_copy_java_target_name_suffix = copy_java_target_name_suffix[
+            0]
+      copy_java_target_jarjar = target.metadata.get(
+          'perfetto_android_library_android_bp_copy_java_target_jarjar')
+      if copy_java_target_jarjar:
+        target.android_bp_copy_java_target_jarjar = copy_java_target_jarjar[0]
       a_i_t_app = target.metadata.get('perfetto_android_a_i_t_app')
       target.a_i_t_app = a_i_t_app[0] if a_i_t_app else None
       a_i_t_test_app = target.metadata.get('perfetto_android_a_i_t_test_app')

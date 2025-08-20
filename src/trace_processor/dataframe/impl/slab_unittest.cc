@@ -128,17 +128,6 @@ TEST(SlabTest, RangeBasedForLoop) {
   EXPECT_EQ(sum, 15);
 }
 
-// Test with custom alignment
-TEST(SlabTest, CustomAlignment) {
-  // Use 128-byte alignment
-  constexpr size_t kCustomAlignment = 128;
-  auto slab = Slab<double, kCustomAlignment>::Alloc(10);
-
-  // The data pointer should be aligned to kCustomAlignment
-  auto ptr_value = reinterpret_cast<uintptr_t>(slab.data());
-  EXPECT_EQ(ptr_value % kCustomAlignment, 0u);
-}
-
 // Test with different data types
 TEST(SlabTest, DifferentDataTypes) {
   // Test with a larger type

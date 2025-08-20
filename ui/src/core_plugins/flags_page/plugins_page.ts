@@ -19,7 +19,7 @@ import {exists} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PluginWrapper} from '../../core/plugin_manager';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
-import {Card, CardList} from '../../widgets/card';
+import {Card, CardStack} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';
 import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
@@ -129,7 +129,7 @@ export class PluginsPage implements m.ClassComponent {
       m(
         '.pf-plugins-page',
         m(
-          CardList,
+          CardStack,
           sorted.map((plugin) => this.renderPluginCard(plugin)),
         ),
       ),
@@ -141,7 +141,6 @@ export class PluginsPage implements m.ClassComponent {
     return m(
       Card,
       {
-        borderless: true,
         className: classNames(
           'pf-plugins-page__card',
           plugin.active && 'pf-plugins-page__card--active',

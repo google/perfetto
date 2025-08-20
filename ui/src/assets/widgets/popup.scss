@@ -35,12 +35,23 @@
   border: solid 1px $pf-colour-thin-border;
   border-radius: $pf-border-radius;
   box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  max-width: 350px; // Sensible default width for most popups
 
   .pf-popup-content {
     // Ensures all content is rendered above the arrow
     position: relative;
     // Default padding set to some sensible value that works for most content
     padding: 4px;
+    overflow: hidden;
+  }
+
+  &--fit-content {
+    max-width: unset;
+  }
+
+  &--match-width {
+    // Width is handled in JS
+    max-width: unset;
   }
 }
 

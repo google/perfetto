@@ -58,6 +58,50 @@ if (enable_perfetto_trace_processor) {
   }
 }
 
+if (enable_perfetto_llvm_symbolizer) {
+  _llvm_flags_output =
+      exec_script("../../../tools/get_llvm_flags.py", [], "scope")
+
+  assert(
+      _llvm_flags_output != [],
+      "llvm-config not found, but enable_perfetto_llvm_symbolizer is true. Please install a recent LLVM development package (e.g., 'apt install llvm-dev') and ensure llvm-config is in your PATH.")
+
+  shared_library("llvm_symbolizer_wrapper") {
+    sources = [ "llvm_symbolizer_wrapper.cc" ]
+    public_deps = [ ":llvm_symbolizer_c_api" ]
+    deps = [ "../../../gn:default_deps" ]
+
+    libs = _llvm_flags_output.libs
+    ldflags = _llvm_flags_output.ldflags
+    cflags = _llvm_flags_output.cflags
+    defines = _llvm_flags_output.defines
+
+    cflags += [ "-fvisibility=hidden" ]  # Not currently necessary, but good for
+                                         # future-proofing.
+  }
+  source_set("llvm_symbolizer_c_api") {
+    sources = [ "llvm_symbolizer_c_api.h" ]
+    deps = [ "../../../gn:default_deps" ]
+  }
+
+  source_set("llvm_symbolizer") {
+    sources = [
+      "llvm_symbolizer.cc",
+      "llvm_symbolizer.h",
+    ]
+    deps = [
+      ":llvm_symbolizer_c_api",
+      "../../../gn:default_deps",
+      "../../../include/perfetto/ext/base",
+    ]
+    visibility = [
+      "../../../buildtools/*",
+      "../../src/trace_processor/*",
+      "./*",
+    ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
@@ -71,4 +115,9 @@ perfetto_unittest_source_set("unittests") {
     "breakpad_symbolizer_unittest.cc",
     "local_symbolizer_unittest.cc",
   ]
+  if (enable_perfetto_llvm_symbolizer) {
+    sources += [ "llvm_symbolizer_unittest.cc" ]
+    deps += [ ":llvm_symbolizer" ]
+    data_deps = [ ":llvm_symbolizer_wrapper" ]
+  }
 }

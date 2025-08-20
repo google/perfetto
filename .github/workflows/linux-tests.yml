@@ -47,7 +47,7 @@ jobs:
             PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu=\"x86\" cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: gcc8-x86_64-release
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\"'
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\" enable_perfetto_llvm_symbolizer=true'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
     env:
       PERFETTO_CI_JOB_NAME: ${{ matrix.config.name }}
@@ -68,9 +68,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ matrix.config.name }}-${{ github.run_id }}
-          restore-keys: |
-            cache-${{ matrix.config.name }}-
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -149,5 +147,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ matrix.config.name }}-${{ github.run_id }}
-
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}

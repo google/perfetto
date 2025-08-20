@@ -73,11 +73,13 @@ default_targets = [
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//src/traced_relay:traced_relay',
+    '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_redaction:trace_redactor',
     '//src/java_sdk/main:perfetto_java_sdk_app',
     '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
     '//src/android_sdk/java/main:perfetto_trace_lib',
+    '//src/android_sdk/jni:libperfetto_framework_jni',
     '//src/android_sdk/java/test:perfetto_trace_instrumentation_test',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
@@ -114,6 +116,7 @@ target_host_supported = [
     '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
+    '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
@@ -122,6 +125,7 @@ target_host_supported = [
 target_vendor_available = [
     '//:libperfetto_client_experimental',
     '//src/shared_lib:libperfetto_c',
+    '//protos/perfetto/trace:perfetto_trace_protos',
 ]
 
 # Library targets that should be exported as "cc_library" instead of
@@ -201,6 +205,7 @@ shared_library_allowlist = [
     'log',
     'services',
     'statssocket',
+    'timeinstate',
     'tracingproxy',
     'utils',
     'statspull',
@@ -208,7 +213,14 @@ shared_library_allowlist = [
 
 # Static libraries which are directly translated to Android system equivalents.
 static_library_allowlist = [
+    'perfetto_flags_c_lib',
     'statslog_perfetto',
+]
+
+# Static libraries which are in `static_library_allowlist` and should simply
+# be skipped on host only targets without causing an error.
+static_library_skip_host_error_allowlist = [
+    'perfetto_flags_c_lib',
 ]
 
 # Name of the module which settings such as compiler flags for all other
@@ -291,6 +303,10 @@ additional_args = {
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
+    'trace_processor': [
+        ('whole_static_libs',
+         {'perfetto_src_trace_processor_demangle', 'sqlite_ext_percentile'}),
+    ],
     'trace_processor_shell': [
         ('strip', {
             'all': True
@@ -332,7 +348,13 @@ additional_args = {
     'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
         ('static_libs', {'perfetto_trace_java_protos'})
     ],
-    'perfetto_trace_lib_java': [('sdk_version', 'module_current')]
+    'perfetto_trace_lib_java': [
+        ('sdk_version', 'module_current'),
+        # Framework should use 'perfetto_trace_lib_framework_java' instead.
+        ('visibility', {':__subpackages__'}),
+    ],
+    # Framework should use 'libperfetto_framework_jni' instead.
+    'libperfetto_jni': [('visibility', {':__subpackages__'}),],
 }
 
 
@@ -627,6 +649,8 @@ class Module(object):
     self.resource_dirs: Optional[List[str]] = None
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
+    self.jarjar_rules: Optional[str] = None
+    self.visibility = set()
 
   def to_string(self, output):
     if self.comment:
@@ -675,6 +699,8 @@ class Module(object):
     self._output_field(output, 'output_extension')
     self._output_field(output, 'jni_libs')
     self._output_field(output, 'jni_uses_platform_apis')
+    self._output_field(output, 'jarjar_rules')
+    self._output_field(output, 'visibility')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -707,6 +733,8 @@ class Module(object):
 
   def add_android_static_lib(self, lib):
     if self.type == 'cc_binary_host':
+      if lib in static_library_skip_host_error_allowlist:
+        return
       raise Exception('Adding Android static lib for host tool is unsupported')
     elif self.host_supported:
       self.android.static_libs.add(lib)
@@ -1122,8 +1150,8 @@ class AndroidJavaSDKModulesGenerator:
                                     bp_module_name: str):
     module = Module('android_library', bp_module_name, target.name)
 
-    if target.android_bp_generate_java_target:
-      java_library_module_name = bp_module_name + "_java"
+    if target.android_bp_java_target_name_suffix:
+      java_library_module_name = bp_module_name + target.android_bp_java_target_name_suffix
       java_module = Module('java_library', java_library_module_name,
                            target.name)
       java_module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
@@ -1131,6 +1159,16 @@ class AndroidJavaSDKModulesGenerator:
       _add_additional_args(java_module)
 
       self.blueprint.add_module(java_module)
+
+      if target.android_bp_copy_java_target_name_suffix:
+        _extract_defaults(java_module, self.blueprint)
+        java_copy_module_name = bp_module_name + target.android_bp_copy_java_target_name_suffix
+        java_copy_module = Module('java_library', java_copy_module_name,
+                                  target.name)
+        java_copy_module.defaults = java_module.defaults
+        java_copy_module.jarjar_rules = gn_utils.label_to_path(
+            target.android_bp_copy_java_target_jarjar)
+        self.blueprint.add_module(java_copy_module)
 
       module.static_libs.add(java_library_module_name)
     else:
@@ -1208,6 +1246,25 @@ class AndroidJavaSDKModulesGenerator:
     visited.add(target)
     for d in target.non_proto_or_source_set_deps():
       self._collect_all_transitive_deps(d, visited)
+
+
+def _extract_defaults(module: Module, blueprint: Blueprint):
+  if module.type.startswith('cc_library') or module.type.startswith(
+      'cc_binary'):
+    defaults_type = 'cc_defaults'
+  elif module.type == 'java_library':
+    defaults_type = 'java_defaults'
+  else:
+    raise Error('Unsupported module type: {}'.format(module.type))
+  defaults_module = Module(defaults_type, module.name + '_defaults',
+                           module.gn_target)
+  items_copy = dict(module.__dict__)
+  for k, v in items_copy.items():
+    if k not in ('type', 'name', 'comment', 'gn_target', 'visibility'):
+      defaults_module.__dict__[k] = v
+      module.__dict__[k] = None
+  blueprint.add_module(defaults_module)
+  module.defaults = {defaults_module.name}
 
 
 def _get_cflags(target: GnParser.Target):
@@ -1340,9 +1397,9 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     for lib in target.libs:
       # Generally library names should be mangled as 'libXXX', unless they
       # are HAL libraries (e.g., android.hardware.health@2.0) or AIDL c++ / NDK
-      # libraries (e.g. "android.hardware.power.stats-V1-cpp")
+      # libraries (e.g. "android.hardware.power.stats-V1-cpp") or flag targets.
       android_lib = lib if '@' in lib or "-cpp" in lib or "-ndk" in lib \
-        else 'lib' + lib
+        or "_flags_c_lib" in lib else 'lib' + lib
       if lib in shared_library_allowlist:
         module.add_android_shared_lib(android_lib)
       if lib in static_library_allowlist:

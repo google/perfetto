@@ -18,3 +18,10 @@
 /ui/src/test/**/*
 /tools/**/*
 /test/**/*
+
+# Chromium-specific parts of stdlib is rolled from the chromium repo.
+# The chromium owners should be able to approve the rolls.
+/protos/third_party/chromium/**.* @google/chromium-stdlib-owners
+/src/trace_processor/perfetto_sql/stdlib/chrome/**.* @google/chromium-stdlib-owners
+/test/trace_processor/diff_tests/stdlib/chrome/**.* @google/chromium-stdlib-owners
+/test/data/chrome/**.sha256 @google/chromium-stdlib-owners

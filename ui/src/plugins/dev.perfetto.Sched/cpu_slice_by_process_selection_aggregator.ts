@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
-  ii,
+  Aggregation,
+  Aggregator,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
-export class CpuSliceByProcessSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class CpuSliceByProcessSelectionAggregator implements Aggregator {
   readonly id = 'cpu_by_process_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
@@ -44,7 +43,12 @@ export class CpuSliceByProcessSelectionAggregator
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
@@ -53,7 +57,7 @@ export class CpuSliceByProcessSelectionAggregator
             sum(dur) AS total_dur,
             sum(dur) / count() as avg_dur,
             count() as occurrences
-          from (${iiDataset.query()})
+          from (${iiTable.name})
           join thread USING (utid)
           join process USING (upid)
           group by upid
@@ -78,33 +82,25 @@ export class CpuSliceByProcessSelectionAggregator
     return [
       {
         title: 'Process',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'process_name',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'occurrences',
         sum: true,
       },

@@ -97,6 +97,8 @@ std::string OpToString(int op) {
       return " is not null";
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
       return "limit";
+    case SQLITE_INDEX_CONSTRAINT_OFFSET:
+      return "offset";
     case SQLITE_INDEX_CONSTRAINT_FUNCTION:
       return "function";
     default:
@@ -158,7 +160,6 @@ int DataframeModule::Create(sqlite3* db,
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->dataframe = state->dataframe;
   res->state = ctx->OnCreate(argc, argv, std::move(state));
   res->name = argv[2];
   *vtab = res.release();
@@ -187,7 +188,6 @@ int DataframeModule::Connect(sqlite3* db,
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->dataframe = state->dataframe;
   res->state = vtab_state;
   res->name = argv[2];
   *vtab = res.release();
@@ -201,6 +201,10 @@ int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
 
 int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   auto* v = GetVtab(tab);
+  auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+
+  std::optional<int> limit_constraint_idx;
+  std::optional<int> offset_constraint_idx;
 
   std::vector<dataframe::FilterSpec> filter_specs;
   dataframe::LimitSpec limit_spec;
@@ -226,9 +230,11 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         auto cast = static_cast<uint32_t>(value);
         if (op == SQLITE_INDEX_CONSTRAINT_LIMIT) {
           limit_spec.limit = cast;
+          limit_constraint_idx = i;
         } else {
           PERFETTO_DCHECK(op == SQLITE_INDEX_CONSTRAINT_OFFSET);
           limit_spec.offset = cast;
+          offset_constraint_idx = i;
         }
         continue;
       }
@@ -255,6 +261,8 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   // and offset constraints.
   if (has_unknown_constraint) {
     limit_spec = dataframe::LimitSpec{};
+    limit_constraint_idx = std::nullopt;
+    offset_constraint_idx = std::nullopt;
   }
 
   bool should_sort_using_order_by = true;
@@ -297,14 +305,25 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
 
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
-      v->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
+      s->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
                               limit_spec, info->colUsed));
+  int max_argv = 0;
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
       info->aConstraintUsage[c.source_index].argvIndex =
           static_cast<int>(*value_index) + 1;
       info->aConstraintUsage[c.source_index].omit = true;
+      max_argv =
+          std::max(max_argv, info->aConstraintUsage[c.source_index].argvIndex);
     }
+  }
+  if (limit_constraint_idx) {
+    info->aConstraintUsage[*limit_constraint_idx].omit = true;
+    info->aConstraintUsage[*limit_constraint_idx].argvIndex = ++max_argv;
+  }
+  if (offset_constraint_idx) {
+    info->aConstraintUsage[*offset_constraint_idx].omit = true;
+    info->aConstraintUsage[*offset_constraint_idx].argvIndex = ++max_argv;
   }
   info->needToFreeIdxStr = true;
   info->estimatedCost = plan.estimated_cost();
@@ -315,7 +334,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   info->idxNum = v->best_idx_num++;
   PERFETTO_TP_TRACE(
       metatrace::Category::QUERY_TIMELINE, "DATAFRAME_BEST_INDEX",
-      [info, v, &plan](metatrace::Record* record) {
+      [info, v, s, &plan](metatrace::Record* record) {
         base::StackString<32> unique("%d",
                                      info->idxFlags & SQLITE_INDEX_SCAN_UNIQUE);
         record->AddArg("name", v->name);
@@ -334,7 +353,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         for (uint64_t u = info->colUsed, i = 0, j = 0; u != 0; u >>= 1, ++i) {
           if (u & 1) {
             base::StackString<32> c("colUsed[%" PRIu64 "]", j++);
-            record->AddArg(c.string_view(), v->dataframe->column_names()[i]);
+            record->AddArg(c.string_view(), s->dataframe->column_names()[i]);
           }
         }
         auto str = plan.BytecodeToString();
@@ -350,7 +369,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
             base::StackString<32> c("constraint[%d].column", j);
             auto col_idx = static_cast<uint32_t>(info->aConstraint[i].iColumn);
             record->AddArg(c.string_view(),
-                           v->dataframe->column_names()[col_idx]);
+                           s->dataframe->column_names()[col_idx]);
           }
           {
             base::StackString<32> c("constraint[%d].op", j);
@@ -379,7 +398,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
             base::StackString<32> c("order_by[%d].column", i);
             auto col_idx = static_cast<uint32_t>(info->aOrderBy[i].iColumn);
             record->AddArg(c.string_view(),
-                           v->dataframe->column_names()[col_idx]);
+                           s->dataframe->column_names()[col_idx]);
           }
           {
             base::StackString<32> c("order_by[%d].desc", i);
@@ -408,12 +427,11 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             const char* idxStr,
                             int argc,
                             sqlite3_value** argv) {
-  auto* v = GetVtab(cur->pVtab);
   auto* c = GetCursor(cur);
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
     PERFETTO_TP_TRACE(
-        metatrace::Category::QUERY_TIMELINE, "DATAFRAME_FILTER_PREPARE",
+        metatrace::Category::QUERY_DETAILED, "DATAFRAME_FILTER_PREPARE",
         [&plan, idxNum](metatrace::Record* record) {
           record->AddArg("idxNum",
                          base::StackString<32>("%d", idxNum).string_view());
@@ -423,7 +441,9 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
             record->AddArg(c.string_view(), str[i]);
           }
         });
-    v->dataframe->PrepareCursor(plan, c->df_cursor);
+    auto* v = GetVtab(cur->pVtab);
+    auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+    s->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
   }
   // SQLite's API claims it will never pass more than 16 arguments

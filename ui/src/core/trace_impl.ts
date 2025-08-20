@@ -17,7 +17,7 @@ import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
-import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
+import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
@@ -101,6 +101,7 @@ export class TraceContext implements Disposable {
       traceInfo,
       this.appCtx.timestampFormat,
       this.appCtx.durationPrecision,
+      this.appCtx.timezoneOverride,
     );
 
     this.scrollHelper = new ScrollHelper(
@@ -112,6 +113,7 @@ export class TraceContext implements Disposable {
 
     this.selectionMgr = new SelectionManagerImpl(
       this.engine,
+      this.timeline,
       this.trackMgr,
       this.noteMgr,
       this.scrollHelper,
@@ -269,9 +271,6 @@ export class TraceImpl implements Trace {
         return settingInstance;
       },
     });
-
-    // TODO(primiano): remove this injection once we plumb Trace everywhere.
-    setScrollToFunction((x: ScrollToArgs) => ctx.scrollHelper.scrollTo(x));
   }
 
   scrollTo(where: ScrollToArgs): void {

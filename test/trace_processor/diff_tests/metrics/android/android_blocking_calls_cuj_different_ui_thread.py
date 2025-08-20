@@ -125,7 +125,7 @@ def setup_cujs(trace):
 
   trace.add_atrace_instant_for_track(
       ts=5_000_002,
-      buf="FT#beginVsync#20",
+      buf="FT#beginVsync#10",
       pid=CUJ_PID,
       tid=CUJ_UI_TID,
       track_name=cuj_name)

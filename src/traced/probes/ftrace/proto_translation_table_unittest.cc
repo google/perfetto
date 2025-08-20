@@ -20,7 +20,7 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/event_info_constants.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/descriptor.gen.h"
@@ -66,9 +66,9 @@ MATCHER_P(FtraceFieldMatcher, expected_struct, "") {
       arg, result_listener);
 }
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {}
+  MockTracefs() : Tracefs("/root/") {}
 
   MOCK_METHOD(std::string, ReadPageHeaderFormat, (), (const, override));
   MOCK_METHOD(std::string,
@@ -82,8 +82,8 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
   void SetUp() override {
     std::string path = base::GetTestDataPath(
         "src/traced/probes/ftrace/test/data/" + std::string(GetParam()) + "/");
-    FtraceProcfs ftrace_procfs(path);
-    table_ = ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo(),
+    Tracefs tracefs(path);
+    table_ = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
                                            GetStaticCommonFieldsInfo());
     PERFETTO_CHECK(table_);
   }
@@ -138,9 +138,9 @@ INSTANTIATE_TEST_SUITE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 TEST(TranslationTableTest, Seed) {
   std::string path = base::GetTestDataPath(
       "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/");
-  FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(
-      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  Tracefs tracefs(path);
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
   const Field& pid_field = table->common_fields().at(0);
   EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
@@ -177,7 +177,7 @@ TEST(TranslationTableTest, Seed) {
 }
 
 TEST_P(TranslationTableCreationTest, Create) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
 
@@ -291,9 +291,9 @@ TEST(TranslationTableTest, CompactSchedFormatParsingWalleyeData) {
   std::string path = base::GetTestDataPath(
       "src/traced/probes/ftrace/test/data/"
       "android_walleye_OPM5.171019.017.A1_4.4.88/");
-  FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(
-      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  Tracefs tracefs(path);
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
   const CompactSchedEventFormat& format = table->compact_sched_format();
 
@@ -326,9 +326,9 @@ TEST(TranslationTableTest, CompactSchedFormatParsingWalleyeData) {
 TEST(TranslationTableTest, CompactSchedFormatParsingSeedData) {
   std::string path =
       "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/";
-  FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(
-      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  Tracefs tracefs(path);
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
   const CompactSchedEventFormat& format = table->compact_sched_format();
 
@@ -406,7 +406,7 @@ TEST(TranslationTableTest, InferFtraceType) {
 }
 
 TEST(TranslationTableTest, Getters) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
 
@@ -459,7 +459,7 @@ TEST(TranslationTableTest, Getters) {
 }
 
 TEST(TranslationTableTest, GenericEvent) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
 
@@ -613,9 +613,9 @@ TEST(EventFilterTest, EnableEventsFrom) {
 TEST(TranslationTableTest, FuncgraphEvents) {
   std::string path =
       base::GetTestDataPath("src/traced/probes/ftrace/test/data/synthetic/");
-  FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(
-      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  Tracefs tracefs(path);
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
 
   {
@@ -659,7 +659,7 @@ TEST(TranslationTableTest, FuncgraphEvents) {
 }
 
 TEST(TranslationTableTest, CreateRemoveKprobeEvent) {
-  NiceMock<MockFtraceProcfs> ftrace;
+  NiceMock<MockTracefs> ftrace;
   ON_CALL(ftrace, ReadEventFormat(_, _)).WillByDefault(Return(""));
   ON_CALL(ftrace, ReadPageHeaderFormat())
       .WillByDefault(Return(

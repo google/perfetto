@@ -127,7 +127,7 @@ SELECT
 FROM _binder_flatten_descendants!(binder_reply_id, server_ts,
                                              server_dur, 'binder reply')
 ORDER BY
-  ts;
+  id;
 
 -- Client side flattened descendant slices.
 CREATE PERFETTO TABLE _binder_client_flat_descendants AS
@@ -136,7 +136,7 @@ SELECT
 FROM _binder_flatten_descendants!(binder_txn_id, client_ts, client_dur,
                                            'binder transaction')
 ORDER BY
-  ts;
+  id;
 
 -- Server side flattened descendants intersected with their thread_states.
 CREATE PERFETTO TABLE _binder_server_flat_descendants_with_thread_state AS
@@ -147,14 +147,14 @@ SELECT
   _server_flat.binder_reply_id,
   _server_flat.name,
   _server_flat.flat_id,
-  _thread_state_view.state,
-  _thread_state_view.io_wait
+  thread_state.state,
+  thread_state.io_wait
 FROM _interval_intersect !((_binder_server_flat_descendants,
                             _thread_state_view), (utid)) AS ii
 JOIN _binder_server_flat_descendants AS _server_flat
   ON id_0 = _server_flat.id
-JOIN _thread_state_view
-  ON id_1 = _thread_state_view.id;
+JOIN thread_state
+  ON id_1 = thread_state.id;
 
 -- Client side flattened descendants intersected with their thread_states.
 CREATE PERFETTO TABLE _binder_client_flat_descendants_with_thread_state AS

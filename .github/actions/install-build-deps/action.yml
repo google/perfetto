@@ -38,10 +38,16 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: buildtools
-        key: buildtools-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+        # TODO(lalitm): buildtools folder has other files that are not
+        # covered by the cache key. This can lead to incorrect buildtools
+        # contents. Expand the cache key to include all files that are
+        # relevant for the buildtools folder or refactor the buildtools folder
+        # into two: one for the cachable outputs and the other for extra
+        # files which should not be cached.
+        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
         restore-keys: |
-          buildtools-${{ steps.cachekey.outputs.suffix }}-
-          buildtools
+          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-
+          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}
 
     - name: install-build-deps
       run: tools/install-build-deps ${{ inputs.install-flags }}
@@ -52,4 +58,5 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: buildtools
-        key: buildtools-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+        # TODO(lalitm): see the comment above about the cache key.
+        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}

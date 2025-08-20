@@ -45,7 +45,7 @@ source_set("probes") {
 source_set("probes_src") {
   public_deps = [
     "ftrace",
-    "ftrace:ftrace_procfs",
+    "ftrace:tracefs",
   ]
   deps = [
     ":data_source",
@@ -59,6 +59,7 @@ source_set("probes_src") {
     "../../base",
     "../../tracing/core",
     "../../tracing/ipc/producer",
+    "android_cpu_per_uid",
     "android_game_intervention_list",
     "android_kernel_wakelocks",
     "android_log",

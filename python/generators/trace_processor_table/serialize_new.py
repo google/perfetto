@@ -68,124 +68,162 @@ class ColumnSerializer:
   def cursor_getter(self) -> Optional[str]:
     if self.col.cpp_access == CppAccess.NONE:
       return ''
+
+    if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
+      dcheck = 'PERFETTO_DCHECK(!dataframe_->finalized());'
+    else:
+      dcheck = ''
+
     if self.is_optional and self.is_id_type:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
         return res ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
       }}'''
     if self.is_optional and self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
         return res && res != StringPool::Id::Null() ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
       }}'''
     if self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
         return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
       }}'''
     if self.is_id_type:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         return {self.cpp_type_non_optional}{{cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec)}};
       }}'''
     return f'''
     {self.cpp_type_with_optionality} {self.name}() const {{
+      {dcheck}
       return cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
     }}'''
 
   def cursor_setter(self) -> Optional[str]:
     if self.col.cpp_access == CppAccess.NONE or self.col.cpp_access == CppAccess.READ:
       return ''
+    if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
+      dcheck = 'PERFETTO_DCHECK(!dataframe_->finalized());'
+    else:
+      dcheck = ''
     if self.is_optional and self.is_id_type and not self.is_no_transform_id:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         auto res_value = res ? std::make_optional(res->value) : std::nullopt;
         cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
       }}'''
     if self.is_optional and self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
         cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
     }}'''
     if self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
         cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
     }}'''
     if self.is_id_type and not self.is_no_transform_id:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res.value);
       }}'''
     return f'''
     void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
       cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res);
     }}'''
 
   def row_reference_getter(self) -> str:
     if self.col.cpp_access == CppAccess.NONE:
       return ''
+    if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
+      dcheck = 'PERFETTO_DCHECK(!table_->dataframe_.finalized());'
+    else:
+      dcheck = ''
     if self.is_optional and self.is_id_type:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
         return res ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
       }}'''
     if self.is_optional and self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
         return res && res != StringPool::Id::Null() ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
       }}'''
     if self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
         return res && res != StringPool::Id::Null() ? {self.cpp_type_non_optional}{{*res}} : StringPool::Id::Null();
       }}'''
     if self.is_id_type:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
+        {dcheck}
         return {self.cpp_type_non_optional}{{table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_)}};
       }}'''
     return f'''
     {self.cpp_type_with_optionality} {self.name}() const {{
+      {dcheck}
       return table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
     }}'''
 
   def row_reference_setter(self) -> Optional[str]:
     if self.col.cpp_access == CppAccess.NONE or self.col.cpp_access == CppAccess.READ:
       return ''
+    if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
+      dcheck = 'PERFETTO_DCHECK(!table_->dataframe_.finalized());'
+    else:
+      dcheck = ''
     if self.is_optional and self.is_id_type and not self.is_no_transform_id:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         auto res_value = res ? std::make_optional(res->value) : std::nullopt;
         table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
       }}'''
     if self.is_optional and self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
         table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
     }}'''
     if self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
         table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
     }}'''
     if self.is_id_type and not self.is_no_transform_id:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        {dcheck}
         table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res.value);
       }}'''
     return f'''
     void set_{self.name}({self.cpp_type_with_optionality} res) {{
+      {dcheck}
       table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res);
     }}'''
 
@@ -415,7 +453,9 @@ class {self.table_name} {{
     explicit ConstCursor(const dataframe::Dataframe& df,
                          std::vector<dataframe::FilterSpec> filters,
                          std::vector<dataframe::SortSpec> sorts)
-      : cursor_(&df, std::move(filters), std::move(sorts)) {{}}
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {{
+      base::ignore_result(dataframe_);
+    }}
 
     PERFETTO_ALWAYS_INLINE void Execute() {{ cursor_.ExecuteUnchecked(); }}
     PERFETTO_ALWAYS_INLINE bool Eof() const {{ return cursor_.Eof(); }}
@@ -427,9 +467,11 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
+    void Reset() {{ cursor_.Reset(); }}
     {cursor_getter}
 
    private:
+    const dataframe::Dataframe* dataframe_;
     dataframe::TypedCursor cursor_;
   }};
   class Cursor {{
@@ -437,7 +479,9 @@ class {self.table_name} {{
     explicit Cursor(dataframe::Dataframe& df,
                     std::vector<dataframe::FilterSpec> filters,
                     std::vector<dataframe::SortSpec> sorts)
-      : cursor_(&df, std::move(filters), std::move(sorts)) {{}}
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {{
+      base::ignore_result(dataframe_);
+    }}
 
     PERFETTO_ALWAYS_INLINE void Execute() {{ cursor_.ExecuteUnchecked(); }}
     PERFETTO_ALWAYS_INLINE bool Eof() const {{ return cursor_.Eof(); }}
@@ -449,10 +493,13 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
+    void Reset() {{ cursor_.Reset(); }}
+
     {cursor_getter}
     {cursor_setter}
 
    private:
+    dataframe::Dataframe* dataframe_;
     dataframe::TypedCursor cursor_;
   }};
   class Iterator {{
@@ -594,7 +641,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "perfetto/base/compiler.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/base_id.h"
+#include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 

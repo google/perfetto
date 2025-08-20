@@ -41,10 +41,10 @@ namespace {
 
 constexpr int kBindPort = 9001;
 
-// Sets the Access-Control-Allow-Origin: $origin on the following origins.
-// This affects only browser clients that use CORS. Other HTTP clients (e.g. the
-// python API) don't look at CORS headers.
-const char* kAllowedCORSOrigins[] = {
+// Sets by default the Access-Control-Allow-Origin: $origin on the following
+// origins. This affects only browser clients that use CORS. Other HTTP clients
+// (e.g. the python API) don't look at CORS headers.
+const char* kDefaultAllowedCORSOrigins[] = {
     "https://ui.perfetto.dev",
     "http://localhost:10000",
     "http://127.0.0.1:10000",
@@ -54,7 +54,9 @@ class Httpd : public base::HttpRequestHandler {
  public:
   explicit Httpd(std::unique_ptr<TraceProcessor>, bool is_preloaded_eof);
   ~Httpd() override;
-  void Run(const std::string& listen_ip, int port);
+  void Run(const std::string& listen_ip,
+           int port,
+           const std::vector<std::string>& additional_cors_origins);
 
  private:
   // HttpRequestHandler implementation.
@@ -100,9 +102,14 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
       http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
-void Httpd::Run(const std::string& listen_ip, int port) {
-  for (const auto& kAllowedCORSOrigin : kAllowedCORSOrigins) {
-    http_srv_.AddAllowedOrigin(kAllowedCORSOrigin);
+void Httpd::Run(const std::string& listen_ip,
+                int port,
+                const std::vector<std::string>& additional_cors_origins) {
+  for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
+    http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
+  }
+  for (const auto& additional_cors_origin : additional_cors_origins) {
+    http_srv_.AddAllowedOrigin(additional_cors_origin);
   }
   http_srv_.Start(listen_ip, port);
   PERFETTO_ILOG(
@@ -149,7 +156,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 
   if (req.uri == "/websocket" && req.is_websocket_handshake) {
     // Will trigger OnWebsocketMessage() when is received.
-    // It returns a 403 if the origin is not in kAllowedCORSOrigins.
+    // It returns a 403 if the origin is not one of the allowed CORS origins.
     return conn.UpgradeToWebsocket(req);
   }
 
@@ -269,12 +276,13 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       bool is_preloaded_eof,
                       const std::string& listen_ip,
-                      const std::string& port_number) {
+                      const std::string& port_number,
+                      const std::vector<std::string>& additional_cors_origins) {
   Httpd srv(std::move(preloaded_instance), is_preloaded_eof);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port);
+  srv.Run(ip, port, additional_cors_origins);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {

@@ -16,13 +16,7 @@
 -- Raw ftrace events
 CREATE PERFETTO TABLE _raw_dmabuf_events AS
 SELECT
-  (
-    SELECT
-      int_value
-    FROM args
-    WHERE
-      arg_set_id = c.arg_set_id AND key = 'inode'
-  ) AS inode,
+  extract_arg(arg_set_id, 'inode') AS inode,
   tt.utid,
   c.ts,
   cast_int!(c.value) AS buf_size
@@ -43,6 +37,7 @@ WITH
       USING (upid)
     WHERE
       process.name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
+      OR process.name GLOB '/vendor/bin/hw/*gralloc.allocator*'
   )
 SELECT
   flow.slice_out AS client_slice_id,

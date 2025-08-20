@@ -18,10 +18,13 @@ import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
-import {NUM, NUM_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {createAndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 const VERSION = 1;
 
@@ -75,7 +78,21 @@ export default class implements PerfettoPlugin {
     if (logCount > 0) {
       ctx.tracks.registerTrack({
         uri,
-        description: 'Android log messages',
+        description: () => {
+          return m('', [
+            'Android log (logcat) messages.',
+            m('br'),
+            m(
+              Anchor,
+              {
+                href: 'https://perfetto.dev/docs/data-sources/android-log',
+                target: '_blank',
+                icon: Icons.ExternalLink,
+              },
+              'Documentation',
+            ),
+          ]);
+        },
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         renderer: createAndroidLogTrack(ctx, uri),
       });
@@ -116,6 +133,22 @@ export default class implements PerfettoPlugin {
       name: 'Show android logs tab',
       callback: () => {
         ctx.tabs.showTab(androidLogsTabUri);
+      },
+    });
+
+    ctx.search.registerSearchProvider({
+      name: 'Android logs',
+      selectTracks(tracks) {
+        return tracks
+          .filter((track) => track.tags?.kind === ANDROID_LOGS_TRACK_KIND)
+          .filter((t) =>
+            t.renderer.getDataset?.()?.implements({msg: STR_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        return {
+          where: `msg GLOB ${escapeSearchQuery(searchTerm)}`,
+        };
       },
     });
   }

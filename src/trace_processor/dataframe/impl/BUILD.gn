@@ -27,6 +27,7 @@ source_set("impl") {
     "query_plan.cc",
     "query_plan.h",
     "slab.h",
+    "sort.h",
     "types.h",
   ]
   deps = [
@@ -39,6 +40,17 @@ source_set("impl") {
   ]
 }
 
+source_set("bytecode_interpreter_test_utils") {
+  testonly = true
+  sources = [ "bytecode_interpreter_test_utils.h" ]
+  deps = [
+    ":impl",
+    "..:specs",
+    "../../../../gn:default_deps",
+    "../../../base",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
@@ -46,8 +58,10 @@ perfetto_unittest_source_set("unittests") {
     "bytecode_interpreter_unittest.cc",
     "flex_vector_unittest.cc",
     "slab_unittest.cc",
+    "sort_unittest.cc",
   ]
   deps = [
+    ":bytecode_interpreter_test_utils",
     ":impl",
     "..:dataframe",
     "..:specs",
@@ -57,4 +71,22 @@ perfetto_unittest_source_set("unittests") {
     "../../containers",
     "../../util:regex",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":bytecode_interpreter_test_utils",
+      ":impl",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../containers",
+    ]
+    sources = [
+      "bytecode_interpreter_benchmark.cc",
+      "sort_benchmark.cc",
+    ]
+  }
 }

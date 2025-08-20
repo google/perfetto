@@ -48,6 +48,7 @@ class RelayClient : private base::UnixSocket::EventListener,
   using OnErrorCallback = std::function<void()>;
   RelayClient(const std::string& client_sock_name,
               const std::string& machine_id_hint,
+              const std::string& machine_name,
               base::TaskRunner* task_runner,
               OnErrorCallback on_destroy_callback);
   ~RelayClient() override;
@@ -92,6 +93,7 @@ class RelayClient : private base::UnixSocket::EventListener,
   std::string client_sock_name_;
   // A hint to the host traced for inferring the identifier of this machine.
   std::string machine_id_hint_;
+  std::string machine_name_;
   std::unique_ptr<base::UnixSocket> client_sock_;
   std::unique_ptr<RelayIPCClient> relay_ipc_client_;
 
@@ -153,6 +155,7 @@ class RelayService : public base::UnixSocket::EventListener {
 
   // A hint to the host traced for inferring the identifier of this machine.
   std::string machine_id_hint_;
+  std::string machine_name_;
 
   std::unique_ptr<base::UnixSocket> listening_socket_;
   std::string client_socket_name_;

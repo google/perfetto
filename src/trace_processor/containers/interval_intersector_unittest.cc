@@ -85,6 +85,27 @@ TEST(IntervalIntersector, IntervalTree_NoOverlap) {
   EXPECT_THAT(overlaps, IsEmpty());
 }
 
+TEST(IntervalIntersector, IntervalTree_InstantIntervals) {
+  auto intervals = CreateIntervals({{10, 10}, {20, 20}});
+  IntervalIntersector intersector(intervals,
+                                  IntervalIntersector::kIntervalTree);
+
+  // Test case 1: Overlap with first instant
+  std::vector<Id> overlaps;
+  intersector.FindOverlaps(5, 15, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0));
+
+  // Test case 2: Overlap with second instant
+  overlaps.clear();
+  intersector.FindOverlaps(15, 25, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(1));
+
+  // Test case 3: Query is an instant
+  overlaps.clear();
+  intersector.FindOverlaps(10, 10, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0));
+}
+
 // Tests for kBinarySearch Mode
 
 TEST(IntervalIntersector, BinarySearch_EmptyInput) {
@@ -124,6 +145,27 @@ TEST(IntervalIntersector, BinarySearch_NoOverlap) {
   EXPECT_THAT(overlaps, IsEmpty());
 }
 
+TEST(IntervalIntersector, BinarySearch_InstantIntervals) {
+  auto intervals = CreateIntervals({{10, 10}, {20, 20}});
+  IntervalIntersector intersector(intervals,
+                                  IntervalIntersector::kBinarySearch);
+
+  // Test case 1: Overlap with first instant
+  std::vector<Id> overlaps;
+  intersector.FindOverlaps(5, 15, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0));
+
+  // Test case 2: Overlap with second instant
+  overlaps.clear();
+  intersector.FindOverlaps(15, 25, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(1));
+
+  // Test case 3: Query is an instant
+  overlaps.clear();
+  intersector.FindOverlaps(10, 10, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0));
+}
+
 // Tests for kLinearScan Mode
 
 TEST(IntervalIntersector, LinearScan_EmptyInput) {
@@ -156,6 +198,50 @@ TEST(IntervalIntersector, LinearScan_NoOverlap) {
   std::vector<Id> overlaps;
   intersector.FindOverlaps(6, 9, overlaps);
   EXPECT_THAT(overlaps, IsEmpty());
+}
+TEST(IntervalIntersector, OverlapTests) {
+  auto intervals = CreateIntervals({{10, 20}, {30, 40}, {15, 25}});
+  IntervalIntersector intersector(intervals, IntervalIntersector::kLinearScan);
+
+  // Test case 1: No overlap
+  std::vector<Id> overlaps;
+  intersector.FindOverlaps(0, 5, overlaps);
+  EXPECT_THAT(overlaps, IsEmpty());
+
+  // Test case 2: Single overlap
+  overlaps.clear();
+  intersector.FindOverlaps(18, 22, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0, 2));
+
+  // Test case 3: Multiple overlaps
+  overlaps.clear();
+  intersector.FindOverlaps(12, 35, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0, 1, 2));
+
+  // Test case 4: Query is an instant
+  overlaps.clear();
+  intersector.FindOverlaps(17, 17, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0, 2));
+}
+
+TEST(IntervalIntersector, InstantIntervals) {
+  auto intervals = CreateIntervals({{10, 10}, {20, 20}});
+  IntervalIntersector intersector(intervals, IntervalIntersector::kLinearScan);
+
+  // Test case 1: Overlap with first instant
+  std::vector<Id> overlaps;
+  intersector.FindOverlaps(5, 15, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0));
+
+  // Test case 2: Overlap with second instant
+  overlaps.clear();
+  intersector.FindOverlaps(15, 25, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(1));
+
+  // Test case 3: Query is an instant
+  overlaps.clear();
+  intersector.FindOverlaps(10, 10, overlaps);
+  EXPECT_THAT(overlaps, UnorderedElementsAre(0));
 }
 
 }  // namespace

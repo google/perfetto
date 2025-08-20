@@ -185,7 +185,7 @@ export class Time {
   }
 
   static formatMicroseconds(time: time): string {
-    return Time.toMicros(time).toString() + ' us';
+    return Time.toMicros(time).toString() + ' µs';
   }
 
   static toTimecode(time: time): Timecode {
@@ -280,7 +280,7 @@ export class Duration {
   //           1,230,000,023 -> 1.230s
   static humanise(dur: duration): string {
     if (dur < 1) return '0s';
-    const units = ['ns', 'us', 'ms', 's'];
+    const units = ['ns', 'µs', 'ms', 's'];
     let n = Math.abs(Number(dur));
     let u = 0;
     while (n >= 1000 && u + 1 < units.length) {
@@ -299,7 +299,7 @@ export class Duration {
       ['m', 60_000_000_000n],
       ['s', 1_000_000_000n],
       ['ms', 1_000_000n],
-      ['us', 1_000n],
+      ['µs', 1_000n],
       ['ns', 1n],
     ];
     unitAndValue.forEach(([unit, unitSize]) => {
@@ -321,7 +321,7 @@ export class Duration {
   }
 
   static formatMicroseconds(dur: duration): string {
-    return Duration.toMicroSeconds(dur).toString() + ' us';
+    return Duration.toMicroSeconds(dur).toString() + ' µs';
   }
 }
 
@@ -449,15 +449,14 @@ export class TimeSpan {
  *
  * @param date The original JavaScript `Date` object to format.
  * @param options An optional configuration object.
- * @param {number} [options.tzOffsetMins=0] - The timezone offset in minutes
- * from UTC. For example, -420 for UTC-7 or 330 for UTC+5:30. Defaults to 0
- * (UTC).
- * @param {boolean} [options.printDate=true] - Whether to include the date part
+ * @param {number} [options.tzOffsetMins] - The timezone offset in minutes from
+ * UTC. For example, -420 for UTC-7 or 330 for UTC+5:30. Defaults to 0 (UTC).
+ * @param {boolean} [options.printDate] - Whether to include the date part
  * (`YYYY-MM-DD`).
- * @param {boolean} [options.printTime=true] - Whether to include the time part
+ * @param {boolean} [options.printTime] - Whether to include the time part
  * (`HH:mm:ss.SSS`).
- * @param {boolean} [options.printTimezone=true] - Whether to include the
- * timezone offset.
+ * @param {boolean} [options.printTimezone] - Whether to include the timezone
+ * offset.
  *
  * @returns A formatted string representing the date and time in the specified
  * timezone.
@@ -543,3 +542,48 @@ export function formatTimezone(tzOffsetMins: number): string {
   const minsStr = String(mins).padStart(2, '0');
   return `UTC${sign}${hoursStr}:${minsStr}`;
 }
+
+/**
+ * A TypeScript Map that pairs user-friendly timezone descriptions
+ * with their corresponding UTC offset in minutes.
+ */
+export const timezoneOffsetMap: {[key: string]: number} = {
+  '(UTC-12:00) International Date Line West': -720,
+  '(UTC-11:00) Coordinated Universal Time-11': -660,
+  '(UTC-10:00) Hawaii': -600,
+  '(UTC-09:30) Marquesas Islands': -570,
+  '(UTC-09:00) Alaska': -540,
+  '(UTC-08:00) Pacific Time (US & Canada)': -480,
+  '(UTC-07:00) Mountain Time (US & Canada)': -420,
+  '(UTC-06:00) Central Time (US & Canada), Mexico City': -360,
+  '(UTC-05:00) Eastern Time (US & Canada), Bogota, Lima': -300,
+  '(UTC-04:00) Atlantic Time (Canada), La Paz': -240,
+  '(UTC-03:30) Newfoundland': -210,
+  '(UTC-03:00) Buenos Aires, São Paulo': -180,
+  '(UTC-02:00) Coordinated Universal Time-02': -120,
+  '(UTC-01:00) Azores, Cape Verde Is.': -60,
+  '(UTC+00:00) London, Dublin, Lisbon, Casablanca': 0,
+  '(UTC+01:00) Amsterdam, Berlin, Paris, Rome, Madrid': 60,
+  '(UTC+02:00) Athens, Cairo, Johannesburg, Helsinki': 120,
+  '(UTC+03:00) Moscow, Istanbul, Riyadh, Nairobi': 180,
+  '(UTC+03:30) Tehran': 210,
+  '(UTC+04:00) Dubai, Abu Dhabi, Muscat, Baku': 240,
+  '(UTC+04:30) Kabul': 270,
+  '(UTC+05:00) Karachi, Tashkent': 300,
+  '(UTC+05:30) Mumbai, New Delhi, Kolkata, Colombo': 330,
+  '(UTC+05:45) Kathmandu': 345,
+  '(UTC+06:00) Almaty, Dhaka': 360,
+  '(UTC+06:30) Yangon (Rangoon)': 390,
+  '(UTC+07:00) Bangkok, Hanoi, Jakarta': 420,
+  '(UTC+08:00) Beijing, Hong Kong, Singapore, Taipei, Perth': 480,
+  '(UTC+08:45) Eucla': 525,
+  '(UTC+09:00) Tokyo, Seoul, Osaka, Sapporo': 540,
+  '(UTC+09:30) Adelaide, Darwin': 570,
+  '(UTC+10:00) Sydney, Melbourne, Brisbane, Guam': 600,
+  '(UTC+10:30) Lord Howe Island': 630,
+  '(UTC+11:00) Solomon Is., New Caledonia': 660,
+  '(UTC+12:00) Auckland, Wellington, Fiji': 720,
+  '(UTC+12:45) Chatham Islands': 765,
+  "(UTC+13:00) Nuku'alofa": 780,
+  '(UTC+14:00) Kiritimati': 840,
+};

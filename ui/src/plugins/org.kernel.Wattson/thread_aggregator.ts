@@ -12,20 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Aggregation,
-  AreaSelection,
-  AreaSelectionAggregator,
-} from '../../public/selection';
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {exists} from '../../base/utils';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {exists} from '../../base/utils';
+import {WattsonAggregationPanel} from './aggregation_panel';
 
-export class WattsonThreadSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class WattsonThreadSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_thread_aggregation';
+  readonly Panel = WattsonAggregationPanel;
 
   probe(area: AreaSelection): Aggregation | undefined {
     const selectedCpus: number[] = [];
@@ -42,8 +39,8 @@ export class WattsonThreadSelectionAggregator
         const duration = area.end - area.start;
         const cpusCsv = `(` + selectedCpus.join() + `)`;
         engine.query(`
-          INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
           INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+          INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
           INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
 
           CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
@@ -135,54 +132,39 @@ export class WattsonThreadSelectionAggregator
     return [
       {
         title: 'Thread Name',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'thread_name',
       },
       {
         title: 'TID',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'tid',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
         title: 'Active power (estimated mW)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'active_mw',
         sum: true,
       },
       {
         title: 'Active energy (estimated mWs)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'active_mws',
         sum: true,
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'idle_cost_mws',
         sum: false,
       },
       {
         title: 'Total energy (estimated mWs)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'total_mws',
         sum: true,
       },
       {
         title: '% of total energy',
-        kind: 'PERCENT',
-        columnConstructor: Float64Array,
+        formatHint: 'PERCENT',
         columnId: 'percent_of_total_energy',
         sum: false,
       },

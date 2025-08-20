@@ -18,13 +18,10 @@
 #include <cstdint>
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor::winscope {
 
 ShellTransitionsTracker::ShellTransitionsTracker(TraceProcessorContext* context)
     : context_(context) {}
-
-ShellTransitionsTracker::~ShellTransitionsTracker() = default;
 
 ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(
     int32_t transition_id) {
@@ -62,10 +59,14 @@ void ShellTransitionsTracker::SetTransitionType(int32_t transition_id,
 }
 
 void ShellTransitionsTracker::SetSendTime(int32_t transition_id,
-                                          int64_t timestamp_ns) {
+                                          int64_t send_time_ns) {
   auto row = GetRowReference(transition_id);
   if (row.has_value()) {
-    row.value().set_send_time_ns(timestamp_ns);
+    row.value().set_send_time_ns(send_time_ns);
+    auto finish_time_ns = row->finish_time_ns();
+    if (finish_time_ns.has_value()) {
+      row.value().set_duration_ns(finish_time_ns.value() - send_time_ns);
+    }
   }
 }
 
@@ -77,18 +78,23 @@ void ShellTransitionsTracker::SetDispatchTime(int32_t transition_id,
   }
 }
 
-void ShellTransitionsTracker::TrySetDurationFromFinishTime(
-    int32_t transition_id,
-    int64_t finish_time_ns) {
+void ShellTransitionsTracker::SetFinishTime(int32_t transition_id,
+                                            int64_t finish_time_ns) {
   auto row = GetRowReference(transition_id);
   if (row.has_value()) {
+    row->set_finish_time_ns(finish_time_ns);
     auto send_time_ns = row->send_time_ns();
-    if (send_time_ns) {
+    if (send_time_ns.has_value()) {
       row.value().set_duration_ns(finish_time_ns - send_time_ns.value());
-    } else {
-      auto transition = GetOrInsertTransition(transition_id);
-      transition->finish_time_ns = finish_time_ns;
     }
+  }
+}
+
+void ShellTransitionsTracker::SetShellAbortTime(int32_t transition_id,
+                                                int64_t timestamp_ns) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_shell_abort_time_ns(timestamp_ns);
   }
 }
 
@@ -112,6 +118,22 @@ void ShellTransitionsTracker::SetStatus(int32_t transition_id,
   auto row = GetRowReference(transition_id);
   if (row.has_value()) {
     row.value().set_status(status);
+  }
+}
+
+void ShellTransitionsTracker::SetStartTransactionId(int32_t transition_id,
+                                                    uint64_t transaction_id) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_start_transaction_id(transaction_id);
+  }
+}
+
+void ShellTransitionsTracker::SetFinishTransactionId(int32_t transition_id,
+                                                     uint64_t transaction_id) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_finish_transaction_id(transaction_id);
   }
 }
 
@@ -155,5 +177,4 @@ ShellTransitionsTracker::GetRowReference(int32_t transition_id) {
   return window_manager_shell_transitions_table->FindById(pos->second.row_id);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::winscope

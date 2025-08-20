@@ -58,6 +58,7 @@ source_set("minimal") {
     "proto_trace_tokenizer.h",
     "stack_profile_sequence_state.cc",
     "stack_profile_sequence_state.h",
+    "track_event_event_importer.h",
     "track_event_module.cc",
     "track_event_module.h",
     "track_event_parser.cc",
@@ -216,8 +217,11 @@ source_set("full") {
     "../ftrace:full",
     "../generic_kernel:full",
     "../syscalls:full",
-    "winscope:full",
   ]
+
+  if (enable_perfetto_winscope) {
+    deps += [ "winscope:full" ]
+  }
 }
 
 source_set("proto_importer_module") {
@@ -248,6 +252,7 @@ source_set("packet_sequence_state_generation_hdr") {
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../types:types",
     "../../util:interned_message_view",
+    "../common:synthetic_tid_hdr",
   ]
 }
 
@@ -316,7 +321,6 @@ source_set("unittests") {
     "../../../protozero",
     "../../containers",
     "../../dataframe",
-    "../../db/column",
     "../../sorter",
     "../../storage",
     "../../tables",
@@ -327,4 +331,7 @@ source_set("unittests") {
     "../common",
     "../ftrace:full",
   ]
+  if (enable_perfetto_winscope) {
+    deps += [ "winscope:unittests" ]
+  }
 }

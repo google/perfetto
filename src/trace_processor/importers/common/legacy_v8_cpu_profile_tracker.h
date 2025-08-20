@@ -24,7 +24,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -77,7 +76,7 @@ class LegacyV8CpuProfileTracker {
   };
   struct Hasher {
     uint64_t operator()(const std::pair<uint64_t, uint32_t>& res) {
-      return base::Hasher::Combine(res.first, res.second);
+      return base::FnvHasher::Combine(res.first, res.second);
     }
   };
   base::FlatHashMap<std::pair<uint64_t, uint32_t>, State, Hasher>

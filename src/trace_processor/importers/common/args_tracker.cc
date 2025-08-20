@@ -27,8 +27,6 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -145,35 +143,25 @@ void ArgsTracker::Flush() {
 
     ArgSetId set_id = context_->global_args_tracker->AddArgSet(
         sorted_args.data(), i, next_rid_idx);
-    if (col == std::numeric_limits<uint32_t>::max()) {
-      auto* column = static_cast<ColumnLegacy*>(ptr);
-      if (column->IsNullable()) {
-        TypedColumn<std::optional<uint32_t>>::FromColumn(column)->Set(row,
-                                                                      set_id);
-      } else {
-        TypedColumn<uint32_t>::FromColumn(column)->Set(row, set_id);
-      }
+    auto* df = static_cast<dataframe::Dataframe*>(ptr);
+    auto n = df->GetNullabilityLegacy(col);
+    if (n.Is<dataframe::NonNull>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(
+          arg.col, row, set_id);
+    } else if (n.Is<dataframe::DenseNull>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
+          arg.col, row, std::make_optional(set_id));
+    } else if (n.Is<dataframe::SparseNullWithPopcountAlways>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32,
+                                 dataframe::SparseNullWithPopcountAlways>(
+          arg.col, row, std::make_optional(set_id));
+    } else if (n.Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
+      df->SetCellUncheckedLegacy<
+          dataframe::Uint32,
+          dataframe::SparseNullWithPopcountUntilFinalization>(
+          arg.col, row, std::make_optional(set_id));
     } else {
-      auto* df = static_cast<dataframe::Dataframe*>(ptr);
-      auto n = df->GetNullabilityLegacy(col);
-      if (n.Is<dataframe::NonNull>()) {
-        df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(
-            arg.col, row, set_id);
-      } else if (n.Is<dataframe::DenseNull>()) {
-        df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
-            arg.col, row, std::make_optional(set_id));
-      } else if (n.Is<dataframe::SparseNullWithPopcountAlways>()) {
-        df->SetCellUncheckedLegacy<dataframe::Uint32,
-                                   dataframe::SparseNullWithPopcountAlways>(
-            arg.col, row, std::make_optional(set_id));
-      } else if (n.Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
-        df->SetCellUncheckedLegacy<
-            dataframe::Uint32,
-            dataframe::SparseNullWithPopcountUntilFinalization>(
-            arg.col, row, std::make_optional(set_id));
-      } else {
-        PERFETTO_FATAL("Unsupported nullability type for args.");
-      }
+      PERFETTO_FATAL("Unsupported nullability type for args.");
     }
 
     i = next_rid_idx;
@@ -202,14 +190,6 @@ bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
         return table.NeedsTranslation(arg.flat_key, arg.key, arg.value.type);
       });
 }
-
-ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
-                                          ColumnLegacy* arg_set_id_column,
-                                          uint32_t row)
-    : args_tracker_(args_tracker),
-      ptr_(arg_set_id_column),
-      col_(std::numeric_limits<uint32_t>::max()),
-      row_(row) {}
 
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
                                           dataframe::Dataframe* dataframe,

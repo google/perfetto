@@ -32,7 +32,7 @@ to the new perfetto branch's head.
 
 ## Cherry-picking the change(s) {#cherry-pick}
 
-1.  Cherry-pick the commit locally and send a pull-request against the branch 
+1.  Cherry-pick the commit locally and send a pull-request against the branch
     as usual.
 
     ```

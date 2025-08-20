@@ -77,7 +77,6 @@ class ExperimentalFlatSlice : public StaticTableFunction {
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
   uint32_t GetArgumentCount() const override;
-  uint32_t EstimateRowCount() override;
 
   // Visibile for testing.
   static std::unique_ptr<tables::ExperimentalFlatSliceTable>

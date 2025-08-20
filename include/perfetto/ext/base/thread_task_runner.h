@@ -53,6 +53,8 @@ class PERFETTO_EXPORT_COMPONENT ThreadTaskRunner : public TaskRunner {
   // task-runner is executing on.
   uint64_t GetThreadCPUTimeNsForTesting();
 
+  PlatformThreadId GetThreadIdForTesting();
+
   // Returns a pointer to the UnixTaskRunner, which is valid for the lifetime of
   // this ThreadTaskRunner object (unless this object is moved-from, in which
   // case the pointer remains valid for the lifetime of the new owning

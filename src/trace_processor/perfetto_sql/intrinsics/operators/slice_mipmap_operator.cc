@@ -45,6 +45,7 @@ constexpr char kSliceSchema[] = R"(
     in_window_step BIGINT HIDDEN,
     ts BIGINT,
     id BIGINT,
+    count INTEGER,
     dur BIGINT,
     depth INTEGER,
     PRIMARY KEY(id)
@@ -58,6 +59,7 @@ enum ColumnIndex : size_t {
 
   kTs,
   kId,
+  kCount,
   kDur,
   kDepth,
 };
@@ -113,8 +115,9 @@ int SliceMipmapOperator::Create(sqlite3* db,
     }
     auto& by_depth = state->by_depth[depth];
     by_depth.forest.Push(
-        Slice{dur, id, static_cast<uint32_t>(by_depth.forest.size())});
+        Slice{dur, 1, static_cast<uint32_t>(by_depth.forest.size())});
     by_depth.timestamps.push_back(ts);
+    by_depth.ids.push_back(id);
   } while (res->stmt.Step());
   if (!res->stmt.status().ok()) {
     *zErr = sqlite3_mprintf("%s", res->stmt.status().c_message());
@@ -198,6 +201,7 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
 
   for (uint32_t depth = 0; depth < state->by_depth.size(); ++depth) {
     auto& by_depth = state->by_depth[depth];
+    const auto& ids = by_depth.ids;
     const auto& tses = by_depth.timestamps;
 
     // If the slice before this window overlaps with the current window, move
@@ -223,7 +227,8 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
       c->results.emplace_back(Cursor::Result{
           tses[res.idx],
           res.dur,
-          res.id,
+          res.count,
+          ids[res.idx],
           depth,
       });
       start_idx = end_idx;
@@ -253,6 +258,9 @@ int SliceMipmapOperator::Column(sqlite3_vtab_cursor* cursor,
       return SQLITE_OK;
     case ColumnIndex::kId:
       sqlite::result::Long(ctx, c->results[c->index].id);
+      return SQLITE_OK;
+    case ColumnIndex::kCount:
+      sqlite::result::Long(ctx, c->results[c->index].count);
       return SQLITE_OK;
     case ColumnIndex::kDur:
       sqlite::result::Long(ctx, c->results[c->index].dur);

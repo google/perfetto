@@ -311,11 +311,11 @@ side-channel attacks.
 
 - On Android 9 (Pie) and beyond, traced is shipped as part of the platform.
 - On older versions of Android, traced can be built from sources using the the
-  [standalone NDK-based workflow](/docs/contributing/build-instructions.md) and
-  sideloaded via adb shell.
-- On Linux and MacOS and Windows `traced` must be built and run separately. See
+[standalone NDK-based workflow](/docs/contributing/build-instructions.md) and
+sideloaded via adb shell.
+<!-- * On Linux and MacOS and Windows `traced` must be built and run separately. See
   the [Linux quickstart](/docs/quickstart/linux-tracing.md) for instructions.
-- On Windows the tracing protocol works over TCP/IP (
+- On Windows the tracing protocol works over TCP/IP ( -->
   [127.0.0.1:32278](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/src/tracing/ipc/default_socket.cc;l=75;drc=4f88a2fdfd3801c109d5e927b8206f9756288b12)
   ) + named shmem.
 

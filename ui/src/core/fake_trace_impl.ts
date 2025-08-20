@@ -53,6 +53,13 @@ export function initializeAppImplForTesting(): AppImpl {
         defaultValue: DurationPrecision.Full,
         schema: z.nativeEnum(DurationPrecision),
       }),
+      timezoneOverrideSetting: settingsManager.register({
+        id: 'timezoneOverride',
+        name: 'Timezone Override',
+        description: 'What timezone to use for displaying timestamps.',
+        schema: z.enum(['dummy']),
+        defaultValue: 'dummy',
+      }),
     });
   }
   return AppImpl.instance;

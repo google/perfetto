@@ -40,6 +40,15 @@ inline uint32_t HostToBE32(uint32_t x) {
 inline uint64_t HostToBE64(uint64_t x) {
   return _byteswap_uint64(x);
 }
+inline uint16_t BE16ToHost(uint16_t x) {
+  return _byteswap_ushort(x);
+}
+inline uint32_t BE32ToHost(uint32_t x) {
+  return _byteswap_ulong(x);
+}
+inline uint64_t BE64ToHost(uint64_t x) {
+  return _byteswap_uint64(x);
+}
 #else
 inline uint16_t HostToBE16(uint16_t x) {
   return __builtin_bswap16(x);
@@ -48,6 +57,15 @@ inline uint32_t HostToBE32(uint32_t x) {
   return __builtin_bswap32(x);
 }
 inline uint64_t HostToBE64(uint64_t x) {
+  return __builtin_bswap64(x);
+}
+inline uint16_t BE16ToHost(uint16_t x) {
+  return __builtin_bswap16(x);
+}
+inline uint32_t BE32ToHost(uint32_t x) {
+  return __builtin_bswap32(x);
+}
+inline uint64_t BE64ToHost(uint64_t x) {
   return __builtin_bswap64(x);
 }
 #endif

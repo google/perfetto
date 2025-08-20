@@ -47,6 +47,7 @@ namespace perfetto::trace_processor::summary {
 namespace {
 
 struct Metric {
+  std::string id;
   std::string query;
   protozero::ConstBytes spec;
 };
@@ -83,6 +84,9 @@ base::Status ExpandMetricTemplates(
         if (tmpl.has_query()) {
           expanded->set_query()->AppendRawProtoBytes(tmpl.query().data,
                                                      tmpl.query().size);
+        }
+        if (!tmpl.disable_auto_bundling()) {
+          expanded->set_bundle_id(id_prefix);
         }
         expanded->set_dimension_uniqueness(
             static_cast<protos::pbzero::TraceMetricV2Spec::DimensionUniqueness>(
@@ -135,11 +139,328 @@ base::Status WriteMetadata(TraceProcessor* processor,
   return it.Status();
 }
 
+struct Dimension {
+  std::string name;
+  protos::pbzero::TraceMetricV2Spec::DimensionType type;
+
+  [[maybe_unused]] bool operator==(const Dimension& other) const {
+    return std::tie(name, type) == std::tie(other.name, other.type);
+  }
+  [[maybe_unused]] bool operator!=(const Dimension& other) const {
+    return !(*this == other);
+  }
+};
+
+base::StatusOr<std::vector<Dimension>> GetDimensions(
+    const protos::pbzero::TraceMetricV2Spec::Decoder& spec_decoder) {
+  if (spec_decoder.has_dimensions_specs() && spec_decoder.has_dimensions()) {
+    return base::ErrStatus(
+        "Both dimensions and dimension_specs defined for metric '%s'. Only "
+        "one is allowed",
+        spec_decoder.id().ToStdString().c_str());
+  }
+  std::vector<Dimension> dimensions;
+  if (spec_decoder.dimensions_specs()) {
+    for (auto dim = spec_decoder.dimensions_specs(); dim; ++dim) {
+      protos::pbzero::TraceMetricV2Spec::DimensionSpec::Decoder dim_spec(*dim);
+      std::string_view dim_name = dim_spec.name().ToStdStringView();
+      auto dimension_type =
+          static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
+              dim_spec.type());
+      if (dimension_type ==
+          protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED) {
+        return base::ErrStatus(
+            "Dimension '%.*s' in metric '%s' has unspecified type",
+            int(dim_name.size()), dim_name.data(),
+            spec_decoder.id().ToStdString().c_str());
+      }
+      dimensions.push_back({dim_spec.name().ToStdString(), dimension_type});
+    }
+  } else {
+    for (auto dim = spec_decoder.dimensions(); dim; ++dim) {
+      dimensions.push_back(
+          {dim->as_std_string(),
+           protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED});
+    }
+  }
+  return dimensions;
+}
+
+struct DimensionWithIndex : Dimension {
+  uint32_t index;
+};
+
+base::StatusOr<std::vector<DimensionWithIndex>> GetDimensionsWithIndex(
+    const protos::pbzero::TraceMetricV2Spec::Decoder& spec_decoder,
+    perfetto::trace_processor::Iterator& it) {
+  ASSIGN_OR_RETURN(auto dimensions, GetDimensions(spec_decoder));
+  std::vector<DimensionWithIndex> output;
+  uint32_t col_count = it.ColumnCount();
+  for (const auto& dim : dimensions) {
+    std::optional<uint32_t> dim_index;
+    for (uint32_t i = 0; i < col_count; ++i) {
+      if (it.GetColumnName(i) == dim.name) {
+        dim_index = i;
+        break;
+      }
+    }
+    if (!dim_index) {
+      return base::ErrStatus(
+          "Dimensions column '%s' not found in the query result for metric "
+          "'%s'",
+          dim.name.c_str(), spec_decoder.id().ToStdString().c_str());
+    }
+    output.push_back({dim, *dim_index});
+  }
+  return output;
+}
+
+base::Status WriteDimension(
+    const DimensionWithIndex& dim_with_index,
+    const std::string& metric_or_bundle_name,
+    Iterator& query_it,
+    protos::pbzero::TraceMetricV2Bundle::Row::Dimension* dimension,
+    base::FnvHasher* hasher) {
+  const auto& dimension_value = query_it.Get(dim_with_index.index);
+  hasher->Update(dimension_value.type);
+  if (dimension_value.is_null()) {
+    // Accept null value for all dimension types.
+    dimension->set_null_value();
+    return base::OkStatus();
+  }
+  switch (dim_with_index.type) {
+    case protos::pbzero::TraceMetricV2Spec::STRING: {
+      if (dimension_value.type != SqlValue::kString) {
+        return base::ErrStatus(
+            "Expected string for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
+            dimension_value.type);
+      }
+      const char* dimension_str = dimension_value.string_value;
+      hasher->Update(dimension_str);
+      dimension->set_string_value(dimension_str);
+      break;
+    }
+    case protos::pbzero::TraceMetricV2Spec::INT64: {
+      if (dimension_value.type != SqlValue::kLong) {
+        return base::ErrStatus(
+            "Expected int64 for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
+            dimension_value.type);
+      }
+      int64_t dim_value = dimension_value.long_value;
+      hasher->Update(dim_value);
+      dimension->set_int64_value(dim_value);
+      break;
+    }
+    case protos::pbzero::TraceMetricV2Spec::DOUBLE: {
+      if (dimension_value.type != SqlValue::kDouble) {
+        return base::ErrStatus(
+            "Expected double for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
+            dimension_value.type);
+      }
+      double dim_value = dimension_value.AsDouble();
+      hasher->Update(dim_value);
+      dimension->set_double_value(dim_value);
+      break;
+    }
+    case protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED:
+      if (dimension_value.type == SqlValue::kLong) {
+        int64_t dim_value = dimension_value.long_value;
+        hasher->Update(dim_value);
+        dimension->set_int64_value(dim_value);
+      } else if (dimension_value.type == SqlValue::kDouble) {
+        double dim_value = dimension_value.AsDouble();
+        hasher->Update(dim_value);
+        dimension->set_double_value(dim_value);
+      } else if (dimension_value.type == SqlValue::kString) {
+        const char* dimension_str = dimension_value.string_value;
+        hasher->Update(dimension_str);
+        dimension->set_string_value(dimension_str);
+      } else if (dimension_value.type == SqlValue::kBytes) {
+        return base::ErrStatus(
+            "Received bytes for dimension '%s' in metric or bundle '%s': this "
+            "is not supported",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str());
+      } else {
+        PERFETTO_FATAL("Null dimension should have been handled above");
+      }
+      break;
+  }
+  return base::OkStatus();
+}
+
+base::Status VerifyBundleHasConsistentSpecs(
+    const std::string& bundle_id,
+    const std::vector<const Metric*>& metrics) {
+  if (metrics.empty()) {
+    return base::ErrStatus("Empty metric bundle %s: this is not allowed",
+                           bundle_id.c_str());
+  }
+  if (metrics.size() == 1) {
+    return base::OkStatus();
+  }
+  const Metric* first = metrics.front();
+  protos::pbzero::TraceMetricV2Spec::Decoder first_spec(first->spec);
+  ASSIGN_OR_RETURN(auto first_dims, GetDimensions(first_spec));
+  for (const Metric* metric : metrics) {
+    protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
+    if (spec.bundle_id().ToStdStringView() !=
+        first_spec.bundle_id().ToStdStringView()) {
+      return base::ErrStatus(
+          "Metric '%s' in bundle '%s' has different bundle_id than the "
+          "first metric '%s': this is not allowed",
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
+    }
+    if (spec.dimension_uniqueness() != first_spec.dimension_uniqueness()) {
+      return base::ErrStatus(
+          "Metric '%s' in bundle '%s' has different dimension_uniqueness than "
+          "the first metric '%s': this is not allowed",
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
+    }
+    ASSIGN_OR_RETURN(auto dims, GetDimensions(spec));
+    if (dims != first_dims) {
+      return base::ErrStatus(
+          "Metric '%s' in bundle '%s' has different dimensions than the first "
+          "metric '%s': this is not allowed",
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
+    }
+    if (first->query != metric->query) {
+      return base::ErrStatus(
+          "Metric '%s' in bundle '%s' has different query than the first "
+          "metric '%s': this is not allowed",
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status CreateQueriesAndComputeMetrics(
+    TraceProcessor* processor,
+    const std::vector<Metric>& metrics,
+    protos::pbzero::TraceSummary* summary) {
+  base::FlatHashMap<std::string, std::vector<const Metric*>> metrics_by_bundle;
+  for (const Metric& m : metrics) {
+    protos::pbzero::TraceMetricV2Spec::Decoder spec_decoder(m.spec);
+    std::string bundle_id = spec_decoder.bundle_id().ToStdString();
+    if (bundle_id.empty()) {
+      bundle_id = m.id;
+    }
+    metrics_by_bundle[bundle_id].push_back(&m);
+  }
+  for (auto it = metrics_by_bundle.GetIterator(); it; ++it) {
+    const auto& value = it.value();
+    RETURN_IF_ERROR(VerifyBundleHasConsistentSpecs(it.key(), value));
+
+    const std::string& bundle_id = it.key();
+    auto* bundle = summary->add_metric_bundles();
+    for (const Metric* metric : value) {
+      bundle->add_specs()->AppendRawProtoBytes(metric->spec.data,
+                                               metric->spec.size);
+    }
+
+    const Metric* first = value.front();
+    protos::pbzero::TraceMetricV2Spec::Decoder first_spec(first->spec);
+
+    auto query_it = processor->ExecuteQuery(first->query);
+    if (!query_it.Status().ok()) {
+      return base::ErrStatus(
+          "Error while executing query for metric bundle '%s': %s",
+          bundle_id.c_str(), query_it.Status().c_message());
+    }
+
+    ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
+                     GetDimensionsWithIndex(first_spec, query_it));
+
+    std::vector<uint32_t> value_indices;
+    for (const auto* metric : value) {
+      protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
+      std::string value_column_name = spec.value().ToStdString();
+      std::optional<uint32_t> value_index;
+      for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
+        if (query_it.GetColumnName(i) == value_column_name) {
+          value_index = i;
+          break;
+        }
+      }
+      if (!value_index) {
+        return base::ErrStatus(
+            "Column '%s' not found in the query result for metric '%s'",
+            value_column_name.c_str(), spec.id().ToStdString().c_str());
+      }
+      value_indices.push_back(*value_index);
+    }
+    bool is_unique_dimensions =
+        first_spec.dimension_uniqueness() ==
+        protos::pbzero::TraceMetricV2Spec::DimensionUniqueness::UNIQUE;
+    base::FlatHashMap<uint64_t, bool> seen_dimensions;
+    while (query_it.Next()) {
+      bool all_null = true;
+      for (size_t i = 0; i < value.size(); ++i) {
+        const auto& metric_value_column = query_it.Get(value_indices[i]);
+        if (!metric_value_column.is_null()) {
+          all_null = false;
+          break;
+        }
+      }
+      // If all values are null, we skip writing the row.
+      if (all_null) {
+        continue;
+      }
+      auto* row = bundle->add_row();
+      base::FnvHasher hasher;
+      for (const auto& dim : dimensions_with_index) {
+        RETURN_IF_ERROR(WriteDimension(dim, bundle_id, query_it,
+                                       row->add_dimension(), &hasher));
+      }
+      uint64_t hash = hasher.digest();
+      if (is_unique_dimensions && !seen_dimensions.Insert(hash, true).second) {
+        return base::ErrStatus(
+            "Duplicate dimensions found for metric bundle '%s': this is not "
+            "allowed",
+            bundle_id.c_str());
+      }
+
+      for (size_t i = 0; i < value.size(); ++i) {
+        const auto& metric_value_column = query_it.Get(value_indices[i]);
+        auto* row_value = row->add_values();
+        if (metric_value_column.is_null()) {
+          row_value->set_null_value();
+          continue;
+        }
+        switch (metric_value_column.type) {
+          case SqlValue::kLong:
+            row_value->set_double_value(
+                static_cast<double>(metric_value_column.long_value));
+            break;
+          case SqlValue::kDouble:
+            row_value->set_double_value(metric_value_column.double_value);
+            break;
+          case SqlValue::kNull:
+            PERFETTO_FATAL("Null value should have been skipped");
+          case SqlValue::kString:
+          case SqlValue::kBytes:
+            return base::ErrStatus(
+                "Received string/bytes for value column in metric '%s': this "
+                "is not supported",
+                it.value()[i]->id.c_str());
+        }
+      }
+    }
+    RETURN_IF_ERROR(query_it.Status());
+  }
+  return base::OkStatus();
+}
+
 base::Status CreateQueriesAndComputeMetrics(
     TraceProcessor* processor,
     const DescriptorPool& pool,
     const std::vector<StructuredQueryGenerator::Query>& queries,
-    const base::FlatHashMap<std::string, Metric>& queries_per_metric,
+    const std::vector<Metric>& metrics,
     const std::optional<std::string>& metadata_sql,
     std::vector<uint8_t>* output,
     const TraceSummaryOutputSpec& output_spec) {
@@ -153,217 +474,8 @@ base::Status CreateQueriesAndComputeMetrics(
     }
   }
   protozero::HeapBuffered<protos::pbzero::TraceSummary> summary;
-  for (auto m = queries_per_metric.GetIterator(); m; ++m) {
-    const std::string& metric_name = m.key();
-    if (m.value().query.empty()) {
-      return base::ErrStatus("Metric '%s' was not found in any summary spec",
-                             metric_name.c_str());
-    }
-    auto* metric = summary->add_metric();
-    metric->AppendBytes(protos::pbzero::TraceMetricV2::kSpecFieldNumber,
-                        m.value().spec.data, m.value().spec.size);
-
-    auto it = processor->ExecuteQuery(m.value().query);
-    protos::pbzero::TraceMetricV2Spec::Decoder spec_decoder(m.value().spec);
-
-    bool is_unique_dimensions =
-        spec_decoder.dimension_uniqueness() ==
-        protos::pbzero::TraceMetricV2Spec::DimensionUniqueness::UNIQUE;
-    uint32_t col_count = it.ColumnCount();
-    std::string metric_value_column_name = spec_decoder.value().ToStdString();
-    std::optional<uint32_t> metric_value_index;
-    for (uint32_t i = 0; i < col_count; ++i) {
-      if (it.GetColumnName(i) == metric_value_column_name) {
-        metric_value_index = i;
-        break;
-      }
-    }
-    if (!metric_value_index) {
-      return base::ErrStatus(
-          "Column '%s' not found in the query result for metric '%s'",
-          metric_value_column_name.c_str(), metric_name.c_str());
-    }
-
-    if (spec_decoder.has_dimensions_specs() && spec_decoder.has_dimensions()) {
-      return base::ErrStatus(
-          "Both dimensions and dimension_specs defined for metric '%s'. Only "
-          "one is allowed",
-          metric_name.c_str());
-    }
-    std::vector<uint32_t> dimension_column_indices;
-    std::vector<protos::pbzero::TraceMetricV2Spec::DimensionType>
-        dimension_types;
-    if (spec_decoder.dimensions_specs()) {
-      for (auto dim_spec_it = spec_decoder.dimensions_specs(); dim_spec_it;
-           ++dim_spec_it) {
-        protos::pbzero::TraceMetricV2Spec::DimensionSpec::Decoder dim_spec(
-            *dim_spec_it);
-        std::string dim_name = dim_spec.name().ToStdString();
-        protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
-            static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
-                dim_spec.type());
-        if (dimension_type ==
-            protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED) {
-          return base::ErrStatus(
-              "Dimension '%s' in metric '%s' has unspecified type",
-              dim_name.c_str(), metric_name.c_str());
-        }
-        std::optional<uint32_t> dim_index;
-        for (uint32_t i = 0; i < col_count; ++i) {
-          if (it.GetColumnName(i) == dim_name) {
-            dim_index = i;
-            break;
-          }
-        }
-        if (!dim_index) {
-          return base::ErrStatus(
-              "Dimensions column '%s' not found in the query result for metric "
-              "'%s'",
-              dim_name.c_str(), metric_name.c_str());
-        }
-        dimension_column_indices.push_back(*dim_index);
-        dimension_types.push_back(dimension_type);
-      }
-    } else {
-      for (auto dim_name_it = spec_decoder.dimensions(); dim_name_it;
-           ++dim_name_it) {
-        std::string dim_name = dim_name_it->as_std_string();
-        std::optional<uint32_t> dim_index;
-        for (uint32_t i = 0; i < col_count; ++i) {
-          if (it.GetColumnName(i) == dim_name) {
-            dim_index = i;
-            break;
-          }
-        }
-        if (!dim_index) {
-          return base::ErrStatus(
-              "Dimensions column '%s' not found in the query result for metric "
-              "'%s'",
-              dim_name.c_str(), metric_name.c_str());
-        }
-        dimension_column_indices.push_back(*dim_index);
-        dimension_types.push_back(
-            protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED);
-      }
-    }
-
-    base::FlatHashMap<uint64_t, bool> seen_dimensions;
-    while (it.Next()) {
-      PERFETTO_CHECK(col_count > 0);
-      const auto& metric_value_column = it.Get(*metric_value_index);
-      // Skip rows where the metric value column is null.
-      if (metric_value_column.is_null()) {
-        continue;
-      }
-
-      auto* row = metric->add_row();
-      // Read metric value.
-      switch (metric_value_column.type) {
-        case SqlValue::kLong:
-          row->set_value(static_cast<double>(metric_value_column.AsLong()));
-          break;
-        case SqlValue::kDouble:
-          row->set_value(metric_value_column.AsDouble());
-          break;
-        case SqlValue::kNull:
-          PERFETTO_FATAL("Null value should have been skipped");
-        case SqlValue::kString:
-          return base::ErrStatus(
-              "Received string for value column in metric '%s': this is not "
-              "supported",
-              metric_name.c_str());
-        case SqlValue::kBytes:
-          return base::ErrStatus(
-              "Received bytes for metric value in metric '%s': this is not "
-              "supported",
-              metric_name.c_str());
-      }
-
-      // Read dimensions.
-      base::Hasher hasher;
-      for (size_t i = 0; i < dimension_types.size(); ++i) {
-        uint32_t dim_column_index = dimension_column_indices[i];
-        const auto& dimension_value = it.Get(dim_column_index);
-        hasher.Update(dimension_value.type);
-
-        protos::pbzero::TraceMetricV2::MetricRow::Dimension* dimension =
-            row->add_dimension();
-
-        protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
-            dimension_types[i];
-
-        if (dimension_value.is_null()) {
-          // Accept null value for all dimension types.
-          dimension->set_null_value();
-          continue;
-        }
-        switch (dimension_type) {
-          case protos::pbzero::TraceMetricV2Spec::STRING: {
-            if (dimension_value.type != SqlValue::kString) {
-              return base::ErrStatus(
-                  "Expected string for dimension '%zu' in metric '%s', got %d",
-                  i, metric_name.c_str(), dimension_value.type);
-            }
-            const char* dimension_str = dimension_value.string_value;
-            hasher.Update(dimension_str);
-            dimension->set_string_value(dimension_str);
-            break;
-          }
-          case protos::pbzero::TraceMetricV2Spec::INT64: {
-            if (dimension_value.type != SqlValue::kLong) {
-              return base::ErrStatus(
-                  "Expected int64 for dimension '%zu' in metric '%s', got %d",
-                  i, metric_name.c_str(), dimension_value.type);
-            }
-            int64_t dim_value = dimension_value.long_value;
-            hasher.Update(dim_value);
-            dimension->set_int64_value(dim_value);
-            break;
-          }
-          case protos::pbzero::TraceMetricV2Spec::DOUBLE: {
-            if (dimension_value.type != SqlValue::kDouble) {
-              return base::ErrStatus(
-                  "Expected double for dimension '%zu' in metric '%s', got %d",
-                  i, metric_name.c_str(), dimension_value.type);
-            }
-            double dim_value = dimension_value.AsDouble();
-            hasher.Update(dim_value);
-            dimension->set_double_value(dim_value);
-            break;
-          }
-          case protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED:
-            if (dimension_value.type == SqlValue::kLong) {
-              int64_t dim_value = dimension_value.long_value;
-              hasher.Update(dim_value);
-              dimension->set_int64_value(dim_value);
-            } else if (dimension_value.type == SqlValue::kDouble) {
-              double dim_value = dimension_value.AsDouble();
-              hasher.Update(dim_value);
-              dimension->set_double_value(dim_value);
-            } else if (dimension_value.type == SqlValue::kString) {
-              const char* dimension_str = dimension_value.string_value;
-              hasher.Update(dimension_str);
-              dimension->set_string_value(dimension_str);
-            } else if (dimension_value.type == SqlValue::kBytes) {
-              return base::ErrStatus(
-                  "Received bytes for dimension in metric '%s': this is not "
-                  "supported",
-                  metric_name.c_str());
-            } else {
-              PERFETTO_FATAL("Null dimension should have been handled above");
-            }
-            break;
-        }
-      }
-      uint64_t hash = hasher.digest();
-      if (is_unique_dimensions && !seen_dimensions.Insert(hash, true).second) {
-        return base::ErrStatus(
-            "Duplicate dimensions found for metric '%s': this is not allowed",
-            metric_name.c_str());
-      }
-    }
-    RETURN_IF_ERROR(it.Status());
-  }
+  RETURN_IF_ERROR(
+      CreateQueriesAndComputeMetrics(processor, metrics, summary.get()));
   if (metadata_sql) {
     RETURN_IF_ERROR(WriteMetadata(processor, *metadata_sql, summary.get()));
   }
@@ -444,14 +556,16 @@ base::Status Summarize(TraceProcessor* processor,
     }
   }
 
-  base::FlatHashMap<std::string, Metric> queries_per_metric;
+  base::FlatHashMap<std::string, size_t> queries_per_metric;
+  std::vector<Metric> metrics;
   for (const auto& id : metric_ids) {
     if (base::CaseInsensitiveEqual(id, "all")) {
       return base::ErrStatus(
           "Metric has id 'all' which is not allowed as this is a reserved "
           "name. Please use a different id for your metric");
     }
-    queries_per_metric.Insert(id, Metric{});
+    queries_per_metric.Insert(id, metrics.size());
+    metrics.emplace_back(Metric{id, {}, {}});
   }
   for (const auto& m : metric_decoders) {
     std::string id = m.id().ToStdString();
@@ -460,10 +574,11 @@ base::Status Summarize(TraceProcessor* processor,
     }
     // Only compute metrics which were populated in the map (i.e. the ones
     // which were specified in the `computation.v2_metric_ids` field).
-    Metric* metric = queries_per_metric.Find(id);
-    if (!metric) {
+    size_t* idx = queries_per_metric.Find(id);
+    if (!idx) {
       continue;
     }
+    Metric* metric = &metrics[*idx];
     if (!metric->query.empty()) {
       return base::ErrStatus(
           "Duplicate definitions for metric '%s' received: this is not "
@@ -508,8 +623,7 @@ base::Status Summarize(TraceProcessor* processor,
 
   auto queries = generator.referenced_queries();
   base::Status status = CreateQueriesAndComputeMetrics(
-      processor, pool, queries, queries_per_metric, metadata_sql, output,
-      output_spec);
+      processor, pool, queries, metrics, metadata_sql, output, output_spec);
 
   // Make sure to cleanup all the queries.
   for (const auto& query : queries) {

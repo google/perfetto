@@ -44,7 +44,7 @@ export default defineConfig({
     timeout: 5000,
     toHaveScreenshot: {
       // Rendering is not 100% identical on Mac. Be more tolerant.
-      maxDiffPixelRatio: isMac ? 0.05 : undefined,
+      maxDiffPixelRatio: isMac ? 0.05 : 0.02,
     },
   },
 

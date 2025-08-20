@@ -41,7 +41,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/typed_column_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
@@ -782,6 +781,14 @@ class TraceStorage {
     return &surfaceflinger_layers_snapshot_table_;
   }
 
+  const tables::SurfaceFlingerDisplayTable& surfaceflinger_display_table()
+      const {
+    return surfaceflinger_display_table_;
+  }
+  tables::SurfaceFlingerDisplayTable* mutable_surfaceflinger_display_table() {
+    return &surfaceflinger_display_table_;
+  }
+
   const tables::SurfaceFlingerLayerTable& surfaceflinger_layer_table() const {
     return surfaceflinger_layer_table_;
   }
@@ -887,6 +894,34 @@ class TraceStorage {
   }
   tables::ProtoLogTable* mutable_protolog_table() { return &protolog_table_; }
 
+  const tables::WinscopeTraceRectTable& winscope_trace_rect_table() const {
+    return winscope_trace_rect_table_;
+  }
+  tables::WinscopeTraceRectTable* mutable_winscope_trace_rect_table() {
+    return &winscope_trace_rect_table_;
+  }
+
+  const tables::WinscopeRectTable& winscope_rect_table() const {
+    return winscope_rect_table_;
+  }
+  tables::WinscopeRectTable* mutable_winscope_rect_table() {
+    return &winscope_rect_table_;
+  }
+
+  const tables::WinscopeFillRegionTable& winscope_fill_region_table() const {
+    return winscope_fill_region_table_;
+  }
+  tables::WinscopeFillRegionTable* mutable_winscope_fill_region_table() {
+    return &winscope_fill_region_table_;
+  }
+
+  const tables::WinscopeTransformTable& winscope_transform_table() const {
+    return winscope_transform_table_;
+  }
+  tables::WinscopeTransformTable* mutable_winscope_transform_table() {
+    return &winscope_transform_table_;
+  }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return experimental_proto_path_table_;
@@ -919,13 +954,19 @@ class TraceStorage {
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
 
-  base::Status ExtractArg(uint32_t arg_set_id,
-                          const char* key,
-                          std::optional<Variadic>* result) const {
+  uint32_t ExtractArgRowFast(uint32_t arg_set_id, const char* key) const {
     args_cursor_.SetFilterValueUnchecked(0, arg_set_id);
     args_cursor_.SetFilterValueUnchecked(1, key);
     args_cursor_.Execute();
-    if (args_cursor_.Eof()) {
+    return args_cursor_.Eof() ? std::numeric_limits<uint32_t>::max()
+                              : args_cursor_.ToRowNumber().row_number();
+  }
+
+  base::Status ExtractArg(uint32_t arg_set_id,
+                          const char* key,
+                          std::optional<Variadic>* result) const {
+    uint32_t arg = ExtractArgRowFast(arg_set_id, key);
+    if (arg == std::numeric_limits<uint32_t>::max()) {
       *result = std::nullopt;
       return base::OkStatus();
     }
@@ -1146,6 +1187,8 @@ class TraceStorage {
   tables::InputMethodServiceTable inputmethod_service_table_{&string_pool_};
   tables::SurfaceFlingerLayersSnapshotTable
       surfaceflinger_layers_snapshot_table_{&string_pool_};
+  tables::SurfaceFlingerDisplayTable surfaceflinger_display_table_{
+      &string_pool_};
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
@@ -1167,6 +1210,10 @@ class TraceStorage {
   tables::WindowManagerShellTransitionProtosTable
       window_manager_shell_transition_protos_table_{&string_pool_};
   tables::ProtoLogTable protolog_table_{&string_pool_};
+  tables::WinscopeTraceRectTable winscope_trace_rect_table_{&string_pool_};
+  tables::WinscopeRectTable winscope_rect_table_{&string_pool_};
+  tables::WinscopeFillRegionTable winscope_fill_region_table_{&string_pool_};
+  tables::WinscopeTransformTable winscope_transform_table_{&string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};

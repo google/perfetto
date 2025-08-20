@@ -44,9 +44,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}-${{ github.run_id }}
-          restore-keys: |
-            cache-${{ env.PERFETTO_CI_JOB_NAME }}-
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
 
       - name: Start emulator in the background
         run: tools/run_android_emulator --pid /tmp/emulator.pid -v &
@@ -75,4 +73,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}-${{ github.run_id }}
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
