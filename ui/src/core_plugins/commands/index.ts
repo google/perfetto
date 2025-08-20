@@ -25,6 +25,7 @@ import {
 import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {featureFlags} from '../../core/feature_flags';
+import {z} from 'zod';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -121,6 +122,38 @@ export default class implements PerfettoPlugin {
           ctx.sidebar.toggleVisibility();
         },
         defaultHotkey: '!Mod+B',
+      });
+    }
+
+    const setting = ctx.settings.register({
+      id: 'perfetto.CoreCommands#macros',
+      name: 'Macros',
+      description: 'todo gemini',
+      schema: z.array(
+        z.object({
+          name: z.string(),
+          macro: z.string(),
+        }),
+      ),
+      defaultValue: [],
+      requiresReload: true,
+    });
+    const macros = setting.get();
+    for (const macro of macros) {
+      ctx.commands.registerCommand({
+        id: `perfetto.CoreCommands#macros#${macro.name}`,
+        name: macro.name,
+        callback: () => {
+          const res = macro.macro.split('\n');
+          for (const r of res) {
+            const trimmed = r.trim();
+            if (trimmed === '') {
+               continue;
+            }
+            ctx.commands.runCommand(trimmed);
+          }
+          // ctx.commands.runCommand();
+        },
       });
     }
 
