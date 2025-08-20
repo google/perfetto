@@ -20,7 +20,7 @@ import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.LargeScreensPerf';
+  static readonly id = 'com.android.LargeScreensPerf';
   static readonly dependencies = [
     StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
     this.addFoldedStateTrackToDeviceState(ctx);
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.LargeScreensPerf#UnfoldLatencyTracks',
+      id: 'com.android.LargeScreensPerf#UnfoldLatencyTracks',
       name: 'Organize unfold latency tracks',
       callback: async () => {
         this.pinCoreTracks(ctx);

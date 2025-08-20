@@ -51,7 +51,7 @@ export const defaultPlugins = [
   'dev.perfetto.HeapProfile',
   'dev.perfetto.InstrumentsSamplesProfile',
   'dev.perfetto.KernelTrackEvent',
-  'dev.perfetto.LargeScreensPerf',
+  'com.android.LargeScreensPerf',
   'dev.perfetto.LinuxPerf',
   'dev.perfetto.MetricsPage',
   'dev.perfetto.PowerRails',
