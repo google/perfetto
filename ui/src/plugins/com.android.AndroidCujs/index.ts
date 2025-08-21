@@ -276,28 +276,38 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.PinJankCUJs',
       name: 'Add track: Android jank CUJs',
-      callback: async () => {
-        await this.pinJankCujs(ctx);
+      callback: () => {
+        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
+          addJankCUJDebugTrack(ctx, 'Jank CUJs');
+        });
       },
     });
 
     ctx.commands.registerCommand({
       id: 'com.android.ListJankCUJs',
       name: 'Run query: Android jank CUJs',
-      callback: async () => {
-        await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
-        addQueryResultsTab(ctx, {
-          query: JANK_CUJ_QUERY,
-          title: 'Android Jank CUJs',
-        });
+      callback: () => {
+        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
+          addQueryResultsTab(ctx, {
+            query: JANK_CUJ_QUERY,
+            title: 'Android Jank CUJs',
+          }),
+        );
       },
     });
 
     ctx.commands.registerCommand({
       id: 'com.android.PinLatencyCUJs',
       name: 'Add track: Android latency CUJs',
-      callback: async () => {
-        await this.pinLatencyCujs(ctx);
+      callback: () => {
+        addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: LATENCY_CUJ_QUERY,
+            columns: LATENCY_COLUMNS,
+          },
+          title: 'Latency CUJs',
+        });
       },
     });
 
@@ -330,19 +340,4 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  async pinJankCujs(ctx: Trace) {
-    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
-    await addJankCUJDebugTrack(ctx, 'Jank CUJs');
-  }
-
-  async pinLatencyCujs(ctx: Trace) {
-    addDebugSliceTrack({
-      trace: ctx,
-      data: {
-        sqlSource: LATENCY_CUJ_QUERY,
-        columns: LATENCY_COLUMNS,
-      },
-      title: 'Latency CUJs',
-    });
-  }
 }
