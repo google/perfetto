@@ -193,7 +193,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     }
     static constexpr auto kPowerBlueprint = tracks::CounterBlueprint(
         "power_rails", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+        tracks::DimensionBlueprints(
+            tracks::kNameFromTraceDimensionBlueprint,
+            tracks::UintDimensionBlueprint("session_uuid")),
         tracks::DynamicNameBlueprint());
     const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
     TrackId track;
@@ -211,7 +213,8 @@ ModuleResult AndroidProbesModule::TokenizePacket(
           base::StackString<255>("power.rails.%s", friendly_name)
               .string_view());
       track = context_->track_tracker->InternTrack(
-          kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
+          kPowerBlueprint,
+          tracks::Dimensions(desc.rail_name(), evt.session_uuid()),
           tracks::DynamicName(id), args_fn);
     } else {
       StringId id = context_->storage->InternString(
@@ -219,7 +222,8 @@ ModuleResult AndroidProbesModule::TokenizePacket(
                                  desc.rail_name().data)
               .string_view());
       track = context_->track_tracker->InternTrack(
-          kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
+          kPowerBlueprint,
+          tracks::Dimensions(desc.rail_name(), evt.session_uuid()),
           tracks::DynamicName(id), args_fn);
     }
     tracker_->SetPowerRailTrack(evt.session_uuid(), desc.index(), track);
