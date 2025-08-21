@@ -20,7 +20,7 @@ import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
-import {CommandManagerImpl} from './command_manager';
+import {CommandManagerImpl, parseUrlCommands} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {SearchManagerImpl} from './search_manager';
@@ -231,6 +231,14 @@ export class TraceImpl implements Trace {
       },
     });
 
+    // Very important: the commands from the URL *should* be executed before
+    // the commands from settings as the user settings should take priority
+    // over the trace settings.
+    const urlCommands =
+      parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
+    const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
+    const allStartupCommands = [...urlCommands, ...settingsCommands];
+
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
     // unregistered when the trace unloads (before a new trace is loaded) to
@@ -243,7 +251,7 @@ export class TraceImpl implements Trace {
       },
 
       hasStartupCommands(): boolean {
-        return ctx.appCtx.startupCommandsSetting.get().length > 0;
+        return allStartupCommands.length > 0;
       },
 
       async runStartupCommands(): Promise<void> {
@@ -254,8 +262,7 @@ export class TraceImpl implements Trace {
         // - Trace data is fully accessible
         // - UI state has been restored from any saved workspace
         // - Commands can safely query trace data and modify UI state
-        const commands = ctx.appCtx.startupCommandsSetting.get();
-        for (const command of commands) {
+        for (const command of allStartupCommands) {
           try {
             // Execute through proxy to access both global and trace-specific
             // commands.
