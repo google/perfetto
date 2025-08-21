@@ -78,7 +78,7 @@ export default class implements PerfettoPlugin {
     if (metrics.length !== 0) {
       const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
       await plugin.pinJankCujs(ctx);
-      await plugin.listJankCujs(ctx);
+      await plugin.pinLatencyCujs(ctx);
       this.callHandlers(metrics, ctx);
     }
   }
