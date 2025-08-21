@@ -231,6 +231,8 @@ class TrackEventDataSource
  public:
   static constexpr bool kRequiresCallbacksUnderLock = false;
 
+  constexpr static BufferExhaustedPolicy kBufferExhaustedPolicy =
+      BufferExhaustedPolicy::kStall;
   // Add or remove a session observer for this track event data source. The
   // observer will be notified about started and stopped tracing sessions.
   // Returns |true| if the observer was successfully added (i.e., the maximum

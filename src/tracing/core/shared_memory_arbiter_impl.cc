@@ -195,12 +195,14 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
 
     if (stall_count == kAssertAtNStalls) {
       Stats stats = GetStats();
-      PERFETTO_FATAL(
+      // stall too many times, just return invalid Chunk.
+      PERFETTO_ELOG(
           "Shared memory buffer max stall count exceeded; possible deadlock "
           "free=%zu bw=%zu br=%zu comp=%zu pages_free=%zu pages_err=%zu",
           stats.chunks_free, stats.chunks_being_written,
           stats.chunks_being_read, stats.chunks_complete, stats.pages_free,
           stats.pages_unexpected);
+      return Chunk();
     }
 
     // If the IPC thread itself is stalled because the current process has
