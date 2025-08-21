@@ -130,6 +130,14 @@ class EtmDecodeChunkVtable::Cursor
     // Indicates if we are waiting for a timestamp.
     bool waiting_for_timestamp = false;
   };
+  struct BufferedRow {
+    OcsdTraceElement element;
+    uint32_t chunk_id;
+    ocsd_trc_index_t index;
+    uint32_t element_index;
+    std::optional<uint32_t> mapping_id;
+    std::optional<std::unique_ptr<InstructionRangeSqlValue>> instruction_range;
+  };
 
  public:
   explicit Cursor(Vtab* vtab) : cursor_(vtab->storage) {}
@@ -165,14 +173,14 @@ class EtmDecodeChunkVtable::Cursor
 
   // Buffer of rows waiting for a timestamp packet (i.e. saw a sync and looking
   // for timestamp)
-  std::vector<OcsdTraceElement> rows_waiting_for_timestamp_;
+  std::vector<BufferedRow> rows_waiting_for_timestamp_;
   bool flushing_buffer_ = false;
   size_t buffer_idx_ = 0;
 };
 
 base::Status EtmDecodeChunkVtable::Cursor::HandleFlushingBuffer() {
   if (buffer_idx_ + 1 < rows_waiting_for_timestamp_.size() &&
-      rows_waiting_for_timestamp_[buffer_idx_ + 1].getType() ==
+      rows_waiting_for_timestamp_[buffer_idx_ + 1].element.getType() ==
           OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
     flushing_buffer_ = false;
     rows_waiting_for_timestamp_.erase(rows_waiting_for_timestamp_.begin(),
@@ -196,20 +204,34 @@ base::Status EtmDecodeChunkVtable::Cursor::HandleWaitingForTimestamp() {
     state_.waiting_for_timestamp = false;
 
     for (auto& row : rows_waiting_for_timestamp_) {
-      if (row.getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
-        row.timestamp = cursor_.element().timestamp;
-        row.has_ts = true;
+      if (row.element.getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+        row.element.timestamp = cursor_.element().timestamp;
+        row.element.has_ts = true;
         if (cursor_.element().has_cc) {
-          row.cycle_count = cursor_.element().cycle_count;
-          row.has_cc = true;
+          row.element.cycle_count = cursor_.element().cycle_count;
+          row.element.has_cc = true;
         }
         break;
       }
     }
-    rows_waiting_for_timestamp_.push_back(cursor_.element());
+    rows_waiting_for_timestamp_.push_back(
+        {cursor_.element(), cursor_.chunk_id().value, cursor_.index(),
+         cursor_.element_index(),
+         cursor_.mapping() ? std::make_optional(cursor_.mapping()->id().value)
+                           : std::nullopt,
+         cursor_.has_instruction_range()
+             ? std::make_optional(cursor_.GetInstructionRange())
+             : std::nullopt});
     StartFlushingBuffer();
   } else {
-    rows_waiting_for_timestamp_.push_back(cursor_.element());
+    rows_waiting_for_timestamp_.push_back(
+        {cursor_.element(), cursor_.chunk_id().value, cursor_.index(),
+         cursor_.element_index(),
+         cursor_.mapping() ? std::make_optional(cursor_.mapping()->id().value)
+                           : std::nullopt,
+         cursor_.has_instruction_range()
+             ? std::make_optional(cursor_.GetInstructionRange())
+             : std::nullopt});
     // If the following ever occurs then we have reached a point where a
     // sync never got a timestamp. To guard against this and accurately
     // report it we will modify last_seen_timestamp_ to be null for the rows
@@ -249,7 +271,15 @@ base::Status EtmDecodeChunkVtable::Cursor::Next() {
     } else {
       if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
         state_.waiting_for_timestamp = true;
-        rows_waiting_for_timestamp_.push_back(cursor_.element());
+        rows_waiting_for_timestamp_.push_back(
+            {cursor_.element(), cursor_.chunk_id().value, cursor_.index(),
+             cursor_.element_index(),
+             cursor_.mapping()
+                 ? std::make_optional(cursor_.mapping()->id().value)
+                 : std::nullopt,
+             cursor_.has_instruction_range()
+                 ? std::make_optional(cursor_.GetInstructionRange())
+                 : std::nullopt});
         continue;
       }
       break;
@@ -328,19 +358,44 @@ base::Status EtmDecodeChunkVtable::Cursor::Filter(int,
 }
 
 int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
-  const OcsdTraceElement* elem = flushing_buffer_
-                                     ? &rows_waiting_for_timestamp_[buffer_idx_]
-                                     : &cursor_.element();
+  const OcsdTraceElement* elem;
+  uint32_t chunkId, elementIndex;
+  ocsd_trc_index_t index;
+  std::optional<uint32_t> mappingId;
+  std::optional<std::unique_ptr<InstructionRangeSqlValue>> instructionRange;
+  if (flushing_buffer_) {
+    const auto& row = rows_waiting_for_timestamp_[buffer_idx_];
+    elem = &row.element;
+    chunkId = row.chunk_id;
+    index = row.index;
+    elementIndex = row.element_index;
+    mappingId = row.mapping_id;
+    if (row.instruction_range) {
+      instructionRange =
+          std::move(const_cast<BufferedRow&>(row).instruction_range);
+    }
+  } else {
+    elem = &cursor_.element();
+    chunkId = cursor_.chunk_id().value;
+    index = cursor_.index();
+    elementIndex = cursor_.element_index();
+    mappingId = cursor_.mapping()
+                    ? std::make_optional(cursor_.mapping()->id().value)
+                    : std::nullopt;
+    if (cursor_.has_instruction_range()) {
+      instructionRange = cursor_.GetInstructionRange();
+    }
+  }
 
   switch (static_cast<ColumnIndex>(raw_n)) {
     case ColumnIndex::kChunkId:
-      sqlite::result::Long(ctx, cursor_.chunk_id().value);
+      sqlite::result::Long(ctx, chunkId);
       break;
     case ColumnIndex::kChunkIndex:
-      sqlite::result::Long(ctx, static_cast<int64_t>(cursor_.index()));
+      sqlite::result::Long(ctx, static_cast<int64_t>(index));
       break;
     case ColumnIndex::kElementIndex:
-      sqlite::result::Long(ctx, cursor_.element_index());
+      sqlite::result::Long(ctx, elementIndex);
       break;
     case ColumnIndex::kElementType:
       sqlite::result::StaticString(ctx, ToString(elem->getType()));
@@ -395,13 +450,13 @@ int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
       sqlite::result::Long(ctx, static_cast<int64_t>(elem->en_addr));
       break;
     case ColumnIndex::kMappingId:
-      if (cursor_.mapping()) {
-        sqlite::result::Long(ctx, cursor_.mapping()->id().value);
+      if (mappingId) {
+        sqlite::result::Long(ctx, static_cast<int64_t>(*mappingId));
       }
       break;
     case ColumnIndex::kInstructionRange:
-      if (cursor_.has_instruction_range()) {
-        sqlite::result::UniquePointer(ctx, cursor_.GetInstructionRange(),
+      if (instructionRange) {
+        sqlite::result::UniquePointer(ctx, std::move(*instructionRange),
                                       InstructionRangeSqlValue::kPtrType);
       }
       break;
