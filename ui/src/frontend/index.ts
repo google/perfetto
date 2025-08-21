@@ -33,7 +33,7 @@ import {globals} from './globals';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
-import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {renderViewerPage} from './viewer_page/viewer_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -357,7 +357,7 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   maybeChangeRpcPortFromFragment();
-  CheckHttpRpcConnection().then(() => {
+  checkHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
     if (!AppImpl.instance.embeddedMode) {
       installFileDropHandler();
