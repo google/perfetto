@@ -76,8 +76,7 @@ export function parseUrlCommands(
 
   try {
     const parsed = JSON.parse(commandsParam);
-    const result = commandInvocationArraySchema.safeParse(parsed);
-    return result.success ? result.data : undefined;
+    return commandInvocationArraySchema.parse(parsed);
   } catch {
     return undefined;
   }

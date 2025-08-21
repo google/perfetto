@@ -231,9 +231,12 @@ export class TraceImpl implements Trace {
       },
     });
 
-    // Very important: the commands from the URL *should* be executed before
-    // the commands from settings as the user settings should take priority
-    // over the trace settings.
+    // CRITICAL ORDER: URL commands MUST execute before settings commands!
+    // This ordering has subtle but important implications:
+    // - URL commands are trace-specific and should establish initial state
+    // - Settings commands are user preferences that should override URL defaults
+    // - Changing this order could break trace sharing and user customization
+    // DO NOT REORDER without understanding the full impact!
     const urlCommands =
       parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
     const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
