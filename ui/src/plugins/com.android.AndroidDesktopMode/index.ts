@@ -40,7 +40,7 @@ export default class implements PerfettoPlugin {
     await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
     await this.registerTrack(ctx, QUERY);
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.DesktopMode#AddTrackDesktopWindowss',
+      id: 'com.android.AddDesktopModeTrack',
       name: 'Add Track: ' + TRACK_NAME,
       callback: () => this.addSimpleTrack(ctx),
     });

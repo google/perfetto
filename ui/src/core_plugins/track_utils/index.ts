@@ -43,7 +43,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     // Register this command up front to block the print dialog from appearing
     // when pressing the hotkey before the trace is loaded.
     app.commands.registerCommand({
-      id: 'perfetto.FindTrackByName',
+      id: 'dev.perfetto.FindTrackByName',
       name: 'Find track by name',
       callback: async () => {
         const trace = app.trace;
@@ -70,7 +70,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'perfetto.RunQueryInSelectedTimeWindow',
+      id: 'dev.perfetto.RunQueryInSelectedTimeWindow',
       name: `Run query in selected time window`,
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
@@ -84,7 +84,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.FindTrackByUri',
+      id: 'dev.perfetto.FindTrackByUri',
       name: 'Find track by URI',
       callback: async () => {
         const tracksWithUris = ctx.workspace.flatTracksOrdered.filter(
@@ -102,7 +102,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.PinTrackByName',
+      id: 'dev.perfetto.PinTrackByName',
       name: 'Pin track by name',
       defaultHotkey: 'Shift+T',
       callback: async () => {
@@ -118,7 +118,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.SelectNextTrackEvent',
+      id: 'dev.perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
       defaultHotkey: '.',
       callback: async () => {
@@ -127,7 +127,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.SelectPreviousTrackEvent',
+      id: 'dev.perfetto.SelectPreviousTrackEvent',
       name: 'Select previous track event',
       defaultHotkey: !TrackUtilsPlugin.dvorakSetting.get() ? ',' : undefined,
       callback: async () => {

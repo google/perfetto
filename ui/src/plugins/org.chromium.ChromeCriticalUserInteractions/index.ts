@@ -25,7 +25,7 @@ export default class implements PerfettoPlugin {
     const uri = `/critical_user_interactions`;
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
+      id: 'org.chromium.CriticalUserInteraction.AddInteractionTrack',
       name: 'Add track: Chrome interactions',
       callback: () => {
         const track = new TrackNode({
