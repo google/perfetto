@@ -75,7 +75,7 @@ class AndroidPowerDataSource : public ProbesDataSource {
   bool should_emit_descriptors_ = true;
 
   // Random session UUID for this data source instance.
-  uint32_t session_uuid_ = 0;
+  uint64_t session_uuid_ = 0;
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
