@@ -56,7 +56,7 @@ class AndroidProbesTracker {
     seen_packages_.emplace(std::move(package_name));
   }
 
-  std::optional<TrackId> GetPowerRailTrack(uint32_t session_uuid,
+  std::optional<TrackId> GetPowerRailTrack(uint64_t session_uuid,
                                            uint32_t index) {
     auto it = power_rail_tracks_by_session_.find(session_uuid);
     if (it != power_rail_tracks_by_session_.end() &&
@@ -68,7 +68,7 @@ class AndroidProbesTracker {
     return std::nullopt;
   }
 
-  void SetPowerRailTrack(uint32_t session_uuid,
+  void SetPowerRailTrack(uint64_t session_uuid,
                          uint32_t index,
                          TrackId track_id) {
     auto& tracks = power_rail_tracks_by_session_[session_uuid];
@@ -139,7 +139,7 @@ class AndroidProbesTracker {
  private:
   TraceStorage* storage_;
   std::set<std::string> seen_packages_;
-  std::unordered_map<uint32_t, std::vector<TrackId>>
+  std::unordered_map<uint64_t, std::vector<TrackId>>
       power_rail_tracks_by_session_;
   std::unordered_map<int32_t, EnergyConsumerSpecs> energy_consumer_descriptors_;
   std::unordered_map<uint64_t, EntityStateDescriptor> entity_state_descriptors_;
