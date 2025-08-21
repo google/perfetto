@@ -53,31 +53,33 @@ base::StatusOr<ocsd_gen_trc_elem_t> ToElementType(sqlite3_value* value) {
   return *type;
 }
 
-base::StatusOr<tables::EtmV4TraceTable::Id> GetEtmV4TraceId(
+base::StatusOr<tables::EtmV4ChunkTable::Id> GetEtmV4ChunkId(
     const TraceStorage* storage,
     sqlite3_value* argv) {
   SqlValue in_id = sqlite::utils::SqliteValueToSqlValue(argv);
   if (in_id.type != SqlValue::kLong) {
-    return base::ErrStatus("trace_id must be LONG");
+    return base::ErrStatus("chunk_id must be LONG");
   }
 
   if (in_id.AsLong() < 0 ||
-      in_id.AsLong() >= storage->etm_v4_trace_table().row_count()) {
-    return base::ErrStatus("Invalid trace_id value: %" PRIu32,
-                           storage->etm_v4_trace_table().row_count());
+      in_id.AsLong() >= storage->etm_v4_chunk_table().row_count()) {
+    return base::ErrStatus("Invalid chunk_id value: %" PRIu32,
+                           storage->etm_v4_chunk_table().row_count());
   }
 
-  return tables::EtmV4TraceTable::Id(static_cast<uint32_t>(in_id.AsLong()));
+  return tables::EtmV4ChunkTable::Id(static_cast<uint32_t>(in_id.AsLong()));
 }
 
 static constexpr char kSchema[] = R"(
     CREATE TABLE x(
-      trace_id INTEGER HIDDEN,
-      trace_index INTEGER,
+      chunk_id INTEGER HIDDEN,
+      chunk_index INTEGER,
       element_index INTEGER,
       element_type TEXT,
       timestamp INTEGER,
       cycle_count INTEGER,
+      last_seen_timestamp INTEGER,
+      cumulative_cycles INTEGER,
       exception_level INTEGER,
       context_id INTEGER,
       isa TEXT,
@@ -89,12 +91,14 @@ static constexpr char kSchema[] = R"(
   )";
 
 enum class ColumnIndex {
-  kTraceId,
-  kTraceIndex,
+  kChunkId,
+  kChunkIndex,
   kElementIndex,
   kElementType,
   kTimestamp,
   kCycleCount,
+  kLastSeenTimestamp,
+  kCumulativeCycles,
   kExceptionLevel,
   kContextId,
   kIsa,
@@ -104,14 +108,14 @@ enum class ColumnIndex {
   kInstructionRange
 };
 
-constexpr char kTraceIdEqArg = 't';
+constexpr char kChunkIdEqArg = 't';
 constexpr char kElementTypeEqArg = 'e';
 constexpr char kElementTypeInArg = 'E';
 
 }  // namespace
 
-class EtmDecodeTraceVtable::Cursor
-    : public sqlite::Module<EtmDecodeTraceVtable>::Cursor {
+class EtmDecodeChunkVtable::Cursor
+    : public sqlite::Module<EtmDecodeChunkVtable>::Cursor {
  public:
   explicit Cursor(Vtab* vtab) : cursor_(vtab->storage) {}
 
@@ -119,17 +123,97 @@ class EtmDecodeTraceVtable::Cursor
                       const char* idxStr,
                       int argc,
                       sqlite3_value** argv);
-  base::Status Next() { return cursor_.Next(); }
-  bool Eof() { return cursor_.Eof(); }
+  base::Status Next() {
+    if (flushing_buffer_) {
+      buffer_idx_++;
+      if (buffer_idx_ >= rows_waiting_for_timestamp_.size()) {
+        flushing_buffer_ = false;
+        rows_waiting_for_timestamp_.clear();
+        buffer_idx_ = 0;
+      } else {
+        return base::OkStatus();
+      }
+    }
+
+    while (true) {
+      RETURN_IF_ERROR(cursor_.Next());
+      if (cursor_.Eof()) {
+        if (waiting_for_timestamp_ && !rows_waiting_for_timestamp_.empty()) {
+          flushing_buffer_ = true;
+          buffer_idx_ = 0;
+          return base::OkStatus();
+        }
+        return base::OkStatus();
+      }
+
+      if (waiting_for_timestamp_) {
+        if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP) {
+          last_seen_timestamp_ =
+              static_cast<int64_t>(cursor_.element().timestamp);
+          waiting_for_timestamp_ = false;
+
+          for (auto& row : rows_waiting_for_timestamp_) {
+            if (row.getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+              row.timestamp = cursor_.element().timestamp;
+              row.has_ts = true;
+              if (cursor_.element().has_cc) {
+                row.cycle_count = cursor_.element().cycle_count;
+                row.has_cc = true;
+              }
+            }
+          }
+          rows_waiting_for_timestamp_.push_back(cursor_.element());
+          flushing_buffer_ = true;
+          buffer_idx_ = 0;
+          return base::OkStatus();
+        }
+        rows_waiting_for_timestamp_.push_back(cursor_.element());
+        if (rows_waiting_for_timestamp_.size() >= 30) {
+          flushing_buffer_ = true;
+          buffer_idx_ = 0;
+          waiting_for_timestamp_ = false;
+        }
+      } else {
+        if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+          waiting_for_timestamp_ = true;
+          rows_waiting_for_timestamp_.push_back(cursor_.element());
+          continue;
+        }
+        break;
+      }
+    }
+    return base::OkStatus();
+  }
+  bool Eof() {
+    if (flushing_buffer_) {
+      return buffer_idx_ >= rows_waiting_for_timestamp_.size();
+    }
+    return cursor_.Eof();
+  }
   int Column(sqlite3_context* ctx, int raw_n);
 
  private:
   base::StatusOr<ElementTypeMask> GetTypeMask(sqlite3_value* argv,
                                               bool is_inlist);
+
   ElementCursor cursor_;
+
+  // Stores the last seen timestamp.
+  int64_t last_seen_timestamp_ = -1;
+  // Stores the cumulative cycle count including timestamp packets.
+  int64_t cumulative_cycle_count_ = -1;
+  // Stores the last cumulative cycle count using only cycle count packets.
+  int64_t last_cc_value_ = 0;
+  // Indicates if we are waiting for a timestamp.
+  bool waiting_for_timestamp_ = false;
+  // Buffer of rows waiting for a timestamp packet (i.e. saw a sync and looking
+  // for timestamp)
+  std::vector<OcsdTraceElement> rows_waiting_for_timestamp_;
+  bool flushing_buffer_ = false;
+  size_t buffer_idx_ = 0;
 };
 
-base::StatusOr<ElementTypeMask> EtmDecodeTraceVtable::Cursor::GetTypeMask(
+base::StatusOr<ElementTypeMask> EtmDecodeChunkVtable::Cursor::GetTypeMask(
     sqlite3_value* argv,
     bool is_inlist) {
   ElementTypeMask mask;
@@ -151,11 +235,16 @@ base::StatusOr<ElementTypeMask> EtmDecodeTraceVtable::Cursor::GetTypeMask(
   return mask;
 }
 
-base::Status EtmDecodeTraceVtable::Cursor::Filter(int,
+base::Status EtmDecodeChunkVtable::Cursor::Filter(int,
                                                   const char* idxStr,
                                                   int argc,
                                                   sqlite3_value** argv) {
-  std::optional<tables::EtmV4TraceTable::Id> id;
+  last_seen_timestamp_ = -1;
+  cumulative_cycle_count_ = -1;
+  last_cc_value_ = 0;
+  waiting_for_timestamp_ = false;
+  rows_waiting_for_timestamp_.clear();
+  std::optional<tables::EtmV4ChunkTable::Id> id;
   ElementTypeMask type_mask;
   type_mask.set_all();
   if (argc != static_cast<int>(strlen(idxStr))) {
@@ -163,8 +252,8 @@ base::Status EtmDecodeTraceVtable::Cursor::Filter(int,
   }
   for (; *idxStr != 0; ++idxStr, ++argv) {
     switch (*idxStr) {
-      case kTraceIdEqArg: {
-        ASSIGN_OR_RETURN(id, GetEtmV4TraceId(cursor_.storage(), *argv));
+      case kChunkIdEqArg: {
+        ASSIGN_OR_RETURN(id, GetEtmV4ChunkId(cursor_.storage(), *argv));
         break;
       }
       case kElementTypeEqArg: {
@@ -188,52 +277,71 @@ base::Status EtmDecodeTraceVtable::Cursor::Filter(int,
   return cursor_.Filter(id, type_mask);
 }
 
-int EtmDecodeTraceVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
+int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
+  const OcsdTraceElement* elem = flushing_buffer_
+                                     ? &rows_waiting_for_timestamp_[buffer_idx_]
+                                     : &cursor_.element();
+
   switch (static_cast<ColumnIndex>(raw_n)) {
-    case ColumnIndex::kTraceId:
-      sqlite::result::Long(ctx, cursor_.trace_id().value);
+    case ColumnIndex::kChunkId:
+      sqlite::result::Long(ctx, cursor_.chunk_id().value);
       break;
-    case ColumnIndex::kTraceIndex:
+    case ColumnIndex::kChunkIndex:
       sqlite::result::Long(ctx, static_cast<int64_t>(cursor_.index()));
       break;
     case ColumnIndex::kElementIndex:
       sqlite::result::Long(ctx, cursor_.element_index());
       break;
     case ColumnIndex::kElementType:
-      sqlite::result::StaticString(ctx, ToString(cursor_.element().getType()));
+      sqlite::result::StaticString(ctx, ToString(elem->getType()));
       break;
     case ColumnIndex::kTimestamp:
-      if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP ||
-          cursor_.element().has_ts) {
-        sqlite::result::Long(ctx,
-                             static_cast<int64_t>(cursor_.element().timestamp));
+      if (elem->getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP || elem->has_ts) {
+        sqlite::result::Long(ctx, static_cast<int64_t>(elem->timestamp));
       }
       break;
     case ColumnIndex::kCycleCount:
-      if (cursor_.element().has_cc) {
-        sqlite::result::Long(ctx, cursor_.element().cycle_count);
+      if (elem->has_cc) {
+        sqlite::result::Long(ctx, elem->cycle_count);
+      }
+      break;
+    case ColumnIndex::kLastSeenTimestamp:
+      if (last_seen_timestamp_ != -1) {
+        sqlite::result::Long(ctx, last_seen_timestamp_);
+      }
+      break;
+    case ColumnIndex::kCumulativeCycles:
+      if (elem->has_cc) {
+        if (elem->getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP ||
+            elem->getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+          cumulative_cycle_count_ = elem->cycle_count + last_cc_value_;
+        } else if (elem->getType() == OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
+          last_cc_value_ += elem->cycle_count;
+          cumulative_cycle_count_ = last_cc_value_;
+        }
+      }
+      if (cumulative_cycle_count_ != -1) {
+        sqlite::result::Long(ctx, cumulative_cycle_count_);
       }
       break;
     case ColumnIndex::kExceptionLevel:
-      if (cursor_.element().context.el_valid) {
-        sqlite::result::Long(ctx, cursor_.element().context.exception_level);
+      if (elem->context.el_valid) {
+        sqlite::result::Long(ctx, elem->context.exception_level);
       }
       break;
     case ColumnIndex::kContextId:
-      if (cursor_.element().context.ctxt_id_valid) {
-        sqlite::result::Long(ctx, cursor_.element().context.context_id);
+      if (elem->context.ctxt_id_valid) {
+        sqlite::result::Long(ctx, elem->context.context_id);
       }
       break;
     case ColumnIndex::kIsa:
-      sqlite::result::StaticString(ctx, ToString(cursor_.element().isa));
+      sqlite::result::StaticString(ctx, ToString(elem->isa));
       break;
     case ColumnIndex::kStartAddress:
-      sqlite::result::Long(ctx,
-                           static_cast<int64_t>(cursor_.element().st_addr));
+      sqlite::result::Long(ctx, static_cast<int64_t>(elem->st_addr));
       break;
     case ColumnIndex::kEndAddress:
-      sqlite::result::Long(ctx,
-                           static_cast<int64_t>(cursor_.element().en_addr));
+      sqlite::result::Long(ctx, static_cast<int64_t>(elem->en_addr));
       break;
     case ColumnIndex::kMappingId:
       if (cursor_.mapping()) {
@@ -251,7 +359,7 @@ int EtmDecodeTraceVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Connect(sqlite3* db,
+int EtmDecodeChunkVtable::Connect(sqlite3* db,
                                   void* ctx,
                                   int,
                                   const char* const*,
@@ -265,12 +373,12 @@ int EtmDecodeTraceVtable::Connect(sqlite3* db,
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Disconnect(sqlite3_vtab* vtab) {
+int EtmDecodeChunkVtable::Disconnect(sqlite3_vtab* vtab) {
   delete GetVtab(vtab);
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
+int EtmDecodeChunkVtable::BestIndex(sqlite3_vtab* tab,
                                     sqlite3_index_info* info) {
   bool seen_id_eq = false;
   int argv_index = 1;
@@ -279,17 +387,17 @@ int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
     auto& in = info->aConstraint[i];
     auto& out = info->aConstraintUsage[i];
 
-    if (in.iColumn == static_cast<int>(ColumnIndex::kTraceId)) {
+    if (in.iColumn == static_cast<int>(ColumnIndex::kChunkId)) {
       if (!in.usable) {
         return SQLITE_CONSTRAINT;
       }
       if (in.op != SQLITE_INDEX_CONSTRAINT_EQ) {
         return sqlite::utils::SetError(
-            tab, "trace_id only supports equality constraints");
+            tab, "chunk_id only supports equality constraints");
       }
       seen_id_eq = true;
 
-      idx_str += kTraceIdEqArg;
+      idx_str += kChunkIdEqArg;
       out.argvIndex = argv_index++;
       out.omit = true;
       continue;
@@ -312,7 +420,7 @@ int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
     }
   }
   if (!seen_id_eq) {
-    return sqlite::utils::SetError(tab, "Constraint required on trace_id");
+    return sqlite::utils::SetError(tab, "Constraint required on chunk_id");
   }
 
   info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
@@ -321,18 +429,18 @@ int EtmDecodeTraceVtable::BestIndex(sqlite3_vtab* tab,
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Open(sqlite3_vtab* sql_vtab,
+int EtmDecodeChunkVtable::Open(sqlite3_vtab* sql_vtab,
                                sqlite3_vtab_cursor** cursor) {
   *cursor = new Cursor(GetVtab(sql_vtab));
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Close(sqlite3_vtab_cursor* cursor) {
+int EtmDecodeChunkVtable::Close(sqlite3_vtab_cursor* cursor) {
   delete GetCursor(cursor);
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Filter(sqlite3_vtab_cursor* cur,
+int EtmDecodeChunkVtable::Filter(sqlite3_vtab_cursor* cur,
                                  int idxNum,
                                  const char* idxStr,
                                  int argc,
@@ -344,7 +452,7 @@ int EtmDecodeTraceVtable::Filter(sqlite3_vtab_cursor* cur,
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Next(sqlite3_vtab_cursor* cur) {
+int EtmDecodeChunkVtable::Next(sqlite3_vtab_cursor* cur) {
   auto status = GetCursor(cur)->Next();
   if (!status.ok()) {
     return sqlite::utils::SetError(cur->pVtab, status);
@@ -352,17 +460,17 @@ int EtmDecodeTraceVtable::Next(sqlite3_vtab_cursor* cur) {
   return SQLITE_OK;
 }
 
-int EtmDecodeTraceVtable::Eof(sqlite3_vtab_cursor* cur) {
+int EtmDecodeChunkVtable::Eof(sqlite3_vtab_cursor* cur) {
   return GetCursor(cur)->Eof();
 }
 
-int EtmDecodeTraceVtable::Column(sqlite3_vtab_cursor* cur,
+int EtmDecodeChunkVtable::Column(sqlite3_vtab_cursor* cur,
                                  sqlite3_context* ctx,
                                  int raw_n) {
   return GetCursor(cur)->Column(ctx, raw_n);
 }
 
-int EtmDecodeTraceVtable::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
+int EtmDecodeChunkVtable::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
   return SQLITE_ERROR;
 }
 

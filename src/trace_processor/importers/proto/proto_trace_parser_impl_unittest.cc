@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
@@ -63,6 +64,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
@@ -100,6 +102,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -183,9 +186,13 @@ class MockProcessTracker : public ProcessTracker {
       : ProcessTracker(context) {}
 
   MOCK_METHOD(UniquePid,
+              UpdateProcessWithParent,
+              (UniquePid upid, UniquePid pupid),
+              (override));
+
+  MOCK_METHOD(void,
               SetProcessMetadata,
-              (int64_t pid,
-               std::optional<int64_t> ppid,
+              (UniquePid upid,
                base::StringView process_name,
                base::StringView cmdline),
               (override));
@@ -237,7 +244,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
@@ -257,11 +263,15 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.uuid_state = std::make_unique<TraceProcessorContext::UuidState>();
+    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(storage_);
 
     context_.track_compressor.reset(new TrackCompressor(&context_));
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
 
     reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
@@ -755,9 +765,12 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   process->set_pid(1);
   process->set_ppid(3);
 
-  EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
-                                 base::StringView(kProcName1)));
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u))
+      .WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
+                                            base::StringView(kProcName1)));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 }
@@ -773,9 +786,12 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->set_pid(1);
   process->set_ppid(3);
 
-  EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
-                                 base::StringView("proc1 proc2")));
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u))
+      .WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
+                                            base::StringView("proc1 proc2")));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 }
@@ -1394,7 +1410,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     thread_desc->set_tid(16);
     auto* chrome_thread = track_desc->set_chrome_thread();
     chrome_thread->set_thread_type(
-        protos::pbzero::ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER);
+        protos::chrome_enums::pbzero::THREAD_SAMPLING_PROFILER);
   }
   {
     auto* packet = trace_->add_packet();
@@ -2914,7 +2930,7 @@ TEST_F(ProtoTraceParserTest, ConfigUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.uuid_state->uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, PacketUuid) {
@@ -2928,7 +2944,7 @@ TEST_F(ProtoTraceParserTest, PacketUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.uuid_state->uuid_found_in_trace);
 }
 
 // If both the TraceConfig and TracePacket.trace_uuid are present, the latter
@@ -2948,7 +2964,7 @@ TEST_F(ProtoTraceParserTest, PacketAndConfigUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.uuid_state->uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, ConfigPbtxt) {

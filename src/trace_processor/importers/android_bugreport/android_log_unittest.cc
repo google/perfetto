@@ -62,7 +62,7 @@ class EventParserMock
 class AndroidLogReaderTest : public ::testing::Test {
  public:
   AndroidLogReaderTest() {
-    context_.storage = std::make_shared<TraceStorage>();
+    context_.storage = std::make_unique<TraceStorage>();
     context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
     context_.metadata_tracker =
         std::make_unique<MetadataTracker>(context_.storage.get());

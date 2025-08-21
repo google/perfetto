@@ -677,6 +677,17 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
     return;
 
   DumpAllCpuStats(instance->tracefs.get(), stats_out);
+
+  // Record the per-cpu buffer size as cached by the muxer, and the actual value
+  // returned by the tracefs. Helps catch rogue tracefs modifications under us,
+  // as well as to check that the caching is accurate in practice (depending on
+  // the kernel version, the chosen value might be different to what was written
+  // into the file).
+  stats_out->cpu_buffer_size_pages =
+      static_cast<uint32_t>(instance->tracefs->GetCpuBufferSizeInPages());
+  stats_out->cached_cpu_buffer_size_pages = static_cast<uint32_t>(
+      instance->ftrace_config_muxer->GetPerCpuBufferSizePages());
+
   if (symbolizer_.is_valid()) {
     auto* symbol_map = symbolizer_.GetOrCreateKernelSymbolMap();
     stats_out->kernel_symbols_parsed =

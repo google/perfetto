@@ -37,9 +37,9 @@
   .card {
     flex: 1;
     padding: 1.5rem;
-    border: 1px solid $pf-minimal-border;
+    border: 1px solid var(--pf-color-border);
     border-radius: 0.5rem;
-    background-color: $pf-primary-foreground;
+    background-color: var(--pf-color-background);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     transition:
       transform 0.2s ease-in-out,
@@ -63,13 +63,14 @@
         width: 100%;
         padding: 0.75rem;
         margin-bottom: 1rem;
-        border: 1px solid $pf-minimal-border;
+        border: 1px solid var(--pf-color-border);
         border-radius: 0.375rem;
         font-size: 1em;
         transition: border-color 0.2s ease-in-out;
+        background: var(--pf-color-background);
 
         &:focus {
-          border-color: $color-primary;
+          border-color: var(--pf-color-primary);
           outline: none;
         }
       }
@@ -92,31 +93,29 @@
     p {
       margin-bottom: 0;
       font-size: 0.9em;
-      color: $pf-minimal-foreground-disabled;
+      color: var(--pf-color-text-muted);
     }
   }
 }
 
 .pf-table-list {
   padding: 0.5rem;
-  color: $pf-minimal-foreground;
   overflow-y: auto;
   height: 100%;
 
   .pf-table-card {
     text-decoration: none;
-    color: $pf-minimal-foreground;
     display: block;
 
     .table-name {
       font-weight: 500;
-      color: $color-primary;
+      color: var(--pf-color-primary);
       margin-bottom: 0.25rem;
     }
 
     .table-description {
       font-size: 0.875em;
-      color: $pf-minimal-foreground-disabled;
+      color: var(--pf-color-text-muted);
     }
   }
 
@@ -124,8 +123,12 @@
     width: 100%;
     padding: 0.5rem;
     margin-bottom: 1rem;
-    border: 1px solid $pf-minimal-border;
+    font-family: inherit;
+    border: 1px solid var(--pf-color-border);
     border-radius: 0.25rem;
     font-size: 1em;
+    background: unset;
+    outline: unset;
+    color: var(--pf-color-text);
   }
 }

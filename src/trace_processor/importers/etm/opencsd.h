@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETM_OPENCSD_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_OPENCSD_H_
 
+// Be aware the in the OSCD namespace an ETM chunk is an ETM trace.
 // This file should be used instead of the librarys <opencsd.h>. This limits the
 // number of includes and in particular avoids <opencsd/ptm/ptm_decoder.h> that
 // has some inline functions that throw exceptions. This messes up the build

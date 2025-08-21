@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include <vector>
-
-#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"

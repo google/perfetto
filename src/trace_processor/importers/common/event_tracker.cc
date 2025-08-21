@@ -63,7 +63,8 @@ std::optional<CounterId> EventTracker::PushCounter(
     const SetArgsCallback& args_callback) {
   auto maybe_counter_id = PushCounter(timestamp, value, track_id);
   if (maybe_counter_id) {
-    auto inserter = context_->args_tracker->AddArgsTo(*maybe_counter_id);
+    ArgsTracker args_tracker(context_);
+    auto inserter = args_tracker.AddArgsTo(*maybe_counter_id);
     args_callback(&inserter);
   }
   return maybe_counter_id;
@@ -130,6 +131,18 @@ void EventTracker::FlushPendingEvents() {
               tracks::Dimensions(
                   utid, context_->storage->GetString(json.counter_name_id)),
               tracks::DynamicName(json.counter_name_id));
+        }
+        break;
+      }
+      case base::variant_index<ProcessCounterForThread, DmabufRssStat>(): {
+        if (upid.has_value()) {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kProcessMemoryBlueprint,
+              tracks::Dimensions(*upid, "dmabuf_rss"));
+        } else {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kProcessMemoryThreadFallbackBlueprint,
+              tracks::Dimensions(utid, "dmabuf_rss"));
         }
         break;
       }

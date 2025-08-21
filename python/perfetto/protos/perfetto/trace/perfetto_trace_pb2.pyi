@@ -2619,6 +2619,33 @@ class BlurRegion(_message.Message):
     top: int
     def __init__(self, blur_radius: _Optional[int] = ..., corner_radius_tl: _Optional[int] = ..., corner_radius_tr: _Optional[int] = ..., corner_radius_bl: _Optional[int] = ..., corner_radius_br: _Optional[float] = ..., alpha: _Optional[float] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ...) -> None: ...
 
+class BorderSettings(_message.Message):
+    __slots__ = ["color", "stroke_width"]
+    COLOR_FIELD_NUMBER: _ClassVar[int]
+    STROKE_WIDTH_FIELD_NUMBER: _ClassVar[int]
+    color: int
+    stroke_width: float
+    def __init__(self, stroke_width: _Optional[float] = ..., color: _Optional[int] = ...) -> None: ...
+
+class BoxShadowSettings(_message.Message):
+    __slots__ = ["box_shadows"]
+    class BoxShadowParams(_message.Message):
+        __slots__ = ["blur_radius", "color", "offset_x", "offset_y", "spread_radius"]
+        BLUR_RADIUS_FIELD_NUMBER: _ClassVar[int]
+        COLOR_FIELD_NUMBER: _ClassVar[int]
+        OFFSET_X_FIELD_NUMBER: _ClassVar[int]
+        OFFSET_Y_FIELD_NUMBER: _ClassVar[int]
+        SPREAD_RADIUS_FIELD_NUMBER: _ClassVar[int]
+        blur_radius: float
+        color: int
+        offset_x: float
+        offset_y: float
+        spread_radius: float
+        def __init__(self, blur_radius: _Optional[float] = ..., spread_radius: _Optional[float] = ..., color: _Optional[int] = ..., offset_x: _Optional[float] = ..., offset_y: _Optional[float] = ...) -> None: ...
+    BOX_SHADOWS_FIELD_NUMBER: _ClassVar[int]
+    box_shadows: _containers.RepeatedCompositeFieldContainer[BoxShadowSettings.BoxShadowParams]
+    def __init__(self, box_shadows: _Optional[_Iterable[_Union[BoxShadowSettings.BoxShadowParams, _Mapping]]] = ...) -> None: ...
+
 class CSwitchEtwEvent(_message.Message):
     __slots__ = ["new_thread_id", "new_thread_priority", "new_thread_wait_time", "old_thread_id", "old_thread_priority", "old_thread_state", "old_thread_state_int", "old_thread_wait_ideal_processor", "old_thread_wait_mode", "old_thread_wait_mode_int", "old_thread_wait_reason", "old_thread_wait_reason_int", "previous_c_state"]
     class OldThreadState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -3423,61 +3450,17 @@ class ChromePerformanceMarkTranslationTable(_message.Message):
 
 class ChromeProcessDescriptor(_message.Message):
     __slots__ = ["crash_trace_id", "host_app_package_name", "legacy_sort_index", "process_priority", "process_type"]
-    class ProcessType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
     CRASH_TRACE_ID_FIELD_NUMBER: _ClassVar[int]
     HOST_APP_PACKAGE_NAME_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
-    PROCESS_BROWSER: ChromeProcessDescriptor.ProcessType
-    PROCESS_GPU: ChromeProcessDescriptor.ProcessType
-    PROCESS_PPAPI_BROKER: ChromeProcessDescriptor.ProcessType
-    PROCESS_PPAPI_PLUGIN: ChromeProcessDescriptor.ProcessType
     PROCESS_PRIORITY_FIELD_NUMBER: _ClassVar[int]
-    PROCESS_RENDERER: ChromeProcessDescriptor.ProcessType
-    PROCESS_RENDERER_EXTENSION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SANDBOX_HELPER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_AUDIO: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_CDM: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_CROS_ASSISTANT_AUDIO_DECODER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_CROS_LOCALSEARCH: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_DATA_DECODER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_FILEPATCHER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_FILEUTIL: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_IME: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_LANGUAGEDETECTION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_MEDIAPARSER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_MEDIA_FOUNDATION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_MIRRORING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_NETWORK: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PAINTPREVIEW: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PRINTCOMPOSITOR: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PRINTING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PROFILEIMPORT: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PROXY_RESOLVER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_QRCODEGENERATOR: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_QUARANTINE: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_READICON: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_RECORDING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_SHAPEDETECTION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_SHARING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_SPEECHRECOGNITION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_STORAGE: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_TRACING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_TTS: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_UNZIPPER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_UTIL_WIN: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_VIDEO_CAPTURE: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_XRDEVICE: ChromeProcessDescriptor.ProcessType
     PROCESS_TYPE_FIELD_NUMBER: _ClassVar[int]
-    PROCESS_UNSPECIFIED: ChromeProcessDescriptor.ProcessType
-    PROCESS_UTILITY: ChromeProcessDescriptor.ProcessType
-    PROCESS_ZYGOTE: ChromeProcessDescriptor.ProcessType
     crash_trace_id: int
     host_app_package_name: str
     legacy_sort_index: int
     process_priority: int
-    process_type: ChromeProcessDescriptor.ProcessType
-    def __init__(self, process_type: _Optional[_Union[ChromeProcessDescriptor.ProcessType, str]] = ..., process_priority: _Optional[int] = ..., legacy_sort_index: _Optional[int] = ..., host_app_package_name: _Optional[str] = ..., crash_trace_id: _Optional[int] = ...) -> None: ...
+    process_type: int
+    def __init__(self, process_type: _Optional[int] = ..., process_priority: _Optional[int] = ..., legacy_sort_index: _Optional[int] = ..., host_app_package_name: _Optional[str] = ..., crash_trace_id: _Optional[int] = ...) -> None: ...
 
 class ChromeRendererSchedulerState(_message.Message):
     __slots__ = ["is_backgrounded", "is_hidden", "rail_mode"]
@@ -3512,60 +3495,13 @@ class ChromeStudyTranslationTable(_message.Message):
 
 class ChromeThreadDescriptor(_message.Message):
     __slots__ = ["is_sandboxed_tid", "legacy_sort_index", "thread_type"]
-    class ThreadType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
     IS_SANDBOXED_TID_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
-    THREAD_AUDIO_INPUTDEVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_AUDIO_OUTPUTDEVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_BROWSER_IO: ChromeThreadDescriptor.ThreadType
-    THREAD_BROWSER_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_BROWSER_WATCHDOG: ChromeThreadDescriptor.ThreadType
-    THREAD_CACHE_BLOCKFILE: ChromeThreadDescriptor.ThreadType
-    THREAD_CHILD_IO: ChromeThreadDescriptor.ThreadType
-    THREAD_COMPOSITOR: ChromeThreadDescriptor.ThreadType
-    THREAD_COMPOSITOR_GPU: ChromeThreadDescriptor.ThreadType
-    THREAD_COMPOSITOR_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_DATABASE: ChromeThreadDescriptor.ThreadType
-    THREAD_DEVTOOLSADB: ChromeThreadDescriptor.ThreadType
-    THREAD_DXA_VIDEODECODER: ChromeThreadDescriptor.ThreadType
-    THREAD_GAMEPAD_POLLING: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_MEMORY: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_VSYNC: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_WATCHDOG: ChromeThreadDescriptor.ThreadType
-    THREAD_IO: ChromeThreadDescriptor.ThreadType
-    THREAD_LOADER_LOCK_SAMPLER: ChromeThreadDescriptor.ThreadType
-    THREAD_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_MEDIA: ChromeThreadDescriptor.ThreadType
-    THREAD_MEMORY_INFRA: ChromeThreadDescriptor.ThreadType
-    THREAD_NETWORKCONFIGWATCHER: ChromeThreadDescriptor.ThreadType
-    THREAD_NETWORK_SERVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_BG_BLOCKING: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_BG_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_FG_BLOCKING: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_FG_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_SERVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_PPAPI_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_PROXYRESOLVER: ChromeThreadDescriptor.ThreadType
-    THREAD_RENDERER_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_SAMPLING_PROFILER: ChromeThreadDescriptor.ThreadType
-    THREAD_SERVICE_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_SWAPPER: ChromeThreadDescriptor.ThreadType
     THREAD_TYPE_FIELD_NUMBER: _ClassVar[int]
-    THREAD_UNSPECIFIED: ChromeThreadDescriptor.ThreadType
-    THREAD_UTILITY_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_VIZ_COMPOSITOR: ChromeThreadDescriptor.ThreadType
-    THREAD_WASAPI_RENDER: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBCRYPTO: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBRTC_NETWORK: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBRTC_SIGNALING: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBRTC_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_WINDOW_OWNER: ChromeThreadDescriptor.ThreadType
     is_sandboxed_tid: bool
     legacy_sort_index: int
-    thread_type: ChromeThreadDescriptor.ThreadType
-    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
+    thread_type: int
+    def __init__(self, thread_type: _Optional[int] = ..., legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
 
 class ChromeTraceEvent(_message.Message):
     __slots__ = ["args", "bind_id", "category_group_name", "category_group_name_index", "duration", "flags", "id", "name", "name_index", "phase", "process_id", "scope", "thread_duration", "thread_id", "thread_timestamp", "timestamp"]
@@ -3911,7 +3847,7 @@ class CornerRadiiProto(_message.Message):
     def __init__(self, tl: _Optional[float] = ..., tr: _Optional[float] = ..., bl: _Optional[float] = ..., br: _Optional[float] = ...) -> None: ...
 
 class CounterDescriptor(_message.Message):
-    __slots__ = ["categories", "is_incremental", "type", "unit", "unit_multiplier", "unit_name"]
+    __slots__ = ["categories", "is_incremental", "type", "unit", "unit_multiplier", "unit_name", "y_axis_share_key"]
     class BuiltinCounterType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class Unit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -3929,13 +3865,15 @@ class CounterDescriptor(_message.Message):
     UNIT_SIZE_BYTES: CounterDescriptor.Unit
     UNIT_TIME_NS: CounterDescriptor.Unit
     UNIT_UNSPECIFIED: CounterDescriptor.Unit
+    Y_AXIS_SHARE_KEY_FIELD_NUMBER: _ClassVar[int]
     categories: _containers.RepeatedScalarFieldContainer[str]
     is_incremental: bool
     type: CounterDescriptor.BuiltinCounterType
     unit: CounterDescriptor.Unit
     unit_multiplier: int
     unit_name: str
-    def __init__(self, type: _Optional[_Union[CounterDescriptor.BuiltinCounterType, str]] = ..., categories: _Optional[_Iterable[str]] = ..., unit: _Optional[_Union[CounterDescriptor.Unit, str]] = ..., unit_name: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., is_incremental: bool = ...) -> None: ...
+    y_axis_share_key: str
+    def __init__(self, type: _Optional[_Union[CounterDescriptor.BuiltinCounterType, str]] = ..., categories: _Optional[_Iterable[str]] = ..., unit: _Optional[_Union[CounterDescriptor.Unit, str]] = ..., unit_name: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., is_incremental: bool = ..., y_axis_share_key: _Optional[str] = ...) -> None: ...
 
 class CpuFrequencyFtraceEvent(_message.Message):
     __slots__ = ["cpu_id", "state"]
@@ -5029,28 +4967,34 @@ class EnumValueDescriptorProto(_message.Message):
     def __init__(self, name: _Optional[str] = ..., number: _Optional[int] = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ["kernel_flags"]
+    __slots__ = ["kernel_flags", "memory_provider_events", "scheduler_provider_events"]
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     CSWITCH: EtwConfig.KernelFlag
     DISPATCHER: EtwConfig.KernelFlag
     KERNEL_FLAGS_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    SCHEDULER_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ...) -> None: ...
+    memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
+    scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
-    __slots__ = ["c_switch", "cpu", "ready_thread", "thread_id", "timestamp"]
+    __slots__ = ["c_switch", "cpu", "mem_info", "ready_thread", "thread_id", "timestamp"]
     CPU_FIELD_NUMBER: _ClassVar[int]
     C_SWITCH_FIELD_NUMBER: _ClassVar[int]
+    MEM_INFO_FIELD_NUMBER: _ClassVar[int]
     READY_THREAD_FIELD_NUMBER: _ClassVar[int]
     THREAD_ID_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     c_switch: CSwitchEtwEvent
     cpu: int
+    mem_info: MemInfoEtwEvent
     ready_thread: ReadyThreadEtwEvent
     thread_id: int
     timestamp: int
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ["cpu", "event"]
@@ -8828,10 +8772,12 @@ class FtraceKprobeStats(_message.Message):
     def __init__(self, hits: _Optional[int] = ..., misses: _Optional[int] = ...) -> None: ...
 
 class FtraceStats(_message.Message):
-    __slots__ = ["atrace_errors", "cpu_stats", "failed_ftrace_events", "ftrace_parse_errors", "kernel_symbols_mem_kb", "kernel_symbols_parsed", "kprobe_stats", "phase", "preserve_ftrace_buffer", "unknown_ftrace_events"]
+    __slots__ = ["atrace_errors", "cached_cpu_buffer_size_pages", "cpu_buffer_size_pages", "cpu_stats", "failed_ftrace_events", "ftrace_parse_errors", "kernel_symbols_mem_kb", "kernel_symbols_parsed", "kprobe_stats", "phase", "preserve_ftrace_buffer", "unknown_ftrace_events"]
     class Phase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ATRACE_ERRORS_FIELD_NUMBER: _ClassVar[int]
+    CACHED_CPU_BUFFER_SIZE_PAGES_FIELD_NUMBER: _ClassVar[int]
+    CPU_BUFFER_SIZE_PAGES_FIELD_NUMBER: _ClassVar[int]
     CPU_STATS_FIELD_NUMBER: _ClassVar[int]
     END_OF_TRACE: FtraceStats.Phase
     FAILED_FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
@@ -8845,6 +8791,8 @@ class FtraceStats(_message.Message):
     UNKNOWN_FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
     UNSPECIFIED: FtraceStats.Phase
     atrace_errors: str
+    cached_cpu_buffer_size_pages: int
+    cpu_buffer_size_pages: int
     cpu_stats: _containers.RepeatedCompositeFieldContainer[FtraceCpuStats]
     failed_ftrace_events: _containers.RepeatedScalarFieldContainer[str]
     ftrace_parse_errors: _containers.RepeatedScalarFieldContainer[FtraceParseStatus]
@@ -8854,7 +8802,7 @@ class FtraceStats(_message.Message):
     phase: FtraceStats.Phase
     preserve_ftrace_buffer: bool
     unknown_ftrace_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, phase: _Optional[_Union[FtraceStats.Phase, str]] = ..., cpu_stats: _Optional[_Iterable[_Union[FtraceCpuStats, _Mapping]]] = ..., kernel_symbols_parsed: _Optional[int] = ..., kernel_symbols_mem_kb: _Optional[int] = ..., atrace_errors: _Optional[str] = ..., unknown_ftrace_events: _Optional[_Iterable[str]] = ..., failed_ftrace_events: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., ftrace_parse_errors: _Optional[_Iterable[_Union[FtraceParseStatus, str]]] = ..., kprobe_stats: _Optional[_Union[FtraceKprobeStats, _Mapping]] = ...) -> None: ...
+    def __init__(self, phase: _Optional[_Union[FtraceStats.Phase, str]] = ..., cpu_stats: _Optional[_Iterable[_Union[FtraceCpuStats, _Mapping]]] = ..., kernel_symbols_parsed: _Optional[int] = ..., kernel_symbols_mem_kb: _Optional[int] = ..., atrace_errors: _Optional[str] = ..., unknown_ftrace_events: _Optional[_Iterable[str]] = ..., failed_ftrace_events: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., ftrace_parse_errors: _Optional[_Iterable[_Union[FtraceParseStatus, str]]] = ..., kprobe_stats: _Optional[_Union[FtraceKprobeStats, _Mapping]] = ..., cpu_buffer_size_pages: _Optional[int] = ..., cached_cpu_buffer_size_pages: _Optional[int] = ...) -> None: ...
 
 class FuncgraphEntryFtraceEvent(_message.Message):
     __slots__ = ["depth", "func"]
@@ -10883,7 +10831,7 @@ class LayerCreationArgs(_message.Message):
     def __init__(self, layer_id: _Optional[int] = ..., name: _Optional[str] = ..., flags: _Optional[int] = ..., parent_id: _Optional[int] = ..., mirror_from_id: _Optional[int] = ..., add_to_root: bool = ..., layer_stack_to_mirror: _Optional[int] = ...) -> None: ...
 
 class LayerProto(_message.Message):
-    __slots__ = ["active_buffer", "app_id", "background_blur_radius", "background_blur_scale", "barrier_layer", "blur_regions", "bounds", "buffer_transform", "children", "client_drawn_corner_radii", "color", "color_transform", "corner_radii", "corner_radius", "corner_radius_crop", "crop", "curr_frame", "damage_region", "dataspace", "destination_frame", "effective_scaling_mode", "effective_transform", "final_crop", "flags", "hwc_composition_type", "hwc_crop", "hwc_frame", "hwc_transform", "id", "input_window_info", "invalidate", "is_opaque", "is_protected", "is_relative_of", "is_trusted_overlay", "layer_stack", "metadata", "name", "original_id", "owner_uid", "parent", "pixel_format", "position", "queued_frames", "refresh_pending", "relatives", "requested_color", "requested_corner_radii", "requested_corner_radius", "requested_position", "requested_transform", "screen_bounds", "shadow_radius", "size", "source_bounds", "transform", "transparent_region", "trusted_overlay", "type", "visible_region", "window_type", "z", "z_order_relative_of"]
+    __slots__ = ["active_buffer", "app_id", "background_blur_radius", "background_blur_scale", "barrier_layer", "blur_regions", "border_settings", "bounds", "box_shadow_settings", "buffer_transform", "children", "client_drawn_corner_radii", "color", "color_transform", "corner_radii", "corner_radius", "corner_radius_crop", "crop", "curr_frame", "damage_region", "dataspace", "destination_frame", "effective_scaling_mode", "effective_transform", "final_crop", "flags", "hwc_composition_type", "hwc_crop", "hwc_frame", "hwc_transform", "id", "input_window_info", "invalidate", "is_opaque", "is_protected", "is_relative_of", "is_trusted_overlay", "layer_stack", "metadata", "name", "original_id", "owner_uid", "parent", "pixel_format", "position", "queued_frames", "refresh_pending", "relatives", "requested_color", "requested_corner_radii", "requested_corner_radius", "requested_position", "requested_transform", "screen_bounds", "shadow_radius", "size", "source_bounds", "system_content_priority", "transform", "transparent_region", "trusted_overlay", "type", "visible_region", "window_type", "z", "z_order_relative_of"]
     class MetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -10897,7 +10845,9 @@ class LayerProto(_message.Message):
     BACKGROUND_BLUR_SCALE_FIELD_NUMBER: _ClassVar[int]
     BARRIER_LAYER_FIELD_NUMBER: _ClassVar[int]
     BLUR_REGIONS_FIELD_NUMBER: _ClassVar[int]
+    BORDER_SETTINGS_FIELD_NUMBER: _ClassVar[int]
     BOUNDS_FIELD_NUMBER: _ClassVar[int]
+    BOX_SHADOW_SETTINGS_FIELD_NUMBER: _ClassVar[int]
     BUFFER_TRANSFORM_FIELD_NUMBER: _ClassVar[int]
     CHILDREN_FIELD_NUMBER: _ClassVar[int]
     CLIENT_DRAWN_CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
@@ -10946,6 +10896,7 @@ class LayerProto(_message.Message):
     SHADOW_RADIUS_FIELD_NUMBER: _ClassVar[int]
     SIZE_FIELD_NUMBER: _ClassVar[int]
     SOURCE_BOUNDS_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_CONTENT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
     TRANSFORM_FIELD_NUMBER: _ClassVar[int]
     TRANSPARENT_REGION_FIELD_NUMBER: _ClassVar[int]
     TRUSTED_OVERLAY_FIELD_NUMBER: _ClassVar[int]
@@ -10960,7 +10911,9 @@ class LayerProto(_message.Message):
     background_blur_scale: float
     barrier_layer: _containers.RepeatedCompositeFieldContainer[BarrierLayerProto]
     blur_regions: _containers.RepeatedCompositeFieldContainer[BlurRegion]
+    border_settings: BorderSettings
     bounds: FloatRectProto
+    box_shadow_settings: BoxShadowSettings
     buffer_transform: TransformProto
     children: _containers.RepeatedScalarFieldContainer[int]
     client_drawn_corner_radii: CornerRadiiProto
@@ -11009,6 +10962,7 @@ class LayerProto(_message.Message):
     shadow_radius: float
     size: SizeProto
     source_bounds: FloatRectProto
+    system_content_priority: int
     transform: TransformProto
     transparent_region: RegionProto
     trusted_overlay: TrustedOverlay
@@ -11017,10 +10971,10 @@ class LayerProto(_message.Message):
     window_type: int
     z: int
     z_order_relative_of: int
-    def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., children: _Optional[_Iterable[int]] = ..., relatives: _Optional[_Iterable[int]] = ..., type: _Optional[str] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., visible_region: _Optional[_Union[RegionProto, _Mapping]] = ..., damage_region: _Optional[_Union[RegionProto, _Mapping]] = ..., layer_stack: _Optional[int] = ..., z: _Optional[int] = ..., position: _Optional[_Union[PositionProto, _Mapping]] = ..., requested_position: _Optional[_Union[PositionProto, _Mapping]] = ..., size: _Optional[_Union[SizeProto, _Mapping]] = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., final_crop: _Optional[_Union[RectProto, _Mapping]] = ..., is_opaque: bool = ..., invalidate: bool = ..., dataspace: _Optional[str] = ..., pixel_format: _Optional[str] = ..., color: _Optional[_Union[ColorProto, _Mapping]] = ..., requested_color: _Optional[_Union[ColorProto, _Mapping]] = ..., flags: _Optional[int] = ..., transform: _Optional[_Union[TransformProto, _Mapping]] = ..., requested_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., parent: _Optional[int] = ..., z_order_relative_of: _Optional[int] = ..., active_buffer: _Optional[_Union[ActiveBufferProto, _Mapping]] = ..., queued_frames: _Optional[int] = ..., refresh_pending: bool = ..., hwc_frame: _Optional[_Union[RectProto, _Mapping]] = ..., hwc_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., hwc_transform: _Optional[int] = ..., window_type: _Optional[int] = ..., app_id: _Optional[int] = ..., hwc_composition_type: _Optional[_Union[HwcCompositionType, str]] = ..., is_protected: bool = ..., curr_frame: _Optional[int] = ..., barrier_layer: _Optional[_Iterable[_Union[BarrierLayerProto, _Mapping]]] = ..., buffer_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., effective_scaling_mode: _Optional[int] = ..., corner_radius: _Optional[float] = ..., metadata: _Optional[_Mapping[int, str]] = ..., effective_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., source_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., screen_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., input_window_info: _Optional[_Union[InputWindowInfoProto, _Mapping]] = ..., corner_radius_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., shadow_radius: _Optional[float] = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., is_relative_of: bool = ..., background_blur_radius: _Optional[int] = ..., owner_uid: _Optional[int] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., is_trusted_overlay: bool = ..., requested_corner_radius: _Optional[float] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., original_id: _Optional[int] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., requested_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., children: _Optional[_Iterable[int]] = ..., relatives: _Optional[_Iterable[int]] = ..., type: _Optional[str] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., visible_region: _Optional[_Union[RegionProto, _Mapping]] = ..., damage_region: _Optional[_Union[RegionProto, _Mapping]] = ..., layer_stack: _Optional[int] = ..., z: _Optional[int] = ..., position: _Optional[_Union[PositionProto, _Mapping]] = ..., requested_position: _Optional[_Union[PositionProto, _Mapping]] = ..., size: _Optional[_Union[SizeProto, _Mapping]] = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., final_crop: _Optional[_Union[RectProto, _Mapping]] = ..., is_opaque: bool = ..., invalidate: bool = ..., dataspace: _Optional[str] = ..., pixel_format: _Optional[str] = ..., color: _Optional[_Union[ColorProto, _Mapping]] = ..., requested_color: _Optional[_Union[ColorProto, _Mapping]] = ..., flags: _Optional[int] = ..., transform: _Optional[_Union[TransformProto, _Mapping]] = ..., requested_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., parent: _Optional[int] = ..., z_order_relative_of: _Optional[int] = ..., active_buffer: _Optional[_Union[ActiveBufferProto, _Mapping]] = ..., queued_frames: _Optional[int] = ..., refresh_pending: bool = ..., hwc_frame: _Optional[_Union[RectProto, _Mapping]] = ..., hwc_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., hwc_transform: _Optional[int] = ..., window_type: _Optional[int] = ..., app_id: _Optional[int] = ..., hwc_composition_type: _Optional[_Union[HwcCompositionType, str]] = ..., is_protected: bool = ..., curr_frame: _Optional[int] = ..., barrier_layer: _Optional[_Iterable[_Union[BarrierLayerProto, _Mapping]]] = ..., buffer_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., effective_scaling_mode: _Optional[int] = ..., corner_radius: _Optional[float] = ..., metadata: _Optional[_Mapping[int, str]] = ..., effective_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., source_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., screen_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., input_window_info: _Optional[_Union[InputWindowInfoProto, _Mapping]] = ..., corner_radius_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., shadow_radius: _Optional[float] = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., is_relative_of: bool = ..., background_blur_radius: _Optional[int] = ..., owner_uid: _Optional[int] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., is_trusted_overlay: bool = ..., requested_corner_radius: _Optional[float] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., original_id: _Optional[int] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., requested_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., system_content_priority: _Optional[int] = ..., box_shadow_settings: _Optional[_Union[BoxShadowSettings, _Mapping]] = ..., border_settings: _Optional[_Union[BorderSettings, _Mapping]] = ...) -> None: ...
 
 class LayerState(_message.Message):
-    __slots__ = ["alpha", "api", "auto_refresh", "background_blur_radius", "background_blur_scale", "bg_color_alpha", "bg_color_dataspace", "blur_regions", "buffer_crop", "buffer_data", "change_frame_rate_strategy", "client_drawn_corner_radii", "color", "color_space_agnostic", "color_transform", "corner_radii", "corner_radius", "crop", "destination_frame", "drop_input_mode", "fixed_transform_hint", "flags", "frame_number", "frame_rate", "frame_rate_compatibility", "frame_rate_selection_priority", "h", "has_sideband_stream", "is_trusted_overlay", "layer_id", "layer_stack", "mask", "matrix", "parent_id", "relative_parent_id", "shadow_radius", "transform", "transform_to_display_inverse", "transparent_region", "trusted_overlay", "w", "what", "window_info_handle", "x", "y", "z"]
+    __slots__ = ["alpha", "api", "auto_refresh", "background_blur_radius", "background_blur_scale", "bg_color_alpha", "bg_color_dataspace", "blur_regions", "border_settings", "box_shadow_settings", "buffer_crop", "buffer_data", "change_frame_rate_strategy", "client_drawn_corner_radii", "color", "color_space_agnostic", "color_transform", "corner_radii", "corner_radius", "crop", "destination_frame", "drop_input_mode", "fixed_transform_hint", "flags", "frame_number", "frame_rate", "frame_rate_compatibility", "frame_rate_selection_priority", "h", "has_sideband_stream", "is_trusted_overlay", "layer_id", "layer_stack", "mask", "matrix", "parent_id", "relative_parent_id", "shadow_radius", "system_content_priority", "transform", "transform_to_display_inverse", "transparent_region", "trusted_overlay", "w", "what", "window_info_handle", "x", "y", "z"]
     class ChangesLsb(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class ChangesMsb(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -11138,6 +11092,8 @@ class LayerState(_message.Message):
     BG_COLOR_ALPHA_FIELD_NUMBER: _ClassVar[int]
     BG_COLOR_DATASPACE_FIELD_NUMBER: _ClassVar[int]
     BLUR_REGIONS_FIELD_NUMBER: _ClassVar[int]
+    BORDER_SETTINGS_FIELD_NUMBER: _ClassVar[int]
+    BOX_SHADOW_SETTINGS_FIELD_NUMBER: _ClassVar[int]
     BUFFER_CROP_FIELD_NUMBER: _ClassVar[int]
     BUFFER_DATA_FIELD_NUMBER: _ClassVar[int]
     CHANGE_FRAME_RATE_STRATEGY_FIELD_NUMBER: _ClassVar[int]
@@ -11168,6 +11124,7 @@ class LayerState(_message.Message):
     PARENT_ID_FIELD_NUMBER: _ClassVar[int]
     RELATIVE_PARENT_ID_FIELD_NUMBER: _ClassVar[int]
     SHADOW_RADIUS_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_CONTENT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
     TRANSFORM_FIELD_NUMBER: _ClassVar[int]
     TRANSFORM_TO_DISPLAY_INVERSE_FIELD_NUMBER: _ClassVar[int]
     TRANSPARENT_REGION_FIELD_NUMBER: _ClassVar[int]
@@ -11186,6 +11143,8 @@ class LayerState(_message.Message):
     bg_color_alpha: float
     bg_color_dataspace: int
     blur_regions: _containers.RepeatedCompositeFieldContainer[BlurRegion]
+    border_settings: BorderSettings
+    box_shadow_settings: BoxShadowSettings
     buffer_crop: RectProto
     buffer_data: LayerState.BufferData
     change_frame_rate_strategy: int
@@ -11205,6 +11164,8 @@ class LayerState(_message.Message):
     eBackgroundBlurRadiusChanged: LayerState.ChangesMsb
     eBackgroundColorChanged: LayerState.ChangesMsb
     eBlurRegionsChanged: LayerState.ChangesMsb
+    eBorderSettingsChanged: LayerState.ChangesMsb
+    eBoxShadowSettingsChanged: LayerState.ChangesMsb
     eBufferChanged: LayerState.ChangesLsb
     eBufferCropChanged: LayerState.ChangesLsb
     eBufferTransformChanged: LayerState.ChangesLsb
@@ -11248,6 +11209,7 @@ class LayerState(_message.Message):
     eSidebandStreamChanged: LayerState.ChangesLsb
     eStretchChanged: LayerState.ChangesMsb
     eSurfaceDamageRegionChanged: LayerState.ChangesLsb
+    eSystemContentPriorityChanged: LayerState.ChangesMsb
     eTransformToDisplayInverseChanged: LayerState.ChangesLsb
     eTransparentRegionChanged: LayerState.ChangesLsb
     eTrustedOverlayChanged: LayerState.ChangesMsb
@@ -11267,6 +11229,7 @@ class LayerState(_message.Message):
     parent_id: int
     relative_parent_id: int
     shadow_radius: float
+    system_content_priority: int
     transform: int
     transform_to_display_inverse: bool
     transparent_region: RegionProto
@@ -11277,7 +11240,7 @@ class LayerState(_message.Message):
     x: float
     y: float
     z: int
-    def __init__(self, layer_id: _Optional[int] = ..., what: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., z: _Optional[int] = ..., w: _Optional[int] = ..., h: _Optional[int] = ..., layer_stack: _Optional[int] = ..., flags: _Optional[int] = ..., mask: _Optional[int] = ..., matrix: _Optional[_Union[LayerState.Matrix22, _Mapping]] = ..., corner_radius: _Optional[float] = ..., background_blur_radius: _Optional[int] = ..., parent_id: _Optional[int] = ..., relative_parent_id: _Optional[int] = ..., alpha: _Optional[float] = ..., color: _Optional[_Union[LayerState.Color3, _Mapping]] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., transform: _Optional[int] = ..., transform_to_display_inverse: bool = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., buffer_data: _Optional[_Union[LayerState.BufferData, _Mapping]] = ..., api: _Optional[int] = ..., has_sideband_stream: bool = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., window_info_handle: _Optional[_Union[LayerState.WindowInfo, _Mapping]] = ..., bg_color_alpha: _Optional[float] = ..., bg_color_dataspace: _Optional[int] = ..., color_space_agnostic: bool = ..., shadow_radius: _Optional[float] = ..., frame_rate_selection_priority: _Optional[int] = ..., frame_rate: _Optional[float] = ..., frame_rate_compatibility: _Optional[int] = ..., change_frame_rate_strategy: _Optional[int] = ..., fixed_transform_hint: _Optional[int] = ..., frame_number: _Optional[int] = ..., auto_refresh: bool = ..., is_trusted_overlay: bool = ..., buffer_crop: _Optional[_Union[RectProto, _Mapping]] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., drop_input_mode: _Optional[_Union[LayerState.DropInputMode, str]] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[LayerState.CornerRadii, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[LayerState.CornerRadii, _Mapping]] = ...) -> None: ...
+    def __init__(self, layer_id: _Optional[int] = ..., what: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., z: _Optional[int] = ..., w: _Optional[int] = ..., h: _Optional[int] = ..., layer_stack: _Optional[int] = ..., flags: _Optional[int] = ..., mask: _Optional[int] = ..., matrix: _Optional[_Union[LayerState.Matrix22, _Mapping]] = ..., corner_radius: _Optional[float] = ..., background_blur_radius: _Optional[int] = ..., parent_id: _Optional[int] = ..., relative_parent_id: _Optional[int] = ..., alpha: _Optional[float] = ..., color: _Optional[_Union[LayerState.Color3, _Mapping]] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., transform: _Optional[int] = ..., transform_to_display_inverse: bool = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., buffer_data: _Optional[_Union[LayerState.BufferData, _Mapping]] = ..., api: _Optional[int] = ..., has_sideband_stream: bool = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., window_info_handle: _Optional[_Union[LayerState.WindowInfo, _Mapping]] = ..., bg_color_alpha: _Optional[float] = ..., bg_color_dataspace: _Optional[int] = ..., color_space_agnostic: bool = ..., shadow_radius: _Optional[float] = ..., frame_rate_selection_priority: _Optional[int] = ..., frame_rate: _Optional[float] = ..., frame_rate_compatibility: _Optional[int] = ..., change_frame_rate_strategy: _Optional[int] = ..., fixed_transform_hint: _Optional[int] = ..., frame_number: _Optional[int] = ..., auto_refresh: bool = ..., is_trusted_overlay: bool = ..., buffer_crop: _Optional[_Union[RectProto, _Mapping]] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., drop_input_mode: _Optional[_Union[LayerState.DropInputMode, str]] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[LayerState.CornerRadii, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[LayerState.CornerRadii, _Mapping]] = ..., system_content_priority: _Optional[int] = ..., box_shadow_settings: _Optional[_Union[BoxShadowSettings, _Mapping]] = ..., border_settings: _Optional[_Union[BorderSettings, _Mapping]] = ...) -> None: ...
 
 class LayersProto(_message.Message):
     __slots__ = ["layers"]
@@ -12057,6 +12020,36 @@ class MdpVideoUnderrunDoneFtraceEvent(_message.Message):
     ctl_num: int
     underrun_cnt: int
     def __init__(self, ctl_num: _Optional[int] = ..., underrun_cnt: _Optional[int] = ...) -> None: ...
+
+class MemInfoEtwEvent(_message.Message):
+    __slots__ = ["bad_page_count", "commit_page_count", "free_page_count", "mdl_page_count", "modified_no_write_page_count", "modified_page_count", "modified_page_count_page_file", "non_paged_pool_page_count", "paged_pool_page_count", "priority_levels", "repurposed_page_counts", "standby_page_counts", "zero_page_count"]
+    BAD_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    COMMIT_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    FREE_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MDL_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MODIFIED_NO_WRITE_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MODIFIED_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MODIFIED_PAGE_COUNT_PAGE_FILE_FIELD_NUMBER: _ClassVar[int]
+    NON_PAGED_POOL_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    PAGED_POOL_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    PRIORITY_LEVELS_FIELD_NUMBER: _ClassVar[int]
+    REPURPOSED_PAGE_COUNTS_FIELD_NUMBER: _ClassVar[int]
+    STANDBY_PAGE_COUNTS_FIELD_NUMBER: _ClassVar[int]
+    ZERO_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    bad_page_count: int
+    commit_page_count: int
+    free_page_count: int
+    mdl_page_count: int
+    modified_no_write_page_count: int
+    modified_page_count: int
+    modified_page_count_page_file: int
+    non_paged_pool_page_count: int
+    paged_pool_page_count: int
+    priority_levels: int
+    repurposed_page_counts: _containers.RepeatedScalarFieldContainer[int]
+    standby_page_counts: _containers.RepeatedScalarFieldContainer[int]
+    zero_page_count: int
+    def __init__(self, priority_levels: _Optional[int] = ..., zero_page_count: _Optional[int] = ..., free_page_count: _Optional[int] = ..., modified_page_count: _Optional[int] = ..., modified_no_write_page_count: _Optional[int] = ..., bad_page_count: _Optional[int] = ..., standby_page_counts: _Optional[_Iterable[int]] = ..., repurposed_page_counts: _Optional[_Iterable[int]] = ..., modified_page_count_page_file: _Optional[int] = ..., paged_pool_page_count: _Optional[int] = ..., non_paged_pool_page_count: _Optional[int] = ..., mdl_page_count: _Optional[int] = ..., commit_page_count: _Optional[int] = ...) -> None: ...
 
 class MemoryTrackerSnapshot(_message.Message):
     __slots__ = ["global_dump_id", "level_of_detail", "process_memory_dumps"]
@@ -13244,7 +13237,7 @@ class ProcessStatsConfig(_message.Message):
     resolve_process_fds: bool
     scan_all_processes_on_start: bool
     scan_smaps_rollup: bool
-    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., resolve_process_fds: bool = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ...) -> None: ...
+    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., resolve_process_fds: bool = ...) -> None: ...
 
 class ProcessTrackNameTranslationTable(_message.Message):
     __slots__ = ["raw_to_deobfuscated_name"]
@@ -15682,7 +15675,7 @@ class TracingServiceState(_message.Message):
     def __init__(self, producers: _Optional[_Iterable[_Union[TracingServiceState.Producer, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TracingServiceState.DataSource, _Mapping]]] = ..., tracing_sessions: _Optional[_Iterable[_Union[TracingServiceState.TracingSession, _Mapping]]] = ..., supports_tracing_sessions: bool = ..., num_sessions: _Optional[int] = ..., num_sessions_started: _Optional[int] = ..., tracing_service_version: _Optional[str] = ...) -> None: ...
 
 class TrackDescriptor(_message.Message):
-    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_order_rank", "static_name", "thread", "uuid"]
+    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_merge_key_int", "sibling_order_rank", "static_name", "thread", "uuid"]
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class SiblingMergeBehavior(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -15706,6 +15699,7 @@ class TrackDescriptor(_message.Message):
     SIBLING_MERGE_BEHAVIOR_NONE: TrackDescriptor.SiblingMergeBehavior
     SIBLING_MERGE_BEHAVIOR_UNSPECIFIED: TrackDescriptor.SiblingMergeBehavior
     SIBLING_MERGE_KEY_FIELD_NUMBER: _ClassVar[int]
+    SIBLING_MERGE_KEY_INT_FIELD_NUMBER: _ClassVar[int]
     SIBLING_ORDER_RANK_FIELD_NUMBER: _ClassVar[int]
     STATIC_NAME_FIELD_NUMBER: _ClassVar[int]
     THREAD_FIELD_NUMBER: _ClassVar[int]
@@ -15723,11 +15717,12 @@ class TrackDescriptor(_message.Message):
     process: ProcessDescriptor
     sibling_merge_behavior: TrackDescriptor.SiblingMergeBehavior
     sibling_merge_key: str
+    sibling_merge_key_int: int
     sibling_order_rank: int
     static_name: str
     thread: ThreadDescriptor
     uuid: int
-    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ...) -> None: ...
+    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ..., sibling_merge_key_int: _Optional[int] = ...) -> None: ...
 
 class TrackEvent(_message.Message):
     __slots__ = ["categories", "category_iids", "cc_scheduler_state", "chrome_active_processes", "chrome_application_state_info", "chrome_content_settings_event_info", "chrome_frame_reporter", "chrome_histogram_sample", "chrome_keyed_service", "chrome_latency_info", "chrome_legacy_ipc", "chrome_message_pump", "chrome_mojo_event_info", "chrome_renderer_scheduler_state", "chrome_user_event", "chrome_window_handle_event_info", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "counter_value", "debug_annotations", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids", "flow_ids_old", "legacy_event", "log_message", "name", "name_iid", "screenshot", "source_location", "source_location_iid", "task_execution", "terminating_flow_ids", "terminating_flow_ids_old", "thread_instruction_count_absolute", "thread_instruction_count_delta", "thread_time_absolute_us", "thread_time_delta_us", "timestamp_absolute_us", "timestamp_delta_us", "track_uuid", "type"]

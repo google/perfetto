@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 #define SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 
+#include <cstddef>
 #include <optional>
 #include <string_view>
 #include <utility>

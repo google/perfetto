@@ -20,6 +20,6 @@
   position: relative;
 
   &:hover {
-    background: rgb(55, 126, 234);
+    background: var(--pf-color-accent);
   }
 }

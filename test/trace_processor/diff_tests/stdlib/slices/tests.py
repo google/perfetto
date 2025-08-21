@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -200,4 +200,72 @@ class Slices(TestSuite):
           5,"monitor contention with owner main (1204) at void com.android.server.am.ActivityManagerService.onWakefulnessChanged(int)(ActivityManagerService.java:7244) waiters=0 blocking from void com.android.server.am.ActivityManagerService$3.handleMessage(android.os.Message)(ActivityManagerService.java:1704)","Running","[NULL]","[NULL]",45000
           5,"monitor contention with owner main (1204) at void com.android.server.am.ActivityManagerService.onWakefulnessChanged(int)(ActivityManagerService.java:7244) waiters=0 blocking from void com.android.server.am.ActivityManagerService$3.handleMessage(android.os.Message)(ActivityManagerService.java:1704)","S","[NULL]","[NULL]",20164377
           6,"monitor contention with owner main (1204) at void com.android.server.am.ActivityManagerService.onWakefulnessChanged(int)(ActivityManagerService.java:7244) waiters=1 blocking from com.android.server.wm.ActivityTaskManagerInternal$SleepToken com.android.server.am.ActivityTaskManagerService.acquireSleepToken(java.lang.String, int)(ActivityTaskManagerService.java:5048)","Running","[NULL]","[NULL]",35104
+        """))
+
+  def test_slice_self_dur(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 10
+              print {
+                buf: "B|10|ParentSlice"
+              }
+            }
+            event {
+              timestamp: 1200
+              pid: 10
+              print {
+                buf: "B|10|ChildSlice"
+              }
+            }
+            event {
+              timestamp: 1500
+              pid: 10
+              print {
+                buf: "E|10"
+              }
+            }
+            event {
+              timestamp: 2000
+              pid: 10
+              print {
+                buf: "E|10"
+              }
+            }
+            event {
+              timestamp: 2500
+              pid: 10
+              print {
+                buf: "B|10|OtherSlice"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 10
+              print {
+                buf: "E|10"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE slices.self_dur;
+
+        SELECT
+          s.name,
+          sd.self_dur
+        FROM slice_self_dur sd
+        JOIN slice s ON s.id = sd.id
+        ORDER BY s.name;
+        """,
+        out=Csv("""
+        "name","self_dur"
+        "ChildSlice",300
+        "OtherSlice",500
+        "ParentSlice",700
         """))
