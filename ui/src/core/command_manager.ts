@@ -62,6 +62,26 @@ export function validateCommandInvocations(
   return invalidCommands;
 }
 
+/**
+ * Parses URL commands parameter from route args.
+ * @param commandsParam URL commands parameter (JSON-encoded string)
+ * @returns Parsed commands array or undefined if parsing fails
+ */
+export function parseUrlCommands(
+  commandsParam: string | undefined,
+): CommandInvocation[] | undefined {
+  if (!commandsParam) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(commandsParam);
+    return commandInvocationArraySchema.parse(parsed);
+  } catch {
+    return undefined;
+  }
+}
+
 export interface CommandWithMatchInfo extends Command {
   segments: FuzzySegment[];
 }
