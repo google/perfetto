@@ -125,13 +125,25 @@ class EtmDecodeChunkVtable::Cursor
                       sqlite3_value** argv);
   base::Status Next() {
     if (flushing_buffer_) {
-      buffer_idx_++;
-      if (buffer_idx_ >= rows_waiting_for_timestamp_.size()) {
+      if (buffer_idx_ + 1 < rows_waiting_for_timestamp_.size() &&
+          rows_waiting_for_timestamp_[buffer_idx_ + 1].getType() ==
+              OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
         flushing_buffer_ = false;
-        rows_waiting_for_timestamp_.clear();
+        rows_waiting_for_timestamp_.erase(
+            rows_waiting_for_timestamp_.begin(),
+            rows_waiting_for_timestamp_.begin() +
+                static_cast<long>(buffer_idx_ + 1));
         buffer_idx_ = 0;
+        waiting_for_timestamp_ = true;
       } else {
-        return base::OkStatus();
+        buffer_idx_++;
+        if (buffer_idx_ >= rows_waiting_for_timestamp_.size()) {
+          flushing_buffer_ = false;
+          rows_waiting_for_timestamp_.clear();
+          buffer_idx_ = 0;
+        } else {
+          return base::OkStatus();
+        }
       }
     }
 
@@ -141,7 +153,6 @@ class EtmDecodeChunkVtable::Cursor
         if (waiting_for_timestamp_ && !rows_waiting_for_timestamp_.empty()) {
           flushing_buffer_ = true;
           buffer_idx_ = 0;
-          return base::OkStatus();
         }
         return base::OkStatus();
       }
@@ -160,6 +171,7 @@ class EtmDecodeChunkVtable::Cursor
                 row.cycle_count = cursor_.element().cycle_count;
                 row.has_cc = true;
               }
+              break;
             }
           }
           rows_waiting_for_timestamp_.push_back(cursor_.element());
@@ -168,8 +180,13 @@ class EtmDecodeChunkVtable::Cursor
           return base::OkStatus();
         }
         rows_waiting_for_timestamp_.push_back(cursor_.element());
-        if (rows_waiting_for_timestamp_.size() >= 30) {
+        // If the following ever occurs then we have reached a point where a
+        // sync never got a timestamp. To guard against this and accurately
+        // report it we will modify last_seen_timestamp_ to be null for the rows
+        // in our buffer.
+        if (rows_waiting_for_timestamp_.size() >= 100) {
           flushing_buffer_ = true;
+          last_seen_timestamp_ = -1;
           buffer_idx_ = 0;
           waiting_for_timestamp_ = false;
         }
