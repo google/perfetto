@@ -62,7 +62,7 @@ test('Table interactions', async () => {
   await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
 
   // Show the slice table via command.
-  await pth.runCommand('perfetto.ShowTable.slice');
+  await pth.runCommand('dev.perfetto.ShowTable.slice');
   // Sort the table by id for consistent ordering.
   await clickTableHeader(/^id/);
   await pth.clickMenuItem('Sort: lowest first');
@@ -126,7 +126,7 @@ test('Go to slice', async () => {
   await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
 
   // Show the slice table via command.
-  await pth.runCommand('perfetto.ShowTable.slice');
+  await pth.runCommand('dev.perfetto.ShowTable.slice');
   // Sort the table by id for consistent ordering.
   await clickTableHeader(/^id/);
   await pth.clickMenuItem('Sort: lowest first');
@@ -152,7 +152,7 @@ test('Go to thread_state', async () => {
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 
   // Show the slice table via command.
-  await pth.runCommand('perfetto.ShowTable.thread_state');
+  await pth.runCommand('dev.perfetto.ShowTable.thread_state');
   // Sort the table by id for consistent ordering.
   await clickTableHeader(/^id/);
   await pth.clickMenuItem('Sort: lowest first');
@@ -184,7 +184,7 @@ test('Go to sched', async () => {
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 
   // Show the slice table via command.
-  await pth.runCommand('perfetto.ShowTable.sched');
+  await pth.runCommand('dev.perfetto.ShowTable.sched');
   // Sort the table by id for consistent ordering.
   await clickTableHeader(/^id/);
   await pth.clickMenuItem('Sort: lowest first');
@@ -221,7 +221,7 @@ test('Go to process', async () => {
   await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
 
   // Show the slice table via command.
-  await pth.runCommand('perfetto.ShowTable.process');
+  await pth.runCommand('dev.perfetto.ShowTable.process');
   // Sort the table by id for consistent ordering.
   await clickTableHeader(/^upid/);
   await pth.clickMenuItem('Sort: lowest first');
@@ -243,7 +243,7 @@ test('Go to thread', async () => {
   await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
 
   // Show the slice table via command.
-  await pth.runCommand('perfetto.ShowTable.thread');
+  await pth.runCommand('dev.perfetto.ShowTable.thread');
   // Sort the table by id for consistent ordering.
   await clickTableHeader(/^utid/);
   await pth.clickMenuItem('Sort: lowest first');
