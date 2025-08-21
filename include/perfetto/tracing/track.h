@@ -256,7 +256,8 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
                                      ThreadTrack::Current());
     }
-    return Track::FromPointer(std::forward<TrackEventName>(name), ptr, parent);
+    return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+                                   parent);
   }
 
   template <class TrackEventName>
