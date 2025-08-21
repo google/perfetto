@@ -701,7 +701,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     return m(
       PopupMenu,
       {
-        trigger: m(Button, {icon: 'show_chart', compact: true}),
+        trigger: m(Button, {
+          className: 'pf-visible-on-hover',
+          icon: 'show_chart',
+          compact: true,
+        }),
       },
       this.getCounterContextMenuItems(),
     );
