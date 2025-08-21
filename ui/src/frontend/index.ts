@@ -59,6 +59,11 @@ import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
 import {ThemeProvider} from './theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
+import {JsonSettingsEditor} from '../components/json_settings_editor';
+import {
+  CommandInvocation,
+  commandInvocationArraySchema,
+} from '../core/command_manager';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -206,6 +211,25 @@ function main() {
     requiresReload: true,
   });
 
+  const startupCommandsEditor = new JsonSettingsEditor<CommandInvocation[]>({
+    schema: commandInvocationArraySchema,
+  });
+
+  const startupCommandsSetting = settingsManager.register({
+    id: 'startupCommands',
+    name: 'Startup Commands',
+    description: `
+      Commands to run automatically after a trace loads and any saved state is
+      restored. These commands execute as if a user manually invoked them after
+      the trace is fully ready, making them ideal for automating common
+      post-load actions like running queries, expanding tracks, or setting up
+      custom views.
+    `,
+    schema: commandInvocationArraySchema,
+    defaultValue: [],
+    render: (setting) => startupCommandsEditor.render(setting),
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
@@ -213,6 +237,7 @@ function main() {
     durationPrecisionSetting,
     timezoneOverrideSetting,
     analyticsSetting,
+    startupCommandsSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time

@@ -39,6 +39,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   private _forceShortTextSearch = false;
   private _text = '';
   private _statusMessageContainer: {msg?: string} = {};
+  private _promptsDisabled = false;
 
   get mode(): OmniboxMode {
     return this._mode;
@@ -122,6 +123,10 @@ export class OmniboxManagerImpl implements OmniboxManager {
     text: string,
     choicesOrDefaultValue?: ReadonlyArray<string> | PromptChoices<T> | string,
   ): Promise<string | T | undefined> {
+    if (this._promptsDisabled) {
+      return Promise.resolve(undefined);
+    }
+
     this._mode = OmniboxMode.Prompt;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
@@ -201,6 +206,15 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this.setMode(defaultMode, focus);
     this._omniboxSelectionIndex = 0;
     this._statusMessageContainer = {};
+  }
+
+  disablePrompts(): void {
+    this._promptsDisabled = true;
+    this.rejectPendingPrompt();
+  }
+
+  enablePrompts(): void {
+    this._promptsDisabled = false;
   }
 
   private rejectPendingPrompt() {
