@@ -26,37 +26,105 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.AddDebugSliceTrack',
       name: 'Add debug slice track',
-      callback: async (arg: unknown) => {
+      callback: async (queryArg: unknown, titleArg: unknown) => {
         // This command takes a query and creates a debug track out of it The
         // query can be passed in using the first arg, or if this is not defined
         // or is the wrong type, we prompt the user for it.
-        const query = await getStringFromArgOrPrompt(ctx, arg);
-        if (exists(query)) {
-          await addDebugSliceTrack({
-            trace: ctx,
-            data: {
-              sqlSource: query,
-            },
-            title: 'Debug slice track',
-          });
-        }
+        const query = await getStringFromArgOrPrompt(ctx, queryArg);
+        if (!exists(query)) return;
+
+        const title =
+          typeof titleArg === 'string' ? titleArg : 'Debug slice track';
+
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+        });
       },
     });
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.AddDebugCounterTrack',
       name: 'Add debug counter track',
-      callback: async (arg: unknown) => {
-        const query = await getStringFromArgOrPrompt(ctx, arg);
-        if (exists(query)) {
-          await addDebugCounterTrack({
-            trace: ctx,
-            data: {
-              sqlSource: query,
-            },
-            title: 'Debug slice track',
-          });
-        }
+      callback: async (queryArg: unknown, titleArg: unknown) => {
+        const query = await getStringFromArgOrPrompt(ctx, queryArg);
+        if (!exists(query)) return;
+
+        const title =
+          typeof titleArg === 'string' ? titleArg : 'Debug counter track';
+
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddDebugSliceTrackWithPivot',
+      name: 'Add debug slice track with pivot',
+      callback: async (
+        queryArg: unknown,
+        pivotArg: unknown,
+        titleArg: unknown,
+      ) => {
+        const query = await getStringFromArgOrPrompt(ctx, queryArg);
+        if (!exists(query)) return;
+
+        const pivotColumn =
+          typeof pivotArg === 'string'
+            ? pivotArg
+            : await ctx.omnibox.prompt('Enter column name to pivot on...');
+        if (!pivotColumn) return;
+
+        const title =
+          typeof titleArg === 'string' ? titleArg : 'Debug slice track';
+
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+          pivotOn: pivotColumn,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddDebugCounterTrackWithPivot',
+      name: 'Add debug counter track with pivot',
+      callback: async (
+        queryArg: unknown,
+        pivotArg: unknown,
+        titleArg: unknown,
+      ) => {
+        const query = await getStringFromArgOrPrompt(ctx, queryArg);
+        if (!exists(query)) return;
+
+        const pivotColumn =
+          typeof pivotArg === 'string'
+            ? pivotArg
+            : await ctx.omnibox.prompt('Enter column name to pivot on...');
+        if (!pivotColumn) return;
+
+        const title =
+          typeof titleArg === 'string' ? titleArg : 'Debug counter track';
+
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+          pivotOn: pivotColumn,
+        });
       },
     });
   }

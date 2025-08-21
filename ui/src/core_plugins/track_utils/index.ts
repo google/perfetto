@@ -118,6 +118,104 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
+      id: 'dev.perfetto.PinTracksByRegex',
+      name: 'Pin tracks by regex',
+      callback: async (regexArg: unknown) => {
+        const regexStr =
+          typeof regexArg === 'string'
+            ? regexArg
+            : await ctx.omnibox.prompt(
+                'Enter regex pattern to match track names...',
+              );
+        if (!regexStr) return;
+
+        try {
+          const regex = new RegExp(regexStr);
+          const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+            regex.test(track.name),
+          );
+          matchingTracks.forEach((track) => track.pin());
+        } catch (e) {
+          console.error(`Invalid regex pattern: ${regexStr}`, e);
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddTracksToWorkspaceByRegex',
+      name: 'Add tracks to workspace by regex',
+      callback: async (regexArg: unknown) => {
+        const regexStr =
+          typeof regexArg === 'string'
+            ? regexArg
+            : await ctx.omnibox.prompt(
+                'Enter regex pattern to match track names...',
+              );
+        if (!regexStr) return;
+
+        try {
+          const regex = new RegExp(regexStr);
+          const allTracks = ctx.tracks.getAllTracks();
+          const matchingTracks = allTracks.filter((track) =>
+            regex.test(track.displayName),
+          );
+
+          matchingTracks.forEach((track) => {
+            const trackNode = ctx.workspace.addTrackNode({
+              uri: track.uri,
+              title: track.displayName,
+            });
+            ctx.workspace.addChildInOrder(trackNode);
+          });
+        } catch (e) {
+          console.error(`Invalid regex pattern: ${regexStr}`, e);
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddNoteAtUtcTimestamp',
+      name: 'Add note at UTC timestamp',
+      callback: async (utcTimestampArg: unknown, noteTextArg: unknown) => {
+        const utcTimestampStr =
+          typeof utcTimestampArg === 'string'
+            ? utcTimestampArg
+            : await ctx.omnibox.prompt(
+                'Enter UTC timestamp (ISO format or milliseconds)...',
+              );
+        if (!utcTimestampStr) return;
+
+        const noteText =
+          typeof noteTextArg === 'string'
+            ? noteTextArg
+            : await ctx.omnibox.prompt('Enter note text...');
+        if (noteText === undefined) return;
+
+        let utcDate: Date;
+        if (/^\d+$/.test(utcTimestampStr)) {
+          // Numeric timestamp in milliseconds
+          utcDate = new Date(parseInt(utcTimestampStr, 10));
+        } else {
+          // ISO format timestamp
+          utcDate = new Date(utcTimestampStr);
+        }
+
+        if (isNaN(utcDate.getTime())) {
+          console.error(`Invalid timestamp format: ${utcTimestampStr}`);
+          return;
+        }
+
+        // Convert UTC Date to trace time using the trace's unix offset
+        const traceTime = Time.fromDate(utcDate, ctx.traceInfo.unixOffset);
+
+        ctx.notes.addNote({
+          timestamp: traceTime,
+          text: noteText,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
       defaultHotkey: '.',
