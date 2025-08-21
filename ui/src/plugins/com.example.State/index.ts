@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
     ctx.trash.use(this.store);
 
     ctx.commands.registerCommand({
-      id: 'com.example.ExampleState#ShowCounter',
+      id: 'com.example.ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = this.store.state.counter;

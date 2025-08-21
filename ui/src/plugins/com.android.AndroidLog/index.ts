@@ -129,7 +129,7 @@ export default class implements PerfettoPlugin {
     }
 
     ctx.commands.registerCommand({
-      id: 'perfetto.AndroidLog#ShowLogsTab',
+      id: 'com.android.ShowAndroidLogsTab',
       name: 'Show android logs tab',
       callback: () => {
         ctx.tabs.showTab(androidLogsTabUri);
