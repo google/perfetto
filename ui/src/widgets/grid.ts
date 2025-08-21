@@ -134,7 +134,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           !sort && 'pf-grid-cell__hint',
           !sort && 'pf-visible-on-hover',
         ),
-        compact: true,
+        rounded: true,
         icon: sort === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
         onclick: (e: MouseEvent) => {
           onSort(nextDirection);
@@ -146,18 +146,15 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     const renderMenu = () => {
       if (menuItems === undefined) return null;
       return m(
-        '.pf-grid-cell__actions',
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              className: 'pf-grid-cell__menu-button pf-visible-on-hover',
-              icon: Icons.ContextMenuAlt,
-              rounded: true,
-            }),
-          },
-          menuItems,
-        ),
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            className: 'pf-visible-on-hover',
+            icon: Icons.ContextMenuAlt,
+            rounded: true,
+          }),
+        },
+        menuItems,
       );
     };
 
@@ -224,11 +221,13 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         },
       },
       m('.pf-grid-cell-header', [
-        m(
-          '.pf-grid-cell',
-          m('.pf-grid-cell__content', [children, renderSortButton()]),
+        m('.pf-grid-cell', [
+          m('.pf-grid-cell__content-container', [
+            m('.pf-grid-cell__content', children),
+            renderSortButton(),
+          ]),
           renderMenu(),
-        ),
+        ]),
         hasAggregation &&
           m(
             '.pf-grid-cell__aggregation',
@@ -287,14 +286,14 @@ export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
       },
       m('.pf-grid-cell', [
         m(
-          '.pf-grid-cell__content',
+          '.pf-grid-cell__content-container',
           {
             className: classNames(
               align && `pf-grid-cell--align-${align}`,
               isMissing && 'pf-grid-cell--missing',
             ),
           },
-          children,
+          m('.pf-grid-cell__content', children),
         ),
         renderMenu(),
       ]),

@@ -161,14 +161,17 @@ $border-3: 2px solid var(--pf-color-border);
 
 .pf-grid-cell {
   display: flex;
-  gap: 0.3em;
-  // padding: 0.2em 0.4em;
+
+  &__content-container {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    flex: 1;
+    min-width: 0; // Prevents overflow of content in flex container.
+  }
 
   &__content {
     padding: 0.2em 0.4em;
-    flex: 1;
-    display: flex;
-    gap: 0.3em;
   }
 
   &__actions {
@@ -182,10 +185,6 @@ $border-3: 2px solid var(--pf-color-border);
 
   &__hint {
     color: var(--pf-color-text-muted);
-  }
-
-  &__menu-button.pf-active {
-    visibility: visible;
   }
 
   .pf-grid-cell--align-center {
