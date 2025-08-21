@@ -80,6 +80,10 @@ $border-3: 2px solid var(--pf-color-border);
 
     .pf-visible-on-hover {
       visibility: hidden;
+
+      &.pf-active {
+        visibility: visible;
+      }
     }
 
     &:hover {
