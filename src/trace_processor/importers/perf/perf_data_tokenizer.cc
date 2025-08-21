@@ -560,6 +560,11 @@ base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
 }
 
 base::Status PerfDataTokenizer::NotifyEndOfFile() {
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  // Workaround for zipped traces where file mappings are flushed after
+  // NotifyEndOfFile
+  context_->sorter->ExtractEventsForced();
+#endif
   if (parsing_state_ != ParsingState::kDone) {
     return base::ErrStatus("Premature end of perf file.");
   }
