@@ -7,8 +7,8 @@ to collect data from many different servers to understand the flow of a
 "request" throughout multiple services. As such, this document will _not_ be
 useful to you if you are interested in such traces.
 
-This page provides a birds-eye view of performance analysis and tracing. The aim
-is to orient people who have no idea what "tracing" is.
+This page provides a bird's-eye view of performance analysis and tracing. The
+aim is to orient people who have no idea what "tracing" is.
 
 ## Introduction to Performance
 

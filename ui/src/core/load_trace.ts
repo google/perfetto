@@ -270,6 +270,20 @@ async function loadTraceIntoEngine(
     deserializeAppStatePhase2(serializedAppState, trace);
   }
 
+  // Execute startup commands as the final step - simulates user actions
+  // after the trace is fully loaded and any saved state has been restored.
+  // This ensures startup commands see the complete, final state of the trace.
+  if (trace.commands.hasStartupCommands()) {
+    updateStatus(app, 'Running startup commands');
+    // Disable prompts during startup commands to prevent blocking
+    app.omnibox.disablePrompts();
+    try {
+      await trace.commands.runStartupCommands();
+    } finally {
+      app.omnibox.enablePrompts();
+    }
+  }
+
   return trace;
 }
 

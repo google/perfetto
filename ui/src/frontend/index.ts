@@ -33,7 +33,7 @@ import {globals} from './globals';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
-import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {renderViewerPage} from './viewer_page/viewer_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -59,6 +59,11 @@ import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
 import {ThemeProvider} from './theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
+import {JsonSettingsEditor} from '../components/json_settings_editor';
+import {
+  CommandInvocation,
+  commandInvocationArraySchema,
+} from '../core/command_manager';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -206,6 +211,25 @@ function main() {
     requiresReload: true,
   });
 
+  const startupCommandsEditor = new JsonSettingsEditor<CommandInvocation[]>({
+    schema: commandInvocationArraySchema,
+  });
+
+  const startupCommandsSetting = settingsManager.register({
+    id: 'startupCommands',
+    name: 'Startup Commands',
+    description: `
+      Commands to run automatically after a trace loads and any saved state is
+      restored. These commands execute as if a user manually invoked them after
+      the trace is fully ready, making them ideal for automating common
+      post-load actions like running queries, expanding tracks, or setting up
+      custom views.
+    `,
+    schema: commandInvocationArraySchema,
+    defaultValue: [],
+    render: (setting) => startupCommandsEditor.render(setting),
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
@@ -213,6 +237,7 @@ function main() {
     durationPrecisionSetting,
     timezoneOverrideSetting,
     analyticsSetting,
+    startupCommandsSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -332,7 +357,7 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   maybeChangeRpcPortFromFragment();
-  CheckHttpRpcConnection().then(() => {
+  checkHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
     if (!AppImpl.instance.embeddedMode) {
       installFileDropHandler();

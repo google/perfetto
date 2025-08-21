@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
+@import "../theme";
 
-.pf-macro-settings {
-  width: 500px;
+.pf-json-settings-editor {
+  width: 400px;
 
   &__editor-section {
     margin-bottom: 10px;

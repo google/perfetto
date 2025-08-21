@@ -39,6 +39,7 @@ class EtwParser {
   void ParseReadyThread(int64_t timestamp,
                         uint32_t waker_tid,
                         protozero::ConstBytes);
+  void ParseMemInfo(int64_t timestamp, protozero::ConstBytes);
   void PushSchedSwitch(uint32_t cpu,
                        int64_t timestamp,
                        uint32_t prev_pid,

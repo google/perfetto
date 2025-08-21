@@ -91,6 +91,10 @@ export class SettingsManagerImpl implements SettingsManager {
     this.load();
   }
 
+  get<T>(id: string): Setting<T> | undefined {
+    return this.registry.get(id) as Setting<T> | undefined;
+  }
+
   register<T>(setting: SettingDescriptor<T>): Setting<T> {
     // Determine the initial value: stored value if valid, otherwise default.
     const storedValue = this.currentStoredValues[setting.id];
