@@ -339,5 +339,4 @@ export default class implements PerfettoPlugin {
       },
     });
   }
-
 }
