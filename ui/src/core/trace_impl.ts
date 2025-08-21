@@ -241,6 +241,34 @@ export class TraceImpl implements Trace {
         traceUnloadTrash.use(disposable);
         return disposable;
       },
+
+      hasStartupCommands(): boolean {
+        return ctx.appCtx.startupCommandsSetting.get().length > 0;
+      },
+
+      async runStartupCommands(): Promise<void> {
+        // Execute startup commands in trace context after everything is ready.
+        // This simulates user actions taken after trace load is complete,
+        // including any saved app state restoration. At this point:
+        // - All plugins have loaded and registered their commands
+        // - Trace data is fully accessible
+        // - UI state has been restored from any saved workspace
+        // - Commands can safely query trace data and modify UI state
+        const commands = ctx.appCtx.startupCommandsSetting.get();
+        for (const command of commands) {
+          try {
+            // Execute through proxy to access both global and trace-specific
+            // commands.
+            await ctx.appCtx.commandMgr.runCommand(command.id, ...command.args);
+          } catch (error) {
+            // TODO(stevegolton): Add a mechanism to notify users of startup
+            // command errors. This will involve creating a notification UX
+            // similar to VSCode where there are popups on the bottom right
+            // of the UI.
+            console.warn(`Startup command ${command.id} failed:`, error);
+          }
+        }
+      },
     });
 
     // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
