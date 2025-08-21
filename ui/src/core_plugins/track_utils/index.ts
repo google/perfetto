@@ -154,9 +154,9 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         if (!workspaceName) return;
 
         // Create or get the target workspace
-        const targetWorkspace = ctx.workspaces.all.find(
-          (ws) => ws.title === workspaceName,
-        ) ?? ctx.workspaces.createEmptyWorkspace(workspaceName);
+        const targetWorkspace =
+          ctx.workspaces.all.find((ws) => ws.title === workspaceName) ??
+          ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
         const matchingTracks = ctx.workspace.flatTracks.filter((track) =>

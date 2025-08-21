@@ -30,7 +30,11 @@ export default class implements PerfettoPlugin {
         // This command takes a query and creates a debug track out of it The
         // query can be passed in using the first arg, or if this is not defined
         // or is the wrong type, we prompt the user for it.
-        const query = await getStringFromArgOrPrompt(ctx, queryArg, 'Enter a query...');
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
         if (!exists(query)) return;
 
         const title = getStringFromArgOrDefault(titleArg, 'Debug slice track');
@@ -49,10 +53,17 @@ export default class implements PerfettoPlugin {
       id: 'dev.perfetto.AddDebugCounterTrack',
       name: 'Add debug counter track',
       callback: async (queryArg: unknown, titleArg: unknown) => {
-        const query = await getStringFromArgOrPrompt(ctx, queryArg, 'Enter a query...');
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
         if (!exists(query)) return;
 
-        const title = getStringFromArgOrDefault(titleArg, 'Debug counter track');
+        const title = getStringFromArgOrDefault(
+          titleArg,
+          'Debug counter track',
+        );
 
         await addDebugCounterTrack({
           trace: ctx,
@@ -72,7 +83,11 @@ export default class implements PerfettoPlugin {
         pivotArg: unknown,
         titleArg: unknown,
       ) => {
-        const query = await getStringFromArgOrPrompt(ctx, queryArg, 'Enter a query...');
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
         if (!exists(query)) return;
 
         const pivotColumn = await getStringFromArgOrPrompt(
@@ -103,7 +118,11 @@ export default class implements PerfettoPlugin {
         pivotArg: unknown,
         titleArg: unknown,
       ) => {
-        const query = await getStringFromArgOrPrompt(ctx, queryArg, 'Enter a query...');
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
         if (!exists(query)) return;
 
         const pivotColumn = await getStringFromArgOrPrompt(
@@ -113,7 +132,10 @@ export default class implements PerfettoPlugin {
         );
         if (!pivotColumn) return;
 
-        const title = getStringFromArgOrDefault(titleArg, 'Debug counter track');
+        const title = getStringFromArgOrDefault(
+          titleArg,
+          'Debug counter track',
+        );
 
         await addDebugCounterTrack({
           trace: ctx,
@@ -144,9 +166,6 @@ async function getStringFromArgOrPrompt(
 }
 
 // If arg is a string, return it, otherwise return the default value.
-function getStringFromArgOrDefault(
-  arg: unknown,
-  defaultValue: string,
-): string {
+function getStringFromArgOrDefault(arg: unknown, defaultValue: string): string {
   return typeof arg === 'string' ? arg : defaultValue;
 }
