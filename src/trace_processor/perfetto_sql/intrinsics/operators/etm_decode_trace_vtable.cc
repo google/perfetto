@@ -411,14 +411,14 @@ int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
       }
       break;
     case ColumnIndex::kLastSeenTimestamp:
-      if (state_.last_seen_timestamp) {
+      if (state_.last_seen_timestamp &&
+          elem->getType() != OCSD_GEN_TRC_ELEM_TIMESTAMP) {
         sqlite::result::Long(ctx, *state_.last_seen_timestamp);
       }
       break;
     case ColumnIndex::kCumulativeCycles:
       if (elem->has_cc) {
-        if (elem->getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP ||
-            elem->getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+        if (elem->getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
           state_.cumulative_cycle_count =
               elem->cycle_count + state_.last_cc_value;
         } else if (elem->getType() == OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
@@ -426,7 +426,8 @@ int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
           state_.cumulative_cycle_count = state_.last_cc_value;
         }
       }
-      if (state_.cumulative_cycle_count) {
+      if (state_.cumulative_cycle_count &&
+          elem->getType() != OCSD_GEN_TRC_ELEM_TIMESTAMP) {
         sqlite::result::Long(ctx, *state_.cumulative_cycle_count);
       }
       break;
