@@ -492,16 +492,13 @@ def open_trace_in_browser(path,
     if startup_commands:
       try:
         # Validate that startup_commands is valid JSON
-        if isinstance(startup_commands, str):
-          json.loads(startup_commands)  # Validate JSON format
-        else:
-          startup_commands = json.dumps(startup_commands)
+        json.loads(startup_commands)  # Validate JSON format
 
         # URL-encode the startup commands parameter
         encoded_commands = urllib.parse.quote(startup_commands)
         params.append(f'startupCommands={encoded_commands}')
       except (json.JSONDecodeError, TypeError) as e:
-        prt(f'Warning: Invalid startup commands JSON, ignoring: {e}', ANSI.RED)
+        prt(f'Warning: Invalid startup commands JSON, ignoring. Error: {e}', ANSI.RED)
 
     if params:
       address += '&' + '&'.join(params)
