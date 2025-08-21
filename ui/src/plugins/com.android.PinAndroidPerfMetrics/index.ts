@@ -16,7 +16,6 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
-import AndroidCujsPlugin from '../com.android.AndroidCujs';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
@@ -76,9 +75,12 @@ export default class implements PerfettoPlugin {
       },
     });
     if (metrics.length !== 0) {
-      const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
-      await plugin.pinJankCujs(ctx);
-      await plugin.pinLatencyCujs(ctx);
+      // Add track: Android jank CUJs
+      ctx.commands.runCommand('com.android.PinJankCUJs');
+
+      // Add track: Android latency CUJs
+      ctx.commands.runCommand('com.android.PinLatencyCUJs');
+
       this.callHandlers(metrics, ctx);
     }
   }
