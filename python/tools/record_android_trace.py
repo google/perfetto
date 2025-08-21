@@ -498,7 +498,8 @@ def open_trace_in_browser(path,
         encoded_commands = urllib.parse.quote(startup_commands)
         params.append(f'startupCommands={encoded_commands}')
       except (json.JSONDecodeError, TypeError) as e:
-        prt(f'Warning: Invalid startup commands JSON, ignoring. Error: {e}', ANSI.RED)
+        prt(f'Warning: Invalid startup commands JSON, ignoring. Error: {e}',
+            ANSI.RED)
 
     if params:
       address += '&' + '&'.join(params)
