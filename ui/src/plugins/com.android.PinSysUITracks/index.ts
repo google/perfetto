@@ -49,7 +49,7 @@ export default class implements PerfettoPlugin {
     }).upid;
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.PinSysUITracks#PinSysUITracks',
+      id: 'com.android.PinSysUITracks',
       name: 'Pin: System UI Related Tracks',
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => {

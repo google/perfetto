@@ -274,30 +274,23 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidCujs';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidCujs#PinJankCUJs',
+      id: 'com.android.PinJankCUJs',
       name: 'Add track: Android jank CUJs',
-      callback: () => {
-        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
-          addJankCUJDebugTrack(ctx, 'Jank CUJs');
-        });
+      callback: async () => {
+        await this.pinJankCujs(ctx);
       },
     });
 
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidCujs#ListJankCUJs',
+      id: 'com.android.ListJankCUJs',
       name: 'Run query: Android jank CUJs',
-      callback: () => {
-        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
-          addQueryResultsTab(ctx, {
-            query: JANK_CUJ_QUERY,
-            title: 'Android Jank CUJs',
-          }),
-        );
+      callback: async () => {
+        await this.listJankCujs(ctx);
       },
     });
 
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidCujs#PinLatencyCUJs',
+      id: 'com.android.PinLatencyCUJs',
       name: 'Add track: Android latency CUJs',
       callback: () => {
         addDebugSliceTrack({
@@ -312,7 +305,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidCujs#ListLatencyCUJs',
+      id: 'com.android.ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
       callback: () =>
         addQueryResultsTab(ctx, {
@@ -322,7 +315,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidCujs#PinBlockingCalls',
+      id: 'com.android.PinBlockingCalls',
       name: 'Add track: Android Blocking calls during CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
@@ -337,6 +330,19 @@ export default class implements PerfettoPlugin {
           }),
         );
       },
+    });
+  }
+
+  async pinJankCujs(ctx: Trace) {
+    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
+    await addJankCUJDebugTrack(ctx, 'Jank CUJs');
+  }
+
+  async listJankCujs(ctx: Trace) {
+    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
+    addQueryResultsTab(ctx, {
+      query: JANK_CUJ_QUERY,
+      title: 'Android Jank CUJs',
     });
   }
 }

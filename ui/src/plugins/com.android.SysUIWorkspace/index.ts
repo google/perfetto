@@ -31,7 +31,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.SysUIWorkspace#CreateSysUIWorkspace',
+      id: 'com.android.CreateSysUIWorkspace',
       name: 'Create System UI workspace',
       callback: () =>
         ProcessWorkspaceFactory.create(
@@ -78,7 +78,7 @@ class ProcessWorkspaceFactory {
    * No workspace is created if it was there already.
    * This is expected to be called from the default workspace.
    *
-   * @param trace
+   * @param trace The trace context.
    * @param packageName Name of the Android package to create the workspace for.
    * @param workspaceName Desired name for the new workspace.
    * @param tracksToCopy - An optional list of track names to be added to

@@ -323,7 +323,7 @@ function onCssLoaded() {
 
   // Add command to toggle the theme.
   AppImpl.instance.commands.registerCommand({
-    id: 'toggleTheme',
+    id: 'dev.perfetto.ToggleTheme',
     name: '[Experimental] Toggle UI Theme',
     callback: () => {
       const currentTheme = themeSetting.get();

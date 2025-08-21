@@ -1901,7 +1901,7 @@ export default class implements PerfettoPlugin {
   ): Promise<void> {
     if (features.has('google3')) {
       ctx.commands.registerCommand({
-        id: 'perfetto.DayExplorerBlamesByCategory',
+        id: 'com.android.DayExplorerBlamesByCategory',
         name: 'Add tracks: Day Explorer',
         callback: async () => {
           const limitStr = await ctx.omnibox.prompt(

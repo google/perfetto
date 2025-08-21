@@ -64,7 +64,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace) {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
+      id: 'com.android.PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
       callback: async () => {
         const metric = await ctx.omnibox.prompt(
@@ -76,12 +76,9 @@ export default class implements PerfettoPlugin {
       },
     });
     if (metrics.length !== 0) {
-      // Add track: Android jank CUJs
-      ctx.commands.runCommand('com.android.AndroidCujs#PinJankCUJs');
-
-      // Add track: Android latency CUJs
-      ctx.commands.runCommand('com.android.AndroidCujs#PinLatencyCUJs');
-
+      const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
+      await plugin.pinJankCujs(ctx);
+      await plugin.listJankCujs(ctx);
       this.callHandlers(metrics, ctx);
     }
   }

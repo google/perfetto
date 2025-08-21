@@ -24,7 +24,7 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DebugTracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'perfetto.DebugTracks#addDebugSliceTrack',
+      id: 'dev.perfetto.AddDebugSliceTrack',
       name: 'Add debug slice track',
       callback: async (arg: unknown) => {
         // This command takes a query and creates a debug track out of it The
@@ -44,7 +44,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.DebugTracks#addDebugCounterTrack',
+      id: 'dev.perfetto.AddDebugCounterTrack',
       name: 'Add debug counter track',
       callback: async (arg: unknown) => {
         const query = await getStringFromArgOrPrompt(ctx, arg);
