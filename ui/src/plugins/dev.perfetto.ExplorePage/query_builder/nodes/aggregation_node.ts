@@ -85,6 +85,10 @@ export class AggregationNode implements QueryNode {
         const newCol = newGroupByColumns.find((c) => c.name === oldCol.name);
         if (newCol) {
           newCol.checked = true;
+        } else {
+          const missingCol = columnInfoFromName(oldCol.name);
+          missingCol.checked = true;
+          newGroupByColumns.push(missingCol);
         }
       }
     }
@@ -105,6 +109,29 @@ export class AggregationNode implements QueryNode {
     if (!this.prevNode.validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
+      return false;
+    }
+    const sourceColNames = new Set(this.sourceCols.map((c) => c.name));
+    const missingCols: string[] = [];
+    for (const col of this.state.groupByColumns) {
+      if (col.checked && !sourceColNames.has(col.name)) {
+        missingCols.push(col.name);
+      }
+    }
+
+    if (missingCols.length > 0) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error(
+        `Group by columns ['${missingCols.join(', ')}'] not found in input`,
+      );
+      return false;
+    }
+
+    if (!this.state.groupByColumns.find((c) => c.checked)) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error(
+        'Aggregation node has no group by columns selected',
+      );
       return false;
     }
     return true;

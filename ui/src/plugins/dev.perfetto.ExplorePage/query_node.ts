@@ -60,7 +60,7 @@ export interface QueryNode {
   nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
-  get sourceCols(): ColumnInfo[];
+  readonly sourceCols: ColumnInfo[];
 
   // Columns that are available after applying all operations.
   readonly finalCols: ColumnInfo[];
