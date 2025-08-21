@@ -68,7 +68,9 @@ test('query page', async () => {
     await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
     await textbox.press('ControlOrMeta+Enter');
     await textbox.blur();
-    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`);
+    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
+      mask: [page.locator('.pf-data-grid__toolbar')],
+    });
   }
 
   // Now test the query history.

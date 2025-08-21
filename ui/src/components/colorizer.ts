@@ -68,11 +68,11 @@ const MD_PALETTE_RAW: Color[] = [
 
 export const WHITE_COLOR = new HSLColor([0, 0, 100]);
 export const BLACK_COLOR = new HSLColor([0, 0, 0]);
-export const GRAY_COLOR = new HSLColor([0, 0, 90]);
+export const GRAY_COLOR = new HSLColor([0, 0, 50]).setAlpha(0.5);
 
 const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
-  const base = color.lighten(10, 60).desaturate(20);
-  const variant = base.lighten(30, 80).desaturate(20);
+  const base = color.desaturate(20);
+  const variant = base.desaturate(20).setAlpha(0.8);
 
   return {
     base,
@@ -80,7 +80,7 @@ const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
     disabled: GRAY_COLOR,
     textBase: WHITE_COLOR, // White text suits MD colors quite well
     textVariant: WHITE_COLOR,
-    textDisabled: WHITE_COLOR, // Low contrast is on purpose
+    textDisabled: WHITE_COLOR.setAlpha(0.5), // Low contrast is on purpose
   };
 });
 
