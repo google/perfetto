@@ -102,6 +102,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -1409,7 +1410,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     thread_desc->set_tid(16);
     auto* chrome_thread = track_desc->set_chrome_thread();
     chrome_thread->set_thread_type(
-        protos::pbzero::ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER);
+        protos::chrome_enums::pbzero::THREAD_SAMPLING_PROFILER);
   }
   {
     auto* packet = trace_->add_packet();

@@ -66,9 +66,11 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
-      callback: async (metric) => {
-        metric = prompt('Metrics names (separated by comma)', '');
-        if (metric === null) return;
+      callback: async () => {
+        const metric = await ctx.omnibox.prompt(
+          'Metrics names (separated by comma)',
+        );
+        if (metric === undefined) return;
         const metricList = metric.split(',');
         this.callHandlers(metricList, ctx);
       },

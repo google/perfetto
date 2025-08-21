@@ -25,6 +25,13 @@ import {
 import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {featureFlags} from '../../core/feature_flags';
+import {z} from 'zod';
+import m from 'mithril';
+import {Editor} from '../../widgets/editor';
+import {Callout} from '../../widgets/callout';
+import {Intent} from '../../widgets/common';
+import {Button} from '../../widgets/button';
+import {Setting} from '../../public/settings';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -121,6 +128,154 @@ export default class implements PerfettoPlugin {
           ctx.sidebar.toggleVisibility();
         },
         defaultHotkey: '!Mod+B',
+      });
+    }
+
+    const macroSchema = z.record(
+      z.array(
+        z.object({
+          name: z.string(),
+          args: z.array(z.string()),
+        }),
+      ),
+    );
+
+    type MacroConfig = z.infer<typeof macroSchema>;
+
+    class MacroSettingsComponent {
+      private textareaValue: string | undefined;
+      private originalValue: string | undefined;
+      private jsonError: string | null = null;
+      private currentSetting: Setting<MacroConfig> | undefined;
+
+      constructor(private ctx: App) {}
+
+      render(setting: Setting<MacroConfig>): m.Children {
+        this.currentSetting = setting;
+        this.initializeTextValue();
+
+        return m('div', {className: 'pf-macro-settings'}, [
+          m('div', {className: 'pf-macro-settings__editor-section'}, [
+            m(Editor, {
+              text: this.textareaValue,
+              className: 'pf-macro-settings__editor',
+              onUpdate: (text: string) => this.handleUpdate(text),
+              onSave: () => this.handleSave(),
+            }),
+            this.jsonError &&
+              m(
+                Callout,
+                {
+                  intent: Intent.Danger,
+                  className: 'pf-macro-settings__error',
+                },
+                `JSON Error: ${this.jsonError}`,
+              ),
+            m('div', {className: 'pf-macro-settings__actions'}, [
+              m(Button, {
+                label: 'Save',
+                disabled: this.isSaveDisabled(),
+                onclick: () => this.handleSave(),
+              }),
+            ]),
+          ]),
+        ]);
+      }
+
+      private initializeTextValue(): void {
+        if (this.textareaValue === undefined && this.currentSetting) {
+          const macros = this.currentSetting.get();
+          this.originalValue = JSON.stringify(macros, null, 2);
+          this.textareaValue = this.originalValue;
+        }
+      }
+
+      private handleUpdate(text: string): void {
+        this.textareaValue = text;
+        this.validateAndSetError(text);
+      }
+
+      private handleSave(): void {
+        if (this.textareaValue === undefined || !this.currentSetting) return;
+        const validatedMacros = this.validateAndSetError(this.textareaValue);
+        if (validatedMacros) {
+          this.currentSetting.set(validatedMacros);
+          this.originalValue = this.textareaValue;
+        }
+      }
+
+      private hasUnsavedChanges(): boolean {
+        return this.textareaValue !== this.originalValue;
+      }
+
+      private isSaveDisabled(): boolean {
+        return !!this.jsonError || !this.hasUnsavedChanges();
+      }
+
+      private validateAndSetError(text: string): MacroConfig | undefined {
+        try {
+          const parsed = JSON.parse(text);
+          const result = macroSchema.safeParse(parsed);
+          if (!result.success) {
+            this.jsonError = result.error.issues
+              .map((issue) => {
+                const path =
+                  issue.path.length > 0 ? `at ${issue.path.join('.')}` : '';
+                return `${issue.message} ${path}`.trim();
+              })
+              .join(', ');
+            return undefined;
+          }
+
+          // Validate that all commands exist
+          const invalidCommands: string[] = [];
+          for (const [macroName, commands] of Object.entries(result.data)) {
+            for (const command of commands) {
+              if (!this.ctx.commands.hasCommand(command.name)) {
+                invalidCommands.push(
+                  `${command.name} (in macro "${macroName}")`,
+                );
+              }
+            }
+          }
+
+          if (invalidCommands.length > 0) {
+            this.jsonError = `Unknown commands:\n${invalidCommands.join('\n')}`;
+            return undefined;
+          }
+
+          this.jsonError = null;
+          return result.data;
+        } catch (err) {
+          this.jsonError = err instanceof Error ? err.message : 'Invalid JSON';
+          return undefined;
+        }
+      }
+    }
+
+    const macroSettingsComponent = new MacroSettingsComponent(ctx);
+
+    const setting = ctx.settings.register({
+      id: 'perfetto.CoreCommands#UserDefinedMacros',
+      name: 'Macros',
+      description:
+        'Custom command macros that execute multiple commands in sequence',
+      schema: macroSchema,
+      defaultValue: {},
+      requiresReload: true,
+      render: (setting) => macroSettingsComponent.render(setting),
+    });
+
+    const macros = setting.get() as MacroConfig;
+    for (const [macroName, commands] of Object.entries(macros)) {
+      ctx.commands.registerCommand({
+        id: `perfetto.CoreCommands#UserDefinedMacros#${macroName}`,
+        name: macroName,
+        callback: () => {
+          for (const command of commands) {
+            ctx.commands.runCommand(command.name, ...command.args);
+          }
+        },
       });
     }
 

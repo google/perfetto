@@ -30,16 +30,14 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#PinCameraRelatedTracks',
       name: 'Pin camera related tracks',
-      callback: (trackNames) => {
-        trackNames = prompt(
+      callback: async () => {
+        const promptResult = await ctx.omnibox.prompt(
           'List of additional track names that you would like to pin separated by commas',
-          '',
         );
-        const trackNameList = trackNames.split(',').map(function (
-          item: string,
-        ) {
-          return item.trim();
-        });
+        const rawTrackNames = promptResult ?? '';
+        const trackNameList = rawTrackNames
+          .split(',')
+          .map((item) => item.trim());
         this.pinTracks(ctx, trackNameList);
       },
     });
