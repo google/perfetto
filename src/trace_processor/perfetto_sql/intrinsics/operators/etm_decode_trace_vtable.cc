@@ -116,6 +116,21 @@ constexpr char kElementTypeInArg = 'E';
 
 class EtmDecodeChunkVtable::Cursor
     : public sqlite::Module<EtmDecodeChunkVtable>::Cursor {
+ private:
+  // The maximum number of rows to buffer while waiting for a timestamp.
+  static constexpr size_t kMaxBufferedRows = 100;
+
+  struct State {
+    // Stores the last seen timestamp.
+    std::optional<int64_t> last_seen_timestamp;
+    // Stores the cumulative cycle count including timestamp packets.
+    std::optional<int64_t> cumulative_cycle_count;
+    // Stores the last cumulative cycle count using only cycle count packets.
+    int64_t last_cc_value = 0;
+    // Indicates if we are waiting for a timestamp.
+    bool waiting_for_timestamp = false;
+  };
+
  public:
   explicit Cursor(Vtab* vtab) : cursor_(vtab->storage) {}
 
@@ -123,112 +138,132 @@ class EtmDecodeChunkVtable::Cursor
                       const char* idxStr,
                       int argc,
                       sqlite3_value** argv);
-  base::Status Next() {
-    if (flushing_buffer_) {
-      if (buffer_idx_ + 1 < rows_waiting_for_timestamp_.size() &&
-          rows_waiting_for_timestamp_[buffer_idx_ + 1].getType() ==
-              OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
-        flushing_buffer_ = false;
-        rows_waiting_for_timestamp_.erase(
-            rows_waiting_for_timestamp_.begin(),
-            rows_waiting_for_timestamp_.begin() +
-                static_cast<long>(buffer_idx_ + 1));
-        buffer_idx_ = 0;
-        waiting_for_timestamp_ = true;
-      } else {
-        buffer_idx_++;
-        if (buffer_idx_ >= rows_waiting_for_timestamp_.size()) {
-          flushing_buffer_ = false;
-          rows_waiting_for_timestamp_.clear();
-          buffer_idx_ = 0;
-        } else {
-          return base::OkStatus();
-        }
-      }
-    }
-
-    while (true) {
-      RETURN_IF_ERROR(cursor_.Next());
-      if (cursor_.Eof()) {
-        if (waiting_for_timestamp_ && !rows_waiting_for_timestamp_.empty()) {
-          flushing_buffer_ = true;
-          buffer_idx_ = 0;
-        }
-        return base::OkStatus();
-      }
-
-      if (waiting_for_timestamp_) {
-        if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP) {
-          last_seen_timestamp_ =
-              static_cast<int64_t>(cursor_.element().timestamp);
-          waiting_for_timestamp_ = false;
-
-          for (auto& row : rows_waiting_for_timestamp_) {
-            if (row.getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
-              row.timestamp = cursor_.element().timestamp;
-              row.has_ts = true;
-              if (cursor_.element().has_cc) {
-                row.cycle_count = cursor_.element().cycle_count;
-                row.has_cc = true;
-              }
-              break;
-            }
-          }
-          rows_waiting_for_timestamp_.push_back(cursor_.element());
-          flushing_buffer_ = true;
-          buffer_idx_ = 0;
-          return base::OkStatus();
-        }
-        rows_waiting_for_timestamp_.push_back(cursor_.element());
-        // If the following ever occurs then we have reached a point where a
-        // sync never got a timestamp. To guard against this and accurately
-        // report it we will modify last_seen_timestamp_ to be null for the rows
-        // in our buffer.
-        if (rows_waiting_for_timestamp_.size() >= 100) {
-          flushing_buffer_ = true;
-          last_seen_timestamp_ = -1;
-          buffer_idx_ = 0;
-          waiting_for_timestamp_ = false;
-        }
-      } else {
-        if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
-          waiting_for_timestamp_ = true;
-          rows_waiting_for_timestamp_.push_back(cursor_.element());
-          continue;
-        }
-        break;
-      }
-    }
-    return base::OkStatus();
-  }
-  bool Eof() {
-    if (flushing_buffer_) {
-      return buffer_idx_ >= rows_waiting_for_timestamp_.size();
-    }
-    return cursor_.Eof();
-  }
+  base::Status Next();
+  bool Eof();
   int Column(sqlite3_context* ctx, int raw_n);
 
  private:
+  void FlushBuffer() {
+    flushing_buffer_ = false;
+    rows_waiting_for_timestamp_.clear();
+    buffer_idx_ = 0;
+  }
+
+  void StartFlushingBuffer() {
+    flushing_buffer_ = true;
+    buffer_idx_ = 0;
+  }
+
+  base::Status HandleWaitingForTimestamp();
+  base::Status HandleFlushingBuffer();
+
   base::StatusOr<ElementTypeMask> GetTypeMask(sqlite3_value* argv,
                                               bool is_inlist);
 
   ElementCursor cursor_;
+  State state_{};
 
-  // Stores the last seen timestamp.
-  int64_t last_seen_timestamp_ = -1;
-  // Stores the cumulative cycle count including timestamp packets.
-  int64_t cumulative_cycle_count_ = -1;
-  // Stores the last cumulative cycle count using only cycle count packets.
-  int64_t last_cc_value_ = 0;
-  // Indicates if we are waiting for a timestamp.
-  bool waiting_for_timestamp_ = false;
   // Buffer of rows waiting for a timestamp packet (i.e. saw a sync and looking
   // for timestamp)
   std::vector<OcsdTraceElement> rows_waiting_for_timestamp_;
   bool flushing_buffer_ = false;
   size_t buffer_idx_ = 0;
 };
+
+base::Status EtmDecodeChunkVtable::Cursor::HandleFlushingBuffer() {
+  if (buffer_idx_ + 1 < rows_waiting_for_timestamp_.size() &&
+      rows_waiting_for_timestamp_[buffer_idx_ + 1].getType() ==
+          OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+    flushing_buffer_ = false;
+    rows_waiting_for_timestamp_.erase(rows_waiting_for_timestamp_.begin(),
+                                      rows_waiting_for_timestamp_.begin() +
+                                          static_cast<long>(buffer_idx_ + 1));
+    buffer_idx_ = 0;
+    state_.waiting_for_timestamp = true;
+  } else {
+    buffer_idx_++;
+    if (buffer_idx_ >= rows_waiting_for_timestamp_.size()) {
+      FlushBuffer();
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status EtmDecodeChunkVtable::Cursor::HandleWaitingForTimestamp() {
+  if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP) {
+    state_.last_seen_timestamp =
+        static_cast<int64_t>(cursor_.element().timestamp);
+    state_.waiting_for_timestamp = false;
+
+    for (auto& row : rows_waiting_for_timestamp_) {
+      if (row.getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+        row.timestamp = cursor_.element().timestamp;
+        row.has_ts = true;
+        if (cursor_.element().has_cc) {
+          row.cycle_count = cursor_.element().cycle_count;
+          row.has_cc = true;
+        }
+        break;
+      }
+    }
+    rows_waiting_for_timestamp_.push_back(cursor_.element());
+    StartFlushingBuffer();
+  } else {
+    rows_waiting_for_timestamp_.push_back(cursor_.element());
+    // If the following ever occurs then we have reached a point where a
+    // sync never got a timestamp. To guard against this and accurately
+    // report it we will modify last_seen_timestamp_ to be null for the rows
+    // in our buffer.
+    if (rows_waiting_for_timestamp_.size() >= kMaxBufferedRows) {
+      StartFlushingBuffer();
+      state_.last_seen_timestamp = std::nullopt;
+      state_.waiting_for_timestamp = false;
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status EtmDecodeChunkVtable::Cursor::Next() {
+  if (flushing_buffer_) {
+    RETURN_IF_ERROR(HandleFlushingBuffer());
+    if (flushing_buffer_ || Eof()) {
+      return base::OkStatus();
+    }
+  }
+
+  while (true) {
+    RETURN_IF_ERROR(cursor_.Next());
+    if (cursor_.Eof()) {
+      if (state_.waiting_for_timestamp &&
+          !rows_waiting_for_timestamp_.empty()) {
+        StartFlushingBuffer();
+      }
+      return base::OkStatus();
+    }
+
+    if (state_.waiting_for_timestamp) {
+      RETURN_IF_ERROR(HandleWaitingForTimestamp());
+      if (flushing_buffer_) {
+        return base::OkStatus();
+      }
+    } else {
+      if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+        state_.waiting_for_timestamp = true;
+        rows_waiting_for_timestamp_.push_back(cursor_.element());
+        continue;
+      }
+      break;
+    }
+  }
+  return base::OkStatus();
+}
+
+bool EtmDecodeChunkVtable::Cursor::Eof() {
+  if (flushing_buffer_) {
+    return buffer_idx_ >= rows_waiting_for_timestamp_.size();
+  }
+  return cursor_.Eof();
+}
 
 base::StatusOr<ElementTypeMask> EtmDecodeChunkVtable::Cursor::GetTypeMask(
     sqlite3_value* argv,
@@ -247,7 +282,7 @@ base::StatusOr<ElementTypeMask> EtmDecodeChunkVtable::Cursor::GetTypeMask(
     mask.set_bit(type);
   }
   if (rc != SQLITE_OK || rc != SQLITE_DONE) {
-    return base::ErrStatus("Error");
+    return base::ErrStatus("Error processing IN list for element_type");
   }
   return mask;
 }
@@ -256,11 +291,9 @@ base::Status EtmDecodeChunkVtable::Cursor::Filter(int,
                                                   const char* idxStr,
                                                   int argc,
                                                   sqlite3_value** argv) {
-  last_seen_timestamp_ = -1;
-  cumulative_cycle_count_ = -1;
-  last_cc_value_ = 0;
-  waiting_for_timestamp_ = false;
+  state_ = State{};
   rows_waiting_for_timestamp_.clear();
+  rows_waiting_for_timestamp_.reserve(kMaxBufferedRows);
   std::optional<tables::EtmV4ChunkTable::Id> id;
   ElementTypeMask type_mask;
   type_mask.set_all();
@@ -323,22 +356,23 @@ int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
       }
       break;
     case ColumnIndex::kLastSeenTimestamp:
-      if (last_seen_timestamp_ != -1) {
-        sqlite::result::Long(ctx, last_seen_timestamp_);
+      if (state_.last_seen_timestamp) {
+        sqlite::result::Long(ctx, *state_.last_seen_timestamp);
       }
       break;
     case ColumnIndex::kCumulativeCycles:
       if (elem->has_cc) {
         if (elem->getType() == OCSD_GEN_TRC_ELEM_TIMESTAMP ||
             elem->getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
-          cumulative_cycle_count_ = elem->cycle_count + last_cc_value_;
+          state_.cumulative_cycle_count =
+              elem->cycle_count + state_.last_cc_value;
         } else if (elem->getType() == OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
-          last_cc_value_ += elem->cycle_count;
-          cumulative_cycle_count_ = last_cc_value_;
+          state_.last_cc_value += elem->cycle_count;
+          state_.cumulative_cycle_count = state_.last_cc_value;
         }
       }
-      if (cumulative_cycle_count_ != -1) {
-        sqlite::result::Long(ctx, cumulative_cycle_count_);
+      if (state_.cumulative_cycle_count) {
+        sqlite::result::Long(ctx, *state_.cumulative_cycle_count);
       }
       break;
     case ColumnIndex::kExceptionLevel:
