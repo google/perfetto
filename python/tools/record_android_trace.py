@@ -18,6 +18,7 @@ import argparse
 import datetime
 import hashlib
 import http.server
+import json
 import os
 import re
 import shutil
@@ -26,6 +27,7 @@ import socketserver
 import subprocess
 import sys
 import time
+import urllib.parse
 import webbrowser
 
 from perfetto.prebuilts.manifests.tracebox import *
@@ -110,8 +112,16 @@ def setup_arguments():
   help = 'The web address used to open trace files'
   parser.add_argument('--origin', default='https://ui.perfetto.dev', help=help)
 
-  help = 'The URL Params to pass to browser when open the trace file'
-  parser.add_argument('--url-params', nargs='+', default=None, help=help)
+  help = (
+      'Advanced: The URL Params to pass to browser when open the trace file. '
+      'For UI startup commands, use --ui-startup-commands instead')
+  parser.add_argument('--ui-url-params', nargs='+', default=None, help=help)
+
+  help = (
+      'Commands to execute on UI startup in the browser (JSON array of command objects). '
+      'Example: \'[{"id":"dev.perfetto.PinTracksByRegex","args":[".*sched.*"]}]\''
+  )
+  parser.add_argument('--ui-startup-commands', default=None, help=help)
 
   help = 'Force the use of the sideloaded binaries rather than system daemons'
   parser.add_argument('--sideload', action='store_true', help=help)
@@ -423,7 +433,8 @@ def start_trace(args, print_log=True):
       prt('\n')
       prt('Opening the trace (%s) in the browser' % host_file)
     open_browser = not args.no_open_browser
-    open_trace_in_browser(host_file, open_browser, args.origin, args.url_params)
+    open_trace_in_browser(host_file, open_browser, args.origin,
+                          args.ui_url_params, args.ui_startup_commands)
 
   return host_file
 
@@ -458,7 +469,11 @@ def find_adb():
     sys.exit(1)
 
 
-def open_trace_in_browser(path, open_browser, origin, url_params):
+def open_trace_in_browser(path,
+                          open_browser,
+                          origin,
+                          url_params,
+                          startup_commands=None):
   # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
   PORT = 9001
   path = os.path.abspath(path)
@@ -467,8 +482,30 @@ def open_trace_in_browser(path, open_browser, origin, url_params):
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
     address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=record_android_trace'
+
+    # Build URL parameters list
+    params = []
     if url_params:
-      address += '&' + '&'.join(url_params)
+      params.extend(url_params)
+
+    # Add startup commands if provided
+    if startup_commands:
+      try:
+        # Validate that startup_commands is valid JSON
+        if isinstance(startup_commands, str):
+          json.loads(startup_commands)  # Validate JSON format
+        else:
+          startup_commands = json.dumps(startup_commands)
+
+        # URL-encode the startup commands parameter
+        encoded_commands = urllib.parse.quote(startup_commands)
+        params.append(f'startupCommands={encoded_commands}')
+      except (json.JSONDecodeError, TypeError) as e:
+        prt(f'Warning: Invalid startup commands JSON, ignoring: {e}', ANSI.RED)
+
+    if params:
+      address += '&' + '&'.join(params)
+
     if open_browser:
       webbrowser.open_new_tab(address)
     else:
