@@ -15219,11 +15219,7 @@ message PowerRails {
   // descriptors. The indices used by rail descriptors and energy data packets
   // are meant to be unique to a given session uuid. When multiple data sources
   // are running in parallel, each data source should use a unique id.
-<<<<<<< HEAD
-  optional uint32 session_uuid = 3;
-=======
   optional uint64 session_uuid = 3;
->>>>>>> dev/cphlipot1/power-rail-index-rework-0
 }
 
 // End of protos/perfetto/trace/power/power_rails.proto
