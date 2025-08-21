@@ -17,36 +17,55 @@ export interface OmniboxManager {
    * Turns the omnibox into an interactive prompt for the user. Think of
    * window.prompt() but non-modal and more integrated with the UI.
    *
-   * @param text - The question showed to the user (e.g. "Select a process to
-   * jump to").
-   * @param choices - If defined, it shows a list of options in a select-box
-   * fashion, where the user can move with Up/Down arrows. If omitted the input
-   * is free-form, like in the case of window.prompt().
-   * @returns If `options` === undefined, returns the free-form user input. If
-   * `options` was provided, returns the selected choice. Returns undefined if
-   * the user dismisses the prompt by pressing Esc or clicking elsewhere.
+   * This method has multiple overloads for different use cases:
    *
-   * Example:
+   * 1. **Free-form text input**: User can type any string
+   *    - `prompt(text: string): Promise<string | undefined>`
+   *    - `prompt(text: string, defaultValue: string): Promise<string | undefined>`
+   *
+   * 2. **Choice selection**: User picks from a predefined list
+   *    - `prompt(text: string, choices: ReadonlyArray<string>): Promise<string | undefined>`
+   *    - `prompt<T>(text: string, choices: PromptChoices<T>): Promise<T | undefined>`
+   *
+   * @param text - The question shown to the user (e.g. "Select a process to
+   *   jump to").
+   * @returns The user's input (string for free-form) or selected choice
+   *   (string/T for choices). Returns `undefined` if the user dismisses the
+   *   prompt by pressing Esc or clicking elsewhere.
+   *
+   * Optional parameters:
+   *
+   * defaultValue - For free-form input: optional default value pre-filled in
+   *   the input field.
+   * choices For choice selection: either a simple array of strings or
+   *   a PromptChoices object for complex data.
+   *
+   * @example
    * ```ts
-   * // Free-form string
-   * const name = await prompt('Enter your name');
+   * // Free-form text input
+   * const name = await omnibox.prompt('Enter your name');
    *
-   * // Simple list of choices
-   * const value = await prompt('Choose a color...', ['red', 'blue', 'green']);
+   * // Free-form with default value
+   * const name = await omnibox.prompt('Enter your name', 'John Doe');
    *
-   * // Each choice is an object
-   * const value = await prompt('Choose from an enum...', {
+   * // Simple choice selection
+   * const color = await omnibox.prompt('Choose a color...', ['red', 'blue', 'green']);
+   *
+   * // Complex choice objects
+   * const process = await omnibox.prompt('Choose a process...', {
    *   values: [
-   *     {x: MyEnum.Foo, name: 'foo'},
-   *     {x: MyEnum.Bar, name: 'bar'},
+   *     {pid: 123, name: 'system_server'},
+   *     {pid: 456, name: 'com.example.app'},
    *   ],
-   *   getName: (e) => e.name,
-   * );
+   *   getName: (p) => `${p.name} (PID: ${p.pid})`,
+   * });
    * ```
    */
+  prompt(text: string): Promise<string | undefined>;
+  prompt(text: string, defaultValue: string): Promise<string | undefined>;
   prompt(
     text: string,
-    choices?: ReadonlyArray<string>,
+    choices: ReadonlyArray<string>,
   ): Promise<string | undefined>;
   prompt<T>(text: string, choices: PromptChoices<T>): Promise<T | undefined>;
 }
