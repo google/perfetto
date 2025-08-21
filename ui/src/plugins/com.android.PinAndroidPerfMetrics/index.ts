@@ -16,6 +16,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
+import AndroidCujsPlugin from '../com.android.AndroidCujs';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
