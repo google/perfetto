@@ -23,17 +23,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/util/elf/binary_info.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/elf/binary_info.h"
 
 namespace perfetto::trace_processor {
 
 base::Status RegisteredFileTracker::AddFile(const std::string& name,
-                                            TraceBlobView data) {
+                                            TraceBlob data) {
   StringId name_id = context_->storage->InternString(name);
   auto* it = files_by_path_.Find(name_id);
   if (it) {
@@ -71,6 +71,11 @@ base::Status RegisteredFileTracker::AddFile(const std::string& name,
     files_by_build_id_.Insert(*build_id, id);
   }
   return base::OkStatus();
+}
+TraceBlob RegisteredFileTracker::GetContent(tables::FileTable::Id id) const {
+  PERFETTO_DCHECK(id.value < file_content_.size());
+  const auto& blob = file_content_[id.value];
+  return TraceBlob::CopyFrom(blob.data(), blob.size());
 }
 
 }  // namespace perfetto::trace_processor
