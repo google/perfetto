@@ -23,6 +23,7 @@ import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {App} from '../../public/app';
 import {Setting} from '../../public/settings';
+import {Time} from '../../base/time';
 
 export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'perfetto.TrackUtils';
@@ -121,55 +122,55 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       id: 'dev.perfetto.PinTracksByRegex',
       name: 'Pin tracks by regex',
       callback: async (regexArg: unknown) => {
-        const regexStr =
-          typeof regexArg === 'string'
-            ? regexArg
-            : await ctx.omnibox.prompt(
-                'Enter regex pattern to match track names...',
-              );
-        if (!regexStr) return;
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
 
-        try {
-          const regex = new RegExp(regexStr);
-          const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
-            regex.test(track.name),
-          );
-          matchingTracks.forEach((track) => track.pin());
-        } catch (e) {
-          console.error(`Invalid regex pattern: ${regexStr}`, e);
-        }
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+        matchingTracks.forEach((track) => track.pin());
       },
     });
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.AddTracksToWorkspaceByRegex',
       name: 'Add tracks to workspace by regex',
-      callback: async (regexArg: unknown) => {
-        const regexStr =
-          typeof regexArg === 'string'
-            ? regexArg
-            : await ctx.omnibox.prompt(
-                'Enter regex pattern to match track names...',
-              );
-        if (!regexStr) return;
+      callback: async (regexArg: unknown, workspaceNameArg: unknown) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
 
-        try {
-          const regex = new RegExp(regexStr);
-          const allTracks = ctx.tracks.getAllTracks();
-          const matchingTracks = allTracks.filter((track) =>
-            regex.test(track.displayName),
-          );
+        const workspaceName =
+          typeof workspaceNameArg === 'string'
+            ? workspaceNameArg
+            : await ctx.omnibox.prompt('Enter workspace name...');
+        if (!workspaceName) return;
 
-          matchingTracks.forEach((track) => {
-            const trackNode = ctx.workspace.addTrackNode({
-              uri: track.uri,
-              title: track.displayName,
-            });
-            ctx.workspace.addChildInOrder(trackNode);
+        // Create or get the target workspace
+        const targetWorkspace = ctx.workspaces.all.find(
+          (ws) => ws.title === workspaceName,
+        ) ?? ctx.workspaces.createEmptyWorkspace(workspaceName);
+
+        // Find matching tracks from current workspace
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+
+        // Copy matching tracks to target workspace
+        matchingTracks.forEach((track) => {
+          const trackNode = new TrackNode({
+            uri: track.uri,
+            name: track.name,
           });
-        } catch (e) {
-          console.error(`Invalid regex pattern: ${regexStr}`, e);
-        }
+          targetWorkspace.tracks.addChildInOrder(trackNode);
+        });
       },
     });
 
@@ -267,4 +268,25 @@ async function selectAdjacentTrackEvent(
   ctx.selection.selectTrackEvent(selection.trackUri, resultId, {
     scrollToSelection: true,
   });
+}
+
+// Helper function to get a regex from an argument or prompt the user for one.
+// Returns null if the user cancels the prompt or if the regex is invalid.
+async function getRegexFromArgOrPrompt(
+  ctx: Trace,
+  regexArg: unknown,
+  promptText: string,
+): Promise<RegExp | null> {
+  const regexStr =
+    typeof regexArg === 'string'
+      ? regexArg
+      : await ctx.omnibox.prompt(promptText);
+  if (!regexStr) return null;
+
+  try {
+    return new RegExp(regexStr);
+  } catch (e) {
+    console.error(`Invalid regex pattern: ${regexStr}`, e);
+    return null;
+  }
 }
