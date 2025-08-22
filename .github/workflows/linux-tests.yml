@@ -155,7 +155,7 @@ jobs:
           GCS_PATH: gs://perfetto-ci-artifacts
         shell: bash
         run: |
-          if [[ ! -d "$PERFETTO_ARTIFACTS_DIR" || test -n "$(find $PERFETTO_ARTIFACTS_DIR -maxdepth 0 -empty)" ]]; then
+          if [[ ! -d "$PERFETTO_ARTIFACTS_DIR" || -n "$(find $PERFETTO_ARTIFACTS_DIR -maxdepth 0 -empty)" ]]; then
             echo "Directory '$PERFETTO_ARTIFACTS_DIR' is empty. Did one of the previous steps fail?"
             # Don't fail the step if there is nothing to upload.
             exit 0
