@@ -16,6 +16,7 @@ import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists, reportError} from '../base/logging';
 import {EngineBase} from '../trace_processor/engine';
+import {uuidv4} from '../base/uuid';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
@@ -34,6 +35,7 @@ export class HttpRpcEngine extends EngineBase {
   private disposed = false;
   private queue: Blob[] = [];
   private isProcessingQueue = false;
+  private trace_processor_uuid = '';
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -64,7 +66,15 @@ export class HttpRpcEngine extends EngineBase {
     }
   }
 
-  private onWebsocketConnected() {
+  async onWebsocketConnected() {
+    if (this.trace_processor_uuid === '') {
+      this.trace_processor_uuid = uuidv4();
+      const handshake = JSON.stringify({
+        type: 'TP_UUID',
+        uuid: this.trace_processor_uuid,
+      });
+      this.websocket!.send(new TextEncoder().encode(handshake));
+    }
     for (;;) {
       const queuedMsg = this.requestQueue.shift();
       if (queuedMsg === undefined) break;
@@ -81,7 +91,11 @@ export class HttpRpcEngine extends EngineBase {
       console.log('Websocket closed, reconnecting');
       this.websocket = undefined;
       this.connected = false;
-      this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
+      const handshake = JSON.stringify({
+        type: 'TP_UUID',
+        uuid: this.trace_processor_uuid,
+      });
+      this.rpcSendRequestBytes(new TextEncoder().encode(handshake)); // Triggers a reconnection.
     } else {
       super.fail(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
@@ -138,7 +152,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   static get hostAndPort() {
-    return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
+    return `${window.location.hostname}:${HttpRpcEngine.rpcPort}`;
   }
 
   [Symbol.dispose]() {

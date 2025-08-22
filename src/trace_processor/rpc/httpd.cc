@@ -71,11 +71,13 @@ class Httpd : public base::HttpRequestHandler {
   void OnHttpConnectionClosed(base::HttpServerConnection* conn) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
+  static std::string ExtractUuidFromMessage(base::StringView data);
+  bool isUuidHandshake(base::StringView data);
+  void registerConnection(base::HttpServerConnection* conn, std::string uuid);
 
-  struct WebSocketRpcThread {
+  struct UuidRpcThread {
    public:
-    explicit WebSocketRpcThread(base::HttpServerConnection* conn)
-        : conn_(conn) {
+    explicit UuidRpcThread(base::HttpServerConnection* conn) : conn_(conn) {
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
         base::UnixTaskRunner task_runner;
@@ -100,7 +102,7 @@ class Httpd : public base::HttpRequestHandler {
       });
     }
 
-    ~WebSocketRpcThread() {
+    ~UuidRpcThread() {
       {
         std::lock_guard<std::mutex> lock(init_mutex_);
         if (initialized_ && task_runner_) {
@@ -126,6 +128,13 @@ class Httpd : public base::HttpRequestHandler {
     }
     Rpc* rpc_ = nullptr;
 
+    void reregisterConnection(base::HttpServerConnection* conn) {
+      conn_ = conn;
+      rpc_->SetRpcResponseFunction([this](const void* data, uint32_t len) {
+        SendRpcChunk(conn_, data, len);
+      });
+    }
+
    private:
     std::thread rpc_thread_;            // Dedicated thread
     base::HttpServerConnection* conn_;  // WebSocket connection
@@ -139,13 +148,14 @@ class Httpd : public base::HttpRequestHandler {
     bool initialized_ = false;
   };
 
+  // legacy rpc endpoints for older uis that don't have the rpc map
   Rpc global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::mutex websocket_rpc_mutex_;
-  std::unordered_map<base::HttpServerConnection*,
-                     std::unique_ptr<WebSocketRpcThread>>
-      websocket_rpc_threads_;
+  std::unordered_map<std::string, std::unique_ptr<UuidRpcThread>>
+      uuid_to_tp_map;
+  std::unordered_map<base::HttpServerConnection*, std::string> conn_to_uuid_map;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -343,25 +353,81 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   // Check if this connection already has a dedicated thread
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
-  auto it = websocket_rpc_threads_.find(msg.conn);
-  if (it == websocket_rpc_threads_.end()) {
-    // Create new thread for this connection
-    auto new_thread = std::make_unique<WebSocketRpcThread>(msg.conn);
-    auto result =
-        websocket_rpc_threads_.emplace(msg.conn, std::move(new_thread));
-    it = result.first;
+  if (isUuidHandshake(msg.data)) {
+    registerConnection(msg.conn, ExtractUuidFromMessage(msg.data));
+  } else {
+    auto it = conn_to_uuid_map.find(msg.conn);
+    // if we cannot find the connection and uuid being registered then the ui is
+    // older. we fall back to the global rpc for backward compatibility
+    if (it == conn_to_uuid_map.end()) {
+      global_trace_processor_rpc_.SetRpcResponseFunction(
+          [&](const void* data, uint32_t len) {
+            SendRpcChunk(msg.conn, data, len);
+          });
+      // OnRpcRequest() will call SendRpcChunk() one or more times.
+      global_trace_processor_rpc_.OnRpcRequest(msg.data.data(),
+                                               msg.data.size());
+      global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+      return;
+    } else {
+      // Dispatch to the dedicated thread
+      uuid_to_tp_map.find(it->second)->second->OnWebsocketMessage(msg);
+    }
   }
-
-  // Dispatch to the dedicated thread
-  it->second->OnWebsocketMessage(msg);
 }
 
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-  auto it = websocket_rpc_threads_.find(conn);
-  if (it != websocket_rpc_threads_.end()) {
-    websocket_rpc_threads_.erase(it);
+  auto it = conn_to_uuid_map.find(conn);
+  if (it != conn_to_uuid_map.end()) {
+    conn_to_uuid_map.erase(it);
   }
+}
+
+bool Httpd::isUuidHandshake(base::StringView data) {
+  return !ExtractUuidFromMessage(data).empty();
+}
+
+void Httpd::registerConnection(base::HttpServerConnection* conn,
+                               std::string uuid) {
+  auto it = conn_to_uuid_map.find(conn);
+  if (it == conn_to_uuid_map.end()) {
+    conn_to_uuid_map.emplace(conn, uuid);
+  }
+
+  auto it2 = uuid_to_tp_map.find(uuid);
+  if (it2 == uuid_to_tp_map.end()) {
+    // Create new thread for this connection
+    auto new_thread = std::make_unique<UuidRpcThread>(conn);
+    uuid_to_tp_map.emplace(uuid, std::move(new_thread));
+  } else {
+    // there is already an existing thread for this uuid, update to new
+    // connection
+    it2->second->reregisterConnection(conn);
+  }
+}
+
+std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
+  // Check if this is a UUID handshake message
+  if (data.size() < 5)
+    return "";
+
+  // Simple JSON parsing for UUID handshake
+  std::string str_data(data.data(), data.size());
+
+  // Look for UUID handshake pattern
+  if (str_data.find("\"type\":\"TP_UUID\"") != std::string::npos) {
+    size_t uuid_pos = str_data.find("\"uuid\":\"");
+    if (uuid_pos != std::string::npos) {
+      uuid_pos += 8;  // Skip past "\"uuid\":\""
+      size_t end_quote = str_data.find("\"", uuid_pos);
+      if (end_quote != std::string::npos) {
+        return str_data.substr(uuid_pos, end_quote - uuid_pos);
+      }
+    }
+  }
+
+  return "";  // Empty means use global processor
 }
 
 }  // namespace
