@@ -289,11 +289,10 @@ class LegacySqlTableTab implements Tab {
                   }),
                 ),
             }),
+          this.selected.kind === 'bar_chart' &&
+            m(SqlBarChart, {state: this.selected.state}),
         ]),
       ]),
-
-      this.selected.kind === 'bar_chart' &&
-        m(SqlBarChart, {state: this.selected.state}),
     );
   }
 
