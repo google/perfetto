@@ -33,11 +33,12 @@ export enum NodeType {
   // Single node operations
   kSubQuery,
   kAggregation,
+  kIntervalIntersect,
 }
 
 // All information required to create a new node.
 export interface QueryNodeState {
-  prevNode?: QueryNode;
+  prevNodes?: QueryNode[];
   customTitle?: string;
 
   // Operations
@@ -56,7 +57,7 @@ export interface QueryNode {
   readonly nodeId: string;
   readonly graphTableName?: string;
   readonly type: NodeType;
-  readonly prevNode?: QueryNode;
+  readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
@@ -119,10 +120,14 @@ function getStructuredQueries(
       return;
     }
     revStructuredQueries.push(curSq);
-    if (curNode.prevNode && !curNode.prevNode.validate()) {
-      return;
+    if (curNode.prevNodes?.[0]) {
+      if (!curNode.prevNodes[0].validate()) {
+        return;
+      }
+      curNode = curNode.prevNodes[0];
+    } else {
+      curNode = undefined;
     }
-    curNode = curNode.prevNode;
   }
   return revStructuredQueries.reverse();
 }
@@ -174,7 +179,10 @@ export async function analyzeNode(
   }
 
   let finalSql = lastRes.sql;
-  if (node.type !== NodeType.kSqlSource) {
+  if (
+    node.type !== NodeType.kSqlSource &&
+    node.type != NodeType.kIntervalIntersect
+  ) {
     const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
       node.graphTableName ?? `exp_${node.nodeId}`
     } AS \n${lastRes.sql}`;

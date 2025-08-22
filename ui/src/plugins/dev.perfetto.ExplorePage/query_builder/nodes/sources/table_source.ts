@@ -88,6 +88,7 @@ export function modalForTableSelection(
 
 export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
+  readonly prevNodes: QueryNode[] = [];
   showColumns: boolean = false;
 
   get sourceCols() {

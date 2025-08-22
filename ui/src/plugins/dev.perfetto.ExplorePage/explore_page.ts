@@ -28,6 +28,7 @@ import {SubQueryNode} from './query_builder/nodes/sub_query_node';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
 import {VisViewSource} from './data_visualiser/view_source';
+import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -93,9 +94,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   handleAddAggregation(state: ExplorePageState, node: QueryNode) {
     const newNode = new AggregationNode({
-      prevNode: node,
+      prevNodes: [node],
       groupByColumns: [],
       aggregations: [],
+      filters: [],
+    });
+    this.addNode(state, newNode, node);
+  }
+
+  handleAddIntervalIntersect(state: ExplorePageState, node: QueryNode) {
+    const newNode = new IntervalIntersectNode({
+      prevNodes: [node],
+      allNodes: state.rootNodes,
+      intervalNodes: [],
       filters: [],
     });
     this.addNode(state, newNode, node);
@@ -138,11 +149,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // If the node is a child of another node, remove it from the parent's
     // nextNodes array.
-    if (node.prevNode) {
-      const prevNode = node.prevNode;
-      const childIdx = prevNode.nextNodes.indexOf(node);
-      if (childIdx !== -1) {
-        prevNode.nextNodes.splice(childIdx, 1);
+    if (node.prevNodes) {
+      for (const prevNode of node.prevNodes) {
+        const childIdx = prevNode.nextNodes.indexOf(node);
+        if (childIdx !== -1) {
+          prevNode.nextNodes.splice(childIdx, 1);
+        }
       }
     }
 
@@ -154,7 +166,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   handleAddSubQuery(state: ExplorePageState, node: QueryNode) {
     const newNode = new SubQueryNode({
-      prevNode: node,
+      prevNodes: [node],
       filters: [],
     });
     this.addNode(state, newNode, node);
@@ -227,6 +239,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onAddSubQueryNode: (node) => this.handleAddSubQuery(state, node),
           onAddAggregationNode: (node) =>
             this.handleAddAggregation(state, node),
+          onAddIntervalIntersectNode: (node) =>
+            this.handleAddIntervalIntersect(state, node),
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
         state.rootNodes.length !== 0 &&
