@@ -204,6 +204,7 @@ Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode
 
 std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                                                               char** argv) {
+  foo bar baz;  // trigger build error.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   umask(0000);  // make sure that file creation is not affected by umask.
 #endif
