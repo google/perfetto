@@ -21,7 +21,7 @@ import {sqliteString} from '../../../../base/string_utils';
 import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {TableManager} from './table_column';
+import {RenderedCell, TableManager} from './table_column';
 
 export interface LegacySqlTableFilterOp {
   op: string; // string representation of the operation (to be injected to SQL)
@@ -175,7 +175,7 @@ export function getStandardContextMenuItems(
 
 export function displayValue(value: SqlValue): m.Child {
   if (value === null) {
-    return m('i', 'NULL');
+    return 'null';
   }
   return sqlValueToReadableString(value);
 }
@@ -184,9 +184,15 @@ export function renderStandardCell(
   value: SqlValue,
   column: SqlColumn,
   tableManager: TableManager | undefined,
-): {content: m.Children; menu?: m.Children} {
+): RenderedCell {
+  const contentWithFormatting = {
+    content: displayValue(value),
+    isNumerical: typeof value === 'number' || typeof value === 'bigint',
+    isNull: value == null,
+  };
+
   if (tableManager === undefined) {
-    return {content: displayValue(value)};
+    return contentWithFormatting;
   }
   const contextMenuItems: m.Child[] = getStandardContextMenuItems(
     value,
@@ -194,7 +200,7 @@ export function renderStandardCell(
     tableManager,
   );
   return {
-    content: displayValue(value),
+    ...contentWithFormatting,
     menu: contextMenuItems,
   };
 }

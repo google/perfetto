@@ -139,6 +139,10 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                 : pivots.map((_pivot, index) => {
                     const status = node.getPivotDisplayStatus(index);
                     const value = node.getPivotValue(index);
+                    const renderedCell = (function () {
+                      if (value === undefined) return undefined;
+                      return state.getPivots()[index].renderCell(value);
+                    })();
                     const content = [
                       (status === 'collapsed' || status === 'expanded') &&
                         m(Button, {
@@ -163,24 +167,42 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                       // even though they do not have the "expand/collapse" button.
                       status === 'pivoted_value' &&
                         m('span.pf-pivot-table__cell--indent'),
-                      value !== undefined &&
-                        state.getPivots()[index].renderCell(value).content,
+                      renderedCell && renderedCell.content,
                       // Show ellipsis for the last pivot if the node is collapsed to
                       // make it clear to the user that there are some values.
                       status === 'hidden_behind_collapsed' && '...',
                     ];
                     return m(
                       GridDataCell,
-                      {thickRightBorder: index === pivots.length - 1},
+                      {
+                        thickRightBorder: index === pivots.length - 1,
+                        align: renderedCell?.isNull
+                          ? 'center'
+                          : renderedCell?.isNumerical
+                            ? 'right'
+                            : 'left',
+                        isMissing: renderedCell?.isNull,
+                      },
                       content,
                     );
                   });
 
               const aggregationCells = aggregations.map((agg, index) => {
-                const content = agg.column.renderCell(
+                const renderedCell = agg.column.renderCell(
                   node.getAggregationValue(index),
-                ).content;
-                return m(GridDataCell, content);
+                );
+                return m(
+                  GridDataCell,
+                  {
+                    align: renderedCell?.isNull
+                      ? 'center'
+                      : renderedCell?.isNumerical
+                        ? 'right'
+                        : 'left',
+                    isMissing: renderedCell?.isNull,
+                  },
+                  renderedCell.content,
+                );
               });
 
               const cells = [...pivotCells, ...aggregationCells];

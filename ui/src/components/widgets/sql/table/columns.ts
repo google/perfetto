@@ -97,6 +97,7 @@ export class TimestampColumn implements TableColumn {
         tableManager &&
           getStandardContextMenuItems(value, this.column, tableManager),
       ],
+      isNumerical: true,
     };
   }
 }
@@ -120,6 +121,7 @@ export class DurationColumn implements TableColumn {
         tableManager &&
           getStandardContextMenuItems(value, this.column, tableManager),
       ],
+      isNumerical: true,
     };
   }
 }
@@ -143,6 +145,7 @@ export class SliceIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
+      isNumerical: true,
     };
   }
 
@@ -187,6 +190,7 @@ export class SchedIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
+      isNumerical: true,
     };
   }
 }
@@ -210,6 +214,7 @@ export class ThreadStateIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
+      isNumerical: true,
     };
   }
 }
@@ -239,6 +244,7 @@ export class ThreadIdColumn implements TableColumn {
         showThreadDetailsMenuItem(asUtid(Number(utid))),
         getStandardContextMenuItems(utid, this.column, manager),
       ],
+      isNumerical: true,
     };
   }
 
@@ -304,6 +310,7 @@ export class ProcessIdColumn implements TableColumn {
         showProcessDetailsMenuItem(asUpid(Number(upid))),
         getStandardContextMenuItems(upid, this.column, manager),
       ],
+      isNumerical: true,
     };
   }
 

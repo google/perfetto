@@ -38,7 +38,12 @@ import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
-import {TableColumn, TableManager, tableColumnId} from './table_column';
+import {
+  RenderedCell,
+  TableColumn,
+  TableManager,
+  tableColumnId,
+} from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './select_column_menu';
 
@@ -64,7 +69,7 @@ function renderCell(
   column: TableColumn,
   row: Row,
   state: SqlTableState,
-): {content: m.Children; menu?: m.Children} {
+): RenderedCell {
   const {columns} = state.getCurrentRequest();
   const sqlValue = row[columns[sqlColumnId(column.column)]];
 
@@ -80,11 +85,8 @@ function renderCell(
     getTableManager(state),
     additionalValues,
   );
-  if (typeof result === 'object' && result !== null && 'content' in result) {
-    return result;
-  } else {
-    return {content: result};
-  }
+
+  return result;
 }
 
 export function columnTitle(column: TableColumn): string {
@@ -360,8 +362,20 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
               return m(
                 GridRow,
                 columns.map((col) => {
-                  const {content, menu} = renderCell(col, row, this.state);
-                  return m(GridDataCell, {menuItems: menu}, content);
+                  const {content, menu, isNumerical, isNull} = renderCell(
+                    col,
+                    row,
+                    this.state,
+                  );
+                  return m(
+                    GridDataCell,
+                    {
+                      menuItems: menu,
+                      align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+                      isMissing: isNull,
+                    },
+                    content,
+                  );
                 }),
               );
             }),
