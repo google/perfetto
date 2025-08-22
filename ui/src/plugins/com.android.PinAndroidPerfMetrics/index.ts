@@ -64,21 +64,23 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace) {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
+      id: 'com.android.PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
-      callback: async (metric) => {
-        metric = prompt('Metrics names (separated by comma)', '');
-        if (metric === null) return;
+      callback: async () => {
+        const metric = await ctx.omnibox.prompt(
+          'Metrics names (separated by comma)',
+        );
+        if (metric === undefined) return;
         const metricList = metric.split(',');
         this.callHandlers(metricList, ctx);
       },
     });
     if (metrics.length !== 0) {
       // Add track: Android jank CUJs
-      ctx.commands.runCommand('com.android.AndroidCujs#PinJankCUJs');
+      ctx.commands.runCommand('com.android.PinJankCUJs');
 
       // Add track: Android latency CUJs
-      ctx.commands.runCommand('com.android.AndroidCujs#PinLatencyCUJs');
+      ctx.commands.runCommand('com.android.PinLatencyCUJs');
 
       this.callHandlers(metrics, ctx);
     }

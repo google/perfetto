@@ -75,7 +75,10 @@ class Etm(TestSuite):
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         module_dependencies=['etm'],
         query='''
-          SELECT *
+          SELECT
+            chunk_index, element_index, element_type, timestamp, cycle_count,
+            last_seen_timestamp, cumulative_cycles, exception_level,
+            context_id, isa, start_address, end_address, mapping_id
           FROM
             __intrinsic_etm_decode_chunk
           WHERE chunk_id = 0
@@ -132,3 +135,22 @@ class Etm(TestSuite):
           "etm",18984,1,434500225576
           "etm",18988,1,434500225580
         '''))
+
+  def test_last_seen_ts_and_cumilative_cc(self):
+    return DiffTestBlueprint(
+        register_files_dir=DataPath('simpleperf/bin'),
+        trace=DataPath('simpleperf/cs_etm_cc_ts.perf'),
+        module_dependencies=['etm'],
+        query='''
+        CREATE PERFETTO TABLE decoded_chunk_one AS
+        SELECT
+          chunk_index, element_index, element_type, timestamp, cycle_count,
+          last_seen_timestamp, cumulative_cycles, exception_level,
+          context_id, isa, start_address, end_address, mapping_id
+        FROM
+          __intrinsic_etm_decode_chunk(1);
+
+        SELECT * FROM decoded_chunk_one
+        LIMIT 100;
+        ''',
+        out=Path('ts_cc.out'))

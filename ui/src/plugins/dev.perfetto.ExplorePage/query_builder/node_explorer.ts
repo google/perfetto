@@ -35,6 +35,7 @@ import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
+import {AggregationNode} from './nodes/aggregation_node';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -97,7 +98,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
     return m(Operator, {
       filter: {
-        sourceCols: node.state.sourceCols,
+        sourceCols: node.sourceCols,
         filters: node.state.filters,
         onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
           node.state.filters = newFilters as FilterDefinition[];
@@ -166,6 +167,9 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         this.currentQuery = await analyzeNode(node, attrs.trace.engine);
         if (!isAQuery(this.currentQuery)) {
           return;
+        }
+        if (node instanceof AggregationNode) {
+          node.updateGroupByColumns();
         }
         attrs.onQueryAnalyzed(this.currentQuery);
         attrs.onExecute();

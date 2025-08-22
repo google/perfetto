@@ -57,7 +57,7 @@ constexpr const char* kDefaultSymbolizer = "llvm-symbolizer.exe";
 constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 #endif
 
-std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
+std::string GetLine(const std::function<int64_t(char*, size_t)>& fn_read) {
   std::string line;
   char buffer[512];
   int64_t rd = 0;
@@ -282,25 +282,25 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   char* mem = static_cast<char*>(map.data());
 
   std::optional<std::string> build_id;
-  std::optional<std::pair<uint64_t, uint64_t>> vaddr_and_poffset;
+  std::optional<std::pair<uint64_t, uint64_t>> vaddr_and_offset;
   if (IsElf(mem, size)) {
     switch (mem[EI_CLASS]) {
       case ELFCLASS32:
         build_id = GetElfBuildId<Elf32>(mem, size);
-        vaddr_and_poffset = GetElfPVAddrPOffset<Elf32>(mem, size);
+        vaddr_and_offset = GetElfPVAddrPOffset<Elf32>(mem, size);
         break;
       case ELFCLASS64:
         build_id = GetElfBuildId<Elf64>(mem, size);
-        vaddr_and_poffset = GetElfPVAddrPOffset<Elf64>(mem, size);
+        vaddr_and_offset = GetElfPVAddrPOffset<Elf64>(mem, size);
         break;
       default:
         return std::nullopt;
     }
-    if (build_id && vaddr_and_poffset) {
+    if (build_id && vaddr_and_offset) {
       return BinaryInfo{
           *build_id,
-          vaddr_and_poffset->first,
-          vaddr_and_poffset->second,
+          vaddr_and_offset->first,
+          vaddr_and_offset->second,
           BinaryType::kElf,
       };
     }
@@ -456,7 +456,7 @@ bool ParseJsonNumber(const char*& it, const char* end, double* out) {
 bool ParseJsonArray(
     const char*& it,
     const char* end,
-    std::function<bool(const char*&, const char*)> process_value) {
+    const std::function<bool(const char*&, const char*)>& process_value) {
   if (it == end) {
     return false;
   }
@@ -484,7 +484,7 @@ bool ParseJsonArray(
 bool ParseJsonObject(
     const char*& it,
     const char* end,
-    std::function<bool(const char*&, const char*, const std::string&)>
+    const std::function<bool(const char*&, const char*, const std::string&)>&
         process_value) {
   if (it == end) {
     return false;
@@ -655,10 +655,10 @@ std::optional<FoundBinary> FindKernelBinary(const std::string& os_release) {
   using SS = base::StackString<512>;
   const char* rel = os_release.c_str();
   auto find_kernel = [](base::StackString<512> path) {
-    return IsCorrectFile(path.c_str(), std::nullopt);
+    return IsCorrectFile(path.ToStdString(), std::nullopt);
   };
   // This list comes from the perf symbolization code [1]: it's an incomplete
-  // list (it doesn't include pre-symbolized kernels or reading /proc/kallsyns)
+  // list (it doesn't include pre-symbolized kernels or reading /proc/kallsyms)
   // but works if you just install e.g. the symbol packages for the kernel.
   //
   // [1]
@@ -860,7 +860,7 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     // frames that made no sense. We can fix this up after the fact if we
     // detect this situation.
     //
-    // Note that the `binary->poffset > 0` check above accounts for perf.data
+    // Note that the `binary->p_offset > 0` check above accounts for perf.data
     // files: in those, load_bias from the trace is always zero but we should
     // *not* enter this codepath. Thankfully, in those cases `p_offset` is zero:
     // symbol elfs always seem to have the text segment's `p_offset` zeroed out.
@@ -890,9 +890,7 @@ LocalSymbolizer::~LocalSymbolizer() = default;
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
-// TODO(fmayer): Fix up name. This suggests it always returns a symbolizer or
-// dies, which isn't the case.
-std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
+std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
     std::vector<std::string> binary_path,
     const char* mode) {
   std::unique_ptr<Symbolizer> symbolizer;

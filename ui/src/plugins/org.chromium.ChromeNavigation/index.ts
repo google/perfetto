@@ -48,7 +48,7 @@ export default class implements PerfettoPlugin {
     // so they can easily be inspected without scrolling through a lot of
     // vertical space.
     trace.commands.registerCommand({
-      id: 'org.chromium.ChromeNavigation#PinNavigationTracks',
+      id: 'org.chromium.PinNavigationTracks',
       name: 'Chrome Navigation: Pin relevant tracks',
       callback: () => {
         trace.workspace.flatTracks
@@ -65,7 +65,7 @@ export default class implements PerfettoPlugin {
     // their parent tracks, so we can have the collapsable process/thread
     // tracks and keep the UI consistent.
     trace.commands.registerCommand({
-      id: 'org.chromium.ChromeNavigation#CreateWorkspaceWithTracks',
+      id: 'org.chromium.CreateWorkspaceWithTracks',
       name: `Chrome Navigation: Go to "${NAVIGATION_WORKSPACE_NAME}" workspace`,
       defaultHotkey: 'Shift+N',
       callback: () => {

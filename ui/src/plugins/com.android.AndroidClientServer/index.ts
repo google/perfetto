@@ -21,12 +21,12 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidClientServer';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidClientServer#ThreadRuntimeIPC',
+      id: 'com.android.ShowClientServerDependencies',
       name: 'Show dependencies in client server model',
       callback: async (sliceId) => {
         if (sliceId === undefined) {
-          sliceId = prompt('Enter a slice id', '');
-          if (sliceId === null) return;
+          sliceId = await ctx.omnibox.prompt('Enter a slice id');
+          if (sliceId === undefined) return;
         }
         await ctx.engine.query(`
           include perfetto module android.binder;
