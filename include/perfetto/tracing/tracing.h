@@ -22,6 +22,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -162,6 +163,9 @@ struct TracingInitArgs {
   // inside a sandbox and can't create sockets directly.
   // Not yet supported for consumer connections currently.
   CreateSocketAsync create_socket_async = nullptr;
+
+  // [Optional] Specifies a custom track uuid for the current current.
+  std::optional<uint64_t> process_uuid = std::nullopt;
 
  protected:
   friend class Tracing;
