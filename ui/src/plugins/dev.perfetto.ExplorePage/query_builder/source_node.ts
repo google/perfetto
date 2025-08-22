@@ -28,7 +28,7 @@ export abstract class SourceNode implements QueryNode {
   readonly prevNode = undefined;
   nextNodes: QueryNode[];
 
-  sourceCols: ColumnInfo[];
+  abstract readonly sourceCols: ColumnInfo[];
   finalCols: ColumnInfo[];
 
   readonly state: QueryNodeState;
@@ -36,7 +36,6 @@ export abstract class SourceNode implements QueryNode {
   constructor(state: QueryNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.sourceCols = state.sourceCols ?? [];
     this.finalCols = createFinalColumns(this);
     this.nextNodes = [];
   }

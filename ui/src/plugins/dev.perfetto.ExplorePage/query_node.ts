@@ -38,7 +38,6 @@ export enum NodeType {
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNode?: QueryNode;
-  sourceCols: ColumnInfo[];
   customTitle?: string;
 
   // Operations
