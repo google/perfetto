@@ -23,7 +23,7 @@ import {
   QueryNodeState,
 } from '../../query_node';
 import {createFiltersProto} from '../operations/operation_component';
-import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {ColumnInfo} from '../column_info';
 import {assertExists} from '../../../../base/logging';
 
 export class SubQueryNode implements QueryNode {
@@ -31,9 +31,12 @@ export class SubQueryNode implements QueryNode {
   readonly type = NodeType.kSubQuery;
   readonly prevNode?: QueryNode;
   nextNodes: QueryNode[];
-  readonly sourceCols: ColumnInfo[];
   readonly finalCols: ColumnInfo[];
   readonly state: QueryNodeState;
+
+  get sourceCols(): ColumnInfo[] {
+    return this.prevNode?.finalCols ?? [];
+  }
 
   constructor(state: QueryNodeState) {
     assertExists(state.prevNode, 'SubQueryNode requires a previous node');
@@ -41,7 +44,6 @@ export class SubQueryNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = state;
     this.prevNode = state.prevNode;
-    this.sourceCols = this.prevNode!.finalCols;
     this.finalCols = createFinalColumns(this);
     this.nextNodes = [];
   }
@@ -61,7 +63,6 @@ export class SubQueryNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: QueryNodeState = {
       prevNode: this.state.prevNode,
-      sourceCols: newColumnInfoList(this.sourceCols),
       filters: this.state.filters.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,

@@ -24,39 +24,127 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DebugTracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'perfetto.DebugTracks#addDebugSliceTrack',
+      id: 'dev.perfetto.AddDebugSliceTrack',
       name: 'Add debug slice track',
-      callback: async (arg: unknown) => {
+      callback: async (queryArg: unknown, titleArg: unknown) => {
         // This command takes a query and creates a debug track out of it The
         // query can be passed in using the first arg, or if this is not defined
         // or is the wrong type, we prompt the user for it.
-        const query = await getStringFromArgOrPrompt(ctx, arg);
-        if (exists(query)) {
-          await addDebugSliceTrack({
-            trace: ctx,
-            data: {
-              sqlSource: query,
-            },
-            title: 'Debug slice track',
-          });
-        }
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
+        if (!exists(query)) return;
+
+        const title = getStringFromArgOrDefault(titleArg, 'Debug slice track');
+
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+        });
       },
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.DebugTracks#addDebugCounterTrack',
+      id: 'dev.perfetto.AddDebugCounterTrack',
       name: 'Add debug counter track',
-      callback: async (arg: unknown) => {
-        const query = await getStringFromArgOrPrompt(ctx, arg);
-        if (exists(query)) {
-          await addDebugCounterTrack({
-            trace: ctx,
-            data: {
-              sqlSource: query,
-            },
-            title: 'Debug slice track',
-          });
-        }
+      callback: async (queryArg: unknown, titleArg: unknown) => {
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
+        if (!exists(query)) return;
+
+        const title = getStringFromArgOrDefault(
+          titleArg,
+          'Debug counter track',
+        );
+
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddDebugSliceTrackWithPivot',
+      name: 'Add debug slice track with pivot',
+      callback: async (
+        queryArg: unknown,
+        pivotArg: unknown,
+        titleArg: unknown,
+      ) => {
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
+        if (!exists(query)) return;
+
+        const pivotColumn = await getStringFromArgOrPrompt(
+          ctx,
+          pivotArg,
+          'Enter column name to pivot on...',
+        );
+        if (!pivotColumn) return;
+
+        const title = getStringFromArgOrDefault(titleArg, 'Debug slice track');
+
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+          pivotOn: pivotColumn,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddDebugCounterTrackWithPivot',
+      name: 'Add debug counter track with pivot',
+      callback: async (
+        queryArg: unknown,
+        pivotArg: unknown,
+        titleArg: unknown,
+      ) => {
+        const query = await getStringFromArgOrPrompt(
+          ctx,
+          queryArg,
+          'Enter a query...',
+        );
+        if (!exists(query)) return;
+
+        const pivotColumn = await getStringFromArgOrPrompt(
+          ctx,
+          pivotArg,
+          'Enter column name to pivot on...',
+        );
+        if (!pivotColumn) return;
+
+        const title = getStringFromArgOrDefault(
+          titleArg,
+          'Debug counter track',
+        );
+
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
+            sqlSource: query,
+          },
+          title,
+          pivotOn: pivotColumn,
+        });
       },
     });
   }
@@ -68,10 +156,16 @@ export default class implements PerfettoPlugin {
 async function getStringFromArgOrPrompt(
   ctx: Trace,
   arg: unknown,
+  promptText: string,
 ): Promise<string | undefined> {
   if (typeof arg === 'string') {
     return arg;
   } else {
-    return await ctx.omnibox.prompt('Enter a query...');
+    return await ctx.omnibox.prompt(promptText);
   }
+}
+
+// If arg is a string, return it, otherwise return the default value.
+function getStringFromArgOrDefault(arg: unknown, defaultValue: string): string {
+  return typeof arg === 'string' ? arg : defaultValue;
 }

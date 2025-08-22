@@ -32,12 +32,12 @@ export default class implements PerfettoPlugin {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
     if (resp.numRows() === 0) return;
     ctx.commands.registerCommand({
-      id: 'com.android.AndroidPerfTraceCounters#ThreadRuntimeIPC',
+      id: 'com.android.AddThreadRuntimeIPCTrack',
       name: 'Add a track to show a thread runtime ipc',
       callback: async (tid) => {
         if (tid === undefined) {
-          tid = prompt('Enter a thread tid', '');
-          if (tid === null) return;
+          tid = await ctx.omnibox.prompt('Enter a thread tid');
+          if (tid === undefined) return;
         }
         const sqlPrefix = `
           WITH

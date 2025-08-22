@@ -35,8 +35,7 @@ import {NodeIssues} from '../node_issues';
 
 export interface AggregationNodeState extends QueryNodeState {
   readonly prevNode: QueryNode;
-  readonly sourceCols: ColumnInfo[];
-  readonly groupByColumns: ColumnInfo[];
+  groupByColumns: ColumnInfo[];
   readonly aggregations: Aggregation[];
 }
 
@@ -53,8 +52,11 @@ export class AggregationNode implements QueryNode {
   readonly type = NodeType.kAggregation;
   readonly prevNode?: QueryNode;
   nextNodes: QueryNode[];
-  readonly sourceCols: ColumnInfo[];
   readonly state: AggregationNodeState;
+
+  get sourceCols() {
+    return this.prevNode?.finalCols ?? this.prevNode?.sourceCols ?? [];
+  }
 
   get finalCols(): ColumnInfo[] {
     const selected = this.state.groupByColumns.filter((c) => c.checked);
@@ -70,11 +72,27 @@ export class AggregationNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
-      groupByColumns: newColumnInfoList(state.sourceCols, false),
     };
     this.prevNode = state.prevNode;
-    this.sourceCols = state.sourceCols;
     this.nextNodes = [];
+    this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
+  }
+
+  updateGroupByColumns() {
+    const newGroupByColumns = newColumnInfoList(this.sourceCols, false);
+    for (const oldCol of this.state.groupByColumns) {
+      if (oldCol.checked) {
+        const newCol = newGroupByColumns.find((c) => c.name === oldCol.name);
+        if (newCol) {
+          newCol.checked = true;
+        } else {
+          const missingCol = columnInfoFromName(oldCol.name);
+          missingCol.checked = true;
+          newGroupByColumns.push(missingCol);
+        }
+      }
+    }
+    this.state.groupByColumns = newGroupByColumns;
   }
 
   validate(): boolean {
@@ -91,6 +109,29 @@ export class AggregationNode implements QueryNode {
     if (!this.prevNode.validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
+      return false;
+    }
+    const sourceColNames = new Set(this.sourceCols.map((c) => c.name));
+    const missingCols: string[] = [];
+    for (const col of this.state.groupByColumns) {
+      if (col.checked && !sourceColNames.has(col.name)) {
+        missingCols.push(col.name);
+      }
+    }
+
+    if (missingCols.length > 0) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error(
+        `Group by columns ['${missingCols.join(', ')}'] not found in input`,
+      );
+      return false;
+    }
+
+    if (!this.state.groupByColumns.find((c) => c.checked)) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error(
+        'Aggregation node has no group by columns selected',
+      );
       return false;
     }
     return true;
@@ -111,7 +152,6 @@ export class AggregationNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
       prevNode: this.state.prevNode,
-      sourceCols: newColumnInfoList(this.sourceCols),
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: [],
@@ -153,7 +193,7 @@ export class AggregationNode implements QueryNode {
     // Otherwise, we can just add the aggregation and filters to the previous
     // query.
     if (filtersProto) {
-      if (prevSq.filters) {
+      if (prevSq.filters !== undefined) {
         prevSq.filters.push(...filtersProto);
       } else {
         prevSq.filters = filtersProto;

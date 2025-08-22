@@ -126,7 +126,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       return m(TextParagraph, {text: message});
     }
 
-    if (attrs.response && attrs.dataSource) {
+    if (attrs.response && attrs.dataSource && attrs.node.validate()) {
       const warning =
         attrs.response.statementWithOutputCount > 1
           ? m(

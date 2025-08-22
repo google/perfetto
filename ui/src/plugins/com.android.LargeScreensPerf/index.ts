@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
     this.addFoldedStateTrackToDeviceState(ctx);
 
     ctx.commands.registerCommand({
-      id: 'com.android.LargeScreensPerf#UnfoldLatencyTracks',
+      id: 'com.android.UnfoldLatencyTracks',
       name: 'Organize unfold latency tracks',
       callback: async () => {
         this.pinCoreTracks(ctx);
