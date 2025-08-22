@@ -677,6 +677,17 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
     return;
 
   DumpAllCpuStats(instance->tracefs.get(), stats_out);
+
+  // Record the per-cpu buffer size as cached by the muxer, and the actual value
+  // returned by the tracefs. Helps catch rogue tracefs modifications under us,
+  // as well as to check that the caching is accurate in practice (depending on
+  // the kernel version, the chosen value might be different to what was written
+  // into the file).
+  stats_out->cpu_buffer_size_pages =
+      static_cast<uint32_t>(instance->tracefs->GetCpuBufferSizeInPages());
+  stats_out->cached_cpu_buffer_size_pages = static_cast<uint32_t>(
+      instance->ftrace_config_muxer->GetPerCpuBufferSizePages());
+
   if (symbolizer_.is_valid()) {
     auto* symbol_map = symbolizer_.GetOrCreateKernelSymbolMap();
     stats_out->kernel_symbols_parsed =
@@ -880,11 +891,11 @@ std::optional<std::string> FtraceController::AbsolutePathForInstance(
 
   // ARM64 pKVM hypervisor tracing emulates an instance, but is not under
   // instances/, we special-case that name for now.
-  if (raw_cfg_name == "hyp") {
-    std::string hyp_path = tracefs_root + "hyp/";
+  if (raw_cfg_name == "hyp" || raw_cfg_name == "hypervisor") {
+    std::string hyp_path = tracefs_root + raw_cfg_name + "/";
     PERFETTO_LOG(
-        "Config specified reserved \"hyp\" instance name, using %s for events.",
-        hyp_path.c_str());
+        "Config specified reserved \"%s\" instance name, using %s for events.",
+        raw_cfg_name.c_str(), hyp_path.c_str());
     return std::make_optional(hyp_path);
   }
 

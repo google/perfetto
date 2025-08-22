@@ -1,0 +1,79 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+.pf-pivot-table {
+  user-select: text;
+  -webkit-user-select: text;
+  padding: 10px;
+
+  button.mode-button {
+    border-radius: 10px;
+    padding: 7px;
+    margin: 5px;
+    background-color: #c7d0db;
+  }
+
+  &.query-error {
+    color: var(--pf-color-danger);
+  }
+
+  .total-values {
+    text-align: right;
+    padding-right: 10px;
+    font-weight: bolder;
+  }
+
+  .empty-result {
+    padding: 10px;
+  }
+
+  td.menu {
+    text-align: left;
+  }
+
+  td.action-button {
+    min-width: fit-content;
+    width: 1px;
+  }
+
+  td {
+    // In context menu icon to go on a separate line.
+    // In regular pivot table cells, avoids wrapping the icon spacer to go on
+    // a separate line.
+    white-space: pre;
+  }
+
+  thead,
+  i {
+    cursor: pointer;
+  }
+  td.first {
+    border-left: 1px solid var(--pf-color-border-secondary);
+    padding-left: 6px;
+  }
+  .disabled {
+    cursor: default;
+  }
+  .indent {
+    display: inline-block;
+    // 16px is the width of expand_more/expand_less icon to pad out cells
+    // without the button
+    width: 16px;
+  }
+  strong {
+    font-weight: 400;
+  }
+}

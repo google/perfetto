@@ -20,7 +20,7 @@ import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
-import {CommandManagerImpl} from './command_manager';
+import {CommandManagerImpl, parseUrlCommands} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {SearchManagerImpl} from './search_manager';
@@ -34,7 +34,7 @@ import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {FlowManager} from './flow_manager';
-import {AppContext, AppImpl} from './app_impl';
+import {AppContext, AppImpl, OpenTraceArrayBufArgs} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
 import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
@@ -46,9 +46,8 @@ import {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
-import {featureFlags} from './feature_flags';
 import {SerializedAppState} from './state_serialization_schema';
-import {PostedTrace} from './trace_source';
+import {featureFlags} from './feature_flags';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
@@ -232,6 +231,17 @@ export class TraceImpl implements Trace {
       },
     });
 
+    // CRITICAL ORDER: URL commands MUST execute before settings commands!
+    // This ordering has subtle but important implications:
+    // - URL commands are trace-specific and should establish initial state
+    // - Settings commands are user preferences that should override URL defaults
+    // - Changing this order could break trace sharing and user customization
+    // DO NOT REORDER without understanding the full impact!
+    const urlCommands =
+      parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
+    const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
+    const allStartupCommands = [...urlCommands, ...settingsCommands];
+
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
     // unregistered when the trace unloads (before a new trace is loaded) to
@@ -241,6 +251,33 @@ export class TraceImpl implements Trace {
         const disposable = appImpl.commands.registerCommand(cmd);
         traceUnloadTrash.use(disposable);
         return disposable;
+      },
+
+      hasStartupCommands(): boolean {
+        return allStartupCommands.length > 0;
+      },
+
+      async runStartupCommands(): Promise<void> {
+        // Execute startup commands in trace context after everything is ready.
+        // This simulates user actions taken after trace load is complete,
+        // including any saved app state restoration. At this point:
+        // - All plugins have loaded and registered their commands
+        // - Trace data is fully accessible
+        // - UI state has been restored from any saved workspace
+        // - Commands can safely query trace data and modify UI state
+        for (const command of allStartupCommands) {
+          try {
+            // Execute through proxy to access both global and trace-specific
+            // commands.
+            await ctx.appCtx.commandMgr.runCommand(command.id, ...command.args);
+          } catch (error) {
+            // TODO(stevegolton): Add a mechanism to notify users of startup
+            // command errors. This will involve creating a notification UX
+            // similar to VSCode where there are popups on the bottom right
+            // of the UI.
+            console.warn(`Startup command ${command.id} failed:`, error);
+          }
+        }
       },
     });
 
@@ -453,8 +490,11 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromUrl(url, serializedAppState);
   }
 
-  openTraceFromBuffer(args: PostedTrace): void {
-    this.appImpl.openTraceFromBuffer(args);
+  openTraceFromBuffer(
+    args: OpenTraceArrayBufArgs,
+    serializedAppState?: SerializedAppState,
+  ): void {
+    this.appImpl.openTraceFromBuffer(args, serializedAppState);
   }
 
   closeCurrentTrace(): void {

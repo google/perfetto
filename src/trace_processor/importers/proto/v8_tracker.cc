@@ -142,7 +142,8 @@ base::StringView WasmCodeTierToString(int32_t tier) {
 
 }  // namespace
 
-V8Tracker::V8Tracker(TraceProcessorContext* context) : context_(context) {}
+V8Tracker::V8Tracker(TraceProcessorContext* context)
+    : context_(context), jit_tracker_(context) {}
 
 V8Tracker::~V8Tracker() = default;
 
@@ -217,14 +218,13 @@ std::pair<V8Tracker::IsolateCodeRanges, bool> V8Tracker::GetIsolateCodeRanges(
 AddressRangeMap<JitCache*> V8Tracker::CreateJitCaches(
     UniquePid upid,
     const IsolateCodeRanges& code_ranges) {
-  JitTracker* const jit_tracker = JitTracker::GetOrCreate(context_);
   AddressRangeMap<JitCache*> jit_caches;
   for (const AddressRange& r : code_ranges.heap_code) {
-    jit_caches.Emplace(r, jit_tracker->CreateJitCache("v8 code", upid, r));
+    jit_caches.Emplace(r, jit_tracker_.CreateJitCache("v8 code", upid, r));
   }
   if (code_ranges.embedded_blob) {
     jit_caches.Emplace(*code_ranges.embedded_blob,
-                       jit_tracker->CreateJitCache("v8 blob", upid,
+                       jit_tracker_.CreateJitCache("v8 blob", upid,
                                                    *code_ranges.embedded_blob));
   }
 

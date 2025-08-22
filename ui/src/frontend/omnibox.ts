@@ -21,6 +21,7 @@ import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
 import {KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
+import {Chip} from '../widgets/chip';
 
 interface OmniboxOptionRowAttrs {
   // Human readable display name for the option.
@@ -54,7 +55,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
         ...htmlAttrs,
       },
       m('span.pf-title', this.renderTitle(displayName)),
-      label && m('span.pf-tag', label),
+      label && m(Chip, {className: 'pf-omnibox__tag', label, rounded: true}),
       rightContent,
     );
   }
@@ -180,7 +181,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         matchWidth: true,
         offset: 2,
         trigger: m(
-          '.omnibox',
+          '.pf-omnibox',
           {
             class: extraClasses,
           },

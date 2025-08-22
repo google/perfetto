@@ -17,20 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CHROME_SYSTEM_PROBES_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CHROME_SYSTEM_PROBES_MODULE_H_
 
-#include "perfetto/base/build_config.h"
+#include <cstdint>
+
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/chrome_system_probes_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Parses only the Chrome recorded system stats fields. This is separated from
 // SystemProbesModule due to the binary size impact of the system probes parser.
 class ChromeSystemProbesModule : public ProtoImporterModule {
  public:
-  explicit ChromeSystemProbesModule(TraceProcessorContext* context);
+  explicit ChromeSystemProbesModule(ProtoImporterModuleContext* module_context,
+                                    TraceProcessorContext* context);
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
                             int64_t ts,
@@ -41,7 +43,6 @@ class ChromeSystemProbesModule : public ProtoImporterModule {
   ChromeSystemProbesParser parser_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CHROME_SYSTEM_PROBES_MODULE_H_

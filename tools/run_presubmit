@@ -23,10 +23,18 @@ import sys
 import time
 from typing import List, Optional, Tuple, Iterable
 
-# The script can be executed as a git hook symlink which is why we also
-# do realpath.
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
+# The script can be executed as a git hook symlink. Using `git` to find the
+# repo root is more resilient for worktree usage as a git hook.
+try:
+  REPO_ROOT = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'],
+                                      text=True,
+                                      stderr=subprocess.PIPE).strip()
+except (subprocess.CalledProcessError, FileNotFoundError) as e:
+  print(
+      f"Error: Could not determine repository root via git. {e}",
+      file=sys.stderr)
+  sys.exit(1)
+
 IS_WIN = sys.platform.startswith('win')
 
 
@@ -88,8 +96,14 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
           if not line.startswith(' D')
       ]
 
+      # Find the merge-base between merge_base and HEAD to avoid picking up
+      # other changes if merge_base has moved on.
+      merge_base_result = run_command(['git', 'merge-base', merge_base, 'HEAD'])
+      merge_base_commit = merge_base_result.stdout.strip()
+
       diff_result = run_command([
-          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base, 'HEAD'
+          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base_commit,
+          'HEAD'
       ])
       diff_files = diff_result.stdout.splitlines()
 
@@ -242,6 +256,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.jpg',
           '*/test/data/*',
           'Makefile',
+          'rules',
           '*.descriptor',
       ])
 

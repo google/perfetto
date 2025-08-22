@@ -108,7 +108,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.FtraceRaw#ShowFtraceTab',
+      id: 'dev.perfetto.ShowFtraceTab',
       name: 'Show ftrace tab',
       callback: () => {
         ctx.tabs.showTab(ftraceTabUri);

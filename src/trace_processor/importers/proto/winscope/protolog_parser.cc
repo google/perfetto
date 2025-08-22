@@ -16,16 +16,12 @@
 
 #include "src/trace_processor/importers/proto/winscope/protolog_parser.h"
 
-#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/protolog.pbzero.h"
@@ -35,6 +31,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_context.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -86,7 +83,7 @@ void ProtoLogParser::ParseProtoLogMessage(
     boolean_params.emplace_back(*it);
   }
 
-  auto storage = context_->trace_processor_context_->storage;
+  auto* storage = context_->trace_processor_context_->storage.get();
 
   std::vector<std::string> string_params;
   if (protolog_message.has_str_param_iids()) {
@@ -184,7 +181,7 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
     std::string& message,
     std::optional<StringId> stacktrace,
     std::optional<std::string>& location) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto* storage = context_->trace_processor_context_->storage.get();
   auto* protolog_table = storage->mutable_protolog_table();
   auto row = protolog_table->FindById(table_row_id).value();
 

@@ -24,18 +24,25 @@ import {IdleDetectorWindow} from '../frontend/idle_detector_interface';
 import {assertExists} from '../base/logging';
 import {Size2D} from '../base/geom';
 
+// Define the locators for elements you always want to mask.
+const GLOBAL_MASKS: ((page: Page) => Locator)[] = [
+  // Hide the footer when running integration tests, as the version code and the
+  // tiny text with pending queries can fail the screenshot diff test.
+  (page) => page.locator('.pf-sidebar__footer'),
+];
+
 export class PerfettoTestHelper {
   private cachedSidebarSize?: Size2D;
 
   constructor(readonly page: Page) {}
 
   resetFocus(): Promise<void> {
-    return this.page.click('.sidebar img.brand');
+    return this.page.click('.pf-sidebar img.pf-sidebar__brand');
   }
 
   async sidebarSize(): Promise<Size2D> {
     if (this.cachedSidebarSize === undefined) {
-      const size = await this.page.locator('main > .sidebar').boundingBox();
+      const size = await this.page.locator('main > .pf-sidebar').boundingBox();
       this.cachedSidebarSize = assertExists(size);
     }
     return this.cachedSidebarSize;
@@ -79,7 +86,20 @@ export class PerfettoTestHelper {
   ) {
     await this.page.mouse.move(0, 0); // Move mouse out of the way.
     await this.waitForPerfettoIdle();
-    await expect.soft(this.page).toHaveScreenshot(screenshotName, opts);
+
+    // Get instances of the global locators for the current page.
+    const globalMaskLocators = GLOBAL_MASKS.map((getLocator) =>
+      getLocator(this.page),
+    );
+
+    // Combine global masks with any masks specific to this test call.
+    const allMasks = [...globalMaskLocators, ...(opts?.mask || [])];
+
+    // Call the original expect with the combined masks.
+    await expect.soft(this.page).toHaveScreenshot(screenshotName, {
+      ...opts,
+      mask: allMasks,
+    });
   }
 
   async toggleTrackGroup(locator: Locator) {
@@ -131,8 +151,6 @@ export class PerfettoTestHelper {
   }
 
   async switchToTab(text: string | RegExp) {
-    await this.page
-      .locator('.pf-tab-handle .pf-tab-handle__tab', {hasText: text})
-      .click();
+    await this.page.locator('.pf-split-panel__tab', {hasText: text}).click();
   }
 }

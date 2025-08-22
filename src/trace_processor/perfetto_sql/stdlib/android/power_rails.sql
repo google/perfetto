@@ -86,16 +86,22 @@ CREATE PERFETTO TABLE android_power_rails_metadata (
   power_rail_name STRING,
   -- Raw power rail name from the hardware.
   raw_power_rail_name STRING,
+  -- User-friendly name for the power rail.
+  friendly_name STRING,
   -- Power rail track id. Alias of `counter_track.id`.
   track_id JOINID(track.id),
   -- Subsystem name that this power rail belongs to.
-  subsystem_name STRING
+  subsystem_name STRING,
+  -- The device the power rail is associated with.
+  machine_id JOINID(machine.id)
 ) AS
 SELECT
   t.name AS power_rail_name,
   extract_arg(t.source_arg_set_id, 'raw_name') AS raw_power_rail_name,
+  CASE WHEN t.name GLOB 'power.rails.*' THEN substr(t.name, 13) ELSE NULL END AS friendly_name,
   t.id AS track_id,
-  extract_arg(t.source_arg_set_id, 'subsystem_name') AS subsystem_name
+  extract_arg(t.source_arg_set_id, 'subsystem_name') AS subsystem_name,
+  t.machine_id AS machine_id
 FROM counter_track AS t
 WHERE
   t.type = 'power_rails';

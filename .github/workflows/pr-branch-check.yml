@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Prevent accidental merge PRs into dev branches
+        shell: bash
         run: |
           echo "❌ You are trying to merge the a PR ${{ github.ref }} on top of another one (${{ github.base_ref }})."
           echo "When working with stacked changes you need to first land the upstream PR, then click on the button that suggests to set main as merge base."

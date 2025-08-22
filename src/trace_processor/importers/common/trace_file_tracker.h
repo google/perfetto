@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_FILE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_FILE_TRACKER_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 

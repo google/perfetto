@@ -17,19 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PIXEL_MODEM_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PIXEL_MODEM_MODULE_H_
 
+#include <cstdint>
+
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/pixel_modem_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
-#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class PixelModemModule : public ProtoImporterModule {
  public:
-  explicit PixelModemModule(TraceProcessorContext* context);
+  explicit PixelModemModule(ProtoImporterModuleContext* module_context,
+                            TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
                               TraceBlobView* packet,
@@ -47,7 +50,6 @@ class PixelModemModule : public ProtoImporterModule {
   PixelModemParser parser_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PIXEL_MODEM_MODULE_H_

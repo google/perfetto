@@ -575,3 +575,12 @@ hyp/host_ffa_call
 kmem/dmabuf_rss_stat
 hyp/iommu_idmap
 hyp/psci_mem_protect
+hypervisor/host_hcall
+hypervisor/host_smc
+hypervisor/hyp_exit
+hypervisor/iommu_idmap
+hypervisor/psci_mem_protect
+hypervisor/host_mem_abort
+hypervisor/hyp_enter
+hypervisor/iommu_idmap_complete
+hypervisor/vcpu_illegal_trap

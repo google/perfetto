@@ -31,7 +31,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['slice'] = getSliceTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.slice',
+      id: 'org.chromium.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
@@ -42,7 +42,7 @@ export default class implements PerfettoPlugin {
 
     sqlTableRegistry['thread'] = getThreadTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.thread',
+      id: 'org.chromium.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
 
     sqlTableRegistry['process'] = getThreadTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.process',
+      id: 'org.chromium.ShowTable.process',
       name: 'Open table: process',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
@@ -64,7 +64,7 @@ export default class implements PerfettoPlugin {
 
     sqlTableRegistry['sched'] = getSchedTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.sched',
+      id: 'org.chromium.ShowTable.sched',
       name: 'Open table: sched',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
@@ -75,7 +75,7 @@ export default class implements PerfettoPlugin {
 
     sqlTableRegistry['thread_state'] = getThreadStateTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.thread_state',
+      id: 'org.chromium.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
@@ -86,7 +86,7 @@ export default class implements PerfettoPlugin {
 
     sqlTableRegistry['android_logs'] = getAndroidLogsTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.android_logs',
+      id: 'org.chromium.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {

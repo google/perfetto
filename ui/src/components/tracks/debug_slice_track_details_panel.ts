@@ -32,7 +32,7 @@ import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
-import {dictToTree, dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
+import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
 import {threadStateRef} from '../widgets/thread_state';
 import {getThreadName} from '../sql_utils/thread';
 import {getProcessName} from '../sql_utils/process';
@@ -265,7 +265,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     }
 
     // Print the raw columns from the source query (previously called 'args')
-    details.push(m(TreeNode, {left: 'Raw columns'}, dictToTree(rawCols)));
+    details.push(m(TreeNode, {left: 'Raw columns'}, dictToTreeNodes(rawCols)));
 
     return m(
       DetailsShell,

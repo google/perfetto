@@ -33,4 +33,12 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
 }

@@ -51,6 +51,8 @@ source_set("common") {
     "process_track_translation_table.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "registered_file_tracker.cc",
+    "registered_file_tracker.h",
     "sched_event_state.h",
     "sched_event_tracker.cc",
     "sched_event_tracker.h",
@@ -60,13 +62,14 @@ source_set("common") {
     "slice_translation_table.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
+    "symbol_tracker.cc",
+    "symbol_tracker.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
     "thread_state_tracker.cc",
     "thread_state_tracker.h",
     "trace_file_tracker.cc",
     "trace_file_tracker.h",
-    "trace_parser.cc",
     "track_compressor.cc",
     "track_compressor.h",
     "track_tracker.cc",
@@ -79,7 +82,6 @@ source_set("common") {
   ]
   public_deps = [
     ":synthetic_tid_hdr",
-    ":trace_parser_hdr",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
   ]
@@ -95,22 +97,17 @@ source_set("common") {
     "../../../protozero",
     "../../containers",
     "../../dataframe",
+    "../../sorter",
+    "../../sorter",
     "../../storage",
     "../../tables:tables",
     "../../types",
     "../../util:build_id",
     "../../util:profiler_util",
     "../../util:trace_type",
+    "../../util/elf",
     "../fuchsia:fuchsia_record",
     "../systrace:systrace_line",
-  ]
-}
-
-source_set("trace_parser_hdr") {
-  sources = [ "trace_parser.h" ]
-  deps = [
-    ":parser_types",
-    "../../../../gn:default_deps",
   ]
 }
 

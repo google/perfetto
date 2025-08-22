@@ -13,73 +13,52 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu.split;
+INCLUDE PERFETTO MODULE wattson.cpu.pivot;
+
+INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 -- Find the CPU states creating the max vote
 CREATE PERFETTO TABLE _w_cpu_dependence AS
 WITH
-  max_power_tbl AS (
+  dependency_calculate AS (
     SELECT
       *,
-      -- Indicates if all CPUs are in deep idle
-      min(
-        no_static,
-        coalesce(idle_4, 1),
-        coalesce(idle_5, 1),
-        coalesce(idle_6, 1),
-        coalesce(idle_7, 1)
-      ) AS all_cpu_deep_idle,
-      -- Determines which CPU has highest vote
-      max(static_4, static_5, static_6, static_7) AS max_static_vote
+      max(
+        iif(idle_2 = -1 AND 2 IN _cpus_with_no_dependency, coalesce(cpu2_curve, 0), 0),
+        iif(idle_3 = -1 AND 3 IN _cpus_with_no_dependency, coalesce(cpu3_curve, 0), 0),
+        iif(idle_4 = -1 AND 4 IN _cpus_with_no_dependency, coalesce(cpu4_curve, 0), 0),
+        iif(idle_5 = -1 AND 5 IN _cpus_with_no_dependency, coalesce(cpu5_curve, 0), 0),
+        iif(idle_6 = -1 AND 6 IN _cpus_with_no_dependency, coalesce(cpu6_curve, 0), 0),
+        iif(idle_7 = -1 AND 7 IN _cpus_with_no_dependency, coalesce(cpu7_curve, 0), 0)
+      ) AS dependency_max
     FROM _w_independent_cpus_calc, _skip_devfreq_for_calc
   )
 SELECT
-  ts,
-  dur,
-  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  cpu0_curve,
-  cpu1_curve,
-  cpu2_curve,
-  cpu3_curve,
-  cpu4_curve,
-  cpu5_curve,
-  cpu6_curve,
-  cpu7_curve,
-  l3_hit_count,
-  l3_miss_count,
-  no_static,
-  all_cpu_deep_idle,
-  CASE max_static_vote
-    WHEN -1
-    THEN _get_min_freq_vote()
-    WHEN static_4
-    THEN freq_4
-    WHEN static_5
-    THEN freq_5
-    WHEN static_6
-    THEN freq_6
-    WHEN static_7
-    THEN freq_7
-    ELSE 400000
-  END AS dependent_freq,
-  CASE max_static_vote
-    WHEN -1
-    THEN _get_min_policy_vote()
-    WHEN static_4
-    THEN policy_4
-    WHEN static_5
-    THEN policy_5
-    WHEN static_6
-    THEN policy_6
-    WHEN static_7
-    THEN policy_7
-    ELSE 4
-  END AS dependent_policy
-FROM max_power_tbl;
+  d.ts,
+  d.dur,
+  d.freq_0,
+  d.idle_0,
+  d.freq_1,
+  d.idle_1,
+  d.freq_2,
+  d.idle_2,
+  d.freq_3,
+  d.idle_3,
+  d.cpu0_curve,
+  d.cpu1_curve,
+  d.cpu2_curve,
+  d.cpu3_curve,
+  d.cpu4_curve,
+  d.cpu5_curve,
+  d.cpu6_curve,
+  d.cpu7_curve,
+  d.l3_hit_count,
+  d.l3_miss_count,
+  d.no_static,
+  d.all_cpu_deep_idle,
+  d.freq_1d_static,
+  d.freq_2d_static,
+  -- If dependency_max is 0, dependent CPUs are not active, so use the minimum
+  -- freq/voltage vote
+  iif(d.dependency_max = 0, m.min_dependency, d.dependency_max) AS dependency
+FROM dependency_calculate AS d, _min_active_curve_value_for_dependency AS m;

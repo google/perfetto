@@ -192,63 +192,50 @@ TAB: <code>perf</code> profiles on Linux
 TAB: <code>simpleperf</code> profiles on Android
 
 On Android, `simpleperf` is used for CPU profiling. The necessary Python scripts
-(`app_profiler.py`, `gecko_profile_generator.py`) can be obtained by cloning
-them directly from the Android Open Source Project (AOSP).
+(`app_profiler.py`, `gecko_profile_generator.py`) can be obtained by downloading
+them directly from the Android Open Source Project (AOSP) using git. You will also
+need the NDK.
 
-1.  **Clone the `simpleperf` scripts from AOSP:** This command performs a
-    shallow clone of the `platform/system/extras` repository, which contains
-    `simpleperf` and its scripts. This helps to minimize the download size.
-
+1.  **Download the `simpleperf` scripts:**
     ```bash
     git clone https://android.googlesource.com/platform/system/extras --depth=1
     ```
 
-    After cloning, the scripts will be located in the `extras/simpleperf/`
-    subdirectory (e.g., `./extras/simpleperf/app_profiler.py`). **Note:** This
-    method provides the scripts. You will also need a compatible `simpleperf`
-    binary. This binary is typically available on your Android device (if it
-    supports profiling) and `app_profiler.py` will attempt to use it. Ensure any
-    Python dependencies for the scripts are also met in your host environment.
+    After cloning, the scripts will be located in the `extras/simpleperf/scripts` subdirectory.
+    Note: this method provides the post-processing scripts, but you will also need a compatible
+    `simpleperf` binary to record the profile. This binary is typically available on your Android
+    device and `app_profiler.py` will find it automatically.
 
-2.  **Record a profile using `app_profiler.py`:** This script automates
-    profiling a specific app.
+2.  **Record a profile using `app_profiler.py`:** This script invokes the recording on-device and
+    puls the profile to the host machine over ADB.
 
     ```bash
-    # Path to the simpleperf directory from your AOSP clone
-    SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
-
     # Replace <your.app.package.name>
-    python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py \
+    python extras/simpleperf/scripts/app_profiler.py \
         --app <your.app.package.name> \
         -r "-g --duration 10" \
-        -o ./simpleperf_output
+        -o perf.data
     ```
 
-    - This command profiles the specified app for 10 seconds with DWARF call
-      graphs (`-g`).
-    - It saves `perf.data` and a `binary_cache` (for symbols) into the
-      `./simpleperf_output` directory on your host machine.
-    - For more details, run
-      `python ${SIMPLEPERF_SCRIPT_DIR}/app_profiler.py --help` and consult the
-      [Simpleperf documentation](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md).
+    - This command profiles the specified app for 10 seconds with DWARF call graphs (`-g`).
+    - It writes `perf.data` and a `binary_cache/` (for symbols).
+    - For more details, see the [simpleperf
+      documentation](https://android.googlesource.com/platform/system/extras/+/refs/heads/main/simpleperf/doc/README.md)).
 
 3.  **Convert `simpleperf` data to Firefox Profiler JSON:** Use the
     `gecko_profile_generator.py` script from the same AOSP checkout.
       ```bash
-      # Path to the simpleperf directory from your AOSP clone
-      SIMPLEPERF_SCRIPT_DIR=./extras/simpleperf
-
-      python ${SIMPLEPERF_SCRIPT_DIR}/gecko_profile_generator.py \
-          -i ./simpleperf_output/perf.data \
-          --symfs ./simpleperf_output/binary_cache \
-          -o my_android_profile.json
+      python extras/simpleperf/scripts/gecko_profile_generator.py \
+          --symfs binary_cache \
+          -i perf.data \
+          > gecko_profile.json
       ```
 
-    * This converts the `simpleperf` data, using symbols from the `binary_cache`, into the Firefox Profiler JSON format.
+    * This converts the `simpleperf` data, using symbols from the `binary_cache`, into the Firefox
+      Profiler JSON format.
 
 4. **Open this trace in ui.perfetto.dev**
-
-    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `my_android_profile.json`
+    Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) and upload the `gecko_profile.json`
     file into the UI. Once the trace opens, you should be able select either individual
     CPU samples or ranges of time containing CPU samples to get a flamegraph of all
     the samples in that region.
@@ -271,13 +258,11 @@ Other methods (less common for Perfetto import scenarios):
 - **Documentation on the format (can be technical):**
   - [Gecko Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/gecko-profile-format.md)
   - [Processed Profile Format (GitHub)](https://github.com/firefox-devtools/profiler/blob/main/docs-developer/processed-profile-format.md)
-- **Linux `perf` Tool:**
+- **Linux `perf` tool:**
   [perf Wiki](https://perf.wiki.kernel.org/index.php/Main_Page),
   [man page](https://man7.org/linux/man-pages/man1/perf.1.html)
-- **Android `simpleperf` (AOSP):** Source and documentation can be found within
-  the `platform/system/extras` repository in AOSP.
-- **Android `simpleperf` Documentation (overview):**
-  [Simpleperf Introduction (Android GoogleSource)](https://android.googlesource.com/platform/system/extras/+/master/simpleperf/README.md)
+- **Android `simpleperf` tool:**
+  [Simpleperf usage](https://android.googlesource.com/platform/system/extras/+/refs/heads/main/simpleperf/doc/README.md)
 
 ## Android systrace format
 

@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 
@@ -34,7 +34,8 @@ namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
-class FuchsiaTraceParser : public FuchsiaRecordParser {
+class FuchsiaTraceParser
+    : public TraceSorter::Sink<FuchsiaRecord, FuchsiaTraceParser> {
  public:
   explicit FuchsiaTraceParser(TraceProcessorContext*);
   ~FuchsiaTraceParser() override;
@@ -49,7 +50,7 @@ class FuchsiaTraceParser : public FuchsiaRecordParser {
     std::optional<tables::ThreadStateTable::RowNumber> last_state_row;
   };
 
-  void ParseFuchsiaRecord(int64_t timestamp, FuchsiaRecord fr) override;
+  void Parse(int64_t timestamp, FuchsiaRecord fr);
 
   // Allocates or returns an existing Thread instance for the given tid.
   Thread& GetThread(uint64_t tid) {
