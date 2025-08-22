@@ -149,7 +149,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            className: 'pf-visible-on-hover',
+            className: 'pf-visible-on-hover pf-grid-cell__menu-button',
             icon: Icons.ContextMenuAlt,
             rounded: true,
           }),
@@ -303,13 +303,13 @@ export function renderSortMenuItems(
   return [
     sorted !== 'DESC' &&
       m(MenuItem, {
-        label: 'Sort DESC',
+        label: 'Sort: highest first',
         icon: Icons.SortedDesc,
         onclick: () => sort('DESC'),
       }),
     sorted !== 'ASC' &&
       m(MenuItem, {
-        label: 'Sort ASC',
+        label: 'Sort: lowest first',
         icon: Icons.SortedAsc,
         onclick: () => sort('ASC'),
       }),
