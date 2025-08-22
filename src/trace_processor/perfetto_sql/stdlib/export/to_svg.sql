@@ -522,7 +522,7 @@ RETURNS Expr AS
   SELECT
     tp.svg_group_key,
     tp.track_group_key,
-    '<text x="5" y="15" font-size="11" fill="#333">' || _escape_xml(CAST(label_text AS STRING)) || '</text>' || '<g transform="translate(0,20)">' || coalesce(
+    '<text x="5" y="15" font-size="11" fill="#333">' || _escape_xml(cast_string!(label_text)) || '</text>' || '<g transform="translate(0,20)">' || coalesce(
       (
         SELECT
           GROUP_CONCAT(
