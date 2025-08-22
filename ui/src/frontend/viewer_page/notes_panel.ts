@@ -115,13 +115,9 @@ export class NotesPanel {
           onclick: (e: Event) => {
             e.preventDefault();
             if (allCollapsed) {
-              this.trace.commands.runCommand(
-                'perfetto.CoreCommands#ExpandAllGroups',
-              );
+              this.trace.commands.runCommand('dev.perfetto.ExpandAllGroups');
             } else {
-              this.trace.commands.runCommand(
-                'perfetto.CoreCommands#CollapseAllGroups',
-              );
+              this.trace.commands.runCommand('dev.perfetto.CollapseAllGroups');
             }
           },
           title: allCollapsed ? 'Expand all' : 'Collapse all',

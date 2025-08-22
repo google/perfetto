@@ -17,15 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_FEATURES_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_FEATURES_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <limits>
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 
 namespace perfetto ::trace_processor {
@@ -124,7 +126,9 @@ struct SimpleperfMetaInfo {
 base::Status ParseSimpleperfFile2(TraceBlobView,
                                   std::function<void(TraceBlobView)> cb);
 
-base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView blob);
+base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView);
+
+base::StatusOr<std::string> ParseOsRelease(TraceBlobView);
 
 }  // namespace perf_importer::feature
 

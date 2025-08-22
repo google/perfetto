@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
     });
 
     trace.commands.registerCommand({
-      id: 'perfetto.SetTemporarySpanNote',
+      id: 'dev.perfetto.SetTemporarySpanNote',
       name: 'Set the temporary span note based on the current selection',
       callback: () => {
         const range = trace.selection.getTimeSpanOfSelection();
@@ -56,7 +56,7 @@ export default class implements PerfettoPlugin {
     });
 
     trace.commands.registerCommand({
-      id: 'perfetto.AddSpanNote',
+      id: 'dev.perfetto.AddSpanNote',
       name: 'Add a new span note based on the current selection',
       callback: () => {
         const range = trace.selection.getTimeSpanOfSelection();
@@ -71,7 +71,7 @@ export default class implements PerfettoPlugin {
     });
 
     trace.commands.registerCommand({
-      id: 'perfetto.RemoveSelectedNote',
+      id: 'dev.perfetto.RemoveSelectedNote',
       name: 'Remove selected note',
       callback: () => {
         const selection = trace.selection.selection;

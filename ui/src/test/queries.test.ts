@@ -39,13 +39,19 @@ test('omnibox query', async () => {
   await pth.waitForPerfettoIdle();
   await omnibox.press('Enter');
 
-  await pth.waitForIdleAndScreenshot('query mode.png');
+  await pth.waitForIdleAndScreenshot('query mode.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   page.locator('.pf-data-grid').getByText('17806091326279').click();
-  await pth.waitForIdleAndScreenshot('row 1 clicked.png');
+  await pth.waitForIdleAndScreenshot('row 1 clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   page.locator('.pf-data-grid').getByText('17806092405136').click();
-  await pth.waitForIdleAndScreenshot('row 2 clicked.png');
+  await pth.waitForIdleAndScreenshot('row 2 clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   // Clear the omnibox
   await omnibox.selectText();
@@ -68,7 +74,9 @@ test('query page', async () => {
     await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
     await textbox.press('ControlOrMeta+Enter');
     await textbox.blur();
-    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`);
+    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
+      mask: [page.locator('.pf-data-grid__toolbar')],
+    });
   }
 
   // Now test the query history.

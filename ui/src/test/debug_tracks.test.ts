@@ -45,17 +45,23 @@ test('debug tracks', async () => {
   await page.keyboard.type('debug track'); // The track name
   await page.keyboard.press('Enter');
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug track added.png');
+  await pth.waitForIdleAndScreenshot('debug track added.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   // Click on a slice on the debug track.
   await page.mouse.click(590, 180);
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug slice clicked.png');
+  await pth.waitForIdleAndScreenshot('debug slice clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   // Close the debug track.
   await pth.locateTrack('debug track').getByText('close').first().click();
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug track removed.png');
+  await pth.waitForIdleAndScreenshot('debug track removed.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 });
 
 test('debug tracks pivot', async () => {
@@ -75,6 +81,7 @@ test('debug tracks pivot', async () => {
   await page.keyboard.press('Enter');
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('debug track pivot.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
     clip: {
       x: (await pth.sidebarSize()).width,
       y: 180,

@@ -63,8 +63,7 @@ import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {SplitPanel} from '../../widgets/split_panel';
-import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
+import {SplitPanel, Tab} from '../../widgets/split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {MultiselectInput} from '../../widgets/multiselect_input';
@@ -1694,53 +1693,35 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
 
       m(WidgetShowcase, {
         label: 'SplitPanel',
-        description: `Horizontal split panel with draggable handle and controls.`,
+        description: `Resizeable split panel with optional tabs.`,
         renderWidget: (opts) => {
           return m(
             '',
-            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            {
+              style: {
+                height: '400px',
+                width: '400px',
+                border: 'solid 2px gray',
+              },
+            },
             m(
               SplitPanel,
               {
-                drawerContent: 'Drawer Content',
-                handleContent: Boolean(opts.handleContent) && 'Handle Content',
-              },
-              'Main Content',
-            ),
-          );
-        },
-        initialOpts: {
-          handleContent: false,
-        },
-      }),
-
-      m(WidgetShowcase, {
-        label: 'TabbedSplitPanel',
-        description: `SplitPanel + tabs.`,
-        renderWidget: (opts) => {
-          return m(
-            '',
-            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
-            m(
-              TabbedSplitPanel,
-              {
-                leftHandleContent:
-                  Boolean(opts.leftContent) &&
-                  m(Button, {icon: 'Menu', compact: true}),
-                tabs: [
-                  {
-                    key: 'foo',
-                    title: 'Foo',
-                    content: 'Foo content',
-                    hasCloseButton: opts.showCloseButtons,
-                  },
-                  {
-                    key: 'bar',
-                    title: 'Bar',
-                    content: 'Bar content',
-                    hasCloseButton: opts.showCloseButtons,
-                  },
+                leftHandleContent: [
+                  Boolean(opts.leftContent) && m(Button, {icon: 'Menu'}),
                 ],
+                drawerContent: 'Drawer Content',
+                tabs:
+                  Boolean(opts.tabs) &&
+                  m(
+                    '.pf-split-panel__tabs',
+                    m(
+                      Tab,
+                      {active: true, hasCloseButton: opts.showCloseButtons},
+                      'Foo',
+                    ),
+                    m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
+                  ),
               },
               'Main Content',
             ),
@@ -1748,6 +1729,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
         initialOpts: {
           leftContent: true,
+          tabs: true,
           showCloseButtons: true,
         },
       }),

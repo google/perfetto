@@ -356,7 +356,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       return undefined;
     }
 
-    return m(Box, {spacing: 'small'}, [
+    return m(Box, {className: 'pf-data-grid__toolbar', spacing: 'small'}, [
       m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
         toolbarItemsLeft,
         showResetButton &&

@@ -68,17 +68,17 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace) {
     ctx.commands.registerCommand({
-      id: `dev.perfetto.SplitScreen#enableTimelineSync`,
+      id: `dev.perfetto.EnableTimelineSync`,
       name: 'Enable timeline sync with other Perfetto UI tabs',
       callback: () => this.showTimelineSyncDialog(),
     });
     ctx.commands.registerCommand({
-      id: `dev.perfetto.SplitScreen#disableTimelineSync`,
+      id: `dev.perfetto.DisableTimelineSync`,
       name: 'Disable timeline sync',
       callback: () => this.disableTimelineSync(this._sessionId),
     });
     ctx.commands.registerCommand({
-      id: `dev.perfetto.SplitScreen#toggleTimelineSync`,
+      id: `dev.perfetto.ToggleTimelineSync`,
       name: 'Toggle timeline sync with other PerfettoUI tabs',
       callback: () => this.toggleTimelineSync(),
       defaultHotkey: 'Mod+Alt+S',

@@ -31,7 +31,7 @@ It consists of:
 ## Why would you use Perfetto?
 
 Perfetto was designed from the ground up to act as the default tracing system
-for the Android OS and the Chrome Browser. As such, Perfetto is the offficially
+for the Android OS and the Chrome Browser. As such, Perfetto is officially
 supported for collecting, analysing and visualizing:
 
 - **System traces on Android** to debug and root-cause functional and

@@ -62,7 +62,9 @@
 #include "src/trace_processor/importers/perf/sample_id.h"
 #include "src/trace_processor/importers/perf/time_conv_record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
@@ -435,6 +437,15 @@ PerfDataTokenizer::ParseFeatures() {
 base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
                                              TraceBlobView data) {
   switch (feature_id) {
+    case feature::ID_OS_RELEASE: {
+      ASSIGN_OR_RETURN(std::string os_release,
+                       feature::ParseOsRelease(std::move(data)));
+      context_->metadata_tracker->SetMetadata(
+          metadata::system_release,
+          Variadic::String(context_->storage->InternString(os_release)));
+      return base::OkStatus();
+    }
+
     case feature::ID_CMD_LINE: {
       ASSIGN_OR_RETURN(std::vector<std::string> args,
                        feature::ParseCmdline(std::move(data)));

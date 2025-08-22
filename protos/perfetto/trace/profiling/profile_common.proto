@@ -103,6 +103,18 @@ message Mapping {
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
+
+  // Libunwindstack-specific concept, not to be confused with bionic linker's
+  // notion of load_bias. Needed to correct relative pc addresses (as produced
+  // by libunwindstack) when doing offline resymbolisation.
+  //
+  // For an executable ELF PT_LOAD segment, this is:
+  //   p_vaddr - p_offset
+  //
+  // Where p_offset means that the code is at that offset into the ELF file on
+  // disk. While p_vaddr is the offset at which the code gets *mapped*, relative
+  // to where the linker loads the ELF into the address space. For most ELFs,
+  // the two values are identical and therefore load_bias is zero.
   optional uint64 load_bias = 6;
 
   // E.g. ["system", "lib64", "libc.so"]

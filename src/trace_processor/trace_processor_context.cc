@@ -145,6 +145,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->forked_context_state =
       Ptr<TraceProcessorContext::ForkedContextState>::MakeRoot();
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
+  context->track_group_idx_state =
+      Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->register_additional_proto_modules = nullptr;
 
   // Per-Trace State (Miscategorized).
@@ -168,6 +170,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->descriptor_pool_ = source->descriptor_pool_.Fork();
   dest->forked_context_state = source->forked_context_state.Fork();
   dest->clock_converter = source->clock_converter.Fork();
+  dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
 

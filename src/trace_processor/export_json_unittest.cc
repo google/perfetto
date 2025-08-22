@@ -99,6 +99,8 @@ class ExportJsonTest : public ::testing::Test {
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(context_.storage.get()));
     context_.track_compressor.reset(new TrackCompressor(&context_));
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,

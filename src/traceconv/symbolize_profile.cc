@@ -39,7 +39,7 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
   std::unique_ptr<profiling::Symbolizer> symbolizer;
   const char* breakpad_dir = getenv("BREAKPAD_SYMBOL_DIR");
   if (breakpad_dir == nullptr) {
-    symbolizer = profiling::LocalSymbolizerOrDie(
+    symbolizer = profiling::MaybeLocalSymbolizer(
         profiling::GetPerfettoBinaryPath(), getenv("PERFETTO_SYMBOLIZER_MODE"));
   } else {
     symbolizer.reset(new profiling::BreakpadSymbolizer(breakpad_dir));

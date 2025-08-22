@@ -19,11 +19,18 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fnv_hash.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 

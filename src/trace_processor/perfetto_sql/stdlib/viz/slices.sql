@@ -25,7 +25,13 @@ CREATE PERFETTO MACRO _viz_slice_ancestor_agg(
 RETURNS TableOrSubquery
 AS
 (
-  SELECT id, parent_id AS parentId, name, self_dur, self_count
+  SELECT
+    id,
+    parent_id AS parentId,
+    name,
+    self_dur,
+    self_count,
+    1 AS simple_count
   FROM _graph_aggregating_scan!(
     (
       SELECT id AS source_node_id, parent_id AS dest_node_id

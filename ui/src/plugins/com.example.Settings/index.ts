@@ -40,7 +40,7 @@ export default class implements PerfettoPlugin {
 
     // Write it like this (e.g. from a command)
     app.commands.registerCommand({
-      id: 'com.example.Settings#toggleBooleanSetting',
+      id: 'com.example.ToggleBooleanSetting',
       name: 'Toggle Boolean Setting',
       callback: () => {
         // Toggle the boolean setting

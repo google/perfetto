@@ -90,4 +90,10 @@ export interface SettingsManager {
    * @returns True if a reload is required, false otherwise.
    */
   isReloadRequired(): boolean;
+
+  /**
+   * Get the a setting by its ID.
+   * @param id The unique identifier of the setting.
+   */
+  get<T>(id: string): Setting<T> | undefined;
 }

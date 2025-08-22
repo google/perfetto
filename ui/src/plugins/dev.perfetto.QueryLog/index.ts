@@ -26,7 +26,7 @@ export default class implements PerfettoPlugin {
     const tabUri = `${trace.pluginId}#QueryLogTab`;
 
     trace.commands.registerCommand({
-      id: `${trace.pluginId}#ShowQueryLogTab`,
+      id: `dev.perfetto.ShowQueryLogTab`,
       name: 'Show query log tab',
       callback: () => {
         trace.tabs.showTab(tabUri);

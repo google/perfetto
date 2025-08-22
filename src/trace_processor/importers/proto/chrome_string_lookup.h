@@ -36,10 +36,8 @@ class ChromeStringLookup {
   StringId GetThreadName(int32_t thread_type) const;
 
  private:
-  std::map<int32_t /* ChromeProcessDescriptor::ProcessType */, StringId>
-      chrome_process_name_ids_;
-  std::map<int32_t /* ChromeThreadDescriptor::ThreadType */, StringId>
-      chrome_thread_name_ids_;
+  std::map<int32_t /* ProcessType */, StringId> chrome_process_name_ids_;
+  std::map<int32_t /* ThreadType */, StringId> chrome_thread_name_ids_;
 };
 
 }  // namespace trace_processor

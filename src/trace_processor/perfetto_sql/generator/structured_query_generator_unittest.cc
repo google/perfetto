@@ -277,6 +277,31 @@ TEST(StructuredQueryGeneratorTest, SqlSourceWithMultistatement) {
               UnorderedElementsAre("SELECT 1; SELECT 2;; "));
 }
 
+TEST(StructuredQueryGeneratorTest, SqlSourceWithMultistatementWithSemicolon) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "; ;SELECT 1; SELECT 2;; SELECT id, ts, dur FROM slice;"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT id, ts, dur FROM slice)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+  ASSERT_THAT(gen.ComputePreambles(),
+              UnorderedElementsAre("SELECT 1; SELECT 2;; "));
+}
+
 TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(

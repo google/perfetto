@@ -96,8 +96,14 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
           if not line.startswith(' D')
       ]
 
+      # Find the merge-base between merge_base and HEAD to avoid picking up
+      # other changes if merge_base has moved on.
+      merge_base_result = run_command(['git', 'merge-base', merge_base, 'HEAD'])
+      merge_base_commit = merge_base_result.stdout.strip()
+
       diff_result = run_command([
-          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base, 'HEAD'
+          'git', 'diff', '--name-only', '--diff-filter=crd', merge_base_commit,
+          'HEAD'
       ])
       diff_files = diff_result.stdout.splitlines()
 

@@ -47,15 +47,31 @@ class ProcessTrackerTest : public ::testing::Test {
   TraceProcessorContext context;
 };
 
-TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
+TEST_F(ProcessTrackerTest, GetOrCreateProcess) {
   auto upid = context.process_tracker->GetOrCreateProcess(123);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(123).has_value());
+}
+
+TEST_F(ProcessTrackerTest, GetOrCreateProcessWithoutMainThread) {
+  auto upid = context.process_tracker->GetOrCreateProcessWithoutMainThread(123);
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
 }
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
   auto upid = context.process_tracker->StartNewProcess(
       1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(123).has_value());
+  ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+}
+
+TEST_F(ProcessTrackerTest, StartNewProcessWithoutMainThread) {
+  auto upid = context.process_tracker->StartNewProcessWithoutMainThread(
+      1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
   ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
 }
 
@@ -66,14 +82,16 @@ TEST_F(ProcessTrackerTest, UpdateProcessWithParent) {
   UniquePid pupid2 = context.process_tracker->GetOrCreateProcess(234);
   UniquePid upid = context.process_tracker->GetOrCreateProcess(345);
 
-  cur_upid = context.process_tracker->UpdateProcessWithParent(upid, pupid1);
+  cur_upid =
+      context.process_tracker->UpdateProcessWithParent(upid, pupid1, true);
   cur_pupid = context.storage->process_table()[cur_upid].parent_upid();
 
   ASSERT_EQ(upid, cur_upid);
   ASSERT_EQ(pupid1, *cur_pupid);
 
   // Must create new process
-  cur_upid = context.process_tracker->UpdateProcessWithParent(upid, pupid2);
+  cur_upid =
+      context.process_tracker->UpdateProcessWithParent(upid, pupid2, true);
   cur_pupid = context.storage->process_table()[cur_upid].parent_upid();
 
   ASSERT_NE(upid, cur_upid);

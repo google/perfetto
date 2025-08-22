@@ -86,7 +86,7 @@ class MappingTracker {
 
   std::vector<VirtualMemoryMapping*> FindMappings(
       base::StringView name,
-      const BuildId& build_id) const;
+      const std::optional<BuildId>& build_id) const;
 
   // Marks a range of memory as containing jitted code.
   // If the added region overlaps with other existing ranges the latter are all

@@ -22,5 +22,5 @@
 // These constants exist just to make the dependency evident at code
 // search time, rather than copy-pasting the string in two places.
 
-export const CRITICAL_PATH_CMD = 'perfetto.CriticalPath';
-export const CRITICAL_PATH_LITE_CMD = 'perfetto.CriticalPathLite';
+export const CRITICAL_PATH_CMD = 'dev.perfetto.CriticalPath';
+export const CRITICAL_PATH_LITE_CMD = 'dev.perfetto.CriticalPathLite';

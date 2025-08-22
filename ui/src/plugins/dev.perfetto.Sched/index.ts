@@ -80,7 +80,7 @@ export default class implements PerfettoPlugin {
     this.addSchedulingSummaryTracks(ctx);
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.Sched#SelectAllThreadStateTracks',
+      id: 'dev.perfetto.SelectAllThreadStateTracks',
       name: 'Select all thread state tracks',
       callback: () => {
         const tracks = ctx.tracks

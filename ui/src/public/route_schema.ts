@@ -66,6 +66,9 @@ export const ROUTE_SCHEMA = z
     query: z.string().optional().catch(undefined),
     visStart: z.string().optional().catch(undefined),
     visEnd: z.string().optional().catch(undefined),
+
+    // Startup commands to execute on trace load (JSON-encoded array)
+    startupCommands: z.string().optional().catch(undefined),
   })
 
   // Allow arbitrary values to pass through, these may be forwarded to plugins.

@@ -664,7 +664,8 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
-    upid = context_->process_tracker->UpdateProcessWithParent(upid, pupid);
+    upid =
+        context_->process_tracker->UpdateProcessWithParent(upid, pupid, true);
 
     context_->process_tracker->SetProcessMetadata(upid, argv0, joined_cmdline);
 

@@ -20,15 +20,12 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
 
 namespace chrome_enums = ::perfetto::protos::chrome_enums::pbzero;
-using ChromeThreadDescriptor =
-    ::perfetto::protos::pbzero::ChromeThreadDescriptor;
 
 class ChromeStringLookupTest : public ::testing::Test {
  protected:
@@ -45,7 +42,7 @@ TEST_F(ChromeStringLookupTest, UnspecifiedStrings) {
   ChromeStringLookup strings(&storage_);
   EXPECT_EQ(strings.GetProcessName(chrome_enums::PROCESS_UNSPECIFIED),
             kNullStringId);
-  EXPECT_EQ(strings.GetThreadName(ChromeThreadDescriptor::THREAD_UNSPECIFIED),
+  EXPECT_EQ(strings.GetThreadName(chrome_enums::THREAD_UNSPECIFIED),
             kNullStringId);
 }
 
@@ -54,9 +51,9 @@ TEST_F(ChromeStringLookupTest, PredefinedStrings) {
   EXPECT_STREQ(
       LookupString(strings.GetProcessName(chrome_enums::PROCESS_BROWSER)),
       "Browser");
-  EXPECT_STREQ(LookupString(strings.GetThreadName(
-                   ChromeThreadDescriptor::THREAD_BROWSER_MAIN)),
-               "CrBrowserMain");
+  EXPECT_STREQ(
+      LookupString(strings.GetThreadName(chrome_enums::THREAD_BROWSER_MAIN)),
+      "CrBrowserMain");
 }
 
 TEST_F(ChromeStringLookupTest, GeneratedStrings) {
@@ -65,9 +62,9 @@ TEST_F(ChromeStringLookupTest, GeneratedStrings) {
   EXPECT_STREQ(
       LookupString(strings.GetProcessName(chrome_enums::PROCESS_BROWSER)),
       "PROCESS_BROWSER");
-  EXPECT_STREQ(LookupString(strings.GetThreadName(
-                   ChromeThreadDescriptor::THREAD_BROWSER_MAIN)),
-               "THREAD_BROWSER_MAIN");
+  EXPECT_STREQ(
+      LookupString(strings.GetThreadName(chrome_enums::THREAD_BROWSER_MAIN)),
+      "THREAD_BROWSER_MAIN");
 }
 
 TEST_F(ChromeStringLookupTest, UnknownStrings) {
@@ -76,16 +73,10 @@ TEST_F(ChromeStringLookupTest, UnknownStrings) {
             kNullStringId);
   EXPECT_EQ(strings.GetProcessName(chrome_enums::ProcessType_MAX + 1),
             kNullStringId);
-  EXPECT_EQ(
-      strings.GetThreadName(
-          ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MIN -
-          1),
-      kNullStringId);
-  EXPECT_EQ(
-      strings.GetThreadName(
-          ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MAX +
-          1),
-      kNullStringId);
+  EXPECT_EQ(strings.GetThreadName(chrome_enums::ThreadType_MIN - 1),
+            kNullStringId);
+  EXPECT_EQ(strings.GetThreadName(chrome_enums::ThreadType_MAX + 1),
+            kNullStringId);
 }
 
 }  // namespace

@@ -25,14 +25,12 @@ import {
   renderCell,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode} from '../query_node';
-import {Intent} from '../../../widgets/common';
-import {AggregationsOperator} from './operations/aggregations';
 import {QueryService} from './query_service';
 
 import {findErrors} from './query_builder_utils';
@@ -56,8 +54,6 @@ export interface DataExplorerAttrs {
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
-  private showAggregationCard: boolean = false;
-
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     const errors = findErrors(attrs.query, attrs.response);
     const statusText = this.getStatusText(attrs.query, attrs.response);
@@ -130,7 +126,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       return m(TextParagraph, {text: message});
     }
 
-    if (attrs.response && attrs.dataSource) {
+    if (attrs.response && attrs.dataSource && attrs.node.validate()) {
       const warning =
         attrs.response.statementWithOutputCount > 1
           ? m(
@@ -142,32 +138,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             )
           : null;
 
-      const maybeAggregateButton =
-        attrs.isFullScreen &&
-        m(
-          '.pf-ndv-floating-button',
-          m(Button, {
-            intent: Intent.Primary,
-            variant: ButtonVariant.Filled,
-            label: 'Aggregate',
-            onclick: () => {
-              this.showAggregationCard = !this.showAggregationCard;
-            },
-          }),
-        );
-
-      const maybeAggregationCard =
-        this.showAggregationCard &&
-        m(
-          '.pf-ndv-floating-card',
-          m(AggregationsOperator, {
-            groupByColumns: attrs.node.state.groupByColumns,
-            aggregations: attrs.node.state.aggregations,
-          }),
-        );
-
-      const hasAggregations = (attrs.node.state.aggregations?.length ?? 0) > 0;
-
       return [
         warning,
         m(DataGrid, {
@@ -176,18 +146,14 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           data: attrs.dataSource,
           showFiltersInToolbar: true,
           filters: attrs.node.state.filters,
-          onFiltersChanged: hasAggregations
-            ? undefined
-            : (filters: ReadonlyArray<FilterDefinition>) => {
-                attrs.node.state.filters = [...filters];
-                attrs.onchange?.();
-              },
+          onFiltersChanged: (filters: ReadonlyArray<FilterDefinition>) => {
+            attrs.node.state.filters = [...filters];
+            attrs.onchange?.();
+          },
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);
           },
         }),
-        maybeAggregateButton,
-        maybeAggregationCard,
       ];
     }
     return null;

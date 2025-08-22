@@ -14,7 +14,7 @@
 
 import {QueryResponse} from '../../../components/query_table/queries';
 import {Query, QueryNode} from '../query_node';
-import {SqlSourceNode} from './sources/sql_source';
+import {SqlSourceNode} from './nodes/sources/sql_source';
 
 export function findErrors(
   query?: Query | Error,

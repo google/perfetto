@@ -15,6 +15,7 @@ cc_library_shared {
   header_libs: ["jni_headers"],
   static_libs: [
     "perfetto_cts_jni_deps",
+    "perfetto_flags_c_lib",
     "libperfetto_client_experimental",
   ],
   shared_libs: [

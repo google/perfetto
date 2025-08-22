@@ -187,7 +187,8 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
               ctx_->process_tracker->GetOrCreateProcess(ppid.value());
           UniquePid upid =
               ctx_->process_tracker->GetOrCreateProcess(pid.value());
-          upid = ctx_->process_tracker->UpdateProcessWithParent(upid, pupid);
+          upid =
+              ctx_->process_tracker->UpdateProcessWithParent(upid, pupid, true);
           ctx_->process_tracker->SetProcessMetadata(upid, name,
                                                     base::StringView());
         } else if (state_ == ParseState::kProcessDumpShort &&

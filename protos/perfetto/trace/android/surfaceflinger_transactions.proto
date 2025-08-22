@@ -180,6 +180,8 @@ message LayerState {
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
     eSystemContentPriorityChanged = 0x00020000;
+    eBoxShadowSettingsChanged = 0x00040000;
+    eBorderSettingsChanged = 0x00080000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -322,6 +324,10 @@ message LayerState {
   optional CornerRadii client_drawn_corner_radii = 46;
 
   optional int32 system_content_priority = 47;
+
+  optional BoxShadowSettings box_shadow_settings = 48;
+
+  optional BorderSettings border_settings = 49;
 }
 
 message DisplayState {

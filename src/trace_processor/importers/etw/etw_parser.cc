@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/etw/etw_parser.h"
+
 #include <cstdint>
 #include <limits>
 
@@ -27,6 +28,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -42,6 +45,7 @@ namespace {
 using protozero::ConstBytes;
 
 }  // namespace
+
 EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
@@ -57,6 +61,10 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
   if (decoder.has_ready_thread()) {
     ParseReadyThread(ts, decoder.thread_id(), decoder.ready_thread());
+  }
+
+  if (decoder.has_mem_info()) {
+    ParseMemInfo(ts, decoder.mem_info());
   }
 
   return base::OkStatus();
@@ -87,6 +95,104 @@ void EtwParser::ParseReadyThread(int64_t timestamp,
       context_->process_tracker->GetOrCreateThread(waker_tid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
       timestamp, wakee_utid, waker_utid);
+}
+
+void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::MemInfoEtwEvent::Decoder meminfo(blob);
+  static constexpr auto kEtwMeminfoBlueprint = tracks::CounterBlueprint(
+      "etw_meminfo", tracks::StaticUnitBlueprint("pages"),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("counter_type")),
+      tracks::FnNameBlueprint([](base::StringView type) {
+        return base::StackString<255>("%.*s Page Count", int(type.size()),
+                                      type.data());
+      }));
+
+  TrackId zero_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Zero"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.zero_page_count()),
+      zero_page_count_track_id);
+
+  TrackId free_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Free"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.free_page_count()),
+      free_page_count_track_id);
+
+  TrackId modified_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Modified"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.modified_page_count()),
+      modified_page_count_track_id);
+
+  TrackId modified_no_write_page_count_track_id =
+      context_->track_tracker->InternTrack(
+          kEtwMeminfoBlueprint, tracks::Dimensions("ModifiedNoWrite"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.modified_no_write_page_count()),
+      modified_no_write_page_count_track_id);
+
+  TrackId bad_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Bad"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.bad_page_count()),
+      bad_page_count_track_id);
+
+  TrackId modified_page_count_page_file_track_id =
+      context_->track_tracker->InternTrack(
+          kEtwMeminfoBlueprint, tracks::Dimensions("ModifiedPageFile"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.modified_page_count_page_file()),
+      modified_page_count_page_file_track_id);
+
+  TrackId paged_pool_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("PagedPool"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.paged_pool_page_count()),
+      paged_pool_page_count_track_id);
+
+  TrackId non_paged_pool_page_count_track_id =
+      context_->track_tracker->InternTrack(kEtwMeminfoBlueprint,
+                                           tracks::Dimensions("NonPagedPool"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.non_paged_pool_page_count()),
+      non_paged_pool_page_count_track_id);
+
+  TrackId mdl_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Mdl"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.mdl_page_count()),
+      mdl_page_count_track_id);
+
+  TrackId commit_page_count_track_id = context_->track_tracker->InternTrack(
+      kEtwMeminfoBlueprint, tracks::Dimensions("Commit"));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(meminfo.commit_page_count()),
+      commit_page_count_track_id);
+
+  auto standby_page_count_iterator = meminfo.standby_page_counts();
+  for (int i = 0; standby_page_count_iterator;
+       ++i, ++standby_page_count_iterator) {
+    const std::string name = "Standby Pri-" + std::to_string(i);
+    TrackId standby_page_count_track_id = context_->track_tracker->InternTrack(
+        kEtwMeminfoBlueprint, tracks::Dimensions(base::StringView(name)));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(*standby_page_count_iterator),
+        standby_page_count_track_id);
+  }
+
+  auto repurposed_page_count_iterator = meminfo.repurposed_page_counts();
+  for (int i = 0; repurposed_page_count_iterator;
+       ++i, ++repurposed_page_count_iterator) {
+    const std::string name = "Repurposed Pri-" + std::to_string(i);
+    TrackId repurposed_page_count_track_id =
+        context_->track_tracker->InternTrack(
+            kEtwMeminfoBlueprint, tracks::Dimensions(base::StringView(name)));
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(*repurposed_page_count_iterator),
+        repurposed_page_count_track_id);
+  }
 }
 
 void EtwParser::PushSchedSwitch(uint32_t cpu,

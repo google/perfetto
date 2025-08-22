@@ -22,7 +22,7 @@ export default class implements PerfettoPlugin {
 
   static onActivate(ctx: App): void {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.Chaos#CrashNow',
+      id: 'dev.perfetto.CrashNow',
       name: 'Chaos: crash now',
       callback: () => {
         throw new Error('Manual crash from dev.perfetto.Chaos#CrashNow');
@@ -32,7 +32,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.Chaos#CrashNowQuery',
+      id: 'dev.perfetto.CrashNowQuery',
       name: 'Chaos: run crashing query',
       callback: () => {
         ctx.engine.query(`this is a
@@ -47,7 +47,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.Chaos#AddCrashingDebugTrack',
+      id: 'dev.perfetto.AddCrashingDebugTrack',
       name: 'Chaos: add crashing debug track',
       callback: () => {
         addDebugSliceTrack({

@@ -349,7 +349,7 @@ export class CpuFreqTrack implements TrackRenderer {
     }
 
     // Draw CPU idle rectangles that overlay the CPU freq graph.
-    ctx.fillStyle = `rgba(240, 240, 240, 1)`;
+    ctx.fillStyle = `rgba(128,128,128, 0.2)`;
     {
       for (let i = startIdx; i < endIdx; i++) {
         if (data.lastIdleValues[i] < 0) {
@@ -370,6 +370,7 @@ export class CpuFreqTrack implements TrackRenderer {
         const width = xEnd - x;
         const height = calculateY(data.lastFreqKHz[i]) - zeroY;
 
+        ctx.clearRect(x, zeroY, width, height);
         ctx.fillRect(x, zeroY, width, height);
       }
     }

@@ -25,6 +25,12 @@ import {
 import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {featureFlags} from '../../core/feature_flags';
+import {z} from 'zod';
+import {JsonSettingsEditor} from '../../components/json_settings_editor';
+import {
+  commandInvocationSchema,
+  validateCommandInvocations,
+} from '../../core/command_manager';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -115,12 +121,57 @@ export default class implements PerfettoPlugin {
   static onActivate(ctx: App) {
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
-        id: 'perfetto.CoreCommands#ToggleLeftSidebar',
+        id: 'dev.perfetto.ToggleLeftSidebar',
         name: 'Toggle left sidebar',
         callback: () => {
           ctx.sidebar.toggleVisibility();
         },
         defaultHotkey: '!Mod+B',
+      });
+    }
+
+    // Use shared commandInvocationSchema where 'id' is the command's unique identifier
+    const macroSchema = z.record(z.array(commandInvocationSchema));
+    type MacroConfig = z.infer<typeof macroSchema>;
+    const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
+      schema: macroSchema,
+      validator: (data: MacroConfig): string | undefined => {
+        const macroErrors: string[] = [];
+        for (const [macroName, commands] of Object.entries(data)) {
+          const invalidCommands = validateCommandInvocations(
+            commands,
+            ctx.commands,
+          );
+          if (invalidCommands.length > 0) {
+            macroErrors.push(
+              `Macro "${macroName}" has unknown commands:\n${invalidCommands.map((cmd) => `  - ${cmd}`).join('\n')}`,
+            );
+          }
+        }
+        return macroErrors.length > 0 ? macroErrors.join('\n\n') : undefined;
+      },
+    });
+    const setting = ctx.settings.register({
+      id: 'perfetto.CoreCommands#UserDefinedMacros',
+      name: 'Macros',
+      description:
+        'Custom command macros that execute multiple commands in sequence',
+      schema: macroSchema,
+      defaultValue: {},
+      requiresReload: true,
+      render: (setting) => macroSettingsEditor.render(setting),
+    });
+
+    const macros = setting.get() as MacroConfig;
+    for (const [macroName, commands] of Object.entries(macros)) {
+      ctx.commands.registerCommand({
+        id: `dev.perfetto.UserMacro.${macroName}`,
+        name: macroName,
+        callback: () => {
+          for (const command of commands) {
+            ctx.commands.runCommand(command.id, ...command.args);
+          }
+        },
       });
     }
 
@@ -131,7 +182,7 @@ export default class implements PerfettoPlugin {
     input.addEventListener('change', onInputElementFileSelectionChanged);
     document.body.appendChild(input);
 
-    const OPEN_TRACE_COMMAND_ID = 'perfetto.CoreCommands#openTrace';
+    const OPEN_TRACE_COMMAND_ID = 'dev.perfetto.OpenTrace';
     ctx.commands.registerCommand({
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
@@ -147,7 +198,7 @@ export default class implements PerfettoPlugin {
       icon: 'folder_open',
     });
 
-    const OPEN_LEGACY_COMMAND_ID = 'perfetto.CoreCommands#openTraceInLegacyUi';
+    const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
     ctx.commands.registerCommand({
       id: OPEN_LEGACY_COMMAND_ID,
       name: 'Open with legacy UI',
@@ -165,7 +216,7 @@ export default class implements PerfettoPlugin {
     }
 
     ctx.commands.registerCommand({
-      id: 'perfetto.closeTrace',
+      id: 'dev.perfetto.CloseTrace',
       name: 'Close trace',
       callback: () => {
         ctx.closeCurrentTrace();
@@ -175,7 +226,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryAllProcesses',
+      id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -186,7 +237,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryCpuTimeByProcess',
+      id: 'dev.perfetto.RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -197,7 +248,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
+      id: 'dev.perfetto.RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -208,7 +259,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
+      id: 'dev.perfetto.RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -219,7 +270,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
+      id: 'dev.perfetto.RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -230,7 +281,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#DebugSqlPerformance',
+      id: 'dev.perfetto.DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -241,7 +292,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#UnpinAllTracks',
+      id: 'dev.perfetto.UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
         const workspace = ctx.workspace;
@@ -250,7 +301,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#ExpandAllGroups',
+      id: 'dev.perfetto.ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => track.expand());
@@ -258,7 +309,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#CollapseAllGroups',
+      id: 'dev.perfetto.CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => track.collapse());
@@ -266,7 +317,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#PanToTimestamp',
+      id: 'dev.perfetto.PanToTimestamp',
       name: 'Pan to timestamp',
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
@@ -277,7 +328,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#MarkTimestamp',
+      id: 'dev.perfetto.MarkTimestamp',
       name: 'Mark timestamp',
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
@@ -290,7 +341,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#ShowCurrentSelectionTab',
+      id: 'dev.perfetto.ShowCurrentSelectionTab',
       name: 'Show current selection tab',
       callback: () => {
         ctx.tabs.showTab('current_selection');

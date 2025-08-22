@@ -142,6 +142,11 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: 'Diskstat',
   },
   {
+    type: 'etw_meminfo',
+    topLevelGroup: 'MEMORY',
+    group: 'ETW Memory Counters',
+  },
+  {
     type: 'f2fs_iostat_latency',
     topLevelGroup: 'IO',
     group: 'F2FS IOStat Latency',

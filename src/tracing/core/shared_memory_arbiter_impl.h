@@ -25,6 +25,7 @@
 #include <mutex>
 #include <vector>
 
+#include "perfetto/ext/base/rt_mutex.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -237,9 +238,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  void BindStartupTargetBufferImpl(std::unique_lock<std::mutex> scoped_lock,
-                                   uint16_t target_buffer_reservation_id,
-                                   BufferID target_buffer_id);
+  void BindStartupTargetBufferImpl(
+      std::unique_lock<base::MaybeRtMutex> scoped_lock,
+      uint16_t target_buffer_reservation_id,
+      BufferID target_buffer_id);
 
   // Returns some statistics about chunks/pages in the shared memory buffer.
   struct Stats {
@@ -277,7 +279,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   // --- Begin lock-protected members ---
 
-  std::mutex lock_;
+  base::MaybeRtMutex lock_;
 
   base::TaskRunner* task_runner_ = nullptr;
   SharedMemoryABI shmem_abi_;

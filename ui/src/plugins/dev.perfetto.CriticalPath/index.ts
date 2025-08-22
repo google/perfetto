@@ -237,7 +237,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalPathLite_AreaSelection',
+      id: 'dev.perfetto.CriticalPathLite_AreaSelection',
       name: 'Critical path lite (over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
@@ -280,7 +280,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalPath_AreaSelection',
+      id: 'dev.perfetto.CriticalPath_AreaSelection',
       name: 'Critical path  (over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
@@ -315,7 +315,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalPathPprof_AreaSelection',
+      id: 'dev.perfetto.CriticalPathPprof_AreaSelection',
       name: 'Critical path pprof (over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);

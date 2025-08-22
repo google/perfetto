@@ -34,7 +34,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.commands.registerCommand({
-      id: 'perfetto.OpenSqlModulesTable',
+      id: 'dev.perfetto.OpenSqlModulesTable',
       name: 'Open table...',
       callback: async () => {
         if (!globSqlModules) {

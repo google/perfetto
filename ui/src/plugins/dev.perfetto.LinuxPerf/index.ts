@@ -96,7 +96,7 @@ export default class implements PerfettoPlugin {
     // Add a command to select all the perf samples in the trace - it selects
     // the entirety of each process scoped perf sample track.
     trace.commands.registerCommand({
-      id: 'dev.perfetto.LinuxPerf#SelectAllPerfSamples',
+      id: 'dev.perfetto.SelectAllPerfSamples',
       name: 'Select all perf samples',
       callback: () => {
         trace.selection.selectArea({

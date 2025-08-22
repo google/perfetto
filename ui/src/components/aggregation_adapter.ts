@@ -238,11 +238,17 @@ export function createAggregationTab(
         currentSelection === undefined ||
         !areaSelectionsEqual(selection, currentSelection)
       ) {
+        // Every time the selection changes, probe the aggregator to see if it
+        // supports this selection.
         currentSelection = selection;
         aggregation = aggregator.probe(selection);
 
         // Kick off a new load of the data
         limiter.schedule(async () => {
+          // Clear previous data to prevent queries against a stale or partially
+          // updated table/view while `prepareData` is running.
+          dataSource = undefined;
+          barChartData = undefined;
           if (aggregation) {
             const data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource(trace.engine, data.tableName);

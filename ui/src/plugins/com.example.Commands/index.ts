@@ -25,14 +25,14 @@ export default class implements PerfettoPlugin {
   static onActivate(app: App): void {
     // Register a command that logs "Hello, world!" to the console.
     app.commands.registerCommand({
-      id: 'com.example.Commands#LogHelloWorld',
+      id: 'com.example.LogHelloWorld',
       name: 'Log "Hello, world!"',
       callback: () => console.log('Hello, world!'),
     });
 
     // Register a command which can be triggered using a hotkey.
     app.commands.registerCommand({
-      id: 'com.example.Commands#CommandWithHotkey',
+      id: 'com.example.CommandWithHotkey',
       name: 'Log "Hello, world!" with hotkey',
       callback: () => console.log('Hello, world!'),
       defaultHotkey: 'Mod+Shift+H',
@@ -44,7 +44,7 @@ export default class implements PerfettoPlugin {
     // is only available when a trace is loaded. It'll automatically be removed
     // when the trace is closed, or a new trace is loaded.
     trace.commands.registerCommand({
-      id: 'com.example.Commands#LogHelloTrace',
+      id: 'com.example.LogHelloTrace',
       name: 'Log "Hello, trace!"',
       callback: () => console.log('Hello, trace!'),
     });

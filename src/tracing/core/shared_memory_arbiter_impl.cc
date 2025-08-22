@@ -123,7 +123,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // could be rewritten leveraging only the Try* atomic operations in
     // SharedMemoryABI. But let's not be too adventurous for the moment.
     {
-      std::unique_lock<std::mutex> scoped_lock(lock_);
+      std::unique_lock<base::MaybeRtMutex> scoped_lock(lock_);
 
       // If ever unbound, we do not support stalling. In theory, we could
       // support stalling for TraceWriters created after the arbiter and startup
@@ -280,7 +280,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
   uint32_t flush_delay_ms = 0;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
-    std::unique_lock<std::mutex> scoped_lock(lock_);
+    std::unique_lock<base::MaybeRtMutex> scoped_lock(lock_);
 
     if (!commit_data_req_) {
       commit_data_req_.reset(new CommitDataRequest());
@@ -423,7 +423,7 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
           if (!weak_this)
             return;
           {
-            std::lock_guard<std::mutex> scoped_lock(weak_this->lock_);
+            std::lock_guard<base::MaybeRtMutex> scoped_lock(weak_this->lock_);
             // Clear |delayed_flush_scheduled_|, allowing the next call to
             // UpdateCommitDataRequest to start another batching period.
             weak_this->delayed_flush_scheduled_ = false;
@@ -506,12 +506,12 @@ bool SharedMemoryArbiterImpl::TryDirectPatchLocked(
 
 void SharedMemoryArbiterImpl::SetBatchCommitsDuration(
     uint32_t batch_commits_duration_ms) {
-  std::lock_guard<std::mutex> scoped_lock(lock_);
+  std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
   batch_commits_duration_ms_ = batch_commits_duration_ms;
 }
 
 bool SharedMemoryArbiterImpl::EnableDirectSMBPatching() {
-  std::lock_guard<std::mutex> scoped_lock(lock_);
+  std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
   if (!direct_patching_supported_by_service_) {
     return false;
   }
@@ -520,7 +520,7 @@ bool SharedMemoryArbiterImpl::EnableDirectSMBPatching() {
 }
 
 void SharedMemoryArbiterImpl::SetDirectSMBPatchingSupportedByService() {
-  std::lock_guard<std::mutex> scoped_lock(lock_);
+  std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
   direct_patching_supported_by_service_ = true;
 }
 
@@ -537,7 +537,7 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     std::function<void()> callback) {
   std::unique_ptr<CommitDataRequest> req;
   {
-    std::unique_lock<std::mutex> scoped_lock(lock_);
+    std::unique_lock<base::MaybeRtMutex> scoped_lock(lock_);
 
     // Flushing is only supported while |fully_bound_|, and there may still be
     // unbound startup trace writers. If so, skip the commit for now - it'll be
@@ -623,7 +623,7 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
 }
 
 bool SharedMemoryArbiterImpl::TryShutdown() {
-  std::lock_guard<std::mutex> scoped_lock(lock_);
+  std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
   did_shutdown_ = true;
   // Shutdown is safe if there are no active trace writers for this arbiter.
   return active_writer_ids_.IsEmpty();
@@ -652,7 +652,7 @@ void SharedMemoryArbiterImpl::BindToProducerEndpoint(
   bool should_flush = false;
   std::function<void()> flush_callback;
   {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
+    std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
     PERFETTO_CHECK(!fully_bound_);
     PERFETTO_CHECK(!producer_endpoint_ && !task_runner_);
 
@@ -691,7 +691,7 @@ void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
     BufferID target_buffer_id) {
   PERFETTO_DCHECK(target_buffer_id > 0);
 
-  std::unique_lock<std::mutex> scoped_lock(lock_);
+  std::unique_lock<base::MaybeRtMutex> scoped_lock(lock_);
 
   // We should already be bound to an endpoint.
   PERFETTO_CHECK(producer_endpoint_);
@@ -704,7 +704,7 @@ void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
 
 void SharedMemoryArbiterImpl::AbortStartupTracingForReservation(
     uint16_t target_buffer_reservation_id) {
-  std::unique_lock<std::mutex> scoped_lock(lock_);
+  std::unique_lock<base::MaybeRtMutex> scoped_lock(lock_);
 
   // If we are already bound to an arbiter, we may need to flush after aborting
   // the session, and thus should be running on the arbiter's task runner.
@@ -733,7 +733,7 @@ void SharedMemoryArbiterImpl::AbortStartupTracingForReservation(
 }
 
 void SharedMemoryArbiterImpl::BindStartupTargetBufferImpl(
-    std::unique_lock<std::mutex> scoped_lock,
+    std::unique_lock<base::MaybeRtMutex> scoped_lock,
     uint16_t target_buffer_reservation_id,
     BufferID target_buffer_id) {
   // We should already be bound to an endpoint if the target buffer is valid.
@@ -794,7 +794,7 @@ void SharedMemoryArbiterImpl::BindStartupTargetBufferImpl(
 }
 
 SharedMemoryArbiterImpl::Stats SharedMemoryArbiterImpl::GetStats() {
-  std::lock_guard<std::mutex> scoped_lock(lock_);
+  std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
   Stats res;
 
   for (size_t page_idx = 0; page_idx < shmem_abi_.num_pages(); page_idx++) {
@@ -850,7 +850,7 @@ void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
   base::TaskRunner* task_runner_to_commit_on = nullptr;
 
   {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
+    std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
     // If a commit_data_req_ exists it means that somebody else already posted a
     // FlushPendingCommitDataRequests() task.
     if (!commit_data_req_) {
@@ -886,7 +886,7 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
   base::TaskRunner* task_runner_to_register_on = nullptr;
 
   {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
+    std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
     if (did_shutdown_)
       return std::unique_ptr<TraceWriter>(new NullTraceWriter());
 
@@ -949,7 +949,7 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   base::TaskRunner* task_runner = nullptr;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
+    std::lock_guard<base::MaybeRtMutex> scoped_lock(lock_);
     active_writer_ids_.Free(id);
 
     auto it = pending_writers_.find(id);

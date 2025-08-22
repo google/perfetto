@@ -92,3 +92,18 @@ enum TrustedOverlay {
   DISABLED = 1;
   ENABLED = 2;
 };
+message BoxShadowSettings {
+  message BoxShadowParams {
+    optional float blur_radius = 1;
+    optional float spread_radius = 2;
+    optional int32 color = 3;
+    optional float offset_x = 4;
+    optional float offset_y = 5;
+  }
+  repeated BoxShadowParams box_shadows = 1;
+}
+
+message BorderSettings {
+  optional float stroke_width = 1;
+  optional int32 color = 2;
+}

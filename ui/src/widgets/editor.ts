@@ -42,6 +42,9 @@ export interface EditorAttrs extends HTMLAttrs {
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
 
+  // Callback for the Ctrl/Cmd + S key binding.
+  onSave?: () => void;
+
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
 }
@@ -57,6 +60,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
+    const onSave = attrs.onSave;
     const onUpdate = attrs.onUpdate;
 
     if (onExecute) {
@@ -76,6 +80,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
             text = selectedText;
           }
           onExecute(text);
+          m.redraw();
+          return true;
+        },
+      });
+    }
+
+    if (onSave) {
+      keymaps.push({
+        key: 'Mod-s',
+        run: (_view: EditorView) => {
+          onSave();
           m.redraw();
           return true;
         },

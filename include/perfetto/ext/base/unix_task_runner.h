@@ -23,6 +23,7 @@
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/event_fd.h"
+#include "perfetto/ext/base/rt_mutex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 
@@ -107,7 +108,7 @@ class UnixTaskRunner : public TaskRunner {
   std::vector<struct pollfd> poll_fds_;
 #endif
 
-  std::mutex lock_;
+  base::MaybeRtMutex lock_;
 
   std::deque<std::function<void()>> immediate_tasks_ PERFETTO_GUARDED_BY(lock_);
   std::multimap<TimeMillis, std::function<void()>> delayed_tasks_
