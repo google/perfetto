@@ -106,7 +106,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     position: 'after',
   };
 
-  view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
+  view({attrs, children, key}: m.Vnode<GridHeaderCellAttrs>) {
     const {
       sort,
       onSort,
@@ -174,12 +174,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         ),
         ondragstart: (e: MithrilEvent<DragEvent>) => {
           e.redraw = false;
-          e.dataTransfer!.setData(
-            reorderable!.handle,
-            JSON.stringify({
-              key: attrs.key,
-            }),
-          );
+          e.dataTransfer!.setData(reorderable!.handle, JSON.stringify({key}));
         },
         ondragenter: (e: MithrilEvent<DragEvent>) => {
           if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
