@@ -514,6 +514,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
           if (!parent_resolved_track->is_root()) {
             set_parent_id(id);
           }
+          return id;
         }
         auto [type, key] = GetMergeKey(*reservation, translated_name);
         return context_->track_compressor->CreateTrackFactory(
