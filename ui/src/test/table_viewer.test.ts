@@ -213,11 +213,9 @@ test('Go to sched', async () => {
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Filter out idle.
-  await clickCellContextMenu('swapper');
-  await pth.clickMenuItem('Add filter');
   await clickCellContextMenu('120');
   await pth.clickMenuItem('Add filter');
-  await pth.clickMenuItem('not equals');
+  await pth.clickMenuItem('not equals to');
   await pth.waitForIdleAndScreenshot(`filtered.png`);
 
   // Go to the first slice.
