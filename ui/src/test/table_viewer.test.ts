@@ -20,7 +20,6 @@ test.describe.configure({mode: 'parallel'});
 let pth: PerfettoTestHelper;
 let page: Page;
 
-
 // Locate the header cell with the given column name.
 function locateHeaderCells(headerName?: string | RegExp): Locator {
   return page.locator('.pf-grid th', {hasText: headerName});
@@ -28,12 +27,9 @@ function locateHeaderCells(headerName?: string | RegExp): Locator {
 
 // Locate the data cells, optionally filtered by text.
 function locateDataCells(text?: string | RegExp): Locator {
-  return page.locator(
-    '.pf-grid td',
-    {
-      hasText: text,
-    },
-  );
+  return page.locator('.pf-grid td', {
+    hasText: text,
+  });
 }
 
 // Given a cell (header or data), hover over it and click the context menu
@@ -41,7 +37,7 @@ function locateDataCells(text?: string | RegExp): Locator {
 async function clickContextMenu(cell: Locator) {
   // Hover over the cell to reveal the menu button
   await cell.hover();
-  
+
   // Click the button to open the context menu
   cell.locator('.pf-grid-cell__menu-button').click();
 }
