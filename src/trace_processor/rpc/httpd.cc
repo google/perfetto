@@ -58,11 +58,14 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(std::unique_ptr<TraceProcessor>, bool is_preloaded_eof);
+  explicit Httpd(std::unique_ptr<TraceProcessor>,
+                 bool is_preloaded_eof,
+                 size_t timeout_mins);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
-           const std::vector<std::string>& additional_cors_origins);
+           const std::vector<std::string>& additional_cors_origins,
+           size_t timeout_mins);
 
  private:
   // HttpRequestHandler implementation.
@@ -74,10 +77,12 @@ class Httpd : public base::HttpRequestHandler {
   static std::string ExtractUuidFromMessage(base::StringView data);
   bool isUuidHandshake(base::StringView data);
   void registerConnection(base::HttpServerConnection* conn, std::string uuid);
+  void cleanUpInactiveInstances();
 
   struct UuidRpcThread {
    public:
     explicit UuidRpcThread(base::HttpServerConnection* conn) : conn_(conn) {
+      last_accessed_ns_ = static_cast<uint64_t>(base::GetWallTimeNs().count());
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
         base::UnixTaskRunner task_runner;
@@ -116,6 +121,7 @@ class Httpd : public base::HttpRequestHandler {
 
     void OnWebsocketMessage(const base::WebsocketMessage& msg) {
       // Queue the message to be processed on the worker thread
+      last_accessed_ns_ = static_cast<uint64_t>(base::GetWallTimeNs().count());
       std::unique_lock<std::mutex> lock(init_mutex_);
       init_cv_.wait(lock, [this] { return initialized_; });
 
@@ -130,10 +136,14 @@ class Httpd : public base::HttpRequestHandler {
 
     void reregisterConnection(base::HttpServerConnection* conn) {
       conn_ = conn;
+      last_accessed_ns_ = static_cast<uint64_t>(base::GetWallTimeNs().count());
       rpc_->SetRpcResponseFunction([this](const void* data, uint32_t len) {
         SendRpcChunk(conn_, data, len);
       });
     }
+
+    // Get the last accessed time in nanoseconds
+    uint64_t GetLastAccessedNs() const { return last_accessed_ns_.load(); }
 
    private:
     std::thread rpc_thread_;            // Dedicated thread
@@ -146,6 +156,7 @@ class Httpd : public base::HttpRequestHandler {
     std::mutex init_mutex_;
     std::condition_variable init_cv_;
     bool initialized_ = false;
+    std::atomic<uint64_t> last_accessed_ns_;
   };
 
   // legacy rpc endpoints for older uis that don't have the rpc map
@@ -156,6 +167,7 @@ class Httpd : public base::HttpRequestHandler {
   std::unordered_map<std::string, std::unique_ptr<UuidRpcThread>>
       uuid_to_tp_map;
   std::unordered_map<base::HttpServerConnection*, std::string> conn_to_uuid_map;
+  size_t tp_timeout_mins_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -184,15 +196,18 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 }
 
 Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
-             bool is_preloaded_eof)
+             bool is_preloaded_eof,
+             size_t timeout_mins)
     : global_trace_processor_rpc_(std::move(preloaded_instance),
                                   is_preloaded_eof),
-      http_srv_(&task_runner_, this) {}
+      http_srv_(&task_runner_, this),
+      tp_timeout_mins_(timeout_mins) {}
 Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
                 int port,
-                const std::vector<std::string>& additional_cors_origins) {
+                const std::vector<std::string>& additional_cors_origins,
+                size_t timeout_mins) {
   for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
   }
@@ -205,6 +220,29 @@ void Httpd::Run(const std::string& listen_ip,
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+
+  if (timeout_mins > 0) {
+    PERFETTO_ILOG("RPC timeout enabled: %zu minutes", timeout_mins);
+  } else {
+    PERFETTO_ILOG("RPC timeout disabled (timeout_mins = 0)");
+  }
+
+  // Create cleanup task using shared_ptr for proper capture
+  auto cleanup_task = std::make_shared<std::function<void()>>();
+  *cleanup_task = [this, cleanup_task]() {
+    cleanUpInactiveInstances();
+    if (tp_timeout_mins_ > 0) {
+      task_runner_.PostDelayedTask(
+          *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * 60 * 1000));
+    }
+  };
+
+  // Initial scheduling only if timeout is enabled
+  if (tp_timeout_mins_ > 0) {
+    task_runner_.PostDelayedTask(
+        *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * 60 * 1000));
+  }
+
   task_runner_.Run();
 }
 
@@ -430,18 +468,59 @@ std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
   return "";  // Empty means use global processor
 }
 
+void Httpd::cleanUpInactiveInstances() {
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+
+  if (tp_timeout_mins_ == 0) {
+    // Timeout disabled
+    return;
+  }
+
+  uint64_t kInactivityNs =
+      static_cast<uint64_t>(tp_timeout_mins_) * 60 * 1000000000ULL;
+  uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
+
+  auto it = uuid_to_tp_map.begin();
+  while (it != uuid_to_tp_map.end()) {
+    uint64_t last_accessed = it->second->GetLastAccessedNs();
+
+    if (now - last_accessed > kInactivityNs) {
+      PERFETTO_ILOG(
+          "Cleaning up inactive RPC instance: %s (inactive for %.1f minutes)",
+          it->first.c_str(),
+          static_cast<double>(now - last_accessed) / (60.0 * 1000000000.0));
+
+      // Remove from conn_to_uuid_map as well
+      for (auto conn_it = conn_to_uuid_map.begin();
+           conn_it != conn_to_uuid_map.end();) {
+        if (conn_it->second == it->first) {
+          conn_it = conn_to_uuid_map.erase(conn_it);
+        } else {
+          ++conn_it;
+        }
+      }
+
+      // Remove the UuidRpcThread
+      it = uuid_to_tp_map.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 }  // namespace
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       bool is_preloaded_eof,
                       const std::string& listen_ip,
                       const std::string& port_number,
-                      const std::vector<std::string>& additional_cors_origins) {
-  Httpd srv(std::move(preloaded_instance), is_preloaded_eof);
+                      const std::vector<std::string>& additional_cors_origins,
+                      size_t timeout_mins) {
+  Httpd srv(std::move(preloaded_instance), is_preloaded_eof, timeout_mins);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, additional_cors_origins);
+  srv.Run(ip, port, additional_cors_origins, timeout_mins);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
