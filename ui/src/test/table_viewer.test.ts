@@ -197,6 +197,9 @@ test('Go to thread_state', async () => {
 });
 
 test('Go to sched', async () => {
+  // This test can take a little longer
+  test.setTimeout(60_000);
+
   // Open Android trace with kernel scheduling data.
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 
