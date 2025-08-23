@@ -36,6 +36,7 @@ import {TableColumn} from '../widgets/sql/table/table_column';
 import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
+import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {Stack} from '../../widgets/stack';
 
@@ -82,10 +83,15 @@ class LegacySqlTableTab implements Tab {
     | {
         kind: 'bar_chart';
         state: SqlBarChartState;
+      }
+    | {
+        kind: 'histogram';
+        state: SqlHistogramState;
       };
 
   private pivots: PivotTableState[] = [];
   private bar_charts: SqlBarChartState[] = [];
+  private histograms: SqlHistogramState[] = [];
 
   private getTableButtons() {
     const range = this.state.getDisplayedRange();
@@ -198,12 +204,28 @@ class LegacySqlTableTab implements Tab {
           this.bar_charts.push(state);
         },
       }),
+      m(MenuItem, {
+        label: 'Add histogram',
+        onclick: () => {
+          const state = new SqlHistogramState({
+            trace: this.state.trace,
+            sqlSource: this.state.config.name,
+            column: column.column,
+            filters: this.state.filters,
+          });
+          this.selected = {
+            kind: 'histogram',
+            state,
+          };
+          this.histograms.push(state);
+        },
+      }),
     ];
   }
 
   render() {
     const showViewButtons =
-      this.pivots.length > 0 || this.bar_charts.length > 0;
+      this.pivots.length > 0 || this.bar_charts.length > 0 || this.histograms.length > 0;
     const hasFilters = this.state.filters.get().length > 0;
 
     return m(
@@ -293,6 +315,8 @@ class LegacySqlTableTab implements Tab {
             }),
           this.selected.kind === 'bar_chart' &&
             m(SqlBarChart, {state: this.selected.state}),
+          this.selected.kind === 'histogram' &&
+            m(SqlHistogram, {state: this.selected.state}),
         ]),
       ]),
     );
