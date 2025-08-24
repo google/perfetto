@@ -215,6 +215,7 @@ message V8InternalCode {
     TYPE_JS_TO_WASM_FUNCTION = 7;
     TYPE_JS_TO_JS_FUNCTION = 8;
     TYPE_C_WASM_ENTRY = 9;
+    TYPE_WASM_STACK_ENTRY = 10;
   }
   optional uint64 v8_isolate_iid = 1;
   optional uint32 tid = 2;

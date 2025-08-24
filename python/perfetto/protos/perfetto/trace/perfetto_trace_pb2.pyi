@@ -16479,6 +16479,7 @@ class V8InternalCode(_message.Message):
     TYPE_JS_TO_WASM_FUNCTION: V8InternalCode.Type
     TYPE_UNKNOWN: V8InternalCode.Type
     TYPE_WASM_FUNCTION: V8InternalCode.Type
+    TYPE_WASM_STACK_ENTRY: V8InternalCode.Type
     TYPE_WASM_TO_CAPI_FUNCTION: V8InternalCode.Type
     TYPE_WASM_TO_JS_FUNCTION: V8InternalCode.Type
     V8_ISOLATE_IID_FIELD_NUMBER: _ClassVar[int]
