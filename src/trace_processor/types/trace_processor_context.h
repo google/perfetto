@@ -182,6 +182,7 @@ class TraceProcessorContext {
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
+  PerMachinePtr<StackProfileTracker> stack_profile_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================
@@ -198,7 +199,6 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
-  PerTraceAndMachinePtr<StackProfileTracker> stack_profile_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
