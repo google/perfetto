@@ -227,6 +227,41 @@ Try the following examples:
 
 You must take care to correctly escape strings where needed.
 
+## Configuring the UI with startup commands
+
+Beyond controlling the initial view and selection, you can also automatically
+configure the UI itself when a trace opens by embedding startup commands in the
+URL. This is particularly useful for dashboard integration where you want to
+provide users with a pre-configured analysis environment.
+
+**Adding startup commands via URL**:
+
+Pass startup commands in the `startupCommands` parameter as a URL-encoded JSON
+array. The commands execute automatically after the trace loads, allowing you to
+pin tracks, create debug tracks, or run any other UI automation.
+
+```js
+// Example: Pin CPU tracks and create a debug track
+const commands = [
+  {id: 'dev.perfetto.PinTracksByRegex', args: ['.*CPU [0-3].*']},
+  {
+    id: 'dev.perfetto.AddDebugSliceTrack',
+    args: [
+      "SELECT ts, dur as value FROM slice WHERE name LIKE '%render%'",
+      'Render Operations',
+    ],
+  },
+];
+
+const url = `https://ui.perfetto.dev/#!/?startupCommands=${encodeURIComponent(
+  JSON.stringify(commands),
+)}`;
+```
+
+The startup commands use the same JSON format as described in the
+[UI automation documentation](/docs/visualization/perfetto-ui.md#startup-commands),
+but must be URL-encoded when passed as a parameter.
+
 ## Source links
 
 The source code that deals with the postMessage() in the Perfetto UI is

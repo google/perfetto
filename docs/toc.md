@@ -26,6 +26,7 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md)
+    - [UI Automation](visualization/ui-automation-cookbook.md)
 
   - [Case Studies](#)
 
