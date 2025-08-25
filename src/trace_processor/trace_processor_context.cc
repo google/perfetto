@@ -67,7 +67,6 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context) {
       Ptr<ProcessTrackTranslationTable>::MakeRoot(context->storage.get());
   context->event_tracker = Ptr<EventTracker>::MakeRoot(context);
   context->sched_event_tracker = Ptr<SchedEventTracker>::MakeRoot(context);
-  context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
   context->args_translation_table =
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
 
@@ -84,6 +83,7 @@ void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
   context->clock_tracker = Ptr<ClockTracker>::MakeRoot(context);
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
+  context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
 }
 
 void CopyPerMachineState(const TraceProcessorContext* source,
@@ -94,6 +94,7 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->clock_tracker = source->clock_tracker.Fork();
   dest->mapping_tracker = source->mapping_tracker.Fork();
   dest->cpu_tracker = source->cpu_tracker.Fork();
+  dest->stack_profile_tracker = source->stack_profile_tracker.Fork();
 }
 
 void InitPerTraceState(TraceProcessorContext* context, uint32_t raw_trace_id) {

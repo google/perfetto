@@ -13064,7 +13064,7 @@ class PositionProto(_message.Message):
     def __init__(self, x: _Optional[float] = ..., y: _Optional[float] = ...) -> None: ...
 
 class PowerRails(_message.Message):
-    __slots__ = ["energy_data", "rail_descriptor"]
+    __slots__ = ["energy_data", "rail_descriptor", "session_uuid"]
     class EnergyData(_message.Message):
         __slots__ = ["energy", "index", "timestamp_ms"]
         ENERGY_FIELD_NUMBER: _ClassVar[int]
@@ -13087,9 +13087,11 @@ class PowerRails(_message.Message):
         def __init__(self, index: _Optional[int] = ..., rail_name: _Optional[str] = ..., subsys_name: _Optional[str] = ..., sampling_rate: _Optional[int] = ...) -> None: ...
     ENERGY_DATA_FIELD_NUMBER: _ClassVar[int]
     RAIL_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
+    SESSION_UUID_FIELD_NUMBER: _ClassVar[int]
     energy_data: _containers.RepeatedCompositeFieldContainer[PowerRails.EnergyData]
     rail_descriptor: _containers.RepeatedCompositeFieldContainer[PowerRails.RailDescriptor]
-    def __init__(self, rail_descriptor: _Optional[_Iterable[_Union[PowerRails.RailDescriptor, _Mapping]]] = ..., energy_data: _Optional[_Iterable[_Union[PowerRails.EnergyData, _Mapping]]] = ...) -> None: ...
+    session_uuid: int
+    def __init__(self, rail_descriptor: _Optional[_Iterable[_Union[PowerRails.RailDescriptor, _Mapping]]] = ..., energy_data: _Optional[_Iterable[_Union[PowerRails.EnergyData, _Mapping]]] = ..., session_uuid: _Optional[int] = ...) -> None: ...
 
 class PrintFtraceEvent(_message.Message):
     __slots__ = ["buf", "ip"]

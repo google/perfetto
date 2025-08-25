@@ -322,6 +322,7 @@ config("default") {
         "-mbmi2",
         "-mavx2",
         "-mpopcnt",
+        "-mlzcnt",
         "-msse4.2",
       ]
     }
