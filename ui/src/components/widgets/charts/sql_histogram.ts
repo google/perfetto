@@ -15,16 +15,19 @@
 import m from 'mithril';
 import {Trace} from '../../../public/trace';
 import {Filters} from '../sql/table/filters';
-import {SqlColumn, sqlColumnId, SqlExpression} from '../sql/table/sql_column';
+import {SqlColumn, sqlColumnId} from '../sql/table/sql_column';
 import {buildSqlQuery} from '../sql/table/query_builder';
-import {NUM} from '../../../trace_processor/query_result';
+import {NUM, NUM_NULL} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {VegaView} from '../vega_view';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {TopLevelSpec} from 'vega-lite';
 import {AsyncLimiter} from '../../../base/async_limiter';
+import {Callout} from '../../../widgets/callout';
+import {Box} from '../../../widgets/box';
+import {clamp} from '../../../base/math_utils';
 
-interface Data {
+interface HistogramData {
   raw: {
     bin_start: number;
     bin_end: number;
@@ -33,6 +36,12 @@ interface Data {
   min: number;
   max: number;
   binCount: number;
+}
+
+interface Data {
+  histogram?: HistogramData;
+  nullCount: number;
+  nonNumericCount: number;
 }
 
 export class SqlHistogramState {
@@ -45,7 +54,6 @@ export class SqlHistogramState {
       readonly sqlSource: string;
       readonly filters: Filters;
       readonly column: SqlColumn;
-      readonly binCount?: number;
     },
   ) {
     this.reload();
@@ -56,61 +64,7 @@ export class SqlHistogramState {
     this.limiter.schedule(async () => {
       this.data = undefined;
 
-      const binCount = this.args.binCount ?? 20;
-
-      // First, get min/max values
-      const statsQuery = buildSqlQuery({
-        table: this.args.sqlSource,
-        filters: this.args.filters.get(),
-        columns: {
-          min_val: new SqlExpression(
-            (cols: string[]) => `MIN(${cols[0]})`,
-            [this.args.column],
-          ),
-          max_val: new SqlExpression(
-            (cols: string[]) => `MAX(${cols[0]})`,
-            [this.args.column],
-          ),
-          count: new SqlExpression(
-            () => 'COUNT(*)',
-            [],
-          ),
-        },
-      });
-
-      const statsResult = await this.args.trace.engine.query(statsQuery);
-      const statsIt = statsResult.iter({});
-      if (!statsIt.valid()) {
-        this.data = {
-          raw: [],
-          min: 0,
-          max: 0,
-          binCount: 0,
-        };
-        return;
-      }
-
-      const minVal = Number(statsIt.get('min_val') ?? 0);
-      const maxVal = Number(statsIt.get('max_val') ?? 0);
-      const totalCount = Number(statsIt.get('count') ?? 0);
-
-      if (totalCount === 0 || minVal === maxVal) {
-        this.data = {
-          raw: [{
-            bin_start: minVal,
-            bin_end: maxVal,
-            count: totalCount,
-          }],
-          min: minVal,
-          max: maxVal,
-          binCount: 1,
-        };
-        return;
-      }
-
-      const binWidth = (maxVal - minVal) / binCount;
-
-      // Get the data using buildSqlQuery
+      // Get the base data using buildSqlQuery
       const dataQuery = buildSqlQuery({
         table: this.args.sqlSource,
         filters: this.args.filters.get(),
@@ -119,47 +73,115 @@ export class SqlHistogramState {
         },
       });
 
+      // Create stats query using CTEs
+      const statsQuery = `
+        WITH
+        source_data AS (
+          ${dataQuery}
+        ),
+        valid_data AS (
+          SELECT value
+          FROM source_data
+          WHERE typeof(value) IN ('integer', 'real')
+        ),
+        invalid_data AS (
+          SELECT value
+          FROM source_data
+          WHERE typeof(value) NOT IN ('integer', 'real')
+        )
+        SELECT
+          (SELECT MIN(value) FROM valid_data) AS minVal,
+          (SELECT MAX(value) FROM valid_data) AS maxVal,
+          (SELECT COUNT(*) FROM source_data) AS totalCount,
+          (SELECT COUNT(*) FROM valid_data) AS validCount,
+          (SELECT COUNT(*) FROM invalid_data WHERE value IS NULL) AS nullCount,
+          (SELECT COUNT(*) FROM invalid_data WHERE value IS NOT NULL) AS nonNumericCount
+      `;
+
+      const stats = (await this.args.trace.engine.query(statsQuery)).firstRow({
+        minVal: NUM_NULL,
+        maxVal: NUM_NULL,
+        totalCount: NUM,
+        validCount: NUM,
+        nullCount: NUM,
+        nonNumericCount: NUM,
+      })!;
+
+      if (
+        stats.validCount === 0 ||
+        stats.minVal === stats.maxVal ||
+        stats.minVal === null ||
+        stats.maxVal === null
+      ) {
+        this.data = {
+          nullCount: stats.nullCount,
+          nonNumericCount: stats.nonNumericCount,
+        };
+        return;
+      }
+
+      const binCount = (() => {
+        // Calculate bin count using Terrell-Scott rule: k = (2 * n)^(1/3)
+        if (stats.validCount > 0) {
+          return clamp(
+            Math.ceil(Math.pow(2 * stats.validCount, 1 / 3)),
+            5,
+            100,
+          );
+        }
+        return 10;
+      })();
+
+      const binWidth = (stats.maxVal - stats.minVal) / binCount;
+
       // Create histogram query with injected min/max values
       const histogramQuery = `
-        WITH 
+        WITH
         source_data AS (
           ${dataQuery}
         ),
         bins AS (
-          SELECT 
-            CAST((value - ${minVal}) / ${binWidth} AS INT) AS bin_index,
-            ${minVal} + CAST((value - ${minVal}) / ${binWidth} AS INT) * ${binWidth} AS bin_start,
-            ${minVal} + (CAST((value - ${minVal}) / ${binWidth} AS INT) + 1) * ${binWidth} AS bin_end
+          SELECT
+            CAST((value - ${stats.minVal}) / ${binWidth} AS INT) AS bin_index,
+            ${stats.minVal} + CAST((value - ${stats.minVal}) / ${binWidth} AS INT) * ${binWidth} AS bin_start,
+            ${stats.minVal} + (CAST((value - ${stats.minVal}) / ${binWidth} AS INT) + 1) * ${binWidth} AS bin_end
           FROM source_data
           WHERE value IS NOT NULL
+            AND typeof(value) IN ('integer', 'real')
         )
-        SELECT 
-          bin_start,
-          bin_end,
+        SELECT
+          bin_start as binStart,
+          bin_end as binEnd,
           COUNT(*) AS count
         FROM bins
-        GROUP BY bin_index, bin_start, bin_end
-        ORDER BY bin_start
+        GROUP BY bin_index, binStart, binEnd
+        ORDER BY binStart
       `;
 
       const result = await this.args.trace.engine.query(histogramQuery);
 
       const rawData = [];
-      for (let it = result.iter({count: NUM}); it.valid(); it.next()) {
-        const binStart = Number(it.get('bin_start'));
-        const binEnd = Number(it.get('bin_end'));
+      for (
+        let it = result.iter({count: NUM, binStart: NUM, binEnd: NUM});
+        it.valid();
+        it.next()
+      ) {
         rawData.push({
-          bin_start: binStart,
-          bin_end: binEnd,
+          bin_start: it.binStart,
+          bin_end: it.binEnd,
           count: it.count,
         });
       }
 
       this.data = {
-        raw: rawData,
-        min: minVal,
-        max: maxVal,
-        binCount,
+        histogram: {
+          raw: rawData,
+          min: stats.minVal,
+          max: stats.maxVal,
+          binCount,
+        },
+        nullCount: stats.nullCount,
+        nonNumericCount: stats.nonNumericCount,
       };
     });
   }
@@ -177,22 +199,51 @@ export class SqlHistogram implements m.ClassComponent<SqlHistogramAttrs> {
   view({attrs}: m.Vnode<SqlHistogramAttrs>) {
     const data = attrs.state.getData();
     if (data === undefined) return m(Spinner);
-    return m(
-      'figure.pf-chart',
-      m(VegaView, {
-        spec: stringifyJsonWithBigints(this.getVegaSpec(attrs, data)),
-        data: {},
-      }),
-    );
+
+    const warning = (value: string) =>
+      m(Box, [
+        m(
+          Callout,
+          {
+            icon: 'info',
+          },
+          value,
+        ),
+      ]);
+    const pluralise = (value: number) => (value > 1 ? 's' : '');
+    return [
+      data.nullCount > 0 &&
+        warning(
+          `Histogram excludes ${data.nullCount} NULL${pluralise(data.nullCount)}`,
+        ),
+      data.nonNumericCount > 0 &&
+        warning(
+          `Histogram excludes ${data.nonNumericCount} non-numeric value${pluralise(data.nonNumericCount)}`,
+        ),
+      !data.histogram && warning('Nothing to display'),
+      data.histogram &&
+        m(
+          'figure.pf-chart',
+          m(VegaView, {
+            spec: stringifyJsonWithBigints(
+              this.getVegaSpec(attrs, data.histogram),
+            ),
+            data: {},
+          }),
+        ),
+    ];
   }
 
-  getVegaSpec(attrs: SqlHistogramAttrs, data: Data): TopLevelSpec {
+  getVegaSpec(
+    attrs: SqlHistogramAttrs,
+    histogram: HistogramData,
+  ): TopLevelSpec {
     return {
       $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
       width: 'container',
       mark: 'bar',
       data: {
-        values: data.raw,
+        values: histogram.raw,
       },
       encoding: {
         x: {
@@ -201,7 +252,10 @@ export class SqlHistogram implements m.ClassComponent<SqlHistogramAttrs> {
           title: sqlColumnId(attrs.state.args.column),
           bin: {
             binned: true,
-            step: data.raw.length > 0 ? data.raw[0].bin_end - data.raw[0].bin_start : 1,
+            step:
+              histogram.raw.length > 0
+                ? histogram.raw[0].bin_end - histogram.raw[0].bin_start
+                : 1,
           },
           axis: {
             labelLimit: 500,
@@ -215,11 +269,6 @@ export class SqlHistogram implements m.ClassComponent<SqlHistogramAttrs> {
           type: 'quantitative',
           title: 'Count',
         },
-        tooltip: [
-          {field: 'bin_start', type: 'quantitative', format: '.2f', title: 'Start'},
-          {field: 'bin_end', type: 'quantitative', format: '.2f', title: 'End'},
-          {field: 'count', type: 'quantitative', title: 'Count'},
-        ],
       },
       config: {
         view: {
