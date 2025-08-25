@@ -569,52 +569,44 @@ TYPED_TEST(TaskRunnerTest, MultiThreadedStress) {
   constexpr size_t kNumThreads = 4;
   constexpr size_t kNumTasksPerThread = 1000;
   constexpr size_t kTotalTasks = kNumThreads * kNumTasksPerThread;
+  std::atomic<size_t> tasks_posted{};
 
-  struct ThreadState {
-    size_t next_gen = 0;
-    size_t next_expected = 0;
-    std::minstd_rand0 rnd{};
-    std::thread thread;
+  std::array<size_t, kNumThreads> last_task_received{};
+  auto task_fn = [&](size_t thread_id, size_t task_num) {
+    ASSERT_EQ(last_task_received[thread_id], task_num);
+    ++last_task_received[thread_id];
   };
 
-  std::array<ThreadState, kNumThreads> threads{};
-  std::atomic<size_t> tasks_posted{0};
-  std::atomic<size_t> tasks_executed{0};
-
-  std::function<void(size_t, size_t)> worker_fn;
-  worker_fn = [&](size_t thread_idx, size_t expected_id) {
-    ThreadState& thd = threads[thread_idx];
-
-    ASSERT_EQ(expected_id, thd.next_expected);
-    ++thd.next_expected;
-    tasks_executed.fetch_add(1, std::memory_order_relaxed);
-
-    int num_subtasks = std::uniform_int_distribution<int>(1, 32)(thd.rnd);
-    for (int i = 0; i < num_subtasks; ++i) {
-      auto total_num = tasks_posted.fetch_add(1, std::memory_order_relaxed);
-      if (total_num >= kTotalTasks) {
-        if (total_num == kTotalTasks) {
+  auto thread_fn = [&](size_t thread_id) {
+    std::minstd_rand0 rnd{};
+    size_t task_seq = 0;
+    for (;;) {
+      int num_subtasks = std::uniform_int_distribution<int>(1, 32)(rnd);
+      for (int i = 0; i < num_subtasks; ++i) {
+        this->task_runner.PostTask(std::bind(task_fn, thread_id, task_seq));
+        if (tasks_posted.fetch_add(1, std::memory_order_relaxed) ==
+            kTotalTasks - 1) {
           this->task_runner.PostTask([&] { this->task_runner.Quit(); });
         }
-        return;
+        if (++task_seq >= kNumTasksPerThread) {
+          return;
+        }
       }
-      size_t next_id = ++thd.next_gen;
-      this->task_runner.PostTask(std::bind(worker_fn, thread_idx, next_id));
+      std::this_thread::yield();
     }
-    std::this_thread::yield();
   };
 
-  tasks_posted.store(kNumThreads);  // Account for the initial calls.
+  std::array<std::thread, kNumThreads> threads{};
   for (size_t i = 0; i < kNumThreads; ++i) {
-    threads[i].thread = std::thread(std::bind(worker_fn, i, 0));
+    threads[i] = std::thread(std::bind(thread_fn, i));
   }
 
   this->task_runner.Run();
 
-  for (auto& thread_state : threads) {
-    thread_state.thread.join();
+  for (auto& thread : threads) {
+    thread.join();
   }
-  EXPECT_EQ(tasks_executed.load(), kTotalTasks);
+  EXPECT_EQ(tasks_posted.load(), kTotalTasks);
 }
 
 }  // namespace
