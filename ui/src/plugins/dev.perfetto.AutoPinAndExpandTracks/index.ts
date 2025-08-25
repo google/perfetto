@@ -96,7 +96,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
     this.ctx = ctx;
 
     ctx.commands.registerCommand({
-      id: `${PLUGIN_ID}#save`,
+      id: `dev.perfetto.SavePinnedTracks`,
       name: 'Save: Pinned tracks',
       callback: () => {
         setSavedState({
@@ -119,7 +119,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: `${PLUGIN_ID}#saveByName`,
+      id: `dev.perfetto.SavePinnedTracksByName`,
       name: 'Save by name: Pinned tracks',
       callback: async () => {
         const name = await this.ctx.omnibox.prompt(
@@ -132,7 +132,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       },
     });
     ctx.commands.registerCommand({
-      id: `${PLUGIN_ID}#restoreByName`,
+      id: `dev.perfetto.RestorePinnedTracksByName`,
       name: 'Restore by name: Pinned tracks',
       callback: async () => {
         const tracksByName = getSavedState()?.tracksByName ?? [];
@@ -154,7 +154,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: `${PLUGIN_ID}#exportByName`,
+      id: `dev.perfetto.ExportPinnedTracksByName`,
       name: 'Export by name: Pinned tracks',
       callback: async () => {
         const tracksByName = getSavedState()?.tracksByName ?? [];
@@ -182,7 +182,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       },
     });
     ctx.commands.registerCommand({
-      id: `${PLUGIN_ID}#importByName`,
+      id: `dev.perfetto.ImportPinnedTracksByName`,
       name: 'Import by name: Pinned tracks',
       callback: async () => {
         const files = document.querySelector('.pinned_tracks_import_selector');

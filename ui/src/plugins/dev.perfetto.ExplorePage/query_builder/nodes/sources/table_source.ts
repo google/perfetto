@@ -23,11 +23,7 @@ import {
   QueryNodeState,
   NodeType,
 } from '../../../query_node';
-import {
-  ColumnInfo,
-  columnInfoFromSqlColumn,
-  newColumnInfoList,
-} from '../../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Button} from '../../../../../widgets/button';
@@ -94,6 +90,14 @@ export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
   showColumns: boolean = false;
 
+  get sourceCols() {
+    return (
+      this.state.sqlTable?.columns.map((c) =>
+        columnInfoFromSqlColumn(c, true),
+      ) ?? []
+    );
+  }
+
   constructor(attrs: TableSourceState) {
     super(attrs);
     this.state = attrs;
@@ -111,7 +115,6 @@ export class TableSourceNode extends SourceNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      sourceCols: newColumnInfoList(this.sourceCols),
       filters: this.state.filters.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,

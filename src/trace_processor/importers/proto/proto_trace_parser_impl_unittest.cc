@@ -187,7 +187,7 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD(UniquePid,
               UpdateProcessWithParent,
-              (UniquePid upid, UniquePid pupid),
+              (UniquePid upid, UniquePid pupid, bool associate_main_thread),
               (override));
 
   MOCK_METHOD(void,
@@ -206,6 +206,7 @@ class MockProcessTracker : public ProcessTracker {
   MOCK_METHOD(UniqueTid, UpdateThread, (int64_t tid, int64_t tgid), (override));
 
   MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
+
   MOCK_METHOD(void,
               SetProcessNameIfUnset,
               (UniquePid upid, StringId process_name_id),
@@ -767,7 +768,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
 
   EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
   EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
-  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u))
+  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u, true))
       .WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
                                             base::StringView(kProcName1)));
@@ -788,7 +789,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
 
   EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
   EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
-  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u))
+  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u, true))
       .WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
                                             base::StringView("proc1 proc2")));

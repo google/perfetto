@@ -28,7 +28,6 @@ import {
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {columnInfoFromSqlColumn} from './column_info';
 import {TableSourceNode} from './nodes/sources/table_source';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
@@ -138,15 +137,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             const sqlTable = sqlModules.getTable(tableName);
             if (!sqlTable) return;
 
-            const sourceCols = sqlTable.columns.map((c) =>
-              columnInfoFromSqlColumn(c, true),
-            );
             onRootNodeCreated(
               new TableSourceNode({
                 trace,
                 sqlModules,
                 sqlTable,
-                sourceCols,
                 filters: [],
               }),
             );

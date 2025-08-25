@@ -26,12 +26,11 @@ import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {featureFlags} from '../../core/feature_flags';
 import {z} from 'zod';
-import m from 'mithril';
-import {Editor} from '../../widgets/editor';
-import {Callout} from '../../widgets/callout';
-import {Intent} from '../../widgets/common';
-import {Button} from '../../widgets/button';
-import {Setting} from '../../public/settings';
+import {JsonSettingsEditor} from '../../components/json_settings_editor';
+import {
+  commandInvocationSchema,
+  validateCommandInvocations,
+} from '../../core/command_manager';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -122,7 +121,7 @@ export default class implements PerfettoPlugin {
   static onActivate(ctx: App) {
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
-        id: 'perfetto.CoreCommands#ToggleLeftSidebar',
+        id: 'dev.perfetto.ToggleLeftSidebar',
         name: 'Toggle left sidebar',
         callback: () => {
           ctx.sidebar.toggleVisibility();
@@ -131,130 +130,27 @@ export default class implements PerfettoPlugin {
       });
     }
 
-    const macroSchema = z.record(
-      z.array(
-        z.object({
-          name: z.string(),
-          args: z.array(z.string()),
-        }),
-      ),
-    );
-
+    // Use shared commandInvocationSchema where 'id' is the command's unique identifier
+    const macroSchema = z.record(z.array(commandInvocationSchema));
     type MacroConfig = z.infer<typeof macroSchema>;
-
-    class MacroSettingsComponent {
-      private textareaValue: string | undefined;
-      private originalValue: string | undefined;
-      private jsonError: string | null = null;
-      private currentSetting: Setting<MacroConfig> | undefined;
-
-      constructor(private ctx: App) {}
-
-      render(setting: Setting<MacroConfig>): m.Children {
-        this.currentSetting = setting;
-        this.initializeTextValue();
-
-        return m('div', {className: 'pf-macro-settings'}, [
-          m('div', {className: 'pf-macro-settings__editor-section'}, [
-            m(Editor, {
-              text: this.textareaValue,
-              className: 'pf-macro-settings__editor',
-              onUpdate: (text: string) => this.handleUpdate(text),
-              onSave: () => this.handleSave(),
-            }),
-            this.jsonError &&
-              m(
-                Callout,
-                {
-                  intent: Intent.Danger,
-                  className: 'pf-macro-settings__error',
-                },
-                `JSON Error: ${this.jsonError}`,
-              ),
-            m('div', {className: 'pf-macro-settings__actions'}, [
-              m(Button, {
-                label: 'Save',
-                disabled: this.isSaveDisabled(),
-                onclick: () => this.handleSave(),
-              }),
-            ]),
-          ]),
-        ]);
-      }
-
-      private initializeTextValue(): void {
-        if (this.textareaValue === undefined && this.currentSetting) {
-          const macros = this.currentSetting.get();
-          this.originalValue = JSON.stringify(macros, null, 2);
-          this.textareaValue = this.originalValue;
-        }
-      }
-
-      private handleUpdate(text: string): void {
-        this.textareaValue = text;
-        this.validateAndSetError(text);
-      }
-
-      private handleSave(): void {
-        if (this.textareaValue === undefined || !this.currentSetting) return;
-        const validatedMacros = this.validateAndSetError(this.textareaValue);
-        if (validatedMacros) {
-          this.currentSetting.set(validatedMacros);
-          this.originalValue = this.textareaValue;
-        }
-      }
-
-      private hasUnsavedChanges(): boolean {
-        return this.textareaValue !== this.originalValue;
-      }
-
-      private isSaveDisabled(): boolean {
-        return !!this.jsonError || !this.hasUnsavedChanges();
-      }
-
-      private validateAndSetError(text: string): MacroConfig | undefined {
-        try {
-          const parsed = JSON.parse(text);
-          const result = macroSchema.safeParse(parsed);
-          if (!result.success) {
-            this.jsonError = result.error.issues
-              .map((issue) => {
-                const path =
-                  issue.path.length > 0 ? `at ${issue.path.join('.')}` : '';
-                return `${issue.message} ${path}`.trim();
-              })
-              .join(', ');
-            return undefined;
-          }
-
-          // Validate that all commands exist
-          const invalidCommands: string[] = [];
-          for (const [macroName, commands] of Object.entries(result.data)) {
-            for (const command of commands) {
-              if (!this.ctx.commands.hasCommand(command.name)) {
-                invalidCommands.push(
-                  `${command.name} (in macro "${macroName}")`,
-                );
-              }
-            }
-          }
-
+    const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
+      schema: macroSchema,
+      validator: (data: MacroConfig): string | undefined => {
+        const macroErrors: string[] = [];
+        for (const [macroName, commands] of Object.entries(data)) {
+          const invalidCommands = validateCommandInvocations(
+            commands,
+            ctx.commands,
+          );
           if (invalidCommands.length > 0) {
-            this.jsonError = `Unknown commands:\n${invalidCommands.join('\n')}`;
-            return undefined;
+            macroErrors.push(
+              `Macro "${macroName}" has unknown commands:\n${invalidCommands.map((cmd) => `  - ${cmd}`).join('\n')}`,
+            );
           }
-
-          this.jsonError = null;
-          return result.data;
-        } catch (err) {
-          this.jsonError = err instanceof Error ? err.message : 'Invalid JSON';
-          return undefined;
         }
-      }
-    }
-
-    const macroSettingsComponent = new MacroSettingsComponent(ctx);
-
+        return macroErrors.length > 0 ? macroErrors.join('\n\n') : undefined;
+      },
+    });
     const setting = ctx.settings.register({
       id: 'perfetto.CoreCommands#UserDefinedMacros',
       name: 'Macros',
@@ -263,17 +159,17 @@ export default class implements PerfettoPlugin {
       schema: macroSchema,
       defaultValue: {},
       requiresReload: true,
-      render: (setting) => macroSettingsComponent.render(setting),
+      render: (setting) => macroSettingsEditor.render(setting),
     });
 
     const macros = setting.get() as MacroConfig;
     for (const [macroName, commands] of Object.entries(macros)) {
       ctx.commands.registerCommand({
-        id: `perfetto.CoreCommands#UserDefinedMacros#${macroName}`,
+        id: `dev.perfetto.UserMacro.${macroName}`,
         name: macroName,
         callback: () => {
           for (const command of commands) {
-            ctx.commands.runCommand(command.name, ...command.args);
+            ctx.commands.runCommand(command.id, ...command.args);
           }
         },
       });
@@ -286,7 +182,7 @@ export default class implements PerfettoPlugin {
     input.addEventListener('change', onInputElementFileSelectionChanged);
     document.body.appendChild(input);
 
-    const OPEN_TRACE_COMMAND_ID = 'perfetto.CoreCommands#openTrace';
+    const OPEN_TRACE_COMMAND_ID = 'dev.perfetto.OpenTrace';
     ctx.commands.registerCommand({
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
@@ -302,7 +198,7 @@ export default class implements PerfettoPlugin {
       icon: 'folder_open',
     });
 
-    const OPEN_LEGACY_COMMAND_ID = 'perfetto.CoreCommands#openTraceInLegacyUi';
+    const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
     ctx.commands.registerCommand({
       id: OPEN_LEGACY_COMMAND_ID,
       name: 'Open with legacy UI',
@@ -320,7 +216,7 @@ export default class implements PerfettoPlugin {
     }
 
     ctx.commands.registerCommand({
-      id: 'perfetto.closeTrace',
+      id: 'dev.perfetto.CloseTrace',
       name: 'Close trace',
       callback: () => {
         ctx.closeCurrentTrace();
@@ -330,7 +226,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryAllProcesses',
+      id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -341,7 +237,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryCpuTimeByProcess',
+      id: 'dev.perfetto.RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -352,7 +248,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
+      id: 'dev.perfetto.RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -363,7 +259,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
+      id: 'dev.perfetto.RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -374,7 +270,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
+      id: 'dev.perfetto.RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -385,7 +281,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#DebugSqlPerformance',
+      id: 'dev.perfetto.DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
         addQueryResultsTab(ctx, {
@@ -396,7 +292,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#UnpinAllTracks',
+      id: 'dev.perfetto.UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
         const workspace = ctx.workspace;
@@ -405,7 +301,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#ExpandAllGroups',
+      id: 'dev.perfetto.ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => track.expand());
@@ -413,7 +309,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#CollapseAllGroups',
+      id: 'dev.perfetto.CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => track.collapse());
@@ -421,7 +317,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#PanToTimestamp',
+      id: 'dev.perfetto.PanToTimestamp',
       name: 'Pan to timestamp',
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
@@ -432,7 +328,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#MarkTimestamp',
+      id: 'dev.perfetto.MarkTimestamp',
       name: 'Mark timestamp',
       callback: (tsRaw: unknown) => {
         const ts = getOrPromptForTimestamp(tsRaw);
@@ -445,7 +341,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CoreCommands#ShowCurrentSelectionTab',
+      id: 'dev.perfetto.ShowCurrentSelectionTab',
       name: 'Show current selection tab',
       callback: () => {
         ctx.tabs.showTab('current_selection');

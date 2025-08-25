@@ -95,14 +95,14 @@ export class UiMainPerTrace implements m.ClassComponent {
     // loaded).
     const globalCmds: Command[] = [
       {
-        id: 'perfetto.OpenCommandPalette',
+        id: 'dev.perfetto.OpenCommandPalette',
         name: 'Open command palette',
         callback: () => app.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
       {
-        id: 'perfetto.ShowHelp',
+        id: 'dev.perfetto.ShowHelp',
         name: 'Show help',
         callback: () => toggleHelp(),
         defaultHotkey: '?',
@@ -120,7 +120,7 @@ export class UiMainPerTrace implements m.ClassComponent {
 
     const cmds: Command[] = [
       {
-        id: 'perfetto.SetTimestampFormat',
+        id: 'dev.perfetto.SetTimestampFormat',
         name: 'Set timestamp and duration format',
         callback: async () => {
           const TF = TimestampFormat;
@@ -159,7 +159,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.SetDurationPrecision',
+        id: 'dev.perfetto.SetDurationPrecision',
         name: 'Set duration precision',
         callback: async () => {
           const DF = DurationPrecision;
@@ -177,18 +177,18 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.TogglePerformanceMetrics',
+        id: 'dev.perfetto.TogglePerformanceMetrics',
         name: 'Toggle performance metrics',
         callback: () =>
           (app.perfDebugging.enabled = !app.perfDebugging.enabled),
       },
       {
-        id: 'perfetto.ShareTrace',
+        id: 'dev.perfetto.ShareTrace',
         name: 'Share trace',
         callback: () => shareTrace(trace),
       },
       {
-        id: 'perfetto.SearchNext',
+        id: 'dev.perfetto.SearchNext',
         name: 'Go to next search result',
         callback: () => {
           trace.search.stepForward();
@@ -196,7 +196,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Enter',
       },
       {
-        id: 'perfetto.SearchPrev',
+        id: 'dev.perfetto.SearchPrev',
         name: 'Go to previous search result',
         callback: () => {
           trace.search.stepBackwards();
@@ -204,18 +204,18 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Shift+Enter',
       },
       {
-        id: 'perfetto.RunQuery',
+        id: 'dev.perfetto.RunQuery',
         name: 'Run query',
         callback: () => trace.omnibox.setMode(OmniboxMode.Query),
       },
       {
-        id: 'perfetto.Search',
+        id: 'dev.perfetto.Search',
         name: 'Search',
         callback: () => trace.omnibox.setMode(OmniboxMode.Search),
         defaultHotkey: '/',
       },
       {
-        id: 'perfetto.CopyTimeWindow',
+        id: 'dev.perfetto.CopyTimeWindow',
         name: `Copy selected time window to clipboard`,
         callback: async () => {
           const window = await getTimeSpanOfSelectionOrVisibleWindow(trace);
@@ -224,18 +224,18 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.FocusSelection',
+        id: 'dev.perfetto.FocusSelection',
         name: 'Focus current selection',
         callback: () => trace.selection.scrollToSelection(),
         defaultHotkey: 'F',
       },
       {
-        id: 'perfetto.ZoomOnSelection',
+        id: 'dev.perfetto.ZoomOnSelection',
         name: 'Zoom in on current selection',
         callback: () => trace.selection.zoomOnSelection(),
       },
       {
-        id: 'perfetto.Deselect',
+        id: 'dev.perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
           trace.selection.clearSelection();
@@ -243,25 +243,25 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Escape',
       },
       {
-        id: 'perfetto.NextFlow',
+        id: 'dev.perfetto.NextFlow',
         name: 'Next flow',
         callback: () => trace.flows.focusOtherFlow('Forward'),
         defaultHotkey: 'Mod+]',
       },
       {
-        id: 'perfetto.PrevFlow',
+        id: 'dev.perfetto.PrevFlow',
         name: 'Prev flow',
         callback: () => trace.flows.focusOtherFlow('Backward'),
         defaultHotkey: 'Mod+[',
       },
       {
-        id: 'perfetto.MoveNextFlow',
+        id: 'dev.perfetto.MoveNextFlow',
         name: 'Move next flow',
         callback: () => trace.flows.moveByFocusedFlow('Forward'),
         defaultHotkey: ']',
       },
       {
-        id: 'perfetto.MovePrevFlow',
+        id: 'dev.perfetto.MovePrevFlow',
         name: 'Move prev flow',
         callback: () => trace.flows.moveByFocusedFlow('Backward'),
         defaultHotkey: '[',
@@ -270,7 +270,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       // Provides a test bed for resolving events using a SQL table name and ID
       // which is used in deep-linking, amongst other places.
       {
-        id: 'perfetto.SelectEventByTableNameAndId',
+        id: 'dev.perfetto.SelectEventByTableNameAndId',
         name: 'Select event by table name and ID',
         callback: async () => {
           const rootTableName = await trace.omnibox.prompt('Enter table name');
@@ -288,7 +288,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.SelectAll',
+        id: 'dev.perfetto.SelectAll',
         name: 'Select all',
         callback: () => {
           // This is a dual state command:
@@ -334,7 +334,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Mod+A',
       },
       {
-        id: 'perfetto.ConvertSelectionToArea',
+        id: 'dev.perfetto.ConvertSelectionToArea',
         name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
@@ -350,13 +350,13 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'R',
       },
       {
-        id: 'perfetto.ToggleDrawer',
+        id: 'dev.perfetto.ToggleDrawer',
         name: 'Toggle drawer',
         defaultHotkey: 'Q',
         callback: () => trace.tabs.toggleTabPanelVisibility(),
       },
       {
-        id: 'perfetto.CopyPinnedToWorkspace',
+        id: 'dev.perfetto.CopyPinnedToWorkspace',
         name: 'Copy pinned tracks to workspace',
         callback: async () => {
           const pinnedTracks = trace.workspace.pinnedTracks;
@@ -376,7 +376,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.CopyFilteredToWorkspace',
+        id: 'dev.perfetto.CopyFilteredToWorkspace',
         name: 'Copy filtered tracks to workspace',
         callback: async () => {
           // Copies all filtered tracks as a flat list to a new workspace. This
@@ -401,7 +401,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.CopySelectedTracksToWorkspace',
+        id: 'dev.perfetto.CopySelectedTracksToWorkspace',
         name: 'Copy selected tracks to workspace',
         callback: async () => {
           const selection = trace.selection.selection;
@@ -424,7 +424,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.Quicksave',
+        id: 'dev.perfetto.Quicksave',
         name: 'Quicksave UI state to localStorage',
         callback: () => {
           const state = serializeAppState(trace);
@@ -433,7 +433,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.Quickload',
+        id: 'dev.perfetto.Quickload',
         name: 'Quickload UI state from the localStorage',
         callback: () => {
           const json = localStorage.getItem(QUICKSAVE_LOCALSTORAGE_KEY);

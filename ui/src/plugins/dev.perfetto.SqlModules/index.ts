@@ -14,35 +14,47 @@
 
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
+import {defer} from '../../base/deferred';
 import {extensions} from '../../components/extensions';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
-import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
+import {
+  SQL_MODULES_DOCS_SCHEMA,
+  SqlModulesDocsSchema,
+  SqlModulesImpl,
+} from './sql_modules_impl';
 
-let globSqlModules: SqlModules | undefined;
+const docs = defer<SqlModulesDocsSchema>();
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
+  private sqlModules: SqlModules | undefined;
+
   static onActivate(_: App): void {
     // Load the SQL modules JSON file when the plugin when the app starts up,
     // rather than waiting until trace load.
-    loadJson();
+    loadJson().then(docs.resolve.bind(docs));
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    docs.then((resolvedDocs) => {
+      this.sqlModules = new SqlModulesImpl(trace, resolvedDocs);
+      m.redraw();
+    });
+
     trace.commands.registerCommand({
-      id: 'perfetto.OpenSqlModulesTable',
+      id: 'dev.perfetto.OpenSqlModulesTable',
       name: 'Open table...',
       callback: async () => {
-        if (!globSqlModules) {
+        if (!this.sqlModules) {
           window.alert('Sql modules are still loading... Please wait.');
           return;
         }
 
-        const tables = globSqlModules.listTablesNames();
+        const tables = this.sqlModules.listTablesNames();
 
         const chosenTable = await trace.omnibox.prompt(
           'Choose a table...',
@@ -51,7 +63,7 @@ export default class implements PerfettoPlugin {
         if (chosenTable === undefined) {
           return;
         }
-        const module = globSqlModules.getModuleForTable(chosenTable);
+        const module = this.sqlModules.getModuleForTable(chosenTable);
         if (module === undefined) {
           return;
         }
@@ -65,17 +77,12 @@ export default class implements PerfettoPlugin {
   }
 
   getSqlModules(): SqlModules | undefined {
-    return globSqlModules;
+    return this.sqlModules;
   }
 }
 
 async function loadJson() {
   const x = await fetch(assetSrc('stdlib_docs.json'));
   const json = await x.json();
-  const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
-  const sqlModules = new SqlModulesImpl(docs);
-
-  globSqlModules = sqlModules;
-
-  m.redraw();
+  return SQL_MODULES_DOCS_SCHEMA.parse(json);
 }
