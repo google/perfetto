@@ -40,9 +40,10 @@ export class HttpRpcEngine extends EngineBase {
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string) {
+  constructor(id: string, traceProcessorUuid?: string) {
     super();
     this.id = id;
+    this.trace_processor_uuid = traceProcessorUuid || '';
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {

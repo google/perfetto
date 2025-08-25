@@ -358,9 +358,10 @@ async function showDialogToUsePreloadedTrace(
   if (initialResult === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
     const selectedUuid = await showTraceProcessorSelectionModal();
     
-    if (selectedUuid) {
+    if (selectedUuid !== null && selectedUuid !== undefined) {
       console.log(`Selected trace processor: ${selectedUuid}`);
-      // TODO: Store selected UUID for backend integration
+      // Store the selected UUID for backend integration
+      AppImpl.instance.httpRpc.selectedTraceProcessorUuid = selectedUuid;
       return PreloadedDialogResult.UseRpcWithPreloadedTrace;
     } else {
       // User cancelled the selection

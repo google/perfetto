@@ -78,6 +78,7 @@ export class AppContext {
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
+    selectedTraceProcessorUuid: '', // Store the selected UUID here
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
