@@ -277,6 +277,9 @@ declare_args() {
       (!is_wasm && ((build_with_chromium || perfetto_build_standalone) &&
                     (current_cpu == "x64" || current_cpu == "arm64"))) ||
       is_perfetto_build_generator
+
+  # TODO DNS. chill out here. True just for CI testing.
+  enable_perfetto_lockfree_taskrunner = true
 }
 
 declare_args() {

@@ -72,6 +72,7 @@ perfetto_component("base") {
 
   if (!is_nacl) {
     sources += [
+      "lock_free_task_runner.cc",
       "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
