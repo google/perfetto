@@ -320,12 +320,6 @@
   }
 }
 
-// Hide the footer when running integration tests, as the version code and the
-// tiny text with pending queries can fail the screenshot diff test.
-body.testing .pf-sidebar__footer {
-  visibility: hidden;
-}
-
 .pf-hiring-banner {
   font-size: 12px;
   background: #db4634;

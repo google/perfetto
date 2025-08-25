@@ -31,7 +31,7 @@ export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.ExampleTraces';
   static onActivate(ctx: App) {
     const OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID =
-      'perfetto.CoreCommands#openExampleAndroidTrace';
+      'dev.perfetto.OpenExampleAndroidTrace';
     ctx.commands.registerCommand({
       id: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
       name: 'Open Android example',
@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
     });
 
     const OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID =
-      'perfetto.CoreCommands#openExampleChromeTrace';
+      'dev.perfetto.OpenExampleChromeTrace';
     ctx.commands.registerCommand({
       id: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
       name: 'Open Chrome example',

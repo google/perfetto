@@ -61,34 +61,51 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
 
   SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
 
-  SqliteTokenizer::Token stmt_begin_tok = tokenizer.NextNonWhitespace();
-  while (stmt_begin_tok.token_type == TK_SEMI) {
-    stmt_begin_tok = tokenizer.NextNonWhitespace();
+  // Skip any leading semicolons.
+  SqliteTokenizer::Token first_tok = tokenizer.NextNonWhitespace();
+  while (first_tok.token_type == TK_SEMI) {
+    first_tok = tokenizer.NextNonWhitespace();
   }
-  SqliteTokenizer::Token preamble_start = stmt_begin_tok;
-  SqliteTokenizer::Token preamble_end = stmt_begin_tok;
 
-  // Loop over statements
+  // If there are no statements, return empty.
+  if (first_tok.IsTerminal()) {
+    return result;
+  }
+
+  SqliteTokenizer::Token last_statement_start = first_tok;
+  SqliteTokenizer::Token statement_end = first_tok;
+
+  // Find the start of the last statement.
   while (true) {
-    // Ignore all next semicolons.
-    if (stmt_begin_tok.token_type == TK_SEMI) {
-      stmt_begin_tok = tokenizer.NextNonWhitespace();
-      continue;
+    // Find the end of the current statement.
+    SqliteTokenizer::Token end = tokenizer.NextTerminal();
+
+    // If that was the end of the SQL, we're done.
+    if (end.str.empty()) {
+      statement_end = end;
+      break;
     }
 
-    // Exit if the next token is the end of the SQL.
-    if (stmt_begin_tok.IsTerminal()) {
-      return {tokenizer.Substr(preamble_start, preamble_end),
-              tokenizer.Substr(preamble_end, stmt_begin_tok)};
+    // Otherwise, find the start of the next statement.
+    SqliteTokenizer::Token next_start = tokenizer.NextNonWhitespace();
+    while (next_start.token_type == TK_SEMI) {
+      next_start = tokenizer.NextNonWhitespace();
     }
 
-    // Found next valid statement
+    // If there is no next statement, we're done.
+    if (next_start.IsTerminal()) {
+      statement_end = end;
+      break;
+    }
 
-    preamble_end = stmt_begin_tok;
-    stmt_begin_tok = tokenizer.NextTerminal();
+    // Otherwise, the next statement is now our candidate for the last
+    // statement.
+    last_statement_start = next_start;
   }
-}
 
+  return {tokenizer.Substr(first_tok, last_statement_start),
+          tokenizer.Substr(last_statement_start, statement_end)};
+}
 struct QueryState {
   QueryState(QueryType _type,
              protozero::ConstBytes _bytes,

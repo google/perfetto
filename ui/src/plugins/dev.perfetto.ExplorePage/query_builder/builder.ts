@@ -28,11 +28,11 @@ import {
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
-import {TableSourceNode} from './sources/table_source';
-import {SqlSourceNode} from './sources/sql_source';
+import {TableSourceNode} from './nodes/sources/table_source';
+import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
+import {NodeIssues} from './node_issues';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -44,9 +44,16 @@ export interface BuilderAttrs {
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
+
+  // Add source nodes.
   readonly onAddStdlibTableSource: () => void;
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
+
+  // Add derived nodes.
+  readonly onAddSubQueryNode: (node: QueryNode) => void;
+  readonly onAddAggregationNode: (node: QueryNode) => void;
+
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -130,20 +137,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             const sqlTable = sqlModules.getTable(tableName);
             if (!sqlTable) return;
 
-            const sourceCols = sqlTable.columns.map((c) =>
-              columnInfoFromSqlColumn(c, true),
-            );
-            const groupByColumns = newColumnInfoList(sourceCols, false);
-
             onRootNodeCreated(
               new TableSourceNode({
                 trace,
                 sqlModules,
                 sqlTable,
-                sourceCols,
-                groupByColumns,
                 filters: [],
-                aggregations: [],
               }),
             );
           },
@@ -163,6 +162,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAddSqlSource,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
+          onAddSubQuery: attrs.onAddSubQueryNode,
+          onAddAggregation: attrs.onAddAggregationNode,
           onDeleteNode: (node: QueryNode) => {
             if (
               node.state.isExecuted &&
@@ -204,9 +205,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }) => {
               this.queryExecuted = true;
 
-              selectedNode.state.queryError = error;
-              selectedNode.state.responseError = warning;
-              selectedNode.state.dataError = noDataWarning;
+              if (error || warning || noDataWarning) {
+                if (!selectedNode.state.issues) {
+                  selectedNode.state.issues = new NodeIssues();
+                }
+                selectedNode.state.issues.queryError = error;
+                selectedNode.state.issues.responseError = warning;
+                selectedNode.state.issues.dataError = noDataWarning;
+              } else {
+                selectedNode.state.issues = undefined;
+              }
 
               if (selectedNode instanceof SqlSourceNode) {
                 selectedNode.onQueryExecuted(columns);
@@ -260,9 +268,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           : undefined;
 
       this.queryExecuted = true;
-      node.state.queryError = error;
-      node.state.responseError = warning;
-      node.state.dataError = noDataWarning;
+      if (error || warning || noDataWarning) {
+        if (!node.state.issues) {
+          node.state.issues = new NodeIssues();
+        }
+        node.state.issues.queryError = error;
+        node.state.issues.responseError = warning;
+        node.state.issues.dataError = noDataWarning;
+      } else {
+        node.state.issues = undefined;
+      }
 
       if (node instanceof SqlSourceNode) {
         node.onQueryExecuted(this.response.columns);

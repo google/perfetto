@@ -6103,6 +6103,21 @@ enum TrustedOverlay {
   DISABLED = 1;
   ENABLED = 2;
 };
+message BoxShadowSettings {
+  message BoxShadowParams {
+    optional float blur_radius = 1;
+    optional float spread_radius = 2;
+    optional int32 color = 3;
+    optional float offset_x = 4;
+    optional float offset_y = 5;
+  }
+  repeated BoxShadowParams box_shadows = 1;
+}
+
+message BorderSettings {
+  optional float stroke_width = 1;
+  optional int32 color = 2;
+}
 // End of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -6336,6 +6351,12 @@ message LayerProto {
 
   // Priority value of the layer set by the system.
   optional int32 system_content_priority = 64;
+
+  // Settings which specify how shadows should be drawn for a layer.
+  optional BoxShadowSettings box_shadow_settings = 65;
+
+  // Settings which specify how an outline should be drawn for a layer.
+  optional BorderSettings border_settings = 66;
 }
 
 message PositionProto {
@@ -6535,6 +6556,8 @@ message LayerState {
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
     eSystemContentPriorityChanged = 0x00020000;
+    eBoxShadowSettingsChanged = 0x00040000;
+    eBorderSettingsChanged = 0x00080000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -6677,6 +6700,10 @@ message LayerState {
   optional CornerRadii client_drawn_corner_radii = 46;
 
   optional int32 system_content_priority = 47;
+
+  optional BoxShadowSettings box_shadow_settings = 48;
+
+  optional BorderSettings border_settings = 49;
 }
 
 message DisplayState {
@@ -13270,6 +13297,18 @@ message Mapping {
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
+
+  // Libunwindstack-specific concept, not to be confused with bionic linker's
+  // notion of load_bias. Needed to correct relative pc addresses (as produced
+  // by libunwindstack) when doing offline resymbolisation.
+  //
+  // For an executable ELF PT_LOAD segment, this is:
+  //   p_vaddr - p_offset
+  //
+  // Where p_offset means that the code is at that offset into the ELF file on
+  // disk. While p_vaddr is the offset at which the code gets *mapped*, relative
+  // to where the linker loads the ELF into the address space. For most ELFs,
+  // the two values are identical and therefore load_bias is zero.
   optional uint64 load_bias = 6;
 
   // E.g. ["system", "lib64", "libc.so"]
@@ -15175,6 +15214,12 @@ message PowerRails {
   }
 
   repeated EnergyData energy_data = 2;
+
+  // A unique session id that can be used to match energy data to sets of
+  // descriptors. The indices used by rail descriptors and energy data packets
+  // are meant to be unique to a given session uuid. When multiple data sources
+  // are running in parallel, each data source should use a unique id.
+  optional uint64 session_uuid = 3;
 }
 
 // End of protos/perfetto/trace/power/power_rails.proto
@@ -16374,52 +16419,11 @@ message ThreadDescriptor {
 //
 // Next id: 6.
 message ChromeProcessDescriptor {
-  // See chromium's content::ProcessType.
-  enum ProcessType {
-    PROCESS_UNSPECIFIED = 0;
-    PROCESS_BROWSER = 1;
-    PROCESS_RENDERER = 2;
-    PROCESS_UTILITY = 3;
-    PROCESS_ZYGOTE = 4;
-    PROCESS_SANDBOX_HELPER = 5;
-    PROCESS_GPU = 6;
-    PROCESS_PPAPI_PLUGIN = 7;
-    PROCESS_PPAPI_BROKER = 8;
-    PROCESS_SERVICE_NETWORK = 9;
-    PROCESS_SERVICE_TRACING = 10;
-    PROCESS_SERVICE_STORAGE = 11;
-    PROCESS_SERVICE_AUDIO = 12;
-    PROCESS_SERVICE_DATA_DECODER = 13;
-    PROCESS_SERVICE_UTIL_WIN = 14;
-    PROCESS_SERVICE_PROXY_RESOLVER = 15;
-    PROCESS_SERVICE_CDM = 16;
-    PROCESS_SERVICE_VIDEO_CAPTURE = 17;
-    PROCESS_SERVICE_UNZIPPER = 18;
-    PROCESS_SERVICE_MIRRORING = 19;
-    PROCESS_SERVICE_FILEPATCHER = 20;
-    PROCESS_SERVICE_TTS = 21;
-    PROCESS_SERVICE_PRINTING = 22;
-    PROCESS_SERVICE_QUARANTINE = 23;
-    PROCESS_SERVICE_CROS_LOCALSEARCH = 24;
-    PROCESS_SERVICE_CROS_ASSISTANT_AUDIO_DECODER = 25;
-    PROCESS_SERVICE_FILEUTIL = 26;
-    PROCESS_SERVICE_PRINTCOMPOSITOR = 27;
-    PROCESS_SERVICE_PAINTPREVIEW = 28;
-    PROCESS_SERVICE_SPEECHRECOGNITION = 29;
-    PROCESS_SERVICE_XRDEVICE = 30;
-    PROCESS_SERVICE_READICON = 31;
-    PROCESS_SERVICE_LANGUAGEDETECTION = 32;
-    PROCESS_SERVICE_SHARING = 33;
-    PROCESS_SERVICE_MEDIAPARSER = 34;
-    PROCESS_SERVICE_QRCODEGENERATOR = 35;
-    PROCESS_SERVICE_PROFILEIMPORT = 36;
-    PROCESS_SERVICE_IME = 37;
-    PROCESS_SERVICE_RECORDING = 38;
-    PROCESS_SERVICE_SHAPEDETECTION = 39;
-    PROCESS_RENDERER_EXTENSION = 40;
-    PROCESS_SERVICE_MEDIA_FOUNDATION = 41;
-  }
-  optional ProcessType process_type = 1;
+  // This is a chrome_enums::ProcessType from
+  // //protos/third_party/chromium/chrome_enums.proto. The enum definition can't
+  // be imported here because of a dependency loop.
+  optional int32 process_type = 1;
+
   optional int32 process_priority = 2;
 
   // To support old UI. New UI should determine default sorting by process_type.
@@ -16453,64 +16457,10 @@ message ChromeProcessDescriptor {
 //
 // Next id: 3.
 message ChromeThreadDescriptor {
-  enum ThreadType {
-    THREAD_UNSPECIFIED = 0;
-
-    THREAD_MAIN = 1;
-    THREAD_IO = 2;
-
-    THREAD_POOL_BG_WORKER = 3;
-    THREAD_POOL_FG_WORKER = 4;
-    THREAD_POOL_FG_BLOCKING = 5;
-    THREAD_POOL_BG_BLOCKING = 6;
-    THREAD_POOL_SERVICE = 7;
-
-    THREAD_COMPOSITOR = 8;
-    THREAD_VIZ_COMPOSITOR = 9;
-    THREAD_COMPOSITOR_WORKER = 10;
-
-    THREAD_SERVICE_WORKER = 11;
-    THREAD_NETWORK_SERVICE = 12;
-
-    THREAD_CHILD_IO = 13;
-    THREAD_BROWSER_IO = 14;
-
-    THREAD_BROWSER_MAIN = 15;
-    THREAD_RENDERER_MAIN = 16;
-    THREAD_UTILITY_MAIN = 17;
-    THREAD_GPU_MAIN = 18;
-
-    THREAD_CACHE_BLOCKFILE = 19;
-    THREAD_MEDIA = 20;
-    THREAD_AUDIO_OUTPUTDEVICE = 21;
-    THREAD_AUDIO_INPUTDEVICE = 22;
-    THREAD_GPU_MEMORY = 23;
-    THREAD_GPU_VSYNC = 24;
-    THREAD_DXA_VIDEODECODER = 25;
-    THREAD_BROWSER_WATCHDOG = 26;
-    THREAD_WEBRTC_NETWORK = 27;
-    THREAD_WINDOW_OWNER = 28;
-    THREAD_WEBRTC_SIGNALING = 29;
-    THREAD_WEBRTC_WORKER = 30;
-    THREAD_PPAPI_MAIN = 31;
-    THREAD_GPU_WATCHDOG = 32;
-    THREAD_SWAPPER = 33;
-    THREAD_GAMEPAD_POLLING = 34;
-    THREAD_WEBCRYPTO = 35;
-    THREAD_DATABASE = 36;
-    THREAD_PROXYRESOLVER = 37;
-    THREAD_DEVTOOLSADB = 38;
-    THREAD_NETWORKCONFIGWATCHER = 39;
-    THREAD_WASAPI_RENDER = 40;
-    THREAD_LOADER_LOCK_SAMPLER = 41;
-
-    THREAD_MEMORY_INFRA = 50;
-    THREAD_SAMPLING_PROFILER = 51;
-
-    THREAD_COMPOSITOR_GPU = 52;
-  };
-
-  optional ThreadType thread_type = 1;
+  // This is a chrome_enums::ThreadType from
+  // //protos/third_party/chromium/chrome_enums.proto. The enum definition can't
+  // be imported here because of a dependency loop.
+  optional int32 thread_type = 1;
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;

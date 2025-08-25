@@ -287,7 +287,7 @@ async function addNestedTrackGroup(trace: Trace): Promise<void> {
 
   // Example commands demonstrating workspace manipulation with nested tracks
   trace.commands.registerCommand({
-    id: 'com.example.Tracks#CloneNestedGroupToNewWorkspace',
+    id: 'com.example.CloneNestedGroupToNewWorkspace',
     name: 'Clone nested group to new workspace',
     callback: () => {
       const ws = trace.workspaces.createEmptyWorkspace('New workspace');
@@ -298,7 +298,7 @@ async function addNestedTrackGroup(trace: Trace): Promise<void> {
   });
 
   trace.commands.registerCommand({
-    id: 'com.example.Tracks#DeepCloneNestedGroupToNewWorkspace',
+    id: 'com.example.DeepCloneNestedGroupToNewWorkspace',
     name: 'Clone nested group and children to new workspace',
     callback: () => {
       const ws = trace.workspaces.createEmptyWorkspace('Deep workspace');
