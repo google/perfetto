@@ -14,13 +14,10 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/build_config.h"
-
-#include "perfetto/ext/base/unix_task_runner.h"
-
 #include <random>
 #include <thread>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
