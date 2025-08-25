@@ -184,7 +184,8 @@ values:
 
 Notes:
 
-- Macro names must be valid JSON keys (no spaces or special characters)
+- Macro names must be valid JSON string keys. Simple names without special
+  characters are recommended for easier use in the command palette.
 - Run macros by typing `>macro name` in the command palette (e.g.,
   `>CPU Analysis`)
 - Commands in a macro execute sequentially

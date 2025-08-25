@@ -7,9 +7,9 @@ speed up your trace analysis workflow.
 
 **Commands** are individual UI actions that can be triggered manually or
 automatically. Examples include pinning tracks, running queries, or creating
-debug tracks. These can be run manually using the command palette (`Ctrl-Shift-P` on
-Windows/Linux, `Cmd-Shift-P` on Mac). You can discover available commands by
-typing in the command palette and using autocomplete.
+debug tracks. These can be run manually using the command palette
+(`Ctrl-Shift-P` on Windows/Linux, `Cmd-Shift-P` on Mac). You can discover
+available commands by typing in the command palette and using autocomplete.
 
 **Startup commands** are commands that run automatically every time you open any
 trace. Configure them in **Settings > Startup Commands** to set up your
@@ -25,7 +25,8 @@ workflows you run occasionally rather than always. For JSON schema details, see
 [Macros](/docs/visualization/perfetto-ui.md#macros).
 
 For detailed configuration instructions and JSON schema, see the
-[Commands section](/docs/visualization/perfetto-ui.md#commands) in the Perfetto UI guide.
+[Commands section](/docs/visualization/perfetto-ui.md#commands) in the Perfetto
+UI guide.
 
 ## Startup Commands: Automatic setup on trace load
 
@@ -67,9 +68,11 @@ Debug tracks visualize SQL query results on the timeline. The query must return:
 - `ts` (timestamp)
 - For slice tracks: `dur` (duration)
 - For counter tracks: `value` (the metric value)
-- Optional pivot column (creates separate tracks per unique value)
+- Optional pivot column. The query results will be grouped by the unique values
+  in this column, with each group appearing in its own track.
 
 **Command argument patterns:**
+
 - Without pivot: `AddDebugSliceTrack` - [query, title]
 - With pivot: `AddDebugSliceTrackWithPivot` - [query, pivot_column, title]
 
@@ -192,19 +195,20 @@ the trace opens in the UI:
    run occasionally (memory analysis, latency hunting, etc.).
 
 3. **Test interactively first**: Use the command palette (`Ctrl/Cmd+Shift+P`) to
-   test commands before adding to settings. Type commands to see available options
-   with autocomplete.
+   test commands before adding to settings. Type commands to see available
+   options with autocomplete.
 
 4. **Start clean**: Begin command sequences with `CollapseTracksByRegex` using
    `".*"` to collapse all tracks first.
 
-5. **Common regex patterns**: 
+5. **Common regex patterns**:
+
    - Escape dots in package names: `"com\\.example\\.app"`
    - Match any digit: `\\d+`
    - Match beginning/end: `^` and `$`
 
-6. **Debug tracks need good queries**: Ensure your SQL returns `ts` and either `dur`
-   (for slices) or `value` (for counters) columns. Use the pivot commands to split
-   into multiple tracks. For Android use cases, see
+6. **Debug tracks need good queries**: Ensure your SQL returns `ts` and either
+   `dur` (for slices) or `value` (for counters) columns. Use the pivot commands
+   to split into multiple tracks. For Android use cases, see
    [Android Trace Analysis Cookbook](/docs/getting-started/android-trace-analysis.md)
    for examples of common queries used by Android engineers.
