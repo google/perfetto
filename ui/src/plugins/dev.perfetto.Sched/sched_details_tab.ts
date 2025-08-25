@@ -137,7 +137,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       m(
         '',
         `Wakeup @ `,
-        m(Timestamp, {ts: data.wakeup?.wakeupTs}),
+        m(Timestamp, {trace: this.trace, ts: data.wakeup?.wakeupTs}),
         ` on CPU ${data.wakeup.wakerCpu} by`,
       ),
       m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
@@ -153,7 +153,11 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     const latency = data.sched.ts - data.wakeup?.wakeupTs;
     return m(
       '.pf-sched-latency__latency-text',
-      m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
+      m(
+        '',
+        `Scheduling latency: `,
+        m(DurationWidget, {trace: this.trace, dur: latency}),
+      ),
       m(
         '.pf-sched-latency__explanation',
         `This is the interval from when the task became eligible to run
@@ -225,11 +229,11 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       }),
       m(TreeNode, {
         left: 'Start time',
-        right: m(Timestamp, {ts: data.sched.ts}),
+        right: m(Timestamp, {trace: this.trace, ts: data.sched.ts}),
       }),
       m(TreeNode, {
         left: 'Duration',
-        right: m(DurationWidget, {dur: data.sched.dur}),
+        right: m(DurationWidget, {trace: this.trace, dur: data.sched.dur}),
       }),
       m(TreeNode, {
         left: 'Priority',
