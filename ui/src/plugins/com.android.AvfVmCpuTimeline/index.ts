@@ -36,7 +36,7 @@ export default class implements PerfettoPlugin {
       await this.createTargetVmTrack(ctx, defaultTargetId);
 
       ctx.commands.registerCommand({
-        id: `${ctx.pluginId}#SelectAvfVmUtid`,
+        id: `com.android.SelectAvfVmUtid`,
         name: 'Select Avf VM utid to add track',
         callback: async () => {
           if (this.validTargets.size === 0) {

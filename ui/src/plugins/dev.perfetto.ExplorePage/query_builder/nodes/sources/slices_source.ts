@@ -19,11 +19,7 @@ import {
   QueryNodeState,
   NodeType,
 } from '../../../query_node';
-import {
-  ColumnInfo,
-  columnInfoFromSqlColumn,
-  newColumnInfoList,
-} from '../../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
@@ -42,11 +38,14 @@ export interface SlicesSourceState extends QueryNodeState {
 export class SlicesSourceNode extends SourceNode {
   readonly state: SlicesSourceState;
 
+  get sourceCols() {
+    return slicesSourceNodeColumns(true);
+  }
+
   constructor(attrs: SlicesSourceState) {
     super(attrs);
     this.state = attrs;
     this.state.onchange = attrs.onchange;
-    this.sourceCols = slicesSourceNodeColumns(true);
     this.nextNodes = [];
   }
 
@@ -60,7 +59,6 @@ export class SlicesSourceNode extends SourceNode {
       thread_name: this.state.thread_name?.slice(),
       process_name: this.state.process_name?.slice(),
       track_name: this.state.track_name?.slice(),
-      sourceCols: newColumnInfoList(this.sourceCols),
       filters: this.state.filters.map((f) => ({...f})),
       customTitle: this.state.customTitle,
     };

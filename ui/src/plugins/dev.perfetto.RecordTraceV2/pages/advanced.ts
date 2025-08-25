@@ -147,7 +147,7 @@ function procThreadAssociation(): RecordProbe {
       );
       tc.addBuffer(bufId, bufSizeKb);
 
-      const ds = tc.addDataSource(PROC_STATS_DS_NAME);
+      const ds = tc.addDataSource(PROC_STATS_DS_NAME, bufId);
       const cfg = (ds.processStatsConfig ??= {});
       cfg.scanAllProcessesOnStart = settings.initialScan.enabled || undefined;
     },

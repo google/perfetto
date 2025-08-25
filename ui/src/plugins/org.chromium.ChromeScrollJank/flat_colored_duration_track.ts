@@ -80,11 +80,11 @@ export function createFlatColoredDurationTrack(
               }),
               m(TreeNode, {
                 left: 'Timestamp',
-                right: m(Timestamp, {ts: Time.fromRaw(row.ts)}),
+                right: m(Timestamp, {trace, ts: Time.fromRaw(row.ts)}),
               }),
               m(TreeNode, {
                 left: 'Duration',
-                right: m(DurationWidget, {dur: row.dur}),
+                right: m(DurationWidget, {trace, dur: row.dur}),
               }),
               // TODO: Consider adding a link to the original event.
             ),
