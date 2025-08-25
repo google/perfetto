@@ -22,7 +22,7 @@ const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
   connected: boolean;
-  status?: protos.StatusResult;
+  status?: protos.StatusAllResult;
   failure?: string;
 }
 
@@ -132,7 +132,7 @@ export class HttpRpcEngine extends EngineBase {
     );
     try {
       const resp = await fetchWithTimeout(
-        RPC_URL + 'status',
+        RPC_URL + 'status/all',
         {method: 'post', cache: 'no-cache'},
         RPC_CONNECT_TIMEOUT_MS,
       );
@@ -142,7 +142,7 @@ export class HttpRpcEngine extends EngineBase {
         const buf = new Uint8Array(await resp.arrayBuffer());
         // Decode the response buffer first. If decoding is successful, update the connection state.
         // This ensures that the connection state is only set to true if the data is correctly parsed.
-        httpRpcState.status = protos.StatusResult.decode(buf);
+        httpRpcState.status = protos.StatusAllResult.decode(buf);
         httpRpcState.connected = true;
       }
     } catch (err) {
