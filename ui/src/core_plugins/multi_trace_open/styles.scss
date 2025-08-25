@@ -15,17 +15,6 @@
 @import "../../assets/theme.scss";
 
 .pf-multi-trace-modal {
-  $border-color-light: #eee;
-  $border-color-medium: #ccc;
-  $text-color-primary: #333;
-  $text-color-secondary: rgba(0, 0, 0, 0.6);
-  $text-color-tertiary: #666;
-  $status-color-analyzed: #4caf50;
-  $status-color-error: #d9534f;
-  $status-color-neutral: $border-color-medium;
-  $bg-color-add-card: #fafafa;
-  $bg-color-add-card-hover: #f0f0f0;
-
   &__list-panel {
     border: none;
     overflow-y: auto;
@@ -42,7 +31,7 @@
   }
 
   &__name {
-    color: $text-color-primary;
+    color: var(--pf-color-text);
     font-size: 0.95em;
     font-weight: 600;
   }
@@ -50,7 +39,7 @@
   &__size,
   &__status,
   &__format {
-    color: $text-color-secondary;
+    color: var(--pf-color-text-secondary);
     font-size: 0.9em;
   }
 
@@ -71,11 +60,11 @@
       height: 8px;
       margin-right: 6px;
       border-radius: 50%;
-      background-color: $status-color-neutral;
+      background-color: var(--pf-color-border);
     }
 
     &--analyzed::before {
-      background-color: $status-color-analyzed;
+      background-color: var(--pf-color-success);
     }
 
     &--analyzing::before {
@@ -83,7 +72,7 @@
     }
 
     &--error::before {
-      background-color: $status-color-error;
+      background-color: var(--pf-color-danger);
     }
   }
 
@@ -92,23 +81,23 @@
   }
 
   &__add-card {
-    border: 1px dashed $border-color-medium;
-    background-color: $bg-color-add-card;
+    border: 1px dashed var(--pf-color-border);
+    background-color: var(--pf-color-background-secondary);
     cursor: pointer;
     padding: 8px;
-    color: $text-color-tertiary;
-    font-family: "Roboto", sans-serif;
+    color: var(--pf-color-text-secondary);
+    font-family: var(--pf-font);
     font-size: 0.9em;
     font-weight: bold;
     align-items: center;
 
     &:hover {
-      background: $bg-color-add-card-hover;
+      background: color_hover(var(--pf-color-background-secondary));
     }
   }
 
   &__footer {
-    border-top: 1px solid $border-color-light;
+    border-top: 1px solid var(--pf-color-border);
     padding-top: 8px;
     margin-top: 0px;
     justify-content: flex-end;
@@ -118,7 +107,7 @@
 
   &__footer-error {
     margin-right: auto;
-    font-family: $pf-font;
+    font-family: var(--pf-font);
   }
 }
 
