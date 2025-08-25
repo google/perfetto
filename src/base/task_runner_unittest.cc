@@ -18,25 +18,91 @@
 
 #include "perfetto/ext/base/unix_task_runner.h"
 
+#include <random>
 #include <thread>
 
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/waitable_event.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {
 namespace {
 
+template <typename TaskRunnerType>
 class TaskRunnerTest : public ::testing::Test {
  public:
-  UnixTaskRunner task_runner;
+  TaskRunnerType task_runner;
 };
 
-TEST_F(TaskRunnerTest, PostImmediateTask) {
+struct TaskRunnerTestNames {
+  template <typename T>
+  static std::string GetName(int) {
+    if (std::is_same<T, UnixTaskRunner>::value)
+      return "UnixTaskRunner";
+    return testing::internal::GetTypeName<T>();
+  }
+};
+
+using TaskRunnerTypes = ::testing::Types<UnixTaskRunner>;
+TYPED_TEST_SUITE(TaskRunnerTest, TaskRunnerTypes, TaskRunnerTestNames);
+
+TYPED_TEST(TaskRunnerTest, QuitImmediately) {
+  this->task_runner.PostTask([&] { this->task_runner.Quit(); });
+  this->task_runner.Run();
+}
+
+TYPED_TEST(TaskRunnerTest, OneTaskFromAnotherThread) {
+  WaitableEvent task_runner_started;
+  std::thread t1([&] {
+    task_runner_started.Wait();
+    this->task_runner.PostTask([&] { this->task_runner.Quit(); });
+  });
+  this->task_runner.PostTask([&] { task_runner_started.Notify(); });
+  this->task_runner.Run();
+  t1.join();
+}
+
+TYPED_TEST(TaskRunnerTest, PostTaskSimple) {
+  std::string str;
+  this->task_runner.PostTask([&str] { str.append("a"); });
+  this->task_runner.PostTask([&str] { str.append("b"); });
+  this->task_runner.PostTask([&str] { str.append("c"); });
+  this->task_runner.PostTask([&str, tr = &this->task_runner] {
+    tr->PostTask([&str] { str.append("d"); });
+    tr->PostTask([&str] { str.append("e"); });
+    tr->PostTask([&str] { str.append("f"); });
+    tr->PostTask([tr] { tr->Quit(); });
+  });
+  this->task_runner.Run();
+  EXPECT_EQ(str, "abcdef");
+}
+
+TYPED_TEST(TaskRunnerTest, ManyTasksPostedBeforeRun) {
+  constexpr size_t kNumTasks = 10000;
+  std::function<void()> post_another;
+  size_t last_task_id = 0;
+  auto task = [&](size_t n) {
+    ASSERT_EQ(last_task_id, n - 1);
+    last_task_id = n;
+    if (n == kNumTasks)
+      this->task_runner.Quit();
+  };
+
+  for (size_t i = 1; i <= kNumTasks; i++) {
+    this->task_runner.PostTask(std::bind(task, i));
+  }
+
+  this->task_runner.Run();
+  EXPECT_EQ(last_task_id, kNumTasks);
+}
+
+TYPED_TEST(TaskRunnerTest, PostImmediateTask) {
   auto& task_runner = this->task_runner;
   int counter = 0;
   task_runner.PostTask([&counter] { counter = (counter << 4) | 1; });
@@ -48,19 +114,36 @@ TEST_F(TaskRunnerTest, PostImmediateTask) {
   EXPECT_EQ(0x1234, counter);
 }
 
-TEST_F(TaskRunnerTest, PostDelayedTask) {
-  auto& task_runner = this->task_runner;
-  int counter = 0;
-  task_runner.PostDelayedTask([&counter] { counter = (counter << 4) | 1; }, 5);
-  task_runner.PostDelayedTask([&counter] { counter = (counter << 4) | 2; }, 10);
-  task_runner.PostDelayedTask([&counter] { counter = (counter << 4) | 3; }, 15);
-  task_runner.PostDelayedTask([&counter] { counter = (counter << 4) | 4; }, 15);
-  task_runner.PostDelayedTask([&task_runner] { task_runner.Quit(); }, 20);
-  task_runner.Run();
-  EXPECT_EQ(0x1234, counter);
+TYPED_TEST(TaskRunnerTest, PostDelayedTask) {
+  std::vector<int> executed_tasks;
+  this->task_runner.PostDelayedTask(
+      [&] {
+        executed_tasks.push_back(5);
+        this->task_runner.Quit();
+      },
+      100);
+  this->task_runner.PostDelayedTask([&] { executed_tasks.push_back(2); }, 20);
+  this->task_runner.PostDelayedTask([&] { executed_tasks.push_back(3); }, 20);
+  this->task_runner.PostDelayedTask([&] { executed_tasks.push_back(4); }, 80);
+  this->task_runner.PostDelayedTask([&] { executed_tasks.push_back(1); }, 10);
+  this->task_runner.PostTask([&] {
+    this->task_runner.AdvanceTimeForTesting(10);  // Executes task 1.
+  });
+  this->task_runner.PostTask([&] {
+    this->task_runner.AdvanceTimeForTesting(10);  // Executes tasks 2 and 3.
+  });
+  this->task_runner.PostTask([&] {
+    this->task_runner.AdvanceTimeForTesting(60);  // Executes task 4.
+  });
+  this->task_runner.PostTask([&] {
+    this->task_runner.AdvanceTimeForTesting(20);  // Executes task 5.
+  });
+  this->task_runner.Run();
+
+  EXPECT_THAT(executed_tasks, ::testing::ElementsAre(1, 2, 3, 4, 5));
 }
 
-TEST_F(TaskRunnerTest, PostImmediateTaskFromTask) {
+TYPED_TEST(TaskRunnerTest, PostImmediateTaskFromTask) {
   auto& task_runner = this->task_runner;
   task_runner.PostTask([&task_runner] {
     task_runner.PostTask([&task_runner] { task_runner.Quit(); });
@@ -68,7 +151,7 @@ TEST_F(TaskRunnerTest, PostImmediateTaskFromTask) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, PostDelayedTaskFromTask) {
+TYPED_TEST(TaskRunnerTest, PostDelayedTaskFromTask) {
   auto& task_runner = this->task_runner;
   task_runner.PostTask([&task_runner] {
     task_runner.PostDelayedTask([&task_runner] { task_runner.Quit(); }, 10);
@@ -76,7 +159,7 @@ TEST_F(TaskRunnerTest, PostDelayedTaskFromTask) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, PostImmediateTaskFromOtherThread) {
+TYPED_TEST(TaskRunnerTest, PostImmediateTaskFromOtherThread) {
   auto& task_runner = this->task_runner;
   ThreadChecker thread_checker;
   int counter = 0;
@@ -95,7 +178,7 @@ TEST_F(TaskRunnerTest, PostImmediateTaskFromOtherThread) {
   EXPECT_EQ(0x1234, counter);
 }
 
-TEST_F(TaskRunnerTest, PostDelayedTaskFromOtherThread) {
+TYPED_TEST(TaskRunnerTest, PostDelayedTaskFromOtherThread) {
   auto& task_runner = this->task_runner;
   std::thread thread([&task_runner] {
     task_runner.PostDelayedTask([&task_runner] { task_runner.Quit(); }, 10);
@@ -104,7 +187,7 @@ TEST_F(TaskRunnerTest, PostDelayedTaskFromOtherThread) {
   thread.join();
 }
 
-TEST_F(TaskRunnerTest, AddFileDescriptorWatch) {
+TYPED_TEST(TaskRunnerTest, AddFileDescriptorWatch) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   task_runner.AddFileDescriptorWatch(evt.fd(),
@@ -113,7 +196,7 @@ TEST_F(TaskRunnerTest, AddFileDescriptorWatch) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, RemoveFileDescriptorWatch) {
+TYPED_TEST(TaskRunnerTest, RemoveFileDescriptorWatch) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
@@ -128,7 +211,7 @@ TEST_F(TaskRunnerTest, RemoveFileDescriptorWatch) {
   EXPECT_FALSE(watch_ran);
 }
 
-TEST_F(TaskRunnerTest, RemoveFileDescriptorWatchFromTask) {
+TYPED_TEST(TaskRunnerTest, RemoveFileDescriptorWatchFromTask) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
@@ -145,7 +228,7 @@ TEST_F(TaskRunnerTest, RemoveFileDescriptorWatchFromTask) {
   EXPECT_FALSE(watch_ran);
 }
 
-TEST_F(TaskRunnerTest, AddFileDescriptorWatchFromAnotherWatch) {
+TYPED_TEST(TaskRunnerTest, AddFileDescriptorWatchFromAnotherWatch) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   EventFd evt2;
@@ -159,7 +242,7 @@ TEST_F(TaskRunnerTest, AddFileDescriptorWatchFromAnotherWatch) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, RemoveFileDescriptorWatchFromAnotherWatch) {
+TYPED_TEST(TaskRunnerTest, RemoveFileDescriptorWatchFromAnotherWatch) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   EventFd evt2;
@@ -179,7 +262,7 @@ TEST_F(TaskRunnerTest, RemoveFileDescriptorWatchFromAnotherWatch) {
   EXPECT_FALSE(watch_ran);
 }
 
-TEST_F(TaskRunnerTest, ReplaceFileDescriptorWatchFromAnotherWatch) {
+TYPED_TEST(TaskRunnerTest, ReplaceFileDescriptorWatchFromAnotherWatch) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   EventFd evt2;
@@ -200,7 +283,7 @@ TEST_F(TaskRunnerTest, ReplaceFileDescriptorWatchFromAnotherWatch) {
   EXPECT_FALSE(watch_ran);
 }
 
-TEST_F(TaskRunnerTest, AddFileDescriptorWatchFromAnotherThread) {
+TYPED_TEST(TaskRunnerTest, AddFileDescriptorWatchFromAnotherThread) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
@@ -213,7 +296,7 @@ TEST_F(TaskRunnerTest, AddFileDescriptorWatchFromAnotherThread) {
   thread.join();
 }
 
-TEST_F(TaskRunnerTest, FileDescriptorWatchWithMultipleEvents) {
+TYPED_TEST(TaskRunnerTest, FileDescriptorWatchWithMultipleEvents) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
@@ -232,7 +315,7 @@ TEST_F(TaskRunnerTest, FileDescriptorWatchWithMultipleEvents) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, PostManyDelayedTasks) {
+TYPED_TEST(TaskRunnerTest, PostManyDelayedTasks) {
   // Check that PostTask doesn't start failing if there are too many scheduled
   // wake-ups.
   auto& task_runner = this->task_runner;
@@ -242,7 +325,66 @@ TEST_F(TaskRunnerTest, PostManyDelayedTasks) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, RunAgain) {
+TYPED_TEST(TaskRunnerTest, PostTaskReentrant) {
+  constexpr int kMaxTasks = 10000;
+  int next_task_id = 0;
+  int tasks_executed = 0;
+  std::vector<int> execution_log;
+  std::map<int, int> parent_of;  // task_id -> parent_id
+
+  std::function<void(int)> post_recursive;
+  post_recursive = [&](int parent_id) {
+    int task_id = next_task_id++;
+    if (task_id >= kMaxTasks) {
+      return;
+    }
+    parent_of[task_id] = parent_id;
+    this->task_runner.PostTask([&, task_id] {
+      {
+        execution_log.push_back(task_id);
+      }
+
+      // Spawn sub-tasks.
+      std::minstd_rand0 rnd(static_cast<uint32_t>(task_id));
+      int num_children = std::uniform_int_distribution<int>(0, 5)(rnd);
+      for (int i = 0; i < num_children; ++i) {
+        post_recursive(task_id);
+      }
+
+      if (tasks_executed++ == kMaxTasks - 1) {
+        this->task_runner.Quit();
+      }
+    });
+  };
+
+  // Start with a few top-level tasks.
+  post_recursive(-1);
+  post_recursive(-1);
+  post_recursive(-1);
+
+  this->task_runner.Run();
+
+  EXPECT_EQ(tasks_executed, kMaxTasks);
+  EXPECT_EQ(execution_log.size(), static_cast<size_t>(kMaxTasks));
+
+  // Verify that parents are always executed before children.
+  std::map<int, size_t> execution_pos;
+  for (size_t i = 0; i < execution_log.size(); ++i) {
+    execution_pos[execution_log[i]] = i;
+  }
+
+  for (const auto& it : parent_of) {
+    int task_id = it.first;
+    int parent_id = it.second;
+    if (parent_id == -1)
+      continue;
+    ASSERT_TRUE(execution_pos.count(task_id));
+    ASSERT_TRUE(execution_pos.count(parent_id));
+    EXPECT_LT(execution_pos[parent_id], execution_pos[task_id]);
+  }
+}
+
+TYPED_TEST(TaskRunnerTest, RunAgain) {
   auto& task_runner = this->task_runner;
   int counter = 0;
   task_runner.PostTask([&task_runner, &counter] {
@@ -258,31 +400,33 @@ TEST_F(TaskRunnerTest, RunAgain) {
   EXPECT_EQ(2, counter);
 }
 
-void RepeatingTask(UnixTaskRunner* task_runner) {
-  task_runner->PostTask(std::bind(&RepeatingTask, task_runner));
+template <typename T>
+void RepeatingTask(T* task_runner) {
+  task_runner->PostTask(std::bind(&RepeatingTask<T>, task_runner));
 }
 
-TEST_F(TaskRunnerTest, FileDescriptorWatchesNotStarved) {
+TYPED_TEST(TaskRunnerTest, FileDescriptorWatchesNotStarved) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
 
-  task_runner.PostTask(std::bind(&RepeatingTask, &task_runner));
+  task_runner.PostTask(std::bind(&RepeatingTask<TypeParam>, &task_runner));
   task_runner.AddFileDescriptorWatch(evt.fd(),
                                      [&task_runner] { task_runner.Quit(); });
   task_runner.Run();
 }
 
-void CountdownTask(UnixTaskRunner* task_runner, int* counter) {
+template <typename T>
+void CountdownTask(T* task_runner, int* counter) {
   if (!--(*counter)) {
     task_runner->Quit();
     return;
   }
-  task_runner->PostDelayedTask(std::bind(&CountdownTask, task_runner, counter),
-                               1);
+  task_runner->PostDelayedTask(
+      std::bind(&CountdownTask<T>, task_runner, counter), 1);
 }
 
-TEST_F(TaskRunnerTest, NoDuplicateFileDescriptorWatchCallbacks) {
+TYPED_TEST(TaskRunnerTest, NoDuplicateFileDescriptorWatchCallbacks) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
@@ -294,11 +438,12 @@ TEST_F(TaskRunnerTest, NoDuplicateFileDescriptorWatchCallbacks) {
     evt.Clear();
     watch_called = true;
   });
-  task_runner.PostTask(std::bind(&CountdownTask, &task_runner, &counter));
+  task_runner.PostTask(
+      std::bind(&CountdownTask<TypeParam>, &task_runner, &counter));
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, ReplaceFileDescriptorWatchFromOtherThread) {
+TYPED_TEST(TaskRunnerTest, ReplaceFileDescriptorWatchFromOtherThread) {
   auto& task_runner = this->task_runner;
   EventFd evt;
   evt.Notify();
@@ -318,10 +463,14 @@ TEST_F(TaskRunnerTest, ReplaceFileDescriptorWatchFromOtherThread) {
   thread.join();
 }
 
-TEST_F(TaskRunnerTest, IsIdleForTesting) {
+TYPED_TEST(TaskRunnerTest, IsIdleForTesting) {
   auto& task_runner = this->task_runner;
+  // This first task fails because by the time we get to Run(), there is another
+  // one (below) queued up already.
   task_runner.PostTask(
       [&task_runner] { EXPECT_FALSE(task_runner.IsIdleForTesting()); });
+
+  // This one succeeds because it's the last one and there is no further task.
   task_runner.PostTask([&task_runner] {
     EXPECT_TRUE(task_runner.IsIdleForTesting());
     task_runner.Quit();
@@ -329,12 +478,44 @@ TEST_F(TaskRunnerTest, IsIdleForTesting) {
   task_runner.Run();
 }
 
-TEST_F(TaskRunnerTest, RunsTasksOnCurrentThread) {
+// Covers a corner cases that TestTaskRunner::RunUntilIdle relies on:
+// IsIdleForTesting() is supposed to check for all type of upcoming tasks,
+// including FD watches. This is to check that the TaskRunner implementation
+// doesn't have off-by one behaviours where the FD watch is only observed on
+// the next task.
+// It's debatable on whether we need to preserve this behaviour in production
+// code, if we assume FDs are unpredictable events and we shouldn't expect
+// timing correlations with current tasks.
+TYPED_TEST(TaskRunnerTest, IsIdleForTesting_WithFd) {
+  auto& task_runner = this->task_runner;
+  EventFd efd;
+  bool efd_observed = false;
+
+  // This will fail the IsIdleForTesting() check because by the time we get
+  // to run, the eventfd is notified.
+  task_runner.PostTask(
+      [&task_runner] { EXPECT_FALSE(task_runner.IsIdleForTesting()); });
+
+  task_runner.AddFileDescriptorWatch(efd.fd(), [&] {
+    efd.Clear();
+    efd_observed = true;
+    task_runner.PostTask([&task_runner] {
+      EXPECT_TRUE(task_runner.IsIdleForTesting());
+      task_runner.Quit();
+    });
+  });
+  efd.Notify();
+
+  task_runner.Run();
+  EXPECT_TRUE(efd_observed);
+}
+
+TYPED_TEST(TaskRunnerTest, RunsTasksOnCurrentThread) {
   auto& main_tr = this->task_runner;
 
   EXPECT_TRUE(main_tr.RunsTasksOnCurrentThread());
   std::thread thread([&main_tr] {
-    typename std::remove_reference<decltype(main_tr)>::type second_tr;
+    TypeParam second_tr;
     second_tr.PostTask([&main_tr, &second_tr] {
       EXPECT_FALSE(main_tr.RunsTasksOnCurrentThread());
       EXPECT_TRUE(second_tr.RunsTasksOnCurrentThread());
@@ -347,7 +528,7 @@ TEST_F(TaskRunnerTest, RunsTasksOnCurrentThread) {
   thread.join();
 }
 
-TEST_F(TaskRunnerTest, FileDescriptorWatchFairness) {
+TYPED_TEST(TaskRunnerTest, FileDescriptorWatchFairness) {
   auto& task_runner = this->task_runner;
   EventFd evt[5];
   std::map<PlatformHandle, int /*num_tasks*/> num_tasks;
@@ -376,7 +557,7 @@ TEST_F(TaskRunnerTest, FileDescriptorWatchFairness) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 // This tests UNIX-specific behavior on pipe closure.
-TEST_F(TaskRunnerTest, FileDescriptorClosedEvent) {
+TYPED_TEST(TaskRunnerTest, FileDescriptorClosedEvent) {
   auto& task_runner = this->task_runner;
   Pipe pipe = Pipe::Create();
   pipe.wr.reset();
@@ -386,6 +567,58 @@ TEST_F(TaskRunnerTest, FileDescriptorClosedEvent) {
 }
 
 #endif
+
+TYPED_TEST(TaskRunnerTest, MultiThreadedStress) {
+  constexpr size_t kNumThreads = 4;
+  constexpr size_t kNumTasksPerThread = 1000;
+  constexpr size_t kTotalTasks = kNumThreads * kNumTasksPerThread;
+
+  struct ThreadState {
+    size_t next_gen = 0;
+    size_t next_expected = 0;
+    std::minstd_rand0 rnd{};
+    std::thread thread;
+  };
+
+  std::array<ThreadState, kNumThreads> threads{};
+  std::atomic<size_t> tasks_posted{0};
+  std::atomic<size_t> tasks_executed{0};
+
+  std::function<void(size_t, size_t)> worker_fn;
+  worker_fn = [&](size_t thread_idx, size_t expected_id) {
+    ThreadState& thd = threads[thread_idx];
+
+    ASSERT_EQ(expected_id, thd.next_expected);
+    ++thd.next_expected;
+    tasks_executed.fetch_add(1, std::memory_order_relaxed);
+
+    int num_subtasks = std::uniform_int_distribution<int>(1, 32)(thd.rnd);
+    for (int i = 0; i < num_subtasks; ++i) {
+      auto total_num = tasks_posted.fetch_add(1, std::memory_order_relaxed);
+      if (total_num >= kTotalTasks) {
+        if (total_num == kTotalTasks) {
+          this->task_runner.PostTask([&] { this->task_runner.Quit(); });
+        }
+        return;
+      }
+      size_t next_id = ++thd.next_gen;
+      this->task_runner.PostTask(std::bind(worker_fn, thread_idx, next_id));
+    }
+    std::this_thread::yield();
+  };
+
+  tasks_posted.store(kNumThreads);  // Account for the initial calls.
+  for (size_t i = 0; i < kNumThreads; ++i) {
+    threads[i].thread = std::thread(std::bind(worker_fn, i, 0));
+  }
+
+  this->task_runner.Run();
+
+  for (auto& thread_state : threads) {
+    thread_state.thread.join();
+  }
+  EXPECT_EQ(tasks_executed.load(), kTotalTasks);
+}
 
 }  // namespace
 }  // namespace base
