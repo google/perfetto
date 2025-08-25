@@ -172,7 +172,11 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   // Check short version:
-  if (firstStatus.versionCode && firstStatus.versionCode !== '' && firstStatus.versionCode !== VERSION) {
+  if (
+    firstStatus.versionCode &&
+    firstStatus.versionCode !== '' &&
+    firstStatus.versionCode !== VERSION
+  ) {
     const url = await isVersionAvailable(firstStatus.versionCode);
     if (url !== undefined) {
       // If matched UI available show a dialog asking the user to
@@ -319,7 +323,7 @@ async function showDialogToUsePreloadedTrace(
 ): Promise<PreloadedDialogResult> {
   // First modal: ask about using trace processor
   // let result = PreloadedDialogResult.Dismissed;
-  
+
   const initialResult = await new Promise<PreloadedDialogResult>((resolve) => {
     showModal({
       title: 'Use trace processor native acceleration?',
@@ -353,11 +357,11 @@ async function showDialogToUsePreloadedTrace(
       ],
     });
   });
-  
+
   // If user selected "YES, use loaded trace", show trace processor selection
   if (initialResult === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
     const selectedUuid = await showTraceProcessorSelectionModal();
-    
+
     if (selectedUuid !== null && selectedUuid !== undefined) {
       console.log(`Selected trace processor: ${selectedUuid}`);
       // Store the selected UUID for backend integration
@@ -368,7 +372,7 @@ async function showDialogToUsePreloadedTrace(
       return PreloadedDialogResult.Dismissed;
     }
   }
-  
+
   return initialResult;
 }
 
@@ -437,11 +441,12 @@ async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
     try {
       // Fetch actual trace processor data
       const httpRpcState = await HttpRpcEngine.checkConnection();
-      
+
       if (!httpRpcState.connected || !httpRpcState.status) {
         showModal({
           title: 'No Trace Processors Available',
-          content: 'Could not connect to any trace processors or no trace processors are available.',
+          content:
+            'Could not connect to any trace processors or no trace processors are available.',
           buttons: [
             {
               text: 'OK',
@@ -454,7 +459,7 @@ async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
       }
 
       const traceProcessors = httpRpcState.status.traceProcessorStatuses;
-      
+
       if (traceProcessors.length === 0) {
         showModal({
           title: 'No Trace Processors Available',
@@ -471,8 +476,8 @@ async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
       }
 
       // Filter to only show trace processors that have a loaded trace
-      const processorsWithTraces = traceProcessors.filter(tp => 
-        tp.status?.loadedTraceName && tp.status.loadedTraceName !== ''
+      const processorsWithTraces = traceProcessors.filter(
+        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== '',
       );
 
       if (processorsWithTraces.length === 0) {
@@ -493,57 +498,70 @@ async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
       showModal({
         title: 'Select Trace Processor',
         content: () => {
-          return m('.tp-selection-modal',
+          return m(
+            '.tp-selection-modal',
             m('p', 'Please select a trace processor to use:'),
-            m('.tp-list', {
-              style: {
-                'max-height': '300px',
-                'overflow-y': 'auto',
-                'border': '1px solid #ccc',
-                'border-radius': '4px',
-                'margin': '16px 0'
-              }
-            }, 
-              processorsWithTraces.map(tp => {
+            m(
+              '.tp-list',
+              {
+                style: {
+                  'max-height': '300px',
+                  'overflow-y': 'auto',
+                  'border': '1px solid #ccc',
+                  'border-radius': '4px',
+                  'margin': '16px 0',
+                },
+              },
+              processorsWithTraces.map((tp) => {
                 const status = tp.status!;
-                return m('.tp-item', {
-                  key: tp.uuid || 'default',
-                  style: {
-                    'padding': '12px',
-                    'border-bottom': '1px solid #eee',
-                    'cursor': 'pointer',
-                    'display': 'flex',
-                    'justify-content': 'space-between',
-                    'align-items': 'center'
-                  },
-                  onclick: () => {
-                    closeModal();
-                    resolve(tp.uuid || '');
-                  },
-                  onmouseenter: (e: Event) => {
-                    (e.target as HTMLElement).style.backgroundColor = '#f5f5f5';
-                  },
-                  onmouseleave: (e: Event) => {
-                    (e.target as HTMLElement).style.backgroundColor = '';
-                  }
-                }, [
-                  m('.tp-info', [
-                    m('strong', status.loadedTraceName),
-                    m('br'),
-                    m('small', `UUID: ${tp.uuid || 'default'}`)
-                  ]),
-                  status.humanReadableVersion && m('.tp-version', {
+                return m(
+                  '.tp-item',
+                  {
+                    key: tp.uuid || 'default',
                     style: {
-                      'font-size': '11px',
-                      'padding': '2px 6px',
-                      'border-radius': '8px',
-                      'background-color': '#e6f3ff',
-                      'color': '#1976d2'
-                    }
-                  }, status.humanReadableVersion)
-                ])
-              })
-            )
+                      'padding': '12px',
+                      'border-bottom': '1px solid #eee',
+                      'cursor': 'pointer',
+                      'display': 'flex',
+                      'justify-content': 'space-between',
+                      'align-items': 'center',
+                    },
+                    onclick: () => {
+                      closeModal();
+                      resolve(tp.uuid || '');
+                    },
+                    onmouseenter: (e: Event) => {
+                      (e.target as HTMLElement).style.backgroundColor =
+                        '#f5f5f5';
+                    },
+                    onmouseleave: (e: Event) => {
+                      (e.target as HTMLElement).style.backgroundColor = '';
+                    },
+                  },
+                  [
+                    m('.tp-info', [
+                      m('strong', status.loadedTraceName),
+                      m('br'),
+                      m('small', `UUID: ${tp.uuid || 'default'}`),
+                    ]),
+                    status.humanReadableVersion &&
+                      m(
+                        '.tp-version',
+                        {
+                          style: {
+                            'font-size': '11px',
+                            'padding': '2px 6px',
+                            'border-radius': '8px',
+                            'background-color': '#e6f3ff',
+                            'color': '#1976d2',
+                          },
+                        },
+                        status.humanReadableVersion,
+                      ),
+                  ],
+                );
+              }),
+            ),
           );
         },
         buttons: [

@@ -425,7 +425,7 @@ message StatusAllArgs {}
 message TraceProcessorStatus {
   // UUID of the trace processor (empty string for global/default processor)
   optional string uuid = 1;
-  
+
   // Status information for this trace processor
   optional StatusResult status = 2;
 }
