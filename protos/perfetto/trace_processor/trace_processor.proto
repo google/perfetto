@@ -257,9 +257,10 @@ message StatusArgs {}
 
 // Output for the /status endpoint.
 message StatusResult {
-  // If present and not empty, a trace is already loaded already. This happens
-  // when using the HTTP+RPC mode nad passing a trace file to the shell, via
-  // trace_processor_shell -D trace_file.pftrace .
+  // If present and not empty, a trace is already loaded already in the global
+  // trace processor. This happens when using the HTTP+RPC mode and passing a
+  // trace file to the shell, via trace_processor_shell -D trace_file.pftrace .
+  // this is used for legacy uis
   optional string loaded_trace_name = 1;
 
   // Typically something like "v11.0.123", but could be just "v11" or "unknown",
@@ -413,4 +414,25 @@ message TraceSummaryResult {
     string textproto_summary = 2;
   }
   optional string error = 3;
+}
+
+// Request message for the /status/all endpoint
+// Used to query status information for all trace processors
+message StatusAllArgs {}
+
+// Individual status entry for a specific trace processor
+// Contains both the UUID identifier and the actual status
+message TraceProcessorStatus {
+  // UUID of the trace processor (empty string for global/default processor)
+  optional string uuid = 1;
+  
+  // Status information for this trace processor
+  optional StatusResult status = 2;
+}
+
+// Response message for the /status/all endpoint
+// Contains status information for all available trace processors
+message StatusAllResult {
+  // List of all trace processor statuses
+  repeated TraceProcessorStatus trace_processor_statuses = 1;
 }

@@ -35,6 +35,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "perfetto/ext/base/version.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -51,8 +52,6 @@ const char* kDefaultAllowedCORSOrigins[] = {
     "http://localhost:10000",
     "http://127.0.0.1:10000",
 };
-
-constexpr uint32_t kWebSocketGracePeriodMs = 5000;  // 5 second grace period
 
 void SendRpcChunk(base::HttpServerConnection* conn,
                   const void* data,
@@ -278,9 +277,49 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       "Transfer-Encoding: chunked",            //
   };
 
+  //legacy endpoint that only accesses the global trace processor
   if (req.uri == "/status") {
     auto status = global_trace_processor_rpc_.GetStatus();
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(status));
+  }
+
+  if(req.uri == "/status/all"){
+    // Use protozero::HeapBuffered to get SerializeAsArray() method
+    protozero::HeapBuffered<protos::pbzero::StatusAllResult> result;
+    
+    // Add global trace processor status
+    {
+      auto* tp_status = result->add_trace_processor_statuses();
+      tp_status->set_uuid("");
+      
+      auto* status = tp_status->set_status();
+      // Use GetLoadedTraceName() which returns empty string if no trace loaded
+      status->set_loaded_trace_name(global_trace_processor_rpc_.GetCurrentTraceName());
+      status->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        status->set_version_code(version_code);
+      }
+      status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    }
+    
+    // Add per-UUID trace processors
+    for (const auto& entry : uuid_to_tp_map) {
+      const std::string& uuid = entry.first;
+      const auto& tp_rpc = entry.second;
+      
+      auto* tp_status = result->add_trace_processor_statuses();
+      tp_status->set_uuid(uuid.c_str());
+      
+      auto* status = tp_status->set_status();
+      status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
+
+      status->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        status->set_version_code(version_code);
+      }
+      status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    }
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(result.SerializeAsArray()));
   }
 
   if (req.uri == "/websocket" && req.is_websocket_handshake) {
