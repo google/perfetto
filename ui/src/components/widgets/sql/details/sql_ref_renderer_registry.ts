@@ -22,7 +22,7 @@ export function createSqlIdRefRenderer<Data extends {}>(
   fetch: (engine: Engine, id: bigint) => Promise<Data>,
   render: (trace: Trace, data: Data) => RenderedValue,
 ): SqlIdRefRenderer {
-  return {fetch, render: render as (data: {}) => RenderedValue};
+  return {fetch, render: render as SqlIdRefRenderer['render']};
 }
 
 export const sqlIdRegistry: {[key: string]: SqlIdRefRenderer} = {};

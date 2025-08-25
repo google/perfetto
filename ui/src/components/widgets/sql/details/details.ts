@@ -287,7 +287,7 @@ export type RenderedValue = {
 // the vdom.
 export type SqlIdRefRenderer = {
   fetch: (engine: Engine, id: bigint) => Promise<{} | undefined>;
-  render: (data: {}) => RenderedValue;
+  render: (trace: Trace, data: {}) => RenderedValue;
 };
 
 // === Impl details ===
@@ -787,7 +787,7 @@ function renderValue(
             `Unknown table ${ref.tableName} (${ref.tableName}[${refData.id}])`,
           );
         } else {
-          const rendered = renderer.render(refData.data);
+          const rendered = renderer.render(trace, refData.data);
           rhs = rendered.value;
           children = rendered.children;
         }
