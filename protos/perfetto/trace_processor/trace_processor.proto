@@ -260,7 +260,8 @@ message StatusResult {
   // If present and not empty, a trace is already loaded already in one or more
   // trace processors. This happens when using the HTTP+RPC mode and passing a
   // trace file to the shell, via trace_processor_shell -D trace_file.pftrace .
-  // or opening a trace processor in a separate get_thread_state_summary_for_interval
+  // or opening a trace processor in a separate
+  // get_thread_state_summary_for_interval
   optional string loaded_trace_name = 1;
 
   // Typically something like "v11.0.123", but could be just "v11" or "unknown",

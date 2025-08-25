@@ -71,11 +71,11 @@ export class HttpRpcEngine extends EngineBase {
     if (this.trace_processor_uuid === '') {
       this.trace_processor_uuid = uuidv4();
     }
-          const handshake = JSON.stringify({
-        type: 'TP_UUID',
-        uuid: this.trace_processor_uuid,
-      });
-      this.websocket!.send(new TextEncoder().encode(handshake));
+    const handshake = JSON.stringify({
+      type: 'TP_UUID',
+      uuid: this.trace_processor_uuid,
+    });
+    this.websocket!.send(new TextEncoder().encode(handshake));
     for (;;) {
       const queuedMsg = this.requestQueue.shift();
       if (queuedMsg === undefined) break;

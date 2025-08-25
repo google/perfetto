@@ -730,7 +730,7 @@ std::vector<uint8_t> Rpc::GetStatus() {
   return status.SerializeAsArray();
 }
 
-std::string Rpc::GetCurrentTraceName(){
+std::string Rpc::GetCurrentTraceName() {
   return trace_processor_->GetCurrentTraceName();
 }
 
