@@ -214,6 +214,11 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
   std::atomic<size_t> slabs_freed_{};
 };
 
+using MaybeLockFreeTaskRunner =
+    std::conditional_t<base::flags::use_lockfree_taskrunner,
+                       LockFreeTaskRunner,
+                       UnixTaskRunner>;
+
 namespace task_runner_internal {
 
 // Returns the index of the refcount_ bucket for the passed Slab pointer.
