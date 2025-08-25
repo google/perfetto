@@ -137,8 +137,7 @@ async function createEngine(
   let engine;
   if (useRpc) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
-    const traceProcessorUuid = app.httpRpc.selectedTraceProcessorUuid;
-    engine = new HttpRpcEngine(engineId, traceProcessorUuid);
+    engine = new HttpRpcEngine(engineId, app.httpRpc.selectedTraceProcessorUuid);
   } else {
     console.log('Opening trace using built-in WASM engine');
     engine = new WasmEngineProxy(engineId);

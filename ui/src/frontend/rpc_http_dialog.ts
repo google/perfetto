@@ -40,7 +40,6 @@ NO, Use builtin WASM:
 Will not use the accelerator in this tab.
 
 Using the native accelerator has some minor caveats:
-- Only one tab can be using the accelerator.
 - Sharing, downloading and conversion-to-legacy aren't supported.
 `;
 }
@@ -339,12 +338,6 @@ async function showDialogToUsePreloadedTrace(
           text: 'NO, Use builtin WASM',
           action: () => {
             resolve(PreloadedDialogResult.UseWasm);
-          },
-        },
-        {
-          text: 'Cancel',
-          action: () => {
-            resolve(PreloadedDialogResult.Dismissed);
           },
         },
       ],

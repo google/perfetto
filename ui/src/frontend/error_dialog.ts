@@ -362,14 +362,14 @@ function showRpcSequencingError() {
       m('p', 'The trace processor RPC sequence ID was broken'),
       m(
         'p',
-        `This can happen when using a HTTP trace processor instance and
+        `This can happen when the default trace processor or using an outdated version of the HTTP trace processor instance and
 either accidentally sharing this between multiple tabs or
 restarting the trace processor while still in use by UI.`,
       ),
       m(
         'p',
         `Please refresh this tab and ensure that trace processor is used
-at most one tab at a time.`,
+at most one tab at a time, or use a later version of the processor.`,
       ),
     ),
   });

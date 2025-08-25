@@ -730,4 +730,8 @@ std::vector<uint8_t> Rpc::GetStatus() {
   return status.SerializeAsArray();
 }
 
+std::string Rpc::GetCurrentTraceName(){
+  return trace_processor_->GetCurrentTraceName();
+}
+
 }  // namespace perfetto::trace_processor
