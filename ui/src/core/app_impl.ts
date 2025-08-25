@@ -300,7 +300,10 @@ export class AppImpl implements App {
   }
 
   openTraceFromHttpRpc(): void {
-    this.openTrace({type: 'HTTP_RPC'});
+    this.openTrace({
+      type: 'HTTP_RPC',
+      traceProcessorUuid: this.httpRpc.selectedTraceProcessorUuid || 'default',
+    });
   }
 
   private async openTrace(src: TraceSource) {

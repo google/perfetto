@@ -157,7 +157,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
   const tpStatusAll = assertExists(state.status);
 
-  // For now, use the first trace processor if available, otherwise fallback
+  // use the first trace processor if available, otherwise fallback
   const firstStatusData = tpStatusAll.traceProcessorStatuses?.[0]?.status;
   if (!firstStatusData) {
     // No trace processors available, use RPC without preloaded trace
@@ -172,11 +172,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   // Check short version:
-  if (
-    firstStatus.versionCode &&
-    firstStatus.versionCode !== '' &&
-    firstStatus.versionCode !== VERSION
-  ) {
+  if (firstStatus.versionCode !== '' && firstStatus.versionCode !== VERSION) {
     const url = await isVersionAvailable(firstStatus.versionCode);
     if (url !== undefined) {
       // If matched UI available show a dialog asking the user to
@@ -200,7 +196,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   // Check the RPC version:
-  if (firstStatus.apiVersion && firstStatus.apiVersion < CURRENT_API_VERSION) {
+  if (firstStatus.apiVersion < CURRENT_API_VERSION) {
     const result = await showDialogIncompatibleRPC(firstStatus);
     switch (result) {
       case IncompatibleRpcDialogResult.Dismissed:
@@ -321,10 +317,7 @@ enum PreloadedDialogResult {
 async function showDialogToUsePreloadedTrace(
   tpStatus: protos.StatusResult,
 ): Promise<PreloadedDialogResult> {
-  // First modal: ask about using trace processor
-  // let result = PreloadedDialogResult.Dismissed;
-
-  const initialResult = await new Promise<PreloadedDialogResult>((resolve) => {
+  const result = await new Promise<PreloadedDialogResult>((resolve) => {
     showModal({
       title: 'Use trace processor native acceleration?',
       content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
@@ -359,7 +352,7 @@ async function showDialogToUsePreloadedTrace(
   });
 
   // If user selected "YES, use loaded trace", show trace processor selection
-  if (initialResult === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
+  if (result === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
     const selectedUuid = await showTraceProcessorSelectionModal();
 
     if (selectedUuid !== null && selectedUuid !== undefined) {
@@ -373,7 +366,7 @@ async function showDialogToUsePreloadedTrace(
     }
   }
 
-  return initialResult;
+  return result;
 }
 
 function getUrlForVersion(versionCode: string): string {
@@ -415,25 +408,6 @@ function navigateToVersion(versionCode: string): void {
   }
   window.location.replace(url);
 }
-
-// Remove these unused declarations:
-// Add interface for trace processor info
-// interface TraceProcessorInfo {
-//   uuid: string;
-//   name: string;
-//   status: string;
-//   port?: number;
-// }
-
-// Remove getMockTraceProcessors function completely
-// function getMockTraceProcessors(): TraceProcessorInfo[] {
-//   return [
-//     {uuid: 'tp-001', name: 'Local Trace Processor', status: 'Active', port: 9001},
-//     {uuid: 'tp-002', name: 'Remote Device A', status: 'Active', port: 9002},
-//     {uuid: 'tp-003', name: 'Remote Device B', status: 'Idle', port: 9003},
-//     {uuid: 'tp-004', name: 'Development Server', status: 'Active', port: 9004},
-//   ];
-// }
 
 // New function to show trace processor selection modal
 async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
