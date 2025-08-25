@@ -21,9 +21,9 @@
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
@@ -130,7 +130,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     base::Daemonize([] { return 0; });
   }
 
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
   std::unique_ptr<ServiceIPCHost> svc;
   TracingService::InitOpts init_opts = {};
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)

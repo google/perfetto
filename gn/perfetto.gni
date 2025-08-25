@@ -278,6 +278,17 @@ declare_args() {
        (((build_with_chromium && is_android) || perfetto_build_standalone) &&
         (current_cpu == "x64" || current_cpu == "arm64"))) ||
       is_perfetto_build_generator
+
+  # This flag is used for the migration of UnixTaskRunner -> LockFreeTaskRunner.
+  # It determines whether MaybeLockFreeTaskRunner is backed by UnixTaskRunner
+  # or the newer LockFreeTaskRunner.
+  # UnixTaskRunner is the battle-tested original TaskRunner implementaiton used
+  # from 2017 -> 2025. LockFreeTaskRunner is the new improved TaskRunner which
+  # is planning to sunset UnixTaskRunner.
+  # Note that on Android platform (non-standalone) builds this flag is ignored
+  # and the Android flag "use_lockfree_taskrunner" is used instead (see
+  # perfetto_flags.aconfig)
+  enable_perfetto_lockfree_taskrunner = false
 }
 
 declare_args() {

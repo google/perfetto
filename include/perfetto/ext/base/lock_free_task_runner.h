@@ -243,6 +243,11 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
   AtomicSharedPtr<Slab> tail_;
 };
 
+using MaybeLockFreeTaskRunner =
+    std::conditional_t<base::flags::use_lockfree_taskrunner,
+                       LockFreeTaskRunner,
+                       UnixTaskRunner>;
+
 }  // namespace base
 }  // namespace perfetto
 
