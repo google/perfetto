@@ -98,11 +98,20 @@ describe('MultiTraceController', () => {
   let controller: MultiTraceController;
   let fakeAnalyzer: FakeTraceAnalyzer;
   let onStateChanged: jest.Mock;
+  let onAnalysisStarted: jest.Mock;
+  let onAnalysisCompleted: jest.Mock;
 
   beforeEach(() => {
     fakeAnalyzer = new FakeTraceAnalyzer();
     onStateChanged = jest.fn();
-    controller = new MultiTraceController(fakeAnalyzer, onStateChanged);
+    onAnalysisStarted = jest.fn();
+    onAnalysisCompleted = jest.fn();
+    controller = new MultiTraceController(
+      fakeAnalyzer,
+      onStateChanged,
+      onAnalysisStarted,
+      onAnalysisCompleted,
+    );
   });
 
   it('should initialize with no traces', () => {
@@ -111,7 +120,7 @@ describe('MultiTraceController', () => {
   });
 
   describe('addFiles', () => {
-    it('should add files and trigger analysis', () => {
+    it('should add files and trigger analysis', async () => {
       const file1 = createMockFile('trace1.pftrace');
       const file2 = createMockFile('trace2.pftrace');
       fakeAnalyzer.setResult(file1.name, {format: 'Perfetto'});
@@ -120,9 +129,23 @@ describe('MultiTraceController', () => {
       controller.addFiles([file1, file2]);
 
       expect(controller.traces).toHaveLength(2);
-      expect(controller.traces[0].status).toBe('not-analyzed');
-      expect(controller.traces[1].status).toBe('not-analyzed');
+      // Analysis starts immediately, so status should be 'analyzing'
+      expect(controller.traces[0].status).toBe('analyzing');
+      expect(controller.traces[1].status).toBe('analyzing');
       expect(onStateChanged).toHaveBeenCalled();
+
+      // Wait for analysis to complete
+      await new Promise<void>((resolve) => {
+        let completedCount = 0;
+        onAnalysisCompleted.mockImplementation(() => {
+          completedCount++;
+          if (completedCount === 2) resolve();
+        });
+      });
+
+      // Now traces should be analyzed
+      expect(controller.traces[0].status).toBe('analyzed');
+      expect(controller.traces[1].status).toBe('analyzed');
     });
 
     it('should handle format error messages', async () => {
@@ -135,7 +158,9 @@ describe('MultiTraceController', () => {
       controller.addFiles([file]);
 
       // Wait for the async analysis to complete
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => {
+        onAnalysisCompleted.mockImplementation(() => resolve());
+      });
 
       const trace = controller.traces[0];
       expect(trace.status).toBe('error');
@@ -227,10 +252,13 @@ describe('MultiTraceController', () => {
       fakeAnalyzer.setResult(file.name, {format: 'Perfetto'});
 
       controller.addFiles([file]);
-      expect(controller.traces[0].status).toBe('not-analyzed');
+      // Analysis starts immediately, so status should be 'analyzing'
+      expect(controller.traces[0].status).toBe('analyzing');
 
       // Wait for async analysis to complete
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => {
+        onAnalysisCompleted.mockImplementation(() => resolve());
+      });
 
       expect(controller.traces[0].status).toBe('analyzed');
       if (controller.traces[0].status === 'analyzed') {
@@ -243,10 +271,13 @@ describe('MultiTraceController', () => {
       fakeAnalyzer.setError(file.name, new Error('Test analysis error'));
 
       controller.addFiles([file]);
-      expect(controller.traces[0].status).toBe('not-analyzed');
+      // Analysis starts immediately, so status should be 'analyzing'
+      expect(controller.traces[0].status).toBe('analyzing');
 
       // Wait for async analysis to complete
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => {
+        onAnalysisCompleted.mockImplementation(() => resolve());
+      });
 
       expect(controller.traces[0].status).toBe('error');
       if (controller.traces[0].status === 'error') {

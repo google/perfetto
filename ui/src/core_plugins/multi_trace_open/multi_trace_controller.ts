@@ -36,10 +36,19 @@ export class MultiTraceController {
   private _traces: TraceFile[] = [];
   private traceAnalyzer: TraceAnalyzer;
   private onStateChanged: () => void;
+  private onAnalysisStarted?: (traceUuid: string) => void;
+  private onAnalysisCompleted?: (traceUuid: string) => void;
 
-  constructor(traceAnalyzer: TraceAnalyzer, onStateChanged: () => void) {
+  constructor(
+    traceAnalyzer: TraceAnalyzer,
+    onStateChanged: () => void,
+    onAnalysisStarted?: (traceUuid: string) => void,
+    onAnalysisCompleted?: (traceUuid: string) => void,
+  ) {
     this.traceAnalyzer = traceAnalyzer;
     this.onStateChanged = onStateChanged;
+    this.onAnalysisStarted = onAnalysisStarted;
+    this.onAnalysisCompleted = onAnalysisCompleted;
   }
 
   // Test-only method to set traces directly
@@ -108,6 +117,7 @@ export class MultiTraceController {
         progress: 0,
       };
       this.onStateChanged();
+      this.onAnalysisStarted?.(trace.uuid);
 
       const result = await this.traceAnalyzer.analyze(
         trace.file,
@@ -129,6 +139,7 @@ export class MultiTraceController {
       };
       this._traces[index] = analyzedTrace;
       this.onStateChanged();
+      this.onAnalysisCompleted?.(trace.uuid);
     } catch (e) {
       this._traces[index] = {
         ...trace,
@@ -136,6 +147,7 @@ export class MultiTraceController {
         error: getErrorMessage(e),
       };
       this.onStateChanged();
+      this.onAnalysisCompleted?.(trace.uuid);
     }
   }
 }
