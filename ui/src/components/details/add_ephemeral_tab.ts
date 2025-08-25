@@ -17,7 +17,11 @@ import {Trace} from '../../public/trace';
 
 // TODO(primiano): this method probably shouldn't exist at all in favour
 // of some helper in the Trace object).
-export function addEphemeralTab(trace: Trace, uriPrefix: string, tab: Tab): void {
+export function addEphemeralTab(
+  trace: Trace,
+  uriPrefix: string,
+  tab: Tab,
+): void {
   const uri = `${uriPrefix}#${uuidv4()}`;
 
   const tabManager = trace.tabs;

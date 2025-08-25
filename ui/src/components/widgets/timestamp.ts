@@ -49,7 +49,8 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
             onmouseover: () => (timeline.hoverCursorTimestamp = ts),
             onmouseout: () => (timeline.hoverCursorTimestamp = undefined),
           },
-          attrs.display ?? this.formatTimestamp(trace, timeline.toDomainTime(ts)),
+          attrs.display ??
+            this.formatTimestamp(trace, timeline.toDomainTime(ts)),
         ),
       },
       m(MenuItem, {

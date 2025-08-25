@@ -153,7 +153,11 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     const latency = data.sched.ts - data.wakeup?.wakeupTs;
     return m(
       '.pf-sched-latency__latency-text',
-      m('', `Scheduling latency: `, m(DurationWidget, {trace: this.trace, dur: latency})),
+      m(
+        '',
+        `Scheduling latency: `,
+        m(DurationWidget, {trace: this.trace, dur: latency}),
+      ),
       m(
         '.pf-sched-latency__explanation',
         `This is the interval from when the task became eligible to run

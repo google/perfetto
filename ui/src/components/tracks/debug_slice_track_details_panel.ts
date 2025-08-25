@@ -252,8 +252,14 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     }
     const details = dictToTreeNodes({
       'Name': this.data['name'] as string,
-      'Start time': m(Timestamp, {trace: this.trace, ts: timeFromSql(this.data['ts'])}),
-      'Duration': m(DurationWidget, {trace: this.trace, dur: durationFromSql(this.data['dur'])}),
+      'Start time': m(Timestamp, {
+        trace: this.trace,
+        ts: timeFromSql(this.data['ts']),
+      }),
+      'Duration': m(DurationWidget, {
+        trace: this.trace,
+        dur: durationFromSql(this.data['dur']),
+      }),
       'SQL ID': m(SqlRef, {table: this.tableName, id: this.eventId}),
     });
     details.push(this.renderThreadStateInfo());

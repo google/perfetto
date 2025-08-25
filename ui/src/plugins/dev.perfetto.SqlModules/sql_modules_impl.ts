@@ -249,7 +249,11 @@ class SqlTableImpl implements SqlTable {
   linkedIdColumns: SqlColumn[];
   joinIdColumns: SqlColumn[];
 
-  constructor(readonly trace: Trace, docs: DocsDataObjectSchemaType, includeKey: string | undefined) {
+  constructor(
+    readonly trace: Trace,
+    docs: DocsDataObjectSchemaType,
+    includeKey: string | undefined,
+  ) {
     this.name = docs.name;
     this.includeKey = includeKey;
     this.description = docs.desc;

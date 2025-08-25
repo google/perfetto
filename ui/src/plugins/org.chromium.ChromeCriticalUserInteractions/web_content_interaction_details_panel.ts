@@ -90,7 +90,10 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
     if (this.data === undefined) return details;
     details['Interaction'] = this.data.interactionType;
     details['Timestamp'] = m(Timestamp, {trace: this.trace, ts: this.data.ts});
-    details['Duration'] = m(DurationWidget, {trace: this.trace, dur: this.data.dur});
+    details['Duration'] = m(DurationWidget, {
+      trace: this.trace,
+      dur: this.data.dur,
+    });
     details['Renderer Upid'] = this.data.upid;
     details['Total duration of all events'] = m(DurationWidget, {
       trace: this.trace,

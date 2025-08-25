@@ -20,7 +20,11 @@ import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
-import {SQL_MODULES_DOCS_SCHEMA, SqlModulesDocsSchema, SqlModulesImpl} from './sql_modules_impl';
+import {
+  SQL_MODULES_DOCS_SCHEMA,
+  SqlModulesDocsSchema,
+  SqlModulesImpl,
+} from './sql_modules_impl';
 
 const docs = defer<SqlModulesDocsSchema>();
 

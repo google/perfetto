@@ -15,7 +15,9 @@
 import type {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
 
-export const sqlTableRegistry: {[tableName: string]: (trace: Trace) => SqlTableDescription} = {};
+export const sqlTableRegistry: {
+  [tableName: string]: (trace: Trace) => SqlTableDescription;
+} = {};
 
 export function getSqlTableDescription(
   trace: Trace,

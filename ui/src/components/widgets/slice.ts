@@ -41,15 +41,11 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          vnode.attrs.trace.selection.selectSqlEvent(
-            'slice',
-            vnode.attrs.id,
-            {
-              switchToCurrentSelectionTab:
-                vnode.attrs.switchToCurrentSelectionTab,
-              scrollToSelection: true,
-            },
-          );
+          vnode.attrs.trace.selection.selectSqlEvent('slice', vnode.attrs.id, {
+            switchToCurrentSelectionTab:
+              vnode.attrs.switchToCurrentSelectionTab,
+            scrollToSelection: true,
+          });
         },
       },
       vnode.attrs.name,
@@ -57,7 +53,11 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
   }
 }
 
-export function sliceRef(trace: Trace, slice: SliceDetails, name?: string): m.Child {
+export function sliceRef(
+  trace: Trace,
+  slice: SliceDetails,
+  name?: string,
+): m.Child {
   return m(SliceRef, {
     trace,
     id: slice.id,

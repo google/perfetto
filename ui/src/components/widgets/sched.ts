@@ -46,7 +46,7 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-         vnode.attrs.trace.selection.selectSqlEvent(
+          vnode.attrs.trace.selection.selectSqlEvent(
             'sched_slice',
             vnode.attrs.id,
             {

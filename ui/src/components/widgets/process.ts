@@ -55,11 +55,14 @@ export function showProcessDetailsMenuItem(
   });
 }
 
-export function processRefMenuItems(trace: Trace, info: {
-  upid: Upid;
-  name?: string;
-  pid?: number;
-}): m.Children {
+export function processRefMenuItems(
+  trace: Trace,
+  info: {
+    upid: Upid;
+    name?: string;
+    pid?: number;
+  },
+): m.Children {
   // We capture a copy to be able to pass it across async boundary to `onclick`.
   const name = info.name;
   return [

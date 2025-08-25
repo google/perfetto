@@ -117,14 +117,23 @@ export async function breakDownIntervalByThreadState(
   };
 }
 
-function renderChildren(trace: Trace, node: Node, totalDur: duration): m.Child[] {
+function renderChildren(
+  trace: Trace,
+  node: Node,
+  totalDur: duration,
+): m.Child[] {
   const res = Array.from(node.children.entries()).map(([name, child]) =>
     renderNode(trace, child, name, totalDur),
   );
   return res;
 }
 
-function renderNode(trace: Trace, node: Node, name: string, totalDur: duration): m.Child {
+function renderNode(
+  trace: Trace,
+  node: Node,
+  name: string,
+  totalDur: duration,
+): m.Child {
   const durPercent = (100 * Number(node.dur)) / Number(totalDur);
   return m(
     TreeNode,

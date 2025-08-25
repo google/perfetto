@@ -52,11 +52,14 @@ export function showThreadDetailsMenuItem(
   });
 }
 
-export function threadRefMenuItems(trace: Trace, info: {
-  utid: Utid;
-  name?: string;
-  tid?: number;
-}): m.Children {
+export function threadRefMenuItems(
+  trace: Trace,
+  info: {
+    utid: Utid;
+    name?: string;
+    tid?: number;
+  },
+): m.Children {
   // We capture a copy to be able to pass it across async boundary to `onclick`.
   const name = info.name;
   return [
@@ -81,11 +84,14 @@ export function threadRefMenuItems(trace: Trace, info: {
   ];
 }
 
-export function renderThreadRef(trace: Trace, info: {
-  utid: Utid;
-  name?: string;
-  tid?: number;
-}): m.Children {
+export function renderThreadRef(
+  trace: Trace,
+  info: {
+    utid: Utid;
+    name?: string;
+    tid?: number;
+  },
+): m.Children {
   return m(
     PopupMenu,
     {

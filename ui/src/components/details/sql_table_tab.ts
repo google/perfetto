@@ -133,7 +133,8 @@ class LegacySqlTableTab implements Tab {
         m(MenuItem, {
           label: 'Duplicate',
           icon: 'tab_duplicate',
-          onclick: () => addSqlTableTabWithState(this.state.trace, this.state.clone()),
+          onclick: () =>
+            addSqlTableTabWithState(this.state.trace, this.state.clone()),
         }),
         m(MenuItem, {
           label: 'Copy SQL query',

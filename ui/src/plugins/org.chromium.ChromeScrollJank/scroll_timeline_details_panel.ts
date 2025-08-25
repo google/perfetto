@@ -208,7 +208,10 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: m(DurationWidget, {trace: this.trace, dur: this.sliceData.dur}),
+          right: m(DurationWidget, {
+            trace: this.trace,
+            dur: this.sliceData.dur,
+          }),
         }),
         m(TreeNode, {
           left: 'SQL ID',
@@ -247,7 +250,10 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
           right:
             this.scrollData.vsyncInterval === undefined
               ? `${this.scrollData.vsyncInterval}`
-              : m(DurationWidget, {trace: this.trace, dur: this.scrollData.vsyncInterval}),
+              : m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.scrollData.vsyncInterval,
+                }),
         }),
         m(TreeNode, {
           left: 'Is presented',

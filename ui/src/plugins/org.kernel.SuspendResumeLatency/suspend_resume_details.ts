@@ -82,7 +82,10 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
               }),
               m(TreeNode, {
                 left: 'Duration',
-                right: m(DurationWidget, {trace: this.trace, dur: eventDetails.dur}),
+                right: m(DurationWidget, {
+                  trace: this.trace,
+                  dur: eventDetails.dur,
+                }),
               }),
               m(TreeNode, {
                 left: 'Driver Name',
