@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -154,8 +155,8 @@ void EtmV4Stream::StartSession(std::optional<int64_t> start_ts) {
                                  tracks::StaticNameBlueprint("ETMSession"));
     TrackId track_id =
         context_->track_tracker->InternTrack(kETMSessionBlueprint);
-    context_->storage->mutable_counter_table()->Insert(
-        {start_ts.value(), track_id, static_cast<double>(session_id.value)});
+    context_->event_tracker->PushCounter(
+        start_ts.value(), static_cast<double>(session_id.value), track_id);
   }
 }
 
