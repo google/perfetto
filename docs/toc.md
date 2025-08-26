@@ -160,7 +160,8 @@
     - [Interceptors](instrumentation/interceptors.md)
 
   - [Advanced Trace Visualization](#)
-    - [Commands Automation Reference](visualization/commands-automation-reference.md)]
+
+    - [Commands Automation Reference](visualization/commands-automation-reference.md)
 
   - [Contributor Reference](#)
 
