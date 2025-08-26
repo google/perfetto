@@ -16,11 +16,13 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {
-  ColumnDescriptor,
-  Table,
-  TableData,
-  widgetColumn,
-} from '../../widgets/table';
+  Grid,
+  GridBody,
+  GridDataCell,
+  GridHeader,
+  GridHeaderCell,
+  GridRow,
+} from '../../widgets/grid';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
@@ -302,32 +304,42 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
 
   private getDelayTable(): m.Child {
     if (this.orderedJankSlices.length > 0) {
-      const columns: ColumnDescriptor<JankSliceDetails>[] = [
-        widgetColumn<JankSliceDetails>('Cause', (jankSlice) =>
-          renderSliceRef({
-            trace: this.trace,
-            id: jankSlice.id,
-            trackUri: JANKS_TRACK_URI,
-            title: jankSlice.cause,
-          }),
+      return m(
+        Grid,
+        m(
+          GridHeader,
+          m(
+            GridRow,
+            m(GridHeaderCell, 'Cause'),
+            m(GridHeaderCell, 'Duration'),
+            m(GridHeaderCell, 'Delayed Vsyncs'),
+          ),
         ),
-        widgetColumn<JankSliceDetails>('Duration', (jankSlice) =>
-          jankSlice.dur !== undefined
-            ? m(DurationWidget, {dur: jankSlice.dur})
-            : 'NULL',
+        m(
+          GridBody,
+          this.orderedJankSlices.map((jankSlice) =>
+            m(
+              GridRow,
+              m(
+                GridDataCell,
+                renderSliceRef({
+                  trace: this.trace,
+                  id: jankSlice.id,
+                  trackUri: JANKS_TRACK_URI,
+                  title: jankSlice.cause,
+                }),
+              ),
+              m(
+                GridDataCell,
+                jankSlice.dur !== undefined
+                  ? m(DurationWidget, {trace: this.trace, dur: jankSlice.dur})
+                  : 'NULL',
+              ),
+              m(GridDataCell, jankSlice.delayVsync),
+            ),
+          ),
         ),
-        widgetColumn<JankSliceDetails>(
-          'Delayed Vsyncs',
-          (jankSlice) => jankSlice.delayVsync,
-        ),
-      ];
-
-      const tableData = new TableData(this.orderedJankSlices);
-
-      return m(Table, {
-        data: tableData,
-        columns: columns,
-      });
+      );
     } else {
       return 'None';
     }
@@ -386,8 +398,8 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
 
     const details = dictToTreeNodes({
       'Scroll ID': `${this.data.id}`,
-      'Start time': m(Timestamp, {ts: this.data.ts}),
-      'Duration': m(DurationWidget, {dur: this.data.dur}),
+      'Start time': m(Timestamp, {trace: this.trace, ts: this.data.ts}),
+      'Duration': m(DurationWidget, {trace: this.trace, dur: this.data.dur}),
       'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.id}),
     });
 

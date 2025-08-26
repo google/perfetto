@@ -56,6 +56,7 @@ export interface AppInitArgs {
   readonly timezoneOverrideSetting: Setting<string>;
   readonly analyticsSetting: Setting<boolean>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
+  readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
 }
 
 /**
@@ -111,6 +112,7 @@ export class AppContext {
   readonly durationPrecision: Setting<DurationPrecision>;
   readonly timezoneOverride: Setting<string>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
+  readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
@@ -119,6 +121,8 @@ export class AppContext {
     this.durationPrecision = initArgs.durationPrecisionSetting;
     this.timezoneOverride = initArgs.timezoneOverrideSetting;
     this.startupCommandsSetting = initArgs.startupCommandsSetting;
+    this.enforceStartupCommandAllowlistSetting =
+      initArgs.enforceStartupCommandAllowlistSetting;
     this.settingsManager = initArgs.settingsManager;
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;

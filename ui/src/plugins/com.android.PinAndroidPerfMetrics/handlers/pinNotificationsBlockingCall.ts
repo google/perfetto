@@ -76,7 +76,6 @@ FROM slice s
 WHERE
     thread.is_main_thread AND
     _is_relevant_notifications_blocking_call(s.name, s.dur)
-GROUP BY s.name
   `;
 
     const trackName = notificationName + ' blocking calls';

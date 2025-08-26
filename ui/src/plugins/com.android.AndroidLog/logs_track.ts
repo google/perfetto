@@ -123,7 +123,7 @@ export function createAndroidLogTrack(trace: Trace, uri: string) {
                     }),
                     m(TreeNode, {
                       left: 'Timestamp',
-                      right: m(Timestamp, {ts: Time.fromRaw(row.ts)}),
+                      right: m(Timestamp, {trace, ts: Time.fromRaw(row.ts)}),
                     }),
                     m(TreeNode, {
                       left: 'Priority',

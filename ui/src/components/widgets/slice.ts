@@ -16,14 +16,15 @@ import m from 'mithril';
 import {asSliceSqlId, SliceSqlId} from '../sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
+import {Trace} from '../../public/trace';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
 import {
   createSqlIdRefRenderer,
   sqlIdRegistry,
 } from './sql/details/sql_ref_renderer_registry';
-import {AppImpl} from '../../core/app_impl';
 
 interface SliceRefAttrs {
+  readonly trace: Trace;
   readonly id: SliceSqlId;
   readonly name: string;
 
@@ -40,16 +41,11 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          // TODO(primiano): the Trace object should be properly injected here.
-          AppImpl.instance.trace?.selection.selectSqlEvent(
-            'slice',
-            vnode.attrs.id,
-            {
-              switchToCurrentSelectionTab:
-                vnode.attrs.switchToCurrentSelectionTab,
-              scrollToSelection: true,
-            },
-          );
+          vnode.attrs.trace.selection.selectSqlEvent('slice', vnode.attrs.id, {
+            switchToCurrentSelectionTab:
+              vnode.attrs.switchToCurrentSelectionTab,
+            scrollToSelection: true,
+          });
         },
       },
       vnode.attrs.name,
@@ -57,8 +53,13 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
   }
 }
 
-export function sliceRef(slice: SliceDetails, name?: string): m.Child {
+export function sliceRef(
+  trace: Trace,
+  slice: SliceDetails,
+  name?: string,
+): m.Child {
   return m(SliceRef, {
+    trace,
     id: slice.id,
     name: name ?? slice.name,
   });
@@ -74,7 +75,7 @@ sqlIdRegistry['slice'] = createSqlIdRefRenderer<{
       slice: await getSlice(engine, asSliceSqlId(Number(id))),
     };
   },
-  ({id, slice}) => ({
-    value: slice !== undefined ? sliceRef(slice) : `Unknown slice ${id}`,
+  (trace, {id, slice}) => ({
+    value: slice !== undefined ? sliceRef(trace, slice) : `Unknown slice ${id}`,
   }),
 );

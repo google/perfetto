@@ -60,7 +60,7 @@ export class FlowEventsAreaSelectedPanel
     rows.push({
       category: 'All',
       count: flows.selectedFlows.length,
-      show: null, // value is not used, just need to trigger the renderer
+      show: 'checkbox', // value is not used, just need to trigger the renderer
       isAll: 1,
     });
 
@@ -68,7 +68,7 @@ export class FlowEventsAreaSelectedPanel
       rows.push({
         category: cat,
         count: num,
-        show: null,
+        show: 'checkbox',
         isAll: 0,
       });
     });
@@ -145,6 +145,7 @@ export class FlowEventsAreaSelectedPanel
         direction: 'UNSORTED',
       },
       filters: [],
+      fillHeight: true,
     });
   }
 }
