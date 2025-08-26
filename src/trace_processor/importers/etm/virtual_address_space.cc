@@ -51,7 +51,7 @@ void VirtualAddressSpace::Builder::AddMapping(
 
   std::optional<TraceBlob> content;
   if (mmap.file_id()) {
-    TraceBlob blob =
+    TraceBlob& blob =
         context_->registered_file_tracker->GetContent(*mmap.file_id());
     auto file_range = AddressRange::FromStartAndSize(0, blob.size());
     auto required_file_range = AddressRange::FromStartAndSize(

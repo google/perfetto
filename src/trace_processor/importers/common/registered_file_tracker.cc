@@ -72,7 +72,7 @@ base::Status RegisteredFileTracker::AddFile(const std::string& name,
   }
   return base::OkStatus();
 }
-TraceBlob& RegisteredFileTracker::GetContent(tables::FileTable::Id id) const {
+TraceBlob& RegisteredFileTracker::GetContent(tables::FileTable::Id id) {
   PERFETTO_DCHECK(id.value < file_content_.size());
   return file_content_[id.value];
 }

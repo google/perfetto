@@ -38,7 +38,7 @@ class RegisteredFileTracker {
       : context_(context) {}
 
   base::Status AddFile(const std::string& name, TraceBlob data);
-  TraceBlob& GetContent(tables::FileTable::Id id) const;
+  TraceBlob& GetContent(tables::FileTable::Id id);
 
   std::optional<tables::ElfFileTable::Id> FindBuildId(
       const BuildId& build_id) const {
