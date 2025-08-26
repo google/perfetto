@@ -160,7 +160,7 @@ values:
 {
   "CPU Analysis": [
     {
-      "id": "createNewEmptyWorkspace",
+      "id": "dev.perfetto.CreateWorkspace",
       "args": ["CPU Analysis"]
     },
     {
@@ -168,7 +168,7 @@ values:
       "args": [".*CPU.*|.*freq.*", "CPU Analysis"]
     },
     {
-      "id": "switchWorkspace",
+      "id": "dev.perfetto.SwitchWorkspace",
       "args": ["CPU Analysis"]
     }
   ],

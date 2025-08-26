@@ -349,8 +349,23 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.CreateNewEmptyWorkspace',
+      id: 'dev.perfetto.CreateWorkspace',
       name: 'Create new empty workspace',
+      callback: async (rawName: unknown) => {
+        const workspaces = ctx.workspaces;
+        if (workspaces === undefined) return; // No trace loaded.
+        const name =
+          typeof rawName === 'string'
+            ? rawName
+            : await ctx.omnibox.prompt('Give it a name...');
+        if (name === undefined || name === '') return;
+        workspaces.createEmptyWorkspace(name);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CreateWorkspaceAndSwitch',
+      name: 'Create new empty workspace and switch to it',
       callback: async (rawName: unknown) => {
         const workspaces = ctx.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
@@ -365,7 +380,7 @@ export default class implements PerfettoPlugin {
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.SwitchWorkspace',
-      name: 'Switch workspace',
+      name: 'Switch to workspace',
       callback: async (rawName: unknown) => {
         const workspaces = ctx.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
