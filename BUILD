@@ -3212,6 +3212,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle_time_in_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/sched_breakdown.sql",
     ],
 )
 
@@ -3221,6 +3222,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/general.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/high_watermark.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/memory/kswapd.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/process.sql",
     ],
 )

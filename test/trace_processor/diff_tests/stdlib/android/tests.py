@@ -1236,6 +1236,50 @@ class AndroidStdlib(TestSuite):
         1
         """))
 
+  def test_cpu_sched_awake_dur(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE linux.cpu.sched_breakdown;
+        SELECT cpu, ucpu, cpu_sched_awake_dur_ns FROM cpu_sched_awake_time
+        """,
+        out=Csv("""
+        "cpu","ucpu","cpu_sched_awake_dur_ns"
+        0,0,2573921981
+        1,1,1831334119
+        2,2,1642393531
+        3,3,1767314786
+        """))
+
+  def test_kswapd_cpu_breakdown_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE linux.memory.kswapd;
+        SELECT cpu, ucpu, cpu_sched_awake_dur_ns, kswapd_sched_dur_ns, kswapd_cpu_awake_dur_percentage
+        FROM linux_kswapd_cpu_breakdown
+        """,
+        out=Csv("""
+        "cpu","ucpu","cpu_sched_awake_dur_ns","kswapd_sched_dur_ns","kswapd_cpu_awake_dur_percentage"
+        0,0,2573921981,45058907,1.750000
+        1,1,1831334119,7842243,0.430000
+        2,2,1642393531,16834114,1.020000
+        3,3,1767314786,56256041,3.180000
+        """))
+
+  def test_kswapd_utilization(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE linux.memory.kswapd;
+        SELECT kswapd_utilization_percentage
+        FROM linux_kswapd_utilization
+        """,
+        out=Csv("""
+        "kswapd_utilization_percentage"
+        1.450245
+        """))
+
   def test_input_events(self):
     return DiffTestBlueprint(
         trace=DataPath('post_boot_trace.atr'),
