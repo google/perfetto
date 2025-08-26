@@ -100,7 +100,7 @@ Startup commands must be a JSON array of command objects:
 [
   {
     "id": string,      // Command identifier
-    "args": string[]   // Array of arguments (all must be strings)
+    "args": unknown[]  // Array of arguments (types depend on the commands)
   },
   ...
 ]
@@ -126,7 +126,6 @@ Startup commands must be a JSON array of command objects:
 
 Notes:
 
-- All arguments must be strings (even if they represent numbers)
 - Commands execute in the order specified
 - Invalid JSON or unknown command IDs will cause errors
 - These commands affect only the UI display - the trace file is unchanged
@@ -147,7 +146,7 @@ values:
   "macro_name": [
     {
       "id": string,      // Command identifier
-      "args": string[]   // Array of arguments (all must be strings)
+      "args": unknown[]  // Array of arguments (types depend on the command)
     },
     ...
   ],
