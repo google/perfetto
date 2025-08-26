@@ -32,7 +32,7 @@ import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
-import {TableColumn, TableManager} from './table_column';
+import {RenderedCell, TableColumn, TableManager} from './table_column';
 import {
   getStandardContextMenuItems,
   renderStandardCell,
@@ -141,7 +141,7 @@ export class SliceIdColumn implements TableColumn {
     private params?: IdColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, manager?: TableManager) {
+  renderCell(value: SqlValue, manager?: TableManager): RenderedCell {
     const id = value;
 
     if (!manager || id === null) {
@@ -155,6 +155,7 @@ export class SliceIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
       isNumerical: true,
     };
   }
@@ -207,6 +208,7 @@ export class SchedIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
       isNumerical: true,
     };
   }
@@ -235,6 +237,7 @@ export class ThreadStateIdColumn implements TableColumn {
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
       isNumerical: true,
     };
   }
