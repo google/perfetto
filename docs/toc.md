@@ -159,6 +159,9 @@
 
     - [Interceptors](instrumentation/interceptors.md)
 
+  - [Advanced Trace Visualization](#)
+    - [Commands Automation Reference](visualization/commands-automation-reference.md)]
+
   - [Contributor Reference](#)
 
     - [Building](contributing/build-instructions.md)

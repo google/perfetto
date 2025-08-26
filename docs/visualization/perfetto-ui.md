@@ -87,9 +87,12 @@ command and Enter to run it.
 ### Startup Commands
 
 Startup commands run automatically every time you open a trace. Configure them
-in **Settings > Startup Commands**. See the
-[UI Automation Cookbook](/docs/visualization/ui-automation-cookbook.md) for
-practical examples.
+in **Settings > Startup Commands**.
+
+For the list of stable commands with backwards compatibility guarantees, see the
+[Commands Automation Reference](/docs/visualization/commands-automation-reference.md).
+For practical examples, see the
+[UI Automation Cookbook](/docs/visualization/ui-automation-cookbook.md).
 
 #### JSON Schema
 
@@ -134,6 +137,9 @@ Notes:
 
 Macros are named sequences of commands you trigger manually. Configure them in
 **Settings > Macros**.
+
+For the list of stable commands with backwards compatibility guarantees, see the
+[Commands Automation Reference](/docs/visualization/commands-automation-reference.md).
 
 #### JSON Schema
 

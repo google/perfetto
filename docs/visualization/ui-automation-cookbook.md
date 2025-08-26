@@ -212,3 +212,13 @@ the trace opens in the UI:
    to split into multiple tracks. For Android use cases, see
    [Android Trace Analysis Cookbook](/docs/getting-started/android-trace-analysis.md)
    for examples of common queries used by Android engineers.
+
+## See Also
+
+- [Commands Automation Reference](/docs/visualization/commands-automation-reference.md) -
+  Complete reference for stable automation commands with backwards compatibility
+  guarantees
+- [Perfetto UI Guide](/docs/visualization/perfetto-ui.md) - General UI
+  documentation including commands configuration
+- [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md) - Opening
+  traces with pre-configured commands via URLs
