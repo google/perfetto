@@ -824,6 +824,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
     srcs = [
         "include/perfetto/ext/base/android_utils.h",
+        "include/perfetto/ext/base/atomic_shared_ptr.h",
         "include/perfetto/ext/base/base64.h",
         "include/perfetto/ext/base/bits.h",
         "include/perfetto/ext/base/circular_queue.h",
@@ -840,6 +841,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
+        "include/perfetto/ext/base/lock_free_task_runner.h",
         "include/perfetto/ext/base/metatrace.h",
         "include/perfetto/ext/base/metatrace_events.h",
         "include/perfetto/ext/base/murmur_hash.h",
@@ -1297,6 +1299,7 @@ perfetto_cc_library(
         "src/base/intrusive_list.h",
         "src/base/intrusive_tree.cc",
         "src/base/intrusive_tree.h",
+        "src/base/lock_free_task_runner.cc",
         "src/base/log_ring_buffer.h",
         "src/base/logging.cc",
         "src/base/metatrace.cc",

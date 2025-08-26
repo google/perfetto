@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+
 #include <random>
 #include <thread>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -42,11 +45,13 @@ struct TaskRunnerTestNames {
   static std::string GetName(int) {
     if (std::is_same<T, UnixTaskRunner>::value)
       return "UnixTaskRunner";
+    if (std::is_same<T, LockFreeTaskRunner>::value)
+      return "LockFreeTaskRunner";
     return testing::internal::GetTypeName<T>();
   }
 };
 
-using TaskRunnerTypes = ::testing::Types<UnixTaskRunner>;
+using TaskRunnerTypes = ::testing::Types<UnixTaskRunner, LockFreeTaskRunner>;
 TYPED_TEST_SUITE(TaskRunnerTest, TaskRunnerTypes, TaskRunnerTestNames);
 
 TYPED_TEST(TaskRunnerTest, QuitImmediately) {
@@ -548,6 +553,35 @@ TYPED_TEST(TaskRunnerTest, MultiThreadedStress) {
     thread.join();
   }
   EXPECT_EQ(tasks_posted.load(), kTotalTasks);
+}
+
+// [LockFreeTaskRunner-only] Covers the slab allocator logic, ensuring that
+// slabs are recycled properly and are not leaked. It run tasks in bursts
+// (one tasks spwaning up to kBurstMax subtasks), catches up, then repeats.
+TEST(TaskRunnerTest, NoSlabLeaks) {
+  constexpr size_t kMaxTasks = 10000;
+  constexpr size_t kBurstMax = LockFreeTaskRunner::kSlabSize - 2;
+  size_t tasks_posted = 0;
+  std::function<void()> task_fn;
+  std::minstd_rand0 rnd;
+  LockFreeTaskRunner task_runner;
+
+  task_fn = [&] {
+    int burst_count = std::uniform_int_distribution<int>(1, kBurstMax)(rnd);
+    for (int i = 0; i < burst_count; i++, tasks_posted++) {
+      task_runner.PostTask([] {});
+    }
+    if (tasks_posted < kMaxTasks) {
+      task_runner.PostTask(task_fn);
+    } else {
+      task_runner.PostTask([&] { task_runner.Quit(); });
+    }
+  };
+
+  task_fn();
+  task_runner.Run();
+
+  EXPECT_LE(task_runner.slabs_allocated(), 2u);
 }
 
 }  // namespace
