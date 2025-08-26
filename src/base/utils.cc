@@ -57,7 +57,8 @@
 #endif  // OS_LINUX | OS_ANDROID
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
+
 #include <io.h>
 #include <malloc.h>  // For _aligned_malloc().
 #endif
@@ -134,11 +135,16 @@ CheckCpuOptimizations() {
   const bool have_bmi = (ebx >> 3) & 0x1;
   const bool have_bmi2 = (ebx >> 8) & 0x1;
 
-  if (!have_sse4_2 || !have_popcnt || !have_avx2 || !have_bmi || !have_bmi2) {
+  // Get extended features for LZCNT.
+  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 0x80000001, 0);
+  const bool have_lzcnt = ecx & (1u << 5);
+
+  if (!have_sse4_2 || !have_popcnt || !have_avx2 || !have_bmi || !have_bmi2 ||
+      !have_lzcnt) {
     fprintf(
         stderr,
-        "This executable requires a x86_64 cpu that supports SSE4.2, BMI2 and "
-        "AVX2.\n"
+        "This executable requires a x86_64 cpu that supports SSE4.2, BMI2, "
+        "AVX2 and LZCNT.\n"
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
         "On MacOS, this might be caused by running x86_64 binaries on arm64.\n"
         "See https://github.com/google/perfetto/issues/294 for more.\n"

@@ -19,6 +19,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
 export const NODE_HEIGHT = 50;
@@ -40,21 +41,36 @@ export interface NodeBoxAttrs {
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onAddSubQuery: (node: QueryNode) => void;
+  readonly onAddAggregation: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }
 
 function renderWarningIcon(node: QueryNode): m.Child {
-  const error =
-    node.state.queryError || node.state.responseError || node.state.dataError;
-  if (!error) return null;
+  if (!node.state.issues || !node.state.issues.hasIssues()) return null;
 
-  const iconClasses = classNames('material-icons', 'pf-node-box__warning-icon');
+  const iconClasses = classNames('pf-node-box__warning-icon');
 
-  return m('i', {class: iconClasses, title: error.message}, 'warning');
+  return m(Icon, {
+    className: iconClasses,
+    icon: 'warning',
+    title: node.state.issues.getTitle(),
+  });
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
+  const menuItems: m.Child[] = [
+    m(MenuItem, {
+      label: 'Duplicate',
+      onclick: () => onDuplicateNode(node),
+    }),
+    m(MenuItem, {
+      label: 'Delete',
+      onclick: () => onDeleteNode(node),
+    }),
+  ];
+
   return m(
     PopupMenu,
     {
@@ -63,13 +79,23 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
         icon: Icons.ContextMenuAlt,
       }),
     },
+    ...menuItems,
+  );
+}
+
+function renderAddButton(attrs: NodeBoxAttrs): m.Child {
+  const {node, onAddAggregation} = attrs;
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Icon, {
+        className: 'pf-node-box-add-button',
+        icon: 'add',
+      }),
+    },
     m(MenuItem, {
-      label: 'Duplicate',
-      onclick: () => onDuplicateNode(node),
-    }),
-    m(MenuItem, {
-      label: 'Delete',
-      onclick: () => onDeleteNode(node),
+      label: 'Aggregate',
+      onclick: () => onAddAggregation(node),
     }),
   );
 }
@@ -94,12 +120,11 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     const conditionalClasses = classNames(
       isSelected && 'pf-node-box__selected',
       !node.validate() && 'pf-node-box__invalid',
-      node.state.queryError && 'pf-node-box__invalid-query',
-      node.state.responseError && 'pf-node-box__invalid-response',
+      node.state.issues?.queryError && 'pf-node-box__invalid-query',
+      node.state.issues?.responseError && 'pf-node-box__invalid-response',
     );
 
     const boxStyle = {
-      position: 'absolute',
       left: `${layout.x}px`,
       top: `${layout.y}px`,
       opacity: isDragging ? '0' : '1',
@@ -114,9 +139,18 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         draggable: true,
         ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
       },
+      node.prevNode && m('.pf-node-box-port.pf-node-box-port-top'),
       renderWarningIcon(node),
       m('span.pf-node-box__title', node.getTitle()),
       renderContextMenu(attrs),
+      node.nextNodes.map((_, i) => {
+        const portCount = node.nextNodes.length;
+        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+        return m('.pf-node-box-port.pf-node-box-port-bottom', {
+          style: {left},
+        });
+      }),
+      renderAddButton(attrs),
     );
   },
 };

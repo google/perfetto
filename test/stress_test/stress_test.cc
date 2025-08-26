@@ -45,7 +45,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #else
 #include <signal.h>
 #endif

@@ -36,7 +36,7 @@ export default class implements PerfettoPlugin {
     });
 
     app.commands.registerCommand({
-      id: 'perfetto.SettingsPage#openSettings',
+      id: 'dev.perfetto.OpenSettings',
       name: 'Open Settings',
       callback: () => {
         app.navigate('#!/settings');

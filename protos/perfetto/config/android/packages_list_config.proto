@@ -24,4 +24,10 @@ message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
   // (exact match, no regex). Otherwise, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If present and non-zero, the data source will periodically poll for CPU
+  // use by packages and only emit results for those that it sees. If absent,
+  // the data source will emit results for all packages at startup. The package
+  // name filter applies either way.
+  optional uint32 only_write_on_cpu_use_every_ms = 2;
 }

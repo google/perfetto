@@ -1,3 +1,0 @@
-# Don't reformat auto imported proto files
-**/*.proto
-

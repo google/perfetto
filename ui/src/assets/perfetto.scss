@@ -16,20 +16,22 @@
 @import "common";
 @import "viewer_page";
 @import "home_page";
-@import "metrics_page";
 @import "sidebar";
 @import "topbar";
-@import "record";
 @import "details";
-@import "note_editor";
 @import "trace_info_page";
-@import "hiring_banner";
 @import "statusbar";
+@import "cookie_consent";
+@import "perf_monitor";
+@import "help_modal";
+@import "theme_provider";
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
 @import "components/data_grid";
+@import "components/json_settings_editor";
 @import "components/query_history";
+@import "components/query_table";
 @import "widgets/anchor";
 @import "widgets/box";
 @import "widgets/button";
@@ -38,6 +40,7 @@
 @import "widgets/charts";
 @import "widgets/checkbox";
 @import "widgets/chip";
+@import "widgets/code_snippet";
 @import "widgets/details_shell";
 @import "widgets/editor";
 @import "widgets/empty_state";
@@ -53,6 +56,7 @@
 @import "widgets/modal";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
+@import "widgets/overlay_container";
 @import "widgets/popup";
 @import "widgets/resize_handle";
 @import "widgets/section";
@@ -60,11 +64,12 @@
 @import "widgets/select";
 @import "widgets/settings_shell";
 @import "widgets/spinner";
-@import "widgets/split_panel";
 @import "widgets/sql_table";
 @import "widgets/stack";
 @import "widgets/switch";
-@import "widgets/tabbed_split_panel";
+@import "widgets/split_panel";
+@import "widgets/table";
+@import "widgets/tabs";
 @import "widgets/tag_input";
 @import "widgets/text_input";
 @import "widgets/text_paragraph";

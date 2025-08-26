@@ -1,0 +1,76 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+.pf-generic-table {
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 18px;
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--pf-font-compact);
+
+  thead {
+    font-weight: normal;
+
+    td.reorderable-cell {
+      cursor: grab;
+
+      &.dragged {
+        color: gray;
+      }
+
+      &.highlight-left {
+        background: linear-gradient(
+          90deg,
+          var(--pf-color-border-secondary),
+          transparent 20%
+        );
+      }
+
+      &.highlight-right {
+        background: linear-gradient(
+          270deg,
+          var(--pf-color-border-secondary),
+          transparent 20%
+        );
+      }
+    }
+  }
+
+  tr:hover td {
+    background-color: color_hover(transparent);
+  }
+
+  tr.header {
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+    text-align: center;
+  }
+
+  td {
+    padding: 3px 5px;
+    white-space: nowrap;
+
+    .pf-icon {
+      // Shrink icons inside the table cells to increase the information
+      // density a little bit.
+      font-size: 16px;
+    }
+
+    &.has-left-border {
+      border-left: 1px solid rgba(60, 76, 92, 0.4);
+    }
+  }
+}

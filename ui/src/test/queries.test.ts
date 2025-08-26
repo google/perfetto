@@ -39,13 +39,19 @@ test('omnibox query', async () => {
   await pth.waitForPerfettoIdle();
   await omnibox.press('Enter');
 
-  await pth.waitForIdleAndScreenshot('query mode.png');
+  await pth.waitForIdleAndScreenshot('query mode.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   page.locator('.pf-data-grid').getByText('17806091326279').click();
-  await pth.waitForIdleAndScreenshot('row 1 clicked.png');
+  await pth.waitForIdleAndScreenshot('row 1 clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   page.locator('.pf-data-grid').getByText('17806092405136').click();
-  await pth.waitForIdleAndScreenshot('row 2 clicked.png');
+  await pth.waitForIdleAndScreenshot('row 2 clicked.png', {
+    mask: [page.locator('.pf-query-table .pf-header-bar')],
+  });
 
   // Clear the omnibox
   await omnibox.selectText();
@@ -68,17 +74,19 @@ test('query page', async () => {
     await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
     await textbox.press('ControlOrMeta+Enter');
     await textbox.blur();
-    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`);
+    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
+      mask: [page.locator('.pf-data-grid__toolbar')],
+    });
   }
 
   // Now test the query history.
-  page.locator('.pf-query-history .pf-history-item').nth(0).click();
+  page.locator('.pf-query-history .pf-query-history__item').nth(0).click();
   await pth.waitForPerfettoIdle();
   expect(await textbox.textContent()).toEqual(
     'select id, ts, dur, name from slices limit 3',
   );
 
-  page.locator('.pf-query-history .pf-history-item').nth(2).click();
+  page.locator('.pf-query-history .pf-query-history__item').nth(2).click();
   await pth.waitForPerfettoIdle();
   expect(await textbox.textContent()).toEqual(
     'select id, ts, dur, name from slices limit 1',
@@ -86,7 +94,7 @@ test('query page', async () => {
 
   // Double click on the 2nd one and expect the query is re-ran.
   page
-    .locator('.pf-query-page .pf-query-history .pf-history-item')
+    .locator('.pf-query-page .pf-query-history .pf-query-history__item')
     .nth(1)
     .dblclick();
   await pth.waitForPerfettoIdle();

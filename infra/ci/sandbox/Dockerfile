@@ -33,7 +33,6 @@ RUN set -ex; \
         sudo \
         lz4 \
         tar \
-        ccache \
         tini \
         libpulse0 \
         libgl1 \
@@ -48,6 +47,7 @@ RUN set -ex; \
         g++ \
         zlib1g-dev \
         unzip \
+        xz-utils \
         gcc-8 \
         g++-8 \
         gcc-8-multilib \
@@ -138,10 +138,30 @@ RUN set -ex; \
     rm -rf /var/lib/apt/lists/*; \
     rm -rf /root/.cache/ /usr/share/man/* /usr/share/doc/*;
 
+# Install gcloud
+RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+    gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+    | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list; \
+    apt-get update && apt-get install -y google-cloud-cli;
+
+# Install ccache from github, the version in ubunut repo (3.7) is too old for us.
+RUN set -e; \
+    CCACHE_ARCHIVE_SHA256=7766991b91b3a5a177ab33fa043fe09e72c68586d5a86d20a563a05b74f119c0; \
+    CCACHE_VER=4.11.3; \
+    CCACHE_ARTIFACT_NAME=ccache-${CCACHE_VER}-linux-x86_64; \
+    curl -fsSL -O https://github.com/ccache/ccache/releases/download/v${CCACHE_VER}/${CCACHE_ARTIFACT_NAME}.tar.xz; \
+    echo "Downloaded ccache-${CCACHE_VER}."; \
+    DOWNLOADED_SHA256=$(sha256sum ${CCACHE_ARTIFACT_NAME}.tar.xz | awk '{print $1}'); \
+    [ "$CCACHE_ARCHIVE_SHA256" = "$DOWNLOADED_SHA256" ] || { echo "Error: sha256 do not match."; exit 1; }; \
+    tar -xf ${CCACHE_ARTIFACT_NAME}.tar.xz --one-top-level; \
+    cp ${CCACHE_ARTIFACT_NAME}/ccache /usr/local/bin/; \
+    ccache --version; \
+    rm -rf ${CCACHE_ARTIFACT_NAME} ${CCACHE_ARTIFACT_NAME}.tar.xz;
+
 WORKDIR /opt/ci
 
 COPY sandbox_entrypoint.sh ./
-COPY artifacts_uploader.py ./
 COPY tmp/config.py ./
 
 # Download GitHub Actions runner.

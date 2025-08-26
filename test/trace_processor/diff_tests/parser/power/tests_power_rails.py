@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -149,4 +149,228 @@ class PowerPowerRails(TestSuite):
         "name","AVG(value)","COUNT(*)"
         "power.rails.cpu.mid",333.000000,3
         "power.rails.gpu",999.000000,1
+        """))
+
+  def test_power_rails_session_uuid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          power_rails {
+            session_uuid: 100
+            rail_descriptor {
+              index: 0
+              rail_name: "CPU_RAIL"
+              subsys_name: "cpu"
+              sampling_rate: 1000
+            }
+          }
+        }
+        packet {
+          power_rails {
+            session_uuid: 200
+            rail_descriptor {
+              index: 0
+              rail_name: "GPU_RAIL"
+              subsys_name: "gpu"
+              sampling_rate: 2000
+            }
+          }
+        }
+        packet {
+          timestamp: 1000000
+          power_rails {
+            session_uuid: 100
+            energy_data {
+              index: 0
+              timestamp_ms: 1
+              energy: 500
+            }
+          }
+        }
+        packet {
+          timestamp: 2000000
+          power_rails {
+            session_uuid: 200
+            energy_data {
+              index: 0
+              timestamp_ms: 2
+              energy: 750
+            }
+          }
+        }
+        packet {
+          timestamp: 3000000
+          power_rails {
+            session_uuid: 100
+            energy_data {
+              index: 0
+              timestamp_ms: 3
+              energy: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 4000000
+          power_rails {
+            session_uuid: 200
+            energy_data {
+              index: 0
+              timestamp_ms: 4
+              energy: 1250
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          name,
+          ts,
+          value
+        FROM counters
+        WHERE name GLOB "power.*"
+        ORDER BY name, ts;
+        """,
+        out=Csv("""
+        "name","ts","value"
+        "power.CPU_RAIL_uws",1000000,500.000000
+        "power.CPU_RAIL_uws",3000000,1000.000000
+        "power.GPU_RAIL_uws",2000000,750.000000
+        "power.GPU_RAIL_uws",4000000,1250.000000
+        """))
+
+  def test_power_rails_session_uuid_same_index_same_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          power_rails {
+            session_uuid: 100
+            rail_descriptor {
+              index: 0
+              rail_name: "SHARED_RAIL"
+              sampling_rate: 1000
+            }
+          }
+        }
+        packet {
+          power_rails {
+            session_uuid: 200
+            rail_descriptor {
+              index: 0
+              rail_name: "SHARED_RAIL"
+              sampling_rate: 2000
+            }
+          }
+        }
+        packet {
+          timestamp: 1000000
+          power_rails {
+            session_uuid: 100
+            energy_data {
+              index: 0
+              timestamp_ms: 1
+              energy: 100
+            }
+          }
+        }
+        packet {
+          timestamp: 2000000
+          power_rails {
+            session_uuid: 200
+            energy_data {
+              index: 0
+              timestamp_ms: 2
+              energy: 200
+            }
+          }
+        }
+        packet {
+          timestamp: 3000000
+          power_rails {
+            session_uuid: 100
+            energy_data {
+              index: 0
+              timestamp_ms: 3
+              energy: 300
+            }
+          }
+        }
+        packet {
+          timestamp: 4000000
+          power_rails {
+            session_uuid: 200
+            energy_data {
+              index: 0
+              timestamp_ms: 4
+              energy: 400
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.name,
+          c.ts,
+          c.value,
+          extract_arg(t.dimension_arg_set_id, 'session_uuid') as session_uuid
+        FROM counter c JOIN counter_track t ON t.id = c.track_id
+        WHERE t.name GLOB "power.*"
+        ORDER BY session_uuid, ts;
+        """,
+        out=Csv("""
+        "name","ts","value","session_uuid"
+        "power.SHARED_RAIL_uws",1000000,100.000000,100
+        "power.SHARED_RAIL_uws",3000000,300.000000,100
+        "power.SHARED_RAIL_uws",2000000,200.000000,200
+        "power.SHARED_RAIL_uws",4000000,400.000000,200
+        """))
+
+  def test_android_power_rails_metadata(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 4
+              rail_name: "S3M_VDD_CPUCL1"
+              subsys_name: "cpu"
+              sampling_rate: 1023
+            }
+          }
+        }
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 3
+              rail_name: "S2S_VDD_G3D"
+              subsys_name: "gpu"
+              sampling_rate: 1022
+            }
+          }
+        }
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 5
+              rail_name: "L14S_ALIVE"
+              subsys_name: "system"
+              sampling_rate: 1024
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.power_rails;
+        SELECT
+          power_rail_name,
+          raw_power_rail_name,
+          friendly_name,
+          subsystem_name
+        FROM android_power_rails_metadata
+        ORDER BY power_rail_name;
+        """,
+        out=Csv("""
+        "power_rail_name","raw_power_rail_name","friendly_name","subsystem_name"
+        "power.L14S_ALIVE_uws","L14S_ALIVE","[NULL]","system"
+        "power.rails.cpu.mid","S3M_VDD_CPUCL1","cpu.mid","cpu"
+        "power.rails.gpu","S2S_VDD_G3D","gpu","gpu"
         """))

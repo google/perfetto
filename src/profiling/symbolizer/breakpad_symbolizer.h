@@ -17,11 +17,13 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
 #define SRC_PROFILING_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
 
-#include "perfetto/ext/base/string_view.h"
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "src/profiling/symbolizer/symbolizer.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 // A subclass of Symbolizer that overrides the Symbolize method to make the
 // symbolization process work for breakpad files.
@@ -38,6 +40,7 @@ class BreakpadSymbolizer : public Symbolizer {
   BreakpadSymbolizer& operator=(BreakpadSymbolizer&& other) = default;
 
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
+      const Environment&,
       const std::string&,
       const std::string& build_id,
       uint64_t,
@@ -52,7 +55,6 @@ class BreakpadSymbolizer : public Symbolizer {
   std::string file_path_for_testing_;
 };
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
 
 #endif  // SRC_PROFILING_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_

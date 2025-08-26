@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
+@import "../../assets/theme";
 
 .pf-plugins-page {
   margin-block: 16px;
@@ -24,10 +24,6 @@
 
   &__chip {
     font-size: 12px;
-    font-family: inherit;
-    border-color: gray;
-    color: gray;
-    font-weight: 400;
   }
 
   &__card {
@@ -36,10 +32,10 @@
     gap: 6px;
     justify-content: space-between;
     border-left: solid 3px transparent;
-    color: gray;
+    color: var(--pf-color-text-muted);
 
     &--active {
-      border-left: solid 3px green;
+      border-left: solid 3px var(--pf-color-success);
     }
 
     &--enabled {

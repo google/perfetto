@@ -236,9 +236,14 @@ int TraceboxMain(int argc, char** argv) {
 
   std::string traced_perf_notify_msg;
   base::ReadPlatformHandle(*traced_perf_sync_pipe.rd, &traced_perf_notify_msg);
-  if (traced_perf_notify_msg != "1")
+  if (traced_perf_notify_msg != "1") {
     PERFETTO_FATAL(
         "The traced_perf service failed unexpectedly. Check the logs");
+  }
+#else
+  PERFETTO_ELOG(
+      "Unsupported: linux.perf data source support (traced_perf) "
+      "compiled-out.");
 #endif
 
   perfetto_cmd.ConnectToServiceRunAndMaybeNotify();

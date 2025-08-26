@@ -47,6 +47,8 @@ import {Intent} from './common';
 
 export interface ModalAttrs {
   title: string;
+  icon?: string;
+  className?: string;
   buttons?: ModalButton[];
   vAlign?: 'MIDDLE' /* default */ | 'TOP';
 
@@ -70,6 +72,7 @@ export interface ModalButton {
   text: string;
   primary?: boolean;
   id?: string;
+  disabled?: boolean;
   action?: () => void;
 }
 
@@ -136,25 +139,30 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
             if (button.action !== undefined) button.action();
           },
           label: button.text,
+          disabled: button.disabled,
         }),
       );
     }
 
     const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
-    const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
+    const align = attrs.vAlign === 'TOP' ? '.pf-modal-dialog-valign-top' : '';
+    const customClass = attrs.className ? '.' + attrs.className : '';
     return m(
-      '.modal-backdrop',
+      '.pf-modal-backdrop',
       {
         onclick: this.onBackdropClick.bind(this, attrs),
-        onkeyup: this.onBackdropKeyupdown.bind(this, attrs),
-        onkeydown: this.onBackdropKeyupdown.bind(this, attrs),
+        onkeydown: this.onBackdropKeydown.bind(this, attrs),
         tabIndex: 0,
       },
       m(
-        `.modal-dialog${align}${aria}`,
+        `.pf-modal-dialog${align}${customClass}${aria}`,
         m(
           'header',
-          m('h2', {id: 'mm-title'}, attrs.title),
+          m(
+            '.modal-title',
+            attrs.icon && m(Icon, {icon: attrs.icon}),
+            m('h2', {id: 'mm-title'}, attrs.title),
+          ),
           m(
             'button[aria-label=Close Modal]',
             {onclick: () => closeModal(attrs.key)},
@@ -177,9 +185,9 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     }
   }
 
-  onBackdropKeyupdown(attrs: ModalAttrs, e: KeyboardEvent) {
+  onBackdropKeydown(attrs: ModalAttrs, e: KeyboardEvent) {
     e.stopPropagation();
-    if (e.key === 'Escape' && e.type !== 'keyup') {
+    if (e.key === 'Escape') {
       closeModal(attrs.key);
     }
   }

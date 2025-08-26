@@ -36,13 +36,13 @@ export default class implements PerfettoPlugin {
       await this.createTargetVmTrack(ctx, defaultTargetId);
 
       ctx.commands.registerCommand({
-        id: `${ctx.pluginId}#SelectAvfVmUtid`,
+        id: `com.android.SelectAvfVmUtid`,
         name: 'Select Avf VM utid to add track',
         callback: async () => {
           if (this.validTargets.size === 0) {
             alert('Available ValidTargets set exhausted! Do Refresh...');
           } else {
-            const utid = await this.selectValidTarget();
+            const utid = await this.selectValidTarget(ctx);
             await this.createTargetVmTrack(ctx, utid);
           }
         },
@@ -132,9 +132,9 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  async selectValidTarget(): Promise<number> {
-    const input = prompt(this.prepareSelectMessage());
-    if (input !== null) {
+  async selectValidTarget(ctx: Trace): Promise<number> {
+    const input = await ctx.omnibox.prompt(this.prepareSelectMessage());
+    if (input !== undefined) {
       const checkId = Number(input);
       if (!isNaN(checkId) && this.validTargets.has(checkId)) {
         return checkId;

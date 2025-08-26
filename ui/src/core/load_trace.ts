@@ -35,6 +35,7 @@ import {
   TraceBufferStream,
   TraceFileStream,
   TraceHttpStream,
+  TraceMultipleFilesStream,
   TraceStream,
 } from '../core/trace_stream';
 import {
@@ -44,7 +45,6 @@ import {
 import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {SerializedAppState} from './state_serialization_schema';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
@@ -142,6 +142,7 @@ async function createEngine(
     console.log('Opening trace using built-in WASM engine');
     engine = new WasmEngineProxy(engineId);
     engine.resetTraceProcessor({
+      tokenizeOnly: false,
       cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
@@ -162,16 +163,17 @@ async function loadTraceIntoEngine(
   engine: EngineBase,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
-  let serializedAppState: SerializedAppState | undefined;
+  const serializedAppState = traceSource.serializedAppState;
   if (traceSource.type === 'FILE') {
     traceStream = new TraceFileStream(traceSource.file);
   } else if (traceSource.type === 'ARRAY_BUFFER') {
     traceStream = new TraceBufferStream(traceSource.buffer);
   } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
-    serializedAppState = traceSource.serializedAppState;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
+  } else if (traceSource.type === 'MULTIPLE_FILES') {
+    traceStream = new TraceMultipleFilesStream(traceSource.files);
   } else {
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
   }
@@ -266,6 +268,20 @@ async function loadTraceIntoEngine(
     // TODO(primiano): this can probably be removed once we refactor tracks
     // to be URI based and can deal with non-existing URIs.
     deserializeAppStatePhase2(serializedAppState, trace);
+  }
+
+  // Execute startup commands as the final step - simulates user actions
+  // after the trace is fully loaded and any saved state has been restored.
+  // This ensures startup commands see the complete, final state of the trace.
+  if (trace.commands.hasStartupCommands()) {
+    updateStatus(app, 'Running startup commands');
+    // Disable prompts during startup commands to prevent blocking
+    app.omnibox.disablePrompts();
+    try {
+      await trace.commands.runStartupCommands();
+    } finally {
+      app.omnibox.enablePrompts();
+    }
   }
 
   return trace;

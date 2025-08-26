@@ -169,11 +169,11 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       Tree,
       m(TreeNode, {
         left: 'Start time',
-        right: m(Timestamp, {ts: threadState.ts}),
+        right: m(Timestamp, {trace: this.trace, ts: threadState.ts}),
       }),
       m(TreeNode, {
         left: 'Duration',
-        right: m(DurationWidget, {dur: threadState.dur}),
+        right: m(DurationWidget, {trace: this.trace, dur: threadState.dur}),
       }),
       m(TreeNode, {
         left: 'State',
@@ -222,7 +222,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       {
         title: 'Go to CPU slice',
         icon: 'call_made',
-        onclick: () => goToSchedSlice(id),
+        onclick: () => goToSchedSlice(this.trace, id),
       },
       `${state} on CPU ${cpu}`,
     );
@@ -235,6 +235,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
     const startTs = this.threadState.ts;
     const renderRef = (state: ThreadState, name?: string) =>
       m(ThreadStateRef, {
+        trace: this.trace,
         id: state.id,
         name,
       });
@@ -288,6 +289,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
         related.wakee.map((state) =>
           m(TreeNode, {
             left: m(Timestamp, {
+              trace: this.trace,
               ts: state.ts,
               display: `+${formatDuration(this.trace, state.ts - startTs)}`,
             }),

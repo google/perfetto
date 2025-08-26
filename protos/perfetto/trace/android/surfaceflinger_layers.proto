@@ -247,6 +247,15 @@ message LayerProto {
 
   // Corner radius explicity set as drawn by client
   optional CornerRadiiProto client_drawn_corner_radii = 63;
+
+  // Priority value of the layer set by the system.
+  optional int32 system_content_priority = 64;
+
+  // Settings which specify how shadows should be drawn for a layer.
+  optional BoxShadowSettings box_shadow_settings = 65;
+
+  // Settings which specify how an outline should be drawn for a layer.
+  optional BorderSettings border_settings = 66;
 }
 
 message PositionProto {

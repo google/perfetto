@@ -276,7 +276,7 @@ export class Table implements m.ClassComponent<TableAttrs<any>> {
     const attrs = vnode.attrs;
 
     return m(
-      'table.generic-table',
+      'table.pf-generic-table',
       m(
         'thead',
         m(

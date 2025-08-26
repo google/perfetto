@@ -26,6 +26,7 @@ import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -176,28 +177,23 @@ class MetricsV1Controller {
   }
 }
 
-interface MetricResultAttrs {
-  readonly result: Result<string> | 'pending' | undefined;
-}
-
-class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
-  view({attrs}: m.CVnode<MetricResultAttrs>) {
-    const result = attrs.result;
-
-    if (result === undefined) {
-      return m('pre.metric-error', 'No metric provided');
-    }
-
-    if (result === 'pending') {
-      return m(Spinner);
-    }
-
-    if (!result.ok) {
-      return m('pre.metric-error', `${result.error}`);
-    }
-
-    return m('pre', result.value);
+function renderResult(
+  result: Result<string> | 'pending' | undefined,
+  format: Format,
+) {
+  if (result === undefined) {
+    return m('pre.pf-metrics-page__error', 'No metric provided');
   }
+
+  if (result === 'pending') {
+    return m(Spinner);
+  }
+
+  if (!result.ok) {
+    return m('pre.pf-metrics-page__error', `${result.error}`);
+  }
+
+  return m(CodeSnippet, {language: format, text: result.value});
 }
 
 interface MetricV1FetcherAttrs {
@@ -346,7 +342,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
     const v1Controller = assertExists(this.v1Controller);
     const json = v1Controller.resultAsJson;
     return m(
-      '.metrics-page',
+      '.pf-metrics-page',
       m(
         '',
         m(SegmentedButtons, {
@@ -395,9 +391,10 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
           }
           return m(MetricVizView, {visualisation, data});
         }),
-      m(MetricResultView, {
-        result: this.mode === 'V1' ? v1Controller.result : this.v2Result,
-      }),
+      renderResult(
+        this.mode === 'V1' ? v1Controller.result : this.v2Result,
+        v1Controller.format,
+      ),
     );
   }
 }

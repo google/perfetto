@@ -161,7 +161,7 @@ export class VisViewSource {
           name: '__data',
           columns: queryNodeColumns.map((col) =>
             // TODO: Figure out how to not require table name here.
-            createTableColumnFromPerfettoSql(col.column, ''),
+            createTableColumnFromPerfettoSql(this.trace, col.column, ''),
           ),
         },
         {

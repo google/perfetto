@@ -111,12 +111,3 @@
     "GRAD" 0,
     "opsz" 24;
 }
-
-.material-icons {
-  @include icon;
-}
-
-.material-icons-filled {
-  @include icon;
-  @include icon-filled;
-}

@@ -1,0 +1,101 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-ai-chat-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+
+  &__conversation {
+    flex-grow: 1;
+    overflow-y: scroll;
+    padding: 1rem;
+
+    .pf-ai-chat-message {
+      margin-bottom: 1rem;
+      max-width: 80%;
+      padding: 0.5rem 1rem;
+      border-radius: 12px;
+      line-height: 1.5;
+
+      &--role-label {
+        font-weight: bold;
+        margin-right: 8px;
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      &--ai {
+        background-color: var(--pf-color-background-secondary);
+        align-self: flex-start;
+      }
+
+      &--user {
+        background-color: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
+        align-self: flex-end;
+        margin-left: auto;
+      }
+
+      &--error {
+        background-color: color-mix(
+          in srgb,
+          var(--pf-color-danger),
+          50% transparent
+        );
+        color: var(--pf-color-danger);
+        border: 1px solid var(--pf-color-danger);
+      }
+
+      &--thought {
+        background-color: #fff3cd;
+        color: #856404;
+        font-style: italic;
+        font-size: 0.9em;
+      }
+    }
+  }
+
+  &__tokens {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    &__label {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    &__count {
+      font-size: 0.9em;
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  &__input-area {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 1rem 1rem;
+    border-top: 1px solid var(--pf-color-border);
+    background-color: var(--pf-color-background-secondary);
+    box-sizing: border-box;
+    gap: 4px;
+
+    .pf-text-input {
+      flex: 1;
+    }
+  }
+}
