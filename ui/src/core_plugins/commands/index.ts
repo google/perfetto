@@ -349,7 +349,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'createNewEmptyWorkspace',
+      id: 'dev.perfetto.CreateNewEmptyWorkspace',
       name: 'Create new empty workspace',
       callback: async () => {
         const workspaces = ctx.workspaces;
@@ -361,7 +361,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'switchWorkspace',
+      id: 'dev.perfetto.SwitchWorkspace',
       name: 'Switch workspace',
       callback: async () => {
         const workspaces = ctx.workspaces;
