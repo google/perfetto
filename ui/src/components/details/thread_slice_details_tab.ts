@@ -99,7 +99,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
     run: (slice: SliceDetails, trace: Trace) =>
       extensions.addLegacySqlTableTab(trace, {
-        table: assertExists(getSqlTableDescription('slice')),
+        table: assertExists(getSqlTableDescription(trace, 'slice')),
         filters: [
           {
             op: (cols) =>
@@ -115,7 +115,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: () => true,
     run: (slice: SliceDetails, trace: Trace) =>
       extensions.addLegacySqlTableTab(trace, {
-        table: assertExists(getSqlTableDescription('slice')),
+        table: assertExists(getSqlTableDescription(trace, 'slice')),
         filters: [
           {
             op: (cols) =>
@@ -310,6 +310,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
                 m(
                   GridDataCell,
                   m(SliceRef, {
+                    trace: this.trace,
                     id: asSliceSqlId(flow.begin.sliceId),
                     name:
                       flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
@@ -318,6 +319,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
                 m(
                   GridDataCell,
                   m(DurationWidget, {
+                    trace: this.trace,
                     dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
                   }),
                 ),
@@ -366,6 +368,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
                 m(
                   GridDataCell,
                   m(SliceRef, {
+                    trace: this.trace,
                     id: asSliceSqlId(flow.end.sliceId),
                     name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
                   }),
@@ -373,6 +376,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
                 m(
                   GridDataCell,
                   m(DurationWidget, {
+                    trace: this.trace,
                     dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
                   }),
                 ),

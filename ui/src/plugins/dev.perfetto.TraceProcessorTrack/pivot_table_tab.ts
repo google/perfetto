@@ -71,7 +71,9 @@ export class PivotTableTab implements AreaSelectionTab {
             icon: Icons.GoTo,
             onclick: () => {
               extensions.addLegacySqlTableTab(this.trace, {
-                table: assertExists(getSqlTableDescription('slice')),
+                table: assertExists(
+                  getSqlTableDescription(this.trace, 'slice'),
+                ),
                 filters: [
                   ...(state?.filters.get() ?? []),
                   ...node.getFilters(),
@@ -85,7 +87,9 @@ export class PivotTableTab implements AreaSelectionTab {
 
   private getOrCreateState(): PivotTableState {
     if (this.state !== undefined) return this.state;
-    const sliceTable = assertExists(getSqlTableDescription('slice'));
+    const sliceTable = assertExists(
+      getSqlTableDescription(this.trace, 'slice'),
+    );
     const name = assertExists(
       sliceTable.columns.find((c) => c.column === 'name'),
     );

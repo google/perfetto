@@ -72,8 +72,8 @@ function createScrollTimelineTableColumns(
   return [
     createPluginSliceIdColumn(trace, trackUri, 'id'),
     new StandardColumn('scroll_update_id'),
-    new TimestampColumn('ts'),
-    new DurationColumn('dur'),
+    new TimestampColumn(trace, 'ts'),
+    new DurationColumn(trace, 'dur'),
     new StandardColumn('name'),
     new StandardColumn('classification'),
   ];
@@ -206,11 +206,14 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         }),
         m(TreeNode, {
           left: 'Start time',
-          right: m(Timestamp, {ts: this.sliceData.ts}),
+          right: m(Timestamp, {trace: this.trace, ts: this.sliceData.ts}),
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: m(DurationWidget, {dur: this.sliceData.dur}),
+          right: m(DurationWidget, {
+            trace: this.trace,
+            dur: this.sliceData.dur,
+          }),
         }),
         m(TreeNode, {
           left: 'SQL ID',
@@ -249,7 +252,10 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
           right:
             this.scrollData.vsyncInterval === undefined
               ? `${this.scrollData.vsyncInterval}`
-              : m(DurationWidget, {dur: this.scrollData.vsyncInterval}),
+              : m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.scrollData.vsyncInterval,
+                }),
         }),
         m(TreeNode, {
           left: 'Is presented',

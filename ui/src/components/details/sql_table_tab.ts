@@ -50,6 +50,7 @@ export function addLegacyTableTab(
   config: AddSqlTableTabParams,
 ): void {
   addSqlTableTabWithState(
+    trace,
     new SqlTableState(trace, config.table, {
       filters: new Filters(config.filters),
       imports: config.imports,
@@ -57,8 +58,8 @@ export function addLegacyTableTab(
   );
 }
 
-function addSqlTableTabWithState(state: SqlTableState) {
-  addEphemeralTab('sqlTable', new LegacySqlTableTab(state));
+function addSqlTableTabWithState(trace: Trace, state: SqlTableState) {
+  addEphemeralTab(trace, 'sqlTable', new LegacySqlTableTab(state));
 }
 
 class LegacySqlTableTab implements Tab {
@@ -133,7 +134,8 @@ class LegacySqlTableTab implements Tab {
         m(MenuItem, {
           label: 'Duplicate',
           icon: 'tab_duplicate',
-          onclick: () => addSqlTableTabWithState(this.state.clone()),
+          onclick: () =>
+            addSqlTableTabWithState(this.state.trace, this.state.clone()),
         }),
         m(MenuItem, {
           label: 'Copy SQL query',
@@ -162,7 +164,7 @@ class LegacySqlTableTab implements Tab {
             ...chartAttrs,
           },
         ],
-        addChart: (chart) => addChartTab(chart),
+        addChart: (chart) => addChartTab(this.state.trace, chart),
       }),
       m(MenuItem, {
         label: 'Pivot',
@@ -284,7 +286,7 @@ class LegacySqlTableTab implements Tab {
                     onclick: () => {
                       const newState = this.state.clone();
                       newState.filters.addFilters(node.getFilters());
-                      addSqlTableTabWithState(newState);
+                      addSqlTableTabWithState(this.state.trace, newState);
                     },
                   }),
                 ),

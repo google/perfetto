@@ -332,7 +332,7 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
               m(
                 GridDataCell,
                 jankSlice.dur !== undefined
-                  ? m(DurationWidget, {dur: jankSlice.dur})
+                  ? m(DurationWidget, {trace: this.trace, dur: jankSlice.dur})
                   : 'NULL',
               ),
               m(GridDataCell, jankSlice.delayVsync),
@@ -398,8 +398,8 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
 
     const details = dictToTreeNodes({
       'Scroll ID': `${this.data.id}`,
-      'Start time': m(Timestamp, {ts: this.data.ts}),
-      'Duration': m(DurationWidget, {dur: this.data.dur}),
+      'Start time': m(Timestamp, {trace: this.trace, ts: this.data.ts}),
+      'Duration': m(DurationWidget, {trace: this.trace, dur: this.data.dur}),
       'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.id}),
     });
 

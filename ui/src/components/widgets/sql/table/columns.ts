@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
+import {Trace} from '../../../../public/trace';
 import {SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   asSchedSqlId,
@@ -80,7 +81,10 @@ export class StandardColumn implements TableColumn {
 }
 
 export class TimestampColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
 
   renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
@@ -91,6 +95,7 @@ export class TimestampColumn implements TableColumn {
     }
     return {
       content: m(Timestamp, {
+        trace: this.trace,
         ts: Time.fromRaw(value),
       }),
       menu: [
@@ -103,7 +108,10 @@ export class TimestampColumn implements TableColumn {
 }
 
 export class DurationColumn implements TableColumn {
-  constructor(public column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public column: SqlColumn,
+  ) {}
 
   renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
@@ -115,6 +123,7 @@ export class DurationColumn implements TableColumn {
 
     return {
       content: m(DurationWidget, {
+        trace: this.trace,
         dur: Duration.fromRaw(value),
       }),
       menu: [
@@ -128,6 +137,7 @@ export class DurationColumn implements TableColumn {
 
 export class SliceIdColumn implements TableColumn {
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
   ) {}
@@ -141,6 +151,7 @@ export class SliceIdColumn implements TableColumn {
 
     return {
       content: m(SliceRef, {
+        trace: this.trace,
         id: asSliceSqlId(Number(id)),
         name: `${id}`,
         switchToCurrentSelectionTab: false,
@@ -153,10 +164,13 @@ export class SliceIdColumn implements TableColumn {
     if (this.params?.type === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
-        ['ts', new TimestampColumn(this.getChildColumn('ts'))],
-        ['dur', new DurationColumn(this.getChildColumn('dur'))],
+        ['ts', new TimestampColumn(this.trace, this.getChildColumn('ts'))],
+        ['dur', new DurationColumn(this.trace, this.getChildColumn('dur'))],
         ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['parent_id', new SliceIdColumn(this.getChildColumn('parent_id'))],
+        [
+          'parent_id',
+          new SliceIdColumn(this.trace, this.getChildColumn('parent_id')),
+        ],
       ]);
   }
 
@@ -172,7 +186,10 @@ export class SliceIdColumn implements TableColumn {
 }
 
 export class SchedIdColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
 
   renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
@@ -186,6 +203,7 @@ export class SchedIdColumn implements TableColumn {
 
     return {
       content: m(SchedRef, {
+        trace: this.trace,
         id: asSchedSqlId(Number(id)),
         name: `${id}`,
         switchToCurrentSelectionTab: false,
@@ -196,7 +214,10 @@ export class SchedIdColumn implements TableColumn {
 }
 
 export class ThreadStateIdColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
 
   renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
@@ -210,6 +231,7 @@ export class ThreadStateIdColumn implements TableColumn {
 
     return {
       content: m(ThreadStateRef, {
+        trace: this.trace,
         id: asThreadStateSqlId(Number(id)),
         name: `${id}`,
         switchToCurrentSelectionTab: false,
@@ -221,6 +243,7 @@ export class ThreadStateIdColumn implements TableColumn {
 
 export class ThreadIdColumn implements TableColumn {
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
   ) {}
@@ -241,7 +264,7 @@ export class ThreadIdColumn implements TableColumn {
     return {
       content: `${utid}`,
       menu: [
-        showThreadDetailsMenuItem(asUtid(Number(utid))),
+        showThreadDetailsMenuItem(this.trace, asUtid(Number(utid))),
         getStandardContextMenuItems(utid, this.column, manager),
       ],
       isNumerical: true,
@@ -254,9 +277,15 @@ export class ThreadIdColumn implements TableColumn {
       new Map<string, TableColumn>([
         ['tid', new StandardColumn(this.getChildColumn('tid'))],
         ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-        ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
-        ['upid', new ProcessIdColumn(this.getChildColumn('upid'))],
+        [
+          'start_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+        ],
+        [
+          'end_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+        ],
+        ['upid', new ProcessIdColumn(this.trace, this.getChildColumn('upid'))],
         [
           'is_main_thread',
           new StandardColumn(this.getChildColumn('is_main_thread')),
@@ -287,6 +316,7 @@ export class ThreadIdColumn implements TableColumn {
 
 export class ProcessIdColumn implements TableColumn {
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
   ) {}
@@ -307,7 +337,7 @@ export class ProcessIdColumn implements TableColumn {
     return {
       content: m(Anchor, `${upid}`),
       menu: [
-        showProcessDetailsMenuItem(asUpid(Number(upid))),
+        showProcessDetailsMenuItem(this.trace, asUpid(Number(upid))),
         getStandardContextMenuItems(upid, this.column, manager),
       ],
       isNumerical: true,
@@ -320,11 +350,17 @@ export class ProcessIdColumn implements TableColumn {
       new Map<string, TableColumn>([
         ['pid', new StandardColumn(this.getChildColumn('pid'))],
         ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-        ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
+        [
+          'start_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+        ],
+        [
+          'end_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+        ],
         [
           'parent_upid',
-          new ProcessIdColumn(this.getChildColumn('parent_upid')),
+          new ProcessIdColumn(this.trace, this.getChildColumn('parent_upid')),
         ],
         [
           'is_main_thread',

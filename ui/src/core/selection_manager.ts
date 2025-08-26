@@ -290,7 +290,7 @@ export class SelectionManagerImpl implements SelectionManager {
       const query = `select * from (${union.query(schema)}) where id = ${id}`;
       const result = await this.engine.query(query);
 
-      const row = result.iter(union.schema);
+      const row = result.iter(schema);
       const value = row.get(colName);
 
       let trackUri = map.get(value);

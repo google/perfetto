@@ -409,6 +409,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
         m(TreeNode, {
           left: this.sliceDetails
             ? sliceRef(
+                this.trace,
                 this.sliceDetails,
                 'EventLatency in context of other Input events',
               )
