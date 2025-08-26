@@ -223,6 +223,10 @@ async function loadTraceIntoEngine(
     engine,
   );
 
+  if (engine instanceof HttpRpcEngine) {
+    await sendTraceTitle(engine, traceSource);
+  }
+
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
@@ -541,4 +545,29 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
   }
 
   return new TimeSpan(startBound, endBound);
+}
+
+async function sendTraceTitle(engine: HttpRpcEngine, traceSource: TraceSource) {
+  let traceTitle = undefined;
+  switch (traceSource.type) {
+    case 'FILE':
+      // Split on both \ and / (because C:\Windows\paths\are\like\this).
+      traceTitle = traceSource.file.name.split(/[/\\]/).pop()!;
+      break;
+    case 'URL':
+      traceTitle = traceSource.url.split('/').pop()!;
+      break;
+    case 'ARRAY_BUFFER':
+      traceTitle = traceSource.title;
+      break;
+    case 'HTTP_RPC':
+      break;
+    default:
+      break;
+  }
+  if (!traceTitle) {
+    return;
+  } else {
+    engine.sendTraceTitle(traceTitle);
+  }
 }

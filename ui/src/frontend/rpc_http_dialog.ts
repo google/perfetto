@@ -24,10 +24,11 @@ const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
 function getPromptMessage(tpStatus: protos.StatusResult): string {
-  return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with:
-${tpStatus.loadedTraceName}
+  return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} one or more loaded traces including 
+  ${tpStatus.loadedTraceName}.
 
-YES, use loaded trace:
+YES, select loaded trace:
+Pops up a window that allows you to select the trace to load.
 Will load from the current state of Trace Processor. If you did run
 trace_processor_shell --httpd file.pftrace this is likely what you want.
 
@@ -322,7 +323,7 @@ async function showDialogToUsePreloadedTrace(
       content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
       buttons: [
         {
-          text: 'YES, use loaded trace',
+          text: 'YES, select loaded trace',
           primary: true,
           action: () => {
             resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
@@ -344,7 +345,7 @@ async function showDialogToUsePreloadedTrace(
     });
   });
 
-  // If user selected "YES, use loaded trace", show trace processor selection
+  // If user selected "YES, select loaded trace", show trace processor selection
   if (result === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
     const selectedUuid = await showTraceProcessorSelectionModal();
 

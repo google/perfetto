@@ -110,6 +110,7 @@ message TraceProcessorRpc {
     TPM_REGISTER_SQL_PACKAGE = 13;
     TPM_ANALYZE_STRUCTURED_QUERY = 14;
     TPM_SUMMARIZE_TRACE = 15;
+    TPM_SET_TRACE_TITLE = 16;
   }
 
   oneof type {
@@ -147,6 +148,8 @@ message TraceProcessorRpc {
     AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryArgs trace_summary_args = 110;
+    // For TPM_SET_TRACE_TITLE.
+    SetTraceTitleArgs set_trace_title_args = 111;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -358,6 +361,10 @@ message ResetTraceProcessorArgs {
   optional bool analyze_trace_proto_content = 3;
   optional bool ftrace_drop_until_all_cpus_valid = 4;
   optional ParsingMode parsing_mode = 5;
+}
+
+message SetTraceTitleArgs {
+  required string title = 1;
 }
 
 message RegisterSqlPackageArgs {
