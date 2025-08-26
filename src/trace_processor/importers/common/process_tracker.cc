@@ -301,10 +301,6 @@ UniquePid ProcessTracker::StartNewProcessInternal(
     ThreadNamePriority priority,
     bool associate_main_thread) {
   pids_.Erase(pid);
-  // TODO(eseckler): Consider erasing all old entries in |tids_| that match the
-  // |pid| (those would be for an older process with the same pid). Right now,
-  // we keep them in |tids_| (if they weren't erased by EndThread()), but ignore
-  // them in GetThreadOrNull().
 
   // Same pid is never used concurrently by multiple processes, therefore remove
   // the tid completely
