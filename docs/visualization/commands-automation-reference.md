@@ -304,7 +304,7 @@ groups for context.
 
 #### `dev.perfetto.RunQuery`
 
-Executes a PerfettoSQL query and displays results in the query tab.
+Executes a PerfettoSQL query without displaying results.
 
 **Arguments:**
 
@@ -315,6 +315,23 @@ Executes a PerfettoSQL query and displays results in the query tab.
 ```json
 {
   "id": "dev.perfetto.RunQuery",
+  "args": ["CREATE PERFETTO FUNCTION my_func(x INT) RETURNS INT AS SELECT $x * 2"]
+}
+```
+
+#### `dev.perfetto.RunQueryAndShowTab`
+
+Executes a PerfettoSQL query and displays results in a new query tab.
+
+**Arguments:**
+
+- `query` (string, required): PerfettoSQL query to execute
+
+**Example:**
+
+```json
+{
+  "id": "dev.perfetto.RunQueryAndShowTab",
   "args": ["SELECT ts, dur, name FROM slice LIMIT 50"]
 }
 ```
