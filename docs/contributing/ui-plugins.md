@@ -1510,7 +1510,7 @@ TBD
 
 Examples:
 
-- [dev.perfetto.AndroidBinderViz](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.AndroidBinderViz/index.ts).
+- [com.android.AndroidBinderViz](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.android.AndroidBinderViz/index.ts).
 
 ### State
 

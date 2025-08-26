@@ -20,9 +20,10 @@ import {AppImpl} from '../../core/app_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
-import {TrackNode} from '../../public/workspace';
+import {TrackNode, Workspace} from '../../public/workspace';
 import {App} from '../../public/app';
 import {Setting} from '../../public/settings';
+import {Time} from '../../base/time';
 
 export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'perfetto.TrackUtils';
@@ -43,7 +44,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     // Register this command up front to block the print dialog from appearing
     // when pressing the hotkey before the trace is loaded.
     app.commands.registerCommand({
-      id: 'perfetto.FindTrackByName',
+      id: 'dev.perfetto.FindTrackByName',
       name: 'Find track by name',
       callback: async () => {
         const trace = app.trace;
@@ -70,7 +71,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'perfetto.RunQueryInSelectedTimeWindow',
+      id: 'dev.perfetto.RunQueryInSelectedTimeWindow',
       name: `Run query in selected time window`,
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
@@ -84,7 +85,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.FindTrackByUri',
+      id: 'dev.perfetto.FindTrackByUri',
       name: 'Find track by URI',
       callback: async () => {
         const tracksWithUris = ctx.workspace.flatTracksOrdered.filter(
@@ -102,7 +103,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.PinTrackByName',
+      id: 'dev.perfetto.PinTrackByName',
       name: 'Pin track by name',
       defaultHotkey: 'Shift+T',
       callback: async () => {
@@ -118,7 +119,169 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.SelectNextTrackEvent',
+      id: 'dev.perfetto.PinTracksByRegex',
+      name: 'Pin tracks by regex',
+      callback: async (regexArg: unknown) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
+
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+        matchingTracks.forEach((track) => track.pin());
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ExpandTracksByRegex',
+      name: 'Expand tracks by regex',
+      callback: async (regexArg: unknown) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
+
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+        matchingTracks.forEach((track) => track.expand());
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CollapseTracksByRegex',
+      name: 'Collapse tracks by regex',
+      callback: async (regexArg: unknown) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
+
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+        matchingTracks.forEach((track) => track.collapse());
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyTracksToWorkspaceByRegex',
+      name: 'Copy tracks to workspace by regex',
+      callback: async (regexArg: unknown, workspaceNameArg: unknown) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
+
+        const workspaceName =
+          typeof workspaceNameArg === 'string'
+            ? workspaceNameArg
+            : await ctx.omnibox.prompt('Enter workspace name...');
+        if (!workspaceName) return;
+
+        // Create or get the target workspace
+        const targetWorkspace =
+          ctx.workspaces.all.find((ws) => ws.title === workspaceName) ??
+          ctx.workspaces.createEmptyWorkspace(workspaceName);
+
+        // Find matching tracks from current workspace
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+
+        // Copy matching tracks to target workspace
+        matchingTracks.forEach((track) => {
+          targetWorkspace.addChildInOrder(track.clone(true));
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors',
+      name: 'Copy tracks to workspace by regex (with ancestors)',
+      callback: async (regexArg: unknown, workspaceNameArg: unknown) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
+
+        const workspaceName =
+          typeof workspaceNameArg === 'string'
+            ? workspaceNameArg
+            : await ctx.omnibox.prompt('Enter workspace name...');
+        if (!workspaceName) return;
+
+        // Create or get the target workspace
+        const targetWorkspace =
+          ctx.workspaces.all.find((ws) => ws.title === workspaceName) ??
+          ctx.workspaces.createEmptyWorkspace(workspaceName);
+
+        // Find matching tracks from current workspace
+        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+          regex.test(track.name),
+        );
+
+        // Copy matching tracks with their ancestors to target workspace
+        copyTracksWithAncestors(matchingTracks, targetWorkspace);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddNoteAtUtcTimestamp',
+      name: 'Add note at UTC timestamp',
+      callback: async (utcTimestampArg: unknown, noteTextArg: unknown) => {
+        const utcTimestampStr =
+          typeof utcTimestampArg === 'string'
+            ? utcTimestampArg
+            : await ctx.omnibox.prompt(
+                'Enter UTC timestamp (ISO format or milliseconds)...',
+              );
+        if (!utcTimestampStr) return;
+
+        const noteText =
+          typeof noteTextArg === 'string'
+            ? noteTextArg
+            : await ctx.omnibox.prompt('Enter note text...');
+        if (noteText === undefined) return;
+
+        let utcDate: Date;
+        if (/^\d+$/.test(utcTimestampStr)) {
+          // Numeric timestamp in milliseconds
+          utcDate = new Date(parseInt(utcTimestampStr, 10));
+        } else {
+          // ISO format timestamp
+          utcDate = new Date(utcTimestampStr);
+        }
+
+        if (isNaN(utcDate.getTime())) {
+          console.error(`Invalid timestamp format: ${utcTimestampStr}`);
+          return;
+        }
+
+        // Convert UTC Date to trace time using the trace's unix offset
+        const traceTime = Time.fromDate(utcDate, ctx.traceInfo.unixOffset);
+
+        ctx.notes.addNote({
+          timestamp: traceTime,
+          text: noteText,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
       defaultHotkey: '.',
       callback: async () => {
@@ -127,7 +290,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.SelectPreviousTrackEvent',
+      id: 'dev.perfetto.SelectPreviousTrackEvent',
       name: 'Select previous track event',
       defaultHotkey: !TrackUtilsPlugin.dvorakSetting.get() ? ',' : undefined,
       callback: async () => {
@@ -169,4 +332,93 @@ async function selectAdjacentTrackEvent(
   ctx.selection.selectTrackEvent(selection.trackUri, resultId, {
     scrollToSelection: true,
   });
+}
+
+// Helper function to get a regex from an argument or prompt the user for one.
+// Returns null if the user cancels the prompt or if the regex is invalid.
+async function getRegexFromArgOrPrompt(
+  ctx: Trace,
+  regexArg: unknown,
+  promptText: string,
+): Promise<RegExp | null> {
+  const regexStr =
+    typeof regexArg === 'string'
+      ? regexArg
+      : await ctx.omnibox.prompt(promptText);
+  if (!regexStr) return null;
+
+  try {
+    return new RegExp(regexStr);
+  } catch (e) {
+    console.error(`Invalid regex pattern: ${regexStr}`, e);
+    return null;
+  }
+}
+
+// Copy tracks with their ancestor hierarchy preserved
+function copyTracksWithAncestors(
+  tracks: ReadonlyArray<TrackNode>,
+  targetWorkspace: Workspace,
+) {
+  // Map to track old node IDs to new cloned nodes
+  const nodeMap = new Map<string, TrackNode>();
+
+  // Keep track of which nodes were explicitly matched (should be deep cloned)
+  const explicitlyMatchedNodes = new Set<TrackNode>(tracks);
+
+  // Collect all nodes that need to be copied (tracks + their ancestors)
+  // Also cache the depth (ancestor count) for each node to avoid repeated calls
+  const nodesToCopy = new Map<TrackNode, number>();
+
+  for (const track of tracks) {
+    // Add the track itself if not already added
+    if (!nodesToCopy.has(track)) {
+      nodesToCopy.set(track, track.getAncestors().length);
+    }
+
+    // Add all ancestors
+    const ancestors = track.getAncestors();
+    ancestors.forEach((ancestor, index) => {
+      if (!nodesToCopy.has(ancestor)) {
+        // The depth of an ancestor is its index in the ancestors array
+        nodesToCopy.set(ancestor, index);
+      }
+    });
+  }
+
+  // Sort nodes by depth (root nodes first) to ensure parents are created before
+  // children.
+  const sortedNodes = Array.from(nodesToCopy.entries())
+    .sort(([, depthA], [, depthB]) => depthA - depthB)
+    .map(([node]) => node);
+
+  // Clone and add nodes, maintaining parent-child relationships
+  for (const node of sortedNodes) {
+    // Check if we've already cloned this node
+    if (nodeMap.has(node.id)) {
+      continue;
+    }
+
+    // Deep clone only if this node was explicitly matched, otherwise shallow
+    // clone
+    const shouldDeepClone = explicitlyMatchedNodes.has(node);
+    const clonedNode = node.clone(shouldDeepClone);
+    nodeMap.set(node.id, clonedNode);
+
+    // Find the parent in the target workspace
+    const parent = node.parent;
+    if (!parent || parent.name === '') {
+      // This is a root-level node
+      targetWorkspace.addChildInOrder(clonedNode);
+    } else {
+      // Find the cloned parent node
+      const clonedParent = nodeMap.get(parent.id);
+      if (clonedParent) {
+        clonedParent.addChildInOrder(clonedNode);
+      } else {
+        // Shouldn't happen if we sorted correctly, but fallback to root
+        targetWorkspace.addChildInOrder(clonedNode);
+      }
+    }
+  }
 }

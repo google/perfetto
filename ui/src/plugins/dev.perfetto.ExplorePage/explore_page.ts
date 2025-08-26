@@ -21,14 +21,11 @@ import {QueryNode} from './query_node';
 import {
   TableSourceNode,
   modalForTableSelection,
-} from './query_builder/sources/table_source';
-import {
-  SlicesSourceNode,
-  slicesSourceNodeColumns,
-} from './query_builder/sources/slices_source';
-import {SqlSourceNode} from './query_builder/sources/sql_source';
-import {SubQueryNode} from './query_builder/sub_query_node';
-import {AggregationNode} from './query_builder/aggregation_node';
+} from './query_builder/nodes/sources/table_source';
+import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
+import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
+import {SubQueryNode} from './query_builder/nodes/sub_query_node';
+import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
 import {VisViewSource} from './data_visualiser/view_source';
 
@@ -88,7 +85,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           trace,
           sqlModules,
           sqlTable: selection.sqlTable,
-          sourceCols: selection.sourceCols,
           filters: [],
         }),
       );
@@ -98,7 +94,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   handleAddAggregation(state: ExplorePageState, node: QueryNode) {
     const newNode = new AggregationNode({
       prevNode: node,
-      sourceCols: node.finalCols,
       groupByColumns: [],
       aggregations: [],
       filters: [],
@@ -110,7 +105,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     this.addNode(
       state,
       new SlicesSourceNode({
-        sourceCols: slicesSourceNodeColumns(true),
         filters: [],
       }),
     );
@@ -121,7 +115,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       attrs.state,
       new SqlSourceNode({
         trace: attrs.trace,
-        sourceCols: [],
         filters: [],
       }),
     );
@@ -162,7 +155,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   handleAddSubQuery(state: ExplorePageState, node: QueryNode) {
     const newNode = new SubQueryNode({
       prevNode: node,
-      sourceCols: node.finalCols,
       filters: [],
     });
     this.addNode(state, newNode, node);

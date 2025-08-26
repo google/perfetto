@@ -37,18 +37,17 @@
   $tick-anim-time: $tick-anim-time-width + $tick-anim-time-height;
   $tick-easing: linear;
 
-  $box-size: 18px;
-  $tick-height: 9px;
-  $tick-width: 5px;
-  $box-label-padding: 6px;
+  $box-size: 1em;
+  $tick-height: 0.55em;
+  $tick-width: 0.3em;
+  $box-label-padding: 0.33em;
 
-  display: inline-block;
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: baseline;
   position: relative; // Turns this container into a positioned element
-  font-family: inherit;
-  font-size: inherit;
   user-select: none;
   cursor: pointer;
-  padding-left: $box-size + $box-label-padding;
 
   // Hide the default checkbox
   input {
@@ -59,12 +58,9 @@
 
   // The span forms the "box" of the checkbox
   span {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    margin-top: auto;
-    margin-bottom: auto;
+    display: inline-block;
+    position: relative; // Align tick to this box
+    align-self: center;
     height: $box-size;
     width: $box-size;
     border-radius: $border-radius;
@@ -75,10 +71,9 @@
     // The :after element forms the "tick" of the checkbox
     &:after {
       content: "";
-      display: block;
       position: absolute;
-      bottom: 7.5px;
-      left: 1px;
+      bottom: 0.4em;
+      left: 0em;
       width: 0px;
       height: 0px;
       border-color: var(--pf-color-text-on-primary);
@@ -111,7 +106,7 @@
   input:checked + span:after {
     width: $tick-width;
     height: $tick-height;
-    border-width: 0 2px 2px 0;
+    border-width: 0 0.15em 0.15em 0;
     transition:
       width $tick-anim-time-height $tick-easing,
       height $tick-anim-time-height $tick-anim-time-width $tick-easing,

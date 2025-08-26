@@ -39,7 +39,8 @@ enum BinaryType : uint8_t {
 
 struct FoundBinary {
   std::string file_name;
-  uint64_t load_bias;
+  uint64_t p_vaddr;
+  uint64_t p_offset;
   BinaryType type;
 };
 
@@ -73,14 +74,6 @@ class LocalBinaryFinder : public BinaryFinder {
   ~LocalBinaryFinder() override;
 
  private:
-  std::optional<FoundBinary> IsCorrectFile(const std::string& symbol_file,
-                                           const std::string& build_id);
-
-  std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
-                                              const std::string& abspath,
-                                              const std::string& build_id);
-
- private:
   std::vector<std::string> roots_;
   std::map<std::string, std::optional<FoundBinary>> cache_;
 };
@@ -104,6 +97,7 @@ class LocalSymbolizer : public Symbolizer {
   explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
 
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
+      const Environment& env,
       const std::string& mapping_name,
       const std::string& build_id,
       uint64_t load_bias,
@@ -116,7 +110,7 @@ class LocalSymbolizer : public Symbolizer {
   std::unique_ptr<BinaryFinder> finder_;
 };
 
-std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
+std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
     std::vector<std::string> binary_path,
     const char* mode);
 

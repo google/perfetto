@@ -18,7 +18,7 @@ import {classNames} from '../../../base/classnames';
 import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {NodeType, QueryNode} from '../query_node';
+import {QueryNode} from '../query_node';
 import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
@@ -47,40 +47,20 @@ export interface NodeBoxAttrs {
 }
 
 function renderWarningIcon(node: QueryNode): m.Child {
-  const error =
-    node.state.queryError || node.state.responseError || node.state.dataError;
-  if (!error) return null;
+  if (!node.state.issues || !node.state.issues.hasIssues()) return null;
 
   const iconClasses = classNames('pf-node-box__warning-icon');
 
   return m(Icon, {
     className: iconClasses,
     icon: 'warning',
-    title: error.message,
+    title: node.state.issues.getTitle(),
   });
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onDuplicateNode, onDeleteNode, onAddSubQuery, onAddAggregation} =
-    attrs;
-  return m(
-    PopupMenu,
-    {
-      trigger: m(Button, {
-        iconFilled: true,
-        icon: Icons.ContextMenuAlt,
-      }),
-    },
-    node.type !== NodeType.kSqlSource && [
-      m(MenuItem, {
-        label: 'Add sub-query',
-        onclick: () => onAddSubQuery(node),
-      }),
-      m(MenuItem, {
-        label: 'Add aggregation',
-        onclick: () => onAddAggregation(node),
-      }),
-    ],
+  const {node, onDuplicateNode, onDeleteNode} = attrs;
+  const menuItems: m.Child[] = [
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => onDuplicateNode(node),
@@ -89,6 +69,17 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
       label: 'Delete',
       onclick: () => onDeleteNode(node),
     }),
+  ];
+
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Button, {
+        iconFilled: true,
+        icon: Icons.ContextMenuAlt,
+      }),
+    },
+    ...menuItems,
   );
 }
 
@@ -129,8 +120,8 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     const conditionalClasses = classNames(
       isSelected && 'pf-node-box__selected',
       !node.validate() && 'pf-node-box__invalid',
-      node.state.queryError && 'pf-node-box__invalid-query',
-      node.state.responseError && 'pf-node-box__invalid-response',
+      node.state.issues?.queryError && 'pf-node-box__invalid-query',
+      node.state.issues?.responseError && 'pf-node-box__invalid-response',
     );
 
     const boxStyle = {
@@ -159,7 +150,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
           style: {left},
         });
       }),
-      node.type !== NodeType.kSqlSource && renderAddButton(attrs),
+      renderAddButton(attrs),
     );
   },
 };

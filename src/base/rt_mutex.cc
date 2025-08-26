@@ -21,70 +21,37 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 
-#if PERFETTO_HAS_RT_FUTEX()
-#include <linux/futex.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-#endif  // PERFETTO_HAS_RT_FUTEX
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <dlfcn.h>
+#endif
 
 namespace perfetto::base {
 
-std::atomic<bool> MaybeRtMutex::enabled_flag =
-    MaybeRtMutex::kRtMutexDefaultFlagValue;
-
 namespace internal {
-
-#if PERFETTO_HAS_RT_FUTEX()
-
-void RtFutex::LockSlowpath() {
-  auto res = PERFETTO_EINTR(
-      syscall(SYS_futex, &lock_, FUTEX_LOCK_PI_PRIVATE, 0, nullptr));
-  PERFETTO_CHECK(res == 0);
-}
-
-bool RtFutex::TryLockSlowpath() {
-  auto res = PERFETTO_EINTR(
-      syscall(SYS_futex, &lock_, FUTEX_TRYLOCK_PI_PRIVATE, 0, nullptr));
-  if (res == 0)
-    return true;
-  if (errno == EBUSY || errno == EDEADLK)
-    return false;
-  PERFETTO_FATAL("FUTEX_TRYLOCK_PI_PRIVATE failed");
-}
-
-void RtFutex::UnlockSlowpath() {
-  auto res = PERFETTO_EINTR(
-      syscall(SYS_futex, &lock_, FUTEX_UNLOCK_PI_PRIVATE, 0, nullptr));
-  PERFETTO_CHECK(res == 0);
-}
-
-#if !PERFETTO_GETTID_IS_FAST()
-namespace {
-thread_local int g_cached_tid = -1;
-}
-
-int RtFutex::GetTid() {
-  if (PERFETTO_UNLIKELY(g_cached_tid == -1)) {
-    static int register_atfork_once = [] {
-      return pthread_atfork(/* prepare = */ nullptr,
-                            /* parent  = */ nullptr,
-                            /* child   = */ [] { g_cached_tid = -1; });
-    }();
-    base::ignore_result(register_atfork_once);
-    g_cached_tid = static_cast<int>(syscall(SYS_gettid));
-  }
-  return g_cached_tid;
-}
-#endif  // !PERFETTO_GETTID_IS_FAST
-
-#endif  // PERFETTO_HAS_RT_FUTEX
 
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
 
 RtPosixMutex::RtPosixMutex() noexcept {
   pthread_mutexattr_t at{};
   PERFETTO_CHECK(pthread_mutexattr_init(&at) == 0);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __ANDROID_API__ < 28
+  // pthread_mutexattr_setprotocol is only available on API 28.
+  using SetprotocolFuncT = int (*)(pthread_mutexattr_t*, int);
+  static auto setprotocol_func = reinterpret_cast<SetprotocolFuncT>(
+      dlsym(RTLD_DEFAULT, "pthread_mutexattr_setprotocol"));
+  if (setprotocol_func) {
+    PERFETTO_CHECK(setprotocol_func(&at, PTHREAD_PRIO_INHERIT) == 0);
+  } else {
+    static uint64_t log_once = 0;
+    if (log_once++ == 0) {
+      PERFETTO_LOG(
+          "Priority-inheritance RtMutex is not available in this version of "
+          "Android.");
+    }
+  }
+#else  // Not Android (but POSIX RT)
   PERFETTO_CHECK(pthread_mutexattr_setprotocol(&at, PTHREAD_PRIO_INHERIT) == 0);
+#endif
   PERFETTO_CHECK(pthread_mutex_init(&mutex_, &at) == 0);
 }
 

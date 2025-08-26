@@ -35,7 +35,10 @@ namespace perfetto::base::flags {
 #define PERFETTO_READ_ONLY_FLAGS(X)                                    \
   X(test_read_only_flag, NonAndroidPlatformDefault_FALSE)              \
   X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_TRUE) \
-  X(ftrace_clear_offline_cpus_only, NonAndroidPlatformDefault_TRUE)
+  X(ftrace_clear_offline_cpus_only, NonAndroidPlatformDefault_TRUE)    \
+  X(use_rt_mutex, PERFETTO_BUILDFLAG(PERFETTO_ENABLE_RT_MUTEX)         \
+                      ? NonAndroidPlatformDefault_TRUE                 \
+                      : NonAndroidPlatformDefault_FALSE)
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //

@@ -29,6 +29,8 @@
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
 @import "components/data_grid";
+@import "components/json_settings_editor";
+@import "components/pivot_table";
 @import "components/query_history";
 @import "components/query_table";
 @import "widgets/anchor";
@@ -47,6 +49,7 @@
 @import "widgets/flamegraph";
 @import "widgets/form";
 @import "widgets/grid_layout";
+@import "widgets/grid";
 @import "widgets/hotkey";
 @import "widgets/icon";
 @import "widgets/linear_progress";
@@ -63,11 +66,10 @@
 @import "widgets/select";
 @import "widgets/settings_shell";
 @import "widgets/spinner";
+@import "widgets/split_panel";
 @import "widgets/sql_table";
 @import "widgets/stack";
 @import "widgets/switch";
-@import "widgets/split_panel";
-@import "widgets/table";
 @import "widgets/tabs";
 @import "widgets/tag_input";
 @import "widgets/text_input";
