@@ -72,10 +72,9 @@ base::Status RegisteredFileTracker::AddFile(const std::string& name,
   }
   return base::OkStatus();
 }
-TraceBlob RegisteredFileTracker::GetContent(tables::FileTable::Id id) const {
+TraceBlob& RegisteredFileTracker::GetContent(tables::FileTable::Id id) const {
   PERFETTO_DCHECK(id.value < file_content_.size());
-  const auto& blob = file_content_[id.value];
-  return TraceBlob::CopyFrom(blob.data(), blob.size());
+  return file_content_[id.value];
 }
 
 }  // namespace perfetto::trace_processor
