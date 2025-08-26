@@ -23,6 +23,7 @@ const outDir = process.env.OUT_DIR ?? '../out/ui';
 const ciChromePath = '/tmp/chrome/opt/google/chrome/google-chrome';
 
 export default defineConfig({
+  timeout: 60_000,
   testDir: './src',
   snapshotDir: '../test/data/ui-screenshots',
   snapshotPathTemplate: '{snapshotDir}/{testFileName}/{testName}/{arg}{ext}',

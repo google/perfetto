@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Trace} from '../../../../public/trace';
 import {Engine} from '../../../../trace_processor/engine';
 import type {RenderedValue, SqlIdRefRenderer} from './details';
 
@@ -19,9 +20,9 @@ import type {RenderedValue, SqlIdRefRenderer} from './details';
 // type returned from the fetch is the same type that renderer takes.
 export function createSqlIdRefRenderer<Data extends {}>(
   fetch: (engine: Engine, id: bigint) => Promise<Data>,
-  render: (data: Data) => RenderedValue,
+  render: (trace: Trace, data: Data) => RenderedValue,
 ): SqlIdRefRenderer {
-  return {fetch, render: render as (data: {}) => RenderedValue};
+  return {fetch, render: render as SqlIdRefRenderer['render']};
 }
 
 export const sqlIdRegistry: {[key: string]: SqlIdRefRenderer} = {};

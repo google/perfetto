@@ -53,6 +53,7 @@ class alignas(8) TraceBlobView {
                          size_t offset = 0,
                          size_t length = kWholeBlob) {
     PERFETTO_DCHECK(offset <= std::numeric_limits<uint32_t>::max());
+    PERFETTO_CHECK(blob.size() <= std::numeric_limits<uint32_t>::max());
     data_ = blob.data() + offset;
     if (length == kWholeBlob) {
       length_ = static_cast<uint32_t>(blob.size() - offset);

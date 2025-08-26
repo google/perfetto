@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Button, ButtonBar} from '../../../widgets/button';
+import {SqlValue} from '../../../trace_processor/query_result';
+import {Button} from '../../../widgets/button';
 import {download} from '../../../base/download_utils';
 import {Anchor} from '../../../widgets/anchor';
 import {
@@ -24,17 +24,27 @@ import {
   FilterDefinition,
   RowDef,
   Sorting,
-  SortByColumn,
   AggregationFunction,
 } from './common';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {Chip} from '../../../widgets/chip';
 import {Icons} from '../../../base/semantic_icons';
 import {InMemoryDataSource} from './in_memory_data_source';
-import {classNames} from '../../../base/classnames';
 import {Stack, StackAuto} from '../../../widgets/stack';
 import {Box} from '../../../widgets/box';
 import {LinearProgress} from '../../../widgets/linear_progress';
+import {
+  Grid,
+  GridBody,
+  GridDataCell,
+  GridHeader,
+  GridHeaderCell,
+  GridRow,
+  renderSortMenuItems,
+  PageControl,
+  SortDirection,
+} from '../../../widgets/grid';
+import {classNames} from '../../../base/classnames';
 
 const DEFAULT_ROWS_PER_PAGE = 50;
 
@@ -284,6 +294,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? noOp
         : (filter: FilterDefinition) => onFiltersChanged([...filters, filter]);
 
+    const sortControls = onSortingChangedWithReset !== noOp;
+    const filterControls = onFiltersChangedWithReset !== noOp;
+
     return m(
       '.pf-data-grid',
       {
@@ -309,28 +322,111 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         className: 'pf-data-grid__loading',
         state: dataSource.isLoading ? 'indeterminate' : 'none',
       }),
-      m('.pf-data-grid__table', [
-        m(
-          'table',
-          this.renderTableHeader(
-            columns,
-            sorting,
-            onSortingChangedWithReset,
-            addFilter,
-            cellRenderer,
-            dataSource.rows?.aggregates,
+      m(
+        Grid,
+        {
+          className: 'pf-data-grid__table',
+        },
+        [
+          m(
+            GridHeader,
+            m(
+              GridRow,
+              columns.map((column) => {
+                const sort = (() => {
+                  if (sorting.direction === 'UNSORTED') {
+                    return undefined;
+                  } else if (sorting.column === column.name) {
+                    return sorting.direction;
+                  } else {
+                    return undefined;
+                  }
+                })();
+
+                const menuItems: m.Children = [];
+                sortControls &&
+                  menuItems.push(
+                    renderSortMenuItems(sort, (direction) => {
+                      if (direction) {
+                        onSortingChangedWithReset({
+                          column: column.name,
+                          direction: direction,
+                        });
+                      } else {
+                        onSortingChangedWithReset({
+                          direction: 'UNSORTED',
+                        });
+                      }
+                    }),
+                  );
+
+                if (filterControls && sortControls && menuItems.length > 0) {
+                  menuItems.push(m(MenuDivider));
+                }
+
+                if (filterControls) {
+                  menuItems.push(
+                    m(MenuItem, {
+                      label: 'Filter out nulls',
+                      onclick: () => {
+                        addFilter({column: column.name, op: 'is not null'});
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Only show nulls',
+                      onclick: () => {
+                        addFilter({column: column.name, op: 'is null'});
+                      },
+                    }),
+                  );
+                }
+
+                return m(
+                  GridHeaderCell,
+                  {
+                    sort,
+                    onSort: sortControls
+                      ? (direction: SortDirection) => {
+                          onSortingChangedWithReset({
+                            column: column.name,
+                            direction,
+                          });
+                        }
+                      : undefined,
+                    menuItems: menuItems.length > 0 ? menuItems : undefined,
+                    aggregation: column.aggregation &&
+                      dataSource.rows?.aggregates && {
+                        left: m(
+                          'span',
+                          {title: column.aggregation},
+                          aggregationFunIcon(column.aggregation),
+                        ),
+                        right: cellRenderer(
+                          dataSource.rows.aggregates[column.name],
+                          column.name,
+                          dataSource.rows.aggregates,
+                        ),
+                      },
+                  },
+                  column.title ?? column.name,
+                );
+              }),
+            ),
           ),
           dataSource.rows &&
-            this.renderTableBody(
-              columns,
-              dataSource.rows,
-              filters,
-              onFiltersChangedWithReset,
-              cellRenderer,
-              maxRowsPerPage,
+            m(
+              GridBody,
+              this.renderTableBody(
+                columns,
+                dataSource.rows,
+                filters,
+                onFiltersChangedWithReset,
+                cellRenderer,
+                maxRowsPerPage,
+              ),
             ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
@@ -387,52 +483,31 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               ),
             ]),
         ]),
-        m(Stack, {orientation: 'horizontal'}, [
-          m(
-            'span',
-            this.renderPageInfo(this.currentPage, maxRowsPerPage, totalRows),
-          ),
-          m(Button, {
-            icon: Icons.FirstPage,
-            disabled: this.currentPage === 0,
-            title: 'First Page',
-            onclick: () => {
-              if (this.currentPage !== 0) {
-                this.currentPage = 0;
-              }
-            },
-          }),
-          m(Button, {
-            icon: Icons.PrevPage,
-            disabled: this.currentPage === 0,
-            title: 'Previous Page',
-            onclick: () => {
-              if (this.currentPage > 0) {
-                this.currentPage -= 1;
-              }
-            },
-          }),
-          m(Button, {
-            icon: Icons.NextPage,
-            disabled: this.currentPage >= totalPages - 1,
-            title: 'Next Page',
-            onclick: () => {
-              if (this.currentPage < totalPages - 1) {
-                this.currentPage += 1;
-              }
-            },
-          }),
-          m(Button, {
-            icon: Icons.LastPage,
-            disabled: this.currentPage >= totalPages - 1,
-            title: 'Last Page',
-            onclick: () => {
-              if (this.currentPage < totalPages - 1) {
-                this.currentPage = Math.max(0, totalPages - 1);
-              }
-            },
-          }),
-        ]),
+        m(PageControl, {
+          from: this.currentPage * maxRowsPerPage + 1,
+          to: Math.min((this.currentPage + 1) * maxRowsPerPage, totalRows),
+          of: totalRows,
+          firstPageClick: () => {
+            if (this.currentPage !== 0) {
+              this.currentPage = 0;
+            }
+          },
+          prevPageClick: () => {
+            if (this.currentPage > 0) {
+              this.currentPage -= 1;
+            }
+          },
+          nextPageClick: () => {
+            if (this.currentPage < totalPages - 1) {
+              this.currentPage += 1;
+            }
+          },
+          lastPageClick: () => {
+            if (this.currentPage < totalPages - 1) {
+              this.currentPage = Math.max(0, totalPages - 1);
+            }
+          },
+        }),
         toolbarItemsRight,
       ]),
     ]);
@@ -446,168 +521,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     }
   }
 
-  private renderPageInfo(
-    currentPage: number,
-    maxRowsPerPage: number,
-    totalRows: number,
-  ): string {
-    const startRow = Math.min(currentPage * maxRowsPerPage + 1, totalRows);
-    const endRow = Math.min((currentPage + 1) * maxRowsPerPage, totalRows);
-
-    const startRowStr = startRow.toLocaleString();
-    const endRowStr = endRow.toLocaleString();
-    const totalRowsStr = totalRows.toLocaleString();
-
-    return `${startRowStr}-${endRowStr} of ${totalRowsStr}`;
-  }
-
-  private renderTableHeader(
-    columns: ReadonlyArray<ColumnDefinition>,
-    currentSortBy: Sorting,
-    onSortingChanged: OnSortingChanged,
-    addFilter: (filter: FilterDefinition) => void,
-    cellRenderer: CellRenderer,
-    aggregates?: Row,
-  ) {
-    const sortControls = onSortingChanged !== noOp;
-    const filterControls = addFilter !== noOp;
-
-    return m(
-      'thead',
-      m(
-        'tr',
-        columns.map((column) => {
-          // Determine if this column is currently sorted
-          const isCurrentSortColumn =
-            currentSortBy.direction !== 'UNSORTED' &&
-            (currentSortBy as SortByColumn).column === column.name;
-
-          const sortDirection = isCurrentSortColumn
-            ? (currentSortBy as SortByColumn).direction
-            : undefined;
-
-          function renderSortButton(
-            direction: 'ASC' | 'DESC',
-            isHint: boolean = false,
-          ): m.Children {
-            const oppositeDirection = direction === 'ASC' ? 'DESC' : 'ASC';
-            return m(Button, {
-              className: classNames(
-                isHint && 'pf-visible-on-hover pf-data-grid__button-hint',
-              ),
-              compact: true,
-              icon: direction === 'ASC' ? Icons.SortAsc : Icons.SortDesc,
-              onclick: () =>
-                onSortingChanged({
-                  column: column.name,
-                  direction: isHint ? direction : oppositeDirection,
-                }),
-            });
-          }
-
-          return m(
-            'th',
-            m(
-              '.pf-data-grid__data-with-btn.pf-data-grid__padded',
-              m(
-                'span',
-                m(
-                  ButtonBar,
-                  column.title ?? column.name,
-                  sortControls &&
-                    (sortDirection
-                      ? renderSortButton(sortDirection)
-                      : renderSortButton('ASC', true)),
-                ),
-              ),
-              (sortControls || filterControls) &&
-                m(
-                  PopupMenu,
-                  {
-                    trigger: m(Button, {
-                      className: 'pf-data-grid__cell-button',
-                      icon: Icons.ContextMenuAlt,
-                      compact: true,
-                    }),
-                  },
-                  sortControls && [
-                    (!isCurrentSortColumn || sortDirection === 'DESC') &&
-                      m(MenuItem, {
-                        label: 'Sort Ascending',
-                        icon: Icons.SortAsc,
-                        onclick: () => {
-                          onSortingChanged({
-                            column: column.name,
-                            direction: 'ASC',
-                          });
-                        },
-                      }),
-                    (!isCurrentSortColumn || sortDirection === 'ASC') &&
-                      m(MenuItem, {
-                        label: 'Sort Descending',
-                        icon: Icons.SortDesc,
-                        onclick: () => {
-                          onSortingChanged?.({
-                            column: column.name,
-                            direction: 'DESC',
-                          });
-                        },
-                      }),
-                    isCurrentSortColumn &&
-                      m(MenuItem, {
-                        label: 'Clear Sort',
-                        icon: Icons.Remove,
-                        onclick: () => {
-                          onSortingChanged?.({
-                            direction: 'UNSORTED',
-                          });
-                        },
-                      }),
-                  ],
-
-                  filterControls && sortControls && m(MenuDivider),
-
-                  filterControls && [
-                    m(MenuItem, {
-                      label: 'Filter out nulls',
-                      onclick: () => {
-                        addFilter({column: column.name, op: 'is not null'});
-                      },
-                    }),
-                    m(MenuItem, {
-                      label: 'Only show nulls',
-                      onclick: () => {
-                        addFilter({column: column.name, op: 'is null'});
-                      },
-                    }),
-                  ],
-                ),
-            ),
-            column.aggregation &&
-              aggregates &&
-              m('.pf-data-grid__aggregation.pf-data-grid__padded', [
-                m(
-                  'span',
-                  {title: column.aggregation},
-                  aggregationFunIcon(column.aggregation),
-                ),
-                cellRenderer(aggregates[column.name], column.name, aggregates),
-                // If the context menu is present on the following cells, add a
-                // spacer for one here too to keep the summary aligned with the
-                // data below.
-                filterControls &&
-                  m(Button, {
-                    className: 'pf-data-grid__hidden',
-                    icon: Icons.ContextMenuAlt,
-                    compact: true,
-                  }),
-              ]),
-          );
-        }),
-      ),
-    );
-  }
-
   private renderTableBody(
     columns: ReadonlyArray<ColumnDefinition>,
     rowData: DataSourceResult,
@@ -615,7 +528,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     onFilterChange: OnFiltersChanged,
     cellRenderer: CellRenderer,
     maxRowsPerPage: number,
-  ) {
+  ): m.Children {
     const {rows, totalRows, rowOffset} = rowData;
 
     // Create array for all potential rows on the current page
@@ -632,135 +545,138 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const addFilter = (x: FilterDefinition) => onFilterChange([...filters, x]);
 
-    return m(
-      'tbody',
-      indices.map((rowIndex) => {
-        // Calculate the relative index within the available rows array
-        const relativeIndex = rowIndex - rowOffset;
-        // Check if this index is valid for the available rows
-        const row =
-          relativeIndex >= 0 && relativeIndex < rows.length
-            ? rows[relativeIndex]
-            : undefined;
+    return indices.map((rowIndex) => {
+      // Calculate the relative index within the available rows array
+      const relativeIndex = rowIndex - rowOffset;
+      // Check if this index is valid for the available rows
+      const row =
+        relativeIndex >= 0 && relativeIndex < rows.length
+          ? rows[relativeIndex]
+          : undefined;
 
-        if (row) {
-          // Return a populated row if data is available
-          return m(
-            'tr',
-            columns.map((column) => {
-              const value = row[column.name];
-              return m(
-                'td',
-                m(
-                  '.pf-data-grid__data-with-btn.pf-data-grid__padded',
-                  cellRenderer(value, column.name, row),
-                  enableFilters &&
-                    m(
-                      PopupMenu,
-                      {
-                        trigger: m(Button, {
-                          className: 'pf-data-grid__cell-button',
-                          icon: Icons.ContextMenuAlt,
-                          compact: true,
-                        }),
-                      },
-                      value !== null && [
-                        m(MenuItem, {
-                          label: 'Filter equal to this',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: '=',
-                              value: value,
-                            });
-                          },
-                        }),
-                        m(MenuItem, {
-                          label: 'Filter not equal to this',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: '!=',
-                              value: value,
-                            });
-                          },
-                        }),
-                      ],
+      if (row) {
+        // Return a populated row if data is available
+        return m(
+          GridRow,
+          columns.map((column) => {
+            const value = row[column.name];
+            const menuItems: m.Children = [];
 
-                      isNumeric(value) && [
-                        m(MenuItem, {
-                          label: 'Filter greater than this',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: '>',
-                              value: value,
-                            });
-                          },
-                        }),
-                        m(MenuItem, {
-                          label: 'Filter greater than or equal to this',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: '>=',
-                              value: value,
-                            });
-                          },
-                        }),
-                        m(MenuItem, {
-                          label: 'Filter less than this',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: '<',
-                              value: value,
-                            });
-                          },
-                        }),
-                        m(MenuItem, {
-                          label: 'Filter less than or equal to this',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: '<=',
-                              value: value,
-                            });
-                          },
-                        }),
-                      ],
+            if (enableFilters) {
+              if (value !== null) {
+                menuItems.push(
+                  m(MenuItem, {
+                    label: 'Filter equal to this',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: '=',
+                        value: value,
+                      });
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Filter not equal to this',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: '!=',
+                        value: value,
+                      });
+                    },
+                  }),
+                );
+              }
 
-                      value === null && [
-                        m(MenuItem, {
-                          label: 'Filter out nulls',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: 'is not null',
-                            });
-                          },
-                        }),
-                        m(MenuItem, {
-                          label: 'Only show nulls',
-                          onclick: () => {
-                            addFilter({
-                              column: column.name,
-                              op: 'is null',
-                            });
-                          },
-                        }),
-                      ],
-                    ),
-                ),
-              );
-            }),
-          );
-        } else {
-          // Return an empty placeholder row if data is not available
-          return undefined;
-        }
-      }),
-    );
+              if (isNumeric(value)) {
+                menuItems.push(
+                  m(MenuItem, {
+                    label: 'Filter greater than this',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: '>',
+                        value: value,
+                      });
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Filter greater than or equal to this',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: '>=',
+                        value: value,
+                      });
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Filter less than this',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: '<',
+                        value: value,
+                      });
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Filter less than or equal to this',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: '<=',
+                        value: value,
+                      });
+                    },
+                  }),
+                );
+              }
+
+              if (value === null) {
+                menuItems.push(
+                  m(MenuItem, {
+                    label: 'Filter out nulls',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: 'is not null',
+                      });
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Only show nulls',
+                    onclick: () => {
+                      addFilter({
+                        column: column.name,
+                        op: 'is null',
+                      });
+                    },
+                  }),
+                );
+              }
+            }
+
+            return m(
+              GridDataCell,
+              {
+                menuItems: menuItems.length > 0 ? menuItems : undefined,
+                align: (() => {
+                  if (isNumeric(value)) return 'right';
+                  if (value === null) return 'center';
+                  return 'left';
+                })(),
+                isMissing: value === null,
+              },
+              cellRenderer(value, column.name, row),
+            );
+          }),
+        );
+      } else {
+        // Return an empty placeholder row if data is not available
+        return undefined;
+      }
+    });
   }
 }
 

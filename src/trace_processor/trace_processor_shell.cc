@@ -1804,7 +1804,7 @@ base::Status RegisterAllFilesInFolder(const std::string& path,
       return base::ErrStatus("Failed to mmap file: %s", file_full_path.c_str());
     }
     RETURN_IF_ERROR(tp.RegisterFileContent(
-        file_full_path, TraceBlobView(TraceBlob::FromMmap(std::move(mmap)))));
+        file_full_path, TraceBlob::FromMmap(std::move(mmap))));
   }
   return base::OkStatus();
 }
