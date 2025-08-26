@@ -164,7 +164,11 @@ struct TracingInitArgs {
   // Not yet supported for consumer connections currently.
   CreateSocketAsync create_socket_async = nullptr;
 
-  // [Optional] Specifies a custom track uuid for the current current.
+  // [Optional] Specifies a custom track uuid for the current current. If
+  // specified, perfetto::ProcessTrack::Current().uuid will have this value. The
+  // value provided must be unique among all processes. When not specified, the
+  // perfetto::ProcessTrack::Current().uuid is chosen automatically based on
+  // PID, start time and a random source.
   std::optional<uint64_t> process_uuid = std::nullopt;
 
  protected:
