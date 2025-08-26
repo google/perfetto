@@ -105,7 +105,7 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
       except Exception as _:
         # On the CI, the merge base cannot be found for PRs from external
         # contributors since we do a shallow clone. In that case, use the
-        # `merge_base`` directly.
+        # `merge_base` directly.
         merge_base_commit = merge_base
 
       diff_result = run_command([
