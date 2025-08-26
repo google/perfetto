@@ -194,9 +194,8 @@ base::Status EtmDecodeChunkVtable::Cursor::HandleFlushingBuffer() {
     buffer_idx_++;
     if (buffer_idx_ >= rows_waiting_for_timestamp_.size()) {
       FlushBuffer();
-    }
-    if (rows_waiting_for_timestamp_[buffer_idx_].element.getType() ==
-        OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
+    } else if (rows_waiting_for_timestamp_[buffer_idx_].element.getType() ==
+               OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
       state_.last_cc_value +=
           rows_waiting_for_timestamp_[buffer_idx_].element.cycle_count;
       state_.cumulative_cycle_count = state_.last_cc_value;
