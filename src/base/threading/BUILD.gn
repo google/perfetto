@@ -20,11 +20,7 @@ source_set("threading") {
     "../../../gn:default_deps",
   ]
   public_deps = [ "../../../include/perfetto/ext/base/threading" ]
-  sources = [
-    "spawn.cc",
-    "stream_combinators.cc",
-    "thread_pool.cc",
-  ]
+  sources = [ "thread_pool.cc" ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -36,12 +32,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]
-  sources = [
-    "channel_unittest.cc",
-    "future_unittest.cc",
-    "spawn_unittest.cc",
-    "stream_unittest.cc",
-    "thread_pool_unittest.cc",
-    "util_unittest.cc",
-  ]
+  sources = [ "thread_pool_unittest.cc" ]
 }
