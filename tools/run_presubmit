@@ -98,8 +98,15 @@ def get_changed_files(merge_base: Optional[str]) -> List[str]:
 
       # Find the merge-base between merge_base and HEAD to avoid picking up
       # other changes if merge_base has moved on.
-      merge_base_result = run_command(['git', 'merge-base', merge_base, 'HEAD'])
-      merge_base_commit = merge_base_result.stdout.strip()
+      try:
+        merge_base_result = run_command(
+            ['git', 'merge-base', merge_base, 'HEAD'])
+        merge_base_commit = merge_base_result.stdout.strip()
+      except Exception as _:
+        # On the CI, the merge base cannot be found for PRs from external
+        # contributors since we do a shallow clone. In that case, use the
+        # `merge_base`` directly.
+        merge_base_commit = merge_base
 
       diff_result = run_command([
           'git', 'diff', '--name-only', '--diff-filter=crd', merge_base_commit,
