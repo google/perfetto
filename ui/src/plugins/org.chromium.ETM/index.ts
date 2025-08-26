@@ -51,7 +51,6 @@ export default class implements PerfettoPlugin {
 
     const group = new TrackNode({
       name: 'ETM',
-      sortOrder: -25,
       isSummary: true,
     });
 
