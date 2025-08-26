@@ -169,6 +169,8 @@ class EtmDecodeChunkVtable::Cursor
                                               bool is_inlist);
 
   ElementCursor cursor_;
+  // If multiple Cursors for EtmDecodeChunkVtable are needed at the same time
+  // cumulative cycle count will struggle to be correct.
   State state_{};
 
   // Buffer of rows waiting for a timestamp packet (i.e. saw a sync and looking
@@ -210,6 +212,8 @@ base::Status EtmDecodeChunkVtable::Cursor::HandleWaitingForTimestamp() {
         if (cursor_.element().has_cc) {
           row.element.cycle_count = cursor_.element().cycle_count;
           row.element.has_cc = true;
+          state_.cumulative_cycle_count =
+              cursor_.element().cycle_count + state_.last_cc_value;
         }
         break;
       }
@@ -283,6 +287,15 @@ base::Status EtmDecodeChunkVtable::Cursor::Next() {
         continue;
       }
       break;
+    }
+  }
+  if (!flushing_buffer_ && cursor_.element().has_cc) {
+    if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
+      state_.cumulative_cycle_count =
+          cursor_.element().cycle_count + state_.last_cc_value;
+    } else if (cursor_.element().getType() == OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
+      state_.last_cc_value += cursor_.element().cycle_count;
+      state_.cumulative_cycle_count = state_.last_cc_value;
     }
   }
   return base::OkStatus();
@@ -417,15 +430,6 @@ int EtmDecodeChunkVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
       }
       break;
     case ColumnIndex::kCumulativeCycles:
-      if (elem->has_cc) {
-        if (elem->getType() == OCSD_GEN_TRC_ELEM_SYNC_MARKER) {
-          state_.cumulative_cycle_count =
-              elem->cycle_count + state_.last_cc_value;
-        } else if (elem->getType() == OCSD_GEN_TRC_ELEM_CYCLE_COUNT) {
-          state_.last_cc_value += elem->cycle_count;
-          state_.cumulative_cycle_count = state_.last_cc_value;
-        }
-      }
       if (state_.cumulative_cycle_count &&
           elem->getType() != OCSD_GEN_TRC_ELEM_TIMESTAMP) {
         sqlite::result::Long(ctx, *state_.cumulative_cycle_count);
