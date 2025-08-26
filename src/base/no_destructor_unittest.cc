@@ -57,8 +57,8 @@ class NonTrivial {
 };
 
 TEST(NoDestructorTest, ContainedObjectUsable) {
-  static NoDestructor<NonTrivial> x(std::vector<int>{1, 2, 3},
-                                    std::unique_ptr<int>(new int(42)));
+  NoDestructor<NonTrivial> x(std::vector<int>{1, 2, 3},
+                             std::unique_ptr<int>(new int(42)));
 
   ASSERT_THAT(x.ref().vec_, ::testing::ElementsAre(1, 2, 3));
   ASSERT_EQ(*x.ref().ptr_, 42);
