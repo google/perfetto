@@ -1293,17 +1293,16 @@ class JsonExporter {
 
       auto new_entry = current_events_.emplace(
           std::piecewise_construct, std::forward_as_tuple(utid),
-          std::forward_as_tuple(writer_, callsite_id, ts, event));
+          std::forward_as_tuple(writer_, callsite_id, ts, event, this));
       return new_entry.first->second.event_id();
     }
 
-    static uint64_t GenerateNewEventId() {
+    uint64_t GenerateNewEventId() {
       // "n"-phase events are nestable async events which get tied together
       // with their id, so we need to give each one a unique ID as we only
       // want the samples to show up on their own track in the trace-viewer
       // but not nested together (unless they're nested under a merged event).
-      static size_t g_id_counter = 0;
-      return ++g_id_counter;
+      return ++id_counter_;
     }
 
    private:
@@ -1312,13 +1311,14 @@ class JsonExporter {
       Sample(TraceFormatWriter& writer,
              CallsiteId callsite_id,
              int64_t ts,
-             Json::Value event)
+             Json::Value event,
+             MergedProfileSamplesEmitter* emitter)
           : writer_(writer),
             callsite_id_(callsite_id),
             begin_ts_(ts),
             end_ts_(ts),
             event_(std::move(event)),
-            event_id_(MergedProfileSamplesEmitter::GenerateNewEventId()),
+            event_id_(emitter->GenerateNewEventId()),
             sample_count_(1) {}
 
       Sample(const Sample&) = delete;
@@ -1380,6 +1380,7 @@ class JsonExporter {
 
     std::unordered_map<UniqueTid, Sample> current_events_;
     TraceFormatWriter& writer_;
+    uint64_t id_counter_ = 0;
   };
 
   base::Status ExportCpuProfileSamples() {
@@ -1470,8 +1471,8 @@ class JsonExporter {
             utid, it.ts(), *opt_current_callsite_id, event);
         event["id"] = base::Uint64ToHexString(parent_event_id);
       } else {
-        event["id"] = base::Uint64ToHexString(
-            MergedProfileSamplesEmitter::GenerateNewEventId());
+        event["id"] =
+            base::Uint64ToHexString(merged_sample_emitter.GenerateNewEventId());
       }
 
       writer_.WriteCommonEvent(event);
