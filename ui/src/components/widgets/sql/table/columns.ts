@@ -24,7 +24,6 @@ import {
   asUpid,
   asUtid,
 } from '../../../sql_utils/core_types';
-import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
 import {DurationWidget} from '../../duration';
 import {showProcessDetailsMenuItem} from '../../process';
@@ -335,7 +334,7 @@ export class ProcessIdColumn implements TableColumn {
     }
 
     return {
-      content: m(Anchor, `${upid}`),
+      content: `${upid}`,
       menu: [
         showProcessDetailsMenuItem(this.trace, asUpid(Number(upid))),
         getStandardContextMenuItems(upid, this.column, manager),
