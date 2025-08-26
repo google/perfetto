@@ -58,7 +58,8 @@ void VirtualAddressSpace::Builder::AddMapping(
         static_cast<uint64_t>(mapping.exact_offset()), range.size());
 
     PERFETTO_CHECK(file_range.Contains(required_file_range));
-
+    // TODO(rasikanavarange): The following copy is not efficient and will need
+    // clean up later
     content = TraceBlob::CopyFrom(blob.data() + required_file_range.start(),
                                   required_file_range.length());
   }
