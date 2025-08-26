@@ -57,14 +57,22 @@ class NonTrivial {
 };
 
 TEST(NoDestructorTest, ContainedObjectUsable) {
-  NoDestructor<NonTrivial> x(std::vector<int>{1, 2, 3},
-                             std::unique_ptr<int>(new int(42)));
+  NonTrivial* manual_destroy = nullptr;
+  {
+    NoDestructor<NonTrivial> x(std::vector<int>{1, 2, 3},
+                               std::unique_ptr<int>(new int(42)));
 
-  ASSERT_THAT(x.ref().vec_, ::testing::ElementsAre(1, 2, 3));
-  ASSERT_EQ(*x.ref().ptr_, 42);
+    ASSERT_THAT(x.ref().vec_, ::testing::ElementsAre(1, 2, 3));
+    ASSERT_EQ(*x.ref().ptr_, 42);
 
-  x.ref().vec_ = {4, 5, 6};
-  ASSERT_THAT(x.ref().vec_, ::testing::ElementsAre(4, 5, 6));
+    x.ref().vec_ = {4, 5, 6};
+    ASSERT_THAT(x.ref().vec_, ::testing::ElementsAre(4, 5, 6));
+
+    manual_destroy = &x.ref();
+  }
+
+  // Manually invoke the destructor to avoid triggering lsan.
+  manual_destroy->~NonTrivial();
 }
 
 }  // namespace
