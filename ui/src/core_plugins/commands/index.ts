@@ -349,27 +349,47 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'createNewEmptyWorkspace',
+      id: 'dev.perfetto.CreateWorkspace',
       name: 'Create new empty workspace',
-      callback: async () => {
+      callback: async (rawName: unknown) => {
         const workspaces = ctx.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
-        const name = await ctx.omnibox.prompt('Give it a name...');
+        const name =
+          typeof rawName === 'string'
+            ? rawName
+            : await ctx.omnibox.prompt('Give it a name...');
+        if (name === undefined || name === '') return;
+        workspaces.createEmptyWorkspace(name);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CreateWorkspaceAndSwitch',
+      name: 'Create new empty workspace and switch to it',
+      callback: async (rawName: unknown) => {
+        const workspaces = ctx.workspaces;
+        if (workspaces === undefined) return; // No trace loaded.
+        const name =
+          typeof rawName === 'string'
+            ? rawName
+            : await ctx.omnibox.prompt('Give it a name...');
         if (name === undefined || name === '') return;
         workspaces.switchWorkspace(workspaces.createEmptyWorkspace(name));
       },
     });
 
     ctx.commands.registerCommand({
-      id: 'switchWorkspace',
-      name: 'Switch workspace',
-      callback: async () => {
+      id: 'dev.perfetto.SwitchWorkspace',
+      name: 'Switch to workspace',
+      callback: async (rawName: unknown) => {
         const workspaces = ctx.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
-        const workspace = await ctx.omnibox.prompt('Choose a workspace...', {
-          values: workspaces.all,
-          getName: (ws) => ws.title,
-        });
+        const workspace =
+          workspaces.all.find((x) => x.title === rawName) ??
+          (await ctx.omnibox.prompt('Choose a workspace...', {
+            values: workspaces.all,
+            getName: (ws) => ws.title,
+          }));
         if (workspace) {
           workspaces.switchWorkspace(workspace);
         }

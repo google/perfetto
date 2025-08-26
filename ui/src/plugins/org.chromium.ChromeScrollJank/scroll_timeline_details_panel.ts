@@ -53,12 +53,14 @@ function createPluginSliceIdColumn(
     if (value === null || typeof value !== 'bigint') {
       return renderStandardCell(value, name, tableManager);
     }
-    return renderSliceRef({
-      trace: trace,
-      id: Number(value),
-      trackUri: trackUri,
-      title: `${value}`,
-    });
+    return {
+      content: renderSliceRef({
+        trace: trace,
+        id: Number(value),
+        trackUri: trackUri,
+        title: `${value}`,
+      }),
+    };
   };
   return col;
 }

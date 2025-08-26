@@ -230,6 +230,26 @@ function main() {
     render: (setting) => startupCommandsEditor.render(setting),
   });
 
+  const enforceStartupCommandAllowlistSetting = settingsManager.register({
+    id: 'enforceStartupCommandAllowlist',
+    name: 'Enforce Startup Command Allowlist',
+    description: `
+      When enabled, only commands in the predefined allowlist can be executed
+      as startup commands. When disabled, all startup commands will be
+      executed without filtering.
+
+      The command allowlist encodes the set of commands which Perfetto UI
+      maintainers expect to maintain backwards compatibility for the forseeable\
+      future.
+
+      WARNING: if this setting is disabled, any command outside the allowlist
+      has *no* backwards compatibility guarantees and is can change without
+      warning at any time.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
@@ -238,6 +258,7 @@ function main() {
     timezoneOverrideSetting,
     analyticsSetting,
     startupCommandsSetting,
+    enforceStartupCommandAllowlistSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time

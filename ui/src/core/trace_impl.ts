@@ -55,6 +55,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
+import {isStartupCommandAllowed} from './startup_command_allowlist';
 
 /**
  * Handles the per-trace state of the UI
@@ -240,7 +241,28 @@ export class TraceImpl implements Trace {
     const urlCommands =
       parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
     const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
-    const allStartupCommands = [...urlCommands, ...settingsCommands];
+
+    // Filter commands through the allowlist if enforcement is enabled
+    const unfilteredCommands = [...urlCommands, ...settingsCommands];
+    const enforceAllowlist =
+      ctx.appCtx.enforceStartupCommandAllowlistSetting.get();
+
+    const allStartupCommands = enforceAllowlist
+      ? unfilteredCommands.filter((cmd) => isStartupCommandAllowed(cmd.id))
+      : unfilteredCommands;
+
+    // Log any filtered commands for debugging when enforcement is enabled
+    if (enforceAllowlist) {
+      const filteredOut = unfilteredCommands.filter(
+        (cmd) => !isStartupCommandAllowed(cmd.id),
+      );
+      if (filteredOut.length > 0) {
+        console.warn(
+          'The following startup commands were filtered out (not in allowlist):',
+          filteredOut.map((cmd) => `${cmd.id}(${cmd.args.join(', ')})`),
+        );
+      }
+    }
 
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
