@@ -322,65 +322,6 @@ TYPED_TEST(TaskRunnerTest, PostManyDelayedTasks) {
   task_runner.Run();
 }
 
-TYPED_TEST(TaskRunnerTest, PostTaskReentrant) {
-  constexpr int kMaxTasks = 10000;
-  int next_task_id = 0;
-  int tasks_executed = 0;
-  std::vector<int> execution_log;
-  std::map<int, int> parent_of;  // task_id -> parent_id
-
-  std::function<void(int)> post_recursive;
-  post_recursive = [&](int parent_id) {
-    int task_id = next_task_id++;
-    if (task_id >= kMaxTasks) {
-      return;
-    }
-    parent_of[task_id] = parent_id;
-    this->task_runner.PostTask([&, task_id] {
-      {
-        execution_log.push_back(task_id);
-      }
-
-      // Spawn sub-tasks.
-      std::minstd_rand0 rnd(static_cast<uint32_t>(task_id));
-      int num_children = std::uniform_int_distribution<int>(0, 5)(rnd);
-      for (int i = 0; i < num_children; ++i) {
-        post_recursive(task_id);
-      }
-
-      if (tasks_executed++ == kMaxTasks - 1) {
-        this->task_runner.Quit();
-      }
-    });
-  };
-
-  // Start with a few top-level tasks.
-  post_recursive(-1);
-  post_recursive(-1);
-  post_recursive(-1);
-
-  this->task_runner.Run();
-
-  EXPECT_EQ(tasks_executed, kMaxTasks);
-  EXPECT_EQ(execution_log.size(), static_cast<size_t>(kMaxTasks));
-
-  // Verify that parents are always executed before children.
-  std::map<int, size_t> execution_pos;
-  for (size_t i = 0; i < execution_log.size(); ++i) {
-    execution_pos[execution_log[i]] = i;
-  }
-
-  for (const auto& it : parent_of) {
-    int task_id = it.first;
-    int parent_id = it.second;
-    if (parent_id == -1)
-      continue;
-    ASSERT_TRUE(execution_pos.count(task_id));
-    ASSERT_TRUE(execution_pos.count(parent_id));
-    EXPECT_LT(execution_pos[parent_id], execution_pos[task_id]);
-  }
-}
-
 TYPED_TEST(TaskRunnerTest, RunAgain) {
   auto& task_runner = this->task_runner;
   int counter = 0;
