@@ -116,7 +116,7 @@ creates a new workspace to isolate memory-related tracks from the main view:
 {
   "Memory Analysis": [
     {
-      "id": "createNewEmptyWorkspace",
+      "id": "dev.perfetto.CreateWorkspace",
       "args": ["Memory Analysis"]
     },
     {
@@ -124,7 +124,7 @@ creates a new workspace to isolate memory-related tracks from the main view:
       "args": [".*mem.*|.*rss.*", "Memory Analysis"]
     },
     {
-      "id": "switchWorkspace",
+      "id": "dev.perfetto.SwitchWorkspace",
       "args": ["Memory Analysis"]
     },
     {
