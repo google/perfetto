@@ -288,7 +288,7 @@ declare_args() {
   # Note that on Android platform (non-standalone) builds this flag is ignored
   # and the Android flag "use_lockfree_taskrunner" is used instead (see
   # perfetto_flags.aconfig)
-  enable_perfetto_lockfree_taskrunner = false
+  enable_perfetto_lockfree_taskrunner = true
 }
 
 declare_args() {
