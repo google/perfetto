@@ -839,7 +839,7 @@ void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
 }
 
 base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
-                                                     TraceBlobView content) {
+                                                     TraceBlob content) {
   return context_.registered_file_tracker->AddFile(path, std::move(content));
 }
 
