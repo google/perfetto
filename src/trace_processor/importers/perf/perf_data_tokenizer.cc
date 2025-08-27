@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -61,7 +62,9 @@
 #include "src/trace_processor/importers/perf/sample_id.h"
 #include "src/trace_processor/importers/perf/time_conv_record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
@@ -121,9 +124,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<RecordParser>(context_))),
-      aux_manager_(ctx) {}
+      perf_tracker_(ctx),
+      stream_(ctx->sorter->CreateStream(
+          std::make_unique<RecordParser>(context_, &perf_tracker_))),
+      aux_manager_(ctx, &perf_tracker_) {}
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
 
@@ -433,6 +437,15 @@ PerfDataTokenizer::ParseFeatures() {
 base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
                                              TraceBlobView data) {
   switch (feature_id) {
+    case feature::ID_OS_RELEASE: {
+      ASSIGN_OR_RETURN(std::string os_release,
+                       feature::ParseOsRelease(std::move(data)));
+      context_->metadata_tracker->SetMetadata(
+          metadata::system_release,
+          Variadic::String(context_->storage->InternString(os_release)));
+      return base::OkStatus();
+    }
+
     case feature::ID_CMD_LINE: {
       ASSIGN_OR_RETURN(std::vector<std::string> args,
                        feature::ParseCmdline(std::move(data)));
@@ -444,7 +457,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       return feature::EventDescription::Parse(
           std::move(data), [&](feature::EventDescription desc) {
             for (auto id : desc.ids) {
-              perf_session_->SetEventName(id, std::move(desc.event_string));
+              perf_session_->SetEventName(id, desc.event_string);
             }
             return base::OkStatus();
           });
@@ -481,7 +494,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(
                 blob.data(), blob.length());
-            PerfTracker::GetOrCreate(context_)->AddSimpleperfFile2(file);
+            perf_tracker_.AddSimpleperfFile2(file);
           }));
 
       break;
@@ -550,6 +563,7 @@ base::Status PerfDataTokenizer::NotifyEndOfFile() {
   if (parsing_state_ != ParsingState::kDone) {
     return base::ErrStatus("Premature end of perf file.");
   }
+  RETURN_IF_ERROR(perf_tracker_.NotifyEndOfFile());
   return base::OkStatus();
 }
 

@@ -129,6 +129,8 @@ protos::gen::TrackDescriptor NamedTrack::Serialize() const {
   }
   if (sibling_merge_key_) {
     desc.set_sibling_merge_key(sibling_merge_key_);
+  } else if (sibling_merge_key_int_.has_value()) {
+    desc.set_sibling_merge_key_int(*sibling_merge_key_int_);
   }
   return desc;
 }
@@ -211,11 +213,15 @@ TrackRegistry::TrackRegistry() = default;
 TrackRegistry::~TrackRegistry() = default;
 
 // static
-void TrackRegistry::InitializeInstance() {
+void TrackRegistry::InitializeInstance(std::optional<uint64_t> process_uuid) {
   if (instance_)
     return;
   instance_ = new TrackRegistry();
-  Track::process_uuid = ComputeProcessUuid();
+  if (process_uuid) {
+    Track::process_uuid = *process_uuid;
+  } else {
+    Track::process_uuid = ComputeProcessUuid();
+  }
 }
 
 // static

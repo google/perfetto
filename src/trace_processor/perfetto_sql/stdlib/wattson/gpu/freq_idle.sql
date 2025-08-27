@@ -19,8 +19,6 @@ INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
-
 -- Gapless time slices of GPU freq from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_freq AS
 WITH

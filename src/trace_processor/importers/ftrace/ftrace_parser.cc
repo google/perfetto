@@ -1459,6 +1459,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseHrtimerExpireExit(cpu, ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDmabufRssStatFieldNumber: {
+        ParseDmabufRssStat(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1594,7 +1598,8 @@ void FtraceParser::ParseLegacyGenericFtrace(int64_t ts,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, event_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
     protos::pbzero::GenericFtraceEvent::Field::Decoder fld(*it);
@@ -1617,10 +1622,18 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
-    return;
-
   protozero::ProtoDecoder decoder(blob);
+
+  // Special handling for events matching a convention - derive track/counter
+  // tracks for them automatically (no perfetto code changes needed).
+  if (PERFETTO_LIKELY(ts >= soft_drop_ftrace_data_before_ts_)) {
+    generic_tracker_->MaybeParseAsTrackEvent(event_proto_id, ts, tid, decoder);
+  }
+
+  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table)) {
+    return;
+  }
+
   GenericFtraceTracker::GenericEvent* descriptor =
       generic_tracker_->GetEvent(event_proto_id);
   if (!descriptor) {
@@ -1637,7 +1650,8 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, descriptor->name, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   // Insert fields into |args|.
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
@@ -1669,7 +1683,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
 
   ProtoDecoder decoder(blob);
   if (ftrace_id >= GetDescriptorsSize()) {
-    PERFETTO_DLOG("Event with id: %d does not exist and cannot be parsed.",
+    PERFETTO_DLOG("Event with id: %u does not exist and cannot be parsed.",
                   ftrace_id);
     return;
   }
@@ -1683,7 +1697,8 @@ void FtraceParser::ParseTypedFtraceToRaw(
           ->Insert(
               {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     uint32_t field_id = fld.id();
@@ -2468,11 +2483,14 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
-    proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
-                                  ThreadNamePriority::kFtrace);
+    auto upid =
+        proc_tracker->StartNewProcess(timestamp, std::nullopt, new_tid,
+                                      new_comm, ThreadNamePriority::kFtrace);
 
     auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
+
+    proc_tracker->AssociateCreatedProcessToParentThread(upid, source_utid);
 
     ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
         timestamp, new_utid, source_utid);
@@ -2485,7 +2503,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
   proc_tracker->UpdateThreadName(new_utid, new_comm,
                                  ThreadNamePriority::kFtrace);
-  proc_tracker->AssociateThreads(source_utid, new_utid);
+  proc_tracker->AssociateThreads(source_utid, new_utid,
+                                 /*associate_main_threads*/ true);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
       timestamp, new_utid, source_utid);
@@ -2495,8 +2514,9 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
+  auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      tid, comm, ThreadNamePriority::kFtrace);
+      utid, comm, ThreadNamePriority::kFtrace);
 }
 
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,
@@ -2920,7 +2940,7 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
                                      protozero::ConstBytes blob) {
   protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob);
   if (evt.vec() >= base::ArraySize(kActionNames)) {
-    PERFETTO_DFATAL("No action name at index %d for softirq event.", evt.vec());
+    PERFETTO_DFATAL("No action name at index %u for softirq event.", evt.vec());
     return;
   }
 
@@ -3255,27 +3275,13 @@ void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
                                            protozero::ConstBytes blob) {
   protos::pbzero::CpuFrequencyLimitsFtraceEvent::Decoder evt(blob);
 
-  static constexpr auto kMaxBlueprint = tracks::CounterBlueprint(
-      "cpu_max_frequency_limit", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
-      }));
-
   TrackId max_track = context_->track_tracker->InternTrack(
-      kMaxBlueprint, tracks::Dimensions(evt.cpu_id()));
+      tracks::kCpuMaxFrequencyLimitBlueprint, tracks::Dimensions(evt.cpu_id()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.max_freq()), max_track);
 
-  static constexpr auto kMinBlueprint = tracks::CounterBlueprint(
-      "cpu_min_frequency_limit", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
-      }));
-
   TrackId min_track = context_->track_tracker->InternTrack(
-      kMinBlueprint, tracks::Dimensions(evt.cpu_id()));
+      tracks::kCpuMinFrequencyLimitBlueprint, tracks::Dimensions(evt.cpu_id()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.min_freq()), min_track);
 }
@@ -4325,4 +4331,14 @@ void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
       context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
   context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
+
+void FtraceParser::ParseDmabufRssStat(int64_t ts,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::DmabufRssStatFtraceEvent::Decoder evt(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  context_->event_tracker->PushProcessCounterForThread(
+      EventTracker::DmabufRssStat(), ts, static_cast<double>(evt.rss()), utid);
+}
+
 }  // namespace perfetto::trace_processor

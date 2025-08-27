@@ -22,7 +22,7 @@
     justify-content: space-between;
 
     &--changed {
-      border-left: solid 3px rgb(0, 96, 155);
+      border-left: solid 3px var(--pf-color-primary);
     }
   }
 
@@ -34,7 +34,7 @@
 
   &__description {
     font-size: smaller;
-    color: var(--secondary-foreground-color);
+    white-space: pre-line;
   }
 
   &__controls {
@@ -48,7 +48,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: var(--error-color);
+    color: var(--pf-color-danger);
     font-size: 14px;
   }
 }

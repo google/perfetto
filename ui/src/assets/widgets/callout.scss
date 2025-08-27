@@ -23,7 +23,7 @@
   display: flex;
   line-height: 1;
   background: var(--pf-color-background-secondary);
-  border-radius: $pf-border-radius;
+  border-radius: $border-radius;
   padding: 4px;
   border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
 
@@ -34,7 +34,7 @@
   }
 
   &.pf-intent-primary {
-    @include color-theme(var(--pf-color-accent));
+    @include color-theme(var(--pf-color-primary));
   }
 
   &.pf-intent-danger {

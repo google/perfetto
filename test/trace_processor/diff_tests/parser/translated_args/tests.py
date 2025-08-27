@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -78,7 +78,7 @@ class TranslatedArgs(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              thread_type: 4
             }
           }
         }

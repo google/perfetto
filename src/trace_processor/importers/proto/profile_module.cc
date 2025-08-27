@@ -436,7 +436,10 @@ void ProfileModule::ParseProfilePacket(
 
 void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
-  BuildId build_id = BuildId::FromRaw(module_symbols.build_id());
+  std::optional<BuildId> build_id;
+  if (module_symbols.build_id().size > 0) {
+    build_id = BuildId::FromRaw(module_symbols.build_id());
+  }
 
   auto mappings =
       context_->mapping_tracker->FindMappings(module_symbols.path(), build_id);

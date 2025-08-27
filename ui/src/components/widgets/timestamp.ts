@@ -14,10 +14,8 @@
 
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
-import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {time, Time} from '../../base/time';
-import {AppImpl} from '../../core/app_impl';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
@@ -28,6 +26,7 @@ import {TimestampFormat} from '../../public/timeline';
 // import {MenuItem, PopupMenu2} from './menu';
 
 interface TimestampAttrs {
+  trace: Trace;
   // The timestamp to print, this should be the absolute, raw timestamp as
   // found in trace processor.
   ts: time;
@@ -38,19 +37,9 @@ interface TimestampAttrs {
 }
 
 export class Timestamp implements m.ClassComponent<TimestampAttrs> {
-  private readonly trace: Trace;
-
-  constructor() {
-    // TODO(primiano): the Trace object should be injected into the attrs, but
-    // there are too many users of this class and doing so requires a larger
-    // refactoring CL. Either that or we should find a different way to plumb
-    // the hoverCursorTimestamp.
-    this.trace = assertExists(AppImpl.instance.trace);
-  }
-
   view({attrs}: m.Vnode<TimestampAttrs>) {
-    const {ts} = attrs;
-    const timeline = this.trace.timeline;
+    const {trace, ts} = attrs;
+    const timeline = trace.timeline;
     return m(
       PopupMenu,
       {
@@ -60,7 +49,8 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
             onmouseover: () => (timeline.hoverCursorTimestamp = ts),
             onmouseout: () => (timeline.hoverCursorTimestamp = undefined),
           },
-          attrs.display ?? this.formatTimestamp(timeline.toDomainTime(ts)),
+          attrs.display ??
+            this.formatTimestamp(trace, timeline.toDomainTime(ts)),
         ),
       },
       m(MenuItem, {
@@ -70,13 +60,13 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
           copyToClipboard(ts.toString());
         },
       }),
-      m(TimestampFormatMenuItem, {trace: this.trace}),
+      m(TimestampFormatMenuItem, {trace}),
       attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
     );
   }
 
-  private formatTimestamp(time: time): m.Children {
-    const fmt = this.trace.timeline.timestampFormat;
+  private formatTimestamp(trace: Trace, time: time): m.Children {
+    const fmt = trace.timeline.timestampFormat;
     switch (fmt) {
       case TimestampFormat.UTC:
       case TimestampFormat.TraceTz:

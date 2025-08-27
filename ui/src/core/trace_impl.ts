@@ -20,7 +20,7 @@ import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
-import {CommandManagerImpl} from './command_manager';
+import {CommandManagerImpl, parseUrlCommands} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {SearchManagerImpl} from './search_manager';
@@ -55,6 +55,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
+import {isStartupCommandAllowed} from './startup_command_allowlist';
 
 /**
  * Handles the per-trace state of the UI
@@ -231,6 +232,38 @@ export class TraceImpl implements Trace {
       },
     });
 
+    // CRITICAL ORDER: URL commands MUST execute before settings commands!
+    // This ordering has subtle but important implications:
+    // - URL commands are trace-specific and should establish initial state
+    // - Settings commands are user preferences that should override URL defaults
+    // - Changing this order could break trace sharing and user customization
+    // DO NOT REORDER without understanding the full impact!
+    const urlCommands =
+      parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
+    const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
+
+    // Filter commands through the allowlist if enforcement is enabled
+    const unfilteredCommands = [...urlCommands, ...settingsCommands];
+    const enforceAllowlist =
+      ctx.appCtx.enforceStartupCommandAllowlistSetting.get();
+
+    const allStartupCommands = enforceAllowlist
+      ? unfilteredCommands.filter((cmd) => isStartupCommandAllowed(cmd.id))
+      : unfilteredCommands;
+
+    // Log any filtered commands for debugging when enforcement is enabled
+    if (enforceAllowlist) {
+      const filteredOut = unfilteredCommands.filter(
+        (cmd) => !isStartupCommandAllowed(cmd.id),
+      );
+      if (filteredOut.length > 0) {
+        console.warn(
+          'The following startup commands were filtered out (not in allowlist):',
+          filteredOut.map((cmd) => `${cmd.id}(${cmd.args.join(', ')})`),
+        );
+      }
+    }
+
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
     // unregistered when the trace unloads (before a new trace is loaded) to
@@ -240,6 +273,33 @@ export class TraceImpl implements Trace {
         const disposable = appImpl.commands.registerCommand(cmd);
         traceUnloadTrash.use(disposable);
         return disposable;
+      },
+
+      hasStartupCommands(): boolean {
+        return allStartupCommands.length > 0;
+      },
+
+      async runStartupCommands(): Promise<void> {
+        // Execute startup commands in trace context after everything is ready.
+        // This simulates user actions taken after trace load is complete,
+        // including any saved app state restoration. At this point:
+        // - All plugins have loaded and registered their commands
+        // - Trace data is fully accessible
+        // - UI state has been restored from any saved workspace
+        // - Commands can safely query trace data and modify UI state
+        for (const command of allStartupCommands) {
+          try {
+            // Execute through proxy to access both global and trace-specific
+            // commands.
+            await ctx.appCtx.commandMgr.runCommand(command.id, ...command.args);
+          } catch (error) {
+            // TODO(stevegolton): Add a mechanism to notify users of startup
+            // command errors. This will involve creating a notification UX
+            // similar to VSCode where there are popups on the bottom right
+            // of the UI.
+            console.warn(`Startup command ${command.id} failed:`, error);
+          }
+        }
       },
     });
 

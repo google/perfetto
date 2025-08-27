@@ -35,7 +35,7 @@
     display: none;
   }
   > header {
-    font-family: "Roboto Condensed", sans-serif;
+    font-family: var(--pf-font-compact);
     font-weight: 700;
     font-size: 24px;
     height: var(--topbar-height);
@@ -57,7 +57,7 @@
       position: absolute;
       font-size: 10px;
       line-height: 5px;
-      font-family: "Roboto", sans-serif;
+      font-family: var(--pf-font);
       top: 7px;
       right: 48px;
     }
@@ -102,6 +102,11 @@
   &__scroll {
     overflow-y: auto;
     flex: 1;
+
+    // Override scrollbar colors for the sidebar as it doesn't use the theme
+    // provided styles.
+    scrollbar-color: #b4b7ba6e #19212b;
+
     &::-webkit-scrollbar {
       width: 0.5em;
     }
@@ -234,7 +239,7 @@
         }
         .pf-sidebar__trace-file-name {
           white-space: break-spaces;
-          font-family: "Roboto Condensed", sans-serif;
+          font-family: var(--pf-font-compact);
           word-break: break-all;
           font-weight: 300;
           letter-spacing: 0;
@@ -267,7 +272,7 @@
     }
 
     > .pf-sidebar__dbg-info-square {
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: var(--pf-font-compact);
       width: 24px;
       height: 24px;
       line-height: 24px;
@@ -279,7 +284,7 @@
       margin: 1px 0;
       background: #12161b;
       color: #4e71b3;
-      border-radius: $pf-border-radius;
+      border-radius: $border-radius;
       font-size: 12px;
       text-align: center;
       &--green {
@@ -305,7 +310,7 @@
       right: 8px;
       bottom: 3px;
       font-size: 12px;
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: var(--pf-font-compact);
       a {
         color: rgba(255, 255, 255, 0.5);
         text-decoration: none;
@@ -315,17 +320,10 @@
   }
 }
 
-// Hide the footer when running integration tests, as the version code and the
-// tiny text with pending queries can fail the screenshot diff test.
-body.testing .pf-sidebar__footer {
-  visibility: hidden;
-}
-
 .pf-hiring-banner {
-  font-family: "Roboto", sans-serif;
   font-size: 12px;
   background: #db4634;
-  box-shadow: 0 0 3px rgba(0, 0, 0, 30%);
+  box-shadow: 0 0 3px var(--pf-color-box-shadow);
   left: -65px;
   letter-spacing: 1px;
   line-height: 25px;

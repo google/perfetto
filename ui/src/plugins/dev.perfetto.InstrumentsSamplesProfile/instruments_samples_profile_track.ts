@@ -112,7 +112,8 @@ export function createProcessInstrumentsSamplesProfileTrack(
       };
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
-        render: () => renderDetailsPanel(flamegraph, Time.fromRaw(row.ts)),
+        render: () =>
+          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
         serialization,
       };
     },
@@ -199,14 +200,19 @@ export function createThreadInstrumentsSamplesProfileTrack(
       };
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
-        render: () => renderDetailsPanel(flamegraph, Time.fromRaw(row.ts)),
+        render: () =>
+          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
         serialization,
       };
     },
   });
 }
 
-function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
+function renderDetailsPanel(
+  trace: Trace,
+  flamegraph: QueryFlamegraph,
+  ts: time,
+) {
   return m(
     '.pf-flamegraph-profile',
     m(
@@ -218,12 +224,14 @@ function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
           m('span', [
             `First timestamp: `,
             m(Timestamp, {
+              trace,
               ts,
             }),
           ]),
           m('span', [
             `Last timestamp: `,
             m(Timestamp, {
+              trace,
               ts,
             }),
           ]),

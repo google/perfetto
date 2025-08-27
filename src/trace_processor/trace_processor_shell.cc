@@ -1257,39 +1257,58 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
                            trace_file_path.c_str(), read_status.c_message());
   }
 
-  std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::LocalSymbolizerOrDie(profiling::GetPerfettoBinaryPath(),
-                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
-
-  if (symbolizer) {
-    g_tp->Flush();
-    profiling::SymbolizeDatabase(
-        g_tp, symbolizer.get(), [](const std::string& trace_proto) {
-          std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
-          memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-          auto status = g_tp->Parse(std::move(buf), trace_proto.size());
-          if (!status.ok()) {
-            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                    status.message().c_str());
-            return;
-          }
-        });
+  bool is_proto_trace = false;
+  {
+    auto it = g_tp->ExecuteQuery(
+        "SELECT str_value FROM metadata WHERE name = 'trace_type'");
+    if (it.Next() && it.Get(0).type == SqlValue::kString) {
+      if (std::string_view(it.Get(0).AsString()) == "proto") {
+        is_proto_trace = true;
+      }
+    }
   }
 
+  std::unique_ptr<profiling::Symbolizer> symbolizer =
+      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(),
+                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
+  if (symbolizer) {
+    if (is_proto_trace) {
+      g_tp->Flush();
+      profiling::SymbolizeDatabase(
+          g_tp, symbolizer.get(), [](const std::string& trace_proto) {
+            std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+            memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+            auto status = g_tp->Parse(std::move(buf), trace_proto.size());
+            if (!status.ok()) {
+              PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                      status.message().c_str());
+              return;
+            }
+          });
+    } else {
+      // TODO(lalitm): support symbolization for non-proto traces.
+      PERFETTO_ELOG("Skipping symbolization for non-proto trace");
+    }
+  }
   auto maybe_map = profiling::GetPerfettoProguardMapPath();
   if (!maybe_map.empty()) {
-    g_tp->Flush();
-    profiling::ReadProguardMapsToDeobfuscationPackets(
-        maybe_map, [](const std::string& trace_proto) {
-          std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
-          memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-          auto status = g_tp->Parse(std::move(buf), trace_proto.size());
-          if (!status.ok()) {
-            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                    status.message().c_str());
-            return;
-          }
-        });
+    if (is_proto_trace) {
+      g_tp->Flush();
+      profiling::ReadProguardMapsToDeobfuscationPackets(
+          maybe_map, [](const std::string& trace_proto) {
+            std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+            memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+            auto status = g_tp->Parse(std::move(buf), trace_proto.size());
+            if (!status.ok()) {
+              PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                      status.message().c_str());
+              return;
+            }
+          });
+    } else {
+      // TODO(lalitm): support deobfuscation for non-proto traces.
+      PERFETTO_ELOG("Skipping deobfuscation for non-proto trace");
+    }
   }
   return g_tp->NotifyEndOfFile();
 }
@@ -1785,7 +1804,7 @@ base::Status RegisterAllFilesInFolder(const std::string& path,
       return base::ErrStatus("Failed to mmap file: %s", file_full_path.c_str());
     }
     RETURN_IF_ERROR(tp.RegisterFileContent(
-        file_full_path, TraceBlobView(TraceBlob::FromMmap(std::move(mmap)))));
+        file_full_path, TraceBlob::FromMmap(std::move(mmap))));
   }
   return base::OkStatus();
 }

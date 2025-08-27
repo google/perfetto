@@ -48,7 +48,6 @@ import {TextInput} from '../../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
 import {VegaView} from '../../components/widgets/vega_view';
-import {TableShowcase} from './table_showcase';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
 import {
@@ -63,8 +62,7 @@ import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {SplitPanel} from '../../widgets/split_panel';
-import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
+import {SplitPanel, Tab} from '../../widgets/split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {MultiselectInput} from '../../widgets/multiselect_input';
@@ -80,6 +78,14 @@ import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 import {TabStrip} from '../../widgets/tabs';
 import {CodeSnippet} from '../../widgets/code_snippet';
+import {
+  Grid,
+  GridBody,
+  GridDataCell,
+  GridHeader,
+  GridHeaderCell,
+  GridRow,
+} from '../../widgets/grid';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -966,12 +972,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
       m(WidgetShowcase, {
-        label: 'Table',
-        renderWidget: () => m(TableShowcase),
-        initialOpts: {},
-        wide: true,
-      }),
-      m(WidgetShowcase, {
         label: 'Portal',
         description: `A portal is a div rendered out of normal flow
           of the hierarchy.`,
@@ -1459,7 +1459,19 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               showModal({
                 title: 'Attention',
                 icon: Icons.Help,
-                content: () => 'This is a modal dialog',
+                content: () => [
+                  m('', 'This is a modal dialog'),
+                  m(
+                    Popup,
+                    {
+                      trigger: m(Button, {
+                        variant: ButtonVariant.Filled,
+                        label: 'Open Popup',
+                      }),
+                    },
+                    'Popup content',
+                  ),
+                ],
                 buttons: [
                   {
                     text: 'Cancel',
@@ -1682,53 +1694,35 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
 
       m(WidgetShowcase, {
         label: 'SplitPanel',
-        description: `Horizontal split panel with draggable handle and controls.`,
+        description: `Resizeable split panel with optional tabs.`,
         renderWidget: (opts) => {
           return m(
             '',
-            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
+            {
+              style: {
+                height: '400px',
+                width: '400px',
+                border: 'solid 2px gray',
+              },
+            },
             m(
               SplitPanel,
               {
-                drawerContent: 'Drawer Content',
-                handleContent: Boolean(opts.handleContent) && 'Handle Content',
-              },
-              'Main Content',
-            ),
-          );
-        },
-        initialOpts: {
-          handleContent: false,
-        },
-      }),
-
-      m(WidgetShowcase, {
-        label: 'TabbedSplitPanel',
-        description: `SplitPanel + tabs.`,
-        renderWidget: (opts) => {
-          return m(
-            '',
-            {style: {height: '400px', width: '400px', border: 'solid 2px red'}},
-            m(
-              TabbedSplitPanel,
-              {
-                leftHandleContent:
-                  Boolean(opts.leftContent) &&
-                  m(Button, {icon: 'Menu', compact: true}),
-                tabs: [
-                  {
-                    key: 'foo',
-                    title: 'Foo',
-                    content: 'Foo content',
-                    hasCloseButton: opts.showCloseButtons,
-                  },
-                  {
-                    key: 'bar',
-                    title: 'Bar',
-                    content: 'Bar content',
-                    hasCloseButton: opts.showCloseButtons,
-                  },
+                leftHandleContent: [
+                  Boolean(opts.leftContent) && m(Button, {icon: 'Menu'}),
                 ],
+                drawerContent: 'Drawer Content',
+                tabs:
+                  Boolean(opts.tabs) &&
+                  m(
+                    '.pf-split-panel__tabs',
+                    m(
+                      Tab,
+                      {active: true, hasCloseButton: opts.showCloseButtons},
+                      'Foo',
+                    ),
+                    m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
+                  ),
               },
               'Main Content',
             ),
@@ -1736,9 +1730,252 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
         initialOpts: {
           leftContent: true,
+          tabs: true,
           showCloseButtons: true,
         },
       }),
+
+      renderWidgetShowcase({
+        label: 'Grid',
+        description: `
+          Presentation layer for grid/table elements. Defines a consistent look
+          and feel for grids but leaves the data and interaction handling to the
+          user. For instance, it provides slots and callbacks for sorting, column
+          reordering and column level aggregations, but doesn't have any
+          opinions about the data or how they should be manipulated.
+        `,
+        renderWidget: ({reorderable, ...rest}) =>
+          m(
+            '',
+            {style: {height: '400px', width: '400px', overflow: 'hidden'}},
+            m(Grid, rest, [
+              m(GridHeader, [
+                m(GridRow, [
+                  m(
+                    GridHeaderCell,
+                    {
+                      key: 'id',
+                      sort: 'ASC',
+                      onSort: () => {},
+                      aggregation: {
+                        left: 'Σ',
+                        right: 15,
+                      },
+                      reorderable: reorderable ? {handle: 'left'} : undefined,
+                    },
+                    'ID',
+                  ),
+                  m(
+                    GridHeaderCell,
+                    {
+                      key: 'lang',
+                      onSort: () => {},
+                      menuItems: [
+                        m(MenuItem, {label: 'Filter nulls'}),
+                        m(MenuItem, {label: 'Show only nulls'}),
+                      ],
+                      reorderable: reorderable ? {handle: 'left'} : undefined,
+                      thickRightBorder: true,
+                    },
+                    'Language',
+                  ),
+                  m(
+                    GridHeaderCell,
+                    {
+                      key: 'year',
+                      aggregation: {
+                        left: 'AVG',
+                        right: 1998.3,
+                      },
+                      reorderable: reorderable ? {handle: 'right'} : undefined,
+                    },
+                    'Year',
+                  ),
+                  m(
+                    GridHeaderCell,
+                    {
+                      key: 'creator',
+                      reorderable: reorderable ? {handle: 'right'} : undefined,
+                    },
+                    'Creator',
+                  ),
+                  m(
+                    GridHeaderCell,
+                    {
+                      key: 'typing',
+                      reorderable: reorderable ? {handle: 'right'} : undefined,
+                    },
+                    'Typing',
+                  ),
+                ]),
+              ]),
+              m(GridBody, [
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 1),
+                  m(
+                    GridDataCell,
+                    {
+                      menuItems: [
+                        m(MenuItem, {label: 'Filter to "TypeScript"'}),
+                        m(MenuItem, {label: 'Exclude "TypeScript"'}),
+                      ],
+                      thickRightBorder: true,
+                    },
+                    'TypeScript',
+                  ),
+                  m(GridDataCell, {align: 'right'}, 2012),
+                  m(GridDataCell, 'Microsoft'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 2),
+                  m(GridDataCell, {thickRightBorder: true}, 'JavaScript'),
+                  m(GridDataCell, {align: 'right'}, 1995),
+                  m(GridDataCell, 'Brendan Eich'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 3),
+                  m(GridDataCell, {thickRightBorder: true}, 'Python'),
+                  m(GridDataCell, {align: 'right'}, 1991),
+                  m(GridDataCell, 'Guido van Rossum'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 4),
+                  m(GridDataCell, {thickRightBorder: true}, 'Java'),
+                  m(GridDataCell, {align: 'right'}, 1995),
+                  m(GridDataCell, 'James Gosling'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 5),
+                  m(GridDataCell, {thickRightBorder: true}, 'C++'),
+                  m(GridDataCell, {align: 'right'}, 1985),
+                  m(GridDataCell, 'Bjarne Stroustrup'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 6),
+                  m(GridDataCell, {thickRightBorder: true}, 'Go'),
+                  m(GridDataCell, {align: 'right'}, 2009),
+                  m(GridDataCell, 'Google'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 7),
+                  m(GridDataCell, {thickRightBorder: true}, 'Rust'),
+                  m(GridDataCell, {align: 'right'}, 2010),
+                  m(GridDataCell, 'Graydon Hoare'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 8),
+                  m(GridDataCell, {thickRightBorder: true}, 'Ruby'),
+                  m(GridDataCell, {align: 'right'}, 1995),
+                  m(GridDataCell, 'Yukihiro Matsumoto'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 9),
+                  m(GridDataCell, {thickRightBorder: true}, 'Swift'),
+                  m(GridDataCell, {align: 'right'}, 2014),
+                  m(GridDataCell, 'Apple'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 10),
+                  m(GridDataCell, {thickRightBorder: true}, 'Kotlin'),
+                  m(GridDataCell, {align: 'right'}, 2011),
+                  m(GridDataCell, 'JetBrains'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 11),
+                  m(GridDataCell, {thickRightBorder: true}, 'PHP'),
+                  m(GridDataCell, {align: 'right'}, 1995),
+                  m(GridDataCell, 'Rasmus Lerdorf'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 12),
+                  m(GridDataCell, {thickRightBorder: true}, 'C#'),
+                  m(GridDataCell, {align: 'right'}, 2000),
+                  m(GridDataCell, 'Microsoft'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 13),
+                  m(GridDataCell, {thickRightBorder: true}, 'Perl'),
+                  m(GridDataCell, {align: 'right'}, 1987),
+                  m(GridDataCell, 'Larry Wall'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 14),
+                  m(GridDataCell, {thickRightBorder: true}, 'Scala'),
+                  m(GridDataCell, {align: 'right'}, 2004),
+                  m(GridDataCell, 'Martin Odersky'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 15),
+                  m(GridDataCell, {thickRightBorder: true}, 'Haskell'),
+                  m(GridDataCell, {align: 'right'}, 1990),
+                  m(GridDataCell, 'Lennart Augustsson, et al.'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 16),
+                  m(GridDataCell, {thickRightBorder: true}, 'Lua'),
+                  m(GridDataCell, {align: 'right'}, 1993),
+                  m(GridDataCell, 'Roberto Ierusalimschy, et al.'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 17),
+                  m(GridDataCell, {thickRightBorder: true}, 'Dart'),
+                  m(GridDataCell, {align: 'right'}, 2011),
+                  m(GridDataCell, 'Google'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 18),
+                  m(GridDataCell, {thickRightBorder: true}, 'Elixir'),
+                  m(GridDataCell, {align: 'right'}, 2012),
+                  m(GridDataCell, 'José Valim'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 19),
+                  m(GridDataCell, {thickRightBorder: true}, 'Clojure'),
+                  m(GridDataCell, {align: 'right'}, 2007),
+                  m(GridDataCell, 'Rich Hickey'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 20),
+                  m(GridDataCell, {thickRightBorder: true}, 'F#'),
+                  m(GridDataCell, {align: 'right'}, 2005),
+                  m(GridDataCell, 'Microsoft'),
+                  m(GridDataCell, 'Static'),
+                ]),
+                m(GridRow, [
+                  m(GridDataCell, {align: 'right'}, 21),
+                  m(GridDataCell, {thickRightBorder: true}, 'Lisp'),
+                  m(GridDataCell, {align: 'right'}, 1958),
+                  m(GridDataCell, 'John McCarthy'),
+                  m(GridDataCell, 'Dynamic'),
+                ]),
+              ]),
+            ]),
+          ),
+        initialOpts: {
+          fillHeight: true,
+          reorderable: true,
+        },
+      }),
+
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,

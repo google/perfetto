@@ -29,12 +29,13 @@ import {
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {TableColumn} from '../../components/widgets/sql/table/table_column';
+import {Trace} from '../../public/trace';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
 
-  constructor(docs: SqlModulesDocsSchema) {
-    this.packages = docs.map((json) => new StdlibPackageImpl(json));
+  constructor(trace: Trace, docs: SqlModulesDocsSchema) {
+    this.packages = docs.map((json) => new StdlibPackageImpl(trace, json));
   }
 
   findAllTablesWithLinkedId(tableAndColumn: TableAndColumn): SqlTable[] {
@@ -91,11 +92,11 @@ export class StdlibPackageImpl implements SqlPackage {
   readonly name: string;
   readonly modules: SqlModule[];
 
-  constructor(docs: DocsPackageSchemaType) {
+  constructor(trace: Trace, docs: DocsPackageSchemaType) {
     this.name = docs.name;
     this.modules = [];
     for (const moduleJson of docs.modules) {
-      this.modules.push(new StdlibModuleImpl(moduleJson));
+      this.modules.push(new StdlibModuleImpl(trace, moduleJson));
     }
   }
 
@@ -148,14 +149,14 @@ export class StdlibModuleImpl implements SqlModule {
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
 
-  constructor(docs: DocsModuleSchemaType) {
+  constructor(trace: Trace, docs: DocsModuleSchemaType) {
     this.includeKey = docs.module_name;
 
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
       : this.includeKey;
     this.tables = docs.data_objects.map(
-      (json) => new SqlTableImpl(json, neededInclude),
+      (json) => new SqlTableImpl(trace, json, neededInclude),
     );
 
     this.functions = docs.functions.map((json) => new StdlibFunctionImpl(json));
@@ -248,7 +249,11 @@ class SqlTableImpl implements SqlTable {
   linkedIdColumns: SqlColumn[];
   joinIdColumns: SqlColumn[];
 
-  constructor(docs: DocsDataObjectSchemaType, includeKey: string | undefined) {
+  constructor(
+    readonly trace: Trace,
+    docs: DocsDataObjectSchemaType,
+    includeKey: string | undefined,
+  ) {
     this.name = docs.name;
     this.includeKey = includeKey;
     this.description = docs.desc;
@@ -295,7 +300,7 @@ class SqlTableImpl implements SqlTable {
 
   getTableColumns(): TableColumn[] {
     return this.columns.map((col) =>
-      createTableColumnFromPerfettoSql(col, this.name),
+      createTableColumnFromPerfettoSql(this.trace, col, this.name),
     );
   }
 }

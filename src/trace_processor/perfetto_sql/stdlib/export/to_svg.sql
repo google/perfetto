@@ -13,14 +13,15 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 -- Converts Perfetto trace data into interactive SVG timeline.
 -- Renders thread slices and thread states with time-proportional geometry
 -- and clickable links back to Perfetto UI embedded in the SVG.
---
+-- Enhanced with the following hierarchy:
+-- 1. svg_group_key - Creates separate SVG documents
+-- 2. track_group_key - Groups related tracks within an SVG (e.g., thread states + slices)
+-- 3. track_group_order - Orders track groups within each SVG
 
--- Core utility functions
+-- Escape XML special characters for safe embedding in SVG.
 CREATE PERFETTO FUNCTION _escape_xml(
     text STRING
 )
@@ -28,6 +29,7 @@ RETURNS STRING AS
 SELECT
   replace(replace(replace($text, '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
 
+-- Format nanosecond duration as human-readable string (ns/μs/ms/s).
 CREATE PERFETTO FUNCTION _format_duration(
     dur LONG
 )
@@ -35,15 +37,33 @@ RETURNS STRING AS
 SELECT
   CASE
     WHEN $dur >= 1000000000
-    THEN printf('%.2f s', CAST($dur AS DOUBLE) / 1000000000.0)
+    THEN printf('%.1fs', CAST($dur AS DOUBLE) / 1000000000.0)
     WHEN $dur >= 1000000
-    THEN printf('%.2f ms', CAST($dur AS DOUBLE) / 1000000.0)
+    THEN printf('%.1fms', CAST($dur AS DOUBLE) / 1000000.0)
     WHEN $dur >= 1000
-    THEN printf('%.2f μs', CAST($dur AS DOUBLE) / 1000.0)
-    ELSE printf('%d ns', $dur)
+    THEN printf('%.1fμs', CAST($dur AS DOUBLE) / 1000.0)
+    ELSE printf('%dns', $dur)
   END;
 
--- Convert nanosecond time spans to pixel coordinates
+-- Format large numbers with K, M, G, T suffixes to 2 decimal places.
+CREATE PERFETTO FUNCTION _format_large_number(
+    value DOUBLE
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN abs($value) >= 1000000000000
+    THEN printf('%.2fT', $value / 1000000000000.0)
+    WHEN abs($value) >= 1000000000
+    THEN printf('%.2fG', $value / 1000000000.0)
+    WHEN abs($value) >= 1000000
+    THEN printf('%.2fM', $value / 1000000.0)
+    WHEN abs($value) >= 1000
+    THEN printf('%.2fK', $value / 1000.0)
+    ELSE printf('%.2f', $value)
+  END;
+
+-- Calculate pixels per nanosecond scaling factor for time-to-pixel conversion.
 CREATE PERFETTO FUNCTION _pixels_per_ns(
     total_width LONG,
     ts_min LONG,
@@ -53,7 +73,7 @@ RETURNS DOUBLE AS
 SELECT
   CAST($total_width AS DOUBLE) / CAST($ts_max - $ts_min AS DOUBLE);
 
--- Calculate optimal row height based on viewport width (minimum 2px)
+-- Calculate optimal row height based on viewport width (minimum 2px).
 CREATE PERFETTO FUNCTION _row_height(
     max_width LONG
 )
@@ -61,34 +81,15 @@ RETURNS LONG AS
 SELECT
   max(2, CAST($max_width * 0.008 AS INTEGER));
 
--- Truncate text with ellipsis when it exceeds available pixel width (assumes 6.5px avg char width)
-CREATE PERFETTO FUNCTION _fit_text(
-    text STRING,
-    available_width LONG
+-- Calculate counter track height (between slice height and double).
+CREATE PERFETTO FUNCTION _counter_height(
+    max_width LONG
 )
-RETURNS STRING AS
+RETURNS LONG AS
 SELECT
-  CASE
-    WHEN $available_width < 12
-    THEN ''
-    WHEN length($text) * 6.5 <= $available_width
-    THEN $text
-    WHEN $available_width >= 25
-    THEN substr($text, 1, CAST((
-      $available_width - 18
-    ) / 6.5 AS INTEGER)) || '...'
-    ELSE substr($text, 1, CAST($available_width / 6.5 AS INTEGER))
-  END;
+  CAST(_row_height($max_width) * 1.5 AS INTEGER);
 
-CREATE PERFETTO FUNCTION _get_link()
-RETURNS STRING AS
-SELECT
-  str_value
-FROM metadata
-WHERE
-  name = 'trace_uuid';
-
--- Generate deterministic HSL color from string hash
+-- Generate deterministic color from slice name hash.
 CREATE PERFETTO FUNCTION _slice_color(
     name STRING
 )
@@ -98,7 +99,7 @@ SELECT
     abs(hash($name)) % 12 * 30
   ) || ',45%,78%)';
 
--- Map thread states to semantic colors (running=green, blocked=orange, etc.)
+-- Map thread state to semantic color (running=green, blocked=orange, etc.).
 CREATE PERFETTO FUNCTION _state_color(
     state STRING,
     io_wait LONG
@@ -123,15 +124,32 @@ SELECT
     ELSE '#9ca3af'
   END;
 
--- Generate SVG rect with optional hyperlink wrapper and text overlay
+-- Truncate text with ellipsis to fit available pixel width.
+CREATE PERFETTO FUNCTION _fit_text(
+    text STRING,
+    available_width LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $available_width < 12
+    THEN ''
+    WHEN length($text) * 6.5 <= $available_width
+    THEN $text
+    WHEN $available_width >= 25
+    THEN substr($text, 1, CAST((
+      $available_width - 18
+    ) / 6.5 AS INTEGER)) || '...'
+    ELSE substr($text, 1, CAST($available_width / 6.5 AS INTEGER))
+  END;
+
+-- Generate simple SVG rect element with optional hyperlink and text.
 CREATE PERFETTO FUNCTION _svg_rect(
     x DOUBLE,
     y DOUBLE,
     width DOUBLE,
     height DOUBLE,
     fill STRING,
-    stroke STRING,
-    css_class STRING,
     title STRING,
     href STRING,
     text_content STRING
@@ -140,169 +158,130 @@ RETURNS STRING AS
 SELECT
   CASE
     WHEN $href IS NOT NULL
-    THEN '<a href="' || _escape_xml($href) || '" target="blank">'
+    THEN '<a href="' || _escape_xml($href) || '" target="_blank">'
     ELSE ''
-  END || '<g transform="translate(' || $x || ',' || $y || ')">' || '<rect x="0" y="0" width="' || $width || '" height="' || $height || '" ' || 'stroke="' || coalesce($stroke, 'none') || '" ' || 'fill="' || $fill || '" ' || 'shape-rendering="crispEdges" ' || 'class="' || coalesce($css_class, '') || '">' || CASE
+  END || '<rect x="' || $x || '" y="' || $y || '" width="' || $width || '" height="' || $height || '" fill="' || $fill || '">' || CASE
     WHEN $title IS NOT NULL
     THEN '<title>' || _escape_xml($title) || '</title>'
     ELSE ''
-  END || '</rect>' || coalesce($text_content, '') || '</g>' || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END;
+  END || '</rect>' || coalesce($text_content, '') || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END;
 
--- Generate SVG text element with typography and positioning
-CREATE PERFETTO FUNCTION _svg_text(
-    x DOUBLE,
-    y DOUBLE,
-    content STRING,
-    font_size LONG,
-    font_weight STRING,
-    text_anchor STRING,
-    fill STRING,
-    css_class STRING
-)
-RETURNS STRING AS
-SELECT
-  '<text x="' || $x || '" y="' || $y || '" ' || 'font-family="Inter,system-ui,-apple-system,BlinkMacSystemFont,Segue UI,Roboto,sans-serif" ' || 'font-size="' || $font_size || '" font-weight="' || coalesce($font_weight, '400') || '" ' || 'text-anchor="' || coalesce($text_anchor, 'start') || '" ' || 'fill="' || $fill || '" ' || 'dominant-baseline="central" ' || CASE WHEN $css_class IS NOT NULL THEN 'class="' || $css_class || '" ' ELSE '' END || 'style="pointer-events:none;user-select:none;">' || _escape_xml($content) || '</text>';
-
--- Generate thread name label positioned above track
-CREATE PERFETTO FUNCTION _svg_track_label(
-    utid LONG,
-    thread_name STRING,
-    track_offset LONG,
-    track_height LONG,
-    font_size LONG,
-    label_height LONG
-)
-RETURNS STRING AS
-SELECT
-  '<g transform="translate(5,' || (
-    $track_offset - $label_height + (
-      $label_height / 2
-    )
-  ) || ')">' || _svg_text(
-    CAST(25 AS DOUBLE),
-    CAST(0 AS DOUBLE),
-    coalesce($thread_name, 'Thread ' || $utid),
-    $font_size,
-    '500',
-    'start',
-    'rgba(45,45,45,0.8)',
-    NULL
-  ) || '</g>';
-
--- SVG filter definitions for subtle drop shadows
-CREATE PERFETTO FUNCTION _svg_defs()
-RETURNS STRING AS
-SELECT
-  '<defs>
-  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-    <feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-opacity="0.08"/>
-  </filter>
-</defs>';
-
--- CSS styles for hover effects and visual hierarchy
+-- Generate minimal CSS styles.
 CREATE PERFETTO FUNCTION _svg_styles()
 RETURNS STRING AS
 SELECT
   '<style>
-* {
-  box-sizing: border-box;
-}
+    rect { cursor: pointer; }
+    path { cursor: pointer; }
+    text { font-family: sans-serif; pointer-events: none; dominant-baseline: central; }
+    a { text-decoration: none !important; }
+    a:hover { text-decoration: none !important; }
+  </style>';
 
-
-rect {
-  filter: url(#shadow);
-  stroke: none;
-  shape-rendering: crispEdges;
-}
-
-
-rect:hover {
-  filter: url(#shadow) drop-shadow(0 1px 3px rgba(0,0,0,0.15));
-}
-
-
-.clickable-slice, .clickable-state {
-  cursor: pointer !important;
-}
-
-
-.clickable-slice:hover, .clickable-state:hover {
-  stroke: rgba(37,99,235,0.3) !important;
-  stroke-width: 1 !important;
-  filter: url(#shadow) drop-shadow(0 1px 2px rgba(37,99,235,0.1)) !important;
-}
-
-
-.thread-state {
-  opacity: 0.9;
-}
-
-
-.thread-state:hover {
-  opacity: 1;
-}
-
-
-text {
-  dominant-baseline: central;
-  text-rendering: optimizeLegibility;
-  pointer-events: none;
-  user-select: none;
-}
-
-
-.chart-title {
-  pointer-events: all !important;
-  cursor: pointer !important;
-}
-
-
-.chart-title:hover {
-  fill: #2563eb !important;
-}
-
-
-a {
-  text-decoration: none;
-  cursor: pointer !important;
-  pointer-events: all !important;
-}
-
-
-title {
-  transition: opacity 0.1s ease-in;
-}
-</style>';
-
--- Generate clickable chart title with optional hyperlink
-CREATE PERFETTO FUNCTION _svg_chart_title(
-    chart_label STRING,
-    chart_href STRING,
-    top_margin LONG,
-    font_size LONG
+-- Convert time intervals to pixel coordinates with grouping metadata.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _intervals_to_positions(
+    intervals_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr
 )
-RETURNS STRING AS
-SELECT
-  CASE
-    WHEN $chart_label IS NOT NULL
-    THEN CASE
-      WHEN $chart_href IS NOT NULL
-      THEN '<a href="' || _escape_xml($chart_href) || '" target="blank">' || '<text x="5.0" y="' || CAST($top_margin * 0.1 AS DOUBLE) || '" ' || 'font-family="Inter,system-ui,-apple-system,BlinkMacSystemFont,Segue UI,Roboto,sans-serif" ' || 'font-size="' || $font_size || '" font-weight="600" ' || 'text-anchor="start" fill="#374151" ' || 'dominant-baseline="central" ' || 'class="chart-title" ' || 'style="cursor:pointer;">' || _escape_xml($chart_label) || '</text></a>'
-      ELSE _svg_text(
-        CAST(8 AS DOUBLE),
-        CAST($top_margin * 0.6 AS DOUBLE),
-        $chart_label,
-        $font_size,
-        '600',
-        'start',
-        '#374151',
-        NULL
-      )
-    END
-    ELSE ''
-  END;
+RETURNS Expr AS
+(
+  WITH
+    -- Calculate bounds per SVG group
+    bounds AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        min(ts) AS ts_min,
+        max(ts + dur) AS ts_max,
+        max(coalesce(depth, 0)) AS max_depth
+      FROM $intervals_table
+      WHERE
+        dur > 0
+      GROUP BY
+        $svg_group_key_col
+    ),
+    -- Calculate counter bounds per individual counter name for independent scaling
+    counter_bounds AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        name AS counter_name,
+        min(counter_value) AS min_counter_value,
+        max(counter_value) AS max_counter_value
+      FROM $intervals_table
+      WHERE
+        dur > 0 AND element_type = 'counter'
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col,
+        name
+    ),
+    scale_params AS (
+      SELECT
+        b.svg_group_key,
+        CAST($max_width AS INTEGER) AS total_width,
+        _pixels_per_ns(CAST($max_width AS INTEGER), b.ts_min, b.ts_max) AS pixels_per_ns,
+        _row_height(CAST($max_width AS INTEGER)) AS row_height,
+        _counter_height(CAST($max_width AS INTEGER)) AS counter_height,
+        coalesce(CAST($min_width AS INTEGER), 2) AS min_cutoff,
+        b.ts_min,
+        b.ts_max
+      FROM bounds AS b
+    )
+  SELECT
+    $svg_group_key_col AS svg_group_key,
+    $svg_group_key_col,
+    $track_group_key_col AS track_group_key,
+    $track_group_key_col,
+    $track_group_order_col AS track_group_order,
+    $track_group_order_col,
+    i.*,
+    (
+      i.ts - sp.ts_min
+    ) * sp.pixels_per_ns AS x_pixel,
+    i.dur * sp.pixels_per_ns AS width_pixel,
+    CASE
+      WHEN i.element_type = 'slice'
+      THEN 5 + coalesce(i.depth, 0) * sp.row_height
+      WHEN i.element_type = 'thread_state'
+      THEN 2
+      WHEN i.element_type = 'counter'
+      THEN 5
+      ELSE 0
+    END AS y_pixel,
+    CASE
+      WHEN i.element_type = 'thread_state'
+      THEN CAST(sp.row_height / 2 AS INTEGER)
+      WHEN i.element_type = 'counter'
+      THEN sp.counter_height
+      ELSE sp.row_height
+    END AS height_pixel,
+    sp.ts_min,
+    sp.ts_max,
+    sp.pixels_per_ns,
+    sp.total_width,
+    sp.min_cutoff,
+    sp.counter_height,
+    coalesce(cb.min_counter_value, 0) AS min_counter_value,
+    coalesce(cb.max_counter_value, 1) AS max_counter_value
+  FROM $intervals_table AS i
+  JOIN scale_params AS sp
+    ON i.$svg_group_key_col = sp.svg_group_key
+  LEFT JOIN counter_bounds AS cb
+    ON i.$svg_group_key_col = cb.svg_group_key
+    AND i.$track_group_key_col = cb.track_group_key
+    AND i.name = cb.counter_name
+  WHERE
+    i.dur > 0 AND i.dur * sp.pixels_per_ns >= sp.min_cutoff
+);
 
--- Build SVG rect for trace slice with text overlay when width permits
+-- Render slice interval as simple SVG rect with text overlay when space permits.
 CREATE PERFETTO FUNCTION _slice_to_svg(
     x_pixel DOUBLE,
     y_pixel DOUBLE,
@@ -324,28 +303,21 @@ SELECT
       $width_pixel,
       $height_pixel,
       _slice_color($name),
-      'none',
-      CASE WHEN $href IS NOT NULL THEN 'clickable-slice' ELSE 'slice' END,
       $name || ' (' || _format_duration($dur) || ')',
       $href,
       CASE
         WHEN $width_pixel >= 15
-        THEN _svg_text(
-          $width_pixel / 2,
-          $height_pixel / 2,
-          _fit_text($name, CAST($width_pixel AS INTEGER) - 4),
-          11,
-          '400',
-          'middle',
-          'rgba(45,45,45,0.9)',
-          NULL
-        )
+        THEN '<text x="' || (
+          $x_pixel + $width_pixel / 2
+        ) || '" y="' || (
+          $y_pixel + $height_pixel / 2
+        ) || '" text-anchor="middle" font-size="11" fill="#333">' || _escape_xml(_fit_text($name, CAST($width_pixel AS INTEGER) - 4)) || '</text>'
         ELSE ''
       END
     )
   END;
 
--- Build SVG rect for thread scheduling state
+-- Render thread state interval as simple SVG rect.
 CREATE PERFETTO FUNCTION _thread_state_to_svg(
     x_pixel DOUBLE,
     y_pixel DOUBLE,
@@ -369,356 +341,123 @@ SELECT
       $width_pixel,
       $height_pixel,
       _state_color($state, $io_wait),
-      'rgba(255,255,255,0.3)',
-      CASE WHEN $href IS NOT NULL THEN 'clickable-state' ELSE 'thread-state' END,
-      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')' || CASE WHEN $blocked_function IS NOT NULL THEN ' - ' || $blocked_function ELSE '' END,
+      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')',
       $href,
       NULL
     )
   END;
 
--- Calculate time bounds and max depth across slices and thread states
-CREATE PERFETTO MACRO _calculate_bounds(
-    slice_table TableOrSubquery,
-    thread_state_table TableOrSubquery,
-    group_key ColumnName
+-- Render counter value as step in filled area chart with proper negative value handling.
+CREATE PERFETTO FUNCTION _counter_to_svg(
+    x_pixel DOUBLE,
+    y_pixel DOUBLE,
+    width_pixel DOUBLE,
+    height_pixel DOUBLE,
+    value DOUBLE,
+    max_value DOUBLE,
+    min_value DOUBLE,
+    name STRING,
+    href STRING,
+    min_pixel_width LONG
 )
-RETURNS Expr AS
-(
-  SELECT
-    group_key AS $group_key,
-    min(ts_min) AS ts_min,
-    max(ts_max) AS ts_max,
-    max(max_depth) AS max_depth,
-    sum(slice_count) AS total_count
-  FROM (
-    SELECT
-      $group_key AS group_key,
-      min(ts) AS ts_min,
-      max(ts + dur) AS ts_max,
-      max(depth) AS max_depth,
-      count(*) AS slice_count
-    FROM $slice_table
-    WHERE
-      dur > 0
-    GROUP BY
-      group_key
-    UNION ALL
-    SELECT
-      $group_key AS group_key,
-      min(ts) AS ts_min,
-      max(ts + dur) AS ts_max,
-      0 AS max_depth,
-      count(*) AS slice_count
-    FROM $thread_state_table
-    WHERE
-      dur > 0
-    GROUP BY
-      group_key
-  )
-  GROUP BY
-    group_key
-);
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $width_pixel < $min_pixel_width
+    THEN ''
+    ELSE CASE
+      WHEN $href IS NOT NULL
+      THEN '<a href="' || _escape_xml($href) || '" target="_blank">'
+      ELSE ''
+    END || '<rect x="' || $x_pixel || '" y="' || CASE
+      WHEN $value >= 0
+      THEN CASE
+        WHEN $min_value >= 0
+        THEN $y_pixel + $height_pixel - (
+          $height_pixel * (
+            $value - $min_value
+          ) / (
+            $max_value - $min_value
+          )
+        )
+        ELSE $y_pixel + $height_pixel * (
+          $max_value / (
+            $max_value - $min_value
+          )
+        ) - (
+          $height_pixel * $value / (
+            $max_value - $min_value
+          )
+        )
+      END
+      ELSE CASE
+        WHEN $max_value <= 0
+        THEN $y_pixel
+        ELSE $y_pixel + $height_pixel * (
+          $max_value / (
+            $max_value - $min_value
+          )
+        )
+      END
+    END || '" width="' || $width_pixel || '" height="' || CASE
+      WHEN $value >= 0
+      THEN CASE
+        WHEN $min_value >= 0
+        THEN $height_pixel * (
+          $value - $min_value
+        ) / (
+          $max_value - $min_value
+        )
+        ELSE $height_pixel * $value / (
+          $max_value - $min_value
+        )
+      END
+      ELSE CASE
+        WHEN $max_value <= 0
+        THEN $height_pixel * (
+          $value - $max_value
+        ) / (
+          $max_value - $min_value
+        )
+        ELSE $height_pixel * abs($value) / (
+          $max_value - $min_value
+        )
+      END
+    END || '" fill="' || CASE WHEN $value >= 0 THEN 'steelblue' ELSE 'coral' END || '">' || '<title>' || _escape_xml($name || ': ' || printf('%.1f', $value)) || '</title>' || '</rect>' || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END
+  END;
 
--- Assign sequential track indices to threads for vertical layout
-CREATE PERFETTO MACRO _calculate_track_layout(
-    slice_table TableOrSubquery,
-    thread_state_table TableOrSubquery,
-    group_key ColumnName
-)
-RETURNS Expr AS
-(
-  SELECT
-    $group_key AS group_key,
-    utid,
-    thread_name,
-    max(depth) AS max_depth_in_track,
-    row_number() OVER (PARTITION BY $group_key ORDER BY utid) - 1 AS track_index
-  FROM (
-    SELECT
-      $group_key,
-      utid,
-      thread_name,
-      depth
-    FROM $slice_table
-    WHERE
-      dur > 0
-    UNION ALL
-    SELECT
-      $group_key,
-      utid,
-      thread_name,
-      0 AS depth
-    FROM $thread_state_table
-    WHERE
-      dur > 0
-  )
-  GROUP BY
-    utid,
-    group_key
-);
-
--- Calculate viewport scaling and layout parameters
-CREATE PERFETTO MACRO _calculate_scale_params(
-    bounds_table TableOrSubquery,
-    track_layout_table TableOrSubquery,
-    max_width Expr,
-    min_pixel_width Expr,
-    group_key ColumnName
-)
-RETURNS Expr AS
-(
-  SELECT
-    $group_key AS group_key,
-    b.ts_min,
-    b.ts_max,
-    CAST($max_width AS INTEGER) AS total_width,
-    _pixels_per_ns(CAST($max_width AS INTEGER), b.ts_min, b.ts_max) AS pixels_per_ns,
-    _row_height(CAST($max_width AS INTEGER)) AS row_height,
-    coalesce(CAST($min_pixel_width AS INTEGER), 2) AS min_pixel_cutoff,
-    -- 50px per depth level + 10px padding
-    (
-      (
-        (
-          SELECT
-            max(max_depth_in_track)
-          FROM $track_layout_table
-        ) + 1
-      ) * 50
-    ) + 10 AS track_spacing,
-    max(25, CAST($max_width * 0.04 AS INTEGER)) AS left_margin,
-    max(15, CAST($max_width * 0.008 AS INTEGER)) AS label_height
-  FROM $bounds_table AS b
-  GROUP BY
-    group_key
-);
-
--- Convert slice intervals to pixel coordinates and SVG metadata
-CREATE PERFETTO MACRO _calculate_slice_positions(
-    slice_table TableOrSubquery,
-    scale_params_table TableOrSubquery,
-    track_layout_table TableOrSubquery,
-    group_key ColumnName
-)
-RETURNS Expr AS
-(
-  SELECT
-    s.$group_key AS group_key,
-    'slice' AS element_type,
-    s.utid,
-    s.name,
-    s.ts,
-    s.dur,
-    s.depth,
-    s.href,
-    NULL AS state,
-    NULL AS io_wait,
-    NULL AS blocked_function,
-    coalesce(tl.track_index, 0) AS track_index,
-    tl.thread_name,
-    -- Time offset from start converted to pixels
-    (
-      s.ts - sp.ts_min
-    ) * sp.pixels_per_ns AS x_pixel,
-    -- Duration converted to pixel width
-    s.dur * sp.pixels_per_ns AS width_pixel,
-    -- Vertical position: track offset + depth offset
-    coalesce(tl.track_index, 0) * sp.track_spacing + CAST(sp.row_height / 2 AS INTEGER) + 20 + s.depth * sp.row_height AS y_pixel,
-    sp.row_height AS height_pixel,
-    sp.ts_min,
-    sp.ts_max,
-    sp.pixels_per_ns,
-    sp.total_width,
-    sp.left_margin,
-    sp.min_pixel_cutoff
-  FROM $slice_table AS s
-  JOIN $scale_params_table AS sp
-    ON s.$group_key = sp.group_key
-  LEFT JOIN $track_layout_table AS tl
-    ON s.utid = tl.utid AND s.$group_key = tl.group_key
-  WHERE
-    s.dur > 0 AND s.dur * sp.pixels_per_ns >= sp.min_pixel_cutoff
-);
-
--- Convert thread state intervals to pixel coordinates (positioned below slices)
-CREATE PERFETTO MACRO _calculate_thread_state_positions(
-    thread_state_table TableOrSubquery,
-    scale_params_table TableOrSubquery,
-    track_layout_table TableOrSubquery,
-    group_key ColumnName
-)
-RETURNS Expr AS
-(
-  SELECT
-    ts.$group_key AS group_key,
-    'thread_state' AS element_type,
-    ts.utid,
-    'Thread State: ' || ts.state AS name,
-    ts.ts,
-    ts.dur,
-    0 AS depth,
-    ts.href,
-    ts.state,
-    ts.io_wait,
-    ts.blocked_function,
-    coalesce(tl.track_index, 0) AS track_index,
-    tl.thread_name,
-    (
-      ts.ts - sp.ts_min
-    ) * sp.pixels_per_ns AS x_pixel,
-    ts.dur * sp.pixels_per_ns AS width_pixel,
-    -- Position below slice track with 15px offset
-    coalesce(tl.track_index, 0) * sp.track_spacing + 15 AS y_pixel,
-    -- Half height of slice rows
-    CAST(sp.row_height / 2 AS INTEGER) AS height_pixel,
-    sp.ts_min,
-    sp.ts_max,
-    sp.pixels_per_ns,
-    sp.total_width,
-    sp.left_margin,
-    sp.min_pixel_cutoff
-  FROM $thread_state_table AS ts
-  JOIN $scale_params_table AS sp
-    ON ts.$group_key = sp.group_key
-  LEFT JOIN $track_layout_table AS tl
-    ON ts.utid = tl.utid AND ts.$group_key = tl.group_key
-  WHERE
-    ts.dur > 0 AND ts.dur * sp.pixels_per_ns >= sp.min_pixel_cutoff
-);
-
--- Transform time intervals into positioned SVG elements with a unified coordinate
--- per group_key.
-CREATE PERFETTO MACRO _intervals_to_positions(
-    slice_table TableOrSubquery,
-    thread_state_table TableOrSubquery,
-    max_width Expr,
-    min_pixel_width Expr,
-    group_key ColumnName
-)
-RETURNS Expr AS
-(
-  WITH
-    bounds AS (
-      SELECT
-        *
-      FROM _calculate_bounds !($slice_table, $thread_state_table, $group_key)
-    ),
-    track_layout AS (
-      SELECT
-        *
-      FROM _calculate_track_layout !($slice_table, $thread_state_table, $group_key)
-    ),
-    scale_params AS (
-      SELECT
-        *
-      FROM _calculate_scale_params !(bounds, track_layout, $max_width, $min_pixel_width, $group_key)
-    ),
-    slice_positions AS (
-      SELECT
-        *
-      FROM _calculate_slice_positions !($slice_table, scale_params, track_layout, $group_key)
-    ),
-    thread_state_positions AS (
-      SELECT
-        *
-      FROM _calculate_thread_state_positions
-          !($thread_state_table, scale_params, track_layout, $group_key)
-    )
-  SELECT
-    *
-  FROM slice_positions
-  UNION ALL
-  SELECT
-    *
-  FROM thread_state_positions
-  ORDER BY
-    track_index,
-    ts,
-    depth,
-    dur DESC
-);
-
--- Generate complete SVG document from positioned elements.
--- See intervals_to_positions on how to generate positioned elements.
+-- Generate track SVG from positioned elements without labels.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _svg_from_positions(
     positions_table TableOrSubquery,
-    chart_label Expr,
-    chart_href Expr,
-    group_key ColumnName
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    top_margin Expr
 )
-RETURNS TableOrSubQuery AS
+RETURNS Expr AS
 (
   WITH
-    position_params AS (
+    track_params AS (
       SELECT
-        $group_key AS group_key,
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
         total_width,
-        left_margin,
-        ts_min,
-        ts_max,
-        pixels_per_ns,
-        min_pixel_cutoff,
-        count(DISTINCT track_index) AS track_count,
-        max(y_pixel + height_pixel) AS max_y
+        min_cutoff,
+        min(y_pixel) AS track_top,
+        max(y_pixel + height_pixel) AS track_bottom,
+        CAST($top_margin AS INTEGER) AS top_margin
       FROM $positions_table
       GROUP BY
-        group_key
-    ),
-    layout_params AS (
-      SELECT
-        pp.*,
-        CASE
-          WHEN $chart_label IS NOT NULL
-          THEN max(15, CAST(pp.total_width * 0.01 AS INTEGER))
-          ELSE 5
-        END AS top_margin,
-        max(12, CAST(pp.total_width * 0.008 AS INTEGER)) AS chart_title_font_size,
-        max(10, CAST(pp.total_width * 0.007 AS INTEGER)) AS track_label_font_size,
-        max(12, CAST(pp.total_width * 0.008 AS INTEGER)) AS label_height
-      FROM position_params AS pp
-      GROUP BY
-        group_key
-    ),
-    track_layout AS (
-      SELECT
-        $group_key AS group_key,
-        utid,
-        thread_name,
-        track_index,
-        min(y_pixel) AS track_offset
-      FROM $positions_table
-      GROUP BY
-        utid,
-        group_key
+        $svg_group_key_col,
+        $track_group_key_col
+      LIMIT 1
     )
   SELECT
-    lp.group_key,
-    '<svg xmlns="http://www.w3.org/2000/svg" ' || 'viewBox="0 0 ' || (
-      lp.total_width + lp.left_margin + 10
-    ) || ' ' || (
-      lp.max_y + lp.top_margin + lp.label_height + 50
-    ) || '" ' || 'style="background: #fefdfb; font-family: system-ui;">' || _svg_defs() || _svg_styles() || _svg_chart_title($chart_label, $chart_href, lp.top_margin, lp.chart_title_font_size) || '<g id="track-labels">' || coalesce(
-      (
-        SELECT
-          GROUP_CONCAT(
-            _svg_track_label(
-              tl.utid,
-              tl.thread_name,
-              tl.track_offset + 20,
-              50,
-              lp.track_label_font_size,
-              lp.label_height
-            ),
-            ''
-          )
-        FROM track_layout AS tl
-        WHERE
-          tl.group_key = lp.group_key
-      ),
-      ''
-    ) || '</g>' || '<g transform="translate(' || lp.left_margin || ',' || (
-      lp.top_margin + lp.label_height
-    ) || ')">' || coalesce(
+    tp.svg_group_key,
+    tp.track_group_key,
+    '<g transform="translate(0,' || tp.top_margin || ')">' || coalesce(
       (
         SELECT
           GROUP_CONCAT(
@@ -726,64 +465,696 @@ RETURNS TableOrSubQuery AS
               WHEN p.element_type = 'thread_state'
               THEN _thread_state_to_svg(
                 p.x_pixel,
-                cast_double !(p.y_pixel),
+                cast_double!(p.y_pixel),
                 p.width_pixel,
-                cast_double !(p.height_pixel),
+                cast_double!(p.height_pixel),
                 p.state,
                 p.io_wait,
                 p.blocked_function,
                 p.dur,
                 p.href,
-                p.min_pixel_cutoff
+                tp.min_cutoff
               )
-              ELSE _slice_to_svg(p.x_pixel, cast_double !(p.y_pixel), p.width_pixel, cast_double !(p.height_pixel), p.name, p.dur, p.href, p.min_pixel_cutoff)
+              WHEN p.element_type = 'counter'
+              THEN _counter_to_svg(
+                p.x_pixel,
+                cast_double!(p.y_pixel),
+                p.width_pixel,
+                cast_double!(p.height_pixel),
+                p.counter_value,
+                p.max_counter_value,
+                p.min_counter_value,
+                p.name,
+                p.href,
+                tp.min_cutoff
+              )
+              ELSE _slice_to_svg(p.x_pixel, cast_double!(p.y_pixel), p.width_pixel, cast_double!(p.height_pixel), p.name, p.dur, p.href, tp.min_cutoff)
             END,
             ''
           )
         FROM $positions_table AS p
         WHERE
-          p.group_key = lp.group_key
+          p.$svg_group_key_col = tp.svg_group_key
+          AND p.$track_group_key_col = tp.track_group_key
         ORDER BY
-          p.track_index,
           p.ts,
           p.depth,
           p.dur DESC
+      ),
+      ''
+    ) || '</g>' AS track_svg,
+    tp.track_bottom + tp.top_margin AS track_height
+  FROM track_params AS tp
+);
+
+-- Generate track SVG from positioned elements with track labels.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_from_positions_with_label(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    label_text ColumnName,
+    label_top_margin Expr,
+    label_gap Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    track_params AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        $label_text AS label_text,
+        total_width,
+        min_cutoff,
+        min(y_pixel) AS track_top,
+        max(y_pixel + height_pixel) AS track_bottom,
+        -- Get counter-specific info for y-axis labels
+        max(CASE WHEN element_type = 'counter' THEN max_counter_value ELSE NULL END) AS max_counter_value,
+        max(CASE WHEN element_type = 'counter' THEN min_counter_value ELSE NULL END) AS min_counter_value,
+        max(CASE WHEN element_type = 'counter' THEN 1 ELSE 0 END) AS is_counter_track
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+      LIMIT 1
+    ),
+    -- Generate counter path for counter tracks
+    counter_path AS (
+      SELECT
+        tp.svg_group_key,
+        tp.track_group_key,
+        CASE
+          WHEN tp.is_counter_track = 1
+          THEN (
+            -- Calculate zero line position
+            WITH
+              zero_calc AS (
+                SELECT
+                  CASE
+                    WHEN tp.min_counter_value >= 0
+                    THEN 5 + tp.track_bottom
+                    WHEN tp.max_counter_value <= 0
+                    THEN 5
+                    ELSE 5 + tp.track_bottom * (
+                      tp.max_counter_value / (
+                        tp.max_counter_value - tp.min_counter_value
+                      )
+                    )
+                  END AS zero_y
+              ),
+              path_data AS (
+                SELECT
+                  'M0,' || zc.zero_y || ' ' || GROUP_CONCAT(
+                    'L' || p.x_pixel || ',' || CASE
+                      WHEN p.counter_value >= 0
+                      THEN CASE
+                        WHEN tp.min_counter_value >= 0
+                        THEN 5 + tp.track_bottom - (
+                          tp.track_bottom * (
+                            p.counter_value - tp.min_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y - (
+                          tp.track_bottom * p.counter_value / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                      ELSE CASE
+                        WHEN tp.max_counter_value <= 0
+                        THEN 5 + (
+                          tp.track_bottom * (
+                            p.counter_value - tp.max_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y + (
+                          tp.track_bottom * abs(p.counter_value) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                    END || ' L' || (
+                      p.x_pixel + p.width_pixel
+                    ) || ',' || CASE
+                      WHEN p.counter_value >= 0
+                      THEN CASE
+                        WHEN tp.min_counter_value >= 0
+                        THEN 5 + tp.track_bottom - (
+                          tp.track_bottom * (
+                            p.counter_value - tp.min_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y - (
+                          tp.track_bottom * p.counter_value / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                      ELSE CASE
+                        WHEN tp.max_counter_value <= 0
+                        THEN 5 + (
+                          tp.track_bottom * (
+                            p.counter_value - tp.max_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y + (
+                          tp.track_bottom * abs(p.counter_value) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                    END,
+                    ' '
+                  ) || ' L' || tp.total_width || ',' || zc.zero_y || ' L0,' || zc.zero_y || ' Z' AS path_d
+                FROM $positions_table AS p, zero_calc AS zc
+                WHERE
+                  p.$svg_group_key_col = tp.svg_group_key
+                  AND p.$track_group_key_col = tp.track_group_key
+                  AND p.element_type = 'counter'
+                ORDER BY
+                  p.ts
+              )
+            SELECT
+              '<path d="' || pd.path_d || '" fill="steelblue" fill-opacity="0.7" stroke="steelblue" stroke-width="1"/>'
+            FROM path_data AS pd
+          )
+          ELSE ''
+        END AS counter_svg
+      FROM track_params AS tp
+    )
+  SELECT
+    tp.svg_group_key,
+    tp.track_group_key,
+    '<text x="5" y="15" font-size="11" fill="#333">' || _escape_xml(cast_string!(label_text)) || '</text>' || CASE
+      WHEN tp.is_counter_track = 1
+      THEN '<text x="5" y="30" font-size="9" fill="#000">' || _format_large_number(tp.max_counter_value) || '</text>' || CASE
+        WHEN tp.min_counter_value < 0
+        THEN '<text x="5" y="' || (
+          30 + tp.track_bottom
+        ) || '" font-size="9" fill="#000">' || _format_large_number(tp.min_counter_value) || '</text>'
+        ELSE ''
+      END
+      ELSE ''
+    END || '<g transform="translate(0,20)">' || CASE WHEN tp.is_counter_track = 1 THEN cp.counter_svg ELSE '' END || coalesce(
+      (
+        SELECT
+          GROUP_CONCAT(
+            CASE
+              WHEN p.element_type = 'thread_state'
+              THEN _thread_state_to_svg(
+                p.x_pixel,
+                cast_double!(p.y_pixel),
+                p.width_pixel,
+                cast_double!(p.height_pixel),
+                p.state,
+                p.io_wait,
+                p.blocked_function,
+                p.dur,
+                p.href,
+                tp.min_cutoff
+              )
+              WHEN p.element_type = 'counter'
+              THEN ''
+              ELSE _slice_to_svg(p.x_pixel, cast_double!(p.y_pixel), p.width_pixel, cast_double!(p.height_pixel), p.name, p.dur, p.href, tp.min_cutoff)
+            END,
+            ''
+          )
+        FROM $positions_table AS p
+        WHERE
+          p.$svg_group_key_col = tp.svg_group_key
+          AND p.$track_group_key_col = tp.track_group_key
+        ORDER BY
+          p.ts,
+          p.depth,
+          p.dur DESC
+      ),
+      ''
+    ) || '</g>' AS track_svg,
+    tp.track_bottom + 20 AS track_height
+  FROM track_params AS tp
+  LEFT JOIN counter_path AS cp
+    ON tp.svg_group_key = cp.svg_group_key AND tp.track_group_key = cp.track_group_key
+);
+
+-- Generate unlabeled tracks grouped by svg_group_key and track_group_key.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _generate_tracks_by_group(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    start_order Expr,
+    order_step Expr,
+    top_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    grouped_keys AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        min($track_group_order_col) AS track_group_order
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+    ),
+    track_svgs_with_group AS (
+      SELECT
+        gk.svg_group_key,
+        gk.track_group_key,
+        gk.track_group_order AS track_order,
+        (
+          SELECT
+            track_svg
+          FROM _svg_from_positions!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, $top_margin)
+        ) AS track_svg,
+        (
+          SELECT
+            track_height
+          FROM _svg_from_positions!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, $top_margin)
+        ) AS track_height
+      FROM grouped_keys AS gk
+    )
+  SELECT
+    svg_group_key AS $svg_group_key_col,
+    svg_group_key,
+    track_group_key,
+    track_order,
+    track_svg,
+    track_height
+  FROM track_svgs_with_group
+);
+
+-- Generate labeled tracks grouped by svg_group_key and track_group_key.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _generate_tracks_by_group_with_label(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    start_order Expr,
+    order_step Expr,
+    top_margin Expr,
+    label_text ColumnName,
+    label_gap Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    grouped_keys AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        min($track_group_order_col) AS track_group_order,
+        min($label_text) AS label_text
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+    ),
+    track_svgs_with_group AS (
+      SELECT
+        gk.svg_group_key,
+        gk.track_group_key,
+        gk.track_group_order AS track_order,
+        (
+          SELECT
+            track_svg
+          FROM _svg_from_positions_with_label!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, gk.label_text, $top_margin, $label_gap)
+        ) AS track_svg,
+        (
+          SELECT
+            track_height
+          FROM _svg_from_positions_with_label!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, gk.label_text, $top_margin, $label_gap)
+        ) AS track_height
+      FROM grouped_keys AS gk
+    )
+  SELECT
+    svg_group_key AS $svg_group_key_col,
+    svg_group_key,
+    track_group_key,
+    track_order,
+    track_svg,
+    track_height
+  FROM track_svgs_with_group
+);
+
+-- Combine track SVGs into complete SVG documents with layout and styling.
+-- svg_group_key: separate SVG documents.
+CREATE PERFETTO MACRO _combine_track_svgs(
+    track_svgs_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    total_width Expr,
+    left_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    ordered_tracks AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        track_svg,
+        track_height,
+        coalesce(
+          track_order,
+          row_number() OVER (PARTITION BY $svg_group_key_col ORDER BY track_order)
+        ) AS track_order
+      FROM $track_svgs_table
+    ),
+    positioned_tracks AS (
+      SELECT
+        svg_group_key,
+        track_svg,
+        track_height,
+        track_order,
+        sum(track_height) OVER (PARTITION BY svg_group_key ORDER BY track_order ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) - track_height AS y_offset
+      FROM ordered_tracks
+    ),
+    layout_params AS (
+      SELECT
+        svg_group_key,
+        CAST($total_width AS INTEGER) AS total_width,
+        CAST($left_margin AS INTEGER) AS left_margin,
+        max(track_height + y_offset) AS total_content_height
+      FROM positioned_tracks
+      GROUP BY
+        svg_group_key
+    )
+  SELECT
+    lp.svg_group_key,
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' || (
+      lp.total_width + lp.left_margin + 10
+    ) || ' ' || (
+      lp.total_content_height + 25
+    ) || '">' || _svg_styles() || '<g transform="translate(' || lp.left_margin || ',5)">' || coalesce(
+      (
+        SELECT
+          GROUP_CONCAT('<g transform="translate(0,' || pt.y_offset || ')">' || pt.track_svg || '</g>', '')
+        FROM positioned_tracks AS pt
+        WHERE
+          pt.svg_group_key = lp.svg_group_key
+        ORDER BY
+          pt.track_order
       ),
       ''
     ) || '</g></svg>' AS svg
   FROM layout_params AS lp
 );
 
--- Generates a complete SVG timeline visualization directly from tables of
--- time-stamped intervals (slices and thread states).
-CREATE PERFETTO MACRO _svg_from_intervals(
-    -- A table or subquery of the primary trace slices to render.
-    -- Expected columns: `utid`, `ts`, `dur`, `depth`, `name`, `href` (Can be NULL).
+-- Convert slice data to positioned elements for rendering.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _slice_intervals_to_positions(
     slice_table TableOrSubquery,
-    -- A table or subquery of the thread states to render beneath the slices.
-    -- Expected columns: `utid`, `ts`, `dur`, `state`, `io_wait` (Can be NULL),
-    -- `blocked_function` (Can be NULL), `href` (Can be NULL).
-    thread_state_table TableOrSubquery,
-    -- The total pixel width for the timeline content area.
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
     max_width Expr,
-    -- The minimum pixel width required for an interval to be rendered.
-    -- Used to cull very small intervals and improve readability.
-    min_pixel_width Expr,
-    -- An optional label/title to display at the top of the chart. Can be NULL.
-    chart_label Expr,
-    -- An optional URL to make the chart title a hyperlink. Can be NULL.
-    chart_href Expr,
-    -- A column name used to partition the data. A separate SVG is generated
-    -- for each distinct value in this column. Can be NULL
-    group_key ColumnName
+    min_width Expr
 )
 RETURNS Expr AS
 (
-  _svg_from_positions
-    !(
-      _intervals_to_positions
-        !($slice_table, $thread_state_table, $max_width, $min_pixel_width, $group_key),
-      $chart_label,
-      $chart_href,
-      $group_key)
+  WITH
+    intervals_with_type AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $svg_group_key_col,
+        $track_group_key_col AS track_group_key,
+        $track_group_key_col,
+        $track_group_order_col AS track_group_order,
+        $track_group_order_col,
+        utid,
+        ts,
+        dur,
+        'slice' AS element_type,
+        name,
+        href,
+        depth,
+        NULL AS state,
+        NULL AS io_wait,
+        NULL AS blocked_function,
+        NULL AS counter_value
+      FROM $slice_table
+    )
+  SELECT
+    *
+  FROM _intervals_to_positions!(
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width
+  )
+);
+
+-- Convert thread state data to positioned elements for rendering.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _thread_state_intervals_to_positions(
+    thread_state_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    intervals_with_type AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $svg_group_key_col,
+        $track_group_key_col AS track_group_key,
+        $track_group_key_col,
+        $track_group_order_col AS track_group_order,
+        $track_group_order_col,
+        utid,
+        ts,
+        dur,
+        'thread_state' AS element_type,
+        NULL AS name,
+        href,
+        NULL AS depth,
+        state,
+        io_wait,
+        blocked_function,
+        NULL AS counter_value
+      FROM $thread_state_table
+    )
+  SELECT
+    *
+  FROM _intervals_to_positions!(
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width
+  )
+);
+
+-- Convert counter data to positioned elements for rendering.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _counter_intervals_to_positions(
+    counter_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    intervals_with_type AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $svg_group_key_col,
+        $track_group_key_col AS track_group_key,
+        $track_group_key_col,
+        $track_group_order_col AS track_group_order,
+        $track_group_order_col,
+        NULL AS utid,
+        ts,
+        dur,
+        'counter' AS element_type,
+        name,
+        href,
+        NULL AS depth,
+        NULL AS state,
+        NULL AS io_wait,
+        NULL AS blocked_function,
+        value AS counter_value
+      FROM $counter_table
+    )
+  SELECT
+    *
+  FROM _intervals_to_positions!(
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width
+  )
+);
+
+-- Main convenience macro to create complete SVG timeline from slice and thread state tables.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_timeline(
+    slice_table TableOrSubquery,
+    thread_state_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    left_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    slice_positions AS (
+      SELECT
+        *
+      FROM _slice_intervals_to_positions!(
+        $slice_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 2
+      )
+    ),
+    thread_state_positions AS (
+      SELECT
+        *
+      FROM _thread_state_intervals_to_positions!(
+        $thread_state_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 2
+      )
+    ),
+    slice_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group!(
+        slice_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0
+      )
+    ),
+    thread_state_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group_with_label!(
+        thread_state_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0, $track_group_key_col, 10
+      )
+    ),
+    all_tracks AS (
+      SELECT
+        *
+      FROM slice_tracks
+      UNION ALL
+      SELECT
+        *
+      FROM thread_state_tracks
+    )
+  SELECT
+    *
+  FROM _combine_track_svgs!(
+    all_tracks, $svg_group_key_col, $max_width, $left_margin
+  )
+);
+
+-- Enhanced main convenience macro to create complete SVG timeline from slice, thread state, and counter tables.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_timeline_with_counters(
+    slice_table TableOrSubquery,
+    thread_state_table TableOrSubquery,
+    counter_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    left_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    slice_positions AS (
+      SELECT
+        *
+      FROM _slice_intervals_to_positions!(
+        $slice_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 2
+      )
+    ),
+    thread_state_positions AS (
+      SELECT
+        *
+      FROM _thread_state_intervals_to_positions!(
+        $thread_state_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 0
+      )
+    ),
+    counter_positions AS (
+      SELECT
+        *
+      FROM _counter_intervals_to_positions!(
+        $counter_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 1
+      )
+    ),
+    slice_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group!(
+        slice_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0
+      )
+    ),
+    thread_state_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group_with_label!(
+        thread_state_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0, $track_group_key_col, 10
+      )
+    ),
+    counter_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group_with_label!(
+        counter_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0, $track_group_key_col, 10
+      )
+    ),
+    all_tracks AS (
+      SELECT
+        *
+      FROM slice_tracks
+      UNION ALL
+      SELECT
+        *
+      FROM thread_state_tracks
+      UNION ALL
+      SELECT
+        *
+      FROM counter_tracks
+    )
+  SELECT
+    *
+  FROM _combine_track_svgs!(
+    all_tracks, $svg_group_key_col, $max_width, $left_margin
+  )
 );

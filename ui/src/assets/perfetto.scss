@@ -24,10 +24,13 @@
 @import "cookie_consent";
 @import "perf_monitor";
 @import "help_modal";
+@import "theme_provider";
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
 @import "components/data_grid";
+@import "components/json_settings_editor";
+@import "components/pivot_table";
 @import "components/query_history";
 @import "components/query_table";
 @import "widgets/anchor";
@@ -46,6 +49,7 @@
 @import "widgets/flamegraph";
 @import "widgets/form";
 @import "widgets/grid_layout";
+@import "widgets/grid";
 @import "widgets/hotkey";
 @import "widgets/icon";
 @import "widgets/linear_progress";
@@ -54,6 +58,7 @@
 @import "widgets/modal";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
+@import "widgets/overlay_container";
 @import "widgets/popup";
 @import "widgets/resize_handle";
 @import "widgets/section";
@@ -65,9 +70,7 @@
 @import "widgets/sql_table";
 @import "widgets/stack";
 @import "widgets/switch";
-@import "widgets/tabbed_split_panel";
 @import "widgets/tabs";
-@import "widgets/table";
 @import "widgets/tag_input";
 @import "widgets/text_input";
 @import "widgets/text_paragraph";
