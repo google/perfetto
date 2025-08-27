@@ -594,6 +594,7 @@ EventContext TrackEventInternal::WriteEvent(
   if (tls_state.enable_thread_time_sampling && on_current_thread_track) {
     int64_t thread_time_ns;
     if (tls_state.thread_time_subsampling_ns == 0 ||
+        incr_state->last_thread_time_timestamp_ns == 0 ||
         timestamp.value < incr_state->last_thread_time_timestamp_ns +
                               tls_state.thread_time_subsampling_ns) {
       thread_time_ns = base::GetThreadCPUTimeNs().count();
