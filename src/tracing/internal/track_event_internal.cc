@@ -600,6 +600,7 @@ EventContext TrackEventInternal::WriteEvent(
       incr_state->last_thread_time_ns = thread_time_ns;
       incr_state->last_thread_time_timestamp_ns = timestamp.value;
     } else {
+      // When subsampling, the elapsed wall time is used instead.
       thread_time_ns =
           incr_state->last_thread_time_ns +
           static_cast<int64_t>(timestamp.value -
