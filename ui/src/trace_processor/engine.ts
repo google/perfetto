@@ -330,6 +330,10 @@ export abstract class EngineBase implements Engine, Disposable {
         // We don't have any pending promises for this request so just
         // return.
         break;
+      case TPM.TPM_SET_TRACE_TITLE:
+        const pendingPromise = assertExists(this.pendingSendTraceTitles.shift());
+        pendingPromise.resolve();
+        break;
       default:
         console.log(
           'Unexpected TraceProcessor response received: ',
