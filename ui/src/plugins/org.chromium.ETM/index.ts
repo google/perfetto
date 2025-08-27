@@ -14,7 +14,6 @@
 
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
-import {MetricVisualisation} from '../../public/plugin';
 import {PerfettoPlugin} from '../../public/plugin';
 
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
@@ -57,9 +56,5 @@ export default class implements PerfettoPlugin {
     const trackNode = new TrackNode({uri, name: title});
     group.addChildInOrder(trackNode);
     trace.workspace.addChildInOrder(group);
-  }
-
-  static metricVisualisations(): MetricVisualisation[] {
-    return [];
   }
 }
