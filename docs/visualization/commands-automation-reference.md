@@ -333,7 +333,7 @@ These stable automation commands can be used in several contexts:
   for URL patterns and postMessage integration.
 
 For practical automation examples and recipes, see the
-[UI Automation Cookbook](/docs/visualization/ui-automation-cookbook.md).
+[UI Automation guide](/docs/visualization/ui-automation.md).
 
 ## Requesting New Stable Automation Commands
 
@@ -353,7 +353,7 @@ Commands are prioritized based on:
 
 ## See Also
 
-- [UI Automation Cookbook](/docs/visualization/ui-automation-cookbook.md) -
+- [UI Automation guide](/docs/visualization/ui-automation.md) -
   Practical recipes using these commands
 - [Perfetto UI Guide](/docs/visualization/perfetto-ui.md) - General UI
   documentation including commands
