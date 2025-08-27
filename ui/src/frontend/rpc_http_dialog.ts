@@ -42,6 +42,7 @@ Will not use the accelerator in this tab.
 
 Using the native accelerator has some minor caveats:
 - Sharing, downloading and conversion-to-legacy aren't supported.
+- Each trace file can be opened in at most one tab at a time.
 `;
 }
 

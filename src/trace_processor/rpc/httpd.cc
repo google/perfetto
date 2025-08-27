@@ -137,15 +137,6 @@ class Httpd : public base::HttpRequestHandler {
 
     Rpc* rpc_ = nullptr;
 
-    // void reregisterConnection(base::HttpServerConnection* conn) {
-    //   conn_ = conn;
-    //   last_accessed_ns_ =
-    //   static_cast<uint64_t>(base::GetWallTimeNs().count());
-    //   rpc_->SetRpcResponseFunction([this](const void* data, uint32_t len) {
-    //     SendRpcChunk(conn_, data, len);
-    //   });
-    // }
-
     // Get the last accessed time in nanoseconds
     uint64_t GetLastAccessedNs() const { return last_accessed_ns_.load(); }
 
@@ -485,10 +476,6 @@ void Httpd::registerConnection(base::HttpServerConnection* conn,
     // Create new thread for this connection
     auto new_thread = std::make_unique<UuidRpcThread>();
     uuid_to_tp_map.emplace(uuid, std::move(new_thread));
-  } else {
-    // there is already an existing thread for this uuid, update to new
-    // connection
-    // it2->second->reregisterConnection(conn);
   }
 }
 
