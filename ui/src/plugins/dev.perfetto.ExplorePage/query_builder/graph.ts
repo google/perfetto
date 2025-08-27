@@ -67,6 +67,7 @@ export interface GraphAttrs {
   readonly onAddSqlSource: () => void;
   readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -324,20 +325,38 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       children.push(this.renderEmptyNodeGraph(attrs));
     } else {
       for (const node of allNodes) {
-        node.nextNodes.forEach((child, i) => {
-          const from = this.nodeLayouts.get(node);
-          const to = this.nodeLayouts.get(child);
-          if (from && to) {
-            children.push(
-              m(Arrow, {
-                from,
-                to,
-                portIndex: i,
-                portCount: node.nextNodes.length,
-              }),
-            );
-          }
-        });
+        const prevNodes = node.prevNodes ?? [];
+        if (prevNodes.length > 1) {
+          prevNodes.forEach((prevNode, i) => {
+            const from = this.nodeLayouts.get(prevNode);
+            const to = this.nodeLayouts.get(node);
+            if (from && to) {
+              children.push(
+                m(Arrow, {
+                  from,
+                  to,
+                  portIndex: i,
+                  portCount: prevNodes.length,
+                }),
+              );
+            }
+          });
+        } else {
+          node.nextNodes.forEach((child, i) => {
+            const from = this.nodeLayouts.get(node);
+            const to = this.nodeLayouts.get(child);
+            if (from && to) {
+              children.push(
+                m(Arrow, {
+                  from,
+                  to,
+                  portIndex: i,
+                  portCount: node.nextNodes.length,
+                }),
+              );
+            }
+          });
+        }
         let layout = this.nodeLayouts.get(node);
         if (!layout) {
           layout = findNextAvailablePosition(
@@ -360,6 +379,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onDeleteNode: attrs.onDeleteNode,
             onAddSubQuery: attrs.onAddSubQuery,
             onAddAggregation: attrs.onAddAggregation,
+            onAddIntervalIntersect: attrs.onAddIntervalIntersect,
             onNodeRendered: this.onNodeRendered,
           }),
         );
@@ -490,17 +510,17 @@ function findNextAvailablePosition(
 
   // If the node is a nextNode (e.g., an aggregation or sub-query), it should
   // be added below the previous node.
-  if (node.prevNode) {
-    const prevLayout = nodeLayouts.get(node.prevNode);
+  if (node.prevNodes && node.prevNodes.length > 0) {
+    const prevLayout = nodeLayouts.get(node.prevNodes[0]);
     if (prevLayout) {
       let x = prevLayout.x;
       let y = prevLayout.y + (prevLayout.height ?? h) + PADDING * 2;
       // Try to place the new node below the previous node, shifted by the
       // number of siblings.
-      if (node.prevNode.nextNodes.length > 1) {
+      if (node.prevNodes[0].nextNodes.length > 1) {
         x +=
-          (node.prevNode.nextNodes.indexOf(node) -
-            (node.prevNode.nextNodes.length - 1) / 2) *
+          (node.prevNodes[0].nextNodes.indexOf(node) -
+            (node.prevNodes[0].nextNodes.length - 1) / 2) *
           (w + PADDING);
       }
       while (true) {
