@@ -631,6 +631,12 @@ base::Status TrackEventTokenizer::HandleExtraArgsValues(
         pipeline_id = "";
         timing_flag = "";
       }
+      if (!pipeline_id.empty() &&
+          event.name().ToStdString() == "Timing::Mark.loadBundleStart") {
+        context_->storage->AddPipelineFlag(pipeline_id, "Lynx FCP");
+        pipeline_id = "";
+      }
+
       if (!instance_id.empty() && !url.empty()) {
         context_->storage->SetInstanceUrl(instance_id, url);
         instance_id = "";

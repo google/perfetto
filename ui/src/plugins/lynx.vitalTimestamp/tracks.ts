@@ -25,7 +25,6 @@ import {
   LYNX_VITAL_TIMESTAMP_PLUGIN_ID,
   PIPELINE_ID,
   TIMING_FLAGS,
-  TIMING_LOAD_BUNDLE_START,
   SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
 } from '../../lynx_perf/constants';
 import {NUM, STR} from '../../trace_processor/query_result';
@@ -34,7 +33,6 @@ import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {LynxBaseTrack} from '../../lynx_perf/lynx_base_track';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
-import {traceEventWithSpecificArgValue} from '../../lynx_perf/trace_utils';
 import {AppImpl} from '../../core/app_impl';
 import {getColorForSlice} from '../../components/colorizer';
 import {TrackEventSelection} from '../../public/selection';
@@ -138,7 +136,6 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
     const markers: VitalTimestamp[] = [];
     const instanceIdToTimingFlagsMap = new Map();
     const pipelineIdSet = new Set();
-    const instanceIdSet = new Set();
     for (const slice of paintEndSlices) {
       // Currently, same pipelineId may have multiple paintEnd, skip the same pipelineId later
       if (!slice.pipelineId || pipelineIdSet.has(slice.pipelineId)) {
@@ -146,7 +143,7 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
       }
       let timingFlags: string[] = [];
       if (slice.timingFlags) {
-        timingFlags = slice.timingFlags.split(',');
+        timingFlags = slice.timingFlags.split(',').map((flag) => flag.trim());
       }
       let prevInstanceTimingFlagSet = new Set();
       if (slice.instanceId) {
@@ -175,30 +172,6 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
         });
         pipelineIdSet.add(slice.pipelineId);
         continue;
-      }
-      // find the pipeline that may match the FCP
-      if (
-        slice.timingFlags ||
-        (slice.instanceId && instanceIdSet.has(slice.instanceId))
-      ) {
-        continue;
-      }
-      const traceResults = await traceEventWithSpecificArgValue(
-        this.trace.engine,
-        TIMING_LOAD_BUNDLE_START,
-        slice.pipelineId,
-        slice.ts,
-      );
-      if (traceResults) {
-        markers.push({
-          name: ['Lynx FCP'],
-          ts: slice.ts,
-          id: slice.id,
-          trackId: slice.trackId,
-          pipelineId: slice.pipelineId,
-        });
-        pipelineIdSet.add(slice.pipelineId);
-        instanceIdSet.add(slice.instanceId);
       }
     }
     const timestampLine = markers.map((marker) => ({
