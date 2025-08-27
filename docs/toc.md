@@ -26,7 +26,6 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md)
-    - [UI Automation](visualization/ui-automation.md)
 
   - [Case Studies](#)
 
@@ -74,6 +73,7 @@
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
+    - [UI Automation](visualization/ui-automation.md)
 
   - [Contributing](#)
 
