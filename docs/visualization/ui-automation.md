@@ -209,7 +209,7 @@ This macro helps identify performance bottlenecks:
       "args": [".*CPU.*"]
     },
     {
-      "id": "dev.perfetto.RunQuery",
+      "id": "dev.perfetto.RunQueryAndShowTab",
       "args": [
         "SELECT thread.name, COUNT(*) as blocks, SUM(dur)/1000000 as total_ms FROM thread_state JOIN thread USING(utid) WHERE state = 'D' GROUP BY thread.name ORDER BY total_ms DESC LIMIT 10"
       ]
