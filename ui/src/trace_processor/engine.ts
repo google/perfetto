@@ -331,7 +331,9 @@ export abstract class EngineBase implements Engine, Disposable {
         // return.
         break;
       case TPM.TPM_SET_TRACE_TITLE:
-        const pendingPromise = assertExists(this.pendingSendTraceTitles.shift());
+        const pendingPromise = assertExists(
+          this.pendingSendTraceTitles.shift(),
+        );
         pendingPromise.resolve();
         break;
       default:

@@ -82,17 +82,13 @@ class Httpd : public base::HttpRequestHandler {
 
   struct UuidRpcThread {
    public:
-    explicit UuidRpcThread(base::HttpServerConnection* conn) : conn_(conn) {
-      last_accessed_ns_ = static_cast<uint64_t>(base::GetWallTimeNs().count());
+    explicit UuidRpcThread()
+        : last_accessed_ns_(
+              static_cast<uint64_t>(base::GetWallTimeNs().count())) {
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
         base::UnixTaskRunner task_runner;
         Rpc rpc;
-
-        // Set up the response function for this connection
-        rpc.SetRpcResponseFunction([this](const void* data, uint32_t len) {
-          SendRpcChunk(conn_, data, len);
-        });
 
         // Signal that initialization is complete
         {
@@ -127,29 +123,34 @@ class Httpd : public base::HttpRequestHandler {
       init_cv_.wait(lock, [this] { return initialized_; });
 
       if (task_runner_ && rpc_) {
-        task_runner_->PostTask([this, data = std::vector<uint8_t>(
-                                          msg.data.begin(), msg.data.end())]() {
+        task_runner_->PostTask([this, msg,
+                                data = std::vector<uint8_t>(msg.data.begin(),
+                                                            msg.data.end())]() {
+          rpc_->SetRpcResponseFunction([msg](const void* data, uint32_t len) {
+            SendRpcChunk(msg.conn, data, len);
+          });
           rpc_->OnRpcRequest(data.data(), static_cast<uint32_t>(data.size()));
+          rpc_->SetRpcResponseFunction(nullptr);
         });
       }
     }
 
     Rpc* rpc_ = nullptr;
 
-    void reregisterConnection(base::HttpServerConnection* conn) {
-      conn_ = conn;
-      last_accessed_ns_ = static_cast<uint64_t>(base::GetWallTimeNs().count());
-      rpc_->SetRpcResponseFunction([this](const void* data, uint32_t len) {
-        SendRpcChunk(conn_, data, len);
-      });
-    }
+    // void reregisterConnection(base::HttpServerConnection* conn) {
+    //   conn_ = conn;
+    //   last_accessed_ns_ =
+    //   static_cast<uint64_t>(base::GetWallTimeNs().count());
+    //   rpc_->SetRpcResponseFunction([this](const void* data, uint32_t len) {
+    //     SendRpcChunk(conn_, data, len);
+    //   });
+    // }
 
     // Get the last accessed time in nanoseconds
     uint64_t GetLastAccessedNs() const { return last_accessed_ns_.load(); }
 
    private:
-    std::thread rpc_thread_;            // Dedicated thread
-    base::HttpServerConnection* conn_;  // WebSocket connection
+    std::thread rpc_thread_;  // Dedicated thread
 
     // These are valid only in the worker thread context
     base::UnixTaskRunner* task_runner_ = nullptr;
@@ -461,17 +462,6 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 }
 
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
-  /**
-   * added a grace period to see if the frontend reinitiates the connection
-   * before closing the thread for good. there are 2 cases where a websocket
-   * connection might disconnect: a user genuinely quits the tab, or the user
-   * closes the laptop lid. in the case of the latter, the frontend ui is still
-   * running and initiates a reconnection by sending a message via the WS
-   * connection. if we receive the websocket connection reinitiation within the
-   * grace period, we don't erase the thread anymore. in the case of the former,
-   * the ui is killed so no websocket reinitiation will be called within the
-   * grace period. in this case, we erase the thread.
-   */
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
   auto it = conn_to_uuid_map.find(conn);
   if (it != conn_to_uuid_map.end()) {
@@ -493,12 +483,12 @@ void Httpd::registerConnection(base::HttpServerConnection* conn,
   auto it2 = uuid_to_tp_map.find(uuid);
   if (it2 == uuid_to_tp_map.end()) {
     // Create new thread for this connection
-    auto new_thread = std::make_unique<UuidRpcThread>(conn);
+    auto new_thread = std::make_unique<UuidRpcThread>();
     uuid_to_tp_map.emplace(uuid, std::move(new_thread));
   } else {
     // there is already an existing thread for this uuid, update to new
     // connection
-    it2->second->reregisterConnection(conn);
+    // it2->second->reregisterConnection(conn);
   }
 }
 
