@@ -247,8 +247,11 @@ inline Column CreateNonNullColumn(std::initializer_list<U> data,
     vec.push_back(val);
   }
   return impl::Column{impl::Storage{std::move(vec)},
-                      impl::NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
+                      impl::NullStorage::NonNull{},
+                      sort_state,
+                      duplicate_state,
+                      SpecializedStorage{},
+                      std::nullopt};
 }
 
 template <typename U>
@@ -262,8 +265,11 @@ inline Column CreateNonNullStringColumn(std::initializer_list<U> data,
     vec.push_back(pool->InternString(str_like));
   }
   return impl::Column{impl::Storage{std::move(vec)},
-                      impl::NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
+                      impl::NullStorage::NonNull{},
+                      sort_state,
+                      duplicate_state,
+                      SpecializedStorage{},
+                      std::nullopt};
 }
 
 template <typename T>
@@ -293,7 +299,10 @@ inline Column CreateSparseNullableColumn(
   return impl::Column{
       impl::Storage{std::move(data_vec)},
       impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
+      sort_state,
+      duplicate_state,
+      SpecializedStorage{},
+      std::nullopt};
 }
 
 inline Column CreateSparseNullableStringColumn(
@@ -313,7 +322,10 @@ inline Column CreateSparseNullableStringColumn(
   return impl::Column{
       impl::Storage{std::move(data_vec)},
       impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
+      sort_state,
+      duplicate_state,
+      SpecializedStorage{},
+      std::nullopt};
 }
 
 template <typename T>
@@ -336,7 +348,10 @@ inline Column CreateDenseNullableColumn(
   return impl::Column{
       impl::Storage{std::move(data_vec)},
       impl::NullStorage{impl::NullStorage::DenseNull{std::move(bv)}},
-      sort_state, duplicate_state};
+      sort_state,
+      duplicate_state,
+      SpecializedStorage{},
+      std::nullopt};
 }
 
 inline Column CreateDenseNullableStringColumn(
@@ -359,7 +374,10 @@ inline Column CreateDenseNullableStringColumn(
   return impl::Column{
       impl::Storage{std::move(data_vec)},
       impl::NullStorage{impl::NullStorage::DenseNull{std::move(bv)}},
-      sort_state, duplicate_state};
+      sort_state,
+      duplicate_state,
+      SpecializedStorage{},
+      std::nullopt};
 }
 
 PERFETTO_NO_INLINE BytecodeVector inline ParseBytecodeToVec(

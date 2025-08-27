@@ -230,9 +230,11 @@ class AdhocDataframeBuilder {
     uint64_t row_count = std::numeric_limits<uint64_t>::max();
     RETURN_IF_ERROR(current_status_);
     std::vector<std::shared_ptr<impl::Column>> columns;
+    util::HyperLogLog log;
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
       auto& state = column_states_[i];
       size_t non_null_row_count;
+      log.Reset();
       switch (state.data.index()) {
         case base::variant_index<DataVariant, std::nullopt_t>():
           non_null_row_count = 0;
@@ -241,6 +243,8 @@ class AdhocDataframeBuilder {
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               Unsorted{},
               HasDuplicates{},
+              {},
+              0.0,
           }));
           break;
         case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
@@ -258,6 +262,9 @@ class AdhocDataframeBuilder {
           summary.has_duplicates =
               data.empty() ? false : CheckDuplicate(data[0], data.size());
           summary.is_nullable = state.null_overlay.has_value();
+          if (!data.empty()) {
+            log.Add(data[0]);
+          }
           for (uint32_t j = 1; j < data.size(); ++j) {
             summary.is_id_sorted = summary.is_id_sorted && (data[j] == j);
             summary.is_setid_sorted = summary.is_setid_sorted &&
@@ -267,6 +274,7 @@ class AdhocDataframeBuilder {
             summary.max = std::max(summary.max, data[j]);
             summary.has_duplicates =
                 summary.has_duplicates || CheckDuplicate(data[j], data.size());
+            log.Add(data[j]);
           }
           auto integer = CreateIntegerStorage(std::move(data), summary);
           impl::SpecializedStorage specialized_storage =
@@ -279,6 +287,7 @@ class AdhocDataframeBuilder {
                   ? DuplicateState{HasDuplicates{}}
                   : DuplicateState{NoDuplicates{}},
               std::move(specialized_storage),
+              log.Estimate(),
           }));
           break;
         }
@@ -289,8 +298,12 @@ class AdhocDataframeBuilder {
 
           bool is_nullable = state.null_overlay.has_value();
           bool is_sorted = true;
+          if (!data.empty()) {
+            log.Add(data[0]);
+          }
           for (uint32_t j = 1; j < data.size(); ++j) {
             is_sorted = is_sorted && data[j - 1] <= data[j];
+            log.Add(data[j]);
           }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
@@ -298,6 +311,8 @@ class AdhocDataframeBuilder {
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
               HasDuplicates{},
+              {},
+              log.Estimate(),
           }));
           break;
         }
@@ -311,10 +326,12 @@ class AdhocDataframeBuilder {
           bool is_sorted = true;
           if (!data.empty()) {
             NullTermStringView prev = string_pool_->Get(data[0]);
+            log.Add(data[0].raw_id());
             for (uint32_t j = 1; j < data.size(); ++j) {
               NullTermStringView curr = string_pool_->Get(data[j]);
               is_sorted = is_sorted && prev <= curr;
               prev = curr;
+              log.Add(data[j].raw_id());
             }
           }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
@@ -323,6 +340,8 @@ class AdhocDataframeBuilder {
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
               HasDuplicates{},
+              {},
+              log.Estimate(),
           }));
           break;
         }
@@ -348,7 +367,12 @@ class AdhocDataframeBuilder {
     column_names_.emplace_back("_auto_id");
     columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
         impl::Storage{impl::Storage::Id{static_cast<uint32_t>(row_count)}},
-        impl::NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
+        impl::NullStorage::NonNull{},
+        IdSorted{},
+        NoDuplicates{},
+        {},
+        row_count,
+    }));
     return Dataframe(true, std::move(column_names_), std::move(columns),
                      static_cast<uint32_t>(row_count), string_pool_);
   }

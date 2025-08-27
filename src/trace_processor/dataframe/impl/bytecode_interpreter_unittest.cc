@@ -608,7 +608,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Sorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
   {
     // Test case 1: Value exists in range
     SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
@@ -640,7 +640,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32LowerBound) {
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(impl::Column{Storage{std::move(values)},
                          NullStorage{NullStorage::NonNull{}}, Sorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{3u, 8u});
@@ -661,7 +661,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Sorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{3u, 7u});
@@ -710,7 +710,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
@@ -760,7 +760,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, banana_id, cherry_id, date_id});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Sorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   // --- Sub-test for EqualRange (Eq) ---
   {
@@ -813,7 +813,7 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {cherry_id, apple_id, empty_id, banana_id, apple_id, date_id, durian_id});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   // Initial indices {0, 1, 2, 3, 4, 5, 6} pointing to the data
   const std::vector<uint32_t> source_indices = {0, 1, 2, 3, 4, 5, 6};
@@ -883,7 +883,7 @@ TEST_F(BytecodeInterpreterTest, NullFilter) {
   AddColumn(impl::Column{
       Storage{Storage::Uint32{}},  // Storage type doesn't matter for NullFilter
       NullStorage{NullStorage::DenseNull{std::move(bv)}}, Unsorted{},
-      HasDuplicates{}});
+      HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   std::vector<uint32_t> indices(kNumIndices);
   std::iota(indices.begin(), indices.end(), 0);
@@ -936,10 +936,10 @@ TEST_F(BytecodeInterpreterTest, PrefixPopcount) {
   bv.set(160);  // Word 2
   bv.set(200);  // Word 3
 
-  AddColumn(
-      impl::Column{Storage{Storage::Uint32{}},  // Storage type doesn't matter
-                   NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
-                   Unsorted{}, HasDuplicates{}});
+  AddColumn(impl::Column{
+      Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}}, Unsorted{},
+      HasDuplicates{}, SpecializedStorage{}, std::nullopt});
   SetRegistersAndExecute("PrefixPopcount: [col=0, dest_register=Register(0)]");
 
   const auto& result_slab = GetRegister<Slab<uint32_t>>(0);
@@ -986,10 +986,10 @@ TEST_F(BytecodeInterpreterTest, TranslateSparseNullIndices) {
   bv.set(160);  // Word 2
   bv.set(200);  // Word 3
 
-  AddColumn(
-      impl::Column{Storage{Storage::Uint32{}},  // Storage type doesn't matter
-                   NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
-                   Unsorted{}, HasDuplicates{}});
+  AddColumn(impl::Column{
+      Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}}, Unsorted{},
+      HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   // Precomputed PrefixPopcount Slab (from previous test)
   auto popcount_slab = Slab<uint32_t>::Alloc(4);
@@ -1043,10 +1043,10 @@ TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
   popcount_slab[3] = 9;
 
   // Create a dummy column with the BitVector (SparseNull overlay)
-  AddColumn(
-      impl::Column{Storage{Storage::Uint32{}},  // Storage type doesn't matter
-                   NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
-                   Unsorted{}, HasDuplicates{}});
+  AddColumn(impl::Column{
+      Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}}, Unsorted{},
+      HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   // Input/Output buffer setup: Stride = 3, Offset for this column = 1
   // We pre-populate offset 0 with the original indices to simulate the state
@@ -1113,10 +1113,10 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
   bv.set(200);  // Word 3
 
   // Create a dummy column with the BitVector (DenseNull overlay)
-  AddColumn(
-      impl::Column{Storage{Storage::Uint32{}},  // Storage type doesn't matter
-                   NullStorage{NullStorage::DenseNull{std::move(bv)}},
-                   Unsorted{}, HasDuplicates{}});
+  AddColumn(impl::Column{
+      Storage{Storage::Uint32{}},  // Storage type doesn't matter
+      NullStorage{NullStorage::DenseNull{std::move(bv)}}, Unsorted{},
+      HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   // Input/Output buffer setup: Stride = 2, Offset for this column = 1
   // Pre-populate offset 0 with the original indices.
@@ -1169,7 +1169,8 @@ TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
   // Column data: {5, 10, 5, 15, 10, 20}
   auto values = CreateFlexVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
   AddColumn(impl::Column{std::move(values), NullStorage{NullStorage::NonNull{}},
-                         Unsorted{}, HasDuplicates{}});
+                         Unsorted{}, HasDuplicates{}, SpecializedStorage{},
+                         std::nullopt});
 
   // Source indices (imagine these are translated storage indices for data
   // lookup).
@@ -1206,7 +1207,8 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   auto values = CreateFlexVectorForTesting<uint32_t>(
       {0u, 0u, 0u, 3u, 3u, 5u, 5u, 7u, 7u, 7u, 10u});
   AddColumn(impl::Column{std::move(values), NullStorage{NullStorage::NonNull{}},
-                         SetIdSorted{}, HasDuplicates{}});
+                         SetIdSorted{}, HasDuplicates{}, SpecializedStorage{},
+                         std::nullopt});
 
   std::string bytecode =
       "Uint32SetIdSortedEq: [col=0, val_register=Register(0), "
@@ -1848,7 +1850,8 @@ TEST_F(BytecodeInterpreterTest,
 
 TEST_F(BytecodeInterpreterTest, InId) {
   AddColumn(impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                         Unsorted{}, HasDuplicates{}});
+                         Unsorted{}, HasDuplicates{}, SpecializedStorage{},
+                         std::nullopt});
   std::string bytecode =
       "In<Id>: [col=0, value_list_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]";
@@ -1898,7 +1901,7 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
@@ -1927,7 +1930,8 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 
 TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
   AddColumn(impl::Column{impl::Storage::Id{1000}, NullStorage::NonNull{},
-                         Unsorted{}, HasDuplicates{}});
+                         Unsorted{}, HasDuplicates{}, SpecializedStorage{},
+                         std::nullopt});
 
   std::string bytecode =
       "In<Id>: [col=0, value_list_register=Register(0), "
@@ -1957,7 +1961,7 @@ TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
@@ -2022,7 +2026,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
       {0u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u,  5u, 5u,
        5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Sorted{},
-                         HasDuplicates{}});
+                         HasDuplicates{}, SpecializedStorage{}, std::nullopt});
 
   SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
                          Range{0u, 25u});
