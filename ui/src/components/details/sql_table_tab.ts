@@ -27,9 +27,6 @@ import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {addEphemeralTab} from './add_ephemeral_tab';
 import {Tab} from '../../public/tab';
-import {addChartTab} from '../widgets/charts/chart_tab';
-import {ChartType} from '../widgets/charts/chart';
-import {AddChartMenuItem} from '../widgets/charts/add_chart_menu';
 import {Filter, Filters, renderFilters} from '../widgets/sql/table/filters';
 import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
 import {TableColumn} from '../widgets/sql/table/table_column';
@@ -152,26 +149,8 @@ class LegacySqlTableTab implements Tab {
     ];
   }
 
-  private tableMenuItems(column: TableColumn, alias: string) {
-    const chartAttrs = {
-      data: this.state.nonPaginatedData?.rows,
-      columns: [alias],
-    };
-
+  private tableMenuItems(column: TableColumn) {
     return [
-      m(AddChartMenuItem, {
-        chartOptions: [
-          {
-            chartType: ChartType.BAR_CHART,
-            ...chartAttrs,
-          },
-          {
-            chartType: ChartType.HISTOGRAM,
-            ...chartAttrs,
-          },
-        ],
-        addChart: (chart) => addChartTab(this.state.trace, chart),
-      }),
       m(MenuItem, {
         label: 'Pivot',
         onclick: () => {
@@ -225,7 +204,9 @@ class LegacySqlTableTab implements Tab {
 
   render() {
     const showViewButtons =
-      this.pivots.length > 0 || this.bar_charts.length > 0 || this.histograms.length > 0;
+      this.pivots.length > 0 ||
+      this.bar_charts.length > 0 ||
+      this.histograms.length > 0;
     const hasFilters = this.state.filters.get().length > 0;
 
     return m(
@@ -271,6 +252,18 @@ class LegacySqlTableTab implements Tab {
                     onclick: () => {
                       this.selected = {
                         kind: 'bar_chart',
+                        state: chart,
+                      };
+                    },
+                  }),
+                ),
+                this.histograms.map((chart) =>
+                  m(Button, {
+                    label: `Histogram: ${sqlColumnId(chart.args.column)}`,
+                    active: this.selected.state === chart,
+                    onclick: () => {
+                      this.selected = {
+                        kind: 'histogram',
                         state: chart,
                       };
                     },
