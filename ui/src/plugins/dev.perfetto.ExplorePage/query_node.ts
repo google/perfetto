@@ -55,7 +55,7 @@ export interface QueryNodeState {
 
 export interface QueryNode {
   readonly nodeId: string;
-  readonly graphTableName?: string;
+  meterialisedAs?: string;
   readonly type: NodeType;
   readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
@@ -148,7 +148,7 @@ export async function analyzeNode(
     node.type !== NodeType.kSqlSource
   ) {
     const sql: Query = {
-      sql: `SELECT * FROM ${node.graphTableName ?? ''}`,
+      sql: `SELECT * FROM ${node.meterialisedAs ?? ''}`,
       textproto: '',
       modules: [],
       preambles: [],
@@ -179,14 +179,14 @@ export async function analyzeNode(
   }
 
   let finalSql = lastRes.sql;
-  if (
-    node.type !== NodeType.kSqlSource &&
-    node.type != NodeType.kIntervalIntersect
-  ) {
+  if (materialise(node)) {
+    if (!node.meterialisedAs) {
+      node.meterialisedAs = `exp_${node.nodeId}`;
+    }
     const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
-      node.graphTableName ?? `exp_${node.nodeId}`
+      node.meterialisedAs ?? `exp_${node.nodeId}`
     } AS \n${lastRes.sql}`;
-    const selectSql = `SELECT * FROM ${node.graphTableName ?? `exp_${node.nodeId}`}`;
+    const selectSql = `SELECT * FROM ${node.meterialisedAs ?? `exp_${node.nodeId}`}`;
     finalSql = `${createTableSql};\n${selectSql}`;
   }
 
@@ -222,5 +222,12 @@ export function isAQuery(
     maybeQuery !== undefined &&
     !(maybeQuery instanceof Error) &&
     maybeQuery.sql !== undefined
+  );
+}
+
+function materialise(node: QueryNode): boolean {
+  return (
+    node.type !== NodeType.kSqlSource &&
+    node.type != NodeType.kIntervalIntersect
   );
 }
