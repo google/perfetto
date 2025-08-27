@@ -27,10 +27,7 @@ import {addQueryResultsTab} from '../../components/query_table/query_result_tab'
 import {featureFlags} from '../../core/feature_flags';
 import {z} from 'zod';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
-import {
-  commandInvocationSchema,
-  validateCommandInvocations,
-} from '../../core/command_manager';
+import {commandInvocationSchema} from '../../core/command_manager';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -135,21 +132,6 @@ export default class implements PerfettoPlugin {
     type MacroConfig = z.infer<typeof macroSchema>;
     const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
       schema: macroSchema,
-      validator: (data: MacroConfig): string | undefined => {
-        const macroErrors: string[] = [];
-        for (const [macroName, commands] of Object.entries(data)) {
-          const invalidCommands = validateCommandInvocations(
-            commands,
-            ctx.commands,
-          );
-          if (invalidCommands.length > 0) {
-            macroErrors.push(
-              `Macro "${macroName}" has unknown commands:\n${invalidCommands.map((cmd) => `  - ${cmd}`).join('\n')}`,
-            );
-          }
-        }
-        return macroErrors.length > 0 ? macroErrors.join('\n\n') : undefined;
-      },
     });
     const setting = ctx.settings.register({
       id: 'perfetto.CoreCommands#UserDefinedMacros',
