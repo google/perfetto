@@ -3831,6 +3831,7 @@ message TrackEventConfig {
   // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
   // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
+  optional uint64 thread_time_subsampling_ns = 10;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
