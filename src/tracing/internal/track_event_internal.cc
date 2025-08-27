@@ -595,7 +595,7 @@ EventContext TrackEventInternal::WriteEvent(
     int64_t thread_time_delta_ns;
     if (tls_state.thread_time_subsampling_ns == 0 ||
         incr_state->last_thread_time_timestamp_ns == 0 ||
-        timestamp.value < incr_state->last_thread_time_timestamp_ns +
+        timestamp.value >= incr_state->last_thread_time_timestamp_ns +
                               tls_state.thread_time_subsampling_ns) {
       auto thread_time_ns = base::GetThreadCPUTimeNs().count();
       thread_time_delta_ns = thread_time_ns - incr_state->last_thread_time_ns;
