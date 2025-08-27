@@ -1,34 +1,89 @@
-# Cookbook: UI Automation and Productivity
+# UI Automation
 
-This page contains practical recipes for automating common Perfetto UI tasks to
-speed up your trace analysis workflow.
+This page covers how to automate common Perfetto UI tasks to speed up your
+trace analysis workflow using commands, startup commands, and macros.
 
-## What are commands and macros?
+## Commands System Overview
+
+### Commands
 
 **Commands** are individual UI actions that can be triggered manually or
 automatically. Examples include pinning tracks, running queries, or creating
-debug tracks. These can be run manually using the command palette
-(`Ctrl-Shift-P` on Windows/Linux, `Cmd-Shift-P` on Mac). You can discover
-available commands by typing in the command palette and using autocomplete.
+debug tracks. Access commands through:
 
-**Startup commands** are commands that run automatically every time you open any
-trace. Configure them in **Settings > Startup Commands** to set up your
-preferred view immediately. These affect only the UI display - the trace file
-itself is unchanged. These are useful when you open traces and almost always
-perform the same sort of actions on startup. For JSON schema details, see
-[Startup Commands](/docs/visualization/perfetto-ui.md#startup-commands).
+- Command palette: `Ctrl-Shift-P` (Windows/Linux) or `Cmd-Shift-P` (Mac)
+- Omnibox: Type `>` to transform it into a command palette
+- Commands support fuzzy matching and autocomplete
 
-**Macros** are named sequences of commands that you trigger manually when
-needed. Configure them in **Settings > Macros** and run them via the command
-palette (`Ctrl-Shift-P` and then type `>macro name`). Use macros for analysis
-workflows you run occasionally rather than always. For JSON schema details, see
-[Macros](/docs/visualization/perfetto-ui.md#macros).
+### Startup Commands
 
-For detailed configuration instructions and JSON schema, see the
-[Commands section](/docs/visualization/perfetto-ui.md#commands) in the Perfetto
-UI guide.
+**Startup commands** run automatically every time you open any trace. Configure
+them in **Settings > Startup Commands** to set up your preferred view
+immediately. These affect only the UI display - the trace file itself is
+unchanged.
 
-## Startup Commands: Automatic setup on trace load
+#### JSON Schema
+
+Startup commands must be a JSON array of command objects:
+
+```typescript
+[
+  {
+    "id": string,      // Command identifier
+    "args": unknown[]  // Array of arguments (types depend on the commands)
+  },
+  ...
+]
+```
+
+#### Notes
+
+- Commands execute in the order specified
+- Invalid JSON or unknown command IDs will cause errors
+- These commands affect only the UI display - the trace file is unchanged
+
+### Macros
+
+**Macros** are named sequences of commands you trigger manually when needed.
+Configure them in **Settings > Macros** and run them via the command palette
+(`Ctrl-Shift-P` and then type `>macro name`). Use macros for analysis workflows
+you run occasionally rather than always.
+
+#### JSON Schema
+
+Macros must be a JSON object with macro names as keys and command arrays as
+values:
+
+```typescript
+{
+  "macro_name": [
+    {
+      "id": string,      // Command identifier
+      "args": unknown[]  // Array of arguments (types depend on the command)
+    },
+    ...
+  ],
+  ...
+}
+```
+
+#### Notes
+
+- Macro names must be valid JSON string keys. Simple names without special
+  characters are recommended for easier use in the command palette.
+- Run macros by typing `>macro name` in the command palette (e.g.,
+  `>CPU Analysis`)
+- Commands in a macro execute sequentially
+
+### Common Issues
+
+- **JSON syntax errors**: Missing commas, trailing commas, or unescaped quotes
+- **Invalid command IDs**: Use autocomplete in the command palette to find valid
+  IDs
+- **Wrong argument types**: All arguments must be strings, even numbers
+- **Wrong argument count**: Each command expects a specific number of arguments
+
+## Startup Command Examples
 
 ### Pin important tracks automatically
 
@@ -105,7 +160,7 @@ This comprehensive startup configuration prepares the UI for system analysis:
 ]
 ```
 
-## Macros: On-demand analysis workflows
+## Macro Examples
 
 ### Focus on specific subsystem
 
@@ -154,7 +209,7 @@ This macro helps identify performance bottlenecks:
       "args": [".*CPU.*"]
     },
     {
-      "id": "dev.perfetto.RunQuery",
+      "id": "dev.perfetto.RunQueryAndShowTab",
       "args": [
         "SELECT thread.name, COUNT(*) as blocks, SUM(dur)/1000000 as total_ms FROM thread_state JOIN thread USING(utid) WHERE state = 'D' GROUP BY thread.name ORDER BY total_ms DESC LIMIT 10"
       ]
@@ -212,3 +267,13 @@ the trace opens in the UI:
    to split into multiple tracks. For Android use cases, see
    [Android Trace Analysis Cookbook](/docs/getting-started/android-trace-analysis.md)
    for examples of common queries used by Android engineers.
+
+## See Also
+
+- [Commands Automation Reference](/docs/visualization/commands-automation-reference.md) -
+  Complete reference for stable automation commands with backwards compatibility
+  guarantees
+- [Perfetto UI Guide](/docs/visualization/perfetto-ui.md) - General UI
+  documentation including commands configuration
+- [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md) - Opening
+  traces with pre-configured commands via URLs

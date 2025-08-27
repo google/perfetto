@@ -37,6 +37,7 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
 
   // Query commands
   'dev.perfetto.RunQuery',
+  'dev.perfetto.RunQueryAndShowTab',
 
   // Commands will be added here based on user suggestions
 ];

@@ -151,6 +151,31 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
   // Query commands
   {
     id: 'dev.perfetto.RunQuery',
+    args: ['CREATE TABLE test_command_execution AS SELECT 42 as test_value'],
+    traceFile: 'chrome_rendering_desktop.pftrace', // Chrome trace for creating test table
+    maskQueryDetails: true,
+    after: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+
+      // Verify the table was created by querying it
+      const result = await trace.engine.query(
+        'SELECT test_value FROM test_command_execution',
+      );
+      if (result.error() !== undefined) {
+        throw new Error(`Failed to query test table: ${result.error()}`);
+      }
+
+      // Verify we got the expected constant value (cannot use NUM here as
+      // we are inside the puppeteer context).
+      const row = result.firstRow({test_value: Number()});
+      if (row.test_value !== 42) {
+        throw new Error(`Expected test_value=42, got: ${row.test_value}`);
+      }
+    },
+  },
+  {
+    id: 'dev.perfetto.RunQueryAndShowTab',
     args: ['select ts, dur, name from slice limit 50'],
     traceFile: 'chrome_rendering_desktop.pftrace', // Chrome trace with rich slice data for queries
     maskQueryDetails: true,
