@@ -21,7 +21,6 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/atomic_shared_ptr.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -38,6 +37,19 @@
 
 namespace perfetto {
 namespace base {
+
+namespace task_runner_internal {
+class ScopedRefcount;
+struct Slab;
+
+// Exposed for testing
+constexpr uint32_t kNumRefcountBuckets = 32;
+constexpr size_t kSlabSize = 512;
+
+}  // namespace task_runner_internal
+
+template <typename T>
+class TaskRunnerTest;
 
 // This class implements a lock-less multi-producer single-consumer task runner.
 // This is achieved by using a linked list of "slabs". Each slab is a fixed-size
@@ -109,8 +121,6 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
   // `ms`.
   void AdvanceTimeForTesting(uint32_t ms);
 
-  static constexpr size_t kSlabSize = 512;  // Exposed for testing.
-
   // Stats for testing.
   size_t slabs_allocated() const {
     return slabs_allocated_.load(std::memory_order_relaxed);
@@ -120,54 +130,9 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
   }
 
  private:
-  // A slab is a fixed-size array of tasks. The lifecycle of a task slot
-  // within a slab goes through three phases:
-  //
-  // 1. Reservation: A writer thread atomically increments `next_task_slot` to
-  //    reserve a slot in the `tasks` array. This reservation establishes the
-  //    implicit order in which the consumer will attempt to read tasks (but
-  //    only if they are published in the bitmap, see below).
-  //
-  // 2. Publishing: After writing the task into its reserved slot, the writer
-  //    thread atomically sets the corresponding bit in the `tasks_written`
-  //    bitmask. This acts as a memory barrier and makes the task visible to
-  //    the consumer (main) thread.
-  //
-  // 3. Consumption: The main thread acquire-reads the `tasks_written` bitmask.
-  //    For each bit that is set, it processes the task and then sets the
-  //    corresponding bit in its private `tasks_read` bitmask to prevent
-  //    reading the same task again.
-  struct Slab {
-    Slab();
-    ~Slab();
-
-    // `tasks` and `next_task_slot` are accessed by writer threads only.
-    // The main thread can access `tasks[i]` but only after ensuring that the
-    // corresponding bit in `tasks_written` is set.
-    std::array<std::function<void()>, kSlabSize> tasks{};
-    std::atomic<size_t> next_task_slot{0};
-
-    // A bitmask indicating which tasks in the `tasks` array have been written
-    // and are ready to be read by the main thread.
-    // This is atomically updated by writer threads and read by the main thread.
-    using BitWord = size_t;
-    static constexpr size_t kBitsPerWord = sizeof(BitWord) * 8;
-    static constexpr size_t kNumWords = kSlabSize / kBitsPerWord;
-    std::array<std::atomic<BitWord>, kNumWords> tasks_written{};
-
-    // A bitmask indicating which tasks have been read by the main thread.
-    // This is accessed only by the main thread, so no atomicity is required.
-    std::array<BitWord, kNumWords> tasks_read{};
-
-    // The link to the previous slab.
-    // This is written by writer threads when they create a new slab and link it
-    // to the previous tail. But they do so when nobody else can see the Slab,
-    // so there is no need for an AtomicSharedPtr. After the initial creation,
-    // this is accessed only by the main thread when:
-    // 1. draining tasks (to walk back to the oldest slab)
-    // 2. deleting slabs, setting it to nullptr, when they are fully consumed.
-    std::shared_ptr<Slab> prev;
-  };
+  using Slab = task_runner_internal::Slab;
+  using ScopedRefcount = task_runner_internal::ScopedRefcount;
+  friend class task_runner_internal::ScopedRefcount;
 
   struct DelayedTask {
     TimeMillis time;
@@ -187,18 +152,20 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
     }
   };
 
-  std::function<void()> PopNextImmediateTask();
-  std::function<void()> PopTaskRecursive(const std::shared_ptr<Slab>&,
-                                         Slab* next_slab);
+  PERFETTO_ALWAYS_INLINE std::function<void()> PopNextImmediateTask();
+  std::function<void()> PopTaskRecursive(Slab*, Slab* next_slab);
   std::function<void()> PopNextExpiredDelayedTask();
   int GetDelayMsToNextTask() const;
   void WakeUp() { wakeup_event_.Notify(); }
-  std::shared_ptr<Slab> AllocNewSlab();
+  Slab* AllocNewSlab();
+  void DeleteSlab(Slab*);
   void PostFileDescriptorWatches(uint64_t windows_wait_result);
   void RunFileDescriptorWatch(PlatformHandle);
   void UpdateWatchTasks();
 
-  // This is semantically a unique_ptr, but is accessed from different threads.
+  // These two are semantically a unique_ptr, but are accessed from different
+  // threads.
+  std::atomic<Slab*> tail_{};  // This is never null.
   std::atomic<Slab*> free_slab_{};
 
   EventFd wakeup_event_;
@@ -234,14 +201,114 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
   std::map<PlatformHandle, WatchTask> watch_tasks_;
   bool watch_tasks_changed_ = false;
 
+  // An array of 32 refcount buckets. Every Slab* maps to a bucket via a hash
+  // function. Every PostTask() thread increases the refcount before accessing
+  // a slab, and decreases it when done.
+  // This allows the Run() main thread to tell if any thread has possibly been
+  // able to observe the Slab through the tail_ before deleting it.
+  std::array<std::atomic<int32_t>, task_runner_internal::kNumRefcountBuckets>
+      refcounts_{};
+
   // Stats for testing.
   std::atomic<size_t> slabs_allocated_{};
   std::atomic<size_t> slabs_freed_{};
-
-  // Keep last, so deletion of slabs happens before invalidating the remaining
-  // state.
-  AtomicSharedPtr<Slab> tail_;
 };
+
+namespace task_runner_internal {
+
+// Returns the index of the refcount_ bucket for the passed Slab pointer.
+static uint32_t HashSlabPtr(Slab* slab) {
+  // Hash the pointer to obtain a bucket.
+  uint64_t u = reinterpret_cast<uintptr_t>(slab);
+  u &= 0x00FFFFFFFFFFFFFFull;  // Clear asan/MTE top byte for tagged pointers.
+  u += 0x9E3779B97F4A7C15ull;
+  u = (u ^ (u >> 30)) * 0xBF58476D1CE4E5B9ull;
+  u = (u ^ (u >> 27)) * 0x94D049BB133111EBull;
+  return static_cast<uint32_t>((u ^ (u >> 31)) % kNumRefcountBuckets);
+}
+
+// A slab is a fixed-size array of tasks. The lifecycle of a task slot
+// within a slab goes through three phases:
+//
+// 1. Reservation: A writer thread atomically increments `next_task_slot` to
+//    reserve a slot in the `tasks` array. This reservation establishes the
+//    implicit order in which the consumer will attempt to read tasks (but
+//    only if they are published in the bitmap, see below).
+//
+// 2. Publishing: After writing the task into its reserved slot, the writer
+//    thread atomically sets the corresponding bit in the `tasks_written`
+//    bitmask. This acts as a memory barrier and makes the task visible to
+//    the consumer (main) thread.
+//
+// 3. Consumption: The main thread acquire-reads the `tasks_written` bitmask.
+//    For each bit that is set, it processes the task and then sets the
+//    corresponding bit in its private `tasks_read` bitmask to prevent
+//    reading the same task again.
+struct Slab {
+  Slab();
+  ~Slab();
+
+  std::atomic<size_t> next_task_slot{0};
+
+  // `tasks` and `next_task_slot` are accessed by writer threads only.
+  // The main thread can access `tasks[i]` but only after ensuring that the
+  // corresponding bit in `tasks_written` is set.
+  std::array<std::function<void()>, kSlabSize> tasks{};
+
+  // A bitmask indicating which tasks in the `tasks` array have been written
+  // and are ready to be read by the main thread.
+  // This is atomically updated by writer threads and read by the main thread.
+  using BitWord = size_t;
+  static constexpr size_t kBitsPerWord = sizeof(BitWord) * 8;
+  static constexpr size_t kNumWords = kSlabSize / kBitsPerWord;
+  std::array<std::atomic<BitWord>, kNumWords> tasks_written{};
+
+  // A bitmask indicating which tasks have been read by the main thread.
+  // This is accessed only by the main thread, so no atomicity is required.
+  std::array<BitWord, kNumWords> tasks_read{};
+
+  // The link to the previous slab.
+  // This is written by writer threads when they create a new slab and link it
+  // to the previous tail. But they do so when nobody else can see the Slab,
+  // so there is no need for an AtomicSharedPtr. After the initial creation,
+  // this is accessed only by the main thread when:
+  // 1. draining tasks (to walk back to the oldest slab)
+  // 2. deleting slabs, setting it to nullptr, when they are fully consumed.
+  Slab* prev = nullptr;
+};
+
+class ScopedRefcount {
+ public:
+  ScopedRefcount(LockFreeTaskRunner* tr, LockFreeTaskRunner::Slab* slab) {
+    bucket_ = &tr->refcounts_[HashSlabPtr(slab)];
+    auto prev_value = bucket_->fetch_add(1);
+    PERFETTO_DCHECK(prev_value >= 0);
+  }
+
+  ~ScopedRefcount() {
+    if (bucket_) {
+      auto prev_value = bucket_->fetch_sub(1);
+      PERFETTO_DCHECK(prev_value > 0);
+    }
+  }
+
+  ScopedRefcount(ScopedRefcount&& other) noexcept {
+    bucket_ = other.bucket_;
+    other.bucket_ = nullptr;
+  }
+
+  ScopedRefcount& operator=(ScopedRefcount&& other) noexcept {
+    this->~ScopedRefcount();
+    new (this) ScopedRefcount(std::move(other));
+    return *this;
+  }
+
+  ScopedRefcount(const ScopedRefcount&) = delete;
+  ScopedRefcount& operator=(const ScopedRefcount&) = delete;
+
+  std::atomic<int32_t>* bucket_{};
+};
+}  // namespace task_runner_internal
 
 }  // namespace base
 }  // namespace perfetto

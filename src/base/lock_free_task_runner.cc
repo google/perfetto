@@ -34,15 +34,26 @@
 namespace perfetto {
 namespace base {
 
-// --- LockFreeTaskRunner::Slab ---
-LockFreeTaskRunner::Slab::Slab() = default;
-LockFreeTaskRunner::Slab::~Slab() = default;
+namespace task_runner_internal {
+Slab::Slab() = default;
+Slab::~Slab() {
+  PERFETTO_DCHECK(!prev);  // We should never delete linked slabs.
+}
+}  // namespace task_runner_internal
 
-// --- LockFreeTaskRunner ---
+namespace {
+static constexpr auto kSlabSize = task_runner_internal::kSlabSize;
+}
+
 LockFreeTaskRunner::LockFreeTaskRunner()
     : run_task_thread_id_(std::this_thread::get_id()) {
   static_assert((kSlabSize & (kSlabSize - 1)) == 0, "kSlabSize must be a pow2");
   static_assert(kSlabSize >= Slab::kBitsPerWord);
+
+  // Populate both the tail and the freelist, to minimize the chance of
+  // allocations at runtime.
+  tail_.store(AllocNewSlab());
+  free_slab_.store(AllocNewSlab());
 
   AddFileDescriptorWatch(wakeup_event_.fd(), [] {
     // Not reached -- see PostFileDescriptorWatches().
@@ -53,14 +64,13 @@ LockFreeTaskRunner::LockFreeTaskRunner()
 LockFreeTaskRunner::~LockFreeTaskRunner() {
   PERFETTO_DCHECK(RunsTasksOnCurrentThread());
 
-  // This is necessary to kick-off the deletion of the chain of slabs before
-  // we delete the freelist (Below). Normally the reset of tail_ would happen
-  // by the member dtor after we return. However if we let the LIFO dtor do that
-  // the last Slab getting destroyed will put itself in the free_slab_ AFTER
-  // we have tried to delete it here, causing a leak. We need to enforce
-  // sequencing (because we don't have a RAII atomic_unique_ptr for free_slab).
-  tail_.store(nullptr);
-  delete free_slab_.exchange(nullptr);  // no check needed, delete(null) is ok.
+  for (Slab* slab = tail_.exchange(nullptr); slab;) {
+    Slab* prev = slab->prev;
+    slab->prev = nullptr;
+    delete slab;
+    slab = prev;
+  }
+  delete free_slab_.exchange(nullptr);
 }
 
 void LockFreeTaskRunner::PostTask(std::function<void()> closure) {
@@ -70,18 +80,12 @@ void LockFreeTaskRunner::PostTask(std::function<void()> closure) {
   PERFETTO_CHECK(PERFETTO_LIKELY(closure));
   using BitWord = Slab::BitWord;
   for (;;) {
-    std::shared_ptr<Slab> slab = tail_.load(std::memory_order_acquire);
-    if (PERFETTO_UNLIKELY(!slab)) {
-      // This happens on the very first call, and on each call after the reader
-      // has consumed a full slab (once every kSlabSize tasks).
-      tail_.compare_exchange_strong(slab, AllocNewSlab());
-      // If the cmpxcgh fails, another thread allocated a new slab and won the
-      // race. It doesn't matter really as long as we have a slab.
-      // In either case retry, as now we should have a slab.
-      continue;
-    }
+    Slab* slab = tail_.load();
+    PERFETTO_DCHECK(slab);  // The tail_ must be always valid.
+    ScopedRefcount scoped_refcount(this, slab);
 
-    // We have 3 cases here:
+    // Now that we have a slab, try appending a task to it (if there is space).
+    // We have 3 cases:
     // 1. slot < kSlabSize: the nominal case. Append the task and return.
     // 2. slot == kSlabSize: the common overflow case: The slab was full and we
     //    tried to allocate the N+1 th element. We have to allocate a new Slab.
@@ -91,24 +95,22 @@ void LockFreeTaskRunner::PostTask(std::function<void()> closure) {
     size_t slot = slab->next_task_slot.fetch_add(1, std::memory_order_relaxed);
 
     if (slot >= kSlabSize) {  // Cases 2,3
-      std::shared_ptr<Slab> new_slab = AllocNewSlab();
-
+      Slab* new_slab = AllocNewSlab();
       new_slab->prev = slab;
       new_slab->next_task_slot.store(1, std::memory_order_relaxed);
       slot = 0;
       if (PERFETTO_UNLIKELY(!tail_.compare_exchange_strong(slab, new_slab))) {
         // If the cmpxcgh fails, another thread tried to allocate a new tail
         // slab and won the race. Do another round, we'll observe the new slab.
-
-        // The reset() below is not really needed as the dtor (triggered by
-        // `new_slab` going out of scope without any further refcount) resets
-        // the `prev` shared_ptr. This is here just for future-proofness, in
-        // case somebody in future changes the freelist logic and forgets to
-        // invoke the dtor. Doing so would leak slabs, which could go unnoticed.
-        new_slab->prev.reset();
+        // We have to release the prev pointer as at this point we found out
+        // another thread also has it.
+        new_slab->prev = nullptr;
+        DeleteSlab(new_slab);
         continue;
       }
+
       slab = new_slab;
+      scoped_refcount = ScopedRefcount(this, new_slab);
     }
 
     // Nominal case: publish the task and return.
@@ -161,7 +163,7 @@ void LockFreeTaskRunner::Run() {
     //    TestTaskRunner.RunUntilIdle() rely on the fact that FD watches are
     //    polled before the current task is ran, so that the task can tell if
     //    there are more tasks upcoming or it has reached quiescence.
-    //    TL;DR RunUntilIdle() was a mistake as it has ill-defined semantics and
+    //    TL;DR RunUntilIdle() was a mistake as it has ill-defined semantics but
     //    now tests rely on those subtle semantics.
 
     // Recompute the list of FDs to watch.
@@ -202,26 +204,18 @@ void LockFreeTaskRunner::Run() {
 }
 
 std::function<void()> LockFreeTaskRunner::PopNextImmediateTask() {
-  std::shared_ptr<Slab> tail = tail_.load(std::memory_order_acquire);
-  if (!tail) {
-    // The tail can be null:
-    // 1. When invoking Run() with no task present (e.g. after ctor).
-    // 2. When PopTaskRecursive() below deletes the only slab present.
-    return nullptr;
-  }
-  return PopTaskRecursive(tail, nullptr);
+  return PopTaskRecursive(tail_.load(), nullptr);
 }
 
-std::function<void()> LockFreeTaskRunner::PopTaskRecursive(
-    const std::shared_ptr<Slab>& slab,
-    Slab* next_slab) {
+std::function<void()> LockFreeTaskRunner::PopTaskRecursive(Slab* slab,
+                                                           Slab* next_slab) {
   PERFETTO_DCHECK(RunsTasksOnCurrentThread());
-  const std::shared_ptr<Slab>& prev = slab->prev;
+  Slab* prev = slab->prev;
   if (PERFETTO_UNLIKELY(prev)) {
     // In practice it's extemely unlikely that a slab has >1 predecessors.
     // In nominal conditions it is going to have 0 predecessors most of the
     // times and 1 predecessors 1 every kSlabSize times.
-    auto task = PopTaskRecursive(prev, slab.get());
+    auto task = PopTaskRecursive(prev, slab);
     if (task)
       return task;
   }
@@ -249,40 +243,37 @@ std::function<void()> LockFreeTaskRunner::PopTaskRecursive(
 
   // There are no unconsumed tasks in this Slab. Reached this point, this
   // invocation will return null. However, before doing so, if the slab is fully
-  // written (are no slots left) and fully consumed  delete it. We delete only
-  // slabs that have no predecessor, from the oldest to the newest, to keep the
-  // logic simpler as slabs are fully consumed in that order. The only thing
-  // that could keep a slab alive is a thread getting descheduled between the
-  // acquisition of the slot and the publishing of the written bit. This is very
-  // unlikely as a thread should be descheduled for the time it takes to fill up
-  // and consume another slab. Even if it happens, it will just delay a bit the
-  // deletion of the chain.
+  // written (are no slots left) and fully consumed delete it.
+  // We never delete the latest slab (the one pointed to by tail_) because
+  // we want the tail_ to always point to a valid slab.
+  // In principle, we only delete non-tail slabs, and PostTask() threads only
+  // access the tail, never walk back on the list, which sounds safe. However
+  // there is a potential race we have to guard against:
+  // A PostTask() thread could observe Slab 1 (e.g., the only slab), then
+  // another PostTask thread() could append (and replace tail_ with) a new
+  // Slab 2 (because Slab 1 was full).
+  // If Run() comes along and sees the Slab 1 full it will delete it, without
+  // realizing that the first thread is still accessing it, thinking it was the
+  // tail.
+  // Essentially, it is safe to delete non-tail slabs as long as we can
+  // guarrantee that no other thread observed that slab through the `tail_` at
+  // some point in the recent past. In order to do so, we use a refcount
+  // mechanism. If the refcount is 0 we know that no other PostTask thread
+  // has loaded the tail, and hence we can safely delete any non-tail slab.
+  // If a PostTask thread comes immediately after our check they will observe
+  // the new tail (we never delete the tail slab, only the predecessors).
 
   bool slab_fully_consumed = words_fully_consumed == Slab::kNumWords;
 
-  if (slab_fully_consumed && !prev) {
+  const uint32_t bucket = HashSlabPtr(slab);
+  if (slab_fully_consumed && next_slab && refcounts_[bucket].load() == 0) {
     // NOTE: only the main thread follows the `prev` linked list, writers never
     // look at `prev`. The only contention entrypoint is the `tail_` pointer,
     // which can be modified both by us and by writers.
-    PERFETTO_DCHECK(slab->prev.get() == nullptr);
-    if (next_slab) {
-      next_slab->prev.reset();
-      // The current `slab` might get deleted at this point, as the shared_ptr
-      // of next_slab.prev might be the only one refcounting it.
-    } else {
-      // If we get here, `slab` is the only Slab: it has no prev, and it is the
-      // one `tail_` is pointing to. We need to update the `tail_` pointer but,
-      // by doing so, we might race with a writer thread allocating a new slab
-      // (and pointing back to us).
-
-      std::shared_ptr<Slab> expected = slab;
-      tail_.compare_exchange_strong(expected, nullptr);
-
-      // If the compxcgh fails, another thread managed to add a new slab, which
-      // points back to us, essentially invalidating our attempt to remove the
-      // current slab. This is not a big deal really. We will try again removing
-      // this slab on the next invocation.
-    }
+    PERFETTO_DCHECK(next_slab->prev == slab);
+    next_slab->prev = slab->prev;
+    slab->prev = nullptr;
+    DeleteSlab(slab);
   }
 
   return nullptr;
@@ -304,8 +295,7 @@ void LockFreeTaskRunner::Quit() {
 
 bool LockFreeTaskRunner::IsIdleForTesting() {
   PERFETTO_DCHECK(RunsTasksOnCurrentThread());
-  for (std::shared_ptr<Slab> slab = tail_.load(std::memory_order_acquire); slab;
-       slab = slab->prev) {
+  for (Slab* slab = tail_; slab; slab = slab->prev) {
     for (size_t i = 0; i < Slab::kNumWords; ++i) {
       if (slab->tasks_written[i] & ~slab->tasks_read[i]) {
         return false;
@@ -343,26 +333,24 @@ int LockFreeTaskRunner::GetDelayMsToNextTask() const {
   return static_cast<int>((deadline - now).count());
 }
 
-std::shared_ptr<LockFreeTaskRunner::Slab> LockFreeTaskRunner::AllocNewSlab() {
+LockFreeTaskRunner::Slab* LockFreeTaskRunner::AllocNewSlab() {
   Slab* free_slab = free_slab_.exchange(nullptr);
-
-  auto deleter = [this](Slab* s) {
-    // Reset the slab.
-    s->~Slab();
-    new (s) Slab();
-
-    Slab* null_slab = nullptr;
-    if (!free_slab_.compare_exchange_strong(null_slab, s)) {
-      slabs_freed_.fetch_add(1, std::memory_order_relaxed);
-      delete s;
-    }
-  };
-
   if (free_slab) {
-    return std::shared_ptr<Slab>(free_slab, deleter);
+    free_slab->~Slab();
+    new (free_slab) Slab();
+    return free_slab;
   }
   slabs_allocated_.fetch_add(1, std::memory_order_relaxed);
-  return std::shared_ptr<Slab>(new Slab(), deleter);
+  return new Slab();
+}
+
+void LockFreeTaskRunner::DeleteSlab(Slab* slab) {
+  PERFETTO_DCHECK(!slab->prev);  // We should never delete a linked slab.
+  Slab* null_slab = nullptr;
+  if (!free_slab_.compare_exchange_strong(null_slab, slab)) {
+    slabs_freed_.fetch_add(1, std::memory_order_relaxed);
+    delete slab;
+  }
 }
 
 void LockFreeTaskRunner::PostDelayedTask(std::function<void()> task,
@@ -447,7 +435,6 @@ void LockFreeTaskRunner::RunFileDescriptorWatch(PlatformHandle fd) {
 
   // Make poll(2) pay attention to the fd again. Since another thread may have
   // updated this watch we need to refresh the set first.
-  // TODO check if this still holds.
   UpdateWatchTasks();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

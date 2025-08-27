@@ -824,7 +824,6 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
     srcs = [
         "include/perfetto/ext/base/android_utils.h",
-        "include/perfetto/ext/base/atomic_shared_ptr.h",
         "include/perfetto/ext/base/base64.h",
         "include/perfetto/ext/base/bits.h",
         "include/perfetto/ext/base/circular_queue.h",

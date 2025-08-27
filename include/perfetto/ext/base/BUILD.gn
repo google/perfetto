@@ -17,7 +17,6 @@ import("../../../../gn/perfetto.gni")
 source_set("base") {
   sources = [
     "android_utils.h",
-    "atomic_shared_ptr.h",
     "base64.h",
     "bits.h",
     "circular_queue.h",
