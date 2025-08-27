@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
@@ -21,10 +20,6 @@ import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ETM';
-
-  static onActivate(app: App): void {
-    console.log('ETMPlugin::onActivate()', app.pluginId);
-  }
 
   async onTraceLoad(trace: Trace) {
     const title = 'ETM Session ID';
