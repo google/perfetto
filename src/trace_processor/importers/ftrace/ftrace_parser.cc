@@ -2503,7 +2503,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
   proc_tracker->UpdateThreadName(new_utid, new_comm,
                                  ThreadNamePriority::kFtrace);
-  proc_tracker->AssociateThreads(source_utid, new_utid);
+  proc_tracker->AssociateThreads(source_utid, new_utid,
+                                 /*associate_main_threads*/ true);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
       timestamp, new_utid, source_utid);
