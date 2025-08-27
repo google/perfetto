@@ -51,23 +51,65 @@ namespace perfetto::trace_to_text {
 namespace {
 
 int Usage(const char* argv0) {
-  fprintf(
-      stderr,
-      "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
-      "modes:\n"
-      "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate|firefox"
-      "|java_heap_profile|decompress_packets|binary\n"
-      "options:\n"
-      "  [--truncate start|end]\n"
-      "  [--full-sort]\n"
-      "\"profile\" mode options:\n"
-      "  [--perf] generate a perf profile instead of a heap profile\n"
-      "  [--no-annotations] do not suffix frame names with derived "
-      "annotations\n"
-      "  [--timestamps TIMESTAMP1,TIMESTAMP2,...] generate profiles "
-      "only for these *specific* timestamps\n"
-      "  [--pid PID] generate profiles only for this process id\n",
-      argv0);
+  fprintf(stderr, R"(
+Trace format conversion tool.
+Usage: %s MODE [OPTIONS] [input_file] [output_file]
+
+CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
+
+ systrace                             Converts to systrace HTML format
+   --truncate [start|end]             Truncates trace to keep start or end
+   --full-sort                        Forces full trace sorting
+
+ json                                 Converts to Chrome JSON format
+   --truncate [start|end]             Truncates trace to keep start or end
+   --full-sort                        Forces full trace sorting
+
+ ctrace                               Converts to compressed systrace format
+   --truncate [start|end]             Truncates trace to keep start or end
+   --full-sort                        Forces full trace sorting
+
+ text                                 Converts to human-readable text format
+   (no additional options)
+
+ profile                              Converts heap profiles to pprof format
+                                      (profile.proto - default: heap profiles)
+   --perf                             Extract perf/CPU profiles instead
+   --no-annotations                   Don't add derived annotations to frames
+   --timestamps T1,T2,...             Generate profiles for specific timestamps
+   --pid PID                          Generate profiles for specific process
+
+ java_heap_profile                    Converts Java heap profiles to pprof format
+                                      (profile.proto)
+   --no-annotations                   Don't add derived annotations to frames
+   --timestamps T1,T2,...             Generate profiles for specific timestamps
+   --pid PID                          Generate profiles for specific process
+
+ hprof                                Converts heap profile to hprof format
+   --timestamps T1,T2,...             Generate profiles for specific timestamps
+   --pid PID                          Generate profiles for specific process
+
+ symbolize                            Symbolizes addresses in profiles
+   (no additional options)
+
+ deobfuscate                          Deobfuscates obfuscated profiles
+   (no additional options)
+
+ firefox                              Converts to Firefox profiler format
+   (no additional options)
+
+ decompress_packets                   Decompresses compressed trace packets
+   (no additional options)
+
+ binary                               Converts text proto to binary format
+   (no additional options)
+
+NOTES:
+ - If no input file is specified, reads from stdin
+ - If no output file is specified, writes to stdout
+ - Input/output files can be '-' to explicitly use stdin/stdout
+)",
+          argv0);
   return 1;
 }
 
