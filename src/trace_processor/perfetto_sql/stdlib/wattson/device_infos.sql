@@ -165,6 +165,12 @@ JOIN _wattson_device AS device
 ORDER BY
   cpu;
 
+-- Identifies unique policies on this device
+CREATE PERFETTO TABLE _device_policies AS
+SELECT DISTINCT
+  policy
+FROM _dev_cpu_policy_map;
+
 -- Devices that require using devfreq
 CREATE PERFETTO TABLE _use_devfreq AS
 WITH
