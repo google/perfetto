@@ -54,50 +54,7 @@ class TaskRunnerTest;
 // This class implements a lock-less multi-producer single-consumer task runner.
 // This is achieved by using a linked list of "slabs". Each slab is a fixed-size
 // array of tasks.
-//
-// The overall architecture is as follows:
-// - There is one "main" thread, which is the only thread that is allowed to
-//   invoke Run(). This is the consumer thread.
-// - There can be multiple "writer" threads, which are the threads that call
-//   PostTask(). These are the producer threads.
-//
-// The slabs are organized as a singly-linked list, linked from the tail:
-// tail -> [Slab N] -> [Slab N-1] -> ... -> [Slab 0] -> null
-// The tail points to the latest Slab. In nominal cases (i.e. in absence of
-// PostTask() bursts, assuming Run catches up) there is only one (or at most
-// two) Slabs in the list.
-//
-// Writer threads atomically try to reserve a slot in the current `tail` slab.
-// If the slab is full, they allocate a new slab and atomically swap the
-// `tail` pointer to point to the new slab, linking the old tail as `prev`.
-//
-// The key design element is that writer threads only ever access the `tail`
-// slab and never look at the `->prev` pointer / never iterate the list.
-// Only the main Run() thread iterates the list.  This makes the design simpler
-// to reason about.
-//
-// The main thread, instead, is the only one that is allowed to follow the
-// `->prev` pointers to drain the tasks.
-//
-// Slab lifecycle:
-// - A new slab is created by a writer thread when the current slab is full.
-// - The main thread drains tasks from slabs (from 0 to N). When a slab becomes
-//   empty, it's destroyed using a shared_ptr, which guarrantees that the slab
-//   is not destroyed while another writer thread is trying to append tasks.
-// - As a further optimization, empty slabs are kept around in a free-list of
-//   size 1. This is makes it so that in absence of bursts this class doesn't
-//   perform any allocation.
-//
-//                    tail_ (atomic_shared_ptr)
-//                        |
-//                        ▼
-//      +-----------------+      +-----------------+      +-----------------+
-//      |     Slab N      |      |    Slab N-1     |      |     Slab 0      |
-//      | tasks: [....]   |      | tasks: [....]   |      | tasks: [....]   |
-//      | next_task_slot  |      | next_task_slot  |      | next_task_slot  |
-//      | prev (sptr) ----+----->| prev (sptr) ----+----->| prev = nullptr  |
-//      +-----------------+      +-----------------+      +-----------------+
-//
+// See /docs/design-docs/lock-free-task-runner.md for more details
 class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
  public:
   LockFreeTaskRunner();
@@ -270,7 +227,7 @@ struct Slab {
   // The link to the previous slab.
   // This is written by writer threads when they create a new slab and link it
   // to the previous tail. But they do so when nobody else can see the Slab,
-  // so there is no need for an AtomicSharedPtr. After the initial creation,
+  // so there is no need for an atomic ptr. After the initial creation,
   // this is accessed only by the main thread when:
   // 1. draining tasks (to walk back to the oldest slab)
   // 2. deleting slabs, setting it to nullptr, when they are fully consumed.
