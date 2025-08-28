@@ -1272,7 +1272,7 @@ TEST_P(PerfettoApiTest, TrackEventTimestampUnitIncremental) {
 }
 
 TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
-  for (auto subsampling : {0u, 10u}) {
+  for (auto subsampling : {0u, 10u, 1000u}) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.set_enable_thread_time_sampling(true);
     te_cfg.set_thread_time_subsampling_ns(subsampling);
@@ -1298,7 +1298,7 @@ TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
               packet.track_event().extra_counter_values().size() > 0) {
             auto thread_time = packet.track_event().extra_counter_values()[0];
             event_map[event_name] = {static_cast<int64_t>(packet.timestamp()),
-                                      thread_time};
+                                     thread_time};
           }
         }
       }
@@ -1309,7 +1309,8 @@ TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
     EXPECT_GT(event_map.at("Event3").timestamp, 1000 * 1000 * 10);
 
     EXPECT_GT(event_map.at("Event2").thread_time, 10);
-    EXPECT_LT(event_map.at("Event3").thread_time, event_map.at("Event3").timestamp);
+    EXPECT_LT(event_map.at("Event3").thread_time,
+              event_map.at("Event3").timestamp);
   }
 }
 
