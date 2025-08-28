@@ -20,8 +20,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <string_view>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -29,6 +31,7 @@
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 #include "src/websocket_bridge/websocket_bridge.h"
 
@@ -76,6 +79,14 @@ Usage in manual mode:
     printf(" %s", applet.name);
 
   printf(R"(
+Tracebox-specific args
+  --abstract-sockets    : Forces the use of abstract sockets when using
+                          autostart mode. Only has an effect on non-Android
+                          operating systems; Android only supports abstract
+                          sockets in autostart mode. Cannot be used in applet
+                          mode.
+  --system-sockets      : Obsolete flag: supported for backwards compatibility.
+
 
 See also:
   * https://perfetto.dev/docs/
@@ -83,12 +94,12 @@ See also:
 )");
 }
 
-void PrintTraceboxUsage() {
-  printf(R"(
-Tracebox-specific args
-  --system-sockets      : Forces the use of system-sockets when using autostart
-                          mode. Cannot be used in applet mode.
-)");
+bool IsSystemSocket(std::string_view socket) {
+  return socket == "--system-sockets";
+}
+
+bool IsAbstractSocket(std::string_view socket) {
+  return socket == "--abstract-sockets";
 }
 
 int TraceboxMain(int argc, char** argv) {
@@ -118,16 +129,55 @@ int TraceboxMain(int argc, char** argv) {
     return 1;
   }
 
-  auto* end = std::remove_if(argv, argv + argc, [](char* arg) {
-    return !strcmp(arg, "--system-sockets");
-  });
-  if (end < (argv + argc - 1)) {
+  int64_t system_socket_count =
+      std::count_if(argv, argv + argc, IsSystemSocket);
+  int64_t abstract_socket_count =
+      std::count_if(argv, argv + argc, IsAbstractSocket);
+  if (system_socket_count > 0 && abstract_socket_count > 0) {
+    PERFETTO_ELOG("Cannot specify --system-sockets and --abstract-sockets");
+    return 1;
+  }
+  if (system_socket_count > 1) {
     PERFETTO_ELOG("Cannot specify --system-sockets multiple times");
     return 1;
   }
-  if (bool system_sockets = end == (argv + argc - 1); system_sockets) {
+  if (abstract_socket_count > 1) {
+    PERFETTO_ELOG("Cannot specify --abstract-sockets multiple times");
+    return 1;
+  }
+
+  auto* end = std::remove_if(argv, argv + argc, [](const char* arg) {
+    return IsAbstractSocket(arg) || IsSystemSocket(arg);
+  });
+  if (end != argv + argc) {
+    PERFETTO_DCHECK(end == argv + argc - 1);
     argc--;
-  } else {
+  }
+
+  enum {
+    kSystemSocket,
+    kAbstractSocket,
+  } socket_type =
+      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || abstract_socket_count > 0
+          ? kAbstractSocket
+          : kSystemSocket;
+
+  if (system_socket_count > 0 && PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)) {
+    PERFETTO_ELOG(
+        R"(
+Attempting to use --system-sockets in autostart mode on Android. This is an
+unsupported configuration. Either:
+  a) use applet mode to connect to system daemons: instead of
+    `tracebox --system-sockets <args>` do `tracebox perfetto <args>`
+  b) remove the `--system-sockets` flag. This will make Perfetto use an abstract
+     socket not clashing with the system instance of Perfetto but will mean that
+     custom producers (e.g. track_event, android.frame_timeline etc) will *not*
+     be available for tracing.
+)");
+    return 1;
+  }
+
+  if (socket_type == kAbstractSocket) {
     auto pid_str = std::to_string(static_cast<uint64_t>(base::GetProcessId()));
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -150,6 +200,37 @@ int TraceboxMain(int argc, char** argv) {
     }
     base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket);
     base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket);
+  } else {
+    PERFETTO_DCHECK(socket_type == kSystemSocket);
+
+    if (base::FileExists(GetConsumerSocket())) {
+      PERFETTO_ELOG(
+          R"(
+Failed to confirm the consumer and producer system socket were unused. This
+likely indicates that another `tracebox` session or `traced` daemon are running
+in the background.
+
+Either:
+  a) if there is a `traced` daemon already running on your machine: instead of
+    `tracebox --system-sockets <args>` do `tracebox perfetto <args>`. Note that
+    this may cause missing data sources unless the other Perfetto data sources
+    (`traced_probes`, `traced_perf`) are also running in the background.
+  b) if there is another `tracebox` instance already running on your machine,
+     to correctly multiplex across tracing sessions, you should run:
+      1) `tracebox traced --background`
+      2) `tracebox traced_probes --background`
+      3) `tracebox traced_perf --background` (optional)
+    which will cause these daemons to run in background until the next reboot.
+    You can use `tracebox perfetto <args>` to collect traces and correctly
+    multiplex both producers and consumers.
+  c) add the `--abstract-sockets` flag. This will make Perfetto use a totally
+     unique socket not clashing with any other instances of Perfetto but will
+     mean that custom producers (e.g. track_event, android.frame_timeline etc)
+     will *not* be available for tracing unless they are explicitly configured
+     to connect to this instance of Perfetto.
+)");
+      return 1;
+    }
   }
 
   PerfettoCmd perfetto_cmd;
@@ -161,9 +242,6 @@ int TraceboxMain(int argc, char** argv) {
   // will live in the same background session.
   auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
   if (opt_res.has_value()) {
-    if (*opt_res != 0) {
-      PrintTraceboxUsage();
-    }
     return *opt_res;
   }
 
