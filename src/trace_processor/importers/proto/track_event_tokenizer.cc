@@ -520,7 +520,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   auto result = AddExtraCounterValues(
       *state, data, index, event.extra_counter_values(),
       event.extra_counter_track_uuids(),
-      defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator);
+      defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator,
+      static_cast<perfetto::protos::pbzero::TrackEvent::Type>(event.type()));
   if (!result.ok()) {
     PERFETTO_DLOG("%s", result.c_message());
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
@@ -529,7 +530,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   result = AddExtraCounterValues(
       *state, data, index, event.extra_double_counter_values(),
       event.extra_double_counter_track_uuids(),
-      defaults ? defaults->extra_double_counter_track_uuids() : kEmptyIterator);
+      defaults ? defaults->extra_double_counter_track_uuids() : kEmptyIterator,
+      static_cast<perfetto::protos::pbzero::TrackEvent::Type>(event.type()));
   if (!result.ok()) {
     PERFETTO_DLOG("%s", result.c_message());
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
@@ -546,7 +548,8 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
     size_t& index,
     protozero::RepeatedFieldIterator<T> value_it,
     protozero::RepeatedFieldIterator<uint64_t> packet_track_uuid_it,
-    protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it) {
+    protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it,
+    perfetto::protos::pbzero::TrackEvent::Type type) {
   if (!value_it)
     return base::OkStatus();
 
@@ -574,9 +577,15 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
           "Ignoring TrackEvent with more extra_{double_,}counter_values than "
           "TrackEventData::kMaxNumExtraCounters");
     }
+    auto value = static_cast<double>(*value_it);
+    // Consider a value of 0 as nil due to subsampling. These are not emitted on
+    // slice end because it means the event was too short.
+    if (type == protos::pbzero::TrackEvent::TYPE_SLICE_END && value == 0.0) {
+      continue;
+    }
     std::optional<double> abs_value =
         track_event_tracker_->ConvertToAbsoluteCounterValue(
-            &state, *track_uuid_it, static_cast<double>(*value_it));
+            &state, *track_uuid_it, value);
     if (!abs_value) {
       return base::ErrStatus(
           "Ignoring TrackEvent with invalid extra counter track");
