@@ -19,7 +19,7 @@ import {Trace} from '../../public/trace';
 import {SettingsPage} from './settings_page';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.SettingsPage';
+  static readonly id = 'dev.perfetto.SettingsPage';
 
   static onActivate(app: App) {
     app.sidebar.addMenuItem({

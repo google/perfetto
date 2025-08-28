@@ -26,7 +26,7 @@ import {Setting} from '../../public/settings';
 import {Time} from '../../base/time';
 
 export default class TrackUtilsPlugin implements PerfettoPlugin {
-  static readonly id = 'perfetto.TrackUtils';
+  static readonly id = 'dev.perfetto.TrackUtils';
   static dvorakSetting: Setting<boolean>;
 
   static onActivate(app: App): void {
