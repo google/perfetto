@@ -275,6 +275,18 @@ source_set("trace_type") {
   ]
 }
 
+source_set("tar_writer") {
+  sources = [
+    "tar_writer.cc",
+    "tar_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("winscope_proto_mapping") {
   sources = [ "winscope_proto_mapping.h" ]
   deps = [
@@ -297,6 +309,7 @@ source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
+    "tar_writer_unittest.cc",
     "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
@@ -317,6 +330,7 @@ source_set("unittests") {
     ":protozero_to_text",
     ":regex",
     ":sql_argument",
+    ":tar_writer",
     ":trace_blob_view_reader",
     ":zip_reader",
     "..:gen_cc_test_messages_descriptor",
