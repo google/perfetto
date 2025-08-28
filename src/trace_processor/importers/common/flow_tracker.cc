@@ -108,6 +108,25 @@ void FlowTracker::End(SliceId slice_id, FlowId flow_id, bool close_flow) {
   InsertFlow(flow_id, slice_out_id, slice_id);
 }
 
+void FlowTracker::End(SliceId slice_id,
+                      FlowId flow_id,
+                      bool close_flow,
+                      bool ignore_closing_slice) {
+  if (!ignore_closing_slice) {
+    End(slice_id, flow_id, close_flow);
+    return;
+  }
+  auto* it = flow_to_slice_map_.Find(flow_id);
+  if (!it) {
+    return;
+  }
+  SliceId slice_out_id = *it;
+  if (close_flow) {
+    flow_to_slice_map_.Erase(flow_id);
+  }
+  InsertFlow(flow_id, slice_out_id, slice_id);
+}
+
 bool FlowTracker::IsActive(FlowId flow_id) const {
   return flow_to_slice_map_.Find(flow_id) != nullptr;
 }

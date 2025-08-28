@@ -43,6 +43,10 @@ class FlowTracker {
   void Begin(SliceId slice_id, FlowId flow_id);
   void Step(SliceId slice_id, FlowId flow_id);
   void End(SliceId track_id, FlowId flow_id, bool close_flow);
+  void End(SliceId slice_id,
+           FlowId flow_id,
+           bool close_flow,
+           bool ignore_closing_slice);
 
   // These methods assume you have created a FlowId via GetFlowIdForV1Event and
   // tie the flow id to the currently open slice on a given track. If you don't

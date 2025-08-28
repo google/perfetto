@@ -83,8 +83,9 @@ class TrackEventTokenizer {
       const protos::pbzero::TrackEvent_Decoder&,
       const protos::pbzero::TrackEvent_LegacyEvent_Decoder&,
       PacketSequenceStateGeneration& state);
-  base::Status HandleExtraArgsValues(
-      const protos::pbzero::TrackEvent::Decoder&);
+  base::Status HandleExtraArgsValues(const protos::pbzero::TrackEvent::Decoder&,
+                                     PacketSequenceStateGeneration& state);
+  bool IsLynxUpdateRelatedEvent(std::string& event_name);
 
   TraceProcessorContext* const context_;
   TrackEventTracker* const track_event_tracker_;

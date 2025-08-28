@@ -27,7 +27,7 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   description:
     'Show indirect preceding flows (connected through ancestor ' +
     'slices) when a slice is selected.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 export class FlowManager {

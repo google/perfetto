@@ -329,7 +329,10 @@ class TraceStorage {
                        std::string timing_flag) {
     auto it = pipeline_id_to_flag_.find(pipeline_id);
     if (it != pipeline_id_to_flag_.end()) {
-      pipeline_id_to_flag_[pipeline_id] = it->second + ", " + timing_flag;
+      const std::string& existing_flags = it->second;
+      if (existing_flags.find(timing_flag) == std::string::npos) {
+        pipeline_id_to_flag_[pipeline_id] = existing_flags + ", " + timing_flag;
+      }
     } else {
       pipeline_id_to_flag_[pipeline_id] = timing_flag;
     }
@@ -338,6 +341,20 @@ class TraceStorage {
   std::optional<std::string> GetPipelineFlags(const std::string& pipeline_id) {
     auto it = pipeline_id_to_flag_.find(pipeline_id);
     if (it == pipeline_id_to_flag_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  void SetPipelineFlowIds(const std::string& pipeline_id,
+                          std::vector<uint64_t> flow_ids) {
+    pipeline_id_to_flow_ids_[pipeline_id] = flow_ids;
+  }
+
+  std::optional<std::vector<uint64_t>> GetPipelineFlowIds(
+      const std::string& pipeline_id) {
+    auto it = pipeline_id_to_flow_ids_.find(pipeline_id);
+    if (it == pipeline_id_to_flow_ids_.end()) {
       return std::nullopt;
     }
     return it->second;
@@ -1240,6 +1257,7 @@ class TraceStorage {
 
   std::map<std::string, std::string> instance_id_to_url_;
   std::map<std::string, std::string> pipeline_id_to_flag_;
+  std::map<std::string, std::vector<uint64_t>> pipeline_id_to_flow_ids_;
 
   std::map<uint32_t, std::string> slice_to_instace_id_;
 };
