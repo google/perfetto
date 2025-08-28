@@ -1004,19 +1004,19 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 // non-zero indicates at least one tracing session for this category is active.
 // Note that callers should not make any assumptions at what each bit represents
 // in the status byte. Does not support dynamic categories.
-#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)              \
-  reinterpret_cast<const uint8_t*>(                                       \
-      [&] {                                                               \
-        static_assert(                                                    \
-            !std::is_same<::perfetto::DynamicCategory,                    \
-                          decltype(category)>::value,                     \
-            "Enabled flag pointers are not supported for dynamic trace "  \
-            "categories.");                                               \
-      },                                                                  \
-      PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry         \
-          .GetCategoryState(                                              \
-              PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
-                  .Find(category, /*is_dynamic=*/false)))
+#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)             \
+  reinterpret_cast<const uint8_t*>(                                      \
+      [&] {                                                              \
+        static_assert(                                                   \
+            !std::is_same<::perfetto::DynamicCategory,                   \
+                          decltype(category)>::value,                    \
+            "Enabled flag pointers are not supported for dynamic trace " \
+            "categories.");                                              \
+      },                                                                 \
+      PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry        \
+          .GetCategoryState(PERFETTO_TRACK_EVENT_NAMESPACE::internal::   \
+                                kConstExprCategoryRegistry.Find(         \
+                                    category, /*is_dynamic=*/false)))
 
 // Given a pointer returned by TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED,
 // yields a pointer to the name of the corresponding category group.
