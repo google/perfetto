@@ -151,17 +151,21 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
 void TarWriter::InitHeader(TarHeader* header) {
   memset(header, 0, sizeof(TarHeader));
 
-  // Set default values
-  strcpy(header->mode, "0644   ");  // Regular file, rw-r--r--
-  strcpy(header->uid, "0000000");   // Root user
-  strcpy(header->gid, "0000000");   // Root group
-  header->typeflag = '0';           // Regular file
-  strcpy(header->magic, "ustar");   // POSIX ustar format
-  strcpy(header->version, "00");    // Version
-  strcpy(header->uname, "root");    // User name
-  strcpy(header->gname, "root");    // Group name
-  strcpy(header->devmajor, "0000000");
-  strcpy(header->devminor, "0000000");
+  // Set default values (using memcpy to avoid null-termination issues)
+  memcpy(header->mode, "0644   ",
+         sizeof(header->mode));  // Regular file, rw-r--r--
+  memcpy(header->uid, "0000000", sizeof(header->uid));  // Root user
+  memcpy(header->gid, "0000000", sizeof(header->gid));  // Root group
+  header->typeflag = '0';                               // Regular file
+  memcpy(header->magic, "ustar\0",
+         sizeof(header->magic));                           // POSIX ustar format
+  memcpy(header->version, "00", sizeof(header->version));  // Version
+  memcpy(header->uname, "root",
+         sizeof(header->uname));  // User name (rest is zero-filled)
+  memcpy(header->gname, "root",
+         sizeof(header->gname));  // Group name (rest is zero-filled)
+  memcpy(header->devmajor, "0000000", sizeof(header->devmajor));
+  memcpy(header->devminor, "0000000", sizeof(header->devminor));
 
   // Initialize checksum field with spaces (required for calculation)
   memset(header->checksum, ' ', sizeof(header->checksum));
