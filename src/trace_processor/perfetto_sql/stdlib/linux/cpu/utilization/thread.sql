@@ -150,7 +150,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu (
   -- Thread
   utid JOINID(thread.id),
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu LONG,
+  ucpu JOINID(cpu.id),
   -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
   cpu LONG,
   -- Sum of CPU millicycles
@@ -158,7 +158,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -192,7 +192,7 @@ RETURNS TABLE (
   -- Thread with CPU cycles and frequency statistics.
   utid JOINID(thread.id),
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu LONG,
+  ucpu JOINID(cpu.id),
   -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
   cpu LONG,
   -- Sum of CPU millicycles
@@ -200,7 +200,7 @@ RETURNS TABLE (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
