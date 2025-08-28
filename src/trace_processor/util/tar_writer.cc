@@ -31,6 +31,23 @@
 
 namespace perfetto::trace_processor::util {
 
+namespace {
+// Helper function to safely copy from constant string arrays into fixed-size
+// char arrays
+template <size_t DestN, size_t SrcN>
+void SafeCopyToCharArray(char (&dest)[DestN], const char (&src)[SrcN]) {
+  static_assert(SrcN - 1 <= DestN,
+                "Source string too long for destination array");
+  constexpr size_t copy_len =
+      SrcN - 1;  // -1 to exclude null terminator from src
+  memcpy(dest, src, copy_len);
+  // Zero-fill the rest
+  if (copy_len < DestN) {
+    memset(dest + copy_len, 0, DestN - copy_len);
+  }
+}
+}  // namespace
+
 TarWriter::TarWriter(const std::string& output_path)
     : output_file_(
           base::OpenFile(output_path, O_CREAT | O_WRONLY | O_TRUNC, 0644)) {
@@ -151,21 +168,17 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
 void TarWriter::InitHeader(TarHeader* header) {
   memset(header, 0, sizeof(TarHeader));
 
-  // Set default values (using memcpy to avoid null-termination issues)
-  memcpy(header->mode, "0644   ",
-         sizeof(header->mode));  // Regular file, rw-r--r--
-  memcpy(header->uid, "0000000", sizeof(header->uid));  // Root user
-  memcpy(header->gid, "0000000", sizeof(header->gid));  // Root group
-  header->typeflag = '0';                               // Regular file
-  memcpy(header->magic, "ustar\0",
-         sizeof(header->magic));                           // POSIX ustar format
-  memcpy(header->version, "00", sizeof(header->version));  // Version
-  memcpy(header->uname, "root",
-         sizeof(header->uname));  // User name (rest is zero-filled)
-  memcpy(header->gname, "root",
-         sizeof(header->gname));  // Group name (rest is zero-filled)
-  memcpy(header->devmajor, "0000000", sizeof(header->devmajor));
-  memcpy(header->devminor, "0000000", sizeof(header->devminor));
+  // Set default values using safe copying
+  SafeCopyToCharArray(header->mode, "0644   ");   // Regular file, rw-r--r--
+  SafeCopyToCharArray(header->uid, "0000000");    // Root user
+  SafeCopyToCharArray(header->gid, "0000000");    // Root group
+  header->typeflag = '0';                         // Regular file
+  SafeCopyToCharArray(header->magic, "ustar\0");  // POSIX ustar format
+  SafeCopyToCharArray(header->version, "00");     // Version
+  SafeCopyToCharArray(header->uname, "root");     // User name
+  SafeCopyToCharArray(header->gname, "root");     // Group name
+  SafeCopyToCharArray(header->devmajor, "0000000");
+  SafeCopyToCharArray(header->devminor, "0000000");
 
   // Initialize checksum field with spaces (required for calculation)
   memset(header->checksum, ' ', sizeof(header->checksum));
