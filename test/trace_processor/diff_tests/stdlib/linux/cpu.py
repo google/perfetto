@@ -271,6 +271,80 @@ class LinuxCpu(TestSuite):
             92,243675648,0,962397,864000,864000,255157
             """))
 
+  def test_cpu_cycles_per_thread_per_cpu(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+
+             SELECT
+              utid,
+              cpu,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_thread_per_cpu
+             WHERE utid < 10
+             """),
+        out=Csv("""
+        "utid","cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+        1,0,21613219642,21,17794320,614400,1708800,1215865
+        1,1,2497607711,2,1461615,1708800,1708800,1710690
+        1,2,4364824719,4,3151458,614400,1708800,1386538
+        1,3,10566643540,10,6340468,1363200,1708800,1669295
+        2,3,286312857,0,167552,1708800,1708800,1714448
+        8,0,46170039382,46,43358479,614400,1708800,1068330
+        8,1,14938296493,14,9838169,614400,1708800,1527120
+        8,2,47599704832,47,35501050,614400,1708800,1344510
+        8,3,15943615696,15,10894534,614400,1708800,1470135
+        """))
+
+  def test_cpu_cycles_per_thread_per_cpu_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+           INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+
+           SELECT
+            utid,
+            cpu,
+            millicycles,
+            megacycles,
+            runtime,
+            min_freq,
+            max_freq,
+            avg_freq
+           FROM cpu_cycles_per_thread_per_cpu_in_interval(TRACE_START(), TRACE_DUR() / 10)
+           WHERE utid < 100
+           """),
+        out=Csv("""
+          "utid","cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+          1,0,1226879384,1,1996874,614400,614400,614669
+          14,0,1133538499,1,2049326,614400,614400,557569
+          14,1,114239692,0,185937,614400,614400,617511
+          14,"[NULL]","[NULL]","[NULL]",211667,"[NULL]","[NULL]","[NULL]"
+          15,0,980352605,0,1595626,614400,614400,618518
+          15,1,426879588,0,694791,614400,614400,615987
+          15,"[NULL]","[NULL]","[NULL]",93646,"[NULL]","[NULL]","[NULL]"
+          16,0,505278870,0,822394,614400,614400,617700
+          16,"[NULL]","[NULL]","[NULL]",319844,"[NULL]","[NULL]","[NULL]"
+          30,1,29888102,0,48646,614400,614400,622668
+          37,"[NULL]","[NULL]","[NULL]",157397,"[NULL]","[NULL]","[NULL]"
+          37,"[NULL]","[NULL]","[NULL]",65417,"[NULL]","[NULL]","[NULL]"
+          38,"[NULL]","[NULL]","[NULL]",2915520,"[NULL]","[NULL]","[NULL]"
+          45,"[NULL]","[NULL]","[NULL]",2690990,"[NULL]","[NULL]","[NULL]"
+          45,"[NULL]","[NULL]","[NULL]",53698,"[NULL]","[NULL]","[NULL]"
+          54,"[NULL]","[NULL]","[NULL]",3688906,"[NULL]","[NULL]","[NULL]"
+          54,"[NULL]","[NULL]","[NULL]",4925208,"[NULL]","[NULL]","[NULL]"
+          61,0,151616101,0,246771,614400,614400,618841
+          62,0,58740000,0,34375,1708800,1708800,1727647
+          62,"[NULL]","[NULL]","[NULL]",8273177,"[NULL]","[NULL]","[NULL]"
+          92,0,243675648,0,962397,864000,864000,255157
+          """))
+
   def test_cpu_cycles_per_process(self):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),

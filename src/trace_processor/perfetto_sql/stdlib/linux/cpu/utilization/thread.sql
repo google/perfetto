@@ -144,3 +144,83 @@ JOIN _cpu_freq_per_thread AS c
   USING (id)
 GROUP BY
   utid;
+
+-- Aggregated CPU statistics for each thread per CPU combination.
+CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu (
+  -- Thread
+  utid JOINID(thread.id),
+  -- Unique CPU id. Joinable with `cpu.id`.
+  ucpu LONG,
+  -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
+  cpu LONG,
+  -- Sum of CPU millicycles
+  millicycles LONG,
+  -- Sum of CPU megacycles
+  megacycles LONG,
+  -- Total runtime duration
+  runtime LONG,
+  -- Minimum CPU frequency in kHz
+  min_freq LONG,
+  -- Maximum CPU frequency in kHz
+  max_freq LONG,
+  -- Average CPU frequency in kHz
+  avg_freq LONG
+) AS
+SELECT
+  utid,
+  ucpu,
+  cpu,
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
+  sum(dur) AS runtime,
+  min(freq) AS min_freq,
+  max(freq) AS max_freq,
+  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+FROM _cpu_freq_per_thread
+GROUP BY
+  utid,
+  ucpu;
+
+-- Aggregated CPU statistics for each thread per CPU combination in a provided interval.
+CREATE PERFETTO FUNCTION cpu_cycles_per_thread_per_cpu_in_interval(
+    -- Start of the interval.
+    ts TIMESTAMP,
+    -- Duration of the interval.
+    dur LONG
+)
+RETURNS TABLE (
+  -- Thread with CPU cycles and frequency statistics.
+  utid JOINID(thread.id),
+  -- Unique CPU id. Joinable with `cpu.id`.
+  ucpu LONG,
+  -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
+  cpu LONG,
+  -- Sum of CPU millicycles
+  millicycles LONG,
+  -- Sum of CPU megacycles
+  megacycles LONG,
+  -- Total runtime duration
+  runtime LONG,
+  -- Minimum CPU frequency in kHz
+  min_freq LONG,
+  -- Maximum CPU frequency in kHz
+  max_freq LONG,
+  -- Average CPU frequency in kHz
+  avg_freq LONG
+) AS
+SELECT
+  utid,
+  ucpu,
+  cpu,
+  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
+  sum(ii.dur) AS runtime,
+  min(freq) AS min_freq,
+  max(freq) AS max_freq,
+  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
+JOIN _cpu_freq_per_thread AS c
+  USING (id)
+GROUP BY
+  utid,
+  ucpu;
