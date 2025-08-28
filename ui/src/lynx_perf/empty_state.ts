@@ -26,6 +26,8 @@ export function createEmptyLynxState(): LynxState {
     traceIdToJSBName: new Map(),
     traceIdToScrollName: new Map(),
     trackUriToThreadMap: new Map(),
+    // From Lynx 3.4, we delete trace events for NativeModule timing.
+    nonTimingNativeModuleTraces: false,
     frameDurationMap: new Map(),
     highlightNoInstanceIdTrace: true,
     lynxviewInstances: [],

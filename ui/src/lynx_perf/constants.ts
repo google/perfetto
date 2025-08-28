@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {HSLColor} from '../base/color';
+
 // Copyright 2025 The Lynx Authors. All rights reserved.
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
@@ -78,6 +80,23 @@ export const NATIVEMODULE_PLATFORM_METHOD_END =
   'JSBTiming::jsb_func_platform_method_end';
 export const NATIVEMODULE_TIMING_FLUSH = 'JSBTiming::Flush';
 export const NATIVEMODULE_NETWORK_REQUEST = 'Network::SendNetworkRequest';
+export const NATIVEMODULE_INVOKE = 'NativeModule::Invoke';
+export const NATIVEMODULE_INVOKE_LIST = [
+  NATIVEMODULE_CALL,
+  DEPRECATED_NATIVEMODULE_CALL,
+  NATIVEMODULE_INVOKE,
+];
+export const NATIVEMODULE_PLATFORM_CALLBACK_START =
+  'NativeModule::PlatformCallbackStart';
+export const NATIVEMODULE_CALLBACK = 'NativeModule::Callback';
+export const NATIVEMODULE_EVENTS_WITH_FLOW_ID_LIST = [
+  NATIVEMODULE_INVOKE,
+  NATIVEMODULE_PLATFORM_CALLBACK_START,
+  NATIVEMODULE_CALLBACK,
+];
+export const THREAD_UNKNOWN = '/';
+export const DASHED_AREA_COLOR = new HSLColor([0, 0, 95]);
+
 // Frame Jank
 export const DROP_FRAME_THRESHOLD = 16666666;
 

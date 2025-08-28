@@ -25,6 +25,7 @@ import {
   LYNX_NATIVE_MODULE_ID,
   NATIVEMODULE_CALL,
   DEPRECATED_NATIVEMODULE_CALL,
+  NATIVEMODULE_EVENTS_WITH_FLOW_ID_LIST,
 } from '../../lynx_perf/constants';
 import {
   getBackgroundScriptThreadTrackNode,
@@ -33,6 +34,8 @@ import {
 import {NUM} from '../../trace_processor/query_result';
 import {getArgs} from '../../components/sql_utils/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import LynxThreadGroupPlugin from '../lynx.ThreadGroups';
 
 /**
@@ -43,7 +46,11 @@ import LynxThreadGroupPlugin from '../lynx.ThreadGroups';
  */
 export default class LynxNativeModule implements PerfettoPlugin {
   static readonly id = LYNX_NATIVE_MODULE_ID;
-  static readonly dependencies = [LynxThreadGroupPlugin];
+  static readonly dependencies = [
+    LynxThreadGroupPlugin,
+    TraceProcessorTrackPlugin,
+  ];
+
   /**
    * This hook is called as the trace is loading. At this point the trace is
    * loaded into trace processor and it's ready to process queries. This hook
@@ -99,6 +106,17 @@ export default class LynxNativeModule implements PerfettoPlugin {
    * @returns True if valid bridge calls with flow IDs are found
    */
   private async containValidNativeModule(ctx: Trace) {
+    // Check if slice table contains all three specific NativeModule trace events
+    const checkEventsQuery = await ctx.engine.query(
+      `select count(distinct slice.name) as count from slice where slice.name in (${NATIVEMODULE_EVENTS_WITH_FLOW_ID_LIST.join(',')})`,
+    );
+    const IMPORTANT_EVENT_COUNT = 3;
+    const checkIt = checkEventsQuery.iter({count: NUM});
+    if (checkIt.valid() && checkIt.count === IMPORTANT_EVENT_COUNT) {
+      lynxPerfGlobals.setNonTimingNativeModuleTraces(true);
+      return true;
+    }
+
     const queryRes = await ctx.engine.query(
       `select arg_set_id as argSetId from slice where slice.name='${NATIVEMODULE_CALL}' or slice.name='${DEPRECATED_NATIVEMODULE_CALL}'`,
     );

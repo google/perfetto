@@ -23,6 +23,8 @@ export interface NativeModuleItem extends BaseSlice {
   depth: number;
   flowId: number;
   sections: NativeModuleSection[] | undefined;
+  invokeEndTs: number;
+  callbackStartTs: number;
 }
 
 export interface NativeModuleSection {

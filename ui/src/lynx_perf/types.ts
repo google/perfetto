@@ -20,9 +20,13 @@ export interface LynxState {
   issues: IssueSummary[];
   vitalTimestampLine: VitalTimestampLine[];
   selectedTimestamp: number;
+
+  // NativeModule
   traceIdToJSBName: Map<number, string>;
   traceIdToScrollName: Map<number, string>;
   trackUriToThreadMap: Map<string, SliceThreadState>;
+  nonTimingNativeModuleTraces: boolean;
+
   frameDurationMap: Map<number, FrameSlice>;
 
   highlightNoInstanceIdTrace: boolean;

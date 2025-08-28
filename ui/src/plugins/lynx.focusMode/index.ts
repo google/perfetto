@@ -22,10 +22,9 @@ import {NUM, STR} from '../../trace_processor/query_result';
 import {
   COMMAND_FOCUS_LYNX_VIEW,
   COMMAND_QUERY_LYNX_VIEW,
-  DEPRECATED_NATIVEMODULE_CALL,
   LYNX_LOAD_BUNDLE,
   LYNX_NATIVE_MODULE_ID,
-  NATIVEMODULE_CALL,
+  NATIVEMODULE_INVOKE_LIST,
   NO_INSTANCE_ID,
   PARAMETER_FOCUS_LYNX_VIEWS,
 } from '../../lynx_perf/constants';
@@ -264,10 +263,9 @@ export default class FocusMode implements PerfettoPlugin {
         if (trackNode.uri === LYNX_NATIVE_MODULE_ID) {
           const queryRes = await trace.engine.query(
             `select 
-                    slice.id as id
-                from slice 
-                where (slice.name='${NATIVEMODULE_CALL}' or slice.name='${DEPRECATED_NATIVEMODULE_CALL}')
-                `,
+                slice.id as id
+              from slice 
+              where slice.name in (${NATIVEMODULE_INVOKE_LIST.join(',')})`,
           );
           const it = queryRes.iter({
             id: NUM,

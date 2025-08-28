@@ -24,12 +24,15 @@ import {NativeModuleSection} from './types';
 import {SECTION_COLOR} from './types';
 import {TableColumnTitle} from '../../lynx_perf/common_components/table_column_title';
 import {SliceDetails} from '../../components/sql_utils/slice';
+import {THREAD_UNKNOWN} from '../../lynx_perf/constants';
 
 export interface NativeModuleDetailAttr {
   sectionDetail: NativeModuleSection[] | undefined;
   sliceDetail: SliceDetails | undefined;
 }
 
+
+const AWATIMING_CALLBACK_STAGE_DOTTED_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAeCAYAAAAsEj5rAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAomVYSWZNTQAqAAAACAAFARIAAwAAAAEAAQAAARoABQAAAAEAAABKARsABQAAAAEAAABSASgAAwAAAAEAAgAAh2kABAAAAAEAAABaAAAAAAAAAJAAAAABAAAAkAAAAAEABJKGAAcAAAASAAAAkKABAAMAAAABAAEAAKACAAQAAAABAAAAFKADAAQAAAABAAAAHgAAAABBU0NJSQAAAFNjcmVlbnNob3R+Qvo8AAAACXBIWXMAABYlAAAWJQFJUiTwAAADBGlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNi4wLjAiPgogICA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPgogICAgICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIgogICAgICAgICAgICB4bWxuczpleGlmPSJodHRwOi8vbnMuYWRvYmUuY29tL2V4aWYvMS4wLyIKICAgICAgICAgICAgeG1sbnM6dGlmZj0iaHR0cDovL25zLmFkb2JlLmNvbS90aWZmLzEuMC8iPgogICAgICAgICA8ZXhpZjpQaXhlbFhEaW1lbnNpb24+MTY4PC9leGlmOlBpeGVsWERpbWVuc2lvbj4KICAgICAgICAgPGV4aWY6Q29sb3JTcGFjZT4xPC9leGlmOkNvbG9yU3BhY2U+CiAgICAgICAgIDxleGlmOlVzZXJDb21tZW50PlNjcmVlbnNob3Q8L2V4aWY6VXNlckNvbW1lbnQ+CiAgICAgICAgIDxleGlmOlBpeGVsWURpbWVuc2lvbj45MjwvZXhpZjpQaXhlbFlEaW1lbnNpb24+CiAgICAgICAgIDx0aWZmOlJlc29sdXRpb25Vbml0PjI8L3RpZmY6UmVzb2x1dGlvblVuaXQ+CiAgICAgICAgIDx0aWZmOllSZXNvbHV0aW9uPjE0NDwvdGlmZjpZUmVzb2x1dGlvbj4KICAgICAgICAgPHRpZmY6WFJlc29sdXRpb24+MTQ0PC90aWZmOlhSZXNvbHV0aW9uPgogICAgICAgICA8dGlmZjpPcmllbnRhdGlvbj4xPC90aWZmOk9yaWVudGF0aW9uPgogICAgICA8L3JkZjpEZXNjcmlwdGlvbj4KICAgPC9yZGY6UkRGPgo8L3g6eG1wbWV0YT4KE9AuzQAAAUxJREFUSA3tlttqhDAQhicxHkC9EPH9H1BEEBVBcds/ZdpkN4kuTe8aCLvO4TOTzEwU0zQ9KDDGcdTauq5JKRWw/FIFLQDDPI5Dz6ZpLqHS90oTBpvnZ5+fE+hyLsuSrsJeloVegD5Y27ZUFIVvYQTYMAw28Lewbdt+gDFgWL4OORZMA2PCcHASQOQZDwjvHgD2jAf7yXdhDDB/GYYsUFVV0TzPZApNY9d/2GIgTZIksSISn8LHuq6U53kwz1zgfd9JCGGVo7hqDi5QSPZSKSHjO7p/4J1dCtv83R4ip8yqCa/D1qIXchnqO4Wb43me1HWdrhrbxf/EzQWFgR6gGMZv6Ptee3N5+VH2PcPRSdQjw+CcpqmuzxAIOl4ZgyDLsoykCbvbIFwwXLGY36ccA4YPAQ2MBUPYMiZMA6/aPYxCe/b8vSNDl/e7MNh/AM36Jw58d0vHAAAAAElFTkSuQmCC';
 export class NativeModuleDetailView
   implements m.ClassComponent<NativeModuleDetailAttr>
 {
@@ -67,6 +70,10 @@ export class DetailViewPanel extends Component<NativeModuleDetailAttr> {
       .join('\n');
   }
 
+  private awatingCallbackStage(thread: string, sectionIndex: number) {
+    return thread === THREAD_UNKNOWN  && sectionIndex === 2;
+  }
+
   render() {
     const {sectionDetail, sliceDetail} = this.props;
     if (!sectionDetail || !sliceDetail) {
@@ -86,16 +93,24 @@ export class DetailViewPanel extends Component<NativeModuleDetailAttr> {
         dataIndex: 'name',
         key: 'name',
         width: 150,
-        render: (value: string, _record: unknown, index: number) => (
+        render: (value: string, record: typeof stagDetailDataSource[0], index: number) => (
           <div style={{display: 'flex', alignItems: 'center'}}>
-            <div
+            {!this.awatingCallbackStage(record.thread, index) && 
+              <div
               style={{
                 width: 10,
                 height: 15,
                 backgroundColor: SECTION_COLOR[index],
                 marginRight: 5,
                 flexShrink: 0,
-              }}></div>
+              }}>
+              </div>
+            }
+            {
+              this.awatingCallbackStage(record.thread, index) && 
+              <img src={AWATIMING_CALLBACK_STAGE_DOTTED_IMAGE} style={{width:10, height:15, marginRight: 5,
+                flexShrink: 0,}}/>
+            }
             <div>{value}</div>
           </div>
         ),
@@ -139,7 +154,7 @@ export class DetailViewPanel extends Component<NativeModuleDetailAttr> {
         <ConfigProvider
           theme={{
             token: {
-              colorBgContainer: '#ECEFF1',
+              colorBgContainer: '#ffffff',
             },
           }}>
           <Table

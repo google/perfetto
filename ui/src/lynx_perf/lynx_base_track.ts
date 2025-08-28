@@ -246,6 +246,49 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
     renderCtx.closePath();
   }
 
+  /**
+   * Draws a rounded thick border around a rectangular area
+   * @param ctx - Track rendering context
+   * @param x - Horizontal position
+   * @param y - Vertical position
+   * @param width - Border width
+   * @param height - Border height
+   * @param colorSchema - Color scheme to use
+   * @param radius - Radius of rounded corners
+   */
+  protected drawRoundThickBorder(
+    ctx: TrackRenderContext,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    colorSchema: ColorScheme,
+    radius: number,
+  ) {
+    const renderCtx = ctx.ctx;
+    renderCtx.strokeStyle = colorSchema.base.setHSL({s: 100, l: 10}).cssString;
+    const THICKNESS = 3;
+    renderCtx.lineWidth = THICKNESS;
+    renderCtx.beginPath();
+    renderCtx.moveTo(x + radius, y);
+    renderCtx.lineTo(x + width - radius, y);
+    renderCtx.arcTo(x + width, y, x + width, y + radius, radius);
+    renderCtx.lineTo(x + width, y + height - radius);
+    renderCtx.arcTo(
+      x + width,
+      y + height,
+      x + width - radius,
+      y + height,
+      radius,
+    );
+    renderCtx.lineTo(x + radius, y + height);
+    renderCtx.arcTo(x, y + height, x, y + height - radius, radius);
+    renderCtx.lineTo(x, y + radius);
+    renderCtx.arcTo(x, y, x + radius, y, radius);
+    renderCtx.closePath();
+    renderCtx.stroke();
+  }
+
   async getSelectionDetails(
     id: number,
   ): Promise<TrackEventDetails | undefined> {
