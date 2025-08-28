@@ -3800,6 +3800,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:tar_writer
+perfetto_filegroup(
+    name = "src_trace_processor_util_tar_writer",
+    srcs = [
+        "src/trace_processor/util/tar_writer.cc",
+        "src/trace_processor/util/tar_writer.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:trace_blob_view_reader
 perfetto_filegroup(
     name = "src_trace_processor_util_trace_blob_view_reader",
@@ -3935,6 +3944,8 @@ perfetto_filegroup(
         "src/traceconv/deobfuscate_profile.h",
         "src/traceconv/symbolize_profile.cc",
         "src/traceconv/symbolize_profile.h",
+        "src/traceconv/trace_to_bundle.cc",
+        "src/traceconv/trace_to_bundle.h",
         "src/traceconv/trace_to_firefox.cc",
         "src/traceconv/trace_to_firefox.h",
         "src/traceconv/trace_to_hprof.cc",
@@ -7834,6 +7845,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_tar_writer",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_winscope_proto_mapping",

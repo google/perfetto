@@ -15795,6 +15795,7 @@ filegroup {
     srcs: [
         "src/traceconv/deobfuscate_profile.cc",
         "src/traceconv/symbolize_profile.cc",
+        "src/traceconv/trace_to_bundle.cc",
         "src/traceconv/trace_to_firefox.cc",
         "src/traceconv/trace_to_hprof.cc",
         "src/traceconv/trace_to_json.cc",
@@ -19105,6 +19106,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_tar_writer",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
