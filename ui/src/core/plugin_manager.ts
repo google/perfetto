@@ -113,11 +113,20 @@ export class PluginManagerImpl {
   ) {
     console.log(`Enables`, enableOverrides, 'Disables', disables);
 
-    const enabledPlugins = this.registry
-      .valuesAsArray()
-      .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id))
-      // Remove the disabled plugins (each disables can be a regex)
-      .filter((p) => !disables.some((d) => p.desc.id.match(d)));
+    const enabledPlugins = this.registry.valuesAsArray().filter((p) => {
+      // Always enable plugins in the overrides list.
+      if (enableOverrides.includes(p.desc.id)) {
+        return true;
+      }
+
+      // Otherwise, if the plugin is in the disables list, disable it.
+      if (disables.some((d) => p.desc.id.match(d))) {
+        return false;
+      }
+
+      // Otherwise enable the plugin if its flag is enabled.
+      return p.enableFlag.get();
+    });
 
     this.orderedPlugins = this.sortPluginsTopologically(enabledPlugins);
 

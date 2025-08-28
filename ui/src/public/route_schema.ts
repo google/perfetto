@@ -57,13 +57,6 @@ export const ROUTE_SCHEMA = z
     // A comma-separated list of plugins to enable for the current session.
     enablePlugins: z.string().optional().catch(undefined),
 
-    // A string or an array of strings identifying plugins to enable via name or
-    // regex.
-    enablePlugin: z
-      .union([z.string(), z.array(z.string())])
-      .optional()
-      .catch(undefined),
-
     // A string or an array of strings identifying plugins to disable via name
     // or regex.
     disablePlugin: z
