@@ -573,6 +573,7 @@ your `trace_converter_template.py` script.
 </details>
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
+
 ### Adding a Track Description
 
 You can add a human-readable description to any track to provide more context
