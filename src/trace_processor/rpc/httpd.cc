@@ -65,8 +65,7 @@ class Httpd : public base::HttpRequestHandler {
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
-           const std::vector<std::string>& additional_cors_origins,
-           size_t timeout_mins);
+           const std::vector<std::string>& additional_cors_origins);
 
  private:
   // HttpRequestHandler implementation.
@@ -200,8 +199,7 @@ Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
                 int port,
-                const std::vector<std::string>& additional_cors_origins,
-                size_t timeout_mins) {
+                const std::vector<std::string>& additional_cors_origins) {
   for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
   }
@@ -215,8 +213,8 @@ void Httpd::Run(const std::string& listen_ip,
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
 
-  if (timeout_mins > 0) {
-    PERFETTO_ILOG("RPC timeout enabled: %zu minutes", timeout_mins);
+  if (tp_timeout_mins_ > 0) {
+    PERFETTO_ILOG("RPC timeout enabled: %zu minutes", tp_timeout_mins_);
   } else {
     PERFETTO_ILOG("RPC timeout disabled (timeout_mins = 0)");
   }
@@ -554,7 +552,7 @@ void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, additional_cors_origins, timeout_mins);
+  srv.Run(ip, port, additional_cors_origins);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
