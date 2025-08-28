@@ -78,6 +78,10 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 #if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 // The following constants are defined in the global namespace, since they were
 // originally implemented as macros.
+// TODO(joenotcharles):  According to
+// https://chromium.googlesource.com/chromium/src/+/HEAD/styleguide/c++/defining_compile_time_const.md
+// (which isn't binding on perfetto but has good advice) these should be
+// `inline constexpr`.
 
 // Event phases.
 static constexpr char TRACE_EVENT_PHASE_BEGIN = 'B';

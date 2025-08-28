@@ -53,8 +53,8 @@
 //
 #define PERFETTO_INTERNAL_DECLARE_CATEGORIES(attrs, ...)                      \
   namespace internal {                                                        \
-  constexpr ::perfetto::Category kCategories[] = {__VA_ARGS__};               \
-  constexpr size_t kCategoryCount =                                           \
+  inline constexpr ::perfetto::Category kCategories[] = {__VA_ARGS__};        \
+  inline constexpr size_t kCategoryCount =                                    \
       sizeof(kCategories) / sizeof(kCategories[0]);                           \
   /* The per-instance enable/disable state per category */                    \
   attrs extern std::atomic<uint8_t> g_category_state_storage[kCategoryCount]; \
@@ -76,7 +76,7 @@
   /* https://bugs.llvm.org/show_bug.cgi?id=51558 */                           \
   /**/                                                                        \
   /* TODO(skyostil): Unify these using a C++17 inline constexpr variable. */  \
-  constexpr ::perfetto::internal::TrackEventCategoryRegistry                  \
+  inline constexpr ::perfetto::internal::TrackEventCategoryRegistry           \
       kConstExprCategoryRegistry(kCategoryCount, &kCategories[0], nullptr);   \
   attrs extern const ::perfetto::internal::TrackEventCategoryRegistry         \
       kCategoryRegistry;                                                      \
@@ -124,6 +124,10 @@
 #else
 // On the other hand, if we add static with clang, binary size of the chromium
 // build will increase dramatically.
+// TODO(joenotcharles):  According to
+// https://chromium.googlesource.com/chromium/src/+/HEAD/styleguide/c++/defining_compile_time_const.md
+// (which isn't binding on perfetto but has good advice) static should actually
+// help binary size.
 #define PERFETTO_INTERNAL_STATIC_FOR_MSVC
 #endif
 
@@ -234,17 +238,17 @@
        : PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled(        \
              PERFETTO_GET_CATEGORY_INDEX(category)))
 #else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
-#define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)                     \
-  [&]() -> bool {                                                        \
-    using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;                    \
-    using ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory; \
-    constexpr auto PERFETTO_UID(index) =                                 \
-        PERFETTO_GET_CATEGORY_INDEX(category);                           \
-    constexpr auto PERFETTO_UID(dynamic) = IsDynamicCategory(category);  \
-    return PERFETTO_UID(dynamic)                                         \
-               ? TrackEvent::IsDynamicCategoryEnabled(                   \
-                     ::perfetto::DynamicCategory(category))              \
-               : TrackEvent::IsCategoryEnabled(PERFETTO_UID(index));     \
+#define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)                           \
+  [&]() -> bool {                                                              \
+    using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;                          \
+    using ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory;       \
+    static constexpr auto PERFETTO_UID(index) =                                \
+        PERFETTO_GET_CATEGORY_INDEX(category);                                 \
+    static constexpr auto PERFETTO_UID(dynamic) = IsDynamicCategory(category); \
+    return PERFETTO_UID(dynamic)                                               \
+               ? TrackEvent::IsDynamicCategoryEnabled(                         \
+                     ::perfetto::DynamicCategory(category))                    \
+               : TrackEvent::IsCategoryEnabled(PERFETTO_UID(index));           \
   }()
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 
