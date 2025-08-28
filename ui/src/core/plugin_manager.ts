@@ -111,16 +111,16 @@ export class PluginManagerImpl {
     enableOverrides: ReadonlyArray<string> = [],
     disables: ReadonlyArray<string> = [],
   ) {
-    console.log(`Enables`, enableOverrides, 'Disables', disables);
-
     const enabledPlugins = this.registry.valuesAsArray().filter((p) => {
       // Always enable plugins in the overrides list.
       if (enableOverrides.includes(p.desc.id)) {
+        console.log(`Enabling override plugin '${p.desc.id}' due to the enableOverrides list`);
         return true;
       }
 
       // Otherwise, if the plugin is in the disables list, disable it.
       if (disables.some((d) => p.desc.id.match(d))) {
+        console.log(`Disabling plugin '${p.desc.id}' due to the disableOverride list`);
         return false;
       }
 
