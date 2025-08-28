@@ -55,11 +55,22 @@ const std::vector<std::string>& LoadTraceStrings(benchmark::State& state) {
   }
   static perfetto::base::NoDestructor<std::vector<std::string>> raw(
       LoadTraceStringRaw(f.get()));
+  if (raw.ref().empty()) {
+    state.SkipWithError(
+        "/tmp/trace_strings exists, but contains no data. Googlers: download "
+        "go/perfetto-benchmark-trace-strings and save into /tmp/trace_strings");
+  }
   return raw.ref();
 }
 
 void BM_StringPoolIntern(benchmark::State& state) {
   const std::vector<std::string>& strings = LoadTraceStrings(state);
+  if (!strings.empty()) {
+    state.SkipWithError(
+        "Test strings missing. Googlers: download "
+        "go/perfetto-benchmark-trace-strings and save into /tmp/trace_strings");
+    return;
+  }
   perfetto::trace_processor::StringPool pool;
   pool.set_locking(state.range());
   uint32_t i = 0;
