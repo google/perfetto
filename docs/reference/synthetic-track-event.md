@@ -76,7 +76,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 8008
@@ -186,7 +186,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 8009
@@ -299,7 +299,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9000
@@ -399,7 +399,7 @@ All counter tracks that have the same `y_axis_share_key` and the same parent tra
 In this example, we create two counter tracks with the same `y_axis_share_key`. This will cause them to be rendered with the same Y-axis range in the Perfetto UI.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9005
@@ -487,7 +487,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9002
@@ -594,7 +594,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9005
@@ -677,7 +677,7 @@ In this example, we create two tracks with the same name. By setting their
 always displayed as distinct tracks in the UI.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9003
@@ -729,7 +729,7 @@ into a single visual track. The name of the merged group will be taken from one
 of the tracks (usually the one with the lower UUID).
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9004
@@ -804,7 +804,7 @@ Slices" example from the [Getting Started guide](/docs/getting-started/convertin
 You can save this code as a new file (e.g., `streaming_converter.py`) and run it.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
 #!/usr/bin/env python3
