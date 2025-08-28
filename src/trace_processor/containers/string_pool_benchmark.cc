@@ -65,6 +65,12 @@ const std::vector<std::string>& LoadTraceStrings(benchmark::State& state) {
 
 void BM_StringPoolIntern(benchmark::State& state) {
   const std::vector<std::string>& strings = LoadTraceStrings(state);
+  if (!strings.empty()) {
+    state.SkipWithError(
+        "Test strings missing. Googlers: download "
+        "go/perfetto-benchmark-trace-strings and save into /tmp/trace_strings");
+    return;
+  }
   perfetto::trace_processor::StringPool pool;
   pool.set_locking(state.range());
   uint32_t i = 0;
