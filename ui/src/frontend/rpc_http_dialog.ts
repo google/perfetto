@@ -159,30 +159,33 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   const tpStatusAll = assertExists(state.status);
 
   // use the first trace processor if available, otherwise fallback
-  const firstStatusData = tpStatusAll.traceProcessorStatuses?.[0]?.status;
-  if (!firstStatusData) {
+  const firstTpStatusData = tpStatusAll.traceProcessorStatuses?.[0]?.status;
+  if (!firstTpStatusData) {
     // No trace processors available, use RPC without preloaded trace
     return;
   }
 
   // Create a proper StatusResult instance from the IStatusResult interface
-  const firstStatus = protos.StatusResult.create(firstStatusData);
+  const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
 
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
   // Check short version:
-  if (firstStatus.versionCode !== '' && firstStatus.versionCode !== VERSION) {
-    const url = await isVersionAvailable(firstStatus.versionCode);
+  if (
+    firstTpStatus.versionCode !== '' &&
+    firstTpStatus.versionCode !== VERSION
+  ) {
+    const url = await isVersionAvailable(firstTpStatus.versionCode);
     if (url !== undefined) {
       // If matched UI available show a dialog asking the user to
       // switch.
-      const result = await showDialogVersionMismatch(firstStatus, url);
+      const result = await showDialogVersionMismatch(firstTpStatus, url);
       switch (result) {
         case MismatchedVersionDialog.Dismissed:
         case MismatchedVersionDialog.UseMatchingUi:
-          navigateToVersion(firstStatus.versionCode);
+          navigateToVersion(firstTpStatus.versionCode);
           return;
         case MismatchedVersionDialog.UseMismatchedRpc:
           break;
@@ -197,8 +200,8 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   // Check the RPC version:
-  if (firstStatus.apiVersion < CURRENT_API_VERSION) {
-    const result = await showDialogIncompatibleRPC(firstStatus);
+  if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
+    const result = await showDialogIncompatibleRPC(firstTpStatus);
     switch (result) {
       case IncompatibleRpcDialogResult.Dismissed:
       case IncompatibleRpcDialogResult.UseWasm:
@@ -213,11 +216,11 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   // Check if pre-loaded:
-  if (firstStatus.loadedTraceName) {
+  if (firstTpStatus.loadedTraceName) {
     // If a trace is already loaded in the trace processor (e.g., the user
     // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
     // initialize the UI with the already-loaded trace.
-    const result = await showDialogToUsePreloadedTrace(firstStatus);
+    const result = await showDialogToUsePreloadedTrace(firstTpStatus);
     switch (result) {
       case PreloadedDialogResult.Dismissed:
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:

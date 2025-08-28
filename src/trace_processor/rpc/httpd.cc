@@ -227,14 +227,16 @@ void Httpd::Run(const std::string& listen_ip,
     cleanUpInactiveInstances();
     if (tp_timeout_mins_ > 0) {
       task_runner_.PostDelayedTask(
-          *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
+          *cleanup_task,
+          static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
     }
   };
 
   // Initial scheduling only if timeout is enabled
   if (tp_timeout_mins_ > 0) {
     task_runner_.PostDelayedTask(
-        *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
+        *cleanup_task,
+        static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
   }
 
   task_runner_.Run();
