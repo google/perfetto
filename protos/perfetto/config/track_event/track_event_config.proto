@@ -95,9 +95,9 @@ message TrackEventConfig {
 
   // When enable_thread_time_sampling is true, and this is specified, thread
   // time is sampled only if the elapsed wall time >
-  // `thread_time_subsampling_ns`. Otherwise, thread time is nil. Effectively,
-  // this means thread time will have a leeway of `thread_time_subsampling_ns`
-  // and won't be relevant for shorter events.
+  // `thread_time_subsampling_ns`. Otherwise, thread time is considered nil.
+  // Effectively, this means thread time will have a leeway of
+  // `thread_time_subsampling_ns` and won't be emitted for shorter events.
   optional uint64 thread_time_subsampling_ns = 10;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
