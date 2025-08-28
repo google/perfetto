@@ -405,7 +405,14 @@ function onCssLoaded() {
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  pluginManager.activatePlugins(overrides);
+
+  const disables =
+    typeof route.args.disablePlugin === 'string'
+      ? [route.args.disablePlugin]
+      : route.args.disablePlugin;
+
+  // const disables = (route.args.disablePlugins ?? '').split(',');
+  pluginManager.activatePlugins(overrides, disables);
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
