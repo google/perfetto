@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -85,21 +86,15 @@ Tracebox-specific args
                           operating systems; Android only supports abstract
                           sockets in autostart mode. Cannot be used in applet
                           mode.
-  --system-sockets      : Obsolete flag: supported for backwards compatibility.
+  --system-sockets      : Use system sockets (now the default). Obsolete flag
+                          supported for backwards compatibility. Opposite of
+                          --abstract-sockets.
 
 
 See also:
   * https://perfetto.dev/docs/
   * The config editor in the record page of https://ui.perfetto.dev/
 )");
-}
-
-bool IsSystemSocket(std::string_view socket) {
-  return socket == "--system-sockets";
-}
-
-bool IsAbstractSocket(std::string_view socket) {
-  return socket == "--abstract-sockets";
 }
 
 int TraceboxMain(int argc, char** argv) {
@@ -129,38 +124,30 @@ int TraceboxMain(int argc, char** argv) {
     return 1;
   }
 
-  int64_t system_socket_count =
-      std::count_if(argv, argv + argc, IsSystemSocket);
-  int64_t abstract_socket_count =
-      std::count_if(argv, argv + argc, IsAbstractSocket);
-  if (system_socket_count > 0 && abstract_socket_count > 0) {
-    PERFETTO_ELOG("Cannot specify --system-sockets and --abstract-sockets");
-    return 1;
-  }
-  if (system_socket_count > 1) {
-    PERFETTO_ELOG("Cannot specify --system-sockets multiple times");
-    return 1;
-  }
-  if (abstract_socket_count > 1) {
-    PERFETTO_ELOG("Cannot specify --abstract-sockets multiple times");
-    return 1;
-  }
-
-  auto* end = std::remove_if(argv, argv + argc, [](const char* arg) {
-    return IsAbstractSocket(arg) || IsSystemSocket(arg);
+  // Parse out --system-sockets.
+  char** new_end;
+  new_end = std::remove_if(argv + 1, argv + argc, [&](std::string_view arg) {
+    return arg == "--system-sockets";
   });
-  if (end != argv + argc) {
-    PERFETTO_DCHECK(end == argv + argc - 1);
-    argc--;
+  int64_t system_socket_count = std::distance(new_end, argv + argc);
+  argc -= static_cast<int>(system_socket_count);
+
+  // Parse out --abstract-sockets.
+  new_end = std::remove_if(argv + 1, argv + argc, [&](std::string_view arg) {
+    return arg == "--abstract-sockets";
+  });
+  int64_t abstract_socket_count = std::distance(new_end, argv + argc);
+  argc -= static_cast<int>(abstract_socket_count);
+
+  if (system_socket_count + abstract_socket_count > 1) {
+    PERFETTO_ELOG(
+        "Cannot specify more than one of --system-sockets or "
+        "--abstract-sockets");
+    return 1;
   }
 
-  enum {
-    kSystemSocket,
-    kAbstractSocket,
-  } socket_type =
-      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || abstract_socket_count > 0
-          ? kAbstractSocket
-          : kSystemSocket;
+  bool use_abstract_sockets =
+      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || abstract_socket_count > 0;
 
   if (system_socket_count > 0 && PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)) {
     PERFETTO_ELOG(
@@ -171,13 +158,13 @@ unsupported configuration. Either:
     `tracebox --system-sockets <args>` do `tracebox perfetto <args>`
   b) remove the `--system-sockets` flag. This will make Perfetto use an abstract
      socket not clashing with the system instance of Perfetto but will mean that
-     custom producers (e.g. track_event, android.frame_timeline etc) will *not*
-     be available for tracing.
+     non-Perfetto data-sources (e.g. track_event, android.frame_timeline etc)
+     will *not* be available.
 )");
     return 1;
   }
 
-  if (socket_type == kAbstractSocket) {
+  if (use_abstract_sockets) {
     auto pid_str = std::to_string(static_cast<uint64_t>(base::GetProcessId()));
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -201,33 +188,21 @@ unsupported configuration. Either:
     base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket);
     base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket);
   } else {
-    PERFETTO_DCHECK(socket_type == kSystemSocket);
-
-    if (base::FileExists(GetConsumerSocket())) {
+    if (base::FileExists(GetConsumerSocket()) ||
+        base::FileExists(GetProducerSocket())) {
       PERFETTO_ELOG(
           R"(
-Failed to confirm the consumer and producer system socket were unused. This
-likely indicates that another `tracebox` session or `traced` daemon are running
-in the background.
+System sockets are already in use. This likely indicates that another
+`tracebox` session or `traced` daemon is running.
 
 Either:
-  a) if there is a `traced` daemon already running on your machine: instead of
-    `tracebox --system-sockets <args>` do `tracebox perfetto <args>`. Note that
-    this may cause missing data sources unless the other Perfetto data sources
-    (`traced_probes`, `traced_perf`) are also running in the background.
-  b) if there is another `tracebox` instance already running on your machine,
-     to correctly multiplex across tracing sessions, you should run:
-      1) `tracebox traced --background`
-      2) `tracebox traced_probes --background`
-      3) `tracebox traced_perf --background` (optional)
-    which will cause these daemons to run in background until the next reboot.
-    You can use `tracebox perfetto <args>` to collect traces and correctly
-    multiplex both producers and consumers.
-  c) add the `--abstract-sockets` flag. This will make Perfetto use a totally
-     unique socket not clashing with any other instances of Perfetto but will
-     mean that custom producers (e.g. track_event, android.frame_timeline etc)
-     will *not* be available for tracing unless they are explicitly configured
-     to connect to this instance of Perfetto.
+  a) to connect to the existing tracing daemon: use `tracebox perfetto <args>`
+     instead. This connects to the running daemon for shared access.
+  b) to start this tracebox with its own isolated sockets: add the
+     `--abstract-sockets` flag. Note: this will use unique sockets but
+     non-Perfetto data-sources (e.g. track_event, android.frame_timeline) will
+     *not* be available. Note: multiple concurrent ftrace data sources may
+     conflict as they compete for the same tracefs interface.
 )");
       return 1;
     }
