@@ -43,6 +43,8 @@ namespace perfetto::trace_processor {
 namespace {
 
 constexpr int kBindPort = 9001;
+constexpr int kMilliSecondPerMinute = 60 * 1000;
+constexpr uint64_t kNanosecondPerMinute = 60 * 1000000000ULL;
 
 // Sets by default the Access-Control-Allow-Origin: $origin on the following
 // origins. This affects only browser clients that use CORS. Other HTTP clients
@@ -225,14 +227,14 @@ void Httpd::Run(const std::string& listen_ip,
     cleanUpInactiveInstances();
     if (tp_timeout_mins_ > 0) {
       task_runner_.PostDelayedTask(
-          *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * 60 * 1000));
+          *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
     }
   };
 
   // Initial scheduling only if timeout is enabled
   if (tp_timeout_mins_ > 0) {
     task_runner_.PostDelayedTask(
-        *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * 60 * 1000));
+        *cleanup_task, static_cast<uint32_t>(tp_timeout_mins_ * kMilliSecondPerMinute));
   }
 
   task_runner_.Run();
@@ -509,7 +511,7 @@ void Httpd::cleanUpInactiveInstances() {
   }
 
   uint64_t kInactivityNs =
-      static_cast<uint64_t>(tp_timeout_mins_) * 60 * 1000000000ULL;
+      static_cast<uint64_t>(tp_timeout_mins_) * kNanosecondPerMinute;
   uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
 
   auto it = uuid_to_tp_map.begin();
