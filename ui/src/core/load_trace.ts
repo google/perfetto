@@ -565,9 +565,8 @@ async function sendTraceTitle(engine: HttpRpcEngine, traceSource: TraceSource) {
     default:
       break;
   }
-  if (!traceTitle) {
-    return;
-  } else {
+  if (traceTitle) {
     engine.sendTraceTitle(traceTitle);
   }
+  return;
 }
