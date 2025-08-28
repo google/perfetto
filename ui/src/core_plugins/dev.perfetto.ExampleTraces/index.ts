@@ -28,7 +28,7 @@ function openTraceUrl(app: App, url: string): void {
 }
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.ExampleTraces';
+  static readonly id = 'dev.perfetto.ExampleTraces';
   static onActivate(ctx: App) {
     const OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID =
       'dev.perfetto.OpenExampleAndroidTrace';

@@ -49,7 +49,9 @@ function sortPlugins(registeredPlugins: ReadonlyArray<PluginWrapper>) {
         );
       });
     case SortOrder.Name:
-      return registeredPlugins;
+      return registeredPlugins.concat([]).sort((a, b) => {
+        return a.desc.id.localeCompare(b.desc.id);
+      });
     case SortOrder.Enabled:
       return registeredPlugins.concat([]).sort((a, b) => {
         return (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);

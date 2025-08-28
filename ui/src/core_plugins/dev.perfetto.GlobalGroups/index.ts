@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 
 // This plugin is responsible for organizing all the global tracks.
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.GlobalGroups';
+  static readonly id = 'dev.perfetto.GlobalGroups';
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.onTraceReady.addListener(() => {
       // If there is only one group, expand it

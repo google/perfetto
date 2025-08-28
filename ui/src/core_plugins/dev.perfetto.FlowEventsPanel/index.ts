@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
 import {TraceImpl} from '../../core/trace_impl';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 
@@ -24,20 +23,19 @@ import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
  * work, we can reassess this and move it into wherever it needs to be.
  */
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.FlowEvents';
+  static readonly id = 'dev.perfetto.FlowEventsPanel';
 
-  async onTraceLoad(trace: Trace): Promise<void> {
+  async onTraceLoad(trace: TraceImpl): Promise<void> {
     // This type assertion is allowed because we're a core plugin.
-    const traceImpl = trace as TraceImpl;
     trace.selection.registerAreaSelectionTab({
       id: 'flow_events',
       name: 'Flow Events',
       priority: -100,
       render() {
-        if (traceImpl.flows.selectedFlows.length > 0) {
+        if (trace.flows.selectedFlows.length > 0) {
           return {
             isLoading: false,
-            content: m(FlowEventsAreaSelectedPanel, {trace: traceImpl}),
+            content: m(FlowEventsAreaSelectedPanel, {trace}),
           };
         } else {
           return undefined;
