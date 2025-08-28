@@ -79,7 +79,7 @@ class Httpd : public base::HttpRequestHandler {
   void registerConnection(base::HttpServerConnection* conn, std::string uuid);
   void cleanUpInactiveInstances();
 
-  struct UuidRpcThread {
+  class UuidRpcThread {
    public:
     explicit UuidRpcThread()
         : last_accessed_ns_(
