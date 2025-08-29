@@ -41,16 +41,13 @@ class TarWriterTest : public ::testing::Test {
  protected:
   TarWriterTest() : temp_file_(base::TempFile::Create()) {}
 
-  void SetUp() override {
-    output_path_ = temp_file_.path();
-    output_fd_ = temp_file_.fd();
-  }
+  void SetUp() override { output_path_ = temp_file_.path(); }
 
   // Helper to read entire file into string
   std::string ReadFile(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
-    return std::string(std::istreambuf_iterator<char>(file),
-                       std::istreambuf_iterator<char>());
+    return {std::istreambuf_iterator<char>(file),
+            std::istreambuf_iterator<char>()};
   }
 
   // Helper to create a test file with specific content
@@ -127,7 +124,6 @@ class TarWriterTest : public ::testing::Test {
 
   base::TempFile temp_file_;
   std::string output_path_;
-  int output_fd_;
   std::vector<base::TempFile> created_test_files_;
 };
 
