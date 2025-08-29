@@ -491,7 +491,6 @@ JOIN thread_track
 JOIN do_frame_slice_with_end_ts AS do_frame
   ON do_frame.ts_end >= cuj.ts
   AND do_frame.ts <= cuj.ts_end
-  AND do_frame.upid = cuj.upid
   AND thread_track.id = do_frame.track_id
 WHERE
   (
