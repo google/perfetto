@@ -518,7 +518,7 @@ void Httpd::cleanUpInactiveInstances() {
   uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
 
   auto it = uuid_to_tp_map.begin();
-  while (it != uuid_to_tp_map.end()) {
+  for (auto it = uuid_to_tp_map.begin(); it != uuid_to_tp_map.end();) {
     uint64_t last_accessed = it->second->GetLastAccessedNs();
 
     if (now - last_accessed > kInactivityNs) {
