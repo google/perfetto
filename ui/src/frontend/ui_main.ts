@@ -204,13 +204,44 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Shift+Enter',
       },
       {
-        id: 'dev.perfetto.RunQuery',
-        name: 'Run query',
+        id: 'dev.perfetto.SwitchToQueryMode',
+        name: 'Switch to query mode',
         callback: () => trace.omnibox.setMode(OmniboxMode.Query),
       },
       {
-        id: 'dev.perfetto.Search',
-        name: 'Search',
+        id: 'dev.perfetto.RunQuery',
+        name: 'Runs an SQL query',
+        callback: async (rawSql: unknown) => {
+          const query =
+            typeof rawSql === 'string'
+              ? rawSql
+              : await trace.omnibox.prompt('Enter SQL...');
+          if (!query) {
+            return;
+          }
+          await trace.engine.query(query);
+        },
+      },
+      {
+        id: 'dev.perfetto.RunQueryAndShowTab',
+        name: 'Runs an SQL query and opens results in a tab',
+        callback: async (rawSql: unknown) => {
+          const query =
+            typeof rawSql === 'string'
+              ? rawSql
+              : await trace.omnibox.prompt('Enter SQL...');
+          if (!query) {
+            return;
+          }
+          addQueryResultsTab(trace, {
+            query,
+            title: 'Command Query',
+          });
+        },
+      },
+      {
+        id: 'dev.perfetto.SwitchToSearchMode',
+        name: 'Switch to search mode',
         callback: () => trace.omnibox.setMode(OmniboxMode.Search),
         defaultHotkey: '/',
       },

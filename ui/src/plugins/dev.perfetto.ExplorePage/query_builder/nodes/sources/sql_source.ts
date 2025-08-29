@@ -41,6 +41,7 @@ export interface SqlSourceState extends QueryNodeState {
 
 export class SqlSourceNode extends SourceNode {
   readonly state: SqlSourceState;
+  readonly prevNodes: QueryNode[] = [];
 
   constructor(attrs: SqlSourceState) {
     super(attrs);
