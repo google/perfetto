@@ -21,7 +21,7 @@ import {SqlPackage} from '../public/extra_sql_packages';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {PageHandler} from '../public/page';
 import {Raf} from '../public/raf';
-import {RouteArgs} from '../public/route_schema';
+import {RouteArg, RouteArgs} from '../public/route_schema';
 import {Setting, SettingsManager} from '../public/settings';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
@@ -187,9 +187,7 @@ export class AppContext {
 
 export class AppImpl implements App {
   readonly pluginId: string;
-  readonly initialPluginRouteArgs: {
-    [key: string]: number | boolean | string;
-  };
+  readonly initialPluginRouteArgs: RouteArgs;
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
 
@@ -210,7 +208,7 @@ export class AppImpl implements App {
     this.appCtx = appCtx;
     this.pluginId = pluginId;
 
-    const args: {[key: string]: string | number | boolean} = {};
+    const args: {[key: string]: RouteArg} = {};
     this.initialPluginRouteArgs = Object.entries(
       appCtx.initialRouteArgs,
     ).reduce((result, [key, value]) => {
@@ -218,8 +216,8 @@ export class AppImpl implements App {
       const regex = new RegExp(`^${pluginId}:(.+)$`);
       const match = key.match(regex);
 
-      // Only include entries that match the regex and have the right value type
-      if (match && ['string', 'number', 'boolean'].includes(typeof value)) {
+      // Only include entries that match the regex
+      if (match) {
         const newKey = match[1];
         // Use the capture group (what comes after the prefix) as the new key
         result[newKey] = value;
