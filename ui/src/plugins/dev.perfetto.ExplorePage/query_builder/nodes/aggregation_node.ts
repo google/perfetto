@@ -34,7 +34,7 @@ import {Button} from '../../../../widgets/button';
 import {NodeIssues} from '../node_issues';
 
 export interface AggregationNodeState extends QueryNodeState {
-  readonly prevNode: QueryNode;
+  prevNodes?: QueryNode[];
   groupByColumns: ColumnInfo[];
   readonly aggregations: Aggregation[];
 }
@@ -50,12 +50,14 @@ export interface Aggregation {
 export class AggregationNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAggregation;
-  readonly prevNode?: QueryNode;
+  readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
 
   get sourceCols() {
-    return this.prevNode?.finalCols ?? this.prevNode?.sourceCols ?? [];
+    return (
+      this.prevNodes?.[0]?.finalCols ?? this.prevNodes?.[0]?.sourceCols ?? []
+    );
   }
 
   get finalCols(): ColumnInfo[] {
@@ -73,7 +75,7 @@ export class AggregationNode implements QueryNode {
     this.state = {
       ...state,
     };
-    this.prevNode = state.prevNode;
+    this.prevNodes = state.prevNodes;
     this.nextNodes = [];
     this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
   }
@@ -99,14 +101,14 @@ export class AggregationNode implements QueryNode {
     if (this.state.issues) {
       this.state.issues.queryError = undefined;
     }
-    if (this.prevNode === undefined) {
+    if (!this.prevNodes || this.prevNodes.length === 0) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error(
         'Aggregation node has no previous node',
       );
       return false;
     }
-    if (!this.prevNode.validate()) {
+    if (!this.prevNodes[0].validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
       return false;
@@ -151,7 +153,7 @@ export class AggregationNode implements QueryNode {
 
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
-      prevNode: this.state.prevNode,
+      prevNodes: this.state.prevNodes,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: [],
@@ -165,7 +167,8 @@ export class AggregationNode implements QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const prevSq = this.prevNode!.getStructuredQuery();
+    if (!this.prevNodes || this.prevNodes.length === 0) return;
+    const prevSq = this.prevNodes[0].getStructuredQuery();
     if (!prevSq) return undefined;
 
     const groupByProto = createGroupByProto(
