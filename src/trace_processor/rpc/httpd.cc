@@ -78,7 +78,6 @@ class Httpd : public base::HttpRequestHandler {
 
   static void ServeHelpPage(const base::HttpRequest&);
   static std::string ExtractUuidFromMessage(base::StringView data);
-  bool IsUuidHandshake(base::StringView data);
   void registerConnection(base::HttpServerConnection* conn, std::string uuid);
   void cleanUpInactiveInstances();
 
@@ -436,7 +435,7 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   // Check if this connection already has a dedicated thread
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
-  if (IsUuidHandshake(msg.data)) {
+  if (!ExtractUuidFromMessage(msg.data).empty()) {
     registerConnection(msg.conn, ExtractUuidFromMessage(msg.data));
   } else {
     auto it = conn_to_uuid_map.find(msg.conn);
@@ -465,10 +464,6 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   if (it != conn_to_uuid_map.end()) {
     conn_to_uuid_map.erase(it);
   }
-}
-
-bool Httpd::IsUuidHandshake(base::StringView data) {
-  return !ExtractUuidFromMessage(data).empty();
 }
 
 void Httpd::registerConnection(base::HttpServerConnection* conn,
