@@ -299,23 +299,27 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     }
 
     // Add per-UUID trace processors
-    for (const auto& entry : uuid_to_tp_map) {
-      const std::string& uuid = entry.first;
-      const auto& tp_rpc = entry.second;
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+      for (const auto& entry : uuid_to_tp_map) {
+        const std::string& uuid = entry.first;
+        const auto& tp_rpc = entry.second;
 
-      auto* tp_status = result->add_trace_processor_statuses();
-      tp_status->set_uuid(uuid.c_str());
+        auto* tp_status = result->add_trace_processor_statuses();
+        tp_status->set_uuid(uuid.c_str());
 
-      auto* status = tp_status->set_status();
-      status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
+        auto* status = tp_status->set_status();
+        status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
 
-      status->set_human_readable_version(base::GetVersionString());
-      if (const char* version_code = base::GetVersionCode(); version_code) {
-        status->set_version_code(version_code);
+        status->set_human_readable_version(base::GetVersionString());
+        if (const char* version_code = base::GetVersionCode(); version_code) {
+          status->set_version_code(version_code);
+        }
+        status->set_api_version(
+            protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
       }
-      status->set_api_version(
-          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
     }
+
     return conn.SendResponse("200 OK", default_headers,
                              Vec2Sv(result.SerializeAsArray()));
   }
