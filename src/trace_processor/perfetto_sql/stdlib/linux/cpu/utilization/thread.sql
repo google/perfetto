@@ -146,6 +146,8 @@ GROUP BY
   utid;
 
 -- Aggregated CPU statistics for each thread per CPU combination.
+-- To operate properly this requires sched/sched_switch and power/cpu_frequency
+-- ftrace events to be present in the trace.
 CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu (
   -- Thread
   utid JOINID(thread.id),
@@ -182,6 +184,10 @@ GROUP BY
   ucpu;
 
 -- Aggregated CPU statistics for each thread per CPU combination in a provided interval.
+-- To operate properly this requires sched/sched_switch and power/cpu_frequency
+-- ftrace events to be present in the trace.
+-- Warning: this query is expensive and might take a long time to execute when joined
+-- across multiple intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_per_cpu_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
