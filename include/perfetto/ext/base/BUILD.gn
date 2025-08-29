@@ -33,6 +33,7 @@ source_set("base") {
     "getopt.h",
     "getopt_compat.h",
     "hash.h",
+    "lock_free_task_runner.h",
     "metatrace.h",
     "metatrace_events.h",
     "murmur_hash.h",
