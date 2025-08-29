@@ -195,6 +195,9 @@ int Main(int argc, char** argv) {
       i++;
       if (i < argc) {
         symbol_paths = base::SplitString(argv[i], ",");
+      } else {
+        PERFETTO_ELOG("--symbol-paths must have an argument.");
+        return Usage(argv[0]);
       }
     } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
       no_auto_symbol_paths = true;

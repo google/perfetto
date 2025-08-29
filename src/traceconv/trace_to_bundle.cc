@@ -16,8 +16,6 @@
 
 #include "src/traceconv/trace_to_bundle.h"
 
-#include <algorithm>
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -46,14 +44,10 @@ std::vector<std::string> GetAllMappingNames(
   auto it = tp->ExecuteQuery(R"(
     SELECT DISTINCT name
     FROM stack_profile_mapping
-    WHERE build_id != ''
-    ORDER BY name
+    WHERE build_id != '' AND name != ''
   )");
   while (it.Next()) {
-    std::string name = it.Get(0).AsString();
-    if (!name.empty()) {
-      mapping_names.push_back(name);
-    }
+    mapping_names.push_back(it.Get(0).AsString());
   }
   return mapping_names;
 }
