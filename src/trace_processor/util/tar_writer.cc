@@ -87,17 +87,17 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
                                         const std::string& file_path) {
   RETURN_IF_ERROR(ValidateFilename(filename));
 
-  base::ScopedFile file = base::OpenFile(file_path, O_RDONLY);
-  if (!file) {
-    return base::Status("Failed to open file: " + file_path);
-  }
-
   // Get file size
-  auto file_size_opt = base::GetFileSize(file.get());
+  auto file_size_opt = base::GetFileSize(file_path);
   if (!file_size_opt) {
     return base::Status("Failed to get file size: " + file_path);
   }
   size_t file_size = static_cast<size_t>(*file_size_opt);
+
+  base::ScopedFile file = base::OpenFile(file_path, O_RDONLY);
+  if (!file) {
+    return base::Status("Failed to open file: " + file_path);
+  }
 
   RETURN_IF_ERROR(CreateAndWriteHeader(filename, file_size));
 
