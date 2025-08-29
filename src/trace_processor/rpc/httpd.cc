@@ -517,7 +517,6 @@ void Httpd::cleanUpInactiveInstances() {
       static_cast<uint64_t>(tp_timeout_mins_) * kNanosecondPerMinute;
   uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
 
-  auto it = uuid_to_tp_map.begin();
   for (auto it = uuid_to_tp_map.begin(); it != uuid_to_tp_map.end();) {
     const std::string& uuid = it->first;
     uint64_t last_accessed = it->second->GetLastAccessedNs();
