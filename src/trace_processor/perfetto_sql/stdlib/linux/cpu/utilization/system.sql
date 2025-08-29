@@ -82,7 +82,7 @@ CREATE PERFETTO TABLE cpu_cycles (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on all CPUs.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
@@ -112,7 +112,7 @@ RETURNS TABLE (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on all CPUs.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
@@ -134,7 +134,7 @@ JOIN _cpu_freq_per_thread
 -- Aggregated CPU statistics for each CPU.
 CREATE PERFETTO TABLE cpu_cycles_per_cpu (
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu LONG,
+  ucpu JOINID(cpu.id),
   -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
   cpu LONG,
   -- Sum of CPU millicycles.
@@ -142,7 +142,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on CPU.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
@@ -172,7 +172,7 @@ CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
 )
 RETURNS TABLE (
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu LONG,
+  ucpu JOINID(cpu.id),
   -- CPU number.
   cpu LONG,
   -- Sum of CPU millicycles.
@@ -180,7 +180,7 @@ RETURNS TABLE (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on CPU.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
