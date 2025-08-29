@@ -742,12 +742,16 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
     sqg.AddQuery(sq.ptr, sq.size);
 
     // Execute modules
+    // TODO(mayzner): Should be done on an empty engine as we don't actually
+    // care about the results of execution of this code.
     for (const auto& module : analyzed_sq.modules) {
       engine_->Execute(SqlSource::FromTraceProcessorImplementation(
           "INCLUDE PERFETTO MODULE " + module));
     }
 
     // Execute preambles
+    // TODO(mayzner): Should be done on an empty engine as we don't actually
+    // care about the results of execution of this code.
     for (const auto& preamble : analyzed_sq.preambles) {
       engine_->Execute(SqlSource::FromTraceProcessorImplementation(preamble));
     }
