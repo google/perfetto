@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 
@@ -67,26 +68,7 @@ TarWriter::~TarWriter() {
 base::Status TarWriter::AddFile(const std::string& filename,
                                 const std::string& content) {
   RETURN_IF_ERROR(ValidateFilename(filename));
-
-  TarHeader header;
-  InitHeader(&header);
-
-  // Set filename
-  base::StringCopy(header.name, filename.c_str(), sizeof(header.name));
-
-  // Set file size (in octal)
-  snprintf(header.size, sizeof(header.size), "%011lo",
-           static_cast<unsigned long>(content.size()));
-
-  // Set modification time to current time (in octal)
-  snprintf(header.mtime, sizeof(header.mtime), "%011lo",
-           static_cast<unsigned long>(time(nullptr)));
-
-  // Compute and set checksum
-  ComputeChecksum(&header);
-
-  // Write header
-  RETURN_IF_ERROR(WriteHeader(header));
+  RETURN_IF_ERROR(CreateAndWriteHeader(filename, content.size()));
 
   // Write file content
   ssize_t bytes_written =
@@ -117,25 +99,7 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
   }
   size_t file_size = static_cast<size_t>(*file_size_opt);
 
-  TarHeader header;
-  InitHeader(&header);
-
-  // Set filename
-  base::StringCopy(header.name, filename.c_str(), sizeof(header.name));
-
-  // Set file size (in octal)
-  snprintf(header.size, sizeof(header.size), "%011lo",
-           static_cast<unsigned long>(file_size));
-
-  // Set modification time to current time (in octal)
-  snprintf(header.mtime, sizeof(header.mtime), "%011lo",
-           static_cast<unsigned long>(time(nullptr)));
-
-  // Compute and set checksum
-  ComputeChecksum(&header);
-
-  // Write header
-  RETURN_IF_ERROR(WriteHeader(header));
+  RETURN_IF_ERROR(CreateAndWriteHeader(filename, file_size));
 
   // Copy file content in chunks to avoid loading entire file into memory
   constexpr size_t kChunkSize = 64 * 1024;  // 64KB chunks
@@ -165,40 +129,46 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
   return base::OkStatus();
 }
 
-void TarWriter::InitHeader(TarHeader* header) {
-  memset(header, 0, sizeof(TarHeader));
+base::Status TarWriter::CreateAndWriteHeader(const std::string& filename,
+                                             size_t file_size) {
+  TarHeader header;
 
-  // Set default values using safe copying
-  SafeCopyToCharArray(header->mode, "0644   ");   // Regular file, rw-r--r--
-  SafeCopyToCharArray(header->uid, "0000000");    // Root user
-  SafeCopyToCharArray(header->gid, "0000000");    // Root group
-  header->typeflag = '0';                         // Regular file
-  SafeCopyToCharArray(header->magic, "ustar\0");  // POSIX ustar format
-  SafeCopyToCharArray(header->version, "00");     // Version
-  SafeCopyToCharArray(header->uname, "root");     // User name
-  SafeCopyToCharArray(header->gname, "root");     // Group name
-  SafeCopyToCharArray(header->devmajor, "0000000");
-  SafeCopyToCharArray(header->devminor, "0000000");
+  // Initialize header
+  memset(&header, 0, sizeof(TarHeader));
+  SafeCopyToCharArray(header.mode, "0644   ");   // Regular file, rw-r--r--
+  SafeCopyToCharArray(header.uid, "0000000");    // Root user
+  SafeCopyToCharArray(header.gid, "0000000");    // Root group
+  header.typeflag = '0';                         // Regular file
+  SafeCopyToCharArray(header.magic, "ustar\0");  // POSIX ustar format
+  SafeCopyToCharArray(header.version, "00");     // Version
+  SafeCopyToCharArray(header.uname, "root");     // User name
+  SafeCopyToCharArray(header.gname, "root");     // Group name
+  SafeCopyToCharArray(header.devmajor, "0000000");
+  SafeCopyToCharArray(header.devminor, "0000000");
+  memset(header.checksum, ' ', sizeof(header.checksum));
 
-  // Initialize checksum field with spaces (required for calculation)
-  memset(header->checksum, ' ', sizeof(header->checksum));
-}
+  // Set filename
+  base::StringCopy(header.name, filename.c_str(), sizeof(header.name));
 
-void TarWriter::ComputeChecksum(TarHeader* header) {
-  // Calculate checksum of header (treating checksum field as spaces)
+  // Set file size (in octal)
+  snprintf(header.size, sizeof(header.size), "%011lo",
+           static_cast<unsigned long>(file_size));
+
+  // Set modification time to current time (in octal)
+  snprintf(header.mtime, sizeof(header.mtime), "%011lo",
+           static_cast<unsigned long>(time(nullptr)));
+
+  // Compute checksum
   unsigned int sum = 0;
-  const unsigned char* bytes = reinterpret_cast<const unsigned char*>(header);
+  const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&header);
   for (size_t i = 0; i < sizeof(TarHeader); i++) {
     sum += bytes[i];
   }
+  snprintf(header.checksum, sizeof(header.checksum), "%06o", sum);
+  header.checksum[6] = '\0';
+  header.checksum[7] = ' ';
 
-  // Write checksum in octal with null terminator
-  snprintf(header->checksum, sizeof(header->checksum), "%06o", sum);
-  header->checksum[6] = '\0';
-  header->checksum[7] = ' ';
-}
-
-base::Status TarWriter::WriteHeader(const TarHeader& header) {
+  // Write header
   ssize_t written =
       base::WriteAll(output_file_.get(), reinterpret_cast<const char*>(&header),
                      sizeof(header));

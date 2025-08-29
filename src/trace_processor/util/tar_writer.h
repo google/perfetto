@@ -76,11 +76,11 @@ class TarWriter {
     char prefix[155];    // Filename prefix
     char padding[12];    // Padding to 512 bytes
   };
+  static_assert(sizeof(TarHeader) == 512, "TarHeader must be 512 bytes");
 
   base::Status ValidateFilename(const std::string& filename);
-  void InitHeader(TarHeader* header);
-  void ComputeChecksum(TarHeader* header);
-  base::Status WriteHeader(const TarHeader& header);
+  base::Status CreateAndWriteHeader(const std::string& filename,
+                                    size_t file_size);
   base::Status WritePadding(size_t size);
 
   base::ScopedFile output_file_;
