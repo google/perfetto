@@ -113,7 +113,7 @@ message PerfettoSqlStructuredQuery {
     // results with at least one column.
     optional string sql = 1;
 
-    // The name of columns which will be returned by the SQL. Required.
+    // The name of columns which will be returned by the SQL. Optional.
     repeated string column_names = 2;
 
     // A list of dependencies for this SQL query. Optional.

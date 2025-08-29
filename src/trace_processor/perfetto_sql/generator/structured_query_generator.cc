@@ -338,17 +338,18 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
     }
   }
 
+  std::string cols_str = "";
   if (sql.column_names()->size() == 0) {
-    return base::ErrStatus("Sql must specify columns");
+    cols_str = "*";
+  } else {
+    std::vector<std::string> cols;
+    for (auto it = sql.column_names(); it; ++it) {
+      cols.push_back(it->as_std_string());
+    }
+    cols_str = base::Join(cols, ", ");
   }
 
-  std::vector<std::string> cols;
-  for (auto it = sql.column_names(); it; ++it) {
-    cols.push_back(it->as_std_string());
-  }
-  std::string join_str = base::Join(cols, ", ");
-
-  std::string generated_sql = "(SELECT " + join_str + " FROM (" +
+  std::string generated_sql = "(SELECT " + cols_str + " FROM (" +
                               std::move(rewriter).Build().sql() + "))";
   return generated_sql;
 }
