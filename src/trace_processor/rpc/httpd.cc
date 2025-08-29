@@ -154,7 +154,8 @@ class Httpd : public base::HttpRequestHandler {
     std::atomic<uint64_t> last_accessed_ns_;
   };
 
-  // legacy rpc endpoints for older uis that don't have the rpc map
+  // global rpc for older uis that don't have the rpc map and for opening files
+  // via trace_processor_shell
   Rpc global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
