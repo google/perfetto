@@ -15888,7 +15888,7 @@ class TrackEventCategory(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TrackEventConfig(_message.Message):
-    __slots__ = ["disable_incremental_timestamps", "disabled_categories", "disabled_tags", "enable_thread_time_sampling", "enabled_categories", "enabled_tags", "filter_debug_annotations", "filter_dynamic_event_names", "timestamp_unit_multiplier"]
+    __slots__ = ["disable_incremental_timestamps", "disabled_categories", "disabled_tags", "enable_thread_time_sampling", "enabled_categories", "enabled_tags", "filter_debug_annotations", "filter_dynamic_event_names", "thread_time_subsampling_ns", "timestamp_unit_multiplier"]
     DISABLED_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     DISABLED_TAGS_FIELD_NUMBER: _ClassVar[int]
     DISABLE_INCREMENTAL_TIMESTAMPS_FIELD_NUMBER: _ClassVar[int]
@@ -15897,6 +15897,7 @@ class TrackEventConfig(_message.Message):
     ENABLE_THREAD_TIME_SAMPLING_FIELD_NUMBER: _ClassVar[int]
     FILTER_DEBUG_ANNOTATIONS_FIELD_NUMBER: _ClassVar[int]
     FILTER_DYNAMIC_EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
+    THREAD_TIME_SUBSAMPLING_NS_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_UNIT_MULTIPLIER_FIELD_NUMBER: _ClassVar[int]
     disable_incremental_timestamps: bool
     disabled_categories: _containers.RepeatedScalarFieldContainer[str]
@@ -15906,8 +15907,9 @@ class TrackEventConfig(_message.Message):
     enabled_tags: _containers.RepeatedScalarFieldContainer[str]
     filter_debug_annotations: bool
     filter_dynamic_event_names: bool
+    thread_time_subsampling_ns: int
     timestamp_unit_multiplier: int
-    def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., filter_dynamic_event_names: bool = ...) -> None: ...
+    def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., thread_time_subsampling_ns: _Optional[int] = ..., filter_dynamic_event_names: bool = ...) -> None: ...
 
 class TrackEventDefaults(_message.Message):
     __slots__ = ["extra_counter_track_uuids", "extra_double_counter_track_uuids", "track_uuid"]
