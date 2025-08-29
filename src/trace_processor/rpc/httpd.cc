@@ -473,13 +473,13 @@ bool Httpd::IsUuidHandshake(base::StringView data) {
 
 void Httpd::registerConnection(base::HttpServerConnection* conn,
                                std::string uuid) {
-  auto it = conn_to_uuid_map.find(conn);
-  if (it == conn_to_uuid_map.end()) {
+  auto con_to_uuid_it = conn_to_uuid_map.find(conn);
+  if (con_to_uuid_it == conn_to_uuid_map.end()) {
     conn_to_uuid_map.emplace(conn, uuid);
   }
 
-  auto it2 = uuid_to_tp_map.find(uuid);
-  if (it2 == uuid_to_tp_map.end()) {
+  auto uuid_to_tp_it = uuid_to_tp_map.find(uuid);
+  if (uuid_to_tp_it == uuid_to_tp_map.end()) {
     // Create new thread for this connection
     auto new_thread = std::make_unique<UuidRpcThread>();
     uuid_to_tp_map.emplace(uuid, std::move(new_thread));
