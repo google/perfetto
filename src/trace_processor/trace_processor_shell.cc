@@ -1201,7 +1201,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_TP_TIMEOUT_MINS) {
-      command_line_options.tp_timeout_mins = static_cast<size_t>(atoi(optarg));
+      auto timeout_opt = base::StringToInt32(optarg);
+      if (!timeout_opt.has_value() || timeout_opt.value() < 0) {
+        PERFETTO_ELOG("Invalid timeout value: %s", optarg);
+        exit(1);
+      }
+      command_line_options.tp_timeout_mins = static_cast<size_t>(*timeout_opt);
       continue;
     }
 
