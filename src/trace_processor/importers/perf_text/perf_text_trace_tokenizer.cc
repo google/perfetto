@@ -68,6 +68,12 @@ PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
 base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
+  // Guess the clock used for timestamps, which would normally be described in
+  // `perf script --header`, which we don't expect to be included.
+  // Further, if the recording was using the default perf_clock (typically
+  // equivalent to sched_clock), the latter doesn't have a representation in
+  // perfetto at the time of writing.
+  // Therefore, approximate all clocks as MONOTONIC.
   context_->clock_tracker->SetTraceTimeClock(
       protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
 
