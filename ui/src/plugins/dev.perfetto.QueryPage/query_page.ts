@@ -43,6 +43,7 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {Icon} from '../../widgets/icon';
+import {globals} from '../../frontend/globals';
 
 class CopyHelper {
   private _copied = false;
@@ -75,7 +76,9 @@ export interface QueryPageAttrs {
   readonly editorText: string;
   readonly executedQuery?: string;
   readonly queryResult?: QueryResponse;
+
   onEditorContentUpdate?(content: string): void;
+
   onExecute?(query: string): void;
 }
 
@@ -120,7 +123,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
           m(
             Stack,
-            {orientation: 'horizontal', className: 'pf-query-page__hotkeys'},
+            {
+              orientation: 'horizontal',
+              className: 'pf-query-page__hotkeys',
+            },
             'or press',
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
@@ -132,6 +138,31 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
         ]),
       ]),
+      globals.isInternalUser &&
+        m(
+          Box,
+          m(Callout, {icon: 'star', intent: Intent.None}, [
+            'Try out the ',
+            m(
+              'a',
+              {
+                href: 'http://go/perfetto-sql-agent',
+                target: '_blank',
+              },
+              'Perfetto SQL Agent',
+            ),
+            ' to generate SQL queries and ',
+            m(
+              'a',
+              {
+                href: 'http://go/perfetto-llm-user-guide#report-issues',
+                target: '_blank',
+              },
+              'give feedback',
+            ),
+            '!',
+          ]),
+        ),
       attrs.editorText.includes('"') &&
         m(
           Box,
