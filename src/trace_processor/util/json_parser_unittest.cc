@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_parser.h"
+#include "src/trace_processor/util/json_parser.h"
 
 #include <string>
 #include <string_view>

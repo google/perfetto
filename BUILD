@@ -360,7 +360,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -413,6 +412,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -2054,16 +2054,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/json/json_trace_parser.h",
         "src/trace_processor/importers/json/json_trace_tokenizer.cc",
         "src/trace_processor/importers/json/json_trace_tokenizer.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/json:minimal
-perfetto_filegroup(
-    name = "src_trace_processor_importers_json_minimal",
-    srcs = [
-        "src/trace_processor/importers/json/json_parser.h",
-        "src/trace_processor/importers/json/json_utils.cc",
-        "src/trace_processor/importers/json/json_utils.h",
     ],
 )
 
@@ -3714,6 +3704,16 @@ perfetto_filegroup(
     name = "src_trace_processor_util_interned_message_view",
     srcs = [
         "src/trace_processor/util/interned_message_view.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:json_parser
+perfetto_filegroup(
+    name = "src_trace_processor_util_json_parser",
+    srcs = [
+        "src/trace_processor/util/json_parser.h",
+        "src/trace_processor/util/json_utils.cc",
+        "src/trace_processor/util/json_utils.h",
     ],
 )
 
@@ -7367,7 +7367,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -7419,6 +7418,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7574,7 +7574,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -7629,6 +7628,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7773,7 +7773,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -7825,6 +7824,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
