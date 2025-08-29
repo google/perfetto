@@ -83,7 +83,7 @@ cuj_frame_timeline AS (
   GROUP BY cuj_id, e.vsync, e.ts
 ),
 -- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
--- android_jank_cuj_do_frame_slice only contains frames within the CUJ so
+-- _android_jank_cuj_do_frames only contains frames within the CUJ so
 -- the ts_prev_do_frame_end is always missing for the very first frame
 -- For now this is acceptable as it keeps the query simpler.
 do_frame_ordered AS (
@@ -216,7 +216,7 @@ WITH boundary_base AS (
         THEN MAX(timeline_slice.ts + timeline_slice.dur)
       ELSE (
         SELECT MAX(MAX(ts_end), cuj.ts_end)
-        FROM android_jank_cuj_do_frame_slice do_frame
+        FROM _android_jank_cuj_do_frames do_frame
         WHERE do_frame.cuj_id = cuj.cuj_id)
     END AS ts_end
   FROM android_jank_cuj_main_thread_cuj_boundary main_thread_boundary
