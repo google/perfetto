@@ -123,7 +123,10 @@ int TraceToBundle(const std::string& input_file_path,
       SELECT COUNT(*)
       FROM metadata
       WHERE name = 'android_build_fingerprint'
-        OR (name = 'system_release' AND value LIKE '%android%')
+        OR (
+          name = 'system_release'
+          AND (value GLOB '*android*' OR value GLOB '*Android*')
+        )
     )");
     is_android = android_check.Next() && android_check.Get(0).AsLong() > 0;
   }

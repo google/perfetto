@@ -336,30 +336,31 @@ void ProcessBinaryFile(const char* fname,
     PERFETTO_DLOG("Failed to extract build id from %s.", fname);
     return;
   }
-  auto it = result.emplace(binary_info->build_id, FoundBinary{
-                                                      fname,
-                                                      binary_info->p_vaddr,
-                                                      binary_info->p_offset,
-                                                      binary_info->type,
-                                                  });
+  auto [it, inserted] =
+      result.emplace(binary_info->build_id, FoundBinary{
+                                                fname,
+                                                binary_info->p_vaddr,
+                                                binary_info->p_offset,
+                                                binary_info->type,
+                                            });
+
+  if (inserted) {
+    PERFETTO_DLOG("Indexed: %s (%s)", fname,
+                  base::ToHex(binary_info->build_id).c_str());
+    return;
+  }
 
   // If there was already an existing FoundBinary, the emplace wouldn't insert
   // anything. But, for Mac binaries, we prefer dSYM files over the original
   // binary, so make sure these overwrite the FoundBinary entry.
-  bool has_existing = it.second == false;
-  if (has_existing) {
-    if (it.first->second.type == BinaryType::kMachO &&
-        binary_info->type == BinaryType::kMachODsym) {
-      PERFETTO_LOG("Overwriting index entry for %s to %s.",
-                   base::ToHex(binary_info->build_id).c_str(), fname);
-      it.first->second = FoundBinary{fname, binary_info->p_vaddr,
-                                     binary_info->p_offset, binary_info->type};
-    } else {
-      PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
-                    base::ToHex(binary_info->build_id).c_str());
-    }
+  if (it->second.type == BinaryType::kMachO &&
+      binary_info->type == BinaryType::kMachODsym) {
+    PERFETTO_LOG("Overwriting index entry for %s to %s.",
+                 base::ToHex(binary_info->build_id).c_str(), fname);
+    it->second = FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
+                             binary_info->type};
   } else {
-    PERFETTO_DLOG("Indexed: %s (%s)", fname,
+    PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
                   base::ToHex(binary_info->build_id).c_str());
   }
 }
