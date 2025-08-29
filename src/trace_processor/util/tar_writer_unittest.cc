@@ -41,7 +41,10 @@ class TarWriterTest : public ::testing::Test {
  protected:
   TarWriterTest() : temp_file_(base::TempFile::Create()) {}
 
-  void SetUp() override { output_path_ = temp_file_.path(); }
+  void SetUp() override {
+    output_path_ = temp_file_.path();
+    output_fd_ = temp_file_.fd();
+  }
 
   // Helper to read entire file into string
   std::string ReadFile(const std::string& path) {
@@ -124,6 +127,7 @@ class TarWriterTest : public ::testing::Test {
 
   base::TempFile temp_file_;
   std::string output_path_;
+  int output_fd_;
   std::vector<base::TempFile> created_test_files_;
 };
 
@@ -240,7 +244,7 @@ TEST_F(TarWriterTest, AddLargeFile) {
 }
 
 TEST_F(TarWriterTest, ValidateFilenameConstraints) {
-  TarWriter writer(output_path_);
+  TarWriter writer(temp_file_.ReleaseFD());
 
   // Empty filename should fail
   auto status1 = writer.AddFile("", "content");
