@@ -212,6 +212,8 @@ class FtraceConfigMuxer {
     EventFilter ftrace_events;
     std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
     bool funcgraph_on = false;        // current_tracer == "function_graph"
+    bool advanced_feature_active =
+        false;  // Any advanced single-tenant feature active.
     size_t cpu_buffer_size_pages = 0;
     protos::pbzero::FtraceClock ftrace_clock{};
     // Used only in Android for ATRACE_EVENT/os.Trace() userspace:

@@ -165,6 +165,10 @@ bool ValidateKprobeName(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
+bool HasAdvancedFeatures(const FtraceConfig& request) {
+  return !request.tids_to_trace().empty();
+}
+
 }  // namespace
 
 std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
@@ -381,6 +385,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
                                     const FtraceConfig& request,
                                     FtraceSetupErrors* errors) {
   EventFilter filter;
+  bool config_has_advanced_features = HasAdvancedFeatures(request);
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
 
@@ -416,7 +421,43 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       // clock or buffer sizes because that clears the kernel buffers.
       RememberActiveClock();
     }
+  } else {
+    // Advanced features are not supported when another config is active.
+    if (config_has_advanced_features) {
+      PERFETTO_ELOG(
+          "Attempted to start an ftrace session with advanced features while "
+          "another session was active.");
+      if (errors) {
+        errors->exclusive_advanced_feature_error =
+            "Attempted to start an ftrace session with advanced features while "
+            "another session was active.";
+      }
+      return false;
+    }
+    // If a config with advanced features is already active, reject this one.
+    if (current_state_.advanced_feature_active) {
+      PERFETTO_ELOG(
+          "Attempted to start an ftrace session while another session with "
+          "advanced features was active.");
+      if (errors) {
+        errors->exclusive_advanced_feature_error =
+            "Attempted to start an ftrace session while another session with "
+            "advanced features was active.";
+      }
+      return false;
+    }
   }
+
+  if (!request.tids_to_trace().empty()) {
+    std::vector<std::string> str_tids;
+    for (const auto& tid : request.tids_to_trace()) {
+      str_tids.push_back(std::to_string(tid));
+    }
+    if (!ftrace_->SetEventTidFilter(str_tids))
+      return false;
+  }
+
+  current_state_.advanced_feature_active = config_has_advanced_features;
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
 
@@ -717,6 +758,12 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       ftrace_->RemoveKprobeEvent(probe.group(), probe.name());
       table_->RemoveEvent(probe);
     }
+
+    if (current_state_.advanced_feature_active) {
+      ftrace_->ClearEventTidFilter();
+      current_state_.advanced_feature_active = false;
+    }
+
     current_state_.installed_kprobes.clear();
   }
 

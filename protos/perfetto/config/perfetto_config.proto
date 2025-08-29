@@ -1031,7 +1031,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 36
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1189,6 +1189,65 @@ message FtraceConfig {
   // Introduced in: Android U.
   repeated string syscall_events = 18;
 
+  message KprobeEvent {
+    enum KprobeType {
+      KPROBE_TYPE_UNKNOWN = 0;
+      KPROBE_TYPE_KPROBE = 1;
+      KPROBE_TYPE_KRETPROBE = 2;
+      KPROBE_TYPE_BOTH = 3;
+    }
+    // Kernel function name to attach to, for example "fuse_file_write_iter"
+    optional string probe = 1;
+    optional KprobeType type = 2;
+  }
+  // Ftrace events to record, specific for kprobes and kretprobes
+  repeated KprobeEvent kprobe_events = 30;
+
+  // If true, does not clear kernel ftrace buffers when starting the trace.
+  // This makes sense only if this is the first ftrace data source instance
+  // created after the daemon has been started. Can be useful for gathering boot
+  // traces, if ftrace has been separately configured (e.g. via kernel
+  // commandline).
+  // NB: when configuring the pre-perfetto ftrace, prefer to set
+  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
+  // anything besides ftrace. Otherwise timestamps might be skewed.
+  optional bool preserve_ftrace_buffer = 23;
+
+  // If true, overrides the default timestamp clock and uses a raw hardware
+  // based monotonic clock for getting timestamps.
+  // * Introduced in: Android U.
+  optional bool use_monotonic_raw_clock = 24;
+
+  // If |instance_name| is not empty, then attempt to use that tracefs instance
+  // for event recording. Normally, this means
+  // `/sys/kernel/tracing/instances/$instance_name`.
+  //
+  // Names "hyp" and "hypervisor" are reserved.
+  //
+  // The instance must already exist, the tracing daemon *will not* create it
+  // for you as it typically doesn't have such permissions.
+  // Only a subset of features is guaranteed to work with non-default instances,
+  // at the time of writing:
+  //  * ftrace_events
+  //  * buffer_size_kb
+  optional string instance_name = 25;
+
+  // For perfetto developer use. If true and on a debuggable android build,
+  // serialise raw tracing pages that the implementation cannot parse.
+  optional bool debug_ftrace_abi = 31;
+
+  // --- Advanced Single-Tenant Features ---
+  // The features below are considered "advanced" and require an exclusive
+  // tracing session (as of Android 25Q3+ and Perfetto v52).
+  // See:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions
+  //
+  // These features directly manipulate the kernel's global ftrace state and
+  // are incompatible with concurrent ftrace sessions. They are only enabled
+  // if included in the *first* ftrace data source configured. Subsequent
+  // ftrace data sources (even those not using advanced features) will be
+  // rejected while a session with these features is active.
+
   // If true, enable the "function_graph" kernel tracer that emits events
   // whenever a kernel function is entered and exited
   // (funcgraph_entry/funcgraph_exit).
@@ -1238,52 +1297,10 @@ message FtraceConfig {
   // Supported on: Android 25Q3+.
   optional uint32 function_graph_max_depth = 33;
 
-  message KprobeEvent {
-    enum KprobeType {
-      KPROBE_TYPE_UNKNOWN = 0;
-      KPROBE_TYPE_KPROBE = 1;
-      KPROBE_TYPE_KRETPROBE = 2;
-      KPROBE_TYPE_BOTH = 3;
-    }
-    // Kernel function name to attach to, for example "fuse_file_write_iter"
-    optional string probe = 1;
-    optional KprobeType type = 2;
-  }
-  // Ftrace events to record, specific for kprobes and kretprobes
-  repeated KprobeEvent kprobe_events = 30;
-
-  // If true, does not clear kernel ftrace buffers when starting the trace.
-  // This makes sense only if this is the first ftrace data source instance
-  // created after the daemon has been started. Can be useful for gathering boot
-  // traces, if ftrace has been separately configured (e.g. via kernel
-  // commandline).
-  // NB: when configuring the pre-perfetto ftrace, prefer to set
-  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
-  // anything besides ftrace. Otherwise timestamps might be skewed.
-  optional bool preserve_ftrace_buffer = 23;
-
-  // If true, overrides the default timestamp clock and uses a raw hardware
-  // based monotonic clock for getting timestamps.
-  // * Introduced in: Android U.
-  optional bool use_monotonic_raw_clock = 24;
-
-  // If |instance_name| is not empty, then attempt to use that tracefs instance
-  // for event recording. Normally, this means
-  // `/sys/kernel/tracing/instances/$instance_name`.
-  //
-  // Names "hyp" and "hypervisor" are reserved.
-  //
-  // The instance must already exist, the tracing daemon *will not* create it
-  // for you as it typically doesn't have such permissions.
-  // Only a subset of features is guaranteed to work with non-default instances,
-  // at the time of writing:
-  //  * ftrace_events
-  //  * buffer_size_kb
-  optional string instance_name = 25;
-
-  // For perfetto developer use. If true and on a debuggable android build,
-  // serialise raw tracing pages that the implementation cannot parse.
-  optional bool debug_ftrace_abi = 31;
+  // Configuration for filtering ftrace events by Thread ID (TID).
+  // List of Thread IDs (TIDs) to include in the trace.
+  // Interacts with `/sys/kernel/tracing/set_event_pid`.
+  repeated uint32 tids_to_trace = 35;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
