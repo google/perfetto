@@ -25,34 +25,6 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
-CREATE PERFETTO TABLE _cpu_curves AS
-SELECT
-  ts,
-  dur,
-  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  cpu0_curve,
-  cpu1_curve,
-  cpu2_curve,
-  cpu3_curve,
-  cpu4_curve,
-  cpu5_curve,
-  cpu6_curve,
-  cpu7_curve,
-  l3_hit_count,
-  l3_miss_count,
-  no_static,
-  all_cpu_deep_idle,
-  freq_1d_static,
-  freq_2d_static
-FROM _w_independent_cpus_calc AS base, _use_devfreq_for_calc;
-
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
 -- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
 -- DSU frequency is a prerequisite for power estimation on Pixel 9.
@@ -112,14 +84,15 @@ SELECT
   c.freq_1d_static,
   c.freq_2d_static,
   d.dsu_freq AS dependency
-FROM _interval_intersect!(
+FROM _use_devfreq_for_calc
+CROSS JOIN _interval_intersect!(
   (
-    _ii_subquery!(_cpu_curves),
+    _ii_subquery!(_w_independent_cpus_calc),
     _ii_subquery!(_dsu_frequency)
   ),
   ()
 ) AS ii
-JOIN _cpu_curves AS c
+JOIN _w_independent_cpus_calc AS c
   ON c._auto_id = id_0
 JOIN _dsu_frequency AS d
   ON d._auto_id = id_1;
