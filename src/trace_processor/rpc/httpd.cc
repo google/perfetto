@@ -487,14 +487,10 @@ void Httpd::registerConnection(base::HttpServerConnection* conn,
 }
 
 std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
-  // Check if this is a UUID handshake message
-  if (data.size() < 5)
-    return "";
-
-  // Simple JSON parsing for UUID handshake
+  // extract data from message
   std::string str_data(data.data(), data.size());
 
-  // Look for UUID handshake pattern
+  // Look for UUID handshake pattern in the messages's data
   if (str_data.find("\"type\":\"TP_UUID\"") != std::string::npos) {
     size_t uuid_pos = str_data.find("\"uuid\":\"");
     if (uuid_pos != std::string::npos) {
