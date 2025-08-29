@@ -207,6 +207,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     PERFETTO_ELOG("Failed to start the traced service");
     return 1;
   }
+  PERFETTO_ELOG("[ioffe] welcome to traced!");
 
   // Advertise builtin producers only on in-tree builds. These producers serve
   // only to dynamically start heapprofd and other services via sysprops, but
