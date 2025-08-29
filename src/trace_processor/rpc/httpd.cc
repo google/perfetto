@@ -519,18 +519,19 @@ void Httpd::cleanUpInactiveInstances() {
 
   auto it = uuid_to_tp_map.begin();
   for (auto it = uuid_to_tp_map.begin(); it != uuid_to_tp_map.end();) {
+    const std::string& uuid = it->first;
     uint64_t last_accessed = it->second->GetLastAccessedNs();
 
     if (now - last_accessed > kInactivityNs) {
       PERFETTO_ILOG(
           "Cleaning up inactive RPC instance: %s (inactive for %.1f minutes)",
-          it->first.c_str(),
+          uuid.c_str(),
           static_cast<double>(now - last_accessed) / (60.0 * 1000000000.0));
 
       // Remove from conn_to_uuid_map as well
       for (auto conn_it = conn_to_uuid_map.begin();
            conn_it != conn_to_uuid_map.end();) {
-        if (conn_it->second == it->first) {
+        if (conn_it->second == uuid) {
           conn_it = conn_to_uuid_map.erase(conn_it);
         } else {
           ++conn_it;
