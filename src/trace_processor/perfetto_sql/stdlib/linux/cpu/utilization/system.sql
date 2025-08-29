@@ -91,12 +91,12 @@ CREATE PERFETTO TABLE cpu_cycles (
   avg_freq LONG
 ) AS
 SELECT
-  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM(dur * freq) / SUM(dur)) AS avg_freq
 FROM _cpu_freq_per_thread;
 
 -- Aggregated CPU statistics in a provided interval. Results in one row.
@@ -121,12 +121,12 @@ RETURNS TABLE (
   avg_freq LONG
 ) AS
 SELECT
-  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
+  cast_int!(SUM(ii.dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(ii.dur * freq) / 1000 / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  cast_int!(SUM(ii.dur * freq) / SUM(ii.dur)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread
   USING (id);
@@ -153,12 +153,12 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu (
 SELECT
   ucpu,
   cpu,
-  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM(dur * freq) / SUM(dur)) AS avg_freq
 FROM _cpu_freq_per_thread
 GROUP BY
   ucpu;
@@ -191,12 +191,12 @@ RETURNS TABLE (
 SELECT
   ucpu,
   cpu,
-  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
+  cast_int!(SUM(ii.dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(ii.dur * freq) / 1000 / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  cast_int!(SUM(ii.dur * freq) / SUM(ii.dur)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread
   USING (id)

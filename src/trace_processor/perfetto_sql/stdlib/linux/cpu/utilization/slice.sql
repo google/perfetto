@@ -48,8 +48,8 @@ WITH
       id_0 AS slice_id,
       ii.utid,
       sum(ii.dur) AS dur,
-      cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-      cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles
+      cast_int!(SUM(ii.dur * freq) / 1000) AS millicycles,
+      cast_int!(SUM(ii.dur * freq) / 1000 / 1e9) AS megacycles
     FROM _interval_intersect!(
     ((SELECT * FROM thread_slice WHERE dur > 0 AND utid > 0),
     _cpu_freq_per_thread), (utid)) AS ii
@@ -118,8 +118,8 @@ WITH
       id_0 AS slice_id,
       ii.utid,
       sum(ii.dur) AS dur,
-      cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-      cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles
+      cast_int!(SUM(ii.dur * freq) / 1000) AS millicycles,
+      cast_int!(SUM(ii.dur * freq) / 1000 / 1e9) AS megacycles
     FROM _interval_intersect!(
     (cut_thread_slice, _cpu_freq_per_thread), (utid)) AS ii
     JOIN _cpu_freq_per_thread AS f
