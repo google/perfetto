@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/thread_utils.h"
@@ -390,6 +391,8 @@ void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,
 
 void InsertIntoModulesTable(tables::ModulesTable* table,
                             StringPool* string_pool) {
+  base::ignore_result(table, string_pool);
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   table->Insert({string_pool->InternString("etm")});
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
