@@ -45,6 +45,7 @@ namespace {
 constexpr int kBindPort = 9001;
 constexpr int kMilliSecondPerMinute = 60 * 1000;
 constexpr uint64_t kNanosecondPerMinute = 60 * 1000000000ULL;
+constexpr const char* DEFAULT_TP_UUID = "default";
 
 // Sets by default the Access-Control-Allow-Origin: $origin on the following
 // origins. This affects only browser clients that use CORS. Other HTTP clients
@@ -284,7 +285,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Add global trace processor status
     {
       auto* tp_status = result->add_trace_processor_statuses();
-      tp_status->set_uuid("default");
+      tp_status->set_uuid(DEFAULT_TP_UUID);
 
       auto* status = tp_status->set_status();
       // Use GetLoadedTraceName() which returns empty string if no trace loaded
@@ -441,7 +442,7 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
     auto it = conn_to_uuid_map.find(msg.conn);
     // if we cannot find the connection and uuid being registered then the ui is
     // older. we fall back to the global rpc for backward compatibility
-    if (it == conn_to_uuid_map.end() || it->second == "default") {
+    if (it == conn_to_uuid_map.end() || it->second == DEFAULT_TP_UUID) {
       global_trace_processor_rpc_.SetRpcResponseFunction(
           [&](const void* data, uint32_t len) {
             SendRpcChunk(msg.conn, data, len);
