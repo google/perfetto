@@ -94,6 +94,9 @@ DEPS_ALLOWLIST = [
     # The record plugin needs access to the wasm .d.ts for trace_config_utils.
     ('/plugins/dev.perfetto.RecordTraceV2/*', '/gen/trace_config_utils'),
 
+    # The query page plugin needs access to globals.isInternalUser.
+    ('/plugins/dev.perfetto.QueryPage/*', '/frontend/globals'),
+
     # Misc legitimate deps.
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
