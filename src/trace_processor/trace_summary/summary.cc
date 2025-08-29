@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -43,6 +44,7 @@
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 
+#include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
 
@@ -428,6 +430,33 @@ base::Status CreateQueriesAndComputeMetrics(
           bundle_id.c_str(), query_it.Status().c_message());
     }
 
+    protos::pbzero::PerfettoSqlStructuredQuery::Decoder query(
+        first_spec.query());
+    if (query.has_sql()) {
+      protos::pbzero::PerfettoSqlStructuredQuery::Sql::Decoder sql_query(
+          query.sql());
+      if (sql_query.has_column_names()) {
+        std::set<std::string> actual_column_names;
+        for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
+          actual_column_names.insert(query_it.GetColumnName(i));
+        }
+        std::set<std::string> expected_column_names;
+        for (auto col_it = sql_query.column_names(); col_it; ++col_it) {
+          expected_column_names.insert(col_it->as_std_string());
+        }
+        if (actual_column_names != expected_column_names) {
+          std::vector<std::string> expected_vec(expected_column_names.begin(),
+                                                expected_column_names.end());
+          std::vector<std::string> actual_vec(actual_column_names.begin(),
+                                              actual_column_names.end());
+          return base::ErrStatus(
+              "Column names mismatch for metric bundle '%s'. Expected: [%s], "
+              "Actual: [%s]",
+              bundle_id.c_str(), base::Join(expected_vec, ", ").c_str(),
+              base::Join(actual_vec, ", ").c_str());
+        }
+      }
+    }
     ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
                      GetDimensionsWithIndex(first_spec, query_it));
 
