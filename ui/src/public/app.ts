@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RouteArgs} from './route_schema';
+import {RouteArg, RouteArgs} from './route_schema';
 import {CommandManager} from './command';
 import {OmniboxManager} from './omnibox';
 import {SidebarManager} from './sidebar';
@@ -52,7 +52,7 @@ export interface App {
   /**
    * Args in the URL bar that start with this plugin's id.
    */
-  readonly initialPluginRouteArgs: {[key: string]: number | boolean | string};
+  readonly initialPluginRouteArgs: {[key: string]: RouteArg | undefined};
 
   /**
    * Returns the current trace object, if any. The instance being returned is

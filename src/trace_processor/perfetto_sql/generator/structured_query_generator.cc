@@ -295,14 +295,16 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
     return base::ErrStatus("Sql field must be specified");
   }
 
-  std::string source_sql_str = sql.sql().ToStdString();
-  std::string final_sql_statement;
+  class SqlSource source_sql =
+      SqlSource::FromTraceProcessorImplementation(sql.sql().ToStdString());
+  class SqlSource final_sql_statement =
+      SqlSource::FromTraceProcessorImplementation("");
   if (sql.has_preamble()) {
     // If preambles are specified, we assume that the SQL is a single statement.
     preambles_.push_back(sql.preamble().ToStdString());
-    final_sql_statement = source_sql_str;
+    final_sql_statement = source_sql;
   } else {
-    auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql_str);
+    auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql.sql());
     if (!parsed_preamble.sql().empty()) {
       preambles_.push_back(parsed_preamble.sql());
     } else if (sql.has_preamble()) {
@@ -311,12 +313,29 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
           "the `sql` field. This is not supported - plase don't use `preamble` "
           "and pass all the SQL you want to execute in the `sql` field.");
     }
-    final_sql_statement = main_sql.sql();
+    final_sql_statement = main_sql;
   }
 
-  if (final_sql_statement.empty()) {
+  if (final_sql_statement.sql().empty()) {
     return base::ErrStatus(
         "SQL source cannot be empty after processing preamble");
+  }
+
+  SqlSource::Rewriter rewriter(final_sql_statement);
+  for (auto it = sql.dependencies(); it; ++it) {
+    StructuredQuery::Sql::Dependency::Decoder dependency(*it);
+    std::string alias = dependency.alias().ToStdString();
+    std::string inner_query_name = NestedSource(dependency.query());
+
+    SqliteTokenizer tokenizer(final_sql_statement);
+    for (auto token = tokenizer.Next(); !token.str.empty();
+         token = tokenizer.Next()) {
+      if (token.token_type == TK_VARIABLE && token.str.substr(1) == alias) {
+        tokenizer.RewriteToken(
+            rewriter, token,
+            SqlSource::FromTraceProcessorImplementation(inner_query_name));
+      }
+    }
   }
 
   if (sql.column_names()->size() == 0) {
@@ -329,8 +348,8 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   }
   std::string join_str = base::Join(cols, ", ");
 
-  std::string generated_sql =
-      "(SELECT " + join_str + " FROM (" + final_sql_statement + "))";
+  std::string generated_sql = "(SELECT " + join_str + " FROM (" +
+                              std::move(rewriter).Build().sql() + "))";
   return generated_sql;
 }
 

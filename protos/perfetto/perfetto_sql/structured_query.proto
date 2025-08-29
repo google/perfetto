@@ -88,6 +88,20 @@ message PerfettoSqlStructuredQuery {
 
   // An arbitrary SQL query to use as the source for the query.
   message Sql {
+    // A dependency on another structured query. This allows for building
+    // complex queries by composing them from other structured queries.
+    message Dependency {
+      // The alias for this dependency. This is a string that can be used in
+      // the SQL query to refer to the result of this dependency. The SQL
+      // query can then use this alias as if it were a table. Can be referred to
+      // in Sql by using `${alias}`.
+      // E.g: `SELECT ts, dur AS duration FROM $my_slice_table.`
+      // Required.
+      optional string alias = 1;
+      // The structured query for this dependency. Required.
+      optional PerfettoSqlStructuredQuery query = 2;
+    }
+
     // The SQL string. Required.
     //
     // `sql` can contain multiple, semi-colon separated statements but must
@@ -101,6 +115,9 @@ message PerfettoSqlStructuredQuery {
 
     // The name of columns which will be returned by the SQL. Required.
     repeated string column_names = 2;
+
+    // A list of dependencies for this SQL query. Optional.
+    repeated Dependency dependencies = 4;
 
     // DEPRECATED, as `sql` field supports multi-statement queries.
     //
