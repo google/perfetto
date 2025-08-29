@@ -1950,6 +1950,9 @@ message PerfEvents {
     optional uint64 config = 2;
     optional uint64 config1 = 3;
     optional uint64 config2 = 4;
+    optional bool exclude_user = 5;
+    optional bool exclude_kernel = 6;
+    optional bool exclude_hv = 7;
   }
 
   // Subset of clocks that is supported by perf timestamping.
