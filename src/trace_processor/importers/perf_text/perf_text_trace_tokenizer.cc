@@ -15,11 +15,11 @@
  */
 
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
-#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
 
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -28,19 +28,24 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
+#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
+
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
 namespace perfetto::trace_processor::perf_text_importer {
 
@@ -63,6 +68,15 @@ PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
 base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
+  // Guess the clock used for timestamps, which would normally be described in
+  // `perf script --header`, which we don't expect to be included.
+  // Further, if the recording was using the default perf_clock (typically
+  // equivalent to sched_clock), the latter doesn't have a representation in
+  // perfetto at the time of writing.
+  // Therefore, approximate all clocks as MONOTONIC.
+  context_->clock_tracker->SetTraceTimeClock(
+      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+
   reader_.PushBack(std::move(blob));
   std::vector<FrameId> frames;
   // Loop over each sample.
@@ -157,7 +171,11 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     evt.pid = sample->pid;
     evt.callsite_id = *parent_callsite;
 
-    stream_->Push(sample->ts, evt);
+    ASSIGN_OR_RETURN(
+        int64_t trace_ts,
+        context_->clock_tracker->ToTraceTime(
+            protos::pbzero::ClockSnapshot::Clock::MONOTONIC, sample->ts));
+    stream_->Push(trace_ts, evt);
     reader_.PopFrontUntil(it.file_offset());
   }
 }
