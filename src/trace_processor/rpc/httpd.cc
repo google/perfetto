@@ -278,6 +278,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(status));
   }
 
+  // new endpoint that accesses all trace processors
   if (req.uri == "/status/all") {
     // Use protozero::HeapBuffered to get SerializeAsArray() method
     protozero::HeapBuffered<protos::pbzero::StatusAllResult> result;
@@ -433,9 +434,9 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  // Check if this connection already has a dedicated thread
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
+  // Check if this connection already has a dedicated thread
   if (!ExtractUuidFromMessage(msg.data).empty()) {
     registerConnection(msg.conn, ExtractUuidFromMessage(msg.data));
   } else {
