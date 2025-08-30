@@ -518,10 +518,10 @@ function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
     switch (x.mergeAggregation) {
       case 'ONE_OR_SUMMARY':
         return `
-          IIF(
-            COUNT(DISTINCT ${x.name}) = 1,
-            ${x.name},
-            MIN(${x.name}) || ' and ' || COUNT(DISTINCT ${x.name}) || ' others'
+          ${x.name} || IIF(
+            COUNT() = 1,
+            '',
+            ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
           ) AS ${x.name}
         `;
       case 'SUM':
