@@ -81,6 +81,7 @@ export class AppContext {
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
+    selectedTraceProcessorUuid: '', // Store the selected UUID here
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
@@ -309,7 +310,10 @@ export class AppImpl implements App {
   }
 
   openTraceFromHttpRpc(): void {
-    this.openTrace({type: 'HTTP_RPC'});
+    this.openTrace({
+      type: 'HTTP_RPC',
+      traceProcessorUuid: this.httpRpc.selectedTraceProcessorUuid || 'default',
+    });
   }
 
   private async openTrace(src: TraceSource) {

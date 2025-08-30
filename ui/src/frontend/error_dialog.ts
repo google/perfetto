@@ -363,12 +363,12 @@ function showRpcSequencingError() {
       m(
         'p',
         `This can happen when using a HTTP trace processor instance and
-either accidentally sharing this between multiple tabs or
+either accidentally sharing a single trace between multiple tabs or
 restarting the trace processor while still in use by UI.`,
       ),
       m(
         'p',
-        `Please refresh this tab and ensure that trace processor is used
+        `Please refresh this tab and ensure that each trace is used in
 at most one tab at a time.`,
       ),
     ),

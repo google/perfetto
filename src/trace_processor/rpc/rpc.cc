@@ -390,6 +390,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_SET_TRACE_TITLE: {
+      protozero::ConstBytes args = req.set_trace_title_args();
+      SetTraceTitle(args.data, args.size);
+      Response resp(tx_seq_id_++, req_type);
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unknown request" response, so the client can do feature
@@ -728,6 +735,15 @@ std::vector<uint8_t> Rpc::GetStatus() {
   }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
   return status.SerializeAsArray();
+}
+
+std::string Rpc::GetCurrentTraceName() {
+  return trace_processor_->GetCurrentTraceName();
+}
+
+void Rpc::SetTraceTitle(const uint8_t* data, size_t len) {
+  protos::pbzero::SetTraceTitleArgs::Decoder args(data, len);
+  trace_processor_->SetCurrentTraceName(args.title().ToStdString());
 }
 
 }  // namespace perfetto::trace_processor

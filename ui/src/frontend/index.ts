@@ -129,6 +129,8 @@ function setupContentSecurityPolicy() {
       'ws://127.0.0.1:8037', // For the adb websocket server.
       'https://*.google-analytics.com',
       'https://*.googleapis.com', // For Google Cloud Storage fetches.
+      `ws://${window.location.hostname}:9001`,
+      `http://${window.location.hostname}:9001`,
       'blob:',
       'data:',
     ].concat(rpcPolicy),

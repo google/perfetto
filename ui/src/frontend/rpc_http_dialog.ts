@@ -17,17 +17,18 @@ import protos from '../protos';
 import {assertExists} from '../base/logging';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
-import {showModal} from '../widgets/modal';
+import {showModal, closeModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
 function getPromptMessage(tpStatus: protos.StatusResult): string {
-  return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with:
-${tpStatus.loadedTraceName}
+  return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} one or more loaded traces including 
+  ${tpStatus.loadedTraceName}.
 
-YES, use loaded trace:
+YES, select loaded trace:
+Pops up a window that allows you to select the trace to load.
 Will load from the current state of Trace Processor. If you did run
 trace_processor_shell --httpd file.pftrace this is likely what you want.
 
@@ -40,8 +41,8 @@ NO, Use builtin WASM:
 Will not use the accelerator in this tab.
 
 Using the native accelerator has some minor caveats:
-- Only one tab can be using the accelerator.
 - Sharing, downloading and conversion-to-legacy aren't supported.
+- Each trace file can be opened in at most one tab at a time.
 `;
 }
 
@@ -155,23 +156,36 @@ export async function checkHttpRpcConnection(): Promise<void> {
     // No RPC = exit immediately to the WASM UI.
     return;
   }
-  const tpStatus = assertExists(state.status);
+  const tpStatusAll = assertExists(state.status);
+
+  // use the first trace processor if available, otherwise fallback
+  const firstTpStatusData = tpStatusAll.traceProcessorStatuses?.[0]?.status;
+  if (!firstTpStatusData) {
+    // No trace processors available, use RPC without preloaded trace
+    return;
+  }
+
+  // Create a proper StatusResult instance from the IStatusResult interface
+  const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
 
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
   // Check short version:
-  if (tpStatus.versionCode !== '' && tpStatus.versionCode !== VERSION) {
-    const url = await isVersionAvailable(tpStatus.versionCode);
+  if (
+    firstTpStatus.versionCode !== '' &&
+    firstTpStatus.versionCode !== VERSION
+  ) {
+    const url = await isVersionAvailable(firstTpStatus.versionCode);
     if (url !== undefined) {
       // If matched UI available show a dialog asking the user to
       // switch.
-      const result = await showDialogVersionMismatch(tpStatus, url);
+      const result = await showDialogVersionMismatch(firstTpStatus, url);
       switch (result) {
         case MismatchedVersionDialog.Dismissed:
         case MismatchedVersionDialog.UseMatchingUi:
-          navigateToVersion(tpStatus.versionCode);
+          navigateToVersion(firstTpStatus.versionCode);
           return;
         case MismatchedVersionDialog.UseMismatchedRpc:
           break;
@@ -186,8 +200,8 @@ export async function checkHttpRpcConnection(): Promise<void> {
   }
 
   // Check the RPC version:
-  if (tpStatus.apiVersion < CURRENT_API_VERSION) {
-    const result = await showDialogIncompatibleRPC(tpStatus);
+  if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
+    const result = await showDialogIncompatibleRPC(firstTpStatus);
     switch (result) {
       case IncompatibleRpcDialogResult.Dismissed:
       case IncompatibleRpcDialogResult.UseWasm:
@@ -202,11 +216,11 @@ export async function checkHttpRpcConnection(): Promise<void> {
   }
 
   // Check if pre-loaded:
-  if (tpStatus.loadedTraceName) {
+  if (firstTpStatus.loadedTraceName) {
     // If a trace is already loaded in the trace processor (e.g., the user
     // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
     // initialize the UI with the already-loaded trace.
-    const result = await showDialogToUsePreloadedTrace(tpStatus);
+    const result = await showDialogToUsePreloadedTrace(firstTpStatus);
     switch (result) {
       case PreloadedDialogResult.Dismissed:
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:
@@ -307,32 +321,49 @@ enum PreloadedDialogResult {
 async function showDialogToUsePreloadedTrace(
   tpStatus: protos.StatusResult,
 ): Promise<PreloadedDialogResult> {
-  let result = PreloadedDialogResult.Dismissed;
-  await showModal({
-    title: 'Use trace processor native acceleration?',
-    content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
-    buttons: [
-      {
-        text: 'YES, use loaded trace',
-        primary: true,
-        action: () => {
-          result = PreloadedDialogResult.UseRpcWithPreloadedTrace;
+  const result = await new Promise<PreloadedDialogResult>((resolve) => {
+    showModal({
+      title: 'Use trace processor native acceleration?',
+      content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
+      buttons: [
+        {
+          text: 'YES, select loaded trace',
+          primary: true,
+          action: () => {
+            resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+          },
         },
-      },
-      {
-        text: 'YES, but reset state',
-        action: () => {
-          result = PreloadedDialogResult.UseRpc;
+        {
+          text: 'YES, but reset state',
+          action: () => {
+            resolve(PreloadedDialogResult.UseRpc);
+          },
         },
-      },
-      {
-        text: 'NO, Use builtin WASM',
-        action: () => {
-          result = PreloadedDialogResult.UseWasm;
+        {
+          text: 'NO, Use builtin WASM',
+          action: () => {
+            resolve(PreloadedDialogResult.UseWasm);
+          },
         },
-      },
-    ],
+      ],
+    });
   });
+
+  // If user selected "YES, select loaded trace", show trace processor selection
+  if (result === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
+    const selectedUuid = await showTraceProcessorSelectionModal();
+
+    if (selectedUuid !== null && selectedUuid !== undefined) {
+      console.log(`Selected trace processor: ${selectedUuid}`);
+      // Store the selected UUID for backend integration
+      AppImpl.instance.httpRpc.selectedTraceProcessorUuid = selectedUuid;
+      return PreloadedDialogResult.UseRpcWithPreloadedTrace;
+    } else {
+      // User cancelled the selection
+      return PreloadedDialogResult.Dismissed;
+    }
+  }
+
   return result;
 }
 
@@ -374,4 +405,160 @@ function navigateToVersion(versionCode: string): void {
     throw new Error(`No URL known for UI version ${versionCode}.`);
   }
   window.location.replace(url);
+}
+
+// New function to show trace processor selection modal
+async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
+  return new Promise(async (resolve) => {
+    try {
+      // Fetch actual trace processor data
+      const httpRpcState = await HttpRpcEngine.checkConnection();
+
+      if (!httpRpcState.connected || !httpRpcState.status) {
+        showModal({
+          title: 'No Trace Processors Available',
+          content:
+            'Could not connect to any trace processors or no trace processors are available.',
+          buttons: [
+            {
+              text: 'OK',
+              primary: true,
+              action: () => resolve(undefined),
+            },
+          ],
+        });
+        return;
+      }
+
+      const traceProcessors = httpRpcState.status.traceProcessorStatuses;
+
+      if (traceProcessors.length === 0) {
+        showModal({
+          title: 'No Trace Processors Available',
+          content: 'No trace processors are currently running.',
+          buttons: [
+            {
+              text: 'OK',
+              primary: true,
+              action: () => resolve(undefined),
+            },
+          ],
+        });
+        return;
+      }
+
+      // Filter to only show trace processors that have a loaded trace
+      const processorsWithTraces = traceProcessors.filter(
+        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== '',
+      );
+
+      if (processorsWithTraces.length === 0) {
+        showModal({
+          title: 'No Loaded Traces',
+          content: 'No trace processors have loaded traces available.',
+          buttons: [
+            {
+              text: 'OK',
+              primary: true,
+              action: () => resolve(undefined),
+            },
+          ],
+        });
+        return;
+      }
+
+      showModal({
+        title: 'Select Trace Processor',
+        content: () => {
+          return m(
+            '.tp-selection-modal',
+            m('p', 'Please select a trace processor to use:'),
+            m(
+              '.tp-list',
+              {
+                style: {
+                  'max-height': '300px',
+                  'overflow-y': 'auto',
+                  'border': '1px solid #ccc',
+                  'border-radius': '4px',
+                  'margin': '16px 0',
+                },
+              },
+              processorsWithTraces.map((tp) => {
+                const status = tp.status!;
+                return m(
+                  '.tp-item',
+                  {
+                    key: tp.uuid || 'default',
+                    style: {
+                      'padding': '12px',
+                      'border-bottom': '1px solid #eee',
+                      'cursor': 'pointer',
+                      'display': 'flex',
+                      'justify-content': 'space-between',
+                      'align-items': 'center',
+                    },
+                    onclick: () => {
+                      closeModal();
+                      resolve(tp.uuid || '');
+                    },
+                    onmouseenter: (e: Event) => {
+                      (e.target as HTMLElement).style.backgroundColor =
+                        '#f5f5f5';
+                    },
+                    onmouseleave: (e: Event) => {
+                      (e.target as HTMLElement).style.backgroundColor = '';
+                    },
+                  },
+                  [
+                    m('.tp-info', [
+                      m('strong', status.loadedTraceName),
+                      m('br'),
+                      m('small', `UUID: ${tp.uuid || 'default'}`),
+                    ]),
+                    status.humanReadableVersion &&
+                      m(
+                        '.tp-version',
+                        {
+                          style: {
+                            'font-size': '11px',
+                            'padding': '2px 6px',
+                            'border-radius': '8px',
+                            'background-color': '#e6f3ff',
+                            'color': '#1976d2',
+                          },
+                        },
+                        status.humanReadableVersion,
+                      ),
+                  ],
+                );
+              }),
+            ),
+          );
+        },
+        buttons: [
+          {
+            text: 'Cancel',
+            action: () => {
+              closeModal();
+              resolve(undefined);
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      console.error('Error fetching trace processors:', error);
+      showModal({
+        title: 'Error',
+        content: 'Failed to fetch trace processor information.',
+        buttons: [
+          {
+            text: 'OK',
+            primary: true,
+            action: () => resolve(undefined),
+          },
+        ],
+      });
+    }
+  });
 }

@@ -137,7 +137,10 @@ async function createEngine(
   let engine;
   if (useRpc) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
-    engine = new HttpRpcEngine(engineId);
+    engine = new HttpRpcEngine(
+      engineId,
+      app.httpRpc.selectedTraceProcessorUuid,
+    );
   } else {
     console.log('Opening trace using built-in WASM engine');
     engine = new WasmEngineProxy(engineId);
@@ -219,6 +222,10 @@ async function loadTraceIntoEngine(
     trace.traceInfo.traceType === 'json',
     engine,
   );
+
+  if (engine instanceof HttpRpcEngine) {
+    await sendTraceTitle(engine, traceSource);
+  }
 
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
@@ -554,4 +561,28 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
   }
 
   return new TimeSpan(startBound, endBound);
+}
+
+async function sendTraceTitle(engine: HttpRpcEngine, traceSource: TraceSource) {
+  let traceTitle = undefined;
+  switch (traceSource.type) {
+    case 'FILE':
+      // Split on both \ and / (because C:\Windows\paths\are\like\this).
+      traceTitle = traceSource.file.name.split(/[/\\]/).pop()!;
+      break;
+    case 'URL':
+      traceTitle = traceSource.url.split('/').pop()!;
+      break;
+    case 'ARRAY_BUFFER':
+      traceTitle = traceSource.title;
+      break;
+    case 'HTTP_RPC':
+      break;
+    default:
+      break;
+  }
+  if (traceTitle) {
+    engine.sendTraceTitle(traceTitle);
+  }
+  return;
 }
