@@ -132,8 +132,7 @@ function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
@@ -155,14 +154,9 @@ function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
-        name: 'source_file',
-        displayName: 'Source File',
-        mergeAggregation: 'ONE_OR_NULL',
-      },
-      {
-        name: 'line_number',
-        displayName: 'Line Number',
-        mergeAggregation: 'ONE_OR_NULL',
+        name: 'source_location',
+        displayName: 'Source Location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
       },
     ],
   );

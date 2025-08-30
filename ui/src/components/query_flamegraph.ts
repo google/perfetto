@@ -53,9 +53,7 @@ export interface QueryFlamegraphColumn {
 
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
   // The aggregation to be run when nodes are merged together in the flamegraph.
-  //
-  // TODO(lalitm): consider adding extra functions here (e.g. a top 5 or similar).
-  readonly mergeAggregation: 'ONE_OR_NULL' | 'SUM' | 'CONCAT_WITH_COMMA';
+  readonly mergeAggregation: 'ONE_OR_SUMMARY' | 'SUM' | 'CONCAT_WITH_COMMA';
 }
 
 export interface QueryFlamegraphMetric {
@@ -518,8 +516,14 @@ function getPivotFilter(
 function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
   const aggFor = (x: AggQueryFlamegraphColumn) => {
     switch (x.mergeAggregation) {
-      case 'ONE_OR_NULL':
-        return `IIF(COUNT() = 1, ${x.name}, NULL) AS ${x.name}`;
+      case 'ONE_OR_SUMMARY':
+        return `
+          IIF(
+            COUNT(DISTINCT ${x.name}) = 1,
+            ${x.name},
+            MIN(${x.name}) || ' and ' || COUNT(DISTINCT ${x.name}) || ' others'
+          ) AS ${x.name}
+        `;
       case 'SUM':
         return `SUM(${x.name}) AS ${x.name}`;
       case 'CONCAT_WITH_COMMA':
