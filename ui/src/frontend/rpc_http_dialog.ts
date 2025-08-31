@@ -465,10 +465,7 @@ async function showDialogToUsePreloadedTrace(
                 m('div', {style: {'margin-bottom': '12px'}}, [
                   m('strong', 'Use built-in WASM:'),
                   m('br'),
-                  m(
-                    'small',
-                    'Will not use the accelerator in this tab.',
-                  ),
+                  m('small', 'Will not use the accelerator in this tab.'),
                 ]),
               ],
             ),
