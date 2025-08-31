@@ -340,6 +340,9 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
 
         status->set_human_readable_version(base::GetVersionString());
+
+        status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
+        
         if (const char* version_code = base::GetVersionCode(); version_code) {
           status->set_version_code(version_code);
         }
@@ -486,6 +489,9 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
     // if we cannot find the connection and uuid being registered then the ui is
     // older. we fall back to the global rpc for backward compatibility
     if (it == conn_to_uuid_map.end() || it->second == DEFAULT_TP_UUID) {
+      if (!global_trace_processor_rpc_.has_existing_tab) {
+        global_trace_processor_rpc_.has_existing_tab = true;
+      }
       global_trace_processor_rpc_.SetRpcResponseFunction(
           [&](const void* data, uint32_t len) {
             SendRpcChunk(msg.conn, data, len);
@@ -497,16 +503,25 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
       return;
     } else {
       // Dispatch to the dedicated thread
-      uuid_to_tp_map.find(it->second)->second->OnWebsocketMessage(msg);
+      UuidRpcThread* thread = uuid_to_tp_map.find(it->second)->second.get();
+      if(!thread->rpc_->has_existing_tab){
+        thread->rpc_->has_existing_tab = true;
+      }
+      thread->OnWebsocketMessage(msg);
     }
   }
 }
 
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-  auto it = conn_to_uuid_map.find(conn);
-  if (it != conn_to_uuid_map.end()) {
-    conn_to_uuid_map.erase(it);
+  auto conn_to_uuid_it = conn_to_uuid_map.find(conn);
+  if (conn_to_uuid_it != conn_to_uuid_map.end()) {
+    std::string uuid = conn_to_uuid_it->second;
+    auto uuid_to_tp_it = uuid_to_tp_map.find(uuid);
+    if (uuid_to_tp_it != uuid_to_tp_map.end()) {
+      uuid_to_tp_it->second->rpc_->has_existing_tab = false;
+    }
+    conn_to_uuid_map.erase(conn_to_uuid_it);
   }
 }
 

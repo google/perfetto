@@ -467,12 +467,172 @@ async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
         return;
       }
 
+      // Sort processors: those without active tabs first, then those with active tabs
+      const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
+        const aHasTab = a.status?.hasExistingTab ?? false;
+        const bHasTab = b.status?.hasExistingTab ?? false;
+        return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
+      });
+
+      // Count processors with active tabs
+      const activeTabCount = sortedProcessors.filter(
+        (tp) => tp.status?.hasExistingTab ?? false,
+      ).length;
+
       showModal({
         title: 'Select Trace Processor',
         content: () => {
-          return m(
-            '.tp-selection-modal',
+          const elements: any[] = [
             m('p', 'Please select a trace processor to use:'),
+          ];
+
+          // Add warning banner if there are active tabs
+          if (activeTabCount > 0) {
+            elements.push(
+              m(
+                '.warning-banner',
+                {
+                  style: {
+                    'background-color': '#fff3cd',
+                    'border': '1px solid #ffeaa7',
+                    'border-radius': '4px',
+                    'padding': '12px',
+                    'margin': '16px 0',
+                    'color': '#856404',
+                  },
+                },
+                [
+                  m('strong', '⚠️ Important Warning: '),
+                  'Each trace processor can only have one active tab at a time. ',
+                  'If you select a processor that already has an active tab, ',
+                  'you must close the existing tab first to prevent crashes.',
+                ],
+              ),
+            );
+          }
+
+          // Build the list of processors
+          const processorElements: any[] = [];
+          let hasShownSeparator = false;
+
+          sortedProcessors.forEach((tp, index) => {
+            const status = tp.status!;
+            const hasActiveTab = status.hasExistingTab ?? false;
+
+            // Add separator when we hit the first processor with active tab
+            if (hasActiveTab && !hasShownSeparator) {
+              processorElements.push(
+                m(
+                  '.tp-separator',
+                  {
+                    key: 'separator',
+                    style: {
+                      'padding': '8px 12px',
+                      'background-color': '#f8f9fa',
+                      'border-top': '1px solid #dee2e6',
+                      'border-bottom': '1px solid #dee2e6',
+                      'font-weight': 'bold',
+                      'color': '#6c757d',
+                      'font-size': '12px',
+                    },
+                  },
+                  'Processors with Active Tabs (Close existing tab first)',
+                ),
+              );
+              hasShownSeparator = true;
+            }
+
+            processorElements.push(
+              m(
+                '.tp-item',
+                {
+                  key: tp.uuid || `default-${index}`,
+                  style: {
+                    'padding': '12px',
+                    'border-bottom': '1px solid #eee',
+                    'cursor': hasActiveTab ? 'not-allowed' : 'pointer',
+                    'display': 'flex',
+                    'justify-content': 'space-between',
+                    'align-items': 'center',
+                    'opacity': hasActiveTab ? '0.6' : '1',
+                    'background-color': hasActiveTab ? '#fff3cd' : 'transparent',
+                  },
+                  onclick: () => {
+                    if (!hasActiveTab) {
+                      closeModal();
+                      resolve(tp.uuid || '');
+                    }
+                  },
+                  onmouseenter: (e: Event) => {
+                    if (!hasActiveTab) {
+                      (e.target as HTMLElement).style.backgroundColor =
+                        '#f5f5f5';
+                    }
+                  },
+                  onmouseleave: (e: Event) => {
+                    if (!hasActiveTab) {
+                      (e.target as HTMLElement).style.backgroundColor =
+                        hasActiveTab ? '#fff3cd' : 'transparent';
+                    }
+                  },
+                },
+                [
+                  m('.tp-info', [
+                    m('strong', status.loadedTraceName),
+                    m('br'),
+                    m('small', `UUID: ${tp.uuid || 'default'}`),
+                    hasActiveTab &&
+                      m(
+                        '.tab-warning',
+                        {
+                          style: {
+                            'color': '#d63384',
+                            'font-weight': 'bold',
+                            'font-size': '11px',
+                            'margin-top': '4px',
+                          },
+                        },
+                        '⚠️ Active tab exists - Close existing tab first',
+                      ),
+                  ]),
+                  m('.tp-meta', [
+                    status.humanReadableVersion &&
+                      m(
+                        '.tp-version',
+                        {
+                          style: {
+                            'font-size': '11px',
+                            'padding': '2px 6px',
+                            'border-radius': '8px',
+                            'background-color': '#e6f3ff',
+                            'color': '#1976d2',
+                            'margin-right': '8px',
+                          },
+                        },
+                        status.humanReadableVersion,
+                      ),
+                    m(
+                      '.tp-status',
+                      {
+                        style: {
+                          'font-size': '11px',
+                          'padding': '2px 6px',
+                          'border-radius': '8px',
+                          'background-color': hasActiveTab
+                            ? '#dc3545'
+                            : '#28a745',
+                          'color': 'white',
+                        },
+                      },
+                      hasActiveTab ? 'Active Tab' : 'Available',
+                    ),
+                  ]),
+                ],
+              ),
+            );
+          });
+
+          elements.push(
             m(
               '.tp-list',
               {
@@ -484,57 +644,11 @@ async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
                   'margin': '16px 0',
                 },
               },
-              processorsWithTraces.map((tp) => {
-                const status = tp.status!;
-                return m(
-                  '.tp-item',
-                  {
-                    key: tp.uuid || 'default',
-                    style: {
-                      'padding': '12px',
-                      'border-bottom': '1px solid #eee',
-                      'cursor': 'pointer',
-                      'display': 'flex',
-                      'justify-content': 'space-between',
-                      'align-items': 'center',
-                    },
-                    onclick: () => {
-                      closeModal();
-                      resolve(tp.uuid || '');
-                    },
-                    onmouseenter: (e: Event) => {
-                      (e.target as HTMLElement).style.backgroundColor =
-                        '#f5f5f5';
-                    },
-                    onmouseleave: (e: Event) => {
-                      (e.target as HTMLElement).style.backgroundColor = '';
-                    },
-                  },
-                  [
-                    m('.tp-info', [
-                      m('strong', status.loadedTraceName),
-                      m('br'),
-                      m('small', `UUID: ${tp.uuid || 'default'}`),
-                    ]),
-                    status.humanReadableVersion &&
-                      m(
-                        '.tp-version',
-                        {
-                          style: {
-                            'font-size': '11px',
-                            'padding': '2px 6px',
-                            'border-radius': '8px',
-                            'background-color': '#e6f3ff',
-                            'color': '#1976d2',
-                          },
-                        },
-                        status.humanReadableVersion,
-                      ),
-                  ],
-                );
-              }),
+              processorElements,
             ),
           );
+
+          return m('.tp-selection-modal', elements);
         },
         buttons: [
           {
