@@ -91,13 +91,13 @@ class Httpd : public base::HttpRequestHandler {
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
         base::UnixTaskRunner task_runner;
-        Rpc rpc;
+        Rpc* rpc = new Rpc();
 
         // Signal that initialization is complete
         {
           std::lock_guard<std::mutex> lock(init_mutex_);
           task_runner_ = &task_runner;
-          rpc_ = &rpc;
+          rpc_ = rpc;
           initialized_ = true;
           init_cv_.notify_one();
         }
@@ -157,6 +157,9 @@ class Httpd : public base::HttpRequestHandler {
       init_cv_.wait(lock, [this] { return initialized_; });
 
       if (task_runner_ && rpc_) {
+        if (!rpc_->has_existing_tab) {
+          rpc_->has_existing_tab = true;
+        }
         task_runner_->PostTask([this, msg,
                                 data = std::vector<uint8_t>(msg.data.begin(),
                                                             msg.data.end())]() {
@@ -504,9 +507,6 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
     } else {
       // Dispatch to the dedicated thread
       UuidRpcThread* thread = uuid_to_tp_map.find(it->second)->second.get();
-      if (!thread->rpc_->has_existing_tab) {
-        thread->rpc_->has_existing_tab = true;
-      }
       thread->OnWebsocketMessage(msg);
     }
   }
