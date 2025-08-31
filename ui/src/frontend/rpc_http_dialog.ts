@@ -23,29 +23,6 @@ import {AppImpl} from '../core/app_impl';
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
-function getPromptMessage(tpStatus: protos.StatusResult): string {
-  return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} one or more loaded traces including 
-  ${tpStatus.loadedTraceName}.
-
-YES, select loaded trace:
-Pops up a window that allows you to select the trace to load.
-Will load from the current state of Trace Processor. If you did run
-trace_processor_shell --httpd file.pftrace this is likely what you want.
-
-YES, but reset state:
-Use this if you want to open another trace but still use the
-accelerator. This is the equivalent of killing and restarting
-trace_processor_shell --httpd.
-
-NO, Use builtin WASM:
-Will not use the accelerator in this tab.
-
-Using the native accelerator has some minor caveats:
-- Sharing, downloading and conversion-to-legacy aren't supported.
-- Each trace file can be opened in at most one tab at a time.
-`;
-}
-
 function getIncompatibleRpcMessage(tpStatus: protos.StatusResult): string {
   return `The Trace Processor instance on ${HttpRpcEngine.hostAndPort} is too old.
 
@@ -321,50 +298,211 @@ enum PreloadedDialogResult {
 async function showDialogToUsePreloadedTrace(
   tpStatus: protos.StatusResult,
 ): Promise<PreloadedDialogResult> {
-  const result = await new Promise<PreloadedDialogResult>((resolve) => {
-    showModal({
-      title: 'Use trace processor native acceleration?',
-      content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
-      buttons: [
-        {
-          text: 'YES, select loaded trace',
-          primary: true,
-          action: () => {
-            resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
-          },
-        },
-        {
-          text: 'YES, but reset state',
-          action: () => {
-            resolve(PreloadedDialogResult.UseRpc);
-          },
-        },
-        {
-          text: 'NO, Use builtin WASM',
-          action: () => {
-            resolve(PreloadedDialogResult.UseWasm);
-          },
-        },
-      ],
-    });
-  });
+  return new Promise<PreloadedDialogResult>(async (resolve) => {
+    try {
+      // Fetch actual trace processor data for the comprehensive modal
+      const httpRpcState = await HttpRpcEngine.checkConnection();
+      
+      let traceProcessors: Array<protos.ITraceProcessorStatus> = [];
+      if (httpRpcState.connected && httpRpcState.status) {
+        traceProcessors = httpRpcState.status.traceProcessorStatuses || [];
+      }
+      
+      // Filter to only show trace processors that have a loaded trace
+      const processorsWithTraces = traceProcessors.filter(
+        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== ''
+      );
 
-  // If user selected "YES, select loaded trace", show trace processor selection
-  if (result === PreloadedDialogResult.UseRpcWithPreloadedTrace) {
-    const selectedUuid = await showTraceProcessorSelectionModal();
+      // Sort processors: those without active tabs first, then those with active tabs
+      const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
+        const aHasTab = a.status?.hasExistingTab ?? false;
+        const bHasTab = b.status?.hasExistingTab ?? false;
+        return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
+      });
 
-    if (selectedUuid !== null && selectedUuid !== undefined) {
-      console.log(`Selected trace processor: ${selectedUuid}`);
-      // Store the selected UUID for backend integration
-      AppImpl.instance.httpRpc.selectedTraceProcessorUuid = selectedUuid;
-      return PreloadedDialogResult.UseRpcWithPreloadedTrace;
-    } else {
-      // User cancelled the selection
-      return PreloadedDialogResult.Dismissed;
+      showModal({
+        title: 'Use trace processor native acceleration?',
+        content: () => {
+          const elements: m.Child[] = [
+            m('p', `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with loaded traces including ${tpStatus.loadedTraceName}.`),
+          ];
+
+          // Add the three main options as clear action buttons
+          elements.push(
+            m('div', {style: {'margin': '16px 0'}}, [
+              // Option 1: Select from loaded traces (only shown if available)
+              processorsWithTraces.length > 0 && [
+                m('h4', 'Select a loaded trace:'),
+                
+                // Add warning banner for active tabs
+                (() => {
+                  const activeTabCount = sortedProcessors.filter(
+                    (tp) => tp.status?.hasExistingTab ?? false
+                  ).length;
+                  
+                  if (activeTabCount > 0) {
+                    return m(
+                      '.warning-banner',
+                      {
+                        style: {
+                          'background-color': '#fff3cd',
+                          'border': '1px solid #ffeaa7',
+                          'border-radius': '4px',
+                          'padding': '8px 12px',
+                          'margin': '8px 0 16px 0',
+                          'color': '#856404',
+                          'font-size': '13px',
+                        },
+                      },
+                      [
+                        m('strong', '⚠️ Warning: '),
+                        'Processors with active tabs cannot be selected. Close existing tabs first.',
+                      ]
+                    );
+                  }
+                  return null;
+                })(),
+
+                // Interactive trace processor selection
+                m('div', {style: {'margin': '8px 0'}}, [
+                  sortedProcessors.map((tp, index) => {
+                    const status = tp.status!;
+                    const hasActiveTab = status.hasExistingTab ?? false;
+                    const isClickable = !hasActiveTab;
+
+                    return m(
+                      'button',
+                      {
+                        key: tp.uuid || `default-${index}`,
+                        style: {
+                          'display': 'block',
+                          'width': '100%',
+                          'padding': '12px',
+                          'margin': '8px 0',
+                          'border': '1px solid #ddd',
+                          'border-radius': '4px',
+                          'background-color': hasActiveTab ? '#fff3cd' : '#f8f9fa',
+                          'cursor': isClickable ? 'pointer' : 'not-allowed',
+                          'opacity': hasActiveTab ? '0.6' : '1',
+                          'text-align': 'left',
+                        },
+                        disabled: hasActiveTab,
+                        onclick: () => {
+                          if (isClickable && tp.uuid) {
+                            AppImpl.instance.httpRpc.selectedTraceProcessorUuid = tp.uuid;
+                            closeModal();
+                            resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+                          } else if (isClickable) {
+                            // Handle case where uuid is null/undefined
+                            closeModal();
+                            resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+                          }
+                        },
+                      },
+                      [
+                        m('div', [
+                          m('strong', status.loadedTraceName),
+                          m('br'),
+                          m('small', `UUID: ${tp.uuid || 'default'}`),
+                          m('br'),
+                          m('small', `Version: ${status.humanReadableVersion || 'unknown'}`),
+                        ]),
+                        hasActiveTab && m(
+                          'span',
+                          {
+                            style: {
+                              'color': '#d63384',
+                              'font-weight': 'bold',
+                              'font-size': '11px',
+                              'display': 'block',
+                              'margin-top': '4px',
+                            },
+                          },
+                          '⚠️ Active tab exists - cannot select'
+                        ),
+                      ]
+                    );
+                  })
+                ])
+              ],
+
+              // Option 2: Reset state and load new trace
+              m('div', {style: {'margin': '20px 0'}}, [
+                m('h4', 'Load a new trace with native acceleration:'),
+                m('button', {
+                  style: {
+                    'padding': '12px 16px',
+                    'margin': '8px 0',
+                    'border': '1px solid #007bff',
+                    'border-radius': '4px',
+                    'background-color': '#007bff',
+                    'color': 'white',
+                    'cursor': 'pointer',
+                  },
+                  onclick: () => {
+                    closeModal();
+                    resolve(PreloadedDialogResult.UseRpc);
+                  },
+                }, 'Load new trace (reset state)')
+              ]),
+
+              // Option 3: Use built-in WASM
+              m('div', {style: {'margin': '20px 0'}}, [
+                m('h4', 'Use built-in WebAssembly engine:'),
+                m('button', {
+                  style: {
+                    'padding': '12px 16px',
+                    'margin': '8px 0',
+                    'border': '1px solid #6c757d',
+                    'border-radius': '4px',
+                    'background-color': '#6c757d',
+                    'color': 'white',
+                    'cursor': 'pointer',
+                  },
+                  onclick: () => {
+                    closeModal();
+                    resolve(PreloadedDialogResult.UseWasm);
+                  },
+                }, 'Use built-in WASM (no native acceleration)')
+              ]),
+
+              // Caveats section
+              m('div', {
+                style: {
+                  'margin-top': '20px',
+                  'padding': '12px',
+                  'background-color': '#f8f9fa',
+                  'border-left': '4px solid #007bff',
+                  'border-r10adius': '4px',
+                }
+              }, [
+                m('strong', 'Using the native accelerator has some minor caveats:'),
+                m('ul', {style: {'margin': '8px 0 0 20px', 'font-size': '14px'}}, [
+                  m('li', 'Sharing, downloading and conversion-to-legacy aren\'t supported.'),
+                  m('li', 'Each trace file can be opened in at most one tab at a time.'),
+                ])
+              ])
+            ])
+          );
+
+          return elements;
+        },
+        buttons: [
+          // Simplified buttons - main actions are now in the content
+          {
+            text: 'Cancel',
+            action: () => {
+              closeModal();
+              resolve(PreloadedDialogResult.Dismissed);
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      console.error('Error showing trace processor selection modal:', error);
+      resolve(PreloadedDialogResult.UseWasm);
     }
-  }
-
-  return result;
+  });
 }
 
 function getUrlForVersion(versionCode: string): string {
@@ -405,274 +543,4 @@ function navigateToVersion(versionCode: string): void {
     throw new Error(`No URL known for UI version ${versionCode}.`);
   }
   window.location.replace(url);
-}
-
-// New function to show trace processor selection modal
-async function showTraceProcessorSelectionModal(): Promise<string | undefined> {
-  return new Promise(async (resolve) => {
-    try {
-      // Fetch actual trace processor data
-      const httpRpcState = await HttpRpcEngine.checkConnection();
-
-      if (!httpRpcState.connected || !httpRpcState.status) {
-        showModal({
-          title: 'No Trace Processors Available',
-          content:
-            'Could not connect to any trace processors or no trace processors are available.',
-          buttons: [
-            {
-              text: 'OK',
-              primary: true,
-              action: () => resolve(undefined),
-            },
-          ],
-        });
-        return;
-      }
-
-      const traceProcessors = httpRpcState.status.traceProcessorStatuses;
-
-      if (traceProcessors.length === 0) {
-        showModal({
-          title: 'No Trace Processors Available',
-          content: 'No trace processors are currently running.',
-          buttons: [
-            {
-              text: 'OK',
-              primary: true,
-              action: () => resolve(undefined),
-            },
-          ],
-        });
-        return;
-      }
-
-      // Filter to only show trace processors that have a loaded trace
-      const processorsWithTraces = traceProcessors.filter(
-        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== '',
-      );
-
-      if (processorsWithTraces.length === 0) {
-        showModal({
-          title: 'No Loaded Traces',
-          content: 'No trace processors have loaded traces available.',
-          buttons: [
-            {
-              text: 'OK',
-              primary: true,
-              action: () => resolve(undefined),
-            },
-          ],
-        });
-        return;
-      }
-
-      // Sort processors: those without active tabs first, then those with active tabs
-      const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
-        const aHasTab = a.status?.hasExistingTab ?? false;
-        const bHasTab = b.status?.hasExistingTab ?? false;
-        return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
-      });
-
-      // Count processors with active tabs
-      const activeTabCount = sortedProcessors.filter(
-        (tp) => tp.status?.hasExistingTab ?? false,
-      ).length;
-
-      showModal({
-        title: 'Select Trace Processor',
-        content: () => {
-          const elements: any[] = [
-            m('p', 'Please select a trace processor to use:'),
-          ];
-
-          // Add warning banner if there are active tabs
-          if (activeTabCount > 0) {
-            elements.push(
-              m(
-                '.warning-banner',
-                {
-                  style: {
-                    'background-color': '#fff3cd',
-                    'border': '1px solid #ffeaa7',
-                    'border-radius': '4px',
-                    'padding': '12px',
-                    'margin': '16px 0',
-                    'color': '#856404',
-                  },
-                },
-                [
-                  m('strong', '⚠️ Important Warning: '),
-                  'Each trace processor can only have one active tab at a time. ',
-                  'If you select a processor that already has an active tab, ',
-                  'you must close the existing tab first to prevent crashes.',
-                ],
-              ),
-            );
-          }
-
-          // Build the list of processors
-          const processorElements: any[] = [];
-          let hasShownSeparator = false;
-
-          sortedProcessors.forEach((tp, index) => {
-            const status = tp.status!;
-            const hasActiveTab = status.hasExistingTab ?? false;
-
-            // Add separator when we hit the first processor with active tab
-            if (hasActiveTab && !hasShownSeparator) {
-              processorElements.push(
-                m(
-                  '.tp-separator',
-                  {
-                    key: 'separator',
-                    style: {
-                      'padding': '8px 12px',
-                      'background-color': '#f8f9fa',
-                      'border-top': '1px solid #dee2e6',
-                      'border-bottom': '1px solid #dee2e6',
-                      'font-weight': 'bold',
-                      'color': '#6c757d',
-                      'font-size': '12px',
-                    },
-                  },
-                  'Processors with Active Tabs (Close existing tab first)',
-                ),
-              );
-              hasShownSeparator = true;
-            }
-
-            processorElements.push(
-              m(
-                '.tp-item',
-                {
-                  key: tp.uuid || `default-${index}`,
-                  style: {
-                    'padding': '12px',
-                    'border-bottom': '1px solid #eee',
-                    'cursor': hasActiveTab ? 'not-allowed' : 'pointer',
-                    'display': 'flex',
-                    'justify-content': 'space-between',
-                    'align-items': 'center',
-                    'opacity': hasActiveTab ? '0.6' : '1',
-                    'background-color': hasActiveTab ? '#fff3cd' : 'transparent',
-                  },
-                  onclick: () => {
-                    if (!hasActiveTab) {
-                      closeModal();
-                      resolve(tp.uuid || '');
-                    }
-                  },
-                  onmouseenter: (e: Event) => {
-                    if (!hasActiveTab) {
-                      (e.target as HTMLElement).style.backgroundColor =
-                        '#f5f5f5';
-                    }
-                  },
-                  onmouseleave: (e: Event) => {
-                    if (!hasActiveTab) {
-                      (e.target as HTMLElement).style.backgroundColor =
-                        hasActiveTab ? '#fff3cd' : 'transparent';
-                    }
-                  },
-                },
-                [
-                  m('.tp-info', [
-                    m('strong', status.loadedTraceName),
-                    m('br'),
-                    m('small', `UUID: ${tp.uuid || 'default'}`),
-                    hasActiveTab &&
-                      m(
-                        '.tab-warning',
-                        {
-                          style: {
-                            'color': '#d63384',
-                            'font-weight': 'bold',
-                            'font-size': '11px',
-                            'margin-top': '4px',
-                          },
-                        },
-                        '⚠️ Active tab exists - Close existing tab first',
-                      ),
-                  ]),
-                  m('.tp-meta', [
-                    status.humanReadableVersion &&
-                      m(
-                        '.tp-version',
-                        {
-                          style: {
-                            'font-size': '11px',
-                            'padding': '2px 6px',
-                            'border-radius': '8px',
-                            'background-color': '#e6f3ff',
-                            'color': '#1976d2',
-                            'margin-right': '8px',
-                          },
-                        },
-                        status.humanReadableVersion,
-                      ),
-                    m(
-                      '.tp-status',
-                      {
-                        style: {
-                          'font-size': '11px',
-                          'padding': '2px 6px',
-                          'border-radius': '8px',
-                          'background-color': hasActiveTab
-                            ? '#dc3545'
-                            : '#28a745',
-                          'color': 'white',
-                        },
-                      },
-                      hasActiveTab ? 'Active Tab' : 'Available',
-                    ),
-                  ]),
-                ],
-              ),
-            );
-          });
-
-          elements.push(
-            m(
-              '.tp-list',
-              {
-                style: {
-                  'max-height': '300px',
-                  'overflow-y': 'auto',
-                  'border': '1px solid #ccc',
-                  'border-radius': '4px',
-                  'margin': '16px 0',
-                },
-              },
-              processorElements,
-            ),
-          );
-
-          return m('.tp-selection-modal', elements);
-        },
-        buttons: [
-          {
-            text: 'Cancel',
-            action: () => {
-              closeModal();
-              resolve(undefined);
-            },
-          },
-        ],
-      });
-    } catch (error) {
-      console.error('Error fetching trace processors:', error);
-      showModal({
-        title: 'Error',
-        content: 'Failed to fetch trace processor information.',
-        buttons: [
-          {
-            text: 'OK',
-            primary: true,
-            action: () => resolve(undefined),
-          },
-        ],
-      });
-    }
-  });
 }
