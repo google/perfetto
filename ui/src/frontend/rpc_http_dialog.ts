@@ -335,7 +335,7 @@ async function showDialogToUsePreloadedTrace(
                 m('h4', 'Select a loaded trace:'),
                 
                 // Add warning banner for active tabs
-                (() => {
+               (() => {
                   const activeTabCount = sortedProcessors.filter(
                     (tp) => tp.status?.hasExistingTab ?? false
                   ).length;
@@ -356,7 +356,7 @@ async function showDialogToUsePreloadedTrace(
                       },
                       [
                         m('strong', '⚠️ Warning: '),
-                        'Processors with active tabs cannot be selected. Close existing tabs first.',
+                        'Active tab exists - close the old tab first before loading to prevent crashing',
                       ]
                     );
                   }
@@ -368,7 +368,6 @@ async function showDialogToUsePreloadedTrace(
                   sortedProcessors.map((tp, index) => {
                     const status = tp.status!;
                     const hasActiveTab = status.hasExistingTab ?? false;
-                    const isClickable = !hasActiveTab;
 
                     return m(
                       'button',
@@ -382,17 +381,16 @@ async function showDialogToUsePreloadedTrace(
                           'border': '1px solid #ddd',
                           'border-radius': '4px',
                           'background-color': hasActiveTab ? '#fff3cd' : '#f8f9fa',
-                          'cursor': isClickable ? 'pointer' : 'not-allowed',
-                          'opacity': hasActiveTab ? '0.6' : '1',
+                          'cursor': 'pointer',
+                          'opacity': hasActiveTab ? '0.8' : '1',
                           'text-align': 'left',
                         },
-                        disabled: hasActiveTab,
                         onclick: () => {
-                          if (isClickable && tp.uuid) {
+                          if (tp.uuid) {
                             AppImpl.instance.httpRpc.selectedTraceProcessorUuid = tp.uuid;
                             closeModal();
                             resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
-                          } else if (isClickable) {
+                          } else {
                             // Handle case where uuid is null/undefined
                             closeModal();
                             resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
@@ -418,12 +416,12 @@ async function showDialogToUsePreloadedTrace(
                               'margin-top': '4px',
                             },
                           },
-                          '⚠️ Active tab exists - cannot select'
+                          '⚠️ Active tab exists - close the old tab first before loading to prevent crashing'
                         ),
                       ]
                     );
                   })
-                ])
+                ]),
               ],
 
               // Option 2: Reset state and load new trace
