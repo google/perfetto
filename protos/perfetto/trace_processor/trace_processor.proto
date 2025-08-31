@@ -284,7 +284,8 @@ message StatusResult {
   // without warning.
   optional string version_code = 4;
 
-  // checks if a trace processor already has an existing tab. if yes, warns the user that they have to close the old tab to open the trace in a new tab.
+  // checks if a trace processor already has an existing tab. if yes, warns the
+  // user that they have to close the old tab to open the trace in a new tab.
   optional bool has_existing_tab = 5;
 }
 

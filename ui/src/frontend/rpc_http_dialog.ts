@@ -200,6 +200,8 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     const result = await showDialogToUsePreloadedTrace(firstTpStatus);
     switch (result) {
       case PreloadedDialogResult.Dismissed:
+        closeModal();
+        return;
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:
         AppImpl.instance.openTraceFromHttpRpc();
         return;
@@ -302,15 +304,15 @@ async function showDialogToUsePreloadedTrace(
     try {
       // Fetch actual trace processor data for the comprehensive modal
       const httpRpcState = await HttpRpcEngine.checkConnection();
-      
+
       let traceProcessors: Array<protos.ITraceProcessorStatus> = [];
       if (httpRpcState.connected && httpRpcState.status) {
-        traceProcessors = httpRpcState.status.traceProcessorStatuses || [];
+        traceProcessors = httpRpcState.status.traceProcessorStatuses ?? [];
       }
-      
+
       // Filter to only show trace processors that have a loaded trace
       const processorsWithTraces = traceProcessors.filter(
-        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== ''
+        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== '',
       );
 
       // Sort processors: those without active tabs first, then those with active tabs
@@ -324,22 +326,25 @@ async function showDialogToUsePreloadedTrace(
         title: 'Use trace processor native acceleration?',
         content: () => {
           const elements: m.Child[] = [
-            m('p', `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with loaded traces including ${tpStatus.loadedTraceName}.`),
+            m(
+              'p',
+              `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with loaded traces including ${tpStatus.loadedTraceName}.`,
+            ),
           ];
 
           // Add the three main options as clear action buttons
           elements.push(
-            m('div', {style: {'margin': '16px 0'}}, [
+            m('div', {style: {margin: '16px 0'}}, [
               // Option 1: Select from loaded traces (only shown if available)
               processorsWithTraces.length > 0 && [
                 m('h4', 'Select a loaded trace:'),
-                
+
                 // Add warning banner for active tabs
-               (() => {
+                (() => {
                   const activeTabCount = sortedProcessors.filter(
-                    (tp) => tp.status?.hasExistingTab ?? false
+                    (tp) => tp.status?.hasExistingTab ?? false,
                   ).length;
-                  
+
                   if (activeTabCount > 0) {
                     return m(
                       '.warning-banner',
@@ -357,14 +362,14 @@ async function showDialogToUsePreloadedTrace(
                       [
                         m('strong', '⚠️ Warning: '),
                         'Active tab exists - close the old tab first before loading to prevent crashing',
-                      ]
+                      ],
                     );
                   }
                   return null;
                 })(),
 
                 // Interactive trace processor selection
-                m('div', {style: {'margin': '8px 0'}}, [
+                m('div', {style: {margin: '8px 0'}}, [
                   sortedProcessors.map((tp, index) => {
                     const status = tp.status!;
                     const hasActiveTab = status.hasExistingTab ?? false;
@@ -380,20 +385,27 @@ async function showDialogToUsePreloadedTrace(
                           'margin': '8px 0',
                           'border': '1px solid #ddd',
                           'border-radius': '4px',
-                          'background-color': hasActiveTab ? '#fff3cd' : '#f8f9fa',
+                          'background-color': hasActiveTab
+                            ? '#fff3cd'
+                            : '#f8f9fa',
                           'cursor': 'pointer',
                           'opacity': hasActiveTab ? '0.8' : '1',
                           'text-align': 'left',
                         },
                         onclick: () => {
                           if (tp.uuid) {
-                            AppImpl.instance.httpRpc.selectedTraceProcessorUuid = tp.uuid;
+                            AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
+                              tp.uuid;
                             closeModal();
-                            resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+                            resolve(
+                              PreloadedDialogResult.UseRpcWithPreloadedTrace,
+                            );
                           } else {
                             // Handle case where uuid is null/undefined
                             closeModal();
-                            resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+                            resolve(
+                              PreloadedDialogResult.UseRpcWithPreloadedTrace,
+                            );
                           }
                         },
                       },
@@ -403,84 +415,113 @@ async function showDialogToUsePreloadedTrace(
                           m('br'),
                           m('small', `UUID: ${tp.uuid || 'default'}`),
                           m('br'),
-                          m('small', `Version: ${status.humanReadableVersion || 'unknown'}`),
+                          m(
+                            'small',
+                            `Version: ${status.humanReadableVersion || 'unknown'}`,
+                          ),
                         ]),
-                        hasActiveTab && m(
-                          'span',
-                          {
-                            style: {
-                              'color': '#d63384',
-                              'font-weight': 'bold',
-                              'font-size': '11px',
-                              'display': 'block',
-                              'margin-top': '4px',
+                        hasActiveTab &&
+                          m(
+                            'span',
+                            {
+                              style: {
+                                'color': '#d63384',
+                                'font-weight': 'bold',
+                                'font-size': '11px',
+                                'display': 'block',
+                                'margin-top': '4px',
+                              },
                             },
-                          },
-                          '⚠️ Active tab exists - close the old tab first before loading to prevent crashing'
-                        ),
-                      ]
+                            '⚠️ Active tab exists - close the old tab first before loading to prevent crashing',
+                          ),
+                      ],
                     );
-                  })
+                  }),
                 ]),
               ],
 
               // Option 2: Reset state and load new trace
-              m('div', {style: {'margin': '20px 0'}}, [
+              m('div', {style: {margin: '20px 0'}}, [
                 m('h4', 'Load a new trace with native acceleration:'),
-                m('button', {
-                  style: {
-                    'padding': '12px 16px',
-                    'margin': '8px 0',
-                    'border': '1px solid #007bff',
-                    'border-radius': '4px',
-                    'background-color': '#007bff',
-                    'color': 'white',
-                    'cursor': 'pointer',
+                m(
+                  'button',
+                  {
+                    style: {
+                      'padding': '12px 16px',
+                      'margin': '8px 0',
+                      'border': '1px solid #007bff',
+                      'border-radius': '4px',
+                      'background-color': '#007bff',
+                      'color': 'white',
+                      'cursor': 'pointer',
+                    },
+                    onclick: () => {
+                      closeModal();
+                      resolve(PreloadedDialogResult.UseRpc);
+                    },
                   },
-                  onclick: () => {
-                    closeModal();
-                    resolve(PreloadedDialogResult.UseRpc);
-                  },
-                }, 'Load new trace (reset state)')
+                  'Load new trace (reset state)',
+                ),
               ]),
 
               // Option 3: Use built-in WASM
-              m('div', {style: {'margin': '20px 0'}}, [
+              m('div', {style: {margin: '20px 0'}}, [
                 m('h4', 'Use built-in WebAssembly engine:'),
-                m('button', {
-                  style: {
-                    'padding': '12px 16px',
-                    'margin': '8px 0',
-                    'border': '1px solid #6c757d',
-                    'border-radius': '4px',
-                    'background-color': '#6c757d',
-                    'color': 'white',
-                    'cursor': 'pointer',
+                m(
+                  'button',
+                  {
+                    style: {
+                      'padding': '12px 16px',
+                      'margin': '8px 0',
+                      'border': '1px solid #6c757d',
+                      'border-radius': '4px',
+                      'background-color': '#6c757d',
+                      'color': 'white',
+                      'cursor': 'pointer',
+                    },
+                    onclick: () => {
+                      closeModal();
+                      resolve(PreloadedDialogResult.UseWasm);
+                    },
                   },
-                  onclick: () => {
-                    closeModal();
-                    resolve(PreloadedDialogResult.UseWasm);
-                  },
-                }, 'Use built-in WASM (no native acceleration)')
+                  'Use built-in WASM (no native acceleration)',
+                ),
               ]),
 
               // Caveats section
-              m('div', {
-                style: {
-                  'margin-top': '20px',
-                  'padding': '12px',
-                  'background-color': '#f8f9fa',
-                  'border-left': '4px solid #007bff',
-                  'border-r10adius': '4px',
-                }
-              }, [
-                m('strong', 'Using the native accelerator has some minor caveats:'),
-                m('ul', {style: {'margin': '8px 0 0 20px', 'font-size': '14px'}}, [
-                  m('li', 'Sharing, downloading and conversion-to-legacy aren\'t supported.'),
-                  m('li', 'Each trace file can be opened in at most one tab at a time.'),
-                ])
-              ])
-            ])
+              m(
+                'div',
+                {
+                  style: {
+                    'margin-top': '20px',
+                    'padding': '12px',
+                    'background-color': '#f8f9fa',
+                    'border-left': '4px solid #007bff',
+                    'border-r10adius': '4px',
+                  },
+                },
+                [
+                  m(
+                    'strong',
+                    'Using the native accelerator has some minor caveats:',
+                  ),
+                  m(
+                    'ul',
+                    {style: {'margin': '8px 0 0 20px', 'font-size': '14px'}},
+                    [
+                      m(
+                        'li',
+                        "Sharing, downloading and conversion-to-legacy aren't supported.",
+                      ),
+                      m(
+                        'li',
+                        'Each trace file can be opened in at most one tab at a time.',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ]),
           );
 
           return elements;

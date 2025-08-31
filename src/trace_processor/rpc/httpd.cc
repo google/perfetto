@@ -342,7 +342,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         status->set_human_readable_version(base::GetVersionString());
 
         status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
-        
+
         if (const char* version_code = base::GetVersionCode(); version_code) {
           status->set_version_code(version_code);
         }
@@ -504,7 +504,7 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
     } else {
       // Dispatch to the dedicated thread
       UuidRpcThread* thread = uuid_to_tp_map.find(it->second)->second.get();
-      if(!thread->rpc_->has_existing_tab){
+      if (!thread->rpc_->has_existing_tab) {
         thread->rpc_->has_existing_tab = true;
       }
       thread->OnWebsocketMessage(msg);
