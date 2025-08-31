@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/version.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
 
@@ -484,10 +485,30 @@ void Httpd::registerConnection(base::HttpServerConnection* conn,
 }
 
 std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
-  // extract data from message
+  // Check if JSON support is available
+  if (json::IsJsonSupported()) {
+    // Use JSON parsing for robust handling
+    std::optional<Json::Value> parsed_json = json::ParseJsonString(data);
+    if (parsed_json.has_value()) {
+      const Json::Value& root = parsed_json.value();
+      // Check if this is a TP_UUID message
+      if (root.isObject() && root.isMember("type") && root["type"].isString() &&
+          root["type"].asString() == "TP_UUID") {
+        // Extract the UUID value
+        if (root.isMember("uuid") && root["uuid"].isString()) {
+          return root["uuid"].asString();
+        }
+      }
+    }
+    // If JSON parsing fails or doesn't match expected format, fall through to
+    // manual parsing
+  }
+
+  // Fallback to manual string parsing when JSON support is disabled
+  // or when JSON parsing fails for any reason
   std::string str_data(data.data(), data.size());
 
-  // Look for UUID handshake pattern in the messages's data
+  // Look for UUID handshake pattern in the message's data
   if (str_data.find("\"type\":\"TP_UUID\"") != std::string::npos) {
     size_t uuid_pos = str_data.find("\"uuid\":\"");
     if (uuid_pos != std::string::npos) {
