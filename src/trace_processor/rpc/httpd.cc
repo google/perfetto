@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -104,6 +105,37 @@ class Httpd : public base::HttpRequestHandler {
         // Run the event loop
         task_runner.Run();
       });
+    }
+    explicit UuidRpcThread(std::unique_ptr<TraceProcessor> preloaded_instance,
+                           bool is_preloaded_eof)
+        : last_accessed_ns_(
+              static_cast<uint64_t>(base::GetWallTimeNs().count())) {
+      rpc_thread_ =
+          std::thread([this, preloaded_instance = std::move(preloaded_instance),
+                       is_preloaded_eof]() mutable {
+            // Create task runner and RPC instance in worker thread context
+            base::UnixTaskRunner task_runner;
+            Rpc* rpc;
+
+            // Initialize RPC with preloaded instance if provided
+            if (preloaded_instance) {
+              rpc = new Rpc(std::move(preloaded_instance), is_preloaded_eof);
+            } else {
+              rpc = new Rpc();
+            }
+
+            // Signal that initialization is complete
+            {
+              std::lock_guard<std::mutex> lock(init_mutex_);
+              task_runner_ = &task_runner;
+              rpc_ = rpc;
+              initialized_ = true;
+              init_cv_.notify_one();
+            }
+
+            // Run the event loop
+            task_runner.Run();
+          });
     }
 
     ~UuidRpcThread() {
@@ -195,10 +227,20 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
              bool is_preloaded_eof,
              size_t timeout_mins)
-    : global_trace_processor_rpc_(std::move(preloaded_instance),
-                                  is_preloaded_eof),
+    : global_trace_processor_rpc_(),  // Create empty global RPC
       http_srv_(&task_runner_, this),
-      tp_timeout_mins_(timeout_mins) {}
+      tp_timeout_mins_(timeout_mins) {
+  // If we have a preloaded instance, create a UUID for it and store in map
+  if (preloaded_instance) {
+    base::Uuid uuid = base::Uuidv4();
+    std::string uuid_str = uuid.ToPrettyString();
+    auto new_thread = std::make_unique<UuidRpcThread>(
+        std::move(preloaded_instance), is_preloaded_eof);
+    uuid_to_tp_map.emplace(uuid_str, std::move(new_thread));
+    PERFETTO_ILOG("Preloaded trace processor assigned UUID: %s",
+                  uuid_str.c_str());
+  }
+}
 Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
@@ -284,23 +326,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Use protozero::HeapBuffered to get SerializeAsArray() method
     protozero::HeapBuffered<protos::pbzero::StatusAllResult> result;
 
-    // Add global trace processor status
-    {
-      auto* tp_status = result->add_trace_processor_statuses();
-      tp_status->set_uuid(DEFAULT_TP_UUID);
-
-      auto* status = tp_status->set_status();
-      // Use GetLoadedTraceName() which returns empty string if no trace loaded
-      status->set_loaded_trace_name(
-          global_trace_processor_rpc_.GetCurrentTraceName());
-      status->set_human_readable_version(base::GetVersionString());
-      if (const char* version_code = base::GetVersionCode(); version_code) {
-        status->set_version_code(version_code);
-      }
-      status->set_api_version(
-          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
-    }
-
     // Add per-UUID trace processors
     {
       std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
@@ -321,6 +346,22 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         status->set_api_version(
             protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
       }
+    }
+
+    if (!global_trace_processor_rpc_.GetCurrentTraceName().empty()) {
+      auto* tp_status = result->add_trace_processor_statuses();
+      tp_status->set_uuid(DEFAULT_TP_UUID);
+
+      auto* status = tp_status->set_status();
+      // Use GetLoadedTraceName() which returns empty string if no trace loaded
+      status->set_loaded_trace_name(
+          global_trace_processor_rpc_.GetCurrentTraceName());
+      status->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        status->set_version_code(version_code);
+      }
+      status->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
     }
 
     return conn.SendResponse("200 OK", default_headers,
