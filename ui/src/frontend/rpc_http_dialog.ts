@@ -387,7 +387,7 @@ async function showDialogToUsePreloadedTrace(
                           ? '#fff3cd'
                           : '#f8f9fa',
                         'cursor': 'pointer',
-                        'opacity': hasActiveTab ? '0.8' : '1',
+                        'opacity': hasActiveTab ? '1.0' : '1',
                         'text-align': 'left',
                       },
                       onclick: () => {
