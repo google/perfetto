@@ -500,12 +500,10 @@ std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
         }
       }
     }
-    // If JSON parsing fails or doesn't match expected format, fall through to
-    // manual parsing
   }
 
-  // Fallback to manual string parsing when JSON support is disabled
-  // or when JSON parsing fails for any reason
+  // If JSON parsing fails or doesn't match expected format, fall through to
+  // manual parsing
   std::string str_data(data.data(), data.size());
 
   // Look for UUID handshake pattern in the message's data
