@@ -359,7 +359,7 @@ async function showDialogToUsePreloadedTrace(
                     },
                     [
                       m('strong', '⚠️ Warning: '),
-                      'Active tab exists - close the old tab first before loading to prevent crashing',
+                      'Each loaded trace can be opened in at most one tab at a time.',
                     ],
                   );
                 }
