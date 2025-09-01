@@ -105,44 +105,12 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
           m(TextParagraph, {
             text: '🌐 Merge traces captured on different machines or devices with distributed time synchronization.',
           }),
-          m('.pf-multi-trace-modal__unsupported', [
-            m(Icon, {icon: 'info'}, 'Not yet supported'),
-            m(
-              'span',
-              'Please +1 ',
-              m(
-                Anchor,
-                {
-                  href: 'https://github.com/google/perfetto/issues/2781',
-                  target: '_blank',
-                },
-                'this bug',
-              ),
-              ' if you want us to prioritize this feature.',
-            ),
-          ]),
         ];
       case 'comparison':
         return [
           m(TextParagraph, {
             text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
           }),
-          m('.pf-multi-trace-modal__unsupported', [
-            m(Icon, {icon: 'info'}, 'Not yet supported'),
-            m(
-              'span',
-              'Please +1 ',
-              m(
-                Anchor,
-                {
-                  href: 'https://github.com/google/perfetto/issues/2780',
-                  target: '_blank',
-                },
-                'this bug',
-              ),
-              ' if you want us to prioritize this feature.',
-            ),
-          ]),
         ];
       default:
         return '';
@@ -150,8 +118,8 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   }
 
   private renderActions() {
-    const footerMessage = this.getFooterMessage();
-    const isDisabled = !!footerMessage;
+    const footerContent = this.getFooterContent();
+    const isDisabled = !!footerContent;
     const openButton = m(Button, {
       label: 'Open Traces',
       intent: Intent.Primary,
@@ -160,7 +128,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       disabled: isDisabled,
     });
 
-    if (footerMessage) {
+    if (footerContent) {
       return [
         m(
           Callout,
@@ -169,7 +137,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
             intent: Intent.Danger,
             icon: 'error_outline',
           },
-          footerMessage,
+          footerContent,
         ),
         m('.pf-multi-trace-modal__footer-spacer'),
         openButton,
@@ -179,9 +147,26 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     }
   }
 
-  private getFooterMessage(): string | undefined {
-    if (this.currentTab !== 'synchronous') {
-      return 'This feature is not yet supported. Please select "Synchronous Traces" to continue.';
+  private getFooterContent(): m.Children | undefined {
+    if (this.currentTab === 'cross-machine') {
+      return [
+        'This feature is not yet supported. Please +1 ',
+        m(Anchor, {
+          href: 'https://github.com/google/perfetto/issues/2781',
+          target: '_blank',
+        }, 'this GitHub issue'),
+        ' to prioritize development, or select "Synchronous Traces" to continue.',
+      ];
+    }
+    if (this.currentTab === 'comparison') {
+      return [
+        'This feature is not yet supported. Please +1 ',
+        m(Anchor, {
+          href: 'https://github.com/google/perfetto/issues/2780',
+          target: '_blank',
+        }, 'this GitHub issue'),
+        ' to prioritize development, or select "Synchronous Traces" to continue.',
+      ];
     }
 
     const error = this.controller.getLoadingError();

@@ -39,25 +39,6 @@
     }
   }
 
-  &__unsupported {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 16px;
-    margin-bottom: 12px;
-    background-color: var(--pf-color-background-secondary);
-    border: 1px solid var(--pf-color-border);
-    border-radius: 4px;
-    color: var(--pf-color-text-secondary);
-    font-family: var(--pf-font);
-    font-size: 0.9em;
-
-    .pf-icon {
-      color: var(--pf-color-primary);
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-  }
   &__list-panel {
     border: none;
     overflow-y: auto;
