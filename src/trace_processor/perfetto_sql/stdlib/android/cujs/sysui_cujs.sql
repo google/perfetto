@@ -462,3 +462,50 @@ SELECT
   NULL AS end_vsync,
   "latency" AS cuj_type
 FROM android_sysui_latency_cujs;
+
+-- Table captures all Choreographer#doFrame within a CUJ boundary.
+CREATE PERFETTO TABLE _android_jank_cuj_do_frames AS
+WITH
+  do_frame_slice_with_end_ts AS (
+    SELECT
+      slice.id,
+      frame_id AS vsync,
+      do_frame.ts,
+      upid,
+      slice.ts + slice.dur AS ts_end,
+      slice.track_id
+    FROM android_frames_choreographer_do_frame AS do_frame
+    JOIN slice
+      USING (id)
+  )
+SELECT
+  cuj.cuj_id,
+  cuj.ui_thread,
+  thread.utid,
+  do_frame.*
+FROM thread
+JOIN android_sysui_jank_cujs AS cuj
+  USING (upid)
+JOIN thread_track
+  USING (utid)
+JOIN do_frame_slice_with_end_ts AS do_frame
+  ON do_frame.ts_end >= cuj.ts
+  AND do_frame.ts <= cuj.ts_end
+  AND thread_track.id = do_frame.track_id
+WHERE
+  (
+    (
+      cuj.ui_thread IS NULL AND thread.is_main_thread
+    )
+    -- Some CUJs use a dedicated thread for Choreographer callbacks
+    OR (
+      cuj.ui_thread = thread.utid
+    )
+  )
+  AND vsync > 0
+  AND (
+    vsync >= begin_vsync OR begin_vsync IS NULL
+  )
+  AND (
+    vsync <= end_vsync OR end_vsync IS NULL
+  );

@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.frames.timeline;
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 INCLUDE PERFETTO MODULE android.surfaceflinger;
 
 CREATE OR REPLACE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
@@ -95,7 +95,7 @@ SELECT
   slice.*,
   slice.ts + slice.dur AS ts_end,
   vsync_from_name(slice.name) AS vsync
-FROM android_jank_cuj_do_frame_slice do_frame
+FROM _android_jank_cuj_do_frames do_frame
 JOIN android_jank_cuj_render_thread render_thread USING (cuj_id)
 JOIN slice
   ON slice.track_id = render_thread.track_id
@@ -176,7 +176,7 @@ RETURNS TABLE(
 AS
 WITH sf_vsync AS (
   SELECT DISTINCT cuj_id, sf_vsync AS vsync
-  FROM android_jank_cuj_app_to_sf_match)
+  FROM _android_jank_cuj_app_sf_frame_timeline_match)
 SELECT
   cuj_id,
   utid,

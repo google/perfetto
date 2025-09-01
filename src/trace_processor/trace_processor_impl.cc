@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/thread_utils.h"
@@ -62,7 +63,6 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
@@ -134,6 +134,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/json_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/regex.h"
@@ -390,6 +391,8 @@ void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,
 
 void InsertIntoModulesTable(tables::ModulesTable* table,
                             StringPool* string_pool) {
+  base::ignore_result(table, string_pool);
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   table->Insert({string_pool->InternString("etm")});
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
