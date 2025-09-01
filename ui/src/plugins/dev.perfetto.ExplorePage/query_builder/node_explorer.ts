@@ -146,6 +146,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         textproto: newSqString,
         modules: [],
         preambles: [],
+        columns: [],
       };
       attrs.onQueryAnalyzed(this.currentQuery, false);
       this.prevSqString = newSqString;

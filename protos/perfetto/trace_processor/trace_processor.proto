@@ -386,6 +386,7 @@ message AnalyzeStructuredQueryResult {
     optional string textproto = 4;
     repeated string modules = 2;
     repeated string preambles = 3;
+    repeated string columns = 5;
   }
   optional string error = 1;
   repeated StructuredQueryResult results = 2;
