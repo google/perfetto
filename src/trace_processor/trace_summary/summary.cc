@@ -45,7 +45,6 @@
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 
-#include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
 
