@@ -122,10 +122,9 @@ class Atrace(TestSuite):
 
   def test_cpus_header_removal(self):
     return DiffTestBlueprint(
-        trace=Systrace("""
-cpus=8
+        trace=Systrace("""cpus=8
 kworker/u16:1-77    (   77) [004] ....   316.196720: tracing_mark_write: B|77|test_slice
-<idle>-0     [000] ...2     316.196730: tracing_mark_write: E|77
+kworker/u16:1-77    (   77) [004] ....   316.196730: tracing_mark_write: E|77
         """),
         query="""
         SELECT ts, name, dur
@@ -139,7 +138,7 @@ kworker/u16:1-77    (   77) [004] ....   316.196720: tracing_mark_write: B|77|te
 
   def test_regex_pattern_no_gap_after_irq_flags(self):
     return DiffTestBlueprint(
-        trace=Systrace("""
+        trace=Systrace("""cpus=8
 kworker/u16:1-77    (   77) [004] ....316.196720: tracing_mark_write: B|77|no_gap_after_dots
 kworker/u16:2-78    (   78) [005] .... 316.196730: tracing_mark_write: B|78|space_after_dots
 test-process-123    (  123) [002] d...316.196740: tracing_mark_write: B|123|no_gap_after_flags
@@ -163,8 +162,7 @@ test-process-123    (  123) [002] d...316.196740: tracing_mark_write: B|123|no_g
 
   def test_cpus_header_with_digits_only(self):
     return DiffTestBlueprint(
-        trace=Systrace("""
-cpus=16
+        trace=Systrace("""cpus=16
 task-1234-567    ( 567) [000] ....   100.000000: tracing_mark_write: B|567|task_work
 task-1234-567    ( 567) [000] ....   100.001000: tracing_mark_write: E|567
         """),
