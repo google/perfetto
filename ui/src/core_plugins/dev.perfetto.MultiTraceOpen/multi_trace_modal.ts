@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
+import {Anchor} from '../../widgets/anchor';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {CardStack} from '../../widgets/card';
 import {Intent} from '../../widgets/common';
@@ -110,15 +111,10 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
             m(
               'span',
               'Please +1 ',
-              m(
-                'a',
-                {
-                  href: 'https://github.com/google/perfetto/issues/2781',
-                  target: '_blank',
-                  rel: 'noopener noreferrer',
-                },
-                'this bug',
-              ),
+              m(Anchor, {
+                href: 'https://github.com/google/perfetto/issues/2781',
+                target: '_blank',
+              }, 'this bug'),
               ' if you want us to prioritize this feature.',
             ),
           ]),
@@ -134,15 +130,10 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
             m(
               'span',
               'Please +1 ',
-              m(
-                'a',
-                {
-                  href: 'https://github.com/google/perfetto/issues/2780',
-                  target: '_blank',
-                  rel: 'noopener noreferrer',
-                },
-                'this bug',
-              ),
+              m(Anchor, {
+                href: 'https://github.com/google/perfetto/issues/2780',
+                target: '_blank',
+              }, 'this bug'),
               ' if you want us to prioritize this feature.',
             ),
           ]),
