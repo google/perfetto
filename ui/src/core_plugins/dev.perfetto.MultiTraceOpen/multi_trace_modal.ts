@@ -24,6 +24,7 @@ import {Callout} from '../../widgets/callout';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
 import {TabStrip, TabOption} from '../../widgets/tabs';
+import {TextParagraph} from '../../widgets/text_paragraph';
 import {MultiTraceController} from './multi_trace_controller';
 import {TraceFile} from './multi_trace_types';
 import {WasmTraceAnalyzer} from './trace_analyzer';
@@ -95,45 +96,50 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     switch (this.currentTab) {
       case 'synchronous':
         return [
-          m(
-            'p.pf-multi-trace-modal__content-text',
-            'Combine multiple trace files that were captured at the same time on the same device or system. This allows you to view traces from different sources (e.g., system traces, app traces, custom instrumentation) on a unified timeline.',
-          ),
+          m(TextParagraph, {
+            text: '🔗 Combine multiple trace files that were captured at the same time on the same device or system. This allows you to view traces from different sources (e.g., system traces, app traces, custom instrumentation) on a unified timeline.',
+          }),
         ];
       case 'cross-machine':
         return [
-          m(
-            'p.pf-multi-trace-modal__content-text',
-            'Merge traces captured on different machines or devices with distributed time synchronization.',
-          ),
+          m(TextParagraph, {
+            text: '🌐 Merge traces captured on different machines or devices with distributed time synchronization.',
+          }),
           m('.pf-multi-trace-modal__unsupported', [
             m(Icon, {icon: 'info'}, 'Not yet supported'),
             m(
               'span',
               'Please +1 ',
-              m(Anchor, {
-                href: 'https://github.com/google/perfetto/issues/2781',
-                target: '_blank',
-              }, 'this bug'),
+              m(
+                Anchor,
+                {
+                  href: 'https://github.com/google/perfetto/issues/2781',
+                  target: '_blank',
+                },
+                'this bug',
+              ),
               ' if you want us to prioritize this feature.',
             ),
           ]),
         ];
       case 'comparison':
         return [
-          m(
-            'p.pf-multi-trace-modal__content-text',
-            'Compare traces from different time periods to identify performance regressions or improvements.',
-          ),
+          m(TextParagraph, {
+            text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
+          }),
           m('.pf-multi-trace-modal__unsupported', [
             m(Icon, {icon: 'info'}, 'Not yet supported'),
             m(
               'span',
               'Please +1 ',
-              m(Anchor, {
-                href: 'https://github.com/google/perfetto/issues/2780',
-                target: '_blank',
-              }, 'this bug'),
+              m(
+                Anchor,
+                {
+                  href: 'https://github.com/google/perfetto/issues/2780',
+                  target: '_blank',
+                },
+                'this bug',
+              ),
               ' if you want us to prioritize this feature.',
             ),
           ]),

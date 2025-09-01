@@ -29,46 +29,13 @@
     padding: 0 8px;
     width: 550px;
     box-sizing: border-box;
-  }
 
-  &__content-title {
-    margin: 0 0 8px 0;
-    color: var(--pf-color-text);
-    font-size: 1.1em;
-    font-weight: 600;
-    font-family: var(--pf-font);
-    word-wrap: break-word;
-  }
-
-  &__content-text {
-    margin: 0 0 12px 0;
-    color: var(--pf-color-text-secondary);
-    font-size: 0.9em;
-    line-height: 1.4;
-    font-family: var(--pf-font);
-    word-wrap: break-word;
-    white-space: normal;
-  }
-
-  &__feature-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-
-    li {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
+    .pf-text-paragraph {
+      padding-top: 0;
+      padding-bottom: 16px;
+      font-size: 0.9em;
       color: var(--pf-color-text-secondary);
-      font-size: 0.85em;
-      font-family: var(--pf-font);
-
-      .pf-icon {
-        color: var(--pf-color-success);
-        font-size: 16px;
-        flex-shrink: 0;
-      }
+      line-height: 1.4;
     }
   }
 
