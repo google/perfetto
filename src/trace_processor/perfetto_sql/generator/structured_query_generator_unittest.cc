@@ -538,6 +538,27 @@ TEST(StructuredQueryGeneratorTest, SqlSourceWithNoDependencies) {
     )"));
 }
 
+TEST(StructuredQueryGeneratorTest, SqlSourceWithNoColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT s.id, s.ts, s.dur FROM slice s"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT *
+        FROM (SELECT s.id, s.ts, s.dur FROM slice s)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
 TEST(StructuredQueryGeneratorTest, SqlSourceWithUnusedDependencies) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(

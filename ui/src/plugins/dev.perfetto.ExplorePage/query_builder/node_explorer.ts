@@ -113,50 +113,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   }
 
   private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
-    if (node instanceof SqlSourceNode) {
-      this.updateSqlSourceQuery(node, attrs);
-    } else {
-      this.updateRegularQuery(node, attrs);
-    }
-  }
-
-  private updateSqlSourceQuery(node: SqlSourceNode, attrs: NodeExplorerAttrs) {
-    const sql = node.state.sql ?? '';
-    const sq = node.getStructuredQuery();
-    const newSqString = sq ? JSON.stringify(sq.toJSON(), null, 2) : '';
-
-    const rawSqlHasChanged =
-      !this.currentQuery ||
-      !isAQuery(this.currentQuery) ||
-      sql !== this.currentQuery.sql;
-
-    if (newSqString !== this.prevSqString || rawSqlHasChanged) {
-      if (sq) {
-        this.tableAsyncLimiter.schedule(async () => {
-          const analyzedQuery = await analyzeNode(node, attrs.trace.engine);
-          if (isAQuery(analyzedQuery)) {
-            this.sqlForDisplay = queryToRun(analyzedQuery);
-          }
-          m.redraw();
-        });
-      }
-
-      this.currentQuery = {
-        sql,
-        textproto: newSqString,
-        modules: [],
-        preambles: [],
-      };
-      attrs.onQueryAnalyzed(this.currentQuery, false);
-      this.prevSqString = newSqString;
-
-      if (rawSqlHasChanged) {
-        attrs.onExecute();
-      }
-    }
-  }
-
-  private updateRegularQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
     const sq = node.getStructuredQuery();
     if (sq === undefined) return;
 

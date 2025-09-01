@@ -743,6 +743,35 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
     analyzed_sq.modules = sqg.ComputeReferencedModules();
     analyzed_sq.preambles = sqg.ComputePreambles();
     sqg.AddQuery(sq.ptr, sq.size);
+
+    // Execute modules
+    // TODO(mayzner): Should be done on an empty engine as we don't actually
+    // care about the results of execution of this code.
+    for (const auto& module : analyzed_sq.modules) {
+      engine_->Execute(SqlSource::FromTraceProcessorImplementation(
+          "INCLUDE PERFETTO MODULE " + module));
+    }
+
+    // Execute preambles
+    // TODO(mayzner): Should be done on an empty engine as we don't actually
+    // care about the results of execution of this code.
+    for (const auto& preamble : analyzed_sq.preambles) {
+      engine_->Execute(SqlSource::FromTraceProcessorImplementation(preamble));
+    }
+
+    // Fetch columns
+    ASSIGN_OR_RETURN(
+        auto last_stmt,
+        engine_->PrepareSqliteStatement(
+            SqlSource::FromTraceProcessorImplementation(analyzed_sq.sql)));
+    auto sqlite_stmt = last_stmt.sqlite_stmt();
+    int col_count = sqlite3_column_count(sqlite_stmt);
+    std::vector<std::string> cols;
+    for (int i = 0; i < col_count; i++) {
+      cols.push_back(sqlite3_column_name(sqlite_stmt, i));
+    }
+    analyzed_sq.columns = std::move(cols);
+
     output->push_back(analyzed_sq);
   }
   return base::OkStatus();
