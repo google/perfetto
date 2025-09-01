@@ -27,6 +27,7 @@ import {
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
 import {Flamegraph} from '../../widgets/flamegraph';
+import {assertExists} from '../../base/logging';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
@@ -80,6 +81,10 @@ export default class implements PerfettoPlugin {
     }
 
     ctx.selection.registerAreaSelectionTab(createAreaSelectionTab(ctx));
+
+    ctx.onTraceReady.addListener(async () => {
+      await selectCpuProfileCallsite(ctx);
+    });
   }
 }
 
@@ -163,5 +168,25 @@ function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
   );
   return new QueryFlamegraph(trace, metrics, {
     state: Flamegraph.createDefaultState(metrics),
+  });
+}
+
+async function selectCpuProfileCallsite(trace: Trace) {
+  const profile = await assertExists(trace.engine).query(`
+    select utid, upid
+    from cpu_profile_stack_sample
+    join thread using(utid)
+    where callsite_id is not null and not is_idle
+    order by ts desc
+    limit 1
+  `);
+  if (profile.numRows() !== 1) return;
+  const {utid, upid} = profile.firstRow({utid: NUM, upid: NUM_NULL});
+
+  // Create an area selection over the first process with a perf samples track
+  trace.selection.selectArea({
+    start: trace.traceInfo.start,
+    end: trace.traceInfo.end,
+    trackUris: [`${getThreadUriPrefix(upid, utid)}_cpu_samples`],
   });
 }
