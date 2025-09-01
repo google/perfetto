@@ -574,7 +574,7 @@ std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
     }
   }
 
-  return "";  // Empty means use global processor
+  return "";  // Empty means it is not a handshake message
 }
 
 void Httpd::cleanUpInactiveInstances() {
