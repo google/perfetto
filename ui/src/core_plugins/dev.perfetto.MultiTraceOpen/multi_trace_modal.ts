@@ -151,20 +151,28 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     if (this.currentTab === 'cross-machine') {
       return [
         'This feature is not yet supported. Please +1 ',
-        m(Anchor, {
-          href: 'https://github.com/google/perfetto/issues/2781',
-          target: '_blank',
-        }, 'this GitHub issue'),
+        m(
+          Anchor,
+          {
+            href: 'https://github.com/google/perfetto/issues/2781',
+            target: '_blank',
+          },
+          'this GitHub issue',
+        ),
         ' to prioritize development, or select "Synchronous Traces" to continue.',
       ];
     }
     if (this.currentTab === 'comparison') {
       return [
         'This feature is not yet supported. Please +1 ',
-        m(Anchor, {
-          href: 'https://github.com/google/perfetto/issues/2780',
-          target: '_blank',
-        }, 'this GitHub issue'),
+        m(
+          Anchor,
+          {
+            href: 'https://github.com/google/perfetto/issues/2780',
+            target: '_blank',
+          },
+          'this GitHub issue',
+        ),
         ' to prioritize development, or select "Synchronous Traces" to continue.',
       ];
     }
