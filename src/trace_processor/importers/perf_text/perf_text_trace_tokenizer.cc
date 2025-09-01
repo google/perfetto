@@ -151,6 +151,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     if (frames.empty()) {
       context_->storage->IncrementStats(
           stats::perf_text_importer_sample_no_frames);
+      reader_.PopFrontUntil(it.file_offset());
       continue;
     }
 

@@ -46,8 +46,8 @@ class TarWriterTest : public ::testing::Test {
   // Helper to read entire file into string
   std::string ReadFile(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
-    return std::string(std::istreambuf_iterator<char>(file),
-                       std::istreambuf_iterator<char>());
+    return {std::istreambuf_iterator<char>(file),
+            std::istreambuf_iterator<char>()};
   }
 
   // Helper to create a test file with specific content
@@ -240,7 +240,7 @@ TEST_F(TarWriterTest, AddLargeFile) {
 }
 
 TEST_F(TarWriterTest, ValidateFilenameConstraints) {
-  TarWriter writer(output_path_);
+  TarWriter writer(temp_file_.ReleaseFD());
 
   // Empty filename should fail
   auto status1 = writer.AddFile("", "content");
