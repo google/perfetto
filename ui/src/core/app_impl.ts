@@ -113,6 +113,7 @@ export class AppContext {
   readonly timezoneOverride: Setting<string>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
+  private _isInternalUser?: boolean;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
@@ -175,6 +176,19 @@ export class AppContext {
     // covers races in that case.
     this.closeCurrentTrace();
     this.currentTrace = traceCtx;
+  }
+
+  get isInternalUser() {
+    if (this._isInternalUser === undefined) {
+      this._isInternalUser = localStorage.getItem('isInternalUser') === '1';
+    }
+    return this._isInternalUser;
+  }
+
+  set isInternalUser(value: boolean) {
+    localStorage.setItem('isInternalUser', value ? '1' : '0');
+    this._isInternalUser = value;
+    raf.scheduleFullRedraw();
   }
 }
 
@@ -404,5 +418,13 @@ export class AppImpl implements App {
 
   navigate(newHash: string): void {
     Router.navigate(newHash);
+  }
+
+  get isInternalUser() {
+    return this.appCtx.isInternalUser;
+  }
+
+  set isInternalUser(value: boolean) {
+    this.appCtx.isInternalUser = value;
   }
 }
