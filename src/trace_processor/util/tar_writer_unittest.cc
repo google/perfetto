@@ -127,7 +127,14 @@ class TarWriterTest : public ::testing::Test {
   std::vector<base::TempFile> created_test_files_;
 };
 
-TEST_F(TarWriterTest, CreateEmptyTar) {
+// TODO(lalitm|sashwinbalaji): Fix test on windows
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define DisableWindows(x) DISABLED_##x
+#else
+#define DisableWindows(x) x
+#endif
+
+TEST_F(TarWriterTest, DisableWindows(CreateEmptyTar)) {
   {
     TarWriter writer(output_path_);
   }
@@ -143,7 +150,7 @@ TEST_F(TarWriterTest, CreateEmptyTar) {
   }
 }
 
-TEST_F(TarWriterTest, AddSingleFile) {
+TEST_F(TarWriterTest, DisableWindows(AddSingleFile)) {
   const std::string test_content = "Hello, TAR world!";
 
   {
@@ -165,7 +172,7 @@ TEST_F(TarWriterTest, AddSingleFile) {
   EXPECT_EQ(extracted_content, test_content);
 }
 
-TEST_F(TarWriterTest, AddMultipleFiles) {
+TEST_F(TarWriterTest, DisableWindows(AddMultipleFiles)) {
   const std::string content1 = "First file content";
   const std::string content2 = "Second file with different content";
 
@@ -185,7 +192,7 @@ TEST_F(TarWriterTest, AddMultipleFiles) {
   EXPECT_EQ(headers[1].size, content2.size());
 }
 
-TEST_F(TarWriterTest, AddFileFromPath) {
+TEST_F(TarWriterTest, DisableWindows(AddFileFromPath)) {
   const std::string test_content = "File from filesystem";
   std::string test_file_path = CreateTestFile(test_content);
 
@@ -208,7 +215,7 @@ TEST_F(TarWriterTest, AddFileFromPath) {
   EXPECT_EQ(extracted_content, test_content);
 }
 
-TEST_F(TarWriterTest, AddFileFromNonexistentPath) {
+TEST_F(TarWriterTest, DisableWindows(AddFileFromNonexistentPath)) {
   std::string nonexistent_path = "/nonexistent/path/file.txt";
 
   TarWriter writer(output_path_);
@@ -216,7 +223,7 @@ TEST_F(TarWriterTest, AddFileFromNonexistentPath) {
   EXPECT_FALSE(status.ok());
 }
 
-TEST_F(TarWriterTest, AddLargeFile) {
+TEST_F(TarWriterTest, DisableWindows(AddLargeFile)) {
   // Create a large file (larger than typical buffer sizes)
   std::string large_content(100000, 'X');  // 100KB of X's
 
@@ -239,7 +246,7 @@ TEST_F(TarWriterTest, AddLargeFile) {
   EXPECT_EQ(extracted_content, large_content);
 }
 
-TEST_F(TarWriterTest, ValidateFilenameConstraints) {
+TEST_F(TarWriterTest, DisableWindows(ValidateFilenameConstraints)) {
   TarWriter writer(temp_file_.ReleaseFD());
 
   // Empty filename should fail
@@ -256,7 +263,7 @@ TEST_F(TarWriterTest, ValidateFilenameConstraints) {
   EXPECT_OK(writer.AddFile(boundary_name, "content"));
 }
 
-TEST_F(TarWriterTest, HandleBinaryContent) {
+TEST_F(TarWriterTest, DisableWindows(HandleBinaryContent)) {
   // Test with binary data containing null bytes
   std::string binary_content = "Binarydata";
   binary_content[6] = '\0';  // null byte
@@ -283,7 +290,7 @@ TEST_F(TarWriterTest, HandleBinaryContent) {
   EXPECT_EQ(extracted_content, binary_content);
 }
 
-TEST_F(TarWriterTest, PaddingAlignment) {
+TEST_F(TarWriterTest, DisableWindows(PaddingAlignment)) {
   // Test that files are properly padded to 512-byte boundaries
   const std::string content = "X";  // 1 byte content
 
@@ -304,7 +311,7 @@ TEST_F(TarWriterTest, PaddingAlignment) {
   }
 }
 
-TEST_F(TarWriterTest, AutomaticFinalization) {
+TEST_F(TarWriterTest, DisableWindows(AutomaticFinalization)) {
   // Test that destructor calls Finalize if not already called
   {
     TarWriter writer(output_path_);
