@@ -234,7 +234,7 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
       http_srv_(&task_runner_, this),
       tp_timeout_mins_(timeout_mins) {
   // If we have a preloaded instance, create a UUID for it and store in map
-  if (preloaded_instance) {
+  if (!preloaded_instance->GetCurrentTraceName().empty()) {
     base::Uuid uuid = base::Uuidv4();
     std::string uuid_str = uuid.ToPrettyString();
     auto new_thread = std::make_unique<UuidRpcThread>(
