@@ -389,6 +389,17 @@ async function showDialogToUsePreloadedTrace(
                         'cursor': 'pointer',
                         'opacity': hasActiveTab ? '1.0' : '1',
                         'text-align': 'left',
+                        'transition': 'background-color 0.2s ease',
+                      },
+                      onmouseenter: function (this: HTMLElement) {
+                        this.style.backgroundColor = hasActiveTab
+                          ? '#ffeaa7'
+                          : '#e2e6ea';
+                      },
+                      onmouseleave: function (this: HTMLElement) {
+                        this.style.backgroundColor = hasActiveTab
+                          ? '#fff3cd'
+                          : '#f8f9fa';
                       },
                       onclick: () => {
                         if (tp.uuid) {
