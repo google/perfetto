@@ -119,7 +119,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
 
   private renderActions() {
     const footerContent = this.getFooterContent();
-    const isDisabled = !!footerContent;
+    const isDisabled = footerContent !== undefined;
     const openButton = m(Button, {
       label: 'Open Traces',
       intent: Intent.Primary,
@@ -128,7 +128,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       disabled: isDisabled,
     });
 
-    if (footerContent) {
+    if (footerContent !== undefined) {
       return [
         m(
           Callout,
