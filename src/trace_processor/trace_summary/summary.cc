@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/trace_summary/summary.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -444,7 +445,9 @@ base::Status CreateQueriesAndComputeMetrics(
         for (auto col_it = sql_query.column_names(); col_it; ++col_it) {
           expected_column_names.insert(col_it->as_std_string());
         }
-        if (actual_column_names != expected_column_names) {
+        if (!std::includes(
+                actual_column_names.begin(), actual_column_names.end(),
+                expected_column_names.begin(), expected_column_names.end())) {
           std::vector<std::string> expected_vec(expected_column_names.begin(),
                                                 expected_column_names.end());
           std::vector<std::string> actual_vec(actual_column_names.begin(),
