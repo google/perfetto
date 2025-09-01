@@ -210,6 +210,20 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'dev.perfetto.RunQuery',
+        name: 'Runs an SQL query',
+        callback: async (rawSql: unknown) => {
+          const query =
+            typeof rawSql === 'string'
+              ? rawSql
+              : await trace.omnibox.prompt('Enter SQL...');
+          if (!query) {
+            return;
+          }
+          await trace.engine.query(query);
+        },
+      },
+      {
+        id: 'dev.perfetto.RunQueryAndShowTab',
         name: 'Runs an SQL query and opens results in a tab',
         callback: async (rawSql: unknown) => {
           const query =

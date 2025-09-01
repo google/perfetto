@@ -42,27 +42,6 @@ export type CommandInvocation = z.infer<typeof commandInvocationSchema>;
 export const commandInvocationArraySchema = z.array(commandInvocationSchema);
 
 /**
- * Validates that all command invocations reference existing commands.
- * @param commands Array of command invocations to validate
- * @param commandManager Command manager to check command existence
- * @returns Array of invalid command IDs, empty if all commands are valid
- */
-export function validateCommandInvocations(
-  commands: CommandInvocation[],
-  commandManager: CommandManager,
-): string[] {
-  const invalidCommands: string[] = [];
-
-  for (const command of commands) {
-    if (!commandManager.hasCommand(command.id)) {
-      invalidCommands.push(command.id);
-    }
-  }
-
-  return invalidCommands;
-}
-
-/**
  * Parses URL commands parameter from route args.
  * @param commandsParam URL commands parameter (JSON-encoded string)
  * @returns Parsed commands array or undefined if parsing fails

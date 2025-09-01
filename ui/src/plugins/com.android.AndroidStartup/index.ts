@@ -25,25 +25,27 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`
-          include perfetto module android.startup.startups;
-          include perfetto module android.startup.startup_breakdowns;
-         `);
+      include perfetto module android.startup.startups;
+    `);
 
     const cnt = await e.query('select count() cnt from android_startups');
     if (cnt.firstRow({cnt: LONG}).cnt === 0n) {
       return;
     }
 
+    await e.query(`
+      include perfetto module android.startup.startup_breakdowns;
+    `);
     const trackSource = `
-          SELECT l.ts AS ts, l.dur AS dur, l.package AS name
-          FROM android_startups l
+      SELECT l.ts AS ts, l.dur AS dur, l.package AS name
+      FROM android_startups l
     `;
     const trackBreakdownSource = `
-        SELECT
-          ts,
-          dur,
-          reason AS name
-          FROM android_startup_opinionated_breakdown
+      SELECT
+        ts,
+        dur,
+        reason AS name
+      FROM android_startup_opinionated_breakdown
     `;
 
     const trackNode = await this.loadStartupTrack(

@@ -28,7 +28,8 @@ import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
-import {createFiltersProto} from '../../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../../operations/filter';
+import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
@@ -88,6 +89,7 @@ export function modalForTableSelection(
 
 export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
+  readonly prevNodes: QueryNode[] = [];
   showColumns: boolean = false;
 
   get sourceCols() {
@@ -161,6 +163,14 @@ export class TableSourceNode extends SourceNode {
               ),
             ),
         ),
+        m(FilterOperation, {
+          filters: this.state.filters,
+          sourceCols: this.sourceCols,
+          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+            this.state.filters = newFilters as FilterDefinition[];
+            this.state.onchange?.();
+          },
+        }),
       );
     }
     return m(TextParagraph, 'No description available for this table.');
