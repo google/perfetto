@@ -761,11 +761,11 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
         auto last_stmt,
         engine_->PrepareSqliteStatement(
             SqlSource::FromTraceProcessorImplementation(analyzed_sq.sql)));
-    auto sqlte_stmt = last_stmt.sqlite_stmt();
-    int col_count = sqlite3_column_count(sqlte_stmt);
+    auto sqlite_stmt = last_stmt.sqlite_stmt();
+    int col_count = sqlite3_column_count(sqlite_stmt);
     std::vector<std::string> cols;
     for (int i = 0; i < col_count; i++) {
-      cols.push_back(sqlite3_column_name(sqlte_stmt, i));
+      cols.push_back(sqlite3_column_name(sqlite_stmt, i));
     }
     analyzed_sq.columns = std::move(cols);
 
