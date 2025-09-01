@@ -22,6 +22,7 @@ import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
+import {TabStrip, TabOption} from '../../widgets/tabs';
 import {MultiTraceController} from './multi_trace_controller';
 import {TraceFile} from './multi_trace_types';
 import {WasmTraceAnalyzer} from './trace_analyzer';
@@ -40,6 +41,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   private controller = new MultiTraceController(new WasmTraceAnalyzer(), () =>
     redrawModal(),
   );
+  private currentTab = 'synchronous';
 
   oncreate({attrs}: m.Vnode<MultiTraceModalAttrs>) {
     this.controller.addFiles(attrs.initialFiles);
@@ -49,6 +51,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     return m(
       Stack,
       {className: 'pf-multi-trace-modal', orientation: 'vertical'},
+      this.renderDescription(),
       m(TraceListComponent, {
         traces: this.controller.traces,
         controller: this.controller,
@@ -59,6 +62,94 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
         this.renderActions(),
       ),
     );
+  }
+
+  private renderDescription() {
+    const tabs: TabOption[] = [
+      {key: 'synchronous', title: 'Synchronous Traces'},
+      {key: 'cross-machine', title: 'Cross-Machine Traces'},
+      {key: 'comparison', title: 'Trace Comparison'},
+    ];
+
+    return m(
+      Stack,
+      {
+        className: 'pf-multi-trace-modal__description-panel',
+        orientation: 'vertical',
+      },
+      m(TabStrip, {
+        className: 'pf-multi-trace-modal__tabs',
+        tabs,
+        currentTabKey: this.currentTab,
+        onTabChange: (key: string) => {
+          this.currentTab = key;
+          redrawModal();
+        },
+      }),
+      m('.pf-multi-trace-modal__description-content', this.renderTabContent()),
+    );
+  }
+
+  private renderTabContent() {
+    switch (this.currentTab) {
+      case 'synchronous':
+        return [
+          m(
+            'p.pf-multi-trace-modal__content-text',
+            'Combine multiple trace files that were captured at the same time on the same device or system. This allows you to view traces from different sources (e.g., system traces, app traces, custom instrumentation) on a unified timeline.',
+          ),
+        ];
+      case 'cross-machine':
+        return [
+          m(
+            'p.pf-multi-trace-modal__content-text',
+            'Merge traces captured on different machines or devices with distributed time synchronization.',
+          ),
+          m('.pf-multi-trace-modal__unsupported', [
+            m(Icon, {icon: 'info'}, 'Not yet supported'),
+            m(
+              'span',
+              'Please +1 ',
+              m(
+                'a',
+                {
+                  href: 'https://github.com/google/perfetto/issues/2781',
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                },
+                'this bug',
+              ),
+              ' if you want us to prioritize this feature.',
+            ),
+          ]),
+        ];
+      case 'comparison':
+        return [
+          m(
+            'p.pf-multi-trace-modal__content-text',
+            'Compare traces from different time periods to identify performance regressions or improvements.',
+          ),
+          m('.pf-multi-trace-modal__unsupported', [
+            m(Icon, {icon: 'info'}, 'Not yet supported'),
+            m(
+              'span',
+              'Please +1 ',
+              m(
+                'a',
+                {
+                  href: 'https://github.com/google/perfetto/issues/2780',
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                },
+                'this bug',
+              ),
+              ' if you want us to prioritize this feature.',
+            ),
+          ]),
+        ];
+      default:
+        return '';
+    }
   }
 
   private renderActions() {
@@ -72,8 +163,8 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       disabled: isDisabled,
     });
 
-    return [
-      footerMessage &&
+    if (footerMessage) {
+      return [
         m(
           Callout,
           {
@@ -83,11 +174,19 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
           },
           footerMessage,
         ),
-      openButton,
-    ];
+        m('.pf-multi-trace-modal__footer-spacer'),
+        openButton,
+      ];
+    } else {
+      return [m('.pf-multi-trace-modal__footer-spacer'), openButton];
+    }
   }
 
   private getFooterMessage(): string | undefined {
+    if (this.currentTab !== 'synchronous') {
+      return 'This feature is not yet supported. Please select "Synchronous Traces" to continue.';
+    }
+
     const error = this.controller.getLoadingError();
     if (error === undefined) {
       return undefined;
