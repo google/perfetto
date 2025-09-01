@@ -133,11 +133,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
           m(Button, {
-            icon:  'star',
+            icon: 'star',
             title: 'Generate SQL queries with the Perfetto SQL Agent!',
             label: 'Generate SQL Queries with AI',
             onclick: () => {
-              window.open('http://go/perfetto-sql-agent', '_blank')
+              window.open('http://go/perfetto-sql-agent', '_blank');
             },
           }),
           m(CopyToClipboardButton, {
@@ -147,36 +147,43 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
         ]),
       ]),
-      attrs.trace.isInternalUser && !this.hidePerfettoSqlAgentBanner &&
+      attrs.trace.isInternalUser &&
+        !this.hidePerfettoSqlAgentBanner &&
         m(
           Box,
-          m(Callout, {
-            icon: 'star',
-            dismissable: true,
-            onDismiss: () => { this.hidePerfettoSqlAgentBanner = true }
-          }, [
-            'Try out the ',
-            m(
-              Anchor,
-              {
-                href: 'http://go/perfetto-sql-agent',
-                target: '_blank',
-                icon: Icons.ExternalLink,
+          m(
+            Callout,
+            {
+              icon: 'star',
+              dismissable: true,
+              onDismiss: () => {
+                this.hidePerfettoSqlAgentBanner = true;
               },
-              'Perfetto SQL Agent',
-            ),
-            ' to generate SQL queries and ',
-            m(
-              Anchor,
-              {
-                href: 'http://go/perfetto-llm-user-guide#report-issues',
-                target: '_blank',
-                icon: Icons.ExternalLink,
-              },
-              'give feedback',
-            ),
-            '!',
-          ]),
+            },
+            [
+              'Try out the ',
+              m(
+                Anchor,
+                {
+                  href: 'http://go/perfetto-sql-agent',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'Perfetto SQL Agent',
+              ),
+              ' to generate SQL queries and ',
+              m(
+                Anchor,
+                {
+                  href: 'http://go/perfetto-llm-user-guide#report-issues',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'give feedback',
+              ),
+              '!',
+            ],
+          ),
         ),
       attrs.editorText.includes('"') &&
         m(
