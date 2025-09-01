@@ -322,7 +322,6 @@ source_set("unittests") {
     "debug_annotation_parser_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
-    "json_utils_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
