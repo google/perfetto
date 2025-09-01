@@ -452,8 +452,8 @@ base::Status CreateQueriesAndComputeMetrics(
           std::vector<std::string> actual_vec(actual_column_names.begin(),
                                               actual_column_names.end());
           return base::ErrStatus(
-              "Column names mismatch for metric bundle '%s'. Expected: [%s], "
-              "Actual: [%s]",
+              "Not all columns expected in metrics bundle '%s' were found. "
+              "Expected: [%s], Actual: [%s]",
               bundle_id.c_str(), base::Join(expected_vec, ", ").c_str(),
               base::Join(actual_vec, ", ").c_str());
         }
