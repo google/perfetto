@@ -22,7 +22,8 @@ import {
   QueryNode,
   QueryNodeState,
 } from '../../query_node';
-import {createFiltersProto} from '../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../operations/filter';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {ColumnInfo} from '../column_info';
 import {assertExists} from '../../../../base/logging';
 
@@ -57,7 +58,14 @@ export class SubQueryNode implements QueryNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return undefined;
+    return m(FilterOperation, {
+      filters: this.state.filters,
+      sourceCols: this.sourceCols,
+      onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+        this.state.filters = newFilters as FilterDefinition[];
+        this.state.onchange?.();
+      },
+    });
   }
 
   clone(): QueryNode {

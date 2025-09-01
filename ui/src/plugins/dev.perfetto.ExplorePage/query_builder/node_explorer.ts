@@ -23,13 +23,10 @@ import {
   Query,
   QueryNode,
   queryToRun,
-  setOperationChanged,
 } from '../query_node';
 import {Button} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
-import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
@@ -92,26 +89,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     );
   }
 
-  private renderOperators(node: QueryNode, onchange?: () => void): m.Child {
-    if (node instanceof SqlSourceNode) {
-      return;
-    }
-    return m(Operator, {
-      filter: {
-        sourceCols: node.sourceCols,
-        filters: node.state.filters,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          node.state.filters = newFilters as FilterDefinition[];
-          onchange?.();
-        },
-      },
-      onchange: () => {
-        setOperationChanged(node);
-        onchange?.();
-      },
-    });
-  }
-
   private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
     const sq = node.getStructuredQuery();
     if (sq === undefined) return;
@@ -134,7 +111,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
   }
 
-  private renderContent(node: QueryNode, attrs: NodeExplorerAttrs): m.Child {
+  private renderContent(node: QueryNode): m.Child {
     const sql: string =
       this.sqlForDisplay ??
       (isAQuery(this.currentQuery)
@@ -148,10 +125,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     return m(
       'article',
-      this.selectedView === SelectedView.kModify && [
-        node.nodeSpecificModify(),
-        this.renderOperators(node, attrs.onchange),
-      ],
+      this.selectedView === SelectedView.kModify && [node.nodeSpecificModify()],
       this.selectedView === SelectedView.kSql &&
         (isAQuery(this.currentQuery)
           ? m(CodeSnippet, {language: 'SQL', text: sql})
@@ -207,7 +181,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         node instanceof SqlSourceNode ? '.pf-node-explorer-sql-source' : ''
       }`,
       this.renderTitleRow(node, renderModeMenu),
-      this.renderContent(node, attrs),
+      this.renderContent(node),
     );
   }
 }
