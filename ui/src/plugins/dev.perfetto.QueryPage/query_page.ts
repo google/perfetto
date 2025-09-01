@@ -132,14 +132,15 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
-          m(Button, {
-            icon: 'star',
-            title: 'Generate SQL queries with the Perfetto SQL Agent!',
-            label: 'Generate SQL Queries with AI',
-            onclick: () => {
-              window.open('http://go/perfetto-sql-agent', '_blank');
-            },
-          }),
+          attrs.trace.isInternalUser &&
+            m(Button, {
+              icon: 'star',
+              title: 'Generate SQL queries with the Perfetto SQL Agent!',
+              label: 'Generate SQL Queries with AI',
+              onclick: () => {
+                window.open('http://go/perfetto-sql-agent', '_blank');
+              },
+            }),
           m(CopyToClipboardButton, {
             textToCopy: attrs.editorText,
             title: 'Copy query to clipboard',
