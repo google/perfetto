@@ -26,7 +26,8 @@ import {
   columnInfoFromName,
   newColumnInfoList,
 } from '../column_info';
-import {createFiltersProto} from '../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../operations/filter';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
@@ -34,7 +35,7 @@ import {Button} from '../../../../widgets/button';
 import {NodeIssues} from '../node_issues';
 
 export interface AggregationNodeState extends QueryNodeState {
-  readonly prevNode: QueryNode;
+  prevNodes?: QueryNode[];
   groupByColumns: ColumnInfo[];
   readonly aggregations: Aggregation[];
 }
@@ -50,12 +51,14 @@ export interface Aggregation {
 export class AggregationNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kAggregation;
-  readonly prevNode?: QueryNode;
+  readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
 
   get sourceCols() {
-    return this.prevNode?.finalCols ?? this.prevNode?.sourceCols ?? [];
+    return (
+      this.prevNodes?.[0]?.finalCols ?? this.prevNodes?.[0]?.sourceCols ?? []
+    );
   }
 
   get finalCols(): ColumnInfo[] {
@@ -73,7 +76,7 @@ export class AggregationNode implements QueryNode {
     this.state = {
       ...state,
     };
-    this.prevNode = state.prevNode;
+    this.prevNodes = state.prevNodes;
     this.nextNodes = [];
     this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
   }
@@ -99,14 +102,14 @@ export class AggregationNode implements QueryNode {
     if (this.state.issues) {
       this.state.issues.queryError = undefined;
     }
-    if (this.prevNode === undefined) {
+    if (!this.prevNodes || this.prevNodes.length === 0) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error(
         'Aggregation node has no previous node',
       );
       return false;
     }
-    if (!this.prevNode.validate()) {
+    if (!this.prevNodes[0].validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
       return false;
@@ -142,16 +145,27 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return m(AggregationOperationComponent, {
-      groupByColumns: this.state.groupByColumns,
-      aggregations: this.state.aggregations,
-      onchange: this.state.onchange,
-    });
+    return m(
+      '.node-specific-modify',
+      m(AggregationOperationComponent, {
+        groupByColumns: this.state.groupByColumns,
+        aggregations: this.state.aggregations,
+        onchange: this.state.onchange,
+      }),
+      m(FilterOperation, {
+        filters: this.state.filters,
+        sourceCols: this.finalCols,
+        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+          this.state.filters = newFilters as FilterDefinition[];
+          this.state.onchange?.();
+        },
+      }),
+    );
   }
 
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
-      prevNode: this.state.prevNode,
+      prevNodes: this.state.prevNodes,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: [],
@@ -165,48 +179,44 @@ export class AggregationNode implements QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const prevSq = this.prevNode!.getStructuredQuery();
+    if (!this.prevNodes || this.prevNodes.length === 0) return;
+    const prevSq = this.prevNodes[0].getStructuredQuery();
     if (!prevSq) return undefined;
 
     const groupByProto = createGroupByProto(
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
+    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
 
     // If the previous node already has an aggregation, we need to create a
     // subquery.
+    let sq: protos.PerfettoSqlStructuredQuery;
     if (prevSq.groupBy) {
-      const sq = new protos.PerfettoSqlStructuredQuery();
-      sq.id = this.nodeId;
+      sq = new protos.PerfettoSqlStructuredQuery();
+      sq.id = nextNodeId();
       sq.innerQuery = prevSq;
-      if (filtersProto) sq.filters = filtersProto;
-      if (groupByProto) sq.groupBy = groupByProto;
-      const selectedColumns = createSelectColumnsProto(this);
-      if (selectedColumns) sq.selectColumns = selectedColumns;
-      return sq;
+    } else {
+      sq = prevSq;
     }
 
-    // Otherwise, we can just add the aggregation and filters to the previous
-    // query.
-    if (filtersProto) {
-      if (prevSq.filters !== undefined) {
-        prevSq.filters.push(...filtersProto);
-      } else {
-        prevSq.filters = filtersProto;
-      }
-    }
     if (groupByProto) {
-      prevSq.groupBy = groupByProto;
+      sq.groupBy = groupByProto;
     }
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) {
-      prevSq.selectColumns = selectedColumns;
+      sq.selectColumns = selectedColumns;
     }
-    return prevSq;
+
+    if (filtersProto) {
+      const outerSq = new protos.PerfettoSqlStructuredQuery();
+      outerSq.id = this.nodeId;
+      outerSq.innerQuery = sq;
+      outerSq.filters = filtersProto;
+      return outerSq;
+    }
+
+    return sq;
   }
 }
 

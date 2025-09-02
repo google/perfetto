@@ -33,11 +33,12 @@ export enum NodeType {
   // Single node operations
   kSubQuery,
   kAggregation,
+  kIntervalIntersect,
 }
 
 // All information required to create a new node.
 export interface QueryNodeState {
-  prevNode?: QueryNode;
+  prevNodes?: QueryNode[];
   customTitle?: string;
 
   // Operations
@@ -54,9 +55,9 @@ export interface QueryNodeState {
 
 export interface QueryNode {
   readonly nodeId: string;
-  readonly graphTableName?: string;
+  meterialisedAs?: string;
   readonly type: NodeType;
-  readonly prevNode?: QueryNode;
+  readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
@@ -81,6 +82,7 @@ export interface Query {
   textproto: string;
   modules: string[];
   preambles: string[];
+  columns: string[];
 }
 
 export function createSelectColumnsProto(
@@ -119,10 +121,14 @@ function getStructuredQueries(
       return;
     }
     revStructuredQueries.push(curSq);
-    if (curNode.prevNode && !curNode.prevNode.validate()) {
-      return;
+    if (curNode.prevNodes?.[0]) {
+      if (!curNode.prevNodes[0].validate()) {
+        return;
+      }
+      curNode = curNode.prevNodes[0];
+    } else {
+      curNode = undefined;
     }
-    curNode = curNode.prevNode;
   }
   return revStructuredQueries.reverse();
 }
@@ -143,10 +149,11 @@ export async function analyzeNode(
     node.type !== NodeType.kSqlSource
   ) {
     const sql: Query = {
-      sql: `SELECT * FROM ${node.graphTableName ?? ''}`,
+      sql: `SELECT * FROM ${node.meterialisedAs ?? ''}`,
       textproto: '',
       modules: [],
       preambles: [],
+      columns: [],
     };
     return sql;
   }
@@ -174,11 +181,14 @@ export async function analyzeNode(
   }
 
   let finalSql = lastRes.sql;
-  if (node.type !== NodeType.kSqlSource) {
+  if (materialise(node)) {
+    if (!node.meterialisedAs) {
+      node.meterialisedAs = `exp_${node.nodeId}`;
+    }
     const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
-      node.graphTableName ?? `exp_${node.nodeId}`
+      node.meterialisedAs ?? `exp_${node.nodeId}`
     } AS \n${lastRes.sql}`;
-    const selectSql = `SELECT * FROM ${node.graphTableName ?? `exp_${node.nodeId}`}`;
+    const selectSql = `SELECT * FROM ${node.meterialisedAs ?? `exp_${node.nodeId}`}`;
     finalSql = `${createTableSql};\n${selectSql}`;
   }
 
@@ -187,6 +197,7 @@ export async function analyzeNode(
     textproto: lastRes.textproto ?? '',
     modules: lastRes.modules ?? [],
     preambles: lastRes.preambles ?? [],
+    columns: lastRes.columns ?? [],
   };
   return sql;
 }
@@ -214,5 +225,12 @@ export function isAQuery(
     maybeQuery !== undefined &&
     !(maybeQuery instanceof Error) &&
     maybeQuery.sql !== undefined
+  );
+}
+
+function materialise(node: QueryNode): boolean {
+  return (
+    node.type !== NodeType.kSqlSource &&
+    node.type != NodeType.kIntervalIntersect
   );
 }

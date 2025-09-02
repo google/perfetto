@@ -43,7 +43,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../storage",
       "../../tables",
       "../../types",
-      "../json:minimal",
+      "../../util:json_parser",
     ]
   }
 }

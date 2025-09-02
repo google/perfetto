@@ -22,34 +22,35 @@ import {
   QueryNode,
   QueryNodeState,
 } from '../../query_node';
-import {createFiltersProto} from '../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../operations/filter';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {ColumnInfo} from '../column_info';
 import {assertExists} from '../../../../base/logging';
 
 export class SubQueryNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kSubQuery;
-  readonly prevNode?: QueryNode;
+  readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
   readonly finalCols: ColumnInfo[];
   readonly state: QueryNodeState;
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode?.finalCols ?? [];
+    return this.prevNodes?.[0]?.finalCols ?? [];
   }
 
   constructor(state: QueryNodeState) {
-    assertExists(state.prevNode, 'SubQueryNode requires a previous node');
+    assertExists(state.prevNodes, 'SubQueryNode requires a previous node');
 
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNode = state.prevNode;
+    this.prevNodes = state.prevNodes;
     this.finalCols = createFinalColumns(this);
     this.nextNodes = [];
   }
 
   validate(): boolean {
-    return this.prevNode !== undefined;
+    return this.prevNodes !== undefined && this.prevNodes.length > 0;
   }
 
   getTitle(): string {
@@ -57,12 +58,19 @@ export class SubQueryNode implements QueryNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return undefined;
+    return m(FilterOperation, {
+      filters: this.state.filters,
+      sourceCols: this.sourceCols,
+      onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+        this.state.filters = newFilters as FilterDefinition[];
+        this.state.onchange?.();
+      },
+    });
   }
 
   clone(): QueryNode {
     const stateCopy: QueryNodeState = {
-      prevNode: this.state.prevNode,
+      prevNodes: this.state.prevNodes,
       filters: this.state.filters.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
@@ -76,7 +84,7 @@ export class SubQueryNode implements QueryNode {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = this.nodeId;
-    sq.innerQuery = this.prevNode?.getStructuredQuery();
+    sq.innerQuery = this.prevNodes?.[0]?.getStructuredQuery();
 
     const filtersProto = createFiltersProto(
       this.state.filters,

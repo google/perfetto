@@ -387,6 +387,8 @@ struct AnalyzedStructuredQuery {
   std::vector<std::string> modules;
   // Preambles referenced by sql
   std::vector<std::string> preambles;
+  // Columns output by sql
+  std::vector<std::string> columns;
 };
 
 // Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.

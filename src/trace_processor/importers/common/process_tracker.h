@@ -112,11 +112,12 @@ class ProcessTracker {
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
-  UniquePid StartNewProcess(std::optional<int64_t> timestamp,
-                            std::optional<UniquePid> parent_upid,
-                            int64_t pid,
-                            StringId process_name,
-                            ThreadNamePriority priority);
+  // Virtual for testing.
+  virtual UniquePid StartNewProcess(std::optional<int64_t> timestamp,
+                                    std::optional<UniquePid> parent_upid,
+                                    int64_t pid,
+                                    StringId process_name,
+                                    ThreadNamePriority priority);
 
   // Same as StartNewProcess, but doesn't create a main thread associated with
   // the process.
@@ -186,11 +187,24 @@ class ProcessTracker {
     return std::make_pair(deque.begin(), deque.end());
   }
 
+  // Associates the passed pid as the parent process of the passed thread.
+  // The is_main_thread arguments specifies whether the thread is the process'
+  // main thread. The associate_main_threads boolean parameter is used to
+  // determine if a thread should be marked as the main thread if the tid and
+  // pid match, when resolving pending process associations.
+  void AssociateThreadToProcess(UniqueTid utid,
+                                UniquePid upid,
+                                bool is_main_thread,
+                                bool associate_main_threads);
+
   // Marks the two threads as belonging to the same process, even if we don't
   // know which one yet. If one of the two threads is later mapped to a process,
   // the other will be mapped to the same process. The order of the two threads
-  // is irrelevant, Associate(A, B) has the same effect of Associate(B, A).
-  void AssociateThreads(UniqueTid, UniqueTid);
+  // is irrelevant, Associate(A, B) has the same effect of Associate(B, A). The
+  // associate_main_threads boolean parameter is used to determine if a thread
+  // should be marked as the main thread if the tid and pid match, when
+  // resolving process associations.
+  void AssociateThreads(UniqueTid, UniqueTid, bool);
 
   // Creates the mapping from tid 0 <-> utid 0 and pid 0 <-> upid 0. This is
   // done for Linux-based system traces (proto or ftrace format) as for these
@@ -227,12 +241,15 @@ class ProcessTracker {
 
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any
-  // other threads associated to the passed thread.
-  void ResolvePendingAssociations(UniqueTid, UniquePid);
+  // other threads associated to the passed thread. The associate_main_threads
+  // boolean parameter is used to determine if a thread should be marked as the
+  // main thread if the tid and pid match, when resolving parent process.
+  void ResolvePendingAssociations(UniqueTid, UniquePid, bool);
 
-  // Writes the association that the passed thread belongs to the passed
-  // process.
-  void AssociateThreadToProcess(UniqueTid, UniquePid);
+  // Associates the passed pid as the parent process of the passed thread.
+  // The is_main_thread arguments specifies whether the thread is the process'
+  // main thread.
+  void AssociateThreadToProcessInternal(UniqueTid, UniquePid, bool);
 
   // Starts a new process
   UniquePid StartNewProcessInternal(std::optional<int64_t> timestamp,
