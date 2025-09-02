@@ -543,6 +543,10 @@ export class TraceImpl implements Trace {
   get settings(): SettingsManager {
     return this.settingsProxy;
   }
+
+  get isInternalUser(): boolean {
+    return this.appImpl.isInternalUser;
+  }
 }
 
 // A convenience interface to inject the App in Mithril components.
