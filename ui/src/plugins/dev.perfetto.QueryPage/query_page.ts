@@ -45,6 +45,8 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
 
+const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
+
 class CopyHelper {
   private _copied = false;
   private timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -87,7 +89,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private editorHeight: number = 0;
   private editorElement?: HTMLElement;
   private dataGridCopyHelper = new CopyHelper();
-  private hidePerfettoSqlAgentBanner = false;
 
   oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
     this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
@@ -135,7 +136,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           attrs.trace.isInternalUser &&
             m(Button, {
               icon: 'star',
-              title: 'Generate SQL queries with the Perfetto SQL Agent!',
+              title:
+                'Generate SQL queries with the Perfetto SQL Agent! Give feedback: go/perfetto-llm-bug',
               label: 'Generate SQL Queries with AI',
               onclick: () => {
                 window.open('http://go/perfetto-sql-agent', '_blank');
@@ -148,8 +150,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
         ]),
       ]),
-      attrs.trace.isInternalUser &&
-        !this.hidePerfettoSqlAgentBanner &&
+      this.shouldDisplayPerfettoSqlAgentBanner(attrs) &&
         m(
           Box,
           m(
@@ -158,7 +159,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               icon: 'star',
               dismissable: true,
               onDismiss: () => {
-                this.hidePerfettoSqlAgentBanner = true;
+                this.hidePerfettoSqlAgentBanner();
               },
             },
             [
@@ -355,6 +356,17 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         }),
       ],
     );
+  }
+
+  private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {
+    return (
+      attrs.trace.isInternalUser &&
+      localStorage.getItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY) !== 'true'
+    );
+  }
+
+  private hidePerfettoSqlAgentBanner() {
+    localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
   }
 }
 
