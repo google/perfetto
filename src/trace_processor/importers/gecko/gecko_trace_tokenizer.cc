@@ -37,9 +37,9 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_parser.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 namespace {
