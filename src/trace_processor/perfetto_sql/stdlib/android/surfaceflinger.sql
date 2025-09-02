@@ -164,9 +164,9 @@ SELECT
   *
 FROM _find_android_jank_cuj_sf_main_thread_slice('onMessageInvalidate *');
 
--- Similar to `android_jank_cuj_main_thread_frame_boundary`, calculates the frame boundaries
--- based on when we *expected* the work to start and we use the end of the `composite` slice
--- as the end of the work on the frame.
+-- Calculates the frame boundaries based on when we *expected* the work to
+-- start and we use the end of the `composite` slice as the end of the work
+-- on the frame.
 CREATE PERFETTO TABLE _android_jank_cuj_sf_main_thread_frame_boundary AS
 -- Join `commit` and `composite` slices using vsync IDs.
 -- We treat the two slices as a single "fake slice" that starts when `commit` starts, and ends
