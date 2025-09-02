@@ -337,19 +337,19 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
         "id","utid","millicycles","megacycles"
+        110,17,13022368,0
+        121,17,9618704,0
         125,6,6375728,0
         126,6,8699728,0
         128,6,5565648,0
         129,6,5565648,0
+        146,24,6916224,0
+        151,26,5296064,0
+        203,17,150060016,0
         214,6,7132688,0
-        270,6,662972400,0
-        271,6,58483872,0
-        274,6,571785696,0
-        277,6,206411922,0
-        278,6,190908162,0
             """))
 
-  def test_cpu_cycles_per_thread_slice(self):
+  def test_cpu_cycles_per_thread_slice_in_interval(self):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=("""
