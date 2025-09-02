@@ -20,8 +20,6 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced/probes/probes_data_source.h"
 
-#include "protos/perfetto/config/android/android_virtualization_framework_config.pbzero.h"
-
 namespace perfetto {
 
 class AndroidVirtualizationFrameworkDataSource : public ProbesDataSource {
@@ -38,7 +36,13 @@ class AndroidVirtualizationFrameworkDataSource : public ProbesDataSource {
   void Flush(FlushRequestID, std::function<void()> callback) override;
 
  private:
-  protos::pbzero::AndroidVirtualizationFrameworkConfig::Decoder config_;
+  struct VmConfig {
+    std::string name_;
+
+    VmConfig(std::string&& name) : name_(name) {}
+  };
+
+  std::vector<VmConfig> vm_configs_;
 };
 
 }  // namespace perfetto

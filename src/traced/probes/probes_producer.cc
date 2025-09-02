@@ -333,7 +333,8 @@ std::unique_ptr<ProbesDataSource>
 ProbesProducer::CreateDSInstance<AndroidVirtualizationFrameworkDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
-  return std::make_unique<AndroidVirtualizationFrameworkDataSource>(config, session_id);
+  return std::make_unique<AndroidVirtualizationFrameworkDataSource>(config,
+                                                                    session_id);
 }
 
 // Another anonymous namespace. This cannot be moved into the anonymous
@@ -391,7 +392,6 @@ void ProbesProducer::OnConnect() {
   for (size_t i = 0; i < proto_descs.size(); i++) {
     DataSourceDescriptor& proto_desc = proto_descs[i];
     const ProbesDataSource::Descriptor* desc = kAllDataSources[i].descriptor;
-    PERFETTO_LOG("[ioffe] data source  %s", proto_desc.name().c_str());
     for (size_t j = i + 1; j < proto_descs.size(); j++) {
       if (kAllDataSources[i].descriptor == kAllDataSources[j].descriptor) {
         PERFETTO_FATAL("Duplicate descriptor name %s",
@@ -414,7 +414,6 @@ void ProbesProducer::OnConnect() {
   // generating a data source descriptor takes too long, we don't want to be in
   // a state where only some data sources are registered.
   for (const DataSourceDescriptor& proto_desc : proto_descs) {
-    PERFETTO_LOG("[ioffe] registering data source %s", proto_desc.name().c_str());
     endpoint_->RegisterDataSource(proto_desc);
   }
 
