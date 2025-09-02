@@ -16,7 +16,6 @@
 
 #include "src/traced/probes/android_virtualization_framework/android_virtualization_framework_data_source.h"
 
-#include "android_virtualization_framework_data_source.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -80,6 +79,7 @@ AndroidVirtualizationFrameworkDataSource::
 
 void AndroidVirtualizationFrameworkDataSource::Start() {
   for (const auto& vm_config : vm_configs_) {
+    PERFETTO_LOG("Starting traced_relay for VM %s", vm_config.name_.c_str());
     std::string prop_name =
         "persist.avf_vm.traced_relay.enable." + vm_config.name_;
     if (!SetAndroidSysProp(prop_name, "1")) {
