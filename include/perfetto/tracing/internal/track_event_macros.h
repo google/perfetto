@@ -134,16 +134,19 @@
                 ##__VA_ARGS__);                                                \
           });                                                                  \
     } else {                                                                   \
-      static constexpr size_t PERFETTO_UID(                                    \
+      /* This can't be a static constexpr because it's captured in the */      \
+      /* lambda and passed by reference to `method`, which blows up the */     \
+      /* binary size. */                                                       \
+      const size_t PERFETTO_UID(                                               \
           kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =             \
           PERFETTO_GET_CATEGORY_INDEX(category);                               \
       tns::TrackEvent::CallIfCategoryEnabled(                                  \
           PERFETTO_UID(kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_), \
-          [&, category_from_index = PERFETTO_UID(                              \
-                  kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)](     \
-              uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
+          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
             tns::TrackEvent::method(                                           \
-                instances, category_from_index,                                \
+                instances,                                                     \
+                PERFETTO_UID(                                                  \
+                    kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_),    \
                 ::perfetto::internal::DecayEventNameType(name),                \
                 ##__VA_ARGS__);                                                \
           });                                                                  \
@@ -224,7 +227,7 @@
              PERFETTO_GET_CATEGORY_INDEX(category)))
 #else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 #define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)           \
-  [&category]() -> bool {                                      \
+  [&]() -> bool {                                              \
     using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;          \
     if constexpr (::PERFETTO_TRACK_EVENT_NAMESPACE::internal:: \
                       IsDynamicCategory(category)) {           \
