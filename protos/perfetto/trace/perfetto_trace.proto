@@ -14296,7 +14296,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 55.
+// Next reserved id: 13 (up to 15). Next id: 57.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -14413,6 +14413,13 @@ message TrackEvent {
   // TODO(b/204341740): replace "flow_ids_old" with "flow_ids" to reduce memory
   // consumption.
   repeated fixed64 flow_ids = 47;
+
+  // A span is a timed operation in a trace which can be comprised of children.
+  // A child span will always refer to its parent by using the `parent_span_ids`
+  // field. For e.g.
+  optional fixed64 span_id = 55;
+  // The `span_id` for the parents from which the operation branched off from.
+  repeated fixed64 parent_span_ids = 56;
 
   // List of flow ids which should terminate on this event, otherwise same as
   // |flow_ids|.

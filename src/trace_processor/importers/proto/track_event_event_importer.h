@@ -887,6 +887,19 @@ class TrackEventEventImporter {
         context_->flow_tracker->Step(slice_id, flow_id);
       }
     }
+    if (event_.has_span_id()) {
+      if (!event_.has_parent_span_ids()) {
+        context_->flow_tracker->BeginSpan(slice_id, event_.span_id());
+      } else {
+        // Multiple parent_span_id_'s are a way to effectively represent fan-in
+        // from multiple slices.
+        for (auto it = event_.parent_span_ids(); it; ++it) {
+          FlowId parent_span_id = *it;
+          context_->flow_tracker->InsertSpan(slice_id, parent_span_id,
+                                             event_.span_id());
+        }
+      }
+    }
     if (event_.has_terminating_flow_ids_old() ||
         event_.has_terminating_flow_ids()) {
       auto it = event_.has_terminating_flow_ids()
