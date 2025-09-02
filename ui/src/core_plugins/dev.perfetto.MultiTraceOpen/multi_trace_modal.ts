@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
+import {Anchor} from '../../widgets/anchor';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {CardStack} from '../../widgets/card';
 import {Intent} from '../../widgets/common';
@@ -22,6 +23,8 @@ import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
+import {TabStrip, TabOption} from '../../widgets/tabs';
+import {TextParagraph} from '../../widgets/text_paragraph';
 import {MultiTraceController} from './multi_trace_controller';
 import {TraceFile} from './multi_trace_types';
 import {WasmTraceAnalyzer} from './trace_analyzer';
@@ -40,6 +43,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   private controller = new MultiTraceController(new WasmTraceAnalyzer(), () =>
     redrawModal(),
   );
+  private currentTab = 'synchronous';
 
   oncreate({attrs}: m.Vnode<MultiTraceModalAttrs>) {
     this.controller.addFiles(attrs.initialFiles);
@@ -49,6 +53,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     return m(
       Stack,
       {className: 'pf-multi-trace-modal', orientation: 'vertical'},
+      this.renderDescription(),
       m(TraceListComponent, {
         traces: this.controller.traces,
         controller: this.controller,
@@ -61,9 +66,60 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     );
   }
 
+  private renderDescription() {
+    const tabs: TabOption[] = [
+      {key: 'synchronous', title: 'Synchronous Traces'},
+      {key: 'cross-machine', title: 'Cross-Machine Traces'},
+      {key: 'comparison', title: 'Trace Comparison'},
+    ];
+
+    return m(
+      Stack,
+      {
+        className: 'pf-multi-trace-modal__description-panel',
+        orientation: 'vertical',
+      },
+      m(TabStrip, {
+        className: 'pf-multi-trace-modal__tabs',
+        tabs,
+        currentTabKey: this.currentTab,
+        onTabChange: (key: string) => {
+          this.currentTab = key;
+          redrawModal();
+        },
+      }),
+      m('.pf-multi-trace-modal__description-content', this.renderTabContent()),
+    );
+  }
+
+  private renderTabContent() {
+    switch (this.currentTab) {
+      case 'synchronous':
+        return [
+          m(TextParagraph, {
+            text: '🔗 Combine multiple trace files that were captured at the same time on the same device or system. This allows you to view traces from different sources (e.g., system traces, app traces, custom instrumentation) on a unified timeline.',
+          }),
+        ];
+      case 'cross-machine':
+        return [
+          m(TextParagraph, {
+            text: '🌐 Merge traces captured on different machines or devices with distributed time synchronization.',
+          }),
+        ];
+      case 'comparison':
+        return [
+          m(TextParagraph, {
+            text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
+          }),
+        ];
+      default:
+        return '';
+    }
+  }
+
   private renderActions() {
-    const footerMessage = this.getFooterMessage();
-    const isDisabled = !!footerMessage;
+    const footerContent = this.getFooterContent();
+    const isDisabled = footerContent !== undefined;
     const openButton = m(Button, {
       label: 'Open Traces',
       intent: Intent.Primary,
@@ -72,8 +128,8 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       disabled: isDisabled,
     });
 
-    return [
-      footerMessage &&
+    if (footerContent !== undefined) {
+      return [
         m(
           Callout,
           {
@@ -81,13 +137,46 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
             intent: Intent.Danger,
             icon: 'error_outline',
           },
-          footerMessage,
+          footerContent,
         ),
-      openButton,
-    ];
+        m('.pf-multi-trace-modal__footer-spacer'),
+        openButton,
+      ];
+    } else {
+      return [m('.pf-multi-trace-modal__footer-spacer'), openButton];
+    }
   }
 
-  private getFooterMessage(): string | undefined {
+  private getFooterContent(): m.Children | undefined {
+    if (this.currentTab === 'cross-machine') {
+      return [
+        'This feature is not yet supported. Please +1 ',
+        m(
+          Anchor,
+          {
+            href: 'https://github.com/google/perfetto/issues/2781',
+            target: '_blank',
+          },
+          'this GitHub issue',
+        ),
+        ' to prioritize development, or select "Synchronous Traces" to continue.',
+      ];
+    }
+    if (this.currentTab === 'comparison') {
+      return [
+        'This feature is not yet supported. Please +1 ',
+        m(
+          Anchor,
+          {
+            href: 'https://github.com/google/perfetto/issues/2780',
+            target: '_blank',
+          },
+          'this GitHub issue',
+        ),
+        ' to prioritize development, or select "Synchronous Traces" to continue.',
+      ];
+    }
+
     const error = this.controller.getLoadingError();
     if (error === undefined) {
       return undefined;

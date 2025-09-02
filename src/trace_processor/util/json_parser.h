@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_JSON_PARSER_H_
+#define SRC_TRACE_PROCESSOR_UTIL_JSON_PARSER_H_
 
 #include <algorithm>
 #include <cctype>
@@ -874,4 +874,4 @@ class Iterator {
 
 }  // namespace perfetto::trace_processor::json
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_JSON_PARSER_H_
