@@ -22,6 +22,7 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -50,8 +51,11 @@ void SafeCopyToCharArray(char (&dest)[DestN], const char (&src)[SrcN]) {
 }  // namespace
 
 TarWriter::TarWriter(const std::string& output_path)
-    : output_file_(
-          base::OpenFile(output_path, O_CREAT | O_WRONLY | O_TRUNC, 0644)) {
+    : TarWriter(
+          base::OpenFile(output_path, O_CREAT | O_WRONLY | O_TRUNC, 0644)) {}
+
+TarWriter::TarWriter(base::ScopedFile output_file)
+    : output_file_(std::move(output_file)) {
   PERFETTO_CHECK(output_file_);
 }
 

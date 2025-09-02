@@ -40,6 +40,7 @@ namespace perfetto::trace_processor::util {
 class TarWriter {
  public:
   explicit TarWriter(const std::string& output_path);
+  explicit TarWriter(base::ScopedFile output_file);
   ~TarWriter();
 
   // Adds a file to the TAR archive.

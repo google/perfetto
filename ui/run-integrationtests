@@ -31,6 +31,8 @@ def main():
       '--rebaseline', '-r', action='store_true', help='Rebaseline screenshots')
   parser.add_argument('--out', help='out directory')
   parser.add_argument('--no-build', action='store_true')
+  parser.add_argument(
+      '--workers', help='Number of playwright workers to use')
   parser.add_argument('filters', nargs='*')
   args = parser.parse_args()
 
@@ -42,6 +44,10 @@ def main():
     cmd += ['--ui']
   elif args.rebaseline:
     cmd += ['--update-snapshots']
+
+  if args.workers:
+    cmd += ['--workers', args.workers]
+
   cmd += args.filters
 
   env = dict(os.environ.items())
