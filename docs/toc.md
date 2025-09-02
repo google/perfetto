@@ -73,6 +73,7 @@
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
+    - [UI Automation](visualization/ui-automation.md)
 
   - [Contributing](#)
 
@@ -128,6 +129,7 @@
 
     - [Linux](#)
 
+      - [Kernel track events](reference/kernel-track-event.md)
       - [Tracing across reboots](data-sources/previous-boot-trace.md)
 
     - [Command Line Reference](#)
@@ -157,6 +159,10 @@
 
     - [Interceptors](instrumentation/interceptors.md)
 
+  - [Advanced Trace Visualization](#)
+
+    - [Commands Automation Reference](visualization/commands-automation-reference.md)
+
   - [Contributor Reference](#)
 
     - [Building](contributing/build-instructions.md)
@@ -166,6 +172,7 @@
   - [Team documentation](#)
 
     - [SDK release process](contributing/sdk-releasing.md)
+    - [Python release process](contributing/python-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
 

@@ -39,7 +39,9 @@ blocking_call_names = [
     'ExpNotRow#onMeasure(MessagingStyle)', 'ExpNotRow#onMeasure(BigTextStyle)',
     'animation', 'input', 'traversal', 'postAndWait',
     'android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation',
-    'GC: Wait For Completion Alloc', 'Should not be in the metric'
+    'GC: Wait For Completion Alloc', 'Should not be in the metric',
+    'draw-VRI[ScreenDecorHwcOverlay]', 'draw-VRI[StatusBar]',
+    'draw-VRI[NexusLauncherActivity]', 'draw-VRI[Taskbar]'
 ]
 
 top_level_names = [

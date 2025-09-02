@@ -206,6 +206,9 @@ if (perfetto_build_standalone) {
   if (is_linux || is_android || is_mac) {
     all_targets += [ "src/tracebox" ]
   }
+
+  # This is needed by `tools/gen_c_protos`.
+  all_targets += [ "src/protozero/protoc_plugin:protozero_c_plugin" ]
 }
 
 if (enable_perfetto_merged_protos_check) {

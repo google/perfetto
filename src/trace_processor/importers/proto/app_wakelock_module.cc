@@ -16,13 +16,21 @@
 
 #include "src/trace_processor/importers/proto/app_wakelock_module.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <utility>
+
+#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/android/app_wakelock_data.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -38,13 +46,15 @@ using ::perfetto::protos::pbzero::AppWakelockInfo;
 using ::perfetto::protos::pbzero::TracePacket;
 using ::protozero::ConstBytes;
 
-AppWakelockModule::AppWakelockModule(TraceProcessorContext* context)
-    : context_(context),
+AppWakelockModule::AppWakelockModule(ProtoImporterModuleContext* module_context,
+                                     TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
       arg_flags_(context->storage->InternString("flags")),
       arg_owner_pid_(context->storage->InternString("owner_pid")),
       arg_owner_uid_(context->storage->InternString("owner_uid")),
       arg_work_uid_(context->storage->InternString("work_uid")) {
-  RegisterForField(TracePacket::kAppWakelockBundleFieldNumber, context);
+  RegisterForField(TracePacket::kAppWakelockBundleFieldNumber);
 }
 
 ModuleResult AppWakelockModule::TokenizePacket(
@@ -149,11 +159,10 @@ void AppWakelockModule::ParseWakelockBundle(int64_t ts, ConstBytes blob) {
 void AppWakelockModule::PushPacketBufferForSort(
     int64_t timestamp,
     RefPtr<PacketSequenceStateGeneration> state) {
-  std::pair<std::unique_ptr<uint8_t[]>, size_t> v =
-      packet_buffer_.SerializeAsUniquePtr();
-  context_->sorter->PushTracePacket(
-      timestamp, std::move(state),
-      TraceBlobView(TraceBlob::TakeOwnership(std::move(v.first), v.second)));
+  auto [vec, size] = packet_buffer_.SerializeAsUniquePtr();
+  TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+  module_context_->trace_packet_stream->Push(
+      timestamp, TracePacketData{std::move(tbv), std::move(state)});
   packet_buffer_.Reset();
 }
 

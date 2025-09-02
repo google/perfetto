@@ -50,6 +50,8 @@ import {renderStatusBar} from './statusbar';
 import {formatTimezone, timezoneOffsetMap} from '../base/time';
 import {LinearProgress} from '../widgets/linear_progress';
 import {taskTracker} from './task_tracker';
+import {Button} from '../widgets/button';
+import {initCssConstants} from './css_constants';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -63,6 +65,9 @@ const OMNIBOX_INPUT_REF = 'omnibox';
 // This wrapper creates a new instance of UiMainPerTrace for each new trace
 // loaded (including the case of no trace at the beginning).
 export class UiMain implements m.ClassComponent {
+  oncreate({dom}: m.CVnodeDOM) {
+    initCssConstants(dom);
+  }
   view() {
     const currentTraceId = AppImpl.instance.trace?.engine.engineId ?? '';
     return [m(UiMainPerTrace, {key: currentTraceId})];
@@ -90,14 +95,14 @@ export class UiMainPerTrace implements m.ClassComponent {
     // loaded).
     const globalCmds: Command[] = [
       {
-        id: 'perfetto.OpenCommandPalette',
+        id: 'dev.perfetto.OpenCommandPalette',
         name: 'Open command palette',
         callback: () => app.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
       {
-        id: 'perfetto.ShowHelp',
+        id: 'dev.perfetto.ShowHelp',
         name: 'Show help',
         callback: () => toggleHelp(),
         defaultHotkey: '?',
@@ -115,7 +120,7 @@ export class UiMainPerTrace implements m.ClassComponent {
 
     const cmds: Command[] = [
       {
-        id: 'perfetto.SetTimestampFormat',
+        id: 'dev.perfetto.SetTimestampFormat',
         name: 'Set timestamp and duration format',
         callback: async () => {
           const TF = TimestampFormat;
@@ -154,7 +159,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.SetDurationPrecision',
+        id: 'dev.perfetto.SetDurationPrecision',
         name: 'Set duration precision',
         callback: async () => {
           const DF = DurationPrecision;
@@ -172,18 +177,18 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.TogglePerformanceMetrics',
+        id: 'dev.perfetto.TogglePerformanceMetrics',
         name: 'Toggle performance metrics',
         callback: () =>
           (app.perfDebugging.enabled = !app.perfDebugging.enabled),
       },
       {
-        id: 'perfetto.ShareTrace',
+        id: 'dev.perfetto.ShareTrace',
         name: 'Share trace',
         callback: () => shareTrace(trace),
       },
       {
-        id: 'perfetto.SearchNext',
+        id: 'dev.perfetto.SearchNext',
         name: 'Go to next search result',
         callback: () => {
           trace.search.stepForward();
@@ -191,7 +196,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Enter',
       },
       {
-        id: 'perfetto.SearchPrev',
+        id: 'dev.perfetto.SearchPrev',
         name: 'Go to previous search result',
         callback: () => {
           trace.search.stepBackwards();
@@ -199,18 +204,49 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Shift+Enter',
       },
       {
-        id: 'perfetto.RunQuery',
-        name: 'Run query',
+        id: 'dev.perfetto.SwitchToQueryMode',
+        name: 'Switch to query mode',
         callback: () => trace.omnibox.setMode(OmniboxMode.Query),
       },
       {
-        id: 'perfetto.Search',
-        name: 'Search',
+        id: 'dev.perfetto.RunQuery',
+        name: 'Runs an SQL query',
+        callback: async (rawSql: unknown) => {
+          const query =
+            typeof rawSql === 'string'
+              ? rawSql
+              : await trace.omnibox.prompt('Enter SQL...');
+          if (!query) {
+            return;
+          }
+          await trace.engine.query(query);
+        },
+      },
+      {
+        id: 'dev.perfetto.RunQueryAndShowTab',
+        name: 'Runs an SQL query and opens results in a tab',
+        callback: async (rawSql: unknown) => {
+          const query =
+            typeof rawSql === 'string'
+              ? rawSql
+              : await trace.omnibox.prompt('Enter SQL...');
+          if (!query) {
+            return;
+          }
+          addQueryResultsTab(trace, {
+            query,
+            title: 'Command Query',
+          });
+        },
+      },
+      {
+        id: 'dev.perfetto.SwitchToSearchMode',
+        name: 'Switch to search mode',
         callback: () => trace.omnibox.setMode(OmniboxMode.Search),
         defaultHotkey: '/',
       },
       {
-        id: 'perfetto.CopyTimeWindow',
+        id: 'dev.perfetto.CopyTimeWindow',
         name: `Copy selected time window to clipboard`,
         callback: async () => {
           const window = await getTimeSpanOfSelectionOrVisibleWindow(trace);
@@ -219,18 +255,18 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.FocusSelection',
+        id: 'dev.perfetto.FocusSelection',
         name: 'Focus current selection',
         callback: () => trace.selection.scrollToSelection(),
         defaultHotkey: 'F',
       },
       {
-        id: 'perfetto.ZoomOnSelection',
+        id: 'dev.perfetto.ZoomOnSelection',
         name: 'Zoom in on current selection',
         callback: () => trace.selection.zoomOnSelection(),
       },
       {
-        id: 'perfetto.Deselect',
+        id: 'dev.perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
           trace.selection.clearSelection();
@@ -238,25 +274,25 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Escape',
       },
       {
-        id: 'perfetto.NextFlow',
+        id: 'dev.perfetto.NextFlow',
         name: 'Next flow',
         callback: () => trace.flows.focusOtherFlow('Forward'),
         defaultHotkey: 'Mod+]',
       },
       {
-        id: 'perfetto.PrevFlow',
+        id: 'dev.perfetto.PrevFlow',
         name: 'Prev flow',
         callback: () => trace.flows.focusOtherFlow('Backward'),
         defaultHotkey: 'Mod+[',
       },
       {
-        id: 'perfetto.MoveNextFlow',
+        id: 'dev.perfetto.MoveNextFlow',
         name: 'Move next flow',
         callback: () => trace.flows.moveByFocusedFlow('Forward'),
         defaultHotkey: ']',
       },
       {
-        id: 'perfetto.MovePrevFlow',
+        id: 'dev.perfetto.MovePrevFlow',
         name: 'Move prev flow',
         callback: () => trace.flows.moveByFocusedFlow('Backward'),
         defaultHotkey: '[',
@@ -265,7 +301,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       // Provides a test bed for resolving events using a SQL table name and ID
       // which is used in deep-linking, amongst other places.
       {
-        id: 'perfetto.SelectEventByTableNameAndId',
+        id: 'dev.perfetto.SelectEventByTableNameAndId',
         name: 'Select event by table name and ID',
         callback: async () => {
           const rootTableName = await trace.omnibox.prompt('Enter table name');
@@ -283,7 +319,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.SelectAll',
+        id: 'dev.perfetto.SelectAll',
         name: 'Select all',
         callback: () => {
           // This is a dual state command:
@@ -329,7 +365,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'Mod+A',
       },
       {
-        id: 'perfetto.ConvertSelectionToArea',
+        id: 'dev.perfetto.ConvertSelectionToArea',
         name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
@@ -345,13 +381,13 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'R',
       },
       {
-        id: 'perfetto.ToggleDrawer',
+        id: 'dev.perfetto.ToggleDrawer',
         name: 'Toggle drawer',
         defaultHotkey: 'Q',
         callback: () => trace.tabs.toggleTabPanelVisibility(),
       },
       {
-        id: 'perfetto.CopyPinnedToWorkspace',
+        id: 'dev.perfetto.CopyPinnedToWorkspace',
         name: 'Copy pinned tracks to workspace',
         callback: async () => {
           const pinnedTracks = trace.workspace.pinnedTracks;
@@ -371,7 +407,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.CopyFilteredToWorkspace',
+        id: 'dev.perfetto.CopyFilteredToWorkspace',
         name: 'Copy filtered tracks to workspace',
         callback: async () => {
           // Copies all filtered tracks as a flat list to a new workspace. This
@@ -396,7 +432,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.CopySelectedTracksToWorkspace',
+        id: 'dev.perfetto.CopySelectedTracksToWorkspace',
         name: 'Copy selected tracks to workspace',
         callback: async () => {
           const selection = trace.selection.selection;
@@ -419,7 +455,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.Quicksave',
+        id: 'dev.perfetto.Quicksave',
         name: 'Quicksave UI state to localStorage',
         callback: () => {
           const state = serializeAppState(trace);
@@ -428,7 +464,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: 'perfetto.Quickload',
+        id: 'dev.perfetto.Quickload',
         name: 'Quickload UI state from the localStorage',
         callback: () => {
           const json = localStorage.getItem(QUICKSAVE_LOCALSTORAGE_KEY);
@@ -441,9 +477,9 @@ export class UiMainPerTrace implements m.ClassComponent {
           }
           const parsed = JSON.parse(json);
           const state = parseAppState(parsed);
-          if (state.success) {
-            deserializeAppStatePhase1(state.data, trace);
-            deserializeAppStatePhase2(state.data, trace);
+          if (state.ok) {
+            deserializeAppStatePhase1(state.value, trace);
+            deserializeAppStatePhase2(state.value, trace);
           }
         },
       },
@@ -493,7 +529,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
       return m(
-        `.omnibox.message-mode`,
+        `.pf-omnibox.pf-omnibox--message-mode`,
         m(`input[readonly][disabled][ref=omnibox]`, {
           value: '',
           placeholder: statusMessage,
@@ -536,7 +572,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: omnibox.text,
       placeholder: prompt.text,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'prompt-mode',
+      extraClasses: 'pf-omnibox--prompt-mode',
       closeOnOutsideClick: true,
       options,
       selectedOptionIndex: omnibox.selectionIndex,
@@ -594,7 +630,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'command-mode',
+      extraClasses: 'pf-omnibox--command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
@@ -636,7 +672,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: AppImpl.instance.omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'query-mode',
+      extraClasses: 'pf-omnibox--query-mode',
 
       onInput: (value) => {
         AppImpl.instance.omnibox.setText(value);
@@ -709,30 +745,27 @@ export class UiMainPerTrace implements m.ClassComponent {
     const children = [];
     const results = this.trace?.search.searchResults;
     if (this.trace?.search.searchInProgress) {
-      children.push(m('.current', m(Spinner)));
+      children.push(m('.pf-omnibox__stepthrough-current', m(Spinner)));
     } else if (results !== undefined) {
       const searchMgr = assertExists(this.trace).search;
       const index = searchMgr.resultIndex;
       const total = results.totalResults ?? 0;
       children.push(
-        m('.current', `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`),
         m(
-          'button',
-          {
-            onclick: () => searchMgr.stepBackwards(),
-          },
-          m('i.material-icons.left', 'keyboard_arrow_left'),
+          '.pf-omnibox__stepthrough-current',
+          `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`,
         ),
-        m(
-          'button',
-          {
-            onclick: () => searchMgr.stepForward(),
-          },
-          m('i.material-icons.right', 'keyboard_arrow_right'),
-        ),
+        m(Button, {
+          onclick: () => searchMgr.stepBackwards(),
+          icon: 'keyboard_arrow_left',
+        }),
+        m(Button, {
+          onclick: () => searchMgr.stepForward(),
+          icon: 'keyboard_arrow_right',
+        }),
       );
     }
-    return m('.stepthrough', children);
+    return m('.pf-omnibox__stepthrough', children);
   }
 
   oncreate(vnode: m.VnodeDOM) {
@@ -771,7 +804,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           className: 'pf-ui-main__loading',
           state: isSomethingLoading ? 'indeterminate' : 'none',
         }),
-        app.pages.renderPageForCurrentRoute(),
+        m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
         showStatusBarFlag.get() && renderStatusBar(app.trace),

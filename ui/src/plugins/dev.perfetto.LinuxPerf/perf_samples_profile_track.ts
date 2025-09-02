@@ -71,8 +71,7 @@ export function createProcessPerfSamplesProfileTrack(
               parent_id as parentId,
               name,
               mapping_name,
-              source_file,
-              cast(line_number AS text) as line_number,
+              source_file || ':' || line_number as source_location,
               self_count
             from _callstacks_for_callsites!((
               select p.callsite_id
@@ -95,14 +94,9 @@ export function createProcessPerfSamplesProfileTrack(
         [{name: 'mapping_name', displayName: 'Mapping'}],
         [
           {
-            name: 'source_file',
-            displayName: 'Source File',
-            mergeAggregation: 'ONE_OR_NULL',
-          },
-          {
-            name: 'line_number',
-            displayName: 'Line Number',
-            mergeAggregation: 'ONE_OR_NULL',
+            name: 'source_location',
+            displayName: 'Source Location',
+            mergeAggregation: 'ONE_OR_SUMMARY',
           },
         ],
       );
@@ -112,7 +106,8 @@ export function createProcessPerfSamplesProfileTrack(
       };
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
-        render: () => renderDetailsPanel(flamegraph, Time.fromRaw(row.ts)),
+        render: () =>
+          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
         serialization,
       };
     },
@@ -159,8 +154,7 @@ export function createThreadPerfSamplesProfileTrack(
               parent_id as parentId,
               name,
               mapping_name,
-              source_file,
-              cast(line_number AS text) as line_number,
+              source_file || ':' || line_number as source_location,
               self_count
             from _callstacks_for_callsites!((
               select p.callsite_id
@@ -182,14 +176,9 @@ export function createThreadPerfSamplesProfileTrack(
         [{name: 'mapping_name', displayName: 'Mapping'}],
         [
           {
-            name: 'source_file',
-            displayName: 'Source File',
-            mergeAggregation: 'ONE_OR_NULL',
-          },
-          {
-            name: 'line_number',
-            displayName: 'Line Number',
-            mergeAggregation: 'ONE_OR_NULL',
+            name: 'source_location',
+            displayName: 'Source Location',
+            mergeAggregation: 'ONE_OR_SUMMARY',
           },
         ],
       );
@@ -199,16 +188,21 @@ export function createThreadPerfSamplesProfileTrack(
       };
       const flamegraph = new QueryFlamegraph(trace, metrics, serialization);
       return {
-        render: () => renderDetailsPanel(flamegraph, Time.fromRaw(row.ts)),
+        render: () =>
+          renderDetailsPanel(trace, flamegraph, Time.fromRaw(row.ts)),
         serialization,
       };
     },
   });
 }
 
-function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
+function renderDetailsPanel(
+  trace: Trace,
+  flamegraph: QueryFlamegraph,
+  ts: time,
+) {
   return m(
-    '.flamegraph-profile',
+    '.pf-flamegraph-profile',
     m(
       DetailsShell,
       {
@@ -218,12 +212,14 @@ function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
           m('span', [
             `First timestamp: `,
             m(Timestamp, {
+              trace,
               ts,
             }),
           ]),
           m('span', [
             `Last timestamp: `,
             m(Timestamp, {
+              trace,
               ts,
             }),
           ]),

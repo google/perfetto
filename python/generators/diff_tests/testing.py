@@ -15,65 +15,77 @@
 
 import inspect
 import os
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union, Callable, Tuple
-from enum import Enum
 import re
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from google.protobuf import text_format
-
-TestName = str
 
 
 @dataclass
 class Path:
+  """Represents a path to a file."""
   filename: str
 
 
 @dataclass
 class DataPath(Path):
+  """Represents a path to a file in the test data directory."""
   filename: str
 
 
 @dataclass
 class Metric:
+  """Represents a metric to be run."""
   name: str
 
 
 @dataclass
 class MetricV2SpecTextproto:
+  """Represents a Metric v2 specification in textproto format."""
   contents: str
 
 
 @dataclass
 class Json:
+  """Represents a JSON string."""
   contents: str
 
 
 @dataclass
 class Csv:
+  """Represents a CSV string."""
+  contents: str
+
+
+@dataclass
+class RawText:
+  """Represents a raw text string."""
   contents: str
 
 
 @dataclass
 class TextProto:
+  """Represents a textproto string."""
   contents: str
 
 
 @dataclass
 class BinaryProto:
+  """Represents a binary proto message."""
   message_type: str
   contents: str
-  # Comparing protos is tricky. For example, repeated fields might be written in
+  # Comparing protos is tricky. For example, repeated fields might be written in
   # any order. To help with that you can specify a `post_processing` function
   # that will be called with the actual proto message object before converting
   # it to text representation and doing the comparison with `contents`. This
-  # gives us a chance to e.g. sort messages in a repeated field.
+  # gives us a chance to e.g. sort messages in a repeated field.
   post_processing: Callable = text_format.MessageToString
 
 
 @dataclass
 class Systrace:
+  """Represents a systrace file in string format."""
   contents: str
 
 
@@ -104,7 +116,7 @@ class TraceInjector:
     self.packet_data_types = packet_data_types
     self.injected_fields = injected_fields
 
-  def inject(self, proto):
+  def inject(self, proto: Any):
     for p in proto.packet:
       for f in self.packet_data_types:
         if p.HasField(f):
@@ -113,23 +125,24 @@ class TraceInjector:
           continue
 
 
-class TestType(Enum):
-  QUERY = 1
-  METRIC = 2
-  METRIC_V2 = 3
-
-
-# Blueprint for running the diff test. 'query' is being run over data from the
-# 'trace 'and result will be compared to the 'out. Each test (function in class
-# inheriting from TestSuite) returns a DiffTestBlueprint.
 @dataclass
 class DiffTestBlueprint:
+  """Blueprint for running the diff test.
 
-  trace: Union[Path, DataPath, Json, Systrace, TextProto]
+  'query' is being run over data from the 'trace 'and result will be compared
+  to the 'out. Each test (function in class inheriting from TestSuite) returns
+  a DiffTestBlueprint.
+  """
+
+  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
   query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
+  # If set, this test will only be run if all of these module_dependencies are enabled.
+  module_dependencies: Optional[List[str]] = None
+  index_dir: str = ''
+  test_data_dir: str = ''
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
@@ -142,6 +155,9 @@ class DiffTestBlueprint:
 
   def is_trace_systrace(self):
     return isinstance(self.trace, Systrace)
+
+  def is_trace_rawtext(self):
+    return isinstance(self.trace, RawText)
 
   def is_query_file(self):
     return isinstance(self.query, Path)
@@ -168,132 +184,22 @@ class DiffTestBlueprint:
     return isinstance(self.out, Csv)
 
 
-# Description of a diff test. Created in `fetch_diff_tests()` in
-# TestSuite: each test (function starting with `test_`) returns
-# DiffTestBlueprint and function name is a TestCase name. Used by diff test
-# script.
-class TestCase:
-
-  def __init__(
-      self,
-      name: str,
-      blueprint: DiffTestBlueprint,
-      index_dir: str,
-      test_data_dir: str,
-  ) -> None:
-    self.name = name
-    self.blueprint = blueprint
-    self.index_dir = index_dir
-    self.test_data_dir = test_data_dir
-
-    if blueprint.is_metric():
-      self.type = TestType.METRIC
-    elif blueprint.is_metric_v2():
-      self.type = TestType.METRIC_V2
-    else:
-      self.type = TestType.QUERY
-
-    self.query_path = self.__get_query_path()
-    self.trace_path = self.__get_trace_path()
-    self.expected_path = self.__get_expected_path()
-    self.expected_str = self.__get_expected_str()
-    self.register_files_dir = self.__get_register_files_dir()
-
-  def __get_query_path(self) -> Optional[str]:
-    if not self.blueprint.is_query_file():
-      return None
-
-    if isinstance(self.blueprint.query, DataPath):
-      path = os.path.join(self.test_data_dir, self.blueprint.query.filename)
-    else:
-      assert isinstance(self.blueprint.query, Path)
-      path = os.path.abspath(
-          os.path.join(self.index_dir, self.blueprint.query.filename))
-
-    if not os.path.exists(path):
-      raise AssertionError(
-          f"Query file ({path}) for test '{self.name}' does not exist.")
-    return path
-
-  def __get_trace_path(self) -> Optional[str]:
-    if not self.blueprint.is_trace_file():
-      return None
-
-    if isinstance(self.blueprint.trace, DataPath):
-      path = os.path.join(self.test_data_dir, self.blueprint.trace.filename)
-    else:
-      assert isinstance(self.blueprint.trace, Path)
-      path = os.path.abspath(
-          os.path.join(self.index_dir, self.blueprint.trace.filename))
-
-    if not os.path.exists(path):
-      raise AssertionError(
-          f"Trace file ({path}) for test '{self.name}' does not exist.")
-    return path
-
-  def __get_expected_path(self) -> Optional[str]:
-    if not self.blueprint.is_out_file():
-      return None
-
-    if isinstance(self.blueprint.out, DataPath):
-      path = os.path.join(self.test_data_dir, self.blueprint.out.filename)
-    else:
-      assert isinstance(self.blueprint.out, Path)
-      path = os.path.abspath(
-          os.path.join(self.index_dir, self.blueprint.out.filename))
-
-    if not os.path.exists(path):
-      raise AssertionError(
-          f"Out file ({path}) for test '{self.name}' does not exist.")
-    return path
-
-  def __get_register_files_dir(self) -> Optional[str]:
-    if not self.blueprint.register_files_dir:
-      return None
-
-    path = os.path.join(self.test_data_dir,
-                        self.blueprint.register_files_dir.filename)
-
-    if not os.path.exists(path):
-      raise AssertionError(
-          f"Out file ({path}) for test '{self.name}' does not exist.")
-    return path
-
-  def __get_expected_str(self) -> str:
-    if self.blueprint.is_out_file():
-      assert self.expected_path
-      with open(self.expected_path, 'r') as expected_file:
-        return expected_file.read()
-    assert isinstance(self.blueprint.out, (
-        TextProto,
-        Json,
-        Csv,
-        BinaryProto,
-        Systrace,
-    ))
-    return self.blueprint.out.contents
-
-  # Verifies that the test should be in test suite. If False, test will not be
-  # executed.
-  def validate(self, name_filter: str):
-    query_metric_pattern = re.compile(name_filter)
-    return bool(query_metric_pattern.match(os.path.basename(self.name)))
-
-
-# str.removeprefix is available in Python 3.9+, but the Perfetto CI runs on
-# older versions.
 def removeprefix(s: str, prefix: str):
+  """str.removeprefix is available in Python 3.9+, but the Perfetto CI runs on
+  older versions."""
   if s.startswith(prefix):
     return s[len(prefix):]
   return s
 
 
-# Virtual class responsible for fetching diff tests.
-# All functions with name starting with `test_` have to return
-# DiffTestBlueprint and function name is a test name. All DiffTestModules have
-# to be included in `test/diff_tests/trace_processor/include_index.py`.
-# `fetch` function should not be overwritten.
 class TestSuite:
+  """Virtual class responsible for fetching diff tests.
+
+  All functions with name starting with `test_` have to return
+  DiffTestBlueprint and function name is a test name. All DiffTestModules have
+  to be included in `test/diff_tests/trace_processor/include_index.py`. `fetch`
+  function should not be overwritten.
+  """
 
   def __init__(
       self,
@@ -310,27 +216,29 @@ class TestSuite:
     self.class_name = self.__class__.__name__
     self.test_data_dir = test_data_dir
 
-  def __test_name(self, method_name):
+  def __test_name(self, method_name: str) -> str:
     return f"{self.class_name}:{method_name.split('test_',1)[1]}"
 
-  def fetch(self) -> List['TestCase']:
+  def fetch(self) -> List[Tuple[str, 'DiffTestBlueprint']]:
     attrs = (getattr(self, name) for name in dir(self))
     methods = [attr for attr in attrs if inspect.ismethod(attr)]
-    return [
-        TestCase(
-            self.__test_name(method.__name__), method(), self.index_dir,
-            self.test_data_dir)
-        for method in methods
-        if method.__name__.startswith('test_')
-    ]
+    tests = []
+    for method in methods:
+      if method.__name__.startswith('test_'):
+        blueprint = method()
+        blueprint.index_dir = self.index_dir
+        blueprint.test_data_dir = self.test_data_dir
+        tests.append((self.__test_name(method.__name__), blueprint))
+    return tests
 
 
-def PrintProfileProto(profile):
+def PrintProfileProto(profile: Any) -> str:
+  """Post processing function for pprof profiles."""
   locations = {l.id: l for l in profile.location}
   functions = {f.id: f for f in profile.function}
   samples = []
   # Strips trailing annotations like (.__uniq.1657) from the function name.
-  filter_fname = lambda x: re.sub(' [(\[].*?uniq.*?[)\]]$', '', x)
+  filter_fname = lambda x: re.sub(r' [(\[].*?uniq.*?[)\]]$', '', x)
   for s in profile.sample:
     stack = []
     for location in [locations[id] for id in s.location_id]:

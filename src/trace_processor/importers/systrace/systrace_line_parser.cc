@@ -16,11 +16,11 @@
 
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -149,6 +149,34 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     TrackId track = context_->track_tracker->InternTrack(
         tracks::kCpuFrequencyBlueprint, tracks::Dimensions(event_cpu.value()));
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
+  } else if (line.event_name == "cpu_frequency_limits") {
+    std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
+    if (!event_cpu.has_value()) {
+      return base::Status("Could not convert event cpu");
+    }
+    std::optional<double> max_freq =
+        args.Find("max") != nullptr ? base::StringToDouble(args["max"])
+                                    : base::StringToDouble(args["max_freq"]);
+    std::optional<double> min_freq =
+        args.Find("min") != nullptr ? base::StringToDouble(args["min"])
+                                    : base::StringToDouble(args["min_freq"]);
+    if (max_freq.has_value()) {
+      TrackId max_track = context_->track_tracker->InternTrack(
+          tracks::kCpuMaxFrequencyLimitBlueprint,
+          tracks::Dimensions(event_cpu.value()));
+      context_->event_tracker->PushCounter(
+          line.ts, static_cast<double>(max_freq.value()), max_track);
+    }
+    if (min_freq.has_value()) {
+      TrackId min_track = context_->track_tracker->InternTrack(
+          tracks::kCpuMinFrequencyLimitBlueprint,
+          tracks::Dimensions(event_cpu.value()));
+      context_->event_tracker->PushCounter(
+          line.ts, static_cast<double>(min_freq.value()), min_track);
+    }
+    if (!max_freq.has_value() && !min_freq.has_value()) {
+      return base::Status("Could not convert both max_freq and min_freq");
+    }
   } else if (line.event_name == "cpu_idle") {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
     std::optional<double> new_state = base::StringToDouble(args["state"]);

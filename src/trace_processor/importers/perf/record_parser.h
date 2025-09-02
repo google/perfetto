@@ -17,22 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_RECORD_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_RECORD_PARSER_H_
 
-#include <stdint.h>
 #include <cstdint>
 #include <optional>
-#include <string>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/build_id.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class DummyMemoryMapping;
 class MappingTracker;
@@ -44,12 +42,12 @@ class PerfDataTracker;
 class Reader;
 
 // Parses samples from perf.data files.
-class RecordParser : public PerfRecordParser {
+class RecordParser : public TraceSorter::Sink<Record, RecordParser> {
  public:
-  explicit RecordParser(TraceProcessorContext*);
+  explicit RecordParser(TraceProcessorContext*, PerfTracker* perf_tracker);
   ~RecordParser() override;
 
-  void ParsePerfRecord(int64_t timestamp, Record record) override;
+  void Parse(int64_t timestamp, Record record);
 
  private:
   base::Status ParseRecord(int64_t timestamp, Record record);
@@ -62,7 +60,7 @@ class RecordParser : public PerfRecordParser {
   base::Status InternSample(Sample sample);
 
   base::Status UpdateCounters(const Sample& sample);
-  base::Status UpdateCountersInReadGroups(const Sample& sample);
+  static base::Status UpdateCountersInReadGroups(const Sample& sample);
 
   std::optional<CallsiteId> InternCallchain(
       UniquePid upid,
@@ -74,12 +72,12 @@ class RecordParser : public PerfRecordParser {
   DummyMemoryMapping* GetDummyMapping(UniquePid upid);
 
   TraceProcessorContext* const context_;
+  PerfTracker* const perf_tracker_;
   MappingTracker* const mapping_tracker_;
   base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
 };
 
 }  // namespace perf_importer
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_RECORD_PARSER_H_

@@ -32,7 +32,9 @@ CREATE PERFETTO MACRO _cpu_stats_subquery(
     cpu Expr,
     curve_col ColumnName,
     freq_col ColumnName,
-    idle_col ColumnName
+    idle_col ColumnName,
+    freq_1d ColumnName,
+    freq_2d ColumnName
 )
 RETURNS TableOrSubquery AS
 (
@@ -41,7 +43,9 @@ RETURNS TableOrSubquery AS
     dur,
     curve_value AS $curve_col,
     freq AS $freq_col,
-    idle AS $idle_col
+    idle AS $idle_col,
+    iif($cpu IN _cpu_for_1d_static, freq, NULL) AS $freq_1d,
+    iif($cpu IN _cpu_for_2d_static, freq, NULL) AS $freq_2d
   FROM _idle_freq_materialized
   WHERE
     cpu = $cpu
@@ -49,6 +53,8 @@ RETURNS TableOrSubquery AS
   SELECT
     trace_start(),
     trace_dur(),
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL
@@ -65,42 +71,42 @@ RETURNS TableOrSubquery AS
 CREATE PERFETTO TABLE _stats_cpu0 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(0, cpu0_curve, freq_0, idle_0);
+FROM _cpu_stats_subquery!(0, cpu0_curve, freq_0, idle_0, freq0_1d, freq0_2d);
 
 CREATE PERFETTO TABLE _stats_cpu1 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(1, cpu1_curve, freq_1, idle_1);
+FROM _cpu_stats_subquery!(1, cpu1_curve, freq_1, idle_1, freq1_1d, freq1_2d);
 
 CREATE PERFETTO TABLE _stats_cpu2 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(2, cpu2_curve, freq_2, idle_2);
+FROM _cpu_stats_subquery!(2, cpu2_curve, freq_2, idle_2, freq2_1d, freq2_2d);
 
 CREATE PERFETTO TABLE _stats_cpu3 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(3, cpu3_curve, freq_3, idle_3);
+FROM _cpu_stats_subquery!(3, cpu3_curve, freq_3, idle_3, freq3_1d, freq3_2d);
 
 CREATE PERFETTO TABLE _stats_cpu4 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(4, cpu4_curve, freq_4, idle_4);
+FROM _cpu_stats_subquery!(4, cpu4_curve, freq_4, idle_4, freq4_1d, freq4_2d);
 
 CREATE PERFETTO TABLE _stats_cpu5 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(5, cpu5_curve, freq_5, idle_5);
+FROM _cpu_stats_subquery!(5, cpu5_curve, freq_5, idle_5, freq5_1d, freq5_2d);
 
 CREATE PERFETTO TABLE _stats_cpu6 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(6, cpu6_curve, freq_6, idle_6);
+FROM _cpu_stats_subquery!(6, cpu6_curve, freq_6, idle_6, freq6_1d, freq6_2d);
 
 CREATE PERFETTO TABLE _stats_cpu7 AS
 SELECT
   *
-FROM _cpu_stats_subquery!(7, cpu7_curve, freq_7, idle_7);
+FROM _cpu_stats_subquery!(7, cpu7_curve, freq_7, idle_7, freq7_1d, freq7_2d);
 
 CREATE PERFETTO TABLE _stats_cpu0123 AS
 SELECT
@@ -142,7 +148,8 @@ FROM _interval_intersect!(
   ),
   ()
 ) AS ii
-JOIN _stats_cpu0123 AS cpu0123 ON cpu0123._auto_id = id_0;
+JOIN _stats_cpu0123 AS cpu0123
+  ON cpu0123._auto_id = id_0;
 
 -- Combine system state so that it has idle, freq, and L3 hit info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_rates);
@@ -190,15 +197,17 @@ SELECT
     coalesce(idle_7, 1)
   ) AS all_cpu_deep_idle,
   min(
-    iif(0 in _cpus_with_dependency, coalesce(idle_0, 1), 1),
-    iif(1 in _cpus_with_dependency, coalesce(idle_1, 1), 1),
-    iif(2 in _cpus_with_dependency, coalesce(idle_2, 1), 1),
-    iif(3 in _cpus_with_dependency, coalesce(idle_3, 1), 1),
-    iif(4 in _cpus_with_dependency, coalesce(idle_4, 1), 1),
-    iif(5 in _cpus_with_dependency, coalesce(idle_5, 1), 1),
-    iif(6 in _cpus_with_dependency, coalesce(idle_6, 1), 1),
-    iif(7 in _cpus_with_dependency, coalesce(idle_7, 1), 1)
-  ) AS no_static
+    iif(0 IN _cpus_with_dependency, coalesce(idle_0, 1), 1),
+    iif(1 IN _cpus_with_dependency, coalesce(idle_1, 1), 1),
+    iif(2 IN _cpus_with_dependency, coalesce(idle_2, 1), 1),
+    iif(3 IN _cpus_with_dependency, coalesce(idle_3, 1), 1),
+    iif(4 IN _cpus_with_dependency, coalesce(idle_4, 1), 1),
+    iif(5 IN _cpus_with_dependency, coalesce(idle_5, 1), 1),
+    iif(6 IN _cpus_with_dependency, coalesce(idle_6, 1), 1),
+    iif(7 IN _cpus_with_dependency, coalesce(idle_7, 1), 1)
+  ) AS no_static,
+  coalesce(freq0_1d, freq1_1d, freq2_1d, freq3_1d, freq4_1d, freq5_1d, freq6_1d, freq7_1d) AS freq_1d_static,
+  coalesce(freq0_2d, freq1_2d, freq2_2d, freq3_2d, freq4_2d, freq5_2d, freq6_2d, freq7_2d) AS freq_2d_static
 FROM _idle_freq_l3_hit_l3_miss_slice AS base
 JOIN _stats_cpu0
   ON _stats_cpu0._auto_id = base.cpu0_id

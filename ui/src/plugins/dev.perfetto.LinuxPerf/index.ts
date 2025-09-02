@@ -29,7 +29,6 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {
@@ -45,7 +44,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.LinuxPerf';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
-    StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
 
@@ -98,7 +96,7 @@ export default class implements PerfettoPlugin {
     // Add a command to select all the perf samples in the trace - it selects
     // the entirety of each process scoped perf sample track.
     trace.commands.registerCommand({
-      id: 'dev.perfetto.LinuxPerf#SelectAllPerfSamples',
+      id: 'dev.perfetto.SelectAllPerfSamples',
       name: 'Select all perf samples',
       callback: () => {
         trace.selection.selectArea({
@@ -165,9 +163,8 @@ export default class implements PerfettoPlugin {
         id,
         name,
         unit,
-        extract_arg(dimension_arg_set_id, 'cpu') as cpu
-      from counter_track
-      where type = 'perf_counter'
+        cpu
+      from perf_counter_track
       order by name, cpu
     `);
 
@@ -175,20 +172,20 @@ export default class implements PerfettoPlugin {
       id: NUM,
       name: STR_NULL,
       unit: STR_NULL,
-      cpu: NUM, // Perf counters always have a cpu dimension
+      cpu: NUM_NULL,
     });
 
     for (; it.valid(); it.next()) {
       const {id: trackId, name, unit, cpu} = it;
       const uri = `/counter_${trackId}`;
-      const title = `Cpu ${cpu} ${name}`;
 
+      const title = cpu === null ? `${name}` : `Cpu ${cpu} ${name}`;
       trace.tracks.registerTrack({
         uri,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
-          cpu,
+          cpu: cpu ?? undefined,
         },
         renderer: new TraceProcessorCounterTrack(
           trace,
@@ -209,10 +206,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (perfCountersGroup.hasChildren) {
-      const hardwareGroup = trace.plugins
-        .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(trace.workspace, 'HARDWARE');
-      hardwareGroup.addChildInOrder(perfCountersGroup);
+      trace.workspace.addChildInOrder(perfCountersGroup);
     }
 
     trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
@@ -309,8 +303,7 @@ function computePerfSampleFlamegraph(
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
@@ -336,14 +329,9 @@ function computePerfSampleFlamegraph(
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
-        name: 'source_file',
-        displayName: 'Source File',
-        mergeAggregation: 'ONE_OR_NULL',
-      },
-      {
-        name: 'line_number',
-        displayName: 'Line Number',
-        mergeAggregation: 'ONE_OR_NULL',
+        name: 'source_location',
+        displayName: 'Source Location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
       },
     ],
   );

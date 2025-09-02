@@ -17,16 +17,20 @@
 #include "src/trace_processor/importers/etm/target_memory.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/virtual_address_space.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::etm {

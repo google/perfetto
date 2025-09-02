@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-popup-portal {
   position: absolute;
@@ -31,10 +31,10 @@
 }
 
 .pf-popup {
-  background: white;
-  border: solid 1px $pf-colour-thin-border;
-  border-radius: $pf-border-radius;
-  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  background: var(--pf-color-background);
+  border: solid 1px var(--pf-color-border);
+  border-radius: $border-radius;
+  box-shadow: 2px 2px 16px var(--pf-color-box-shadow);
   max-width: 350px; // Sensible default width for most popups
 
   .pf-popup-content {

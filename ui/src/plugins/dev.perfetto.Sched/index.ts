@@ -12,41 +12,56 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
+import {Icons} from '../../base/semantic_icons';
+import {duration, time, Time} from '../../base/time';
 import {createAggregationTab} from '../../components/aggregation_adapter';
+import {MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  CPU_SLICE_TRACK_KIND,
+  THREAD_STATE_TRACK_KIND,
+} from '../../public/track_kinds';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
+import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
   NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
-import {createThreadStateTrack} from './thread_state_track';
-
-import {duration, time, Time} from '../../base/time';
-import {MinimapRow} from '../../public/minimap';
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Anchor} from '../../widgets/anchor';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import ThreadPlugin from '../dev.perfetto.Thread';
+import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {uriForSchedTrack} from './common';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {CpuSliceTrack} from './cpu_slice_track';
+import {
+  RunnableThreadCountTrack,
+  UninterruptibleSleepThreadCountTrack,
+} from './thread_count';
+import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
+import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
-import m from 'mithril';
-import {Anchor} from '../../widgets/anchor';
-import {Icons} from '../../base/semantic_icons';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
+}
+
+function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
+  const prefix = `/active_cpus`;
+  if (cpuType !== undefined) {
+    return `${prefix}_${cpuType}`;
+  } else {
+    return prefix;
+  }
 }
 
 export default class implements PerfettoPlugin {
@@ -54,12 +69,18 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const hasSched = await this.hasSched(ctx.engine);
+    if (!hasSched) {
+      return;
+    }
+
     await this.addCpuSliceTracks(ctx);
     await this.addThreadStateTracks(ctx);
     await this.addMinimapProvider(ctx);
+    this.addSchedulingSummaryTracks(ctx);
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.Sched#SelectAllThreadStateTracks',
+      id: 'dev.perfetto.SelectAllThreadStateTracks',
       name: 'Select all thread state tracks',
       callback: () => {
         const tracks = ctx.tracks
@@ -125,14 +146,19 @@ export default class implements PerfettoPlugin {
     const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
+    const group = new TrackNode({
+      name: 'CPU Scheduling',
+      sortOrder: -50,
+      isSummary: true,
+      collapsed: false,
+    });
     for (const cpu of cpus) {
       const uri = uriForSchedTrack(cpu.ucpu);
       const size = cpuToClusterType.get(cpu.cpu);
       const sizeStr = size === undefined ? `` : ` (${size})`;
-      const name = `Cpu ${cpu.cpu}${sizeStr}${cpu.maybeMachineLabel()}`;
+      const name = `CPU ${cpu.cpu} Scheduling${sizeStr}${cpu.maybeMachineLabel()}`;
 
       const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
-
       ctx.tracks.registerTrack({
         description: () => {
           return m('', [
@@ -156,8 +182,10 @@ export default class implements PerfettoPlugin {
         },
         renderer: new CpuSliceTrack(ctx, uri, cpu, threads),
       });
-      const trackNode = new TrackNode({uri, name, sortOrder: -50});
-      ctx.workspace.addChildInOrder(trackNode);
+      group.addChildInOrder(new TrackNode({name, uri}));
+    }
+    if (group.children.length > 0) {
+      ctx.workspace.addChildInOrder(group);
     }
 
     ctx.tracks.registerOverlay(new WakerOverlay(ctx));
@@ -283,11 +311,6 @@ export default class implements PerfettoPlugin {
   }
 
   private async addMinimapProvider(trace: Trace) {
-    const hasSched = await this.hasSched(trace.engine);
-    if (!hasSched) {
-      return;
-    }
-
     trace.minimap.registerContentProvider({
       priority: 2, // Higher priority than the default slices minimap
       getData: async (_, resolution) => {
@@ -374,5 +397,91 @@ export default class implements PerfettoPlugin {
   private async hasSched(engine: Engine): Promise<boolean> {
     const result = await engine.query(`SELECT ts FROM sched LIMIT 1`);
     return result.numRows() > 0;
+  }
+
+  private addSchedulingSummaryTracks(ctx: Trace) {
+    const summaryGroup = new TrackNode({name: 'Scheduler', isSummary: true});
+    ctx.workspace.addChildInOrder(summaryGroup);
+
+    const runnableThreadCountTitle = 'Runnable thread count';
+    const runnableThreadCountUri = `/runnable_thread_count`;
+    ctx.tracks.registerTrack({
+      uri: runnableThreadCountUri,
+      renderer: new RunnableThreadCountTrack(ctx, runnableThreadCountUri),
+    });
+    const runnableThreadCountTrackNode = new TrackNode({
+      name: runnableThreadCountTitle,
+      uri: runnableThreadCountUri,
+    });
+    summaryGroup.addChildLast(runnableThreadCountTrackNode);
+    // This command only pins the track but the name remains for legacy reasons
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Sched.AddRunnableThreadCountTrackCommand',
+      name: `Add track: ${runnableThreadCountTitle.toLowerCase()}`,
+      callback: () => runnableThreadCountTrackNode.pin(),
+    });
+
+    const uninterruptibleSleepThreadCountUri =
+      '/uninterruptible_sleep_thread_count';
+    const uninterruptibleSleepThreadCountTitle =
+      'Uninterruptible Sleep thread count';
+    ctx.tracks.registerTrack({
+      uri: uninterruptibleSleepThreadCountUri,
+      renderer: new UninterruptibleSleepThreadCountTrack(
+        ctx,
+        uninterruptibleSleepThreadCountUri,
+      ),
+    });
+    const uninterruptibleSleepThreadCountTrackNode = new TrackNode({
+      name: uninterruptibleSleepThreadCountTitle,
+      uri: uninterruptibleSleepThreadCountUri,
+    });
+    summaryGroup.addChildLast(uninterruptibleSleepThreadCountTrackNode);
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Sched.AddUninterruptibleSleepThreadCountTrackCommand',
+      name: 'Add track: uninterruptible sleep thread count',
+      callback: () => uninterruptibleSleepThreadCountTrackNode.pin(),
+    });
+
+    const activeCpuCountUri = uriForActiveCPUCountTrack();
+    const activeCpuCountTitle = 'Active CPU count';
+    ctx.tracks.registerTrack({
+      uri: activeCpuCountUri,
+      renderer: new ActiveCPUCountTrack({trackUri: activeCpuCountUri}, ctx),
+    });
+    const activeCpuCountTrackNode = new TrackNode({
+      name: activeCpuCountTitle,
+      uri: activeCpuCountUri,
+    });
+    summaryGroup.addChildLast(activeCpuCountTrackNode);
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
+      name: 'Add track: active CPU count',
+      callback: () => activeCpuCountTrackNode.pin(),
+    });
+
+    for (const cpuType of Object.values(CPUType)) {
+      const activeCpuTypeCountUri = uriForActiveCPUCountTrack(cpuType);
+      const activeCpuTypeCountTitle = `Active CPU count: ${cpuType}`;
+      ctx.tracks.registerTrack({
+        uri: activeCpuTypeCountUri,
+        renderer: new ActiveCPUCountTrack(
+          {trackUri: activeCpuTypeCountUri},
+          ctx,
+          cpuType,
+        ),
+      });
+      const activeCpuTypeCountTrackNode = new TrackNode({
+        name: activeCpuTypeCountTitle,
+        uri: activeCpuTypeCountUri,
+      });
+      activeCpuCountTrackNode.addChildLast(activeCpuTypeCountTrackNode);
+
+      ctx.commands.registerCommand({
+        id: `dev.perfetto.Sched.AddActiveCPUCountTrackCommand.${cpuType}`,
+        name: `Add track: active ${cpuType} CPU count`,
+        callback: () => activeCpuTypeCountTrackNode.pin(),
+      });
+    }
   }
 }

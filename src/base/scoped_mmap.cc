@@ -27,7 +27,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 namespace perfetto::base {

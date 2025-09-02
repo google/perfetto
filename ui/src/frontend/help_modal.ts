@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {AppImpl} from '../core/app_impl';
-import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
+import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 import {
@@ -35,7 +35,7 @@ export function toggleHelp() {
 }
 
 function keycap(glyph: m.Children): m.Children {
-  return m('.keycap', glyph);
+  return m(Keycap, {spacing: 'large'}, glyph);
 }
 
 // A fallback keyboard map based on the QWERTY keymap. Converts keyboard event
@@ -80,7 +80,7 @@ class KeyMappingsHelp implements m.ClassComponent {
 
   view(): m.Children {
     return m(
-      '.help',
+      '.pf-help-modal',
       m('h2', 'Navigation'),
       m(
         'table',
@@ -164,7 +164,13 @@ class KeyMappingsHelp implements m.ClassComponent {
           .map(({defaultHotkey, name}) => {
             return m(
               'tr',
-              m('td', m(HotkeyGlyphs, {hotkey: assertExists(defaultHotkey)})),
+              m(
+                'td',
+                m(HotkeyGlyphs, {
+                  spacing: 'large',
+                  hotkey: assertExists(defaultHotkey),
+                }),
+              ),
               m('td', name),
             );
           }),

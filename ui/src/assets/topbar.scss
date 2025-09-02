@@ -12,199 +12,164 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "widgets/theme";
+@import "theme";
 
 @mixin omnibox-width() {
-  width: 90%;
-  max-width: 600px;
 }
 
-.topbar {
+.pf-topbar {
   grid-area: topbar;
   position: relative;
   z-index: 3;
   overflow: visible;
-  background-color: hsl(215, 1%, 95%);
-  box-shadow: 0px 1px 2px 1px #00000026;
+  background-color: var(--pf-color-background-secondary);
+  box-shadow: $box-shadow-1;
   min-height: var(--topbar-height);
   display: flex;
   justify-content: center;
   align-items: center;
-  .omnibox {
-    @include omnibox-width();
-    @include transition(0.25s);
-    display: grid;
-    grid-template-areas: "icon input stepthrough";
-    grid-template-columns: 34px auto max-content;
-    border-radius: $pf-border-radius;
-    background-color: white;
-    border: solid 1px transparent;
-    &:focus-within {
-      border-color: $pf-colour-thin-border;
-      box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+
+  &--hide-sidebar {
+    .pf-omnibox--query-mode {
+      padding-left: 48px;
     }
-    line-height: 34px;
+  }
+
+  &__error-box {
+    position: absolute;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    font-size: 20px;
+  }
+
+  &__error-popup {
+    width: 100px;
+    font-size: 14px;
+    font-family: var(--pf-font-compact);
+  }
+}
+
+.pf-omnibox {
+  @include transition(0.25s);
+  width: 90%;
+  max-width: 600px;
+  display: grid;
+  grid-template-areas: "icon input stepthrough";
+  grid-template-columns: 34px auto max-content;
+  border-radius: $border-radius;
+  background-color: var(--pf-color-background);
+  border: solid 1px transparent;
+  line-height: 34px;
+
+  &:focus-within {
+    border-color: var(--pf-color-primary);
+    box-shadow: $box-shadow-1;
+  }
+
+  &:before {
+    @include material-icon("search");
+    margin: 5px;
+    color: var(--pf-color-text-muted);
+    grid-area: icon;
+  }
+
+  input {
+    grid-area: input;
+    border: 0;
+    padding: 0 10px;
+    font-size: 18px;
+    font-family: inherit;
+    color: inherit;
+    background-color: transparent;
+
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--pf-color-text-muted);
+      font-family: var(--pf-font-compact);
+      font-weight: 400;
+    }
+  }
+
+  &--query-mode {
+    background-color: #111;
+    border-radius: 0;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 0;
+    height: var(--topbar-height);
+    border: none;
+
+    input {
+      color: #9ddc67;
+      font-family: var(--pf-font-monospace);
+      padding-left: 0;
+    }
+
     &:before {
-      @include material-icon("search");
+      content: "attach_money";
+      color: #9ddc67;
+      font-size: 26px;
+      padding-top: 5px;
+    }
+  }
+
+  &--command-mode {
+    &:before {
+      @include material-icon("chevron_right");
       margin: 5px;
-      color: #aaa;
+      color: var(--pf-color-text-muted);
       grid-area: icon;
     }
-    input {
-      grid-area: input;
-      border: 0;
-      padding: 0 10px;
-      font-size: 18px;
-      font-family: "Roboto Condensed", sans-serif;
-      font-weight: 300;
-      color: #666;
-      background-color: transparent;
-      &:focus {
-        outline: none;
-      }
-      &::placeholder {
-        color: #b4b7ba;
-        font-family: "Roboto Condensed", sans-serif;
-        font-weight: 400;
-      }
-    }
-    &.query-mode {
-      background-color: #111;
-      border-radius: 0;
-      width: 100%;
-      max-width: 100%;
-      margin-top: 0;
-      border-left: 1px solid #404854;
-      height: var(--topbar-height);
-      input {
-        color: #9ddc67;
-        font-family: var(--monospace-font);
-        padding-left: 0;
-      }
-      &:before {
-        content: "attach_money";
-        color: #9ddc67;
-        font-size: 26px;
-        padding-top: 5px;
-      }
-    }
-    &.command-mode {
-      &:before {
-        @include material-icon("chevron_right");
-        margin: 5px;
-        color: #aaa;
-        grid-area: icon;
-      }
-    }
-    &.prompt-mode {
-      &:before {
-        @include material-icon("question_mark");
-        margin: 5px;
-        color: #aaa;
-        grid-area: icon;
-      }
-    }
-    &.message-mode {
-      background-color: hsl(0, 0%, 89%);
-      border-radius: $pf-border-radius;
-      input::placeholder {
-        font-weight: 400;
-        font-family: var(--monospace-font);
-        color: hsl(213, 40%, 50%);
-      }
-      &:before {
-        content: "info";
-      }
-    }
-    .stepthrough {
-      grid-area: stepthrough;
-      display: flex;
-      font: inherit;
-      font-size: 14px;
-      font-family: "Roboto Condensed", sans-serif;
-      font-weight: 300;
-      color: #aaa;
-      .current {
-        padding-right: 10px;
-      }
-      .material-icons.left {
-        border-right: rgb(218, 217, 217) solid 1px;
-      }
+  }
+
+  &--prompt-mode {
+    &:before {
+      @include material-icon("question_mark");
+      margin: 5px;
+      color: var(--pf-color-text-muted);
+      grid-area: icon;
     }
   }
 
-  .notification-btn {
-    @include transition(0.25s);
-    font-size: 16px;
-    padding: 8px 10px;
-    margin: 0 10px;
-    border-radius: 2px;
-    background: hsl(210, 10%, 73%);
-    &:hover {
-      background: hsl(210, 10%, 83%);
+  &--message-mode {
+    border-radius: $border-radius;
+    input::placeholder {
+      font-weight: 400;
+      font-family: var(--pf-font-monospace);
+      color: var(--pf-color-text-muted);
     }
-
-    &.preferred {
-      background: hsl(210, 98%, 53%);
-      color: #fff;
-      &:hover {
-        background: hsl(210, 98%, 63%);
-      }
+    &:before {
+      content: "info";
     }
   }
-}
 
-.error-box {
-  position: absolute;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  .error {
-    color: #ef6c00;
-    &:hover {
-      cursor: pointer;
+  &__stepthrough {
+    grid-area: stepthrough;
+    display: flex;
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--pf-color-text-muted);
+
+    &-current {
+      padding-right: 10px;
     }
-  }
-  .popup-trigger {
-    width: 0px;
-    height: 0px;
-  }
-}
-
-.error-popup {
-  width: 100px;
-  font-size: 14px;
-  font-family: "Roboto Condensed", sans-serif;
-}
-
-.hint-text {
-  padding-bottom: 5px;
-}
-
-.hint-dismiss-button {
-  color: #f4fafb;
-  background-color: #19212b;
-  width: fit-content;
-  padding: 3px;
-  border-radius: 3px;
-}
-
-.hide-sidebar {
-  .query-mode {
-    padding-left: 48px;
   }
 }
 
 .pf-omnibox-dropdown {
-  font-family: $pf-font;
-
-  .pf-keycap {
-    font-size: smaller;
-  }
+  font-family: var(--pf-font-compact);
 
   ul {
     padding: 0;
     margin: 0;
+  }
+
+  .pf-keycap {
+    font-size: smaller;
   }
 
   .pf-omnibox-options-container {
@@ -214,7 +179,7 @@
     .pf-omnibox-section-header {
       font-size: smaller;
       margin: 4px 0;
-      border-bottom: solid 1px $pf-colour-thin-border;
+      border-bottom: solid 1px var(--pf-color-border);
     }
 
     li {
@@ -222,32 +187,27 @@
       display: flex;
       gap: 4px;
       user-select: none;
-      font-family: $pf-font;
       cursor: pointer;
       padding: 4px 8px;
-      border-radius: $pf-border-radius;
+      border-radius: $border-radius;
       align-items: center;
-      font-weight: lighter;
       line-height: 1.2;
 
       .pf-title {
         flex-grow: 1;
       }
 
-      .pf-tag {
-        border-radius: 10px;
-        background: $pf-minimal-background-hover;
-        padding: 0 6px;
+      .pf-omnibox__tag {
         font-size: smaller;
       }
 
       &:hover {
-        background-color: $pf-minimal-background-hover;
+        background-color: color_hover(transparent);
       }
 
       &.pf-highlighted {
-        background-color: $pf-primary-background;
-        color: white;
+        background-color: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
       }
     }
   }
@@ -257,16 +217,12 @@
     justify-content: center;
     padding: 8px 0 6px 0;
     gap: 12px;
-    border-top: solid 1px $pf-colour-thin-border;
+    border-top: solid 1px var(--pf-color-border);
 
     section {
       display: flex;
       justify-content: center;
       gap: 4px;
-
-      .pf-keycap {
-        margin: 0 2px;
-      }
     }
   }
 }

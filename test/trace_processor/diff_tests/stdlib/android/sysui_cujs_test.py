@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -50,6 +50,6 @@ class SystemUICujs(TestSuite):
         """,
         out=Csv("""
         "cuj_id","upid","process_name","cuj_slice_name","cuj_name","slice_id","ts","ts_end","dur","state"
-        4,1,"com.android.systemui","L<IGNORED_CUJ_1>","IGNORED_CUJ_1",52,150000000,155000000,5000000,"completed"
-        5,1,"com.android.systemui","L<IGNORED_CUJ_2>","IGNORED_CUJ_2",57,156000000,160000000,4000000,"completed"
+        4,1,"com.android.systemui","L<IGNORED_CUJ_1>","IGNORED_CUJ_1",53,150000000,155000000,5000000,"completed"
+        5,1,"com.android.systemui","L<IGNORED_CUJ_2>","IGNORED_CUJ_2",58,156000000,160000000,4000000,"completed"
         """))

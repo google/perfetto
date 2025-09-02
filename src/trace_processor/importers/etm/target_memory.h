@@ -62,6 +62,7 @@ class TargetMemory : public Destructible {
 
  private:
   explicit TargetMemory(TraceProcessorContext* context);
+
   VirtualAddressSpace* FindUserSpaceForTid(uint32_t tid) const;
   std::optional<UniquePid> FindUpidForTid(uint32_t tid) const;
 

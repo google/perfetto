@@ -27,7 +27,9 @@ export type StandardGroup =
   | 'GPU'
   | 'NETWORK'
   | 'DEVICE_STATE'
-  | 'SYSTEM';
+  | 'SYSTEM'
+  | 'KERNEL'
+  | 'HYPERVISOR';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.StandardGroups';
@@ -45,6 +47,8 @@ export default class implements PerfettoPlugin {
     NETWORK: makeGroupNode('Network'),
     DEVICE_STATE: makeGroupNode('Device State'),
     SYSTEM: makeGroupNode('System'),
+    KERNEL: makeGroupNode('Kernel'),
+    HYPERVISOR: makeGroupNode('Hypervisor'),
   };
 
   async onTraceLoad() {}

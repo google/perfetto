@@ -28,11 +28,10 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
@@ -43,7 +42,11 @@
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/thermal_tracker.h"
+#include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
+#include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
+#include "src/trace_processor/importers/i2c/i2c_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -342,19 +345,23 @@ class FtraceParser {
                               int64_t timestamp,
                               protozero::ConstBytes blob);
   void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
+  void ParseDmabufRssStat(int64_t ts, uint32_t pid, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
 
-  RssStatTracker rss_stat_tracker_;
   DrmTracker drm_tracker_;
-  IostatTracker iostat_tracker_;
-  VirtioGpuTracker virtio_gpu_tracker_;
-  MaliGpuEventTracker mali_gpu_event_tracker_;
-  PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
   GpuWorkPeriodTracker gpu_work_period_tracker_;
-  ThermalTracker thermal_tracker_;
+  I2cTracker i2c_tracker_;
+  IostatTracker iostat_tracker_;
+  MaliGpuEventTracker mali_gpu_event_tracker_;
   PixelMmKswapdEventTracker pixel_mm_kswapd_event_tracker_;
+  PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
+  RssStatTracker rss_stat_tracker_;
+  ThermalTracker thermal_tracker_;
+  V4l2Tracker v4l2_tracker_;
+  VirtioGpuTracker virtio_gpu_tracker_;
+  VirtioVideoTracker virtio_video_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;

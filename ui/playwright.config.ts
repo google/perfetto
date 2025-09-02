@@ -23,6 +23,7 @@ const outDir = process.env.OUT_DIR ?? '../out/ui';
 const ciChromePath = '/tmp/chrome/opt/google/chrome/google-chrome';
 
 export default defineConfig({
+  timeout: 60_000,
   testDir: './src',
   snapshotDir: '../test/data/ui-screenshots',
   snapshotPathTemplate: '{snapshotDir}/{testFileName}/{testName}/{arg}{ext}',
@@ -44,7 +45,8 @@ export default defineConfig({
     timeout: 5000,
     toHaveScreenshot: {
       // Rendering is not 100% identical on Mac. Be more tolerant.
-      maxDiffPixelRatio: isMac ? 0.05 : 0.02,
+      // Otherwise, allow for small differences between rendering engines on Linux machines.
+      maxDiffPixelRatio: isMac ? 0.05 : 0.0001,
     },
   },
 

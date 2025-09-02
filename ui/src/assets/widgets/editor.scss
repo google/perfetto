@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-editor {
   .cm-editor {
     height: 100%;
 
     .cm-scroller {
-      font-family: var(--monospace-font);
+      font-family: var(--pf-font-monospace);
       font-size: 13px;
     }
   }

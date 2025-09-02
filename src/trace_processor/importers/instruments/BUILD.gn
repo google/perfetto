@@ -44,7 +44,8 @@ if (enable_perfetto_trace_processor_mac_instruments) {
       "../../sorter",
       "../../storage",
       "../../types",
-      "../common:common",
+      "../../util:build_id",
+      "../common",
     ]
   }
 }

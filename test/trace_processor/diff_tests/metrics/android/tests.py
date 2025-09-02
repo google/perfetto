@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -36,7 +36,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
-              interface: "wlan"
+              network_interface: "wlan"
               uid: 123
             }
             packet_timestamps: [
@@ -54,7 +54,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
-              interface: "wlan"
+              network_interface: "wlan"
               uid: 456
             }
             total_duration: 100
@@ -67,7 +67,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
-              interface: "wlan"
+              network_interface: "wlan"
               uid: 456
             }
             total_duration: 100
@@ -80,7 +80,7 @@ class AndroidMetrics(TestSuite):
           network_packet_bundle {
             ctx {
               direction: DIR_INGRESS
-              interface: "loopback"
+              network_interface: "loopback"
               uid: 123
             }
             packet_timestamps: [6000]

@@ -33,7 +33,8 @@ namespace perfetto::trace_processor {
 
 class TrackEventModule : public ProtoImporterModule {
  public:
-  explicit TrackEventModule(TraceProcessorContext* context);
+  explicit TrackEventModule(ProtoImporterModuleContext* module_context,
+                            TraceProcessorContext* context);
 
   ~TrackEventModule() override;
 

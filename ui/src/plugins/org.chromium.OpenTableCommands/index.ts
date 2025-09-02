@@ -29,68 +29,68 @@ export default class implements PerfettoPlugin {
   static readonly id = 'org.Chromium.OpenTableCommands';
 
   async onTraceLoad(ctx: Trace) {
-    sqlTableRegistry['slice'] = getSliceTable();
+    sqlTableRegistry['slice'] = getSliceTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.slice',
+      id: 'org.chromium.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
-          table: getSliceTable(),
+          table: getSliceTable(ctx),
         });
       },
     });
 
-    sqlTableRegistry['thread'] = getThreadTable();
+    sqlTableRegistry['thread'] = getThreadTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.thread',
+      id: 'org.chromium.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
-          table: getThreadTable(),
+          table: getThreadTable(ctx),
         });
       },
     });
 
-    sqlTableRegistry['process'] = getThreadTable();
+    sqlTableRegistry['process'] = getThreadTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.process',
+      id: 'org.chromium.ShowTable.process',
       name: 'Open table: process',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
-          table: getProcessTable(),
+          table: getProcessTable(ctx),
         });
       },
     });
 
-    sqlTableRegistry['sched'] = getSchedTable();
+    sqlTableRegistry['sched'] = getSchedTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.sched',
+      id: 'org.chromium.ShowTable.sched',
       name: 'Open table: sched',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
-          table: getSchedTable(),
+          table: getSchedTable(ctx),
         });
       },
     });
 
-    sqlTableRegistry['thread_state'] = getThreadStateTable();
+    sqlTableRegistry['thread_state'] = getThreadStateTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.thread_state',
+      id: 'org.chromium.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
-          table: getThreadStateTable(),
+          table: getThreadStateTable(ctx),
         });
       },
     });
 
-    sqlTableRegistry['android_logs'] = getAndroidLogsTable();
+    sqlTableRegistry['android_logs'] = getAndroidLogsTable;
     ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.android_logs',
+      id: 'org.chromium.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
         extensions.addLegacySqlTableTab(ctx, {
-          table: getAndroidLogsTable(),
+          table: getAndroidLogsTable(ctx),
         });
       },
     });

@@ -45,7 +45,13 @@ WITH
       ("neo", 0, 100000),
       ("neo", 1, 100000),
       ("neo", 2, 100000),
-      ("neo", 3, 100000)) AS _values
+      ("neo", 3, 100000),
+      ("SXR2230P", 0, 0),
+      ("SXR2230P", 1, 0),
+      ("SXR2230P", 2, 0),
+      ("SXR2230P", 3, 0),
+      ("SXR2230P", 4, 0),
+      ("SXR2230P", 5, 0)) AS _values
   )
 SELECT
   *
@@ -133,11 +139,16 @@ WITH
       ("Tensor G4", 5, 4),
       ("Tensor G4", 6, 4),
       ("Tensor G4", 7, 7),
-      ("Tensor G4", 255, 255),
       ("neo", 0, 0),
       ("neo", 1, 0),
       ("neo", 2, 0),
-      ("neo", 3, 0)) AS _values
+      ("neo", 3, 0),
+      ("SXR2230P", 0, 0),
+      ("SXR2230P", 1, 0),
+      ("SXR2230P", 2, 2),
+      ("SXR2230P", 3, 2),
+      ("SXR2230P", 4, 2),
+      ("SXR2230P", 5, 2)) AS _values
   )
 SELECT
   *
@@ -179,9 +190,12 @@ JOIN _wattson_device AS device
 CREATE PERFETTO TABLE _skip_devfreq_for_calc AS
 SELECT
   FALSE AS devfreq_necessary
-FROM _use_devfreq AS d
-JOIN _wattson_device AS device
-  ON d.device != device.name;
+WHERE
+  NOT EXISTS(
+    SELECT
+      *
+    FROM _use_devfreq_for_calc
+  );
 
 -- Devices that require idle state mapping
 CREATE PERFETTO TABLE _idle_state_map AS
@@ -193,7 +207,11 @@ WITH
       ("neo", 4294967295, -1),
       ("neo", 0, 0),
       ("neo", 1, 1),
-      ("neo", 2, 1)) AS _values
+      ("neo", 2, 1),
+      ("SXR2230P", 4294967295, -1),
+      ("SXR2230P", 0, 0),
+      ("SXR2230P", 1, 1),
+      ("SXR2230P", 2, 1)) AS _values
   )
 SELECT
   *

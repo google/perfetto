@@ -71,7 +71,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   constexpr int64_t kTimestamp = 1;
 
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.storage = std::make_unique<TraceStorage>();
   context.process_tracker = std::make_unique<ProcessTracker>(&context);
   context.process_tracker->GetOrCreateProcess(kPid);
 

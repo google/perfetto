@@ -16,29 +16,34 @@
 
 #include "src/trace_processor/importers/proto/pixel_modem_module.h"
 
-#include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/string_writer.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include <cstdint>
+#include <utility>
 
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/pixel_modem_parser.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 
-#include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/trace/android/pixel_modem_events.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-PixelModemModule::PixelModemModule(TraceProcessorContext* context)
-    : context_(context), parser_(context) {
-  RegisterForField(TracePacket::kPixelModemEventsFieldNumber, context);
-  RegisterForField(TracePacket::kPixelModemTokenDatabaseFieldNumber, context);
+PixelModemModule::PixelModemModule(ProtoImporterModuleContext* module_context,
+                                   TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context), parser_(context) {
+  RegisterForField(TracePacket::kPixelModemEventsFieldNumber);
+  RegisterForField(TracePacket::kPixelModemTokenDatabaseFieldNumber);
 }
 
 ModuleResult PixelModemModule::TokenizePacket(
@@ -56,9 +61,8 @@ ModuleResult PixelModemModule::TokenizePacket(
     base::Status status = parser_.SetDatabase(database.database());
     if (status.ok()) {
       return ModuleResult::Handled();
-    } else {
-      return ModuleResult::Error(status.message());
     }
+    return ModuleResult::Error(status.message());
   }
 
   if (field_id != TracePacket::kPixelModemEventsFieldNumber) {
@@ -93,10 +97,10 @@ ModuleResult PixelModemModule::TokenizePacket(
     // not read this.
     data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
     data_packet->set_pixel_modem_events()->add_events(event_bytes);
-    std::vector<uint8_t> vec = data_packet.SerializeAsArray();
-    TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
-    context_->sorter->PushTracePacket(ts, state, TraceBlobView(std::move(blob)),
-                                      context_->machine_id());
+    auto [vec, size] = data_packet.SerializeAsUniquePtr();
+    TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+    module_context_->trace_packet_stream->Push(
+        ts, TracePacketData{std::move(tbv), state});
   }
 
   return ModuleResult::Handled();
@@ -118,5 +122,4 @@ void PixelModemModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
   parser_.ParseEvent(ts, decoder.timestamp(), *it);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

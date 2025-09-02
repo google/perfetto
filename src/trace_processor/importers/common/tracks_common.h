@@ -133,6 +133,22 @@ inline constexpr auto kCpuFrequencyBlueprint = tracks::CounterBlueprint(
     tracks::DimensionBlueprints(kCpuDimensionBlueprint),
     tracks::StaticNameBlueprint("cpufreq"));
 
+inline constexpr auto kCpuMaxFrequencyLimitBlueprint = tracks::CounterBlueprint(
+    "cpu_max_frequency_limit",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
+    }));
+
+inline constexpr auto kCpuMinFrequencyLimitBlueprint = tracks::CounterBlueprint(
+    "cpu_min_frequency_limit",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
+    }));
+
 inline constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
     "gpu_frequency",
     tracks::StaticUnitBlueprint("MHz"),
@@ -236,8 +252,16 @@ inline constexpr auto kMmEventThreadFallbackBlueprint =
             tracks::StringDimensionBlueprint("mm_event_metric")),
         kMmEventFnNameBlueprint);
 
-inline constexpr auto kPerfCounterBlueprint = tracks::CounterBlueprint(
-    "perf_counter",
+inline constexpr auto kPerfGlobalCounterBlueprint = tracks::CounterBlueprint(
+    "perf_global_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::UintDimensionBlueprint("perf_session_id"),
+        tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
+inline constexpr auto kPerfCpuCounterBlueprint = tracks::CounterBlueprint(
+    "perf_cpu_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
         tracks::kCpuDimensionBlueprint,

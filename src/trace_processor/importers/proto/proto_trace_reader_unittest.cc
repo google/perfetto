@@ -15,14 +15,25 @@
  */
 
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include <memory>
 
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
-
+#include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -41,6 +52,10 @@ class ProtoTraceReaderTest : public ::testing::Test {
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
     context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
+    context_.sorter = std::make_unique<TraceSorter>(
+        &context_, TraceSorter::SortingMode::kDefault);
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
     proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
@@ -96,7 +111,8 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
   clock->set_timestamp(135000);
 
   ASSERT_TRUE(Tokenize().ok());
-  ASSERT_EQ(1u, context_.clock_tracker->clock_offsets_for_testing().size());
+  ASSERT_EQ(1u,
+            context_.clock_tracker->remote_clock_offsets_for_testing().size());
 }
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
@@ -132,7 +148,8 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
 
   ASSERT_TRUE(Tokenize().ok());
   // No valid clock offset.
-  ASSERT_EQ(0u, context_.clock_tracker->clock_offsets_for_testing().size());
+  ASSERT_EQ(0u,
+            context_.clock_tracker->remote_clock_offsets_for_testing().size());
 }
 
 TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {
@@ -146,8 +163,8 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {
   snapshots[REALTIME] = {150000, 35000};
   sync_clock_snapshots.push_back(std::move(snapshots));
 
-  auto clock_offsets = proto_trace_reader_->CalculateClockOffsetsForTesting(
-      sync_clock_snapshots);
+  auto clock_offsets = perfetto::trace_processor::ProtoTraceReader::
+      CalculateClockOffsetsForTesting(sync_clock_snapshots);
   ASSERT_EQ(2u, clock_offsets.size());
   // Client 10000      20000
   // Host     120000     140000
@@ -177,8 +194,8 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset_AboveThreshold) {
   snapshots[REALTIME] = {135000 + interval, 25000 + interval};
   sync_clock_snapshots.push_back(std::move(snapshots));
 
-  auto clock_offsets = proto_trace_reader_->CalculateClockOffsetsForTesting(
-      sync_clock_snapshots);
+  auto clock_offsets = perfetto::trace_processor::ProtoTraceReader::
+      CalculateClockOffsetsForTesting(sync_clock_snapshots);
   ASSERT_EQ(0u, clock_offsets.size());
 }
 
@@ -201,8 +218,8 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset_MultiRounds) {
   snapshots[BOOTTIME] = {170000 + interval, 45000 + interval};
   sync_clock_snapshots.push_back(std::move(snapshots));
 
-  auto clock_offsets = proto_trace_reader_->CalculateClockOffsetsForTesting(
-      sync_clock_snapshots);
+  auto clock_offsets = perfetto::trace_processor::ProtoTraceReader::
+      CalculateClockOffsetsForTesting(sync_clock_snapshots);
   ASSERT_EQ(1u, clock_offsets.size());
   // Average(-105000, -110000, -122500, -120000) = -114375.
   ASSERT_EQ(-114375, clock_offsets[BOOTTIME]);

@@ -37,6 +37,10 @@ SELECT
   idle_2,
   freq_3,
   idle_3,
+  cpu0_curve,
+  cpu1_curve,
+  cpu2_curve,
+  cpu3_curve,
   cpu4_curve,
   cpu5_curve,
   cpu6_curve,
@@ -44,7 +48,9 @@ SELECT
   l3_hit_count,
   l3_miss_count,
   no_static,
-  all_cpu_deep_idle
+  all_cpu_deep_idle,
+  freq_1d_static,
+  freq_2d_static
 FROM _w_independent_cpus_calc AS base, _use_devfreq_for_calc;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
@@ -91,11 +97,10 @@ SELECT
   c.idle_2,
   c.freq_3,
   c.idle_3,
-  -- NULL columns needed to match columns of _get_max_vote before UNION
-  NULL AS cpu0_curve,
-  NULL AS cpu1_curve,
-  NULL AS cpu2_curve,
-  NULL AS cpu3_curve,
+  c.cpu0_curve,
+  c.cpu1_curve,
+  c.cpu2_curve,
+  c.cpu3_curve,
   c.cpu4_curve,
   c.cpu5_curve,
   c.cpu6_curve,
@@ -104,6 +109,8 @@ SELECT
   c.l3_miss_count,
   c.no_static,
   c.all_cpu_deep_idle,
+  c.freq_1d_static,
+  c.freq_2d_static,
   d.dsu_freq AS dependency
 FROM _interval_intersect!(
   (
