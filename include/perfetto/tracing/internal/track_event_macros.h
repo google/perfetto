@@ -139,9 +139,9 @@
           PERFETTO_GET_CATEGORY_INDEX(category);                               \
       tns::TrackEvent::CallIfCategoryEnabled(                                  \
           PERFETTO_UID(kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_), \
-          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
-            size_t category_from_index = PERFETTO_UID(                         \
-                kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_);        \
+          [&, category_from_index = PERFETTO_UID(                              \
+                  kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)](     \
+              uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
             tns::TrackEvent::method(                                           \
                 instances, category_from_index,                                \
                 ::perfetto::internal::DecayEventNameType(name),                \
@@ -224,7 +224,7 @@
              PERFETTO_GET_CATEGORY_INDEX(category)))
 #else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 #define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)           \
-  [&]() -> bool {                                              \
+  [&category]() -> bool {                                      \
     using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;          \
     if constexpr (::PERFETTO_TRACK_EVENT_NAMESPACE::internal:: \
                       IsDynamicCategory(category)) {           \
