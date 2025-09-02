@@ -25,38 +25,6 @@ INCLUDE PERFETTO MODULE android.cujs.sysui_cuj_counters;
 INCLUDE PERFETTO MODULE android.frames.jank_type;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
--- Table captures all Choreographer#doFrame within a CUJ boundary.
-DROP TABLE IF EXISTS _android_jank_cuj_do_frames;
-CREATE PERFETTO TABLE _android_jank_cuj_do_frames AS
-WITH do_frame_slice_with_end_ts AS (
-  SELECT
-    frame_id,
-    do_frame.ts,
-    upid,
-    slice.ts + slice.dur AS ts_end,
-    slice.track_id
-  FROM android_frames_choreographer_do_frame do_frame
-  JOIN slice USING(id)
-)
-SELECT
-  cuj.cuj_id,
-  cuj.ui_thread,
-  do_frame.*
-FROM thread
-JOIN android_sysui_jank_cujs cuj USING (upid)
-JOIN thread_track USING(utid)
-JOIN do_frame_slice_with_end_ts do_frame
-  ON do_frame.ts_end >= cuj.ts AND do_frame.ts <= cuj.ts_end AND do_frame.upid = cuj.upid
-  AND thread_track.id = do_frame.track_id
-WHERE
-  ((cuj.ui_thread IS NULL AND thread.is_main_thread)
-  -- Some CUJs use a dedicated thread for Choreographer callbacks
-  OR (cuj.ui_thread = thread.utid))
-  AND frame_id > 0
-  AND (frame_id >= begin_vsync OR begin_vsync is NULL)
-  AND (frame_id <= end_vsync OR end_vsync is NULL);
-
-
 -- Table captures additional data related to each frame in a CUJ. This information includes
 -- data like missed type of jank, missed app/sf frame, missed sf/hwui callbacks etc.
 DROP TABLE IF EXISTS _android_jank_cuj_frames_data;
@@ -135,7 +103,7 @@ WITH do_frame_ordered AS (
   SELECT
     *,
     -- ts_end of the previous do_frame, or -1 if no previous do_frame found
-    COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), -1) AS ts_prev_do_frame_end
+    COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY vsync ASC), -1) AS ts_prev_do_frame_end
   FROM _android_jank_cuj_do_frames
 ),
 trace_metrics_frame AS (
@@ -147,7 +115,8 @@ trace_metrics_frame AS (
        ELSE MAX(do_frame.ts_prev_do_frame_end, timeline.ts_expected)
    END AS ts
    FROM do_frame_ordered do_frame
-   LEFT JOIN _android_jank_cuj_frames_data timeline USING(cuj_id, frame_id)
+   LEFT JOIN _android_jank_cuj_frames_data timeline
+    ON do_frame.cuj_id = timeline.cuj_id AND do_frame.vsync = timeline.frame_id
 )
 SELECT
   cuj_id,
@@ -168,99 +137,10 @@ SELECT
   frame_layer_name
 FROM trace_metrics_frame;
 
--- Extract app and SF frame vsync scoped to CUJs.
-DROP TABLE IF EXISTS android_jank_cuj_app_sf_frame_timeline_match;
-CREATE PERFETTO TABLE android_jank_cuj_app_sf_frame_timeline_match AS
-SELECT
- cuj_id,
-   do_frame.upid AS app_upid,
-   app_vsync,
-   app_sf_match.sf_upid,
-   app_sf_match.sf_vsync
-FROM _android_jank_cuj_do_frames do_frame
-JOIN android_app_to_sf_frame_timeline_match app_sf_match
-  ON do_frame.frame_id = app_sf_match.app_vsync
-    AND do_frame.upid = app_sf_match.app_upid;
-
--- Extract ts and dur for a given slice name from the SF process main thread track.
-CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
-  slice_name_glob STRING)
-RETURNS TABLE(
-  cuj_id INT, utid INT, vsync INT, id INT,
-  name STRING, ts LONG, dur LONG, ts_end LONG)
-AS
-WITH sf_vsync AS (
-  SELECT DISTINCT cuj_id, sf_vsync AS vsync
-  FROM android_jank_cuj_app_sf_frame_timeline_match)
-SELECT
-  cuj_id,
-  utid,
-  sf_vsync.vsync,
-  slice.id,
-  slice.name,
-  slice.ts,
-  slice.dur,
-  slice.ts + slice.dur AS ts_end
-FROM slice
-JOIN _android_sf_main_thread main_thread USING (track_id)
-JOIN sf_vsync
-  ON CAST(STR_SPLIT(slice.name, " ", 1) AS INTEGER) = sf_vsync.vsync
-WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0
-ORDER BY cuj_id, vsync;
-
-DROP TABLE IF EXISTS android_jank_cuj_sf_commit_slice;
-CREATE PERFETTO TABLE android_jank_cuj_sf_commit_slice AS
-SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('commit *');
-
-DROP TABLE IF EXISTS android_jank_cuj_sf_composite_slice;
-CREATE PERFETTO TABLE android_jank_cuj_sf_composite_slice AS
-SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('composite *');
-
--- Older builds do not have the commit/composite but onMessageInvalidate instead
-DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
-CREATE PERFETTO TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
-SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
-
 -- Table captures CUJ scoped frame data for the SF process.
 DROP TABLE IF EXISTS android_jank_cuj_sf_frame_trace_data;
 CREATE PERFETTO TABLE android_jank_cuj_sf_frame_trace_data AS
--- Join `commit` and `composite` slices using vsync IDs.
--- We treat the two slices as a single "fake slice" that starts when `commit` starts, and ends
--- when `composite` ends.
-WITH combined_commit_composite_slice AS (
-  SELECT
-    cuj_id,
-    commit_slice.utid,
-    vsync,
-    commit_slice.ts,
-    composite_slice.ts_end,
-    composite_slice.ts_end - commit_slice.ts AS dur
-  FROM android_jank_cuj_sf_commit_slice commit_slice
-  JOIN android_jank_cuj_sf_composite_slice composite_slice USING(cuj_id, vsync)
-),
--- As older builds will not have separate commit/composite slices for each frame, but instead
--- a single `onMessageInvalidate`, we UNION ALL the two tables. Exactly one of them should
--- have data.
-main_thread_slice AS (
-  SELECT utid, cuj_id, vsync, ts, dur, ts_end FROM combined_commit_composite_slice
-  UNION ALL
-  SELECT utid, cuj_id, vsync, ts, dur, ts_end FROM android_jank_cuj_sf_on_message_invalidate_slice
-),
-sf_main_thread_cuj_frame_boundary AS (
-SELECT
-  cuj_id,
-  utid,
-  vsync,
-  expected_timeline.ts,
-  main_thread_slice.ts AS ts_main_thread_start,
-  main_thread_slice.ts_end,
-  main_thread_slice.ts_end - expected_timeline.ts AS dur
-FROM expected_frame_timeline_slice expected_timeline
-JOIN _android_sf_process USING (upid)
-JOIN main_thread_slice
-  ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER)
-),
-android_jank_cuj_sf_frame_base AS (
+WITH android_jank_cuj_sf_frame_base AS (
   SELECT DISTINCT
     boundary.cuj_id,
     boundary.vsync,
@@ -279,7 +159,7 @@ android_jank_cuj_sf_frame_base AS (
     -- for 60Hz.
     -- See similar expression in android_jank_cuj_frame_timeline.
     COALESCE(expected_timeline.dur, 16600000) AS dur_expected
-  FROM sf_main_thread_cuj_frame_boundary boundary
+  FROM _android_jank_cuj_sf_main_thread_frame_boundary boundary
   JOIN _android_sf_process sf_process
   JOIN actual_frame_timeline_slice actual_timeline
     ON actual_timeline.upid = sf_process.upid
