@@ -242,8 +242,10 @@ class PERFETTO_EXPORT_COMPONENT TrackEventCategoryRegistry {
   // passed in.
   static constexpr size_t kInvalidCategoryIndex = static_cast<size_t>(-1);
   static constexpr size_t kDynamicCategoryIndex = static_cast<size_t>(-2);
+
   constexpr size_t Find(const char* name, bool is_dynamic) const {
-    return CheckIsValidCategoryIndex(FindImpl(name, is_dynamic));
+    return is_dynamic ? kDynamicCategoryIndex
+                      : CheckIsValidCategoryIndex(FindImpl(name));
   }
 
   constexpr size_t Find(const DynamicCategory&, bool) const {
@@ -259,14 +261,11 @@ class PERFETTO_EXPORT_COMPONENT TrackEventCategoryRegistry {
 
  private:
   // TODO(skyostil): Make the compile-time routines nicer with C++14.
-  constexpr size_t FindImpl(const char* name,
-                            bool is_dynamic,
-                            size_t index = 0) const {
-    return is_dynamic                   ? kDynamicCategoryIndex
-           : (index == category_count_) ? kInvalidCategoryIndex
+  constexpr size_t FindImpl(const char* name, size_t index = 0) const {
+    return (index == category_count_) ? kInvalidCategoryIndex
            : StringEq(categories_[index].name, name)
                ? index
-               : FindImpl(name, false, index + 1);
+               : FindImpl(name, index + 1);
   }
 
   // A compile time helper for checking that a category index is valid.

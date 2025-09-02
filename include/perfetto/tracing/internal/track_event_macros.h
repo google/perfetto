@@ -118,28 +118,14 @@
 #define PERFETTO_INTERNAL_CONCAT(a, b) PERFETTO_INTERNAL_CONCAT2(a, b)
 #define PERFETTO_UID(prefix) PERFETTO_INTERNAL_CONCAT(prefix, __LINE__)
 
-#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
-// MSVC with /permissive- fails to build without this. Probably a compiler bug.
-#define PERFETTO_INTERNAL_STATIC_FOR_MSVC static
-#else
-// On the other hand, if we add static with clang, binary size of the chromium
-// build will increase dramatically.
-#define PERFETTO_INTERNAL_STATIC_FOR_MSVC
-#endif
-
 // Efficiently determines whether tracing is enabled for the given category, and
 // if so, emits one trace event with the given arguments.
 #define PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(method, category, name, ...) \
   do {                                                                         \
     ::perfetto::internal::ValidateEventNameType<decltype(name)>();             \
     namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                            \
-    /* Compute the category index outside the lambda to work around a */       \
-    /* GCC 7 bug */                                                            \
-    PERFETTO_INTERNAL_STATIC_FOR_MSVC constexpr auto PERFETTO_UID(             \
-        kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =               \
-        PERFETTO_GET_CATEGORY_INDEX(category);                                 \
-    if (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(         \
-            category)) {                                                       \
+    if constexpr (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::                 \
+                      IsDynamicCategory(category)) {                           \
       tns::TrackEvent::CallIfEnabled(                                          \
           [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
             tns::TrackEvent::method(                                           \
@@ -148,13 +134,16 @@
                 ##__VA_ARGS__);                                                \
           });                                                                  \
     } else {                                                                   \
+      static constexpr size_t PERFETTO_UID(                                    \
+          kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =             \
+          PERFETTO_GET_CATEGORY_INDEX(category);                               \
       tns::TrackEvent::CallIfCategoryEnabled(                                  \
           PERFETTO_UID(kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_), \
           [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
+            size_t category_from_index = PERFETTO_UID(                         \
+                kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_);        \
             tns::TrackEvent::method(                                           \
-                instances,                                                     \
-                PERFETTO_UID(                                                  \
-                    kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_),    \
+                instances, category_from_index,                                \
                 ::perfetto::internal::DecayEventNameType(name),                \
                 ##__VA_ARGS__);                                                \
           });                                                                  \
@@ -234,17 +223,17 @@
        : PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled(        \
              PERFETTO_GET_CATEGORY_INDEX(category)))
 #else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
-#define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)                     \
-  [&]() -> bool {                                                        \
-    using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;                    \
-    using ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory; \
-    constexpr auto PERFETTO_UID(index) =                                 \
-        PERFETTO_GET_CATEGORY_INDEX(category);                           \
-    constexpr auto PERFETTO_UID(dynamic) = IsDynamicCategory(category);  \
-    return PERFETTO_UID(dynamic)                                         \
-               ? TrackEvent::IsDynamicCategoryEnabled(                   \
-                     ::perfetto::DynamicCategory(category))              \
-               : TrackEvent::IsCategoryEnabled(PERFETTO_UID(index));     \
+#define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)           \
+  [&]() -> bool {                                              \
+    using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;          \
+    if constexpr (::PERFETTO_TRACK_EVENT_NAMESPACE::internal:: \
+                      IsDynamicCategory(category)) {           \
+      return TrackEvent::IsDynamicCategoryEnabled(             \
+          ::perfetto::DynamicCategory(category));              \
+    } else {                                                   \
+      return TrackEvent::IsCategoryEnabled(                    \
+          PERFETTO_GET_CATEGORY_INDEX(category));              \
+    }                                                          \
   }()
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 
