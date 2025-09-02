@@ -168,23 +168,6 @@ WHERE
   slice.name GLOB 'waiting for GPU completion *'
   AND slice.dur > 0;
 
--- Match the frame timeline on the app side with the frame timeline on the SF side.
--- This way we get the vsyncs IDs of SF frames within the CUJ.
--- Note that there might be multiple SF vsync IDs that match a single App vsync ID, e.g.
--- if one App layer produced a frame later and it was picked up by the next SF frame.
-DROP TABLE IF EXISTS android_jank_cuj_app_to_sf_match;
-CREATE PERFETTO TABLE android_jank_cuj_app_to_sf_match AS
-SELECT
-  cuj_id,
-  do_frame.upid AS app_upid,
-  do_frame.vsync AS app_vsync,
-  app_sf_match.sf_upid,
-  app_sf_match.sf_vsync
-FROM _android_jank_cuj_do_frames do_frame
-JOIN android_app_to_sf_frame_timeline_match app_sf_match
-  ON do_frame.vsync = app_sf_match.app_vsync
-  AND do_frame.upid = app_sf_match.app_upid;
-
 CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
   slice_name_glob STRING)
 RETURNS TABLE(
@@ -193,7 +176,7 @@ RETURNS TABLE(
 AS
 WITH sf_vsync AS (
   SELECT DISTINCT cuj_id, sf_vsync AS vsync
-  FROM android_jank_cuj_app_to_sf_match)
+  FROM _android_jank_cuj_app_sf_frame_timeline_match)
 SELECT
   cuj_id,
   utid,
