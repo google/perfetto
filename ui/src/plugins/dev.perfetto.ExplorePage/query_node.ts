@@ -82,6 +82,7 @@ export interface Query {
   textproto: string;
   modules: string[];
   preambles: string[];
+  columns: string[];
 }
 
 export function createSelectColumnsProto(
@@ -152,6 +153,7 @@ export async function analyzeNode(
       textproto: '',
       modules: [],
       preambles: [],
+      columns: [],
     };
     return sql;
   }
@@ -195,6 +197,7 @@ export async function analyzeNode(
     textproto: lastRes.textproto ?? '',
     modules: lastRes.modules ?? [],
     preambles: lastRes.preambles ?? [],
+    columns: lastRes.columns ?? [],
   };
   return sql;
 }

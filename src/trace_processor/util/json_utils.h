@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_UTILS_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_JSON_UTILS_H_
+#define SRC_TRACE_PROCESSOR_UTIL_JSON_UTILS_H_
 
 #include <optional>
 #include <string_view>
@@ -23,7 +23,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/json/json_parser.h"
+#include "src/trace_processor/util/json_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -67,4 +67,4 @@ bool AddJsonValueToArgs(Iterator& it,
 
 }  // namespace perfetto::trace_processor::json
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_JSON_UTILS_H_

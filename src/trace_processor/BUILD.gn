@@ -66,10 +66,10 @@ source_set("export_json") {
     "../base",
     "containers",
     "importers/common",
-    "importers/json:minimal",
     "storage",
     "tables",
     "types",
+    "util:json_parser",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
@@ -181,7 +181,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
-      "importers/json:minimal",
       "importers/ninja",
       "importers/perf",
       "importers/perf_text",
@@ -202,6 +201,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_summary:gen_cc_trace_summary_descriptor",
       "types",
       "util:gzip",
+      "util:json_parser",
       "util:protozero_to_json",
       "util:protozero_to_text",
       "util:regex",

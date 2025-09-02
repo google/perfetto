@@ -42,13 +42,13 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor {
 namespace {
