@@ -113,14 +113,14 @@ CREATE PERFETTO FUNCTION _find_android_jank_cuj_sf_main_thread_slice(
     slice_name_glob STRING
 )
 RETURNS TABLE (
-  cuj_id INTEGER,
-  utid INTEGER,
-  vsync INTEGER,
-  id INTEGER,
+  cuj_id LONG,
+  utid JOINID(thread.id),
+  vsync LONG,
+  id ID(slice.id),
   name STRING,
-  ts LONG,
+  ts TIMESTAMP,
   dur LONG,
-  ts_end LONG
+  ts_end TIMESTAMP
 ) AS
 WITH
   sf_vsync AS (
