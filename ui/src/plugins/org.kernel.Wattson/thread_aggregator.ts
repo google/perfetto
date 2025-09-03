@@ -110,9 +110,9 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
             GROUP BY utid
           ),
           secondary AS (
-            SELECT utid,
-              ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
-                AS percent_of_total_energy
+            SELECT
+              utid,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
             FROM base
             GROUP BY utid
           )
