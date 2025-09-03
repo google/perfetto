@@ -44,7 +44,7 @@ void SafeCopyToCharArray(char (&dest)[DestN], const char (&src)[SrcN]) {
       SrcN - 1;  // -1 to exclude null terminator from src
   memcpy(dest, src, copy_len);
   // Zero-fill the rest
-  if (copy_len < DestN) {
+  if constexpr (copy_len < DestN) {
     memset(dest + copy_len, 0, DestN - copy_len);
   }
 }

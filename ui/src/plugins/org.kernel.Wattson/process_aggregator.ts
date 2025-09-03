@@ -71,9 +71,9 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
             GROUP BY upid
           ),
           secondary AS (
-            SELECT pid,
-              ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
-                AS percent_of_total_energy
+            SELECT
+              pid,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
             FROM base
             GROUP BY pid
           )
