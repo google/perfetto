@@ -114,7 +114,7 @@ TEST(LocalBinaryIndexerTest, NOMSAN_SimpleTree) {
   tmp.AddFile("dir2/elf1", CreateElfWithBuildId("BBBBBBBBBBBBBBBBBBBB"));
   tmp.AddFile("dir2/nonelf1", "other text");
 
-  LocalBinaryIndexer indexer({tmp.path() + "/dir1", tmp.path() + "/dir2"});
+  LocalBinaryIndexer indexer({tmp.path() + "/dir1", tmp.path() + "/dir2"}, {});
 
   std::optional<FoundBinary> bin1 =
       indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
@@ -161,7 +161,7 @@ TEST(LocalBinaryIndexerTest, NOMSAN_Symlinks) {
             0);
   tmp.TrackFile("sym/dir1");
 
-  LocalBinaryIndexer indexer({tmp.AbsolutePath("sym")});
+  LocalBinaryIndexer indexer({tmp.AbsolutePath("sym")}, {});
 
   std::optional<FoundBinary> bin1 =
       indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
@@ -195,7 +195,7 @@ TEST(LocalBinaryIndexerTest, NOMSAN_RecursiveSymlinks) {
             0);
   tmp.TrackFile("main/dir1/sym");
 
-  LocalBinaryIndexer indexer({tmp.AbsolutePath("main")});
+  LocalBinaryIndexer indexer({tmp.AbsolutePath("main")}, {});
 
   std::optional<FoundBinary> bin1 =
       indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");

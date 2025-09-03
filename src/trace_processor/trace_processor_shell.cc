@@ -1269,7 +1269,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
   }
 
   std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(),
+      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
   if (symbolizer) {
     if (is_proto_trace) {
