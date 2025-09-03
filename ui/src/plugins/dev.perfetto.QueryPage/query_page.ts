@@ -108,7 +108,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           m(StackAuto), // The spacer pushes the following buttons to the right.
           attrs.trace.isInternalUser &&
             m(Button, {
-              icon: 'star',
+              icon: 'wand_stars',
               title:
                 'Generate SQL queries with the Perfetto SQL Agent! Give feedback: go/perfetto-llm-bug',
               label: 'Generate SQL Queries with AI',
@@ -129,7 +129,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           m(
             Callout,
             {
-              icon: 'star',
+              icon: 'wand_stars',
               dismissable: true,
               onDismiss: () => {
                 this.hidePerfettoSqlAgentBanner();
