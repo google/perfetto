@@ -1115,7 +1115,6 @@ class GenericKernelParser(TestSuite):
                 comm: "task2"
               }
             ]
-            collection_end_timestamp: 360931239274
           }
         }
         """),
@@ -1166,7 +1165,6 @@ class GenericKernelParser(TestSuite):
                 comm: "task2"
               }
             ]
-            collection_end_timestamp: 360931239274
           }
         }
         """),
