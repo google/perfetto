@@ -66,7 +66,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             tstate.state as state,
             sum(tstate.dur) AS total_dur,
             sum(tstate.dur) / count() as avg_dur,
-            count() as occurrences
+            count() as occurrences,
+            cast(sum(dur) as real) / cast((sum(dur) over ()) as real) as percent_time
           from ${iiTable.name} tstate
           join thread using (utid)
           left join process using (upid)
@@ -133,6 +134,11 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
+      },
+      {
+        title: 'Wall duration %',
+        formatHint: 'PERCENT',
+        columnId: 'percent_time',
       },
       {
         title: 'Avg Wall duration',
