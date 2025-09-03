@@ -326,9 +326,11 @@ WITH
       u.cpu,
       u.dep_cpu,
       u.freq,
-      -- Rank dependencies by curve value.
-      row_number() OVER (PARTITION BY u.ts, u.cpu ORDER BY u.curve DESC) AS rn
+      -- Rank dependencies by curve value or frequency
+      row_number() OVER (PARTITION BY u.ts, u.cpu ORDER BY CASE WHEN vote.vote_by_freq = 1 THEN u.freq ELSE NULL END DESC, CASE WHEN vote.vote_by_freq = 0 THEN u.curve ELSE NULL END DESC) AS rn
     FROM unpivoted_deps AS u
+    JOIN _dev_vote_by_freq AS vote
+      ON u.cpu = vote.cpu
     WHERE
       u.idle = -1
   ),
@@ -364,7 +366,6 @@ WITH
       max(CASE WHEN m.cpu = 7 THEN m.freq END) AS dep_freq_7,
       max(CASE WHEN m.cpu = 7 THEN p.policy END) AS dep_policy_7
     FROM max_voters AS m
-    -- Join to get the policy of the winning dependent CPU.
     JOIN _dev_cpu_policy_map AS p
       ON m.dep_cpu = p.cpu
     GROUP BY
