@@ -30,7 +30,7 @@ const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 
 // Plugin that pins the tracks relevant to System UI
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.PinSysUITracks';
+  static readonly id = 'com.android.PinSysUITracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Find the upid for the sysui process
     const result = await ctx.engine.query(`

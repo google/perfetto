@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/util/json_utils.h"
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -24,7 +24,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/json/json_parser.h"
+#include "src/trace_processor/util/json_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 

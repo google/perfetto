@@ -114,7 +114,7 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
 }
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.CoreCommands';
+  static readonly id = 'dev.perfetto.CoreCommands';
   static onActivate(ctx: App) {
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
@@ -149,9 +149,9 @@ export default class implements PerfettoPlugin {
       ctx.commands.registerCommand({
         id: `dev.perfetto.UserMacro.${macroName}`,
         name: macroName,
-        callback: () => {
+        callback: async () => {
           for (const command of commands) {
-            ctx.commands.runCommand(command.id, ...command.args);
+            await ctx.commands.runCommand(command.id, ...command.args);
           }
         },
       });

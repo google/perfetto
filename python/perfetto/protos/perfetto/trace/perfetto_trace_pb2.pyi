@@ -13155,9 +13155,10 @@ class ProcessStats(_message.Message):
         path: str
         def __init__(self, fd: _Optional[int] = ..., path: _Optional[str] = ...) -> None: ...
     class Process(_message.Message):
-        __slots__ = ["chrome_peak_resident_set_kb", "chrome_private_footprint_kb", "fds", "is_peak_rss_resettable", "oom_score_adj", "pid", "rss_anon_kb", "rss_file_kb", "rss_shmem_kb", "runtime_kernel_mode", "runtime_user_mode", "smr_pss_anon_kb", "smr_pss_file_kb", "smr_pss_kb", "smr_pss_shmem_kb", "smr_rss_kb", "smr_swap_pss_kb", "threads", "vm_hwm_kb", "vm_locked_kb", "vm_rss_kb", "vm_size_kb", "vm_swap_kb"]
+        __slots__ = ["chrome_peak_resident_set_kb", "chrome_private_footprint_kb", "dmabuf_rss_kb", "fds", "is_peak_rss_resettable", "oom_score_adj", "pid", "rss_anon_kb", "rss_file_kb", "rss_shmem_kb", "runtime_kernel_mode", "runtime_user_mode", "smr_pss_anon_kb", "smr_pss_file_kb", "smr_pss_kb", "smr_pss_shmem_kb", "smr_rss_kb", "smr_swap_pss_kb", "threads", "vm_hwm_kb", "vm_locked_kb", "vm_rss_kb", "vm_size_kb", "vm_swap_kb"]
         CHROME_PEAK_RESIDENT_SET_KB_FIELD_NUMBER: _ClassVar[int]
         CHROME_PRIVATE_FOOTPRINT_KB_FIELD_NUMBER: _ClassVar[int]
+        DMABUF_RSS_KB_FIELD_NUMBER: _ClassVar[int]
         FDS_FIELD_NUMBER: _ClassVar[int]
         IS_PEAK_RSS_RESETTABLE_FIELD_NUMBER: _ClassVar[int]
         OOM_SCORE_ADJ_FIELD_NUMBER: _ClassVar[int]
@@ -13181,6 +13182,7 @@ class ProcessStats(_message.Message):
         VM_SWAP_KB_FIELD_NUMBER: _ClassVar[int]
         chrome_peak_resident_set_kb: int
         chrome_private_footprint_kb: int
+        dmabuf_rss_kb: int
         fds: _containers.RepeatedCompositeFieldContainer[ProcessStats.FDInfo]
         is_peak_rss_resettable: bool
         oom_score_adj: int
@@ -13202,7 +13204,7 @@ class ProcessStats(_message.Message):
         vm_rss_kb: int
         vm_size_kb: int
         vm_swap_kb: int
-        def __init__(self, pid: _Optional[int] = ..., threads: _Optional[_Iterable[_Union[ProcessStats.Thread, _Mapping]]] = ..., vm_size_kb: _Optional[int] = ..., vm_rss_kb: _Optional[int] = ..., rss_anon_kb: _Optional[int] = ..., rss_file_kb: _Optional[int] = ..., rss_shmem_kb: _Optional[int] = ..., vm_swap_kb: _Optional[int] = ..., vm_locked_kb: _Optional[int] = ..., vm_hwm_kb: _Optional[int] = ..., oom_score_adj: _Optional[int] = ..., is_peak_rss_resettable: bool = ..., chrome_private_footprint_kb: _Optional[int] = ..., chrome_peak_resident_set_kb: _Optional[int] = ..., fds: _Optional[_Iterable[_Union[ProcessStats.FDInfo, _Mapping]]] = ..., smr_rss_kb: _Optional[int] = ..., smr_pss_kb: _Optional[int] = ..., smr_pss_anon_kb: _Optional[int] = ..., smr_pss_file_kb: _Optional[int] = ..., smr_pss_shmem_kb: _Optional[int] = ..., smr_swap_pss_kb: _Optional[int] = ..., runtime_user_mode: _Optional[int] = ..., runtime_kernel_mode: _Optional[int] = ...) -> None: ...
+        def __init__(self, pid: _Optional[int] = ..., threads: _Optional[_Iterable[_Union[ProcessStats.Thread, _Mapping]]] = ..., vm_size_kb: _Optional[int] = ..., vm_rss_kb: _Optional[int] = ..., rss_anon_kb: _Optional[int] = ..., rss_file_kb: _Optional[int] = ..., rss_shmem_kb: _Optional[int] = ..., vm_swap_kb: _Optional[int] = ..., vm_locked_kb: _Optional[int] = ..., vm_hwm_kb: _Optional[int] = ..., oom_score_adj: _Optional[int] = ..., is_peak_rss_resettable: bool = ..., chrome_private_footprint_kb: _Optional[int] = ..., chrome_peak_resident_set_kb: _Optional[int] = ..., fds: _Optional[_Iterable[_Union[ProcessStats.FDInfo, _Mapping]]] = ..., smr_rss_kb: _Optional[int] = ..., smr_pss_kb: _Optional[int] = ..., smr_pss_anon_kb: _Optional[int] = ..., smr_pss_file_kb: _Optional[int] = ..., smr_pss_shmem_kb: _Optional[int] = ..., smr_swap_pss_kb: _Optional[int] = ..., runtime_user_mode: _Optional[int] = ..., runtime_kernel_mode: _Optional[int] = ..., dmabuf_rss_kb: _Optional[int] = ...) -> None: ...
     class Thread(_message.Message):
         __slots__ = ["tid"]
         TID_FIELD_NUMBER: _ClassVar[int]
@@ -13215,7 +13217,7 @@ class ProcessStats(_message.Message):
     def __init__(self, processes: _Optional[_Iterable[_Union[ProcessStats.Process, _Mapping]]] = ..., collection_end_timestamp: _Optional[int] = ...) -> None: ...
 
 class ProcessStatsConfig(_message.Message):
-    __slots__ = ["proc_stats_cache_ttl_ms", "proc_stats_poll_ms", "quirks", "record_process_age", "record_process_runtime", "record_thread_names", "resolve_process_fds", "scan_all_processes_on_start", "scan_smaps_rollup"]
+    __slots__ = ["proc_stats_cache_ttl_ms", "proc_stats_poll_ms", "quirks", "record_process_age", "record_process_dmabuf_rss", "record_process_runtime", "record_thread_names", "resolve_process_fds", "scan_all_processes_on_start", "scan_smaps_rollup"]
     class Quirks(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     DISABLE_INITIAL_DUMP: ProcessStatsConfig.Quirks
@@ -13225,6 +13227,7 @@ class ProcessStatsConfig(_message.Message):
     QUIRKS_FIELD_NUMBER: _ClassVar[int]
     QUIRKS_UNSPECIFIED: ProcessStatsConfig.Quirks
     RECORD_PROCESS_AGE_FIELD_NUMBER: _ClassVar[int]
+    RECORD_PROCESS_DMABUF_RSS_FIELD_NUMBER: _ClassVar[int]
     RECORD_PROCESS_RUNTIME_FIELD_NUMBER: _ClassVar[int]
     RECORD_THREAD_NAMES_FIELD_NUMBER: _ClassVar[int]
     RESOLVE_PROCESS_FDS_FIELD_NUMBER: _ClassVar[int]
@@ -13234,12 +13237,13 @@ class ProcessStatsConfig(_message.Message):
     proc_stats_poll_ms: int
     quirks: _containers.RepeatedScalarFieldContainer[ProcessStatsConfig.Quirks]
     record_process_age: bool
+    record_process_dmabuf_rss: bool
     record_process_runtime: bool
     record_thread_names: bool
     resolve_process_fds: bool
     scan_all_processes_on_start: bool
     scan_smaps_rollup: bool
-    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., resolve_process_fds: bool = ...) -> None: ...
+    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., record_process_dmabuf_rss: bool = ..., resolve_process_fds: bool = ...) -> None: ...
 
 class ProcessTrackNameTranslationTable(_message.Message):
     __slots__ = ["raw_to_deobfuscated_name"]

@@ -18,7 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {TraceImpl} from '../../core/trace_impl';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.Notes';
+  static readonly id = 'dev.perfetto.Notes';
   async onTraceLoad(trace: TraceImpl): Promise<void> {
     trace.tabs.registerTab({
       uri: 'perfetto.Notes#NotesManager',
