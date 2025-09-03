@@ -222,8 +222,10 @@ function drawArrow(
   ctx.fillStyle = `hsl(${hue}, 50%, ${intensity}%)`;
   ctx.lineWidth = width;
 
-  const dist = new Vector2D(end).sub(new Vector2D(start)).manhattanDistance;
-  const roomForArrowHead = dist > 3 * TRIANGLE_SIZE;
+  const dist = new Vector2D(end).sub(new Vector2D(start));
+  const roomForArrowHead =
+    Math.abs(dist.x) > 3 * TRIANGLE_SIZE ||
+    Math.abs(dist.y) > 2 * TRIANGLE_SIZE;
 
   let startStyle: ArrowHeadStyle;
   if (start.kind === 'vertical_edge') {
