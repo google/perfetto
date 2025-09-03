@@ -93,6 +93,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t smr_swap_pss_kb = std::numeric_limits<uint32_t>::max();
     uint64_t runtime_user_mode_ns = std::numeric_limits<uint64_t>::max();
     uint64_t runtime_kernel_mode_ns = std::numeric_limits<uint64_t>::max();
+    uint32_t dmabuf_rss_kb = std::numeric_limits<uint32_t>::max();
     // file descriptors
     base::FlatSet<uint64_t> seen_fds;
   };
@@ -157,6 +158,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool scan_smaps_rollup_ = false;
   bool record_process_age_ = false;
   bool record_process_runtime_ = false;
+  bool record_process_dmabuf_rss_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
