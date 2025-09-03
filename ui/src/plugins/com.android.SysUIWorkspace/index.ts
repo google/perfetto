@@ -27,7 +27,7 @@ const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 
 // Plugin that creates an opinionated Workspace specific for SysUI
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.SysUIWorkspace';
+  static readonly id = 'com.android.SysUIWorkspace';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({

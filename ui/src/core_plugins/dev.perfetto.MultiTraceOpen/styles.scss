@@ -15,6 +15,30 @@
 @import "../../assets/theme.scss";
 
 .pf-multi-trace-modal {
+  &__description-panel {
+    border-bottom: 1px solid var(--pf-color-border);
+    margin-bottom: 0px;
+    padding-bottom: 0px;
+  }
+
+  &__tabs {
+    margin-bottom: 16px;
+  }
+
+  &__description-content {
+    padding: 0 8px;
+    width: 550px;
+    box-sizing: border-box;
+
+    .pf-text-paragraph {
+      padding-top: 0;
+      padding-bottom: 16px;
+      font-size: 0.9em;
+      color: var(--pf-color-text-secondary);
+      line-height: 1.4;
+    }
+  }
+
   &__list-panel {
     border: none;
     overflow-y: auto;
@@ -100,14 +124,21 @@
     border-top: 1px solid var(--pf-color-border);
     padding-top: 8px;
     margin-top: 0px;
-    justify-content: flex-end;
+    display: flex;
     align-items: center;
     gap: 8px;
   }
 
   &__footer-error {
-    margin-right: auto;
+    flex: 0 0 auto;
     font-family: var(--pf-font);
+    word-wrap: break-word;
+    white-space: normal;
+    max-width: 450px;
+  }
+
+  &__footer-spacer {
+    flex: 1;
   }
 }
 

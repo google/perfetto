@@ -61,6 +61,7 @@ import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
 import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {SplitPanel, Tab} from '../../widgets/split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
@@ -969,6 +970,21 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           }),
         initialOpts: {
           noicon: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'CopyToClipboardButton',
+        renderWidget: (opts) =>
+          m(CopyToClipboardButton, {
+            textToCopy: 'Text to copy',
+            ...opts,
+          }),
+        initialOpts: {
+          label: 'Copy',
+          variant: new EnumOption(
+            ButtonVariant.Outlined,
+            Object.values(ButtonVariant),
+          ),
         },
       }),
       m(WidgetShowcase, {
