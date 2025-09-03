@@ -158,7 +158,7 @@ SELECT
   sum(ii.dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(ii.dur) / 1000)) AS avg_freq
+  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, threads_counters) AS ii
 JOIN threads_counters
   USING (id)
