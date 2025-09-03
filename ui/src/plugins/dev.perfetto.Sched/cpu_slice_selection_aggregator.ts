@@ -59,7 +59,8 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             tid,
             sum(dur) AS total_dur,
             sum(dur) / count() as avg_dur,
-            count() as occurrences
+            count() as occurrences,
+            cast(sum(dur) as real) / cast((sum(dur) over ()) as real) as percent_time
           from (${iiTable.name}) as sched
           join thread using (utid)
           left join process using (upid)
@@ -104,6 +105,11 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
+      },
+      {
+        title: 'Wall duration %',
+        columnId: 'percent_time',
+        formatHint: 'PERCENT',
       },
       {
         title: 'Avg Wall duration',
