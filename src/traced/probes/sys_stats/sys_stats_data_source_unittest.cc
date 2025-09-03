@@ -217,9 +217,9 @@ const uint64_t kMockIntelGpuFreq = 300;
 const uint64_t kMockAdrenoGpuFreq = 400'000'000;
 // kMockAMDGpuFreq whitespace is intentional.
 const char kMockAMDGpuFreq[] = R"(
-0: 200Mhz 
+0: 200Mhz
 1: 400Mhz *
-2: 2000Mhz 
+2: 2000Mhz
 )";
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
@@ -596,6 +596,9 @@ TEST_F(SysStatsDataSourceTest, IntelGpuFrequency) {
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
+  // Ignore other GPU freq calls.
+  EXPECT_CALL(*data_source,
+              ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq"));
   EXPECT_CALL(*data_source,
               ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz"))
       .WillRepeatedly(Return(std::optional<uint64_t>(kMockIntelGpuFreq)));
@@ -618,6 +621,8 @@ TEST_F(SysStatsDataSourceTest, AMDGpuFrequency) {
   auto data_source = GetSysStatsDataSource(config);
 
   // Ignore other GPU freq calls.
+  EXPECT_CALL(*data_source,
+              ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq"));
   EXPECT_CALL(*data_source,
               ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz"));
   EXPECT_CALL(*data_source,
