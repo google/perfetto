@@ -51,7 +51,8 @@ SELECT
   max(freq) AS max_freq,
   cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
-JOIN cpu USING (ucpu)
+JOIN cpu
+  USING (ucpu)
 GROUP BY
   utid,
   ucpu;
@@ -100,7 +101,8 @@ SELECT
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread AS c
   USING (id)
-JOIN cpu USING (ucpu)
+JOIN cpu
+  USING (ucpu)
 GROUP BY
   utid,
   ucpu;

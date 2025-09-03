@@ -93,11 +93,11 @@ CREATE PERFETTO TABLE cpu_cycles (
   avg_freq LONG
 ) AS
 SELECT
-  SUM(millicycles) AS millicycles,
+  sum(millicycles) AS millicycles,
   cast_int!(SUM(millicycles) / 1e9) AS megacycles,
-  SUM(runtime) AS runtime,
-  MIN(min_freq) AS min_freq,
-  MAX(max_freq) AS max_freq,
+  sum(runtime) AS runtime,
+  min(min_freq) AS min_freq,
+  max(max_freq) AS max_freq,
   cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
 FROM cpu_cycles_per_thread_per_cpu;
 
@@ -155,15 +155,16 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu (
 SELECT
   ucpu,
   cpu,
-  SUM(millicycles) AS millicycles,
+  sum(millicycles) AS millicycles,
   cast_int!(SUM(millicycles) / 1e9) AS megacycles,
-  SUM(runtime) AS runtime,
-  MIN(min_freq) AS min_freq,
-  MAX(max_freq) AS max_freq,
+  sum(runtime) AS runtime,
+  min(min_freq) AS min_freq,
+  max(max_freq) AS max_freq,
   cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
 FROM cpu_cycles_per_thread_per_cpu
 GROUP BY
-  ucpu, cpu;
+  ucpu,
+  cpu;
 
 -- Aggregated CPU statistics for each CPU in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
