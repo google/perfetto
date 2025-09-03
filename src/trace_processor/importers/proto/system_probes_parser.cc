@@ -193,6 +193,8 @@ const char* GetProcessMemoryKey(uint32_t field_id) {
       return "locked";
     case ProcessStats::Process::kVmHwmKbFieldNumber:
       return "rss.watermark";
+    case ProcessStats::Process::kDmabufRssKbFieldNumber:
+      return "dmabuf_rss";
     default:
       return nullptr;
   }
