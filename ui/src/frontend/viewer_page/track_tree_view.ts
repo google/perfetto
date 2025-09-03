@@ -175,8 +175,10 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Advance the global top position.
       top += trackView.height;
 
-      // Advance the sticky top position for our children.
-      const childStickyTop = stickyTop + trackView.height;
+      // Advance the sticky top position for our children, if we are sticky.
+      const childStickyTop = node.isSummary
+        ? stickyTop + trackView.height
+        : stickyTop;
 
       const children =
         (node.expanded || filtersApplied) &&
