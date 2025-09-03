@@ -162,58 +162,59 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) return undefined;
 
+      if (node.headless) {
+        // Headless nodes are invisible, just render children.
+        return node.children.map((track) => {
+          return renderTrack(track, depth, stickyTop);
+        });
+      }
+
       const trackView = new TrackView(trace, node, top);
       renderedTracks.push(trackView);
 
-      let childDepth = depth;
-      let childStickyTop = stickyTop;
-      if (!node.headless) {
-        top += trackView.height;
-        ++childDepth;
-        childStickyTop += trackView.height;
-      }
+      // Advance the global top position.
+      top += trackView.height;
+
+      // Advance the sticky top position for our children.
+      const childStickyTop = stickyTop + trackView.height;
 
       const children =
-        (node.headless || node.expanded || filtersApplied) &&
+        (node.expanded || filtersApplied) &&
         node.hasChildren &&
         node.children.map((track) =>
-          renderTrack(track, childDepth, childStickyTop),
+          renderTrack(track, depth + 1, childStickyTop),
         );
 
-      if (node.headless) {
-        return children;
-      } else {
-        const isTrackOnScreen = () => {
-          if (VIRTUAL_TRACK_SCROLLING.get()) {
-            return this.canvasRect?.overlaps({
-              left: 0,
-              right: 1,
-              ...trackView.verticalBounds,
-            });
-          } else {
-            return true;
-          }
-        };
+      const isTrackOnScreen = (() => {
+        if (VIRTUAL_TRACK_SCROLLING.get()) {
+          return this.canvasRect?.overlaps({
+            left: 0,
+            right: 1,
+            ...trackView.verticalBounds,
+          });
+        } else {
+          return true;
+        }
+      })();
 
-        return trackView.renderDOM(
-          {
-            lite: !Boolean(isTrackOnScreen()),
-            scrollToOnCreate: scrollToNewTracks,
-            reorderable: canReorderNodes,
-            removable: canRemoveNodes,
-            stickyTop,
-            depth,
-            collapsible: !filtersApplied,
-            onTrackMouseOver: () => {
-              this.hoveredTrackNode = node;
-            },
-            onTrackMouseOut: () => {
-              this.hoveredTrackNode = undefined;
-            },
+      return trackView.renderDOM(
+        {
+          lite: !Boolean(isTrackOnScreen),
+          scrollToOnCreate: scrollToNewTracks,
+          reorderable: canReorderNodes,
+          removable: canRemoveNodes,
+          stickyTop,
+          depth,
+          collapsible: !filtersApplied,
+          onTrackMouseOver: () => {
+            this.hoveredTrackNode = node;
           },
-          children,
-        );
-      }
+          onTrackMouseOut: () => {
+            this.hoveredTrackNode = undefined;
+          },
+        },
+        children,
+      );
     };
 
     const trackVnodes = rootNode.children.map((track) => renderTrack(track));
