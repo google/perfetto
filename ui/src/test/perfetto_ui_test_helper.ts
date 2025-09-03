@@ -49,17 +49,23 @@ export class PerfettoTestHelper {
   }
 
   async navigate(fragment: string): Promise<void> {
-    await this.page.goto('/?testing=1' + fragment);
+    await this.page.goto(
+      '/?testing=1&disablePlugin=^(?!dev.perfetto)' + fragment,
+    );
     await this.waitForPerfettoIdle();
     await this.page.click('body');
   }
 
   async openTraceFile(traceName: string, args?: {}): Promise<void> {
-    args = {testing: '1', ...args};
+    args = {
+      testing: '1', // Testing mode enables some rendering flags.
+      disablePlugin: '^(?!dev.perfetto)', // Disable all plugins except the built-in ones by default.
+      ...args,
+    };
     const qs = Object.entries(args ?? {})
       .map(([k, v]) => `${k}=${v}`)
       .join('&');
-    await this.page.goto('/?' + qs);
+    await this.page.goto(`/?${qs}`);
     const file = await this.page.waitForSelector('input.trace_file', {
       state: 'attached',
     });

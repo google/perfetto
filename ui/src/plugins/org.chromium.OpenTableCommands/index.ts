@@ -26,7 +26,7 @@ import {
 import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'org.Chromium.OpenTableCommands';
+  static readonly id = 'org.chromium.OpenTableCommands';
 
   async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['slice'] = getSliceTable;

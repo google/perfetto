@@ -58,7 +58,9 @@ test.beforeEach(async ({browser}, _testInfo) => {
 });
 
 test('slices with same name', async () => {
-  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   const sliceName = 'LatencyInfo.Flow';
   await pth.searchSlice(sliceName);
@@ -72,7 +74,9 @@ test('slices with same name', async () => {
 });
 
 test('Table interactions', async () => {
-  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.slice');
@@ -136,7 +140,9 @@ test('Table interactions', async () => {
 //
 
 test('Go to slice', async () => {
-  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.slice');
@@ -162,7 +168,9 @@ test('Go to slice', async () => {
 
 test('Go to thread_state', async () => {
   // Open Android trace with kernel scheduling data.
-  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
+  await pth.openTraceFile('api34_startup_cold.perfetto-trace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.thread_state');
@@ -197,7 +205,9 @@ test('Go to sched', async () => {
   test.setTimeout(60_000);
 
   // Open Android trace with kernel scheduling data.
-  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
+  await pth.openTraceFile('api34_startup_cold.perfetto-trace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.sched');
@@ -232,7 +242,9 @@ test('Go to sched', async () => {
 //
 
 test('Go to process', async () => {
-  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.process');
@@ -254,7 +266,9 @@ test('Go to process', async () => {
 });
 
 test('Go to thread', async () => {
-  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace');
+  await pth.openTraceFile('chrome_scroll_without_vsync.pftrace', {
+    enablePlugins: 'org.chromium.OpenTableCommands',
+  });
 
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.thread');

@@ -234,7 +234,7 @@ export class AppImpl implements App {
       if (match) {
         const newKey = match[1];
         // Use the capture group (what comes after the prefix) as the new key
-        result[newKey] = value;
+        result[newKey] = value as 'string' | 'number' | 'boolean';
       }
       return result;
     }, args);
