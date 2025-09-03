@@ -39,6 +39,9 @@
 }
 
 .pf-button {
+  background: none;
+  border: none;
+  cursor: pointer;
   font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
