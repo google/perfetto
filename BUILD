@@ -686,6 +686,7 @@ perfetto_cc_library(
             ":src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
             ":src_traced_probes_android_log_android_log",
             ":src_traced_probes_android_system_property_android_system_property",
+            ":src_traced_probes_android_virtualization_framework_android_virtualization_framework",
             ":src_traced_probes_common_common",
             ":src_traced_probes_data_source",
             ":src_traced_probes_filesystem_filesystem",
@@ -4033,6 +4034,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/android_virtualization_framework:android_virtualization_framework
+perfetto_filegroup(
+    name = "src_traced_probes_android_virtualization_framework_android_virtualization_framework",
+    srcs = [
+        "src/traced/probes/android_virtualization_framework/android_virtualization_framework_data_source.cc",
+        "src/traced/probes/android_virtualization_framework/android_virtualization_framework_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes/common:common
 perfetto_filegroup(
     name = "src_traced_probes_common_common",
@@ -5237,6 +5247,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_polled_state_config.proto",
         "protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto",
         "protos/perfetto/config/android/android_system_property_config.proto",
+        "protos/perfetto/config/android/android_virtualization_framework_config.proto",
         "protos/perfetto/config/android/app_wakelock_config.proto",
         "protos/perfetto/config/android/cpu_per_uid_config.proto",
         "protos/perfetto/config/android/kernel_wakelocks_config.proto",

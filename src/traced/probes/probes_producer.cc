@@ -37,6 +37,7 @@
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
 #include "src/traced/probes/android_system_property/android_system_property_data_source.h"
+#include "src/traced/probes/android_virtualization_framework/android_virtualization_framework_data_source.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/frozen_ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -327,6 +328,15 @@ ProbesProducer::CreateDSInstance<FrozenFtraceDataSource>(
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
 }
 
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<AndroidVirtualizationFrameworkDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  return std::make_unique<AndroidVirtualizationFrameworkDataSource>(config,
+                                                                    session_id);
+}
+
 // Another anonymous namespace. This cannot be moved into the anonymous
 // namespace on top (it would fail to compile), because the CreateDSInstance
 // methods need to be fully declared before.
@@ -352,6 +362,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<AndroidLogDataSource>(),
     Ds<AndroidPowerDataSource>(),
     Ds<AndroidSystemPropertyDataSource>(),
+    Ds<AndroidVirtualizationFrameworkDataSource>(),
     Ds<FrozenFtraceDataSource>(),
     Ds<FtraceDataSource>(),
     Ds<InitialDisplayStateDataSource>(),
