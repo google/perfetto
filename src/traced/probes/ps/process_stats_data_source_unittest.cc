@@ -17,6 +17,7 @@
 #include "src/traced/probes/ps/process_stats_data_source.h"
 
 #include <dirent.h>
+#include <unistd.h>
 
 #include <memory>
 
@@ -366,6 +367,7 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   cfg.set_proc_stats_poll_ms(1);
   cfg.set_resolve_process_fds(true);
   cfg.set_record_process_runtime(true);
+  cfg.set_record_process_dmabuf_rss(true);
   cfg.add_quirks(ProcessStatsConfig::DISABLE_ON_DEMAND);
   ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
   auto data_source = GetProcessStatsDataSource(ds_config);
@@ -416,6 +418,11 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
               "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
               p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2}
               .ToStdString();
+        }));
+
+    EXPECT_CALL(*data_source, ReadProcPidFile(pid, "dmabuf_rss"))
+        .WillRepeatedly(Invoke([](int32_t, const std::string&) {
+          return base::StackString<1024>{"%d\n", getpagesize()}.ToStdString();
         }));
 
     // By default scan_smaps_rollup is off and /proc/<pid>/smaps_rollup
@@ -515,6 +522,11 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
             "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n", p * 100 + 1,
             p * 100 + 2);
         return ret.ToStdString();
+      }));
+
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "dmabuf_rss"))
+      .WillRepeatedly(Invoke([checkpoint](int32_t, const std::string&) {
+        return base::StackString<1024>{"%d\n", getpagesize()}.ToStdString();
       }));
 
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "oom_score_adj"))
@@ -630,6 +642,10 @@ TEST_F(ProcessStatsDataSourceTest, ScanSmapsRollupIsOn) {
                   p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2);
               return ret.ToStdString();
             }));
+    EXPECT_CALL(*data_source, ReadProcPidFile(pid, "dmabuf_rss"))
+        .WillRepeatedly(Invoke([](int32_t, const std::string&) {
+          return base::StackString<1024>{"%d\n", getpagesize()}.ToStdString();
+        }));
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "smaps_rollup"))
         .WillRepeatedly(
             Invoke([checkpoint, &iter](int32_t p, const std::string&) {
