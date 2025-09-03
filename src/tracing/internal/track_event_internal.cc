@@ -592,13 +592,22 @@ EventContext TrackEventInternal::WriteEvent(
     track_event->set_type(type);
 
   if (tls_state.enable_thread_time_sampling && on_current_thread_track) {
-    int64_t thread_time_ns = base::GetThreadCPUTimeNs().count();
-    auto thread_time_delta_ns =
-        thread_time_ns - incr_state->last_thread_time_ns;
-    incr_state->last_thread_time_ns = thread_time_ns;
-    track_event->add_extra_counter_values(
-        thread_time_delta_ns /
-        static_cast<int64_t>(tls_state.timestamp_unit_multiplier));
+    if (tls_state.thread_time_subsampling_ns == 0 ||
+        incr_state->last_thread_time_timestamp_ns == 0 ||
+        timestamp.value >= incr_state->last_thread_time_timestamp_ns +
+                               tls_state.thread_time_subsampling_ns) {
+      auto thread_time_ns = base::GetThreadCPUTimeNs().count();
+      auto thread_time_delta_ns =
+          thread_time_ns - incr_state->last_thread_time_ns;
+      incr_state->last_thread_time_ns = thread_time_ns;
+      incr_state->last_thread_time_timestamp_ns = timestamp.value;
+      track_event->add_extra_counter_values(
+          thread_time_delta_ns /
+          static_cast<int64_t>(tls_state.timestamp_unit_multiplier));
+    } else {
+      // When subsampling, the skip emitting values.
+      track_event->add_extra_counter_values(0);
+    }
   }
 
   // We assume that |category| points to the string with static lifetime.

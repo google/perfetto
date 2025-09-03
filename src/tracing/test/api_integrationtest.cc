@@ -1271,6 +1271,49 @@ TEST_P(PerfettoApiTest, TrackEventTimestampUnitIncremental) {
   }
 }
 
+TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
+  for (auto subsampling : {0u, 10u, 1000u}) {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.set_enable_thread_time_sampling(true);
+    te_cfg.set_thread_time_subsampling_ns(subsampling);
+    auto* tracing_session = NewTraceWithCategories({"foo"}, te_cfg);
+    tracing_session->get()->StartBlocking();
+    SpinForThreadTimeNanos(1000000);
+    TRACE_EVENT_BEGIN("foo", "Event1");
+    SpinForThreadTimeNanos(10);
+    TRACE_EVENT_BEGIN("foo", "Event2");
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    TRACE_EVENT_BEGIN("foo", "Event3");
+    auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+    struct TimeInfo {
+      int64_t timestamp;
+      int64_t thread_time;
+    };
+    std::unordered_map<std::string, TimeInfo> event_map;
+    for (const auto& packet : trace.packet()) {
+      if (packet.has_interned_data()) {
+        if (packet.interned_data().event_names().size() == 1) {
+          auto& event_name = packet.interned_data().event_names()[0].name();
+          if (packet.has_track_event() &&
+              packet.track_event().extra_counter_values().size() > 0) {
+            auto thread_time = packet.track_event().extra_counter_values()[0];
+            event_map[event_name] = {static_cast<int64_t>(packet.timestamp()),
+                                     thread_time};
+          }
+        }
+      }
+    }
+
+    EXPECT_EQ(0, event_map.at("Event1").timestamp);
+    EXPECT_GT(event_map.at("Event2").timestamp, 10);
+    EXPECT_GT(event_map.at("Event3").timestamp, 1000 * 1000 * 10);
+
+    EXPECT_GT(event_map.at("Event2").thread_time, 10);
+    EXPECT_LT(event_map.at("Event3").thread_time,
+              event_map.at("Event3").timestamp);
+  }
+}
+
 // Tests that we don't accumulate error when using incremental timestamps with
 // timestamp unit multiplier.
 TEST_P(PerfettoApiTest, TrackEventTimestampIncrementalAccumulatedError) {
