@@ -52,6 +52,8 @@ import {LinearProgress} from '../widgets/linear_progress';
 import {taskTracker} from './task_tracker';
 import {Button} from '../widgets/button';
 import {initCssConstants} from './css_constants';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -888,8 +890,11 @@ export class UiMainPerTrace implements m.ClassComponent {
           'Perfetto UI features are limited for JSON traces. ',
           'We recommend recording ',
           m(
-            'a',
-            {href: 'https://perfetto.dev/docs/quickstart/chrome-tracing'},
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/quickstart/chrome-tracing',
+              icon: Icons.ExternalLink,
+            },
             'proto-format traces',
           ),
           ' from Chrome.',

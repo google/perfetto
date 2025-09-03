@@ -248,7 +248,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           m(
             'span',
             'Are you looking for plugins? These have moved to the ',
-            m('a', {href: '#!/plugins'}, 'plugins'),
+            m(Anchor, {href: '#!/plugins'}, 'plugins'),
             ' page.',
           ),
         ),
