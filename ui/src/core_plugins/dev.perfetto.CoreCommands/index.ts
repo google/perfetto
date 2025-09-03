@@ -12,22 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, time} from '../../base/time';
+import {z} from 'zod';
+import {copyToClipboard} from '../../base/clipboard';
+import {formatTimezone, Time, time, timezoneOffsetMap} from '../../base/time';
 import {exists} from '../../base/utils';
-import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import {JsonSettingsEditor} from '../../components/json_settings_editor';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {AppImpl} from '../../core/app_impl';
+import {commandInvocationSchema} from '../../core/command_manager';
+import {featureFlags} from '../../core/feature_flags';
+import {OmniboxMode} from '../../core/omnibox_manager';
+import {
+  deserializeAppStatePhase1,
+  deserializeAppStatePhase2,
+  JsonSerialize,
+  parseAppState,
+  serializeAppState,
+} from '../../core/state_serialization';
+import {TraceImpl} from '../../core/trace_impl';
+import {trackMatchesFilter} from '../../core/track_manager';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
+  openInOldUIWithSizeCheck,
 } from '../../frontend/legacy_trace_viewer';
-import {AppImpl} from '../../core/app_impl';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
-import {featureFlags} from '../../core/feature_flags';
-import {z} from 'zod';
-import {JsonSettingsEditor} from '../../components/json_settings_editor';
-import {commandInvocationSchema} from '../../core/command_manager';
+import {shareTrace} from '../../frontend/trace_share_utils';
+import {PerfettoPlugin} from '../../public/plugin';
+import {DurationPrecision, TimestampFormat} from '../../public/timeline';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
+import {Workspace} from '../../public/workspace';
+import {showModal} from '../../widgets/modal';
+
+const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -113,9 +129,13 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   return promptForTimestamp('Enter a timestamp');
 }
 
-export default class implements PerfettoPlugin {
+export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
-  static onActivate(ctx: App) {
+  static app: AppImpl;
+
+  static onActivate(ctx: AppImpl) {
+    CoreCommands.app = ctx;
+
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
         id: 'dev.perfetto.ToggleLeftSidebar',
@@ -206,7 +226,7 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
+  async onTraceLoad(ctx: TraceImpl): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
@@ -377,6 +397,427 @@ export default class implements PerfettoPlugin {
         }
       },
     });
+
+    const app = CoreCommands.app;
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SetTimestampFormat',
+      name: 'Set timestamp and duration format',
+      callback: async () => {
+        const TF = TimestampFormat;
+        const timeZone = formatTimezone(ctx.traceInfo.tzOffMin);
+        const result = await app.omnibox.prompt('Select format...', {
+          values: [
+            {format: TF.Timecode, name: 'Timecode'},
+            {format: TF.UTC, name: 'Realtime (UTC)'},
+
+            {format: TF.TraceTz, name: `Realtime (Trace TZ - ${timeZone})`},
+            {format: TF.Seconds, name: 'Seconds'},
+            {format: TF.Milliseconds, name: 'Milliseconds'},
+            {format: TF.Microseconds, name: 'Microseconds'},
+            {format: TF.TraceNs, name: 'Trace nanoseconds'},
+            {
+              format: TF.TraceNsLocale,
+              name: 'Trace nanoseconds (with locale-specific formatting)',
+            },
+            {format: TF.CustomTimezone, name: 'Custom Timezone'},
+          ],
+          getName: (x) => x.name,
+        });
+        if (!result) return;
+
+        if (result.format === TF.CustomTimezone) {
+          const result = await app.omnibox.prompt('Select format...', {
+            values: Object.entries(timezoneOffsetMap),
+            getName: ([key]) => key,
+          });
+
+          if (!result) return;
+          ctx.timeline.timezoneOverride.set(result[0]);
+        }
+
+        ctx.timeline.timestampFormat = result.format;
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SetDurationPrecision',
+      name: 'Set duration precision',
+      callback: async () => {
+        const DF = DurationPrecision;
+        const result = await app.omnibox.prompt(
+          'Select duration precision mode...',
+          {
+            values: [
+              {format: DF.Full, name: 'Full'},
+              {format: DF.HumanReadable, name: 'Human readable'},
+            ],
+            getName: (x) => x.name,
+          },
+        );
+        result && (ctx.timeline.durationPrecision = result.format);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.TogglePerformanceMetrics',
+      name: 'Toggle performance metrics',
+      callback: () => (app.perfDebugging.enabled = !app.perfDebugging.enabled),
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ShareTrace',
+      name: 'Share trace',
+      callback: () => shareTrace(ctx),
+    });
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SearchNext',
+      name: 'Go to next search result',
+      callback: () => {
+        ctx.search.stepForward();
+      },
+      defaultHotkey: 'Enter',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SearchPrev',
+      name: 'Go to previous search result',
+      callback: () => {
+        ctx.search.stepBackwards();
+      },
+      defaultHotkey: 'Shift+Enter',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SwitchToQueryMode',
+      name: 'Switch to query mode',
+      callback: () => ctx.omnibox.setMode(OmniboxMode.Query),
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.RunQuery',
+      name: 'Runs an SQL query',
+      callback: async (rawSql: unknown) => {
+        const query =
+          typeof rawSql === 'string'
+            ? rawSql
+            : await ctx.omnibox.prompt('Enter SQL...');
+        if (!query) {
+          return;
+        }
+        await ctx.engine.query(query);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.RunQueryAndShowTab',
+      name: 'Runs an SQL query and opens results in a tab',
+      callback: async (rawSql: unknown) => {
+        const query =
+          typeof rawSql === 'string'
+            ? rawSql
+            : await ctx.omnibox.prompt('Enter SQL...');
+        if (!query) {
+          return;
+        }
+        addQueryResultsTab(ctx, {
+          query,
+          title: 'Command Query',
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SwitchToSearchMode',
+      name: 'Switch to search mode',
+      callback: () => ctx.omnibox.setMode(OmniboxMode.Search),
+      defaultHotkey: '/',
+    });
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyTimeWindow',
+      name: `Copy selected time window to clipboard`,
+      callback: async () => {
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
+        const query = `ts >= ${window.start} and ts < ${window.end}`;
+        copyToClipboard(query);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.FocusSelection',
+      name: 'Focus current selection',
+      callback: () => ctx.selection.scrollToSelection(),
+      defaultHotkey: 'F',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ZoomOnSelection',
+      name: 'Zoom in on current selection',
+      callback: () => ctx.selection.zoomOnSelection(),
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Deselect',
+      name: 'Deselect',
+      callback: () => {
+        ctx.selection.clearSelection();
+      },
+      defaultHotkey: 'Escape',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.NextFlow',
+      name: 'Next flow',
+      callback: () => ctx.flows.focusOtherFlow('Forward'),
+      defaultHotkey: 'Mod+]',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.PrevFlow',
+      name: 'Prev flow',
+      callback: () => ctx.flows.focusOtherFlow('Backward'),
+      defaultHotkey: 'Mod+[',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.MoveNextFlow',
+      name: 'Move next flow',
+      callback: () => ctx.flows.moveByFocusedFlow('Forward'),
+      defaultHotkey: ']',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.MovePrevFlow',
+      name: 'Move prev flow',
+      callback: () => ctx.flows.moveByFocusedFlow('Backward'),
+      defaultHotkey: '[',
+    });
+
+    // Provides a test bed for resolving events using a SQL table name and ID
+    // which is used in deep-linking, amongst other places.
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SelectEventByTableNameAndId',
+      name: 'Select event by table name and ID',
+      callback: async () => {
+        const rootTableName = await ctx.omnibox.prompt('Enter table name');
+        if (rootTableName === undefined) return;
+
+        const id = await ctx.omnibox.prompt('Enter ID');
+        if (id === undefined) return;
+
+        const num = Number(id);
+        if (!isFinite(num)) return; // Rules out NaN or +-Infinity
+
+        ctx.selection.selectSqlEvent(rootTableName, num, {
+          scrollToSelection: true,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SelectAll',
+      name: 'Select all',
+      callback: () => {
+        // This is a dual state command:
+        // - If one ore more tracks are already area selected, expand the time
+        //   range to include the entire trace, but keep the selection on just
+        //   these tracks.
+        // - If nothing is selected, or all selected tracks are entirely
+        //   selected, then select the entire trace. This allows double tapping
+        //   Ctrl+A to select the entire track, then select the entire trace.
+        let tracksToSelect: ReadonlyArray<string>;
+        const selection = ctx.selection.selection;
+        if (selection.kind === 'area') {
+          // Something is already selected, let's see if it covers the entire
+          // span of the trace or not
+          const coversEntireTimeRange =
+            ctx.traceInfo.start === selection.start &&
+            ctx.traceInfo.end === selection.end;
+          if (!coversEntireTimeRange) {
+            // If the current selection is an area which does not cover the
+            // entire time range, preserve the list of selected tracks and
+            // expand the time range.
+            tracksToSelect = selection.trackUris;
+          } else {
+            // If the entire time range is already covered, update the selection
+            // to cover all tracks.
+            tracksToSelect = ctx.workspace.flatTracks
+              .map((t) => t.uri)
+              .filter((uri) => uri !== undefined);
+          }
+        } else {
+          // If the current selection is not an area, select all.
+          tracksToSelect = ctx.workspace.flatTracks
+            .map((t) => t.uri)
+            .filter((uri) => uri !== undefined);
+        }
+        const {start, end} = ctx.traceInfo;
+        ctx.selection.selectArea({
+          start,
+          end,
+          trackUris: tracksToSelect,
+        });
+      },
+      defaultHotkey: 'Mod+A',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ConvertSelectionToArea',
+      name: 'Convert selection to area selection',
+      callback: () => {
+        const selection = ctx.selection.selection;
+        const range = ctx.selection.getTimeSpanOfSelection();
+        if (selection.kind === 'track_event' && range) {
+          ctx.selection.selectArea({
+            start: range.start,
+            end: range.end,
+            trackUris: [selection.trackUri],
+          });
+        }
+      },
+      defaultHotkey: 'R',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleDrawer',
+      name: 'Toggle drawer',
+      defaultHotkey: 'Q',
+      callback: () => ctx.tabs.toggleTabPanelVisibility(),
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyPinnedToWorkspace',
+      name: 'Copy pinned tracks to workspace',
+      callback: async () => {
+        const pinnedTracks = ctx.workspace.pinnedTracks;
+        if (!pinnedTracks.length) {
+          window.alert('No pinned tracks to copy');
+          return;
+        }
+
+        const ws = await this.selectWorkspace(ctx, 'Pinned tracks');
+        if (!ws) return;
+
+        for (const pinnedTrack of pinnedTracks) {
+          const clone = pinnedTrack.clone();
+          ws.addChildLast(clone);
+        }
+        ctx.workspaces.switchWorkspace(ws);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyFilteredToWorkspace',
+      name: 'Copy filtered tracks to workspace',
+      callback: async () => {
+        // Copies all filtered tracks as a flat list to a new workspace. This
+        // means parents are not included.
+        const tracks = ctx.workspace.flatTracks.filter((track) =>
+          trackMatchesFilter(ctx, track),
+        );
+
+        if (!tracks.length) {
+          window.alert('No filtered tracks to copy');
+          return;
+        }
+
+        const ws = await this.selectWorkspace(ctx, 'Filtered tracks');
+        if (!ws) return;
+
+        for (const track of tracks) {
+          const clone = track.clone();
+          ws.addChildLast(clone);
+        }
+        ctx.workspaces.switchWorkspace(ws);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopySelectedTracksToWorkspace',
+      name: 'Copy selected tracks to workspace',
+      callback: async () => {
+        const selection = ctx.selection.selection;
+
+        if (selection.kind !== 'area' || selection.trackUris.length === 0) {
+          window.alert('No selected tracks to copy');
+          return;
+        }
+
+        const workspace = await this.selectWorkspace(ctx);
+        if (!workspace) return;
+
+        for (const uri of selection.trackUris) {
+          const node = ctx.workspace.getTrackByUri(uri);
+          if (!node) continue;
+          const newNode = node.clone();
+          workspace.addChildLast(newNode);
+        }
+        ctx.workspaces.switchWorkspace(workspace);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Quicksave',
+      name: 'Quicksave UI state to localStorage',
+      callback: () => {
+        const state = serializeAppState(ctx);
+        const json = JsonSerialize(state);
+        localStorage.setItem(QUICKSAVE_LOCALSTORAGE_KEY, json);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Quickload',
+      name: 'Quickload UI state from the localStorage',
+      callback: () => {
+        const json = localStorage.getItem(QUICKSAVE_LOCALSTORAGE_KEY);
+        if (json === null) {
+          showModal({
+            title: 'Nothing saved in the quicksave slot',
+            buttons: [{text: 'Dismiss'}],
+          });
+          return;
+        }
+        const parsed = JSON.parse(json);
+        const state = parseAppState(parsed);
+        if (state.ok) {
+          deserializeAppStatePhase1(state.value, ctx);
+          deserializeAppStatePhase2(state.value, ctx);
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: `${app.pluginId}#RestoreDefaults`,
+      name: 'Reset all flags back to default values',
+      callback: () => {
+        featureFlags.resetAll();
+        window.location.reload();
+      },
+    });
+  }
+
+  // Selects a workspace or creates a new one.
+  private async selectWorkspace(
+    trace: TraceImpl,
+    newWorkspaceName = 'Untitled workspace',
+  ): Promise<Workspace | undefined> {
+    const options = trace.workspaces.all
+      .filter((ws) => ws.userEditable)
+      .map((ws) => ({title: ws.title, fn: () => ws}))
+      .concat([
+        {
+          title: 'New workspace...',
+          fn: () => trace.workspaces.createEmptyWorkspace(newWorkspaceName),
+        },
+      ]);
+
+    const result = await trace.omnibox.prompt('Select a workspace...', {
+      values: options,
+      getName: (ws) => ws.title,
+    });
+
+    if (!result) return undefined;
+    return result.fn();
   }
 }
 
