@@ -411,8 +411,8 @@ ORDER BY
 -- Table tracking all jank/latency CUJs information.
 CREATE PERFETTO TABLE android_jank_latency_cujs (
   -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
   -- An alias for `cuj_id` for compatibility purposes.
-  -- An alias for cuj_id
   id LONG,
   -- process id.
   upid JOINID(process.id),
