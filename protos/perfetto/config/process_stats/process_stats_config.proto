@@ -78,6 +78,12 @@ message ProcessStatsConfig {
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
 
+  // If true obtain per-process dmabuf resident set size from
+  // /proc/pid/dmabuf_rss.
+  // This feature is not in upstream linux, and is available only on some
+  // Android kernels.
+  optional bool record_process_dmabuf_rss = 13;
+
   // WARNING: unmaintained and deprecated. If true this will resolve file
   // descriptors for each process so these can be mapped to their actual device
   // or file. Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled
