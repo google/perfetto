@@ -43,7 +43,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu (
 SELECT
   utid,
   ucpu,
-  cpu,
+  cpu.cpu,
   cast_int!(SUM(dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   sum(dur) AS runtime,
@@ -51,6 +51,7 @@ SELECT
   max(freq) AS max_freq,
   cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
+JOIN cpu USING (ucpu)
 GROUP BY
   utid,
   ucpu;
@@ -89,7 +90,7 @@ RETURNS TABLE (
 SELECT
   utid,
   ucpu,
-  cpu,
+  cpu.cpu,
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
@@ -99,6 +100,7 @@ SELECT
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread AS c
   USING (id)
+JOIN cpu USING (ucpu)
 GROUP BY
   utid,
   ucpu;

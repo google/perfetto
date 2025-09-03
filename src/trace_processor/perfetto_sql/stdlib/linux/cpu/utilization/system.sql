@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
 
+INCLUDE PERFETTO MODULE linux.cpu.utilization.thread_cpu;
+
 INCLUDE PERFETTO MODULE time.conversion;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
@@ -91,13 +93,13 @@ CREATE PERFETTO TABLE cpu_cycles (
   avg_freq LONG
 ) AS
 SELECT
-  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
-  sum(dur) AS runtime,
-  min(freq) AS min_freq,
-  max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
-FROM _cpu_freq_per_thread;
+  SUM(millicycles) AS millicycles,
+  cast_int!(SUM(millicycles) / 1e9) AS megacycles,
+  SUM(runtime) AS runtime,
+  MIN(min_freq) AS min_freq,
+  MAX(max_freq) AS max_freq,
+  cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
+FROM cpu_cycles_per_thread_per_cpu;
 
 -- Aggregated CPU statistics in a provided interval. Results in one row.
 CREATE PERFETTO FUNCTION cpu_cycles_in_interval(
@@ -153,15 +155,15 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu (
 SELECT
   ucpu,
   cpu,
-  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
-  sum(dur) AS runtime,
-  min(freq) AS min_freq,
-  max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
-FROM _cpu_freq_per_thread
+  SUM(millicycles) AS millicycles,
+  cast_int!(SUM(millicycles) / 1e9) AS megacycles,
+  SUM(runtime) AS runtime,
+  MIN(min_freq) AS min_freq,
+  MAX(max_freq) AS max_freq,
+  cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
+FROM cpu_cycles_per_thread_per_cpu
 GROUP BY
-  ucpu;
+  ucpu, cpu;
 
 -- Aggregated CPU statistics for each CPU in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
