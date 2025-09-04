@@ -45,10 +45,11 @@ RETURNS TableOrSubquery AS
     t1.curve_value AS $curve_col,
     iif($cpu IN _device_policies, coalesce(t1.static, 0), 0) AS $static_col,
     t1.freq AS $freq_col,
-    t1.idle AS $idle_col,
+    coalesce(t1.idle, deepest.idle) AS $idle_col,
     t2.dep_policy AS $default_dep_policy,
     t2.dep_freq AS $default_dep_freq
   FROM _idle_freq_materialized AS t1
+  CROSS JOIN _deepest_idle AS deepest
   LEFT JOIN _cpu_w_dependency_default_vote AS t2
     USING (cpu)
   WHERE
@@ -60,9 +61,10 @@ RETURNS TableOrSubquery AS
     0,
     0,
     NULL,
-    NULL,
+    idle,
     NULL,
     NULL
+  FROM _deepest_idle()
   WHERE
     NOT EXISTS(
       SELECT
@@ -212,25 +214,16 @@ SELECT
   _stats_cpu7.default_dep_freq_7,
   _wattson_dsu_frequency.dsu_freq,
   cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d,
+  min(idle_0, idle_1, idle_2, idle_3, idle_4, idle_5, idle_6, idle_7) AS all_cpu_deep_idle,
   min(
-    coalesce(idle_0, 1),
-    coalesce(idle_1, 1),
-    coalesce(idle_2, 1),
-    coalesce(idle_3, 1),
-    coalesce(idle_4, 1),
-    coalesce(idle_5, 1),
-    coalesce(idle_6, 1),
-    coalesce(idle_7, 1)
-  ) AS all_cpu_deep_idle,
-  min(
-    iif(0 IN _cpus_for_static, coalesce(idle_0, 1), 1),
-    iif(1 IN _cpus_for_static, coalesce(idle_1, 1), 1),
-    iif(2 IN _cpus_for_static, coalesce(idle_2, 1), 1),
-    iif(3 IN _cpus_for_static, coalesce(idle_3, 1), 1),
-    iif(4 IN _cpus_for_static, coalesce(idle_4, 1), 1),
-    iif(5 IN _cpus_for_static, coalesce(idle_5, 1), 1),
-    iif(6 IN _cpus_for_static, coalesce(idle_6, 1), 1),
-    iif(7 IN _cpus_for_static, coalesce(idle_7, 1), 1)
+    iif(0 IN _cpus_for_static, idle_0, 1),
+    iif(1 IN _cpus_for_static, idle_1, 1),
+    iif(2 IN _cpus_for_static, idle_2, 1),
+    iif(3 IN _cpus_for_static, idle_3, 1),
+    iif(4 IN _cpus_for_static, idle_4, 1),
+    iif(5 IN _cpus_for_static, idle_5, 1),
+    iif(6 IN _cpus_for_static, idle_6, 1),
+    iif(7 IN _cpus_for_static, idle_7, 1)
   ) AS no_static
 FROM _idle_freq_l3_hit_l3_miss_slice AS base
 JOIN _wattson_dsu_frequency
