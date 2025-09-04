@@ -216,11 +216,13 @@ const char kMockCpuIdleStateName[] = "MOCK_STATE_NAME";
 const uint64_t kMockIntelGpuFreq = 300;
 const uint64_t kMockAdrenoGpuFreq = 400'000'000;
 // kMockAMDGpuFreq whitespace is intentional.
+// clang-format off
 const char kMockAMDGpuFreq[] = R"(
-0: 200Mhz
+0: 200Mhz 
 1: 400Mhz *
-2: 2000Mhz
+2: 2000Mhz 
 )";
+// clang-format on
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
   TestSysStatsDataSource(base::TaskRunner* task_runner,
