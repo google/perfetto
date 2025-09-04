@@ -88,7 +88,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -123,7 +123,7 @@ RETURNS TABLE (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
