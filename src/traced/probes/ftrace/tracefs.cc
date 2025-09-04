@@ -307,6 +307,16 @@ bool Tracefs::SetTracefsOption(const std::string& option, bool enabled) {
   return WriteToFile(path, enabled ? "1" : "0");
 }
 
+bool Tracefs::SetTracingCpuMask(const std::string& cpumask) {
+  std::string path = root_ + "tracing_cpumask";
+  return WriteToFile(path, cpumask);
+}
+
+bool Tracefs::ClearTracingCpuMask() {
+  std::string path = root_ + "tracing_cpumask";
+  return ClearFile(path);
+}
+
 bool Tracefs::AppendFunctionGraphFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_graph_function";
