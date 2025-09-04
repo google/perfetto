@@ -1031,7 +1031,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 36
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1284,6 +1284,29 @@ message FtraceConfig {
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
+
+  // =================================================
+  // Advanced Single-Tenant Features: HERE BE DRAGONS
+  // =================================================
+  // The features below are considered "advanced" and require an exclusive
+  // tracing session (as of Android 25Q3+ and Perfetto v52).
+  //
+  // These features directly manipulate the kernel's global ftrace state and
+  // are incompatible with concurrent ftrace sessions. They are only enabled
+  // if included in the *first* ftrace data source configured. Subsequent
+  // ftrace data sources (even those not using advanced features) will be
+  // rejected while a session with these features is active.
+  //
+  // To run the session in exclusive mode, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+
+  // Configuration for filtering ftrace events by Thread ID (TID).
+  // List of Thread IDs (TIDs) to include in the trace.
+  // Interacts with `/sys/kernel/tracing/set_event_pid`.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  repeated uint32 tids_to_trace = 35;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
