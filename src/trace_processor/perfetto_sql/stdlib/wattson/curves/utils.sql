@@ -111,7 +111,7 @@ FROM _filtered_curves_2d_raw;
 CREATE PERFETTO INDEX freq_2d ON _filtered_curves_2d(freq_khz, dep_policy, dep_freq, idle);
 
 -- L3 cache LUT
-CREATE PERFETTO TABLE _filtered_curves_l3_raw AS
+CREATE PERFETTO TABLE _filtered_curves_l3 AS
 SELECT
   dc.freq_khz,
   dc.dep_policy,
@@ -122,24 +122,7 @@ FROM _device_curves_l3 AS dc
 JOIN _wattson_device AS device
   ON dc.device = device.name;
 
-CREATE PERFETTO TABLE _filtered_curves_l3 AS
-SELECT
-  freq_khz,
-  dep_policy,
-  dep_freq,
-  'hit' AS action,
-  l3_hit AS curve_value
-FROM _filtered_curves_l3_raw
-UNION
-SELECT
-  freq_khz,
-  dep_policy,
-  dep_freq,
-  'miss' AS action,
-  l3_miss
-FROM _filtered_curves_l3_raw;
-
-CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, dep_policy, dep_freq, action);
+CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, dep_policy, dep_freq);
 
 -- Device specific GPU curves
 CREATE PERFETTO TABLE _gpu_filtered_curves_raw AS
