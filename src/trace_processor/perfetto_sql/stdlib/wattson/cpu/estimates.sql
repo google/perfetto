@@ -27,20 +27,14 @@ CREATE PERFETTO TABLE _cpu_estimates_mw AS
 SELECT
   base.ts,
   base.dur,
-  -- base.cpu[0-3]_curve will be non-zero if CPU has 1D dependency
-  -- base.cpu[0-3]_curve will be zero if device is suspended or deep idle
-  -- base.cpu[0-3]_curve will be NULL if 2D dependency required
   coalesce(base.cpu0_curve, lut0.curve_value) AS cpu0_mw,
   coalesce(base.cpu1_curve, lut1.curve_value) AS cpu1_mw,
   coalesce(base.cpu2_curve, lut2.curve_value) AS cpu2_mw,
   coalesce(base.cpu3_curve, lut3.curve_value) AS cpu3_mw,
-  -- base.cpu[4-7]_curve will be non-zero if CPU has 1D dependency
-  -- base.cpu[4-7]_curve will be zero if device is suspended or deep idle
-  -- base.cpu[4-7]_curve will be NULL if CPU doesn't exist on device
-  coalesce(base.cpu4_curve, 0.0) AS cpu4_mw,
-  coalesce(base.cpu5_curve, 0.0) AS cpu5_mw,
-  coalesce(base.cpu6_curve, 0.0) AS cpu6_mw,
-  coalesce(base.cpu7_curve, 0.0) AS cpu7_mw,
+  coalesce(base.cpu4_curve, lut4.curve_value) AS cpu4_mw,
+  coalesce(base.cpu5_curve, lut5.curve_value) AS cpu5_mw,
+  coalesce(base.cpu6_curve, lut6.curve_value) AS cpu6_mw,
+  coalesce(base.cpu7_curve, lut7.curve_value) AS cpu7_mw,
   iif(
     no_static = 1,
     0.0,
