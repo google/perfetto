@@ -218,7 +218,6 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::MockFunction;
@@ -7665,16 +7664,16 @@ TEST(PerfettoApiInitTest, AsyncSocketDisconnect) {
   SetCreateSocketFunction(mock_create_socket.AsStdFunction());
 
   EXPECT_CALL(mock_create_socket, Call)
-      .WillOnce(Invoke([&socket_callback, &create_socket_called1](
-                           perfetto::CreateSocketCallback cb) {
+      .WillOnce([&socket_callback,
+                 &create_socket_called1](perfetto::CreateSocketCallback cb) {
         socket_callback = cb;
         create_socket_called1.Notify();
-      }))
-      .WillOnce(Invoke([&socket_callback, &create_socket_called2](
-                           perfetto::CreateSocketCallback cb) {
+      })
+      .WillOnce([&socket_callback,
+                 &create_socket_called2](perfetto::CreateSocketCallback cb) {
         socket_callback = cb;
         create_socket_called2.Notify();
-      }));
+      });
 
   perfetto::Tracing::Initialize(args);
   create_socket_called1.Wait();
