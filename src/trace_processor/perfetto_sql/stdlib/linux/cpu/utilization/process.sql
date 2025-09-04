@@ -117,6 +117,9 @@ GROUP BY
   upid;
 
 -- Aggregated CPU statistics for each process in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -132,6 +135,8 @@ RETURNS TABLE (
   megacycles LONG,
   -- Total runtime duration
   runtime LONG,
+  -- Total runtime duration, while 'awake' (CPUs not suspended).
+  awake_runtime LONG,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -156,6 +161,7 @@ SELECT
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
+  sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
   cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
@@ -164,3 +170,52 @@ JOIN threads_counters
   USING (id)
 GROUP BY
   upid;
+
+-- Returns a table with process utilization over a given interval.
+--
+-- Utilization is computed as runtime over the duration of the interval, aggregated by process name.
+-- Utilization can be normalized (divide by number of cpus) or unnormalized.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+CREATE PERFETTO FUNCTION cpu_process_utilization_in_interval(
+    -- Start of the interval.
+    ts TIMESTAMP,
+    -- Duration of the interval.
+    dur LONG
+)
+RETURNS TABLE (
+  -- The name of the process
+  process_name STRING,
+  -- Total runtime of all processes with this name, while 'awake' (CPUs not suspended).
+  awake_dur LONG,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
+  -- Values in [0.0, 100.0]
+  awake_utilization DOUBLE,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
+  -- Values in [0.0, 100.0 * <number_of_cpus>]
+  awake_unnormalized_utilization DOUBLE
+) AS
+SELECT
+  process.name AS process_name,
+  sum(awake_runtime) AS awake_dur,
+  round(
+    sum(awake_runtime) * 100.0 / (
+      to_monotonic($ts + $dur) - to_monotonic($ts)
+    ) / (
+      SELECT
+        max(cpu) + 1
+      FROM cpu
+    ),
+    2
+  ) AS awake_utilization,
+  round(sum(awake_runtime) * 100.0 / (
+    to_monotonic($ts + $dur) - to_monotonic($ts)
+  ), 2) AS awake_unnormalized_utilization
+FROM cpu_cycles_per_process_in_interval($ts, $dur)
+JOIN process
+  USING (upid)
+WHERE
+  process.name IS NOT NULL
+GROUP BY
+  process.name;
