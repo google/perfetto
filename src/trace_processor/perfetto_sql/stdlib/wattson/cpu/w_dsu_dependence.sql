@@ -15,48 +15,13 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE linux.devfreq;
+INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
 INCLUDE PERFETTO MODULE wattson.cpu.pivot;
 
-INCLUDE PERFETTO MODULE wattson.curves.utils;
-
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
-INCLUDE PERFETTO MODULE wattson.utils;
-
--- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
--- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
--- DSU frequency is a prerequisite for power estimation on Pixel 9.
-CREATE PERFETTO TABLE _dsu_frequency AS
-SELECT
-  *
-FROM linux_devfreq_dsu_counter
-UNION ALL
-SELECT
-  0 AS id,
-  trace_start() AS ts,
-  trace_end() - trace_start() AS dur,
-  610000 AS dsu_freq
--- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
-WHERE
-  (
-    SELECT
-      str_value
-    FROM metadata
-    WHERE
-      name = 'android_guest_soc_model'
-  ) IN (
-    SELECT
-      device
-    FROM _use_devfreq
-  )
-  AND (
-    SELECT
-      count(*)
-    FROM linux_devfreq_dsu_counter
-  ) = 0;
-
+-- Add DSU dependency with ii() if necessary for the device
 CREATE PERFETTO TABLE _w_dsu_dependence AS
 SELECT
   c.ts,
@@ -110,13 +75,13 @@ FROM _use_devfreq_for_calc
 CROSS JOIN _interval_intersect!(
   (
     _ii_subquery!(_w_dependent_cpus_calc),
-    _ii_subquery!(_dsu_frequency)
+    _ii_subquery!(_wattson_dsu_frequency)
   ),
   ()
 ) AS ii
 JOIN _w_dependent_cpus_calc AS c
   ON c._auto_id = id_0
-JOIN _dsu_frequency AS d
+JOIN _wattson_dsu_frequency AS d
   ON d._auto_id = id_1
 UNION ALL
 -- If no DSU devfreq dependence, just take orginal table as is
