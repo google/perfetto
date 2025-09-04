@@ -43,7 +43,7 @@ RETURNS TableOrSubquery AS
     t1.ts,
     t1.dur,
     t1.curve_value AS $curve_col,
-    t1.static AS $static_col,
+    iif($cpu IN _device_policies, coalesce(t1.static, 0), 0) AS $static_col,
     t1.freq AS $freq_col,
     t1.idle AS $idle_col,
     t2.dep_policy AS $default_dep_policy,
@@ -57,8 +57,8 @@ RETURNS TableOrSubquery AS
   SELECT
     trace_start(),
     trace_dur(),
-    NULL,
-    NULL,
+    0,
+    0,
     NULL,
     NULL,
     NULL,
@@ -211,7 +211,7 @@ SELECT
   _stats_cpu6.default_dep_freq_6,
   _stats_cpu7.default_dep_freq_7,
   _wattson_dsu_frequency.dsu_freq,
-  iif(0 IN _device_policies, coalesce(cpu0_static, 0), 0) + iif(1 IN _device_policies, coalesce(cpu1_static, 0), 0) + iif(2 IN _device_policies, coalesce(cpu2_static, 0), 0) + iif(3 IN _device_policies, coalesce(cpu3_static, 0), 0) + iif(4 IN _device_policies, coalesce(cpu4_static, 0), 0) + iif(5 IN _device_policies, coalesce(cpu5_static, 0), 0) + iif(6 IN _device_policies, coalesce(cpu6_static, 0), 0) + iif(7 IN _device_policies, coalesce(cpu7_static, 0), 0) AS static_1d,
+  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d,
   min(
     coalesce(idle_0, 1),
     coalesce(idle_1, 1),
