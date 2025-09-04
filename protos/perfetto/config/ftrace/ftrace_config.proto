@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 36
+// Next id: 37
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -293,6 +293,28 @@ message FtraceConfig {
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   repeated uint32 tids_to_trace = 35;
+
+  // Options control the tracers or the trace output.
+  // They let the user control the amount of data that is displayed in the
+  // trace and how a tracer or events work (stack traces, timestamps, etc).
+  // Interacts with trace option in /sys/kernel/tracing/options directory.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  message TracefsOption {
+    enum State {
+      STATE_UNSET = 0;
+      STATE_ENABLED = 1;
+      STATE_DISABLED = 2;
+    }
+    // Note: The string must exactly match (including case) the sysfs file name.
+    // The string can only contain alphanumeric characters, hyphens and
+    // underscores.
+    // For all possible options, see: https://docs.kernel.org/trace/ftrace.html.
+    optional string name = 1;
+    optional State state = 2;
+  }
+  repeated TracefsOption tracefs_options = 36;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
