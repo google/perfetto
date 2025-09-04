@@ -45,8 +45,8 @@ SELECT
     0.0,
     iif(0 IN _device_policies, coalesce(lut0.static, 0), 0) + iif(1 IN _device_policies, coalesce(lut1.static, 0), 0) + iif(2 IN _device_policies, coalesce(lut2.static, 0), 0) + iif(3 IN _device_policies, coalesce(lut3.static, 0), 0) + iif(4 IN _device_policies, coalesce(lut4.static, 0), 0) + iif(5 IN _device_policies, coalesce(lut5.static, 0), 0) + iif(6 IN _device_policies, coalesce(lut6.static, 0), 0) + iif(7 IN _device_policies, coalesce(lut7.static, 0), 0) + static_1d
   ) AS static_curve,
-  iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
-  iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value
+  iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_lut.l3_hit) AS l3_hit_value,
+  iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_lut.l3_miss) AS l3_miss_value
 FROM _w_dependent_cpus_calc AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
@@ -89,17 +89,10 @@ LEFT JOIN _filtered_curves_2d AS lut7
   AND lut7.dep_policy = base.dep_policy_7
   AND lut7.dep_freq = base.dep_freq_7
   AND lut7.idle = base.idle_7
--- -- LUT joins for L3 cache
-LEFT JOIN _filtered_curves_l3 AS l3_hit_lut
-  ON l3_hit_lut.freq_khz = base.freq_0
-  AND l3_hit_lut.dep_policy = base.dep_policy_0
-  AND l3_hit_lut.dep_freq = base.dep_freq_0
-  AND l3_hit_lut.action = 'hit'
-LEFT JOIN _filtered_curves_l3 AS l3_miss_lut
-  ON l3_miss_lut.freq_khz = base.freq_0
-  AND l3_miss_lut.dep_policy = base.dep_policy_0
-  AND l3_miss_lut.dep_freq = base.dep_freq_0
-  AND l3_miss_lut.action = 'miss';
+LEFT JOIN _filtered_curves_l3 AS l3_lut
+  ON l3_lut.freq_khz = base.freq_0
+  AND l3_lut.dep_policy = base.dep_policy_0
+  AND l3_lut.dep_freq = base.dep_freq_0;
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
