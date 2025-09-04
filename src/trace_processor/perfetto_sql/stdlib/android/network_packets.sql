@@ -83,7 +83,7 @@ JOIN slice
 -- This helper is used to unparenthesize a column list expression. Currently,
 -- the the pre-processor is unable to do both steps in one macro, so this macro
 -- must be passed to __intrinsic_token_apply at the callsite.
-CREATE PERFETTO MACRO __np_identity(
+CREATE PERFETTO MACRO _np_identity(
     x Expr
 )
 RETURNS Expr AS
@@ -104,9 +104,9 @@ $x;
 -- * group_id: the group the row belongs to (per partition_columns)
 -- * max_end_so_far: the maximum end timestamp observed so far, useful for
 --   determining the time since the last group or event (per partition_columns)
-CREATE PERFETTO MACRO __add_overlap_group_id(
+CREATE PERFETTO MACRO _add_overlap_group_id(
     src TableOrSubquery,
-    partition_columns Expr
+    partition_columns _ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (
@@ -114,12 +114,12 @@ RETURNS TableOrSubquery AS
     _max_endpoint AS (
       SELECT
         *,
-        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(__np_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_end_so_far
+        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_end_so_far
       FROM $src
     )
   SELECT
     *,
-    sum(coalesce(ts > max_end_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(__np_identity, $partition_columns) ORDER BY ts) AS group_id
+    sum(coalesce(ts > max_end_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns) ORDER BY ts) AS group_id
   FROM _max_endpoint
 );
 
@@ -135,7 +135,7 @@ CREATE PERFETTO MACRO android_network_uptime_spans(
     -- packet_count, and packet_length.
     src TableOrSubquery,
     -- A parenthesized set of columns to partition the analysis by.
-    partition_columns Expr,
+    partition_columns _ColumnNameList,
     -- The idle timeout, expressed in nanoseconds.
     timeout Expr
 )
@@ -146,25 +146,25 @@ RETURNS TableOrSubquery AS
   WITH
     _quantized AS (
       SELECT
-        __intrinsic_token_apply!(__np_identity, $partition_columns),
+        __intrinsic_token_apply!(_np_identity, $partition_columns),
         min(ts) AS ts,
         max(ts + dur + $timeout) - min(ts) AS dur,
         sum(packet_count) AS packet_count,
         sum(packet_length) AS packet_length
       FROM $src
       GROUP BY
-        __intrinsic_token_apply!(__np_identity, $partition_columns),
+        __intrinsic_token_apply!(_np_identity, $partition_columns),
         CAST(ts / $timeout AS LONG)
     )
   SELECT
-    __intrinsic_token_apply!(__np_identity, $partition_columns),
+    __intrinsic_token_apply!(_np_identity, $partition_columns),
     min(ts) AS ts,
     max(ts + dur) - min(ts) AS dur,
     sum(packet_count) AS packet_count,
     sum(packet_length) AS packet_length
-  FROM __add_overlap_group_id!(_quantized, $partition_columns)
+  FROM _add_overlap_group_id!(_quantized, $partition_columns)
   GROUP BY
-    __intrinsic_token_apply!(__np_identity, $partition_columns),
+    __intrinsic_token_apply!(_np_identity, $partition_columns),
     group_id
 );
 
@@ -208,7 +208,7 @@ CREATE PERFETTO MACRO android_network_uptime_cost(
     -- dur, and packet_count.
     src TableOrSubquery,
     -- A parenthesized set of columns to partition the analysis by.
-    partition_columns Expr,
+    partition_columns _ColumnNameList,
     -- The idle timeout, expressed in nanoseconds.
     timeout Expr
 )
@@ -220,8 +220,8 @@ RETURNS TableOrSubquery AS
         *,
         sum(packet_count) OVER group_window AS group_packets,
         max(ts + dur) OVER group_window - min(ts) OVER group_window AS group_dur
-      FROM __add_overlap_group_id!($src, $partition_columns)
-      WINDOW group_window AS (PARTITION BY __intrinsic_token_apply!(__np_identity, $partition_columns), group_id)
+      FROM _add_overlap_group_id!($src, $partition_columns)
+      WINDOW group_window AS (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns), group_id)
     ),
     _cost_parts AS (
       SELECT
