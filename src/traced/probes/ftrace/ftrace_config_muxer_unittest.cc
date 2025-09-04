@@ -1361,6 +1361,31 @@ TEST_F(FtraceConfigMuxerFakeTableTest, TidFilter) {
   ASSERT_FALSE(model_.GetExclusiveFeatureActiveForTesting());
 }
 
+TEST_F(FtraceConfigMuxerFakeTableTest, TracingCpuMask) {
+  FtraceConfig config;
+  config.set_tracing_cpumask("ffffff");
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+
+  // Ignore other calls.
+  EXPECT_CALL(ftrace_, WriteToFile(Not("/root/tracing_cpumask"), _))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, ClearFile(Not("/root/tracing_cpumask")))
+      .Times(AnyNumber());
+
+  EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_cpumask", "ffffff"))
+      .WillOnce(Return(true));
+
+  FtraceConfigId id = 43;
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+  ASSERT_TRUE(model_.GetExclusiveFeatureActiveForTesting());
+
+  EXPECT_CALL(ftrace_, ClearFile("/root/tracing_cpumask"));
+  ASSERT_TRUE(model_.RemoveConfig(id));
+  ASSERT_FALSE(model_.GetExclusiveFeatureActiveForTesting());
+}
+
 TEST_F(FtraceConfigMuxerFakeTableTest, TracefsOptions) {
   FtraceConfig config;
   auto* opt1 = config.add_tracefs_options();

@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 37
+// Next id: 38
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -325,6 +325,13 @@ message FtraceConfig {
     optional State state = 2;
   }
   repeated TracefsOption tracefs_options = 36;
+
+  // This is a mask that lets the user only trace on specified CPUs.
+  // The format is a hex string representing the CPUs.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional string tracing_cpumask = 37;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
