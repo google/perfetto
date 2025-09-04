@@ -20,12 +20,56 @@ $box-shadow-1: 0px 2px 6px var(--pf-color-box-shadow);
 $box-shadow-2: 0px 4px 12px var(--pf-color-box-shadow);
 $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
 
-@function color_hover($base) {
-  @return color-mix(in srgb, $base, var(--pf-color-interactive-base) 8%);
+// This function is used to compute the hove color for interactive surfaces such
+// as buttons or or menu items. The idea is you give it the surface color and
+// the 'on surface' color (i.e. the text/icon color that goes on top of the
+// surface) and it will return a color that is a mix of mostly the surface color
+// with a hint of the on-surface color.
+//
+// @param surface: The surface (aka background) color of the element we want to
+// apply the color to. Defaults to 'transparent' which will work with most unset
+// surfaces.
+//
+// @param on-surface: The color of the on-surface color i.e. the contrast color.
+// Usually the color of the text. Defaults to 'currentColor', which is a CSS
+// alias for the current 'color' value whether it be inherited or explicitly
+// set.
+@function color-hover-surface(
+  $surface: transparent,
+  $on-surface: currentColor
+) {
+  @return color-mix(in srgb, $surface, $on-surface 8%);
 }
 
+// This function is used to compute the active color for interactive surfaces
+// such as buttons or menu items. The idea is you give it the surface color and
+// the 'on surface' color (i.e. the text/icon color that goes on top of the
+// surface) and it will return a color that is a mix of mostly the surface color
+// with a hint of the on-surface color.
+//
+// @param surface: The surface (aka background) color of the element we want to
+// apply the color to. Defaults to 'transparent' which will work with most unset
+// surfaces.
+//
+// @param on-surface: The color of the on-surface color i.e. the contrast color.
+// Usually the color of the text. Defaults to 'currentColor', which is a CSS
+// alias for the current 'color' value whether it be inherited or explicitly
+// set.
+@function color-active-surface(
+  $surface: transparent,
+  $on-surface: currentColor
+) {
+  @return color-mix(in srgb, $surface, $on-surface 16%);
+}
+
+// This function is deprecated and should not be used in new code.
+@function color_hover($base) {
+  @return color-hover-surface($base, var(--pf-color-interactive-base));
+}
+
+// This function is deprecated and should not be used in new code.
 @function color_active($base) {
-  @return color-mix(in srgb, $base, var(--pf-color-interactive-base) 16%);
+  @return color-active-surface($base, var(--pf-color-interactive-base));
 }
 
 @mixin focus {
