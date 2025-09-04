@@ -67,7 +67,7 @@ export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
             Tree,
             m(TreeNode, {
               left: 'Annotation',
-              right: m(Timestamp, {ts: startTime}),
+              right: m(Timestamp, {trace, ts: startTime}),
             }),
             m(TreeNode, {
               left: 'Name',

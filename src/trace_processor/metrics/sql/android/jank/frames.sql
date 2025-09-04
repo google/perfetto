@@ -87,7 +87,7 @@ WITH frame_base AS (
     boundary.ts_do_frame_start,
     COUNT(fence_idx) AS gpu_fence_count,
     COUNT(fence_idx) > 0 AS drew_anything
-  FROM android_jank_cuj_do_frame_slice do_frame
+  FROM _android_jank_cuj_do_frames do_frame
   JOIN android_jank_cuj_main_thread_frame_boundary boundary USING (cuj_id, vsync)
   JOIN android_jank_cuj_draw_frame_slice draw_frame USING (cuj_id, vsync)
   LEFT JOIN android_jank_cuj_gpu_completion_fence fence USING (cuj_id, vsync)

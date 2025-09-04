@@ -75,7 +75,7 @@ class ChromeParser(TestSuite):
         # INFO) is assumed (otherwise the UI will not show the message).
         out=Csv("""
         "utid","tag","msg","prio"
-        1,"foo.cc:123","log message",4
+        2,"foo.cc:123","log message",4
         """))
 
   def test_chrome_log_message_priority(self):
@@ -131,7 +131,7 @@ class ChromeParser(TestSuite):
         """,
         out=Csv("""
         "utid","tag","msg","prio"
-        1,"foo.cc:123","log message",5
+        2,"foo.cc:123","log message",5
         """))
 
   def test_chrome_log_message_args(self):

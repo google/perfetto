@@ -92,6 +92,7 @@ source_set("lib") {
     "../trace_processor/util:descriptors",
     "../trace_processor/util:gzip",
     "../trace_processor/util:protozero_to_text",
+    "../trace_processor/util:tar_writer",
     "../trace_processor/util:trace_type",
   ]
   sources = [
@@ -99,6 +100,8 @@ source_set("lib") {
     "deobfuscate_profile.h",
     "symbolize_profile.cc",
     "symbolize_profile.h",
+    "trace_to_bundle.cc",
+    "trace_to_bundle.h",
     "trace_to_firefox.cc",
     "trace_to_firefox.h",
     "trace_to_hprof.cc",

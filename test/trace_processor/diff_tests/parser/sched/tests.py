@@ -24,20 +24,7 @@ class SchedParser(TestSuite):
   def test_cpu_frequency_limits(self):
     return DiffTestBlueprint(
         trace=Path('cpu_frequency_limits.textproto'),
-        query="""
-        SELECT
-          ts,
-          value,
-          REPLACE(name, " Freq Limit", "") AS cpu
-        FROM
-          counter AS c
-        LEFT JOIN
-          counter_track AS t
-          ON c.track_id = t.id
-        WHERE
-          name GLOB "* Freq Limit"
-        ORDER BY ts;
-        """,
+        query=Path('cpu_frequency_limits_test.sql'),
         out=Csv("""
         "ts","value","cpu"
         90000000,2800000.000000,"Cpu 6 Max"
@@ -52,6 +39,38 @@ class SchedParser(TestSuite):
         120000000,600000.000000,"Cpu 4 Min"
         130000000,2200000.000000,"Cpu 4 Max"
         130000000,800000.000000,"Cpu 4 Min"
+        """))
+
+  def test_cpu_frequency_limits_from_systrace(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_frequency_limits.systrace'),
+        query=Path('cpu_frequency_limits_test.sql'),
+        out=Csv("""
+        "ts","value","cpu"
+        90000000,2800000.000000,"Cpu 6 Max"
+        90000000,500000.000000,"Cpu 6 Min"
+        100000000,1700000.000000,"Cpu 6 Max"
+        100000000,500000.000000,"Cpu 6 Min"
+        110000000,2800000.000000,"Cpu 6 Max"
+        110000000,1400000.000000,"Cpu 6 Min"
+        120000000,1500000.000000,"Cpu 6 Max"
+        120000000,500000.000000,"Cpu 6 Min"
+        120000000,1400000.000000,"Cpu 4 Max"
+        120000000,600000.000000,"Cpu 4 Min"
+        130000000,2200000.000000,"Cpu 4 Max"
+        130000000,800000.000000,"Cpu 4 Min"
+        1090000000,2800000.000000,"Cpu 6 Max"
+        1090000000,500000.000000,"Cpu 6 Min"
+        1100000000,1700000.000000,"Cpu 6 Max"
+        1100000000,500000.000000,"Cpu 6 Min"
+        1110000000,2800000.000000,"Cpu 6 Max"
+        1110000000,1400000.000000,"Cpu 6 Min"
+        1120000000,1500000.000000,"Cpu 6 Max"
+        1120000000,500000.000000,"Cpu 6 Min"
+        1120000000,1400000.000000,"Cpu 4 Max"
+        1120000000,600000.000000,"Cpu 4 Min"
+        1130000000,2200000.000000,"Cpu 4 Max"
+        1130000000,800000.000000,"Cpu 4 Min"
         """))
 
   def test_sched_cpu_util_cfs(self):

@@ -65,7 +65,7 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
   }
 
   internal::TracingMuxerImpl::InitializeInstance(args);
-  internal::TrackRegistry::InitializeInstance();
+  internal::TrackRegistry::InitializeInstance(args.process_uuid);
   g_was_initialized = true;
 }
 

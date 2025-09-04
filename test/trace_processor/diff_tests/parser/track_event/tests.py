@@ -464,21 +464,21 @@ class TrackEvent(TestSuite):
         "track","process","thread","thread_process","ts","dur","category","name","key","string_value","int_value"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg1","value1","[NULL]"
-        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.phase","S","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg2","value2","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_trace_source_id","[NULL]",1234
-        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
+        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.phase","S","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.arg3","value3","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.step","Step1","[NULL]"
-        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.phase","T","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.arg4","value4","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.step","Step2","[NULL]"
-        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.phase","p","[NULL]"
         """))
 
@@ -578,7 +578,7 @@ class TrackEvent(TestSuite):
           "event.category","event.category","[NULL]","cat"
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
-          "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "legacy_event.passthrough_utid","legacy_event.passthrough_utid",2,"[NULL]"
           "legacy_trace_source_id","legacy_trace_source_id",1234,"[NULL]"
           "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"

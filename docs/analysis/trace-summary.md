@@ -257,7 +257,6 @@ tooling.
 
 ## Using Summaries with Custom SQL Modules
 
-
 While the standard library is powerful, you will often need to analyze custom
 events specific to your application. You can achieve this by writing your own
 SQL modules and loading them into Trace Processor.
@@ -427,6 +426,50 @@ query: {
       column_name: "cpu_time"
       op: SUM
       result_column_name: "total_cpu_time"
+    }
+  }
+}
+```
+
+### Composing Queries with `dependencies`
+
+The `dependencies` field in the `Sql` source allows you to build complex
+queries by composing them from other structured queries. This is especially
+useful for breaking down a complex analysis into smaller, reusable parts.
+
+Each dependency is given an `alias`, which is a string that can be used in the
+SQL query to refer to the result of the dependency. The SQL query can then
+use this alias as if it were a table.
+
+#### Example: Joining CPU data with CUJ slices
+
+This example shows how to use `dependencies` to join CPU scheduling data
+with CUJ slices. We define two dependencies, one for the CPU data and one for
+the CUJ slices, and then join them in the main SQL query.
+
+```protobuf
+query: {
+  sql: {
+    sql: "SELECT s.id, s.ts, s.dur, t.track_name FROM $slice_table s JOIN $track_table t ON s.track_id = t.id"
+    column_names: "id"
+    column_names: "ts"
+    column_names: "dur"
+    column_names: "track_name"
+    dependencies: {
+      alias: "slice_table"
+      query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+    }
+    dependencies: {
+      alias: "track_table"
+      query: {
+        table: {
+          table_name: "track"
+        }
+      }
     }
   }
 }

@@ -15,7 +15,6 @@
 import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
-import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {Builder} from './query_builder/builder';
 import {QueryNode} from './query_node';
 import {
@@ -27,18 +26,11 @@ import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {SubQueryNode} from './query_builder/nodes/sub_query_node';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
-import {VisViewSource} from './data_visualiser/view_source';
+import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
-  activeViewSource?: VisViewSource;
-  mode: ExplorePageModes;
-}
-
-export enum ExplorePageModes {
-  QUERY_BUILDER,
-  DATA_VISUALISER,
 }
 
 interface ExplorePageAttrs {
@@ -93,9 +85,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   handleAddAggregation(state: ExplorePageState, node: QueryNode) {
     const newNode = new AggregationNode({
-      prevNode: node,
+      prevNodes: [node],
       groupByColumns: [],
       aggregations: [],
+      filters: [],
+    });
+    this.addNode(state, newNode, node);
+  }
+
+  handleAddIntervalIntersect(state: ExplorePageState, node: QueryNode) {
+    const newNode = new IntervalIntersectNode({
+      prevNodes: [node],
+      allNodes: state.rootNodes,
+      intervalNodes: [],
       filters: [],
     });
     this.addNode(state, newNode, node);
@@ -138,11 +140,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // If the node is a child of another node, remove it from the parent's
     // nextNodes array.
-    if (node.prevNode) {
-      const prevNode = node.prevNode;
-      const childIdx = prevNode.nextNodes.indexOf(node);
-      if (childIdx !== -1) {
-        prevNode.nextNodes.splice(childIdx, 1);
+    if (node.prevNodes) {
+      for (const prevNode of node.prevNodes) {
+        const childIdx = prevNode.nextNodes.indexOf(node);
+        if (childIdx !== -1) {
+          prevNode.nextNodes.splice(childIdx, 1);
+        }
       }
     }
 
@@ -154,7 +157,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   handleAddSubQuery(state: ExplorePageState, node: QueryNode) {
     const newNode = new SubQueryNode({
-      prevNode: node,
+      prevNodes: [node],
       filters: [],
     });
     this.addNode(state, newNode, node);
@@ -209,31 +212,25 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         tabindex: 0,
       },
-      state.mode === ExplorePageModes.QUERY_BUILDER &&
-        m(Builder, {
-          trace,
-          sqlModules,
-          rootNodes: state.rootNodes,
-          selectedNode: state.selectedNode,
-          onRootNodeCreated: (node) => this.addNode(state, node),
-          onNodeSelected: (node) => (state.selectedNode = node),
-          onDeselect: () => this.deselectNode(state),
-          onAddStdlibTableSource: () => this.handleAddStdlibTableSource(attrs),
-          onAddSlicesSource: () => this.handleAddSlicesSource(state),
-          onAddSqlSource: () => this.handleAddSqlSource(attrs),
-          onClearAllNodes: () => this.handleClearAllNodes(state),
-          onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
-          onDeleteNode: (node) => this.handleDeleteNode(state, node),
-          onAddSubQueryNode: (node) => this.handleAddSubQuery(state, node),
-          onAddAggregationNode: (node) =>
-            this.handleAddAggregation(state, node),
-        }),
-      state.mode === ExplorePageModes.DATA_VISUALISER &&
-        state.rootNodes.length !== 0 &&
-        m(DataVisualiser, {
-          trace,
-          state,
-        }),
+      m(Builder, {
+        trace,
+        sqlModules,
+        rootNodes: state.rootNodes,
+        selectedNode: state.selectedNode,
+        onRootNodeCreated: (node) => this.addNode(state, node),
+        onNodeSelected: (node) => (state.selectedNode = node),
+        onDeselect: () => this.deselectNode(state),
+        onAddStdlibTableSource: () => this.handleAddStdlibTableSource(attrs),
+        onAddSlicesSource: () => this.handleAddSlicesSource(state),
+        onAddSqlSource: () => this.handleAddSqlSource(attrs),
+        onClearAllNodes: () => this.handleClearAllNodes(state),
+        onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
+        onDeleteNode: (node) => this.handleDeleteNode(state, node),
+        onAddSubQueryNode: (node) => this.handleAddSubQuery(state, node),
+        onAddAggregationNode: (node) => this.handleAddAggregation(state, node),
+        onAddIntervalIntersectNode: (node) =>
+          this.handleAddIntervalIntersect(state, node),
+      }),
     );
   }
 }

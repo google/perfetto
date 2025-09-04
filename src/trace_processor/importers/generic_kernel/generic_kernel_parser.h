@@ -34,6 +34,8 @@ class GenericKernelParser {
 
   void ParseGenericTaskRenameEvent(protozero::ConstBytes data);
 
+  void ParseGenericProcessTree(protozero::ConstBytes data);
+
   void ParseGenericCpuFrequencyEvent(int64_t ts, protozero::ConstBytes data);
 
  private:

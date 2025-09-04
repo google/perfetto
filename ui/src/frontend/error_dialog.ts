@@ -18,12 +18,13 @@ import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
-import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Checkbox} from '../widgets/checkbox';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -138,7 +139,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     }
 
     // If the user is not a googler, don't even offer the option to upload it.
-    if (!globals.isInternalUser) return;
+    if (!AppImpl.instance.isInternalUser) return;
 
     if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
@@ -307,7 +308,7 @@ function showOutOfMemoryDialog() {
       m('.pf-modal-bash', tpCmd),
       m('br'),
       m('span', 'For details see '),
-      m('a', {href: url, target: '_blank'}, url),
+      m(Anchor, {href: url, target: '_blank', icon: Icons.ExternalLink}, url),
     ),
   });
 }
@@ -349,7 +350,15 @@ function showWebUSBError() {
       m('.pf-modal-bash', '> adb kill-server'),
       m('br'),
       m('span', 'For details see '),
-      m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
+      m(
+        Anchor,
+        {
+          href: 'http://b/159048331',
+          target: '_blank',
+          icon: Icons.ExternalLink,
+        },
+        'b/159048331',
+      ),
     ),
   });
 }

@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -31,7 +31,7 @@ class MappingVersion {
   MappingVersion(MappingId id,
                  int64_t create_ts,
                  AddressRange range,
-                 std::optional<TraceBlobView> content);
+                 std::optional<TraceBlob> content);
 
   bool Contains(uint64_t address) const { return range_.Contains(address); }
   bool Contains(const AddressRange& range) const {
@@ -44,9 +44,7 @@ class MappingVersion {
   MappingId id() const { return id_; }
   // Returns a valid pointer if data is available or nullptr otherwise
   const uint8_t* data() const {
-    // We make sure in the constructor that if content_ length is 0 the pointer
-    // will be null.
-    return content_.data();
+    return content_.size() == 0 ? nullptr : content_.data();
   }
 
   MappingVersion SplitFront(uint64_t mid);
@@ -57,7 +55,7 @@ class MappingVersion {
   AddressRange range_;
   // Content is either empty and points to nullptr, or has the same length as
   // `range_`. This is CHECKED in the constructor.
-  TraceBlobView content_;
+  TraceBlob content_;
 };
 
 }  // namespace perfetto::trace_processor::etm

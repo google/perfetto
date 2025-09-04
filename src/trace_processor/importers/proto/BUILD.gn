@@ -100,13 +100,13 @@ source_set("minimal") {
     "../../types",
     "../../util:build_id",
     "../../util:gzip",
+    "../../util:json_parser",
     "../../util:profiler_util",
     "../../util:trace_blob_view_reader",
     "../common",
     "../common:parser_types",
     "../etw:minimal",
     "../ftrace:minimal",
-    "../json:minimal",
     "../memory_tracker:graph_processor",
   ]
 }

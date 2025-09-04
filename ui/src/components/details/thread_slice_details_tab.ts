@@ -23,7 +23,7 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {Tree} from '../../widgets/tree';
-import {Flow, FlowPoint} from '../../core/flow_types';
+import {FlowPoint} from '../../core/flow_types';
 import {hasArgs} from './args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
@@ -34,7 +34,14 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
-import {BasicTable} from '../../widgets/basic_table';
+import {
+  Grid,
+  GridBody,
+  GridDataCell,
+  GridHeader,
+  GridHeaderCell,
+  GridRow,
+} from '../../widgets/grid';
 import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {assertExists, assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
@@ -92,7 +99,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
     run: (slice: SliceDetails, trace: Trace) =>
       extensions.addLegacySqlTableTab(trace, {
-        table: assertExists(getSqlTableDescription('slice')),
+        table: assertExists(getSqlTableDescription(trace, 'slice')),
         filters: [
           {
             op: (cols) =>
@@ -108,7 +115,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: () => true,
     run: (slice: SliceDetails, trace: Trace) =>
       extensions.addLegacySqlTableTab(trace, {
-        table: assertExists(getSqlTableDescription('slice')),
+        table: assertExists(getSqlTableDescription(trace, 'slice')),
         filters: [
           {
             op: (cols) =>
@@ -284,32 +291,46 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(
         Section,
         {title: 'Preceding Flows'},
-        m(BasicTable<Flow>, {
-          columns: [
-            {
-              title: 'Slice',
-              render: (flow: Flow) =>
-                m(SliceRef, {
-                  id: asSliceSqlId(flow.begin.sliceId),
-                  name:
-                    flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
-                }),
-            },
-            {
-              title: 'Delay',
-              render: (flow: Flow) =>
-                m(DurationWidget, {
-                  dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                }),
-            },
-            {
-              title: 'Thread',
-              render: (flow: Flow) =>
-                this.getThreadNameForFlow(flow.begin, !isRunTask),
-            },
-          ],
-          data: inFlows,
-        }),
+        m(
+          Grid,
+          m(
+            GridHeader,
+            m(
+              GridRow,
+              m(GridHeaderCell, 'Slice'),
+              m(GridHeaderCell, 'Delay'),
+              m(GridHeaderCell, 'Thread'),
+            ),
+          ),
+          m(
+            GridBody,
+            inFlows.map((flow) =>
+              m(
+                GridRow,
+                m(
+                  GridDataCell,
+                  m(SliceRef, {
+                    trace: this.trace,
+                    id: asSliceSqlId(flow.begin.sliceId),
+                    name:
+                      flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
+                  }),
+                ),
+                m(
+                  GridDataCell,
+                  m(DurationWidget, {
+                    trace: this.trace,
+                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+                  }),
+                ),
+                m(
+                  GridDataCell,
+                  this.getThreadNameForFlow(flow.begin, !isRunTask),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     } else {
       return null;
@@ -328,31 +349,45 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(
         Section,
         {title: 'Following Flows'},
-        m(BasicTable<Flow>, {
-          columns: [
-            {
-              title: 'Slice',
-              render: (flow: Flow) =>
-                m(SliceRef, {
-                  id: asSliceSqlId(flow.end.sliceId),
-                  name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
-                }),
-            },
-            {
-              title: 'Delay',
-              render: (flow: Flow) =>
-                m(DurationWidget, {
-                  dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                }),
-            },
-            {
-              title: 'Thread',
-              render: (flow: Flow) =>
-                this.getThreadNameForFlow(flow.end, !isPostTask),
-            },
-          ],
-          data: outFlows,
-        }),
+        m(
+          Grid,
+          m(
+            GridHeader,
+            m(
+              GridRow,
+              m(GridHeaderCell, 'Slice'),
+              m(GridHeaderCell, 'Delay'),
+              m(GridHeaderCell, 'Thread'),
+            ),
+          ),
+          m(
+            GridBody,
+            outFlows.map((flow) =>
+              m(
+                GridRow,
+                m(
+                  GridDataCell,
+                  m(SliceRef, {
+                    trace: this.trace,
+                    id: asSliceSqlId(flow.end.sliceId),
+                    name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
+                  }),
+                ),
+                m(
+                  GridDataCell,
+                  m(DurationWidget, {
+                    trace: this.trace,
+                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+                  }),
+                ),
+                m(
+                  GridDataCell,
+                  this.getThreadNameForFlow(flow.end, !isPostTask),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     } else {
       return null;

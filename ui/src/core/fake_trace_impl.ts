@@ -75,6 +75,13 @@ export function initializeAppImplForTesting(): AppImpl {
         schema: commandInvocationArraySchema,
         defaultValue: [],
       }),
+      enforceStartupCommandAllowlistSetting: settingsManager.register({
+        id: 'enforceStartupCommandAllowlist',
+        name: 'Enforce Startup Command Allowlist',
+        description: '',
+        schema: z.boolean(),
+        defaultValue: true,
+      }),
     });
   }
   return AppImpl.instance;

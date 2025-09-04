@@ -59,11 +59,7 @@ Rect::Rect(double left, double top, double right, double bottom) {
 }
 
 bool Rect::IsEmpty() const {
-  const bool null_value_present = IsFloatEqual(x, -1) || IsFloatEqual(y, -1) ||
-                                  IsFloatEqual(x + w, -1) ||
-                                  IsFloatEqual(y + h, -1);
-  const bool null_h_or_w = w <= 0 || h <= 0;
-  return null_value_present || null_h_or_w;
+  return w <= 0 || h <= 0;
 }
 
 Rect Rect::CropRect(const Rect& other) const {
@@ -75,8 +71,14 @@ Rect Rect::CropRect(const Rect& other) const {
 }
 
 bool Rect::ContainsRect(const Rect& other) const {
-  return (w > 0 && h > 0 && x <= other.x && y <= other.y &&
-          (x + w >= other.x + other.w) && (y + h >= other.y + other.h));
+  auto right = x + w;
+  auto other_right = other.x + other.w;
+  auto bottom = y + h;
+  auto other_bottom = other.y + other.h;
+  return !IsEmpty() && (x <= other.x || IsFloatClose(x, other.x)) &&
+         (y <= other.y || IsFloatClose(y, other.y)) &&
+         ((right >= other_right) || IsFloatClose(right, other_right)) &&
+         ((bottom >= other_bottom) || IsFloatClose(bottom, other_bottom));
 }
 
 bool Rect::IntersectsRect(const Rect& other) const {

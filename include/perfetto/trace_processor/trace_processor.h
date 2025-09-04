@@ -146,7 +146,7 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // if you pass binaries these are used to decode ETM traces.
   // Registering the same file twice will return an error.
   virtual base::Status RegisterFileContent(const std::string& path,
-                                           TraceBlobView content) = 0;
+                                           TraceBlob content) = 0;
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;

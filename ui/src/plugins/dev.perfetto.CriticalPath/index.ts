@@ -189,7 +189,7 @@ export default class implements PerfettoPlugin {
                     trace_bounds.end_ts - trace_bounds.start_ts) cr,
                   trace_bounds
                 JOIN thread USING(utid)
-                JOIN process USING(upid)
+                LEFT JOIN process USING(upid)
               `,
                 columns: sliceLiteColumnNames,
               },
@@ -266,7 +266,7 @@ export default class implements PerfettoPlugin {
                       ${window.start},
                       ${window.end} - ${window.start}) cr
                 JOIN thread USING(utid)
-                JOIN process USING(upid)
+                LEFT JOIN process USING(upid)
                 `,
             columns: criticalPathsliceLiteColumnNames,
           },

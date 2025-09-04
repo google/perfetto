@@ -337,12 +337,12 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
+  int nested_val = 0;
   parser.AddParsingOverrideForField(
-      "super_nested.value_c",
-      [](const protozero::Field& field, ProtoToArgsParser::Delegate&) {
-        static int val = 0;
-        ++val;
-        EXPECT_EQ(1, val);
+      "super_nested.value_c", [&nested_val](const protozero::Field& field,
+                                            ProtoToArgsParser::Delegate&) {
+        ++nested_val;
+        EXPECT_EQ(1, nested_val);
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
         return std::nullopt;
       });

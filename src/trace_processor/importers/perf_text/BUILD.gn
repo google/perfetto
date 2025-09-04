@@ -25,6 +25,7 @@ source_set("perf_text") {
     ":perf_text_event",
     ":perf_text_sample_line_parser",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace:minimal_zero",
     "../../sorter",
     "../../storage",
     "../../tables",

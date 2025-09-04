@@ -209,7 +209,7 @@ async function loadTraceIntoEngine(
     await engine.registerSqlPackages(p);
   }
 
-  const traceDetails = await getTraceInfo(engine, traceSource);
+  const traceDetails = await getTraceInfo(engine, app, traceSource);
   const trace = TraceImpl.createInstanceForCore(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
@@ -369,6 +369,7 @@ async function computeVisibleTime(
 
 async function getTraceInfo(
   engine: Engine,
+  app: AppImpl,
   traceSource: TraceSource,
 ): Promise<TraceInfoImpl> {
   const traceTime = await getTraceTimeBounds(engine);
@@ -464,6 +465,7 @@ async function getTraceInfo(
   // trace_uuid can be missing from the TP tables if the trace is empty or in
   // other similar edge cases.
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
+  updateStatus(app, 'Caching trace...');
   const cached = await cacheTrace(traceSource, uuid);
 
   const downloadable =

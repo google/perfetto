@@ -84,6 +84,10 @@ command and Enter to run it.
   <source src="https://storage.googleapis.com/perfetto-misc/commands.webm" type="video/webm">
 </video>
 
+For comprehensive documentation on automating the UI with commands, startup
+commands, and macros, see the
+[UI Automation guide](/docs/visualization/ui-automation.md).
+
 ## Showing/hiding the tab drawer
 
 Press 'Q' to toggle the tab drawer.
@@ -112,3 +116,14 @@ the main timeline.
 
 Hotkey bindings are displayed to the right of the commands in the command
 palette, or press the '?' hotkey to display all configured hotkeys.
+
+## Next Steps
+
+Once you're comfortable with the basic UI interactions, you can significantly
+speed up your analysis workflow through automation:
+
+- **Automate repetitive tasks:** Use
+  [UI Automation](/docs/visualization/ui-automation.md) to configure startup
+  commands that automatically pin tracks or create debug tracks every time you
+  open a trace, and create macros for specific analysis workflows you run
+  occasionally.

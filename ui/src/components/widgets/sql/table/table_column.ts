@@ -63,7 +63,7 @@ export interface TableColumn<
     value: SqlValue,
     tableManager?: TableManager,
     supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
-  ): m.Children;
+  ): RenderedCell;
 
   // A set of columns to be added when opening this table.
   // It has two primary purposes:
@@ -93,4 +93,11 @@ export function columnTitle(column: TableColumn): string {
     if (title !== undefined) return title;
   }
   return sqlColumnId(column.column);
+}
+
+export interface RenderedCell {
+  readonly content: m.Children;
+  readonly menu?: m.Children;
+  readonly isNumerical?: boolean;
+  readonly isNull?: boolean;
 }

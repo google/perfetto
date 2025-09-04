@@ -17,16 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SURFACEFLINGER_LAYERS_TEST_UTILS_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SURFACEFLINGER_LAYERS_TEST_UTILS_H_
 
-#include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation.h"
-
 #include <optional>
-#include <unordered_map>
 #include <vector>
 
-#include "protos/perfetto/trace/android/graphics/rect.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_common.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.gen.h"
-#include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_geometry_test_utils.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers::test {
 
@@ -46,9 +42,6 @@ struct ActiveBuffer {
 
 namespace {
 using LayerProto = protos::gen::LayerProto;
-using FloatRectProto = protos::gen::FloatRectProto;
-using RectProto = protos::gen::RectProto;
-
 void UpdateColor(protos::gen::LayerProto* layer, Color color) {
   auto* color_proto = layer->mutable_color();
   color_proto->set_r(color.r);
@@ -63,20 +56,6 @@ void UpdateActiveBuffer(protos::gen::LayerProto* layer, ActiveBuffer buffer) {
   buffer_proto->set_height(buffer.height);
   buffer_proto->set_stride(buffer.stride);
   buffer_proto->set_format(buffer.format);
-}
-
-void UpdateRect(protos::gen::FloatRectProto* rect_proto, geometry::Rect rect) {
-  rect_proto->set_left(static_cast<float>(rect.x));
-  rect_proto->set_top(static_cast<float>(rect.y));
-  rect_proto->set_right(static_cast<float>(rect.x + rect.w));
-  rect_proto->set_bottom(static_cast<float>(rect.y + rect.h));
-}
-
-void UpdateRect(protos::gen::RectProto* rect_proto, geometry::Rect rect) {
-  rect_proto->set_left(static_cast<int32_t>(rect.x));
-  rect_proto->set_top(static_cast<int32_t>(rect.y));
-  rect_proto->set_right(static_cast<int32_t>(rect.x + rect.w));
-  rect_proto->set_bottom(static_cast<int32_t>(rect.y + rect.h));
 }
 }  // namespace
 
@@ -214,15 +193,16 @@ class SnapshotProtoBuilder {
         UpdateActiveBuffer(layer_proto, layer.active_buffer_.value());
       }
       if (layer.source_bounds_.has_value()) {
-        UpdateRect(layer_proto->mutable_source_bounds(),
-                   layer.source_bounds_.value());
+        geometry::test::UpdateRect(layer_proto->mutable_source_bounds(),
+                                   layer.source_bounds_.value());
       }
       if (layer.screen_bounds_.has_value()) {
-        UpdateRect(layer_proto->mutable_screen_bounds(),
-                   layer.screen_bounds_.value());
+        geometry::test::UpdateRect(layer_proto->mutable_screen_bounds(),
+                                   layer.screen_bounds_.value());
       }
       if (layer.bounds_.has_value()) {
-        UpdateRect(layer_proto->mutable_bounds(), layer.bounds_.value());
+        geometry::test::UpdateRect(layer_proto->mutable_bounds(),
+                                   layer.bounds_.value());
       }
       if (layer.flags_.has_value()) {
         layer_proto->set_flags(layer.flags_.value());
@@ -237,7 +217,7 @@ class SnapshotProtoBuilder {
       if (layer.visible_region_rects_.has_value()) {
         auto* visible_region_proto = layer_proto->mutable_visible_region();
         for (auto& rect : layer.visible_region_rects_.value()) {
-          UpdateRect(visible_region_proto->add_rect(), rect);
+          geometry::test::UpdateRect(visible_region_proto->add_rect(), rect);
         }
       }
       if (layer.is_opaque_.has_value()) {

@@ -107,7 +107,7 @@ export async function cacheTrace(
       localOnly = traceSource.localOnly || false;
       break;
     case 'FILE':
-      trace = await traceSource.file.arrayBuffer();
+      trace = traceSource.file.stream();
       title = traceSource.file.name;
       contentLength = traceSource.file.size;
       break;
@@ -129,11 +129,22 @@ export async function cacheTrace(
     ],
   ]);
   await deleteStaleEntries();
-  await cachePut(
-    `/_${TRACE_CACHE_NAME}/${traceUuid}`,
-    new Response(trace, {headers}),
-  );
-  return true;
+  const key = `/_${TRACE_CACHE_NAME}/${traceUuid}`;
+  await cachePut(key, new Response(trace, {headers}));
+
+  // Verify the file was actually cached, large files can silently fail.
+  const cached = await cacheMatch(key);
+  if (cached) {
+    return true;
+  } else {
+    // If we fail to cache the trace, this isn't a critical error. Non
+    // file/array type traces are not cached after all. It's more of a
+    // convenience feature. So just log the error to console and move on.
+    console.error(
+      `Failed to cache trace '${title}', likely file too large: ${contentLength} bytes`,
+    );
+    return false;
+  }
 }
 
 export async function tryGetTrace(

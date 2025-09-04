@@ -82,8 +82,8 @@ export function drawBezierArrow(
   const cp2 = endVec.add(endOffset);
 
   ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
-  ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
+  ctx.moveTo(startVec.x, startVec.y);
+  ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, endVec.x, endVec.y);
   ctx.stroke();
 }
 

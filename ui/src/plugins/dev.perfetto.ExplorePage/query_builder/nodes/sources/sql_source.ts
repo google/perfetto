@@ -34,13 +34,13 @@ import {ColumnInfo} from '../../column_info';
 
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
-  onExecute?: (sql: string) => void;
   trace: Trace;
   sourceCols?: ColumnInfo[];
 }
 
 export class SqlSourceNode extends SourceNode {
   readonly state: SqlSourceState;
+  readonly prevNodes: QueryNode[] = [];
 
   constructor(attrs: SqlSourceState) {
     super(attrs);
@@ -70,11 +70,10 @@ export class SqlSourceNode extends SourceNode {
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      onExecute: this.state.onExecute,
       filters: [],
       customTitle: this.state.customTitle,
-      trace: this.state.trace,
       issues: this.state.issues,
+      trace: this.state.trace,
     };
     return new SqlSourceNode(stateCopy);
   }
@@ -104,9 +103,6 @@ export class SqlSourceNode extends SourceNode {
   nodeSpecificModify(): m.Child {
     const runQuery = (sql: string) => {
       this.state.sql = sql.trim();
-      if (this.state.onExecute) {
-        this.state.onExecute(this.state.sql);
-      }
       m.redraw();
     };
 

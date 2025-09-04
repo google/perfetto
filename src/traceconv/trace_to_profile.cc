@@ -68,7 +68,7 @@ std::string GetRandomString(size_t n) {
 
 void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
   std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(),
+      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
   if (!symbolizer)
     return;

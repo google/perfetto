@@ -386,6 +386,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         for (const std::string& p : r.preambles) {
           query_res->add_preambles(p);
         }
+        for (const std::string& c : r.columns) {
+          query_res->add_columns(c);
+        }
       }
       resp.Send(rpc_response_fn_);
       break;

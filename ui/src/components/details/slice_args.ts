@@ -34,7 +34,7 @@ export function renderSliceArguments(
         icon: 'search',
         onclick: () => {
           extensions.addLegacySqlTableTab(trace, {
-            table: assertExists(getSqlTableDescription('slice')),
+            table: assertExists(getSqlTableDescription(trace, 'slice')),
             filters: [
               {
                 op: (cols) => `${cols[0]} = ${sqliteString(arg.displayValue)}`,

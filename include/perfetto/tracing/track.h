@@ -518,7 +518,8 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
   TrackRegistry();
   ~TrackRegistry();
 
-  static void InitializeInstance();
+  static void InitializeInstance(
+      std::optional<uint64_t> process_uuid = std::nullopt);
   static void ResetForTesting();
   static uint64_t ComputeProcessUuid();
   static TrackRegistry* Get() { return instance_; }

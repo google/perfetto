@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/trace_summary/summary.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -428,6 +430,35 @@ base::Status CreateQueriesAndComputeMetrics(
           bundle_id.c_str(), query_it.Status().c_message());
     }
 
+    protos::pbzero::PerfettoSqlStructuredQuery::Decoder query(
+        first_spec.query());
+    if (query.has_sql()) {
+      protos::pbzero::PerfettoSqlStructuredQuery::Sql::Decoder sql_query(
+          query.sql());
+      if (sql_query.has_column_names()) {
+        std::set<std::string> actual_column_names;
+        for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
+          actual_column_names.insert(query_it.GetColumnName(i));
+        }
+        std::set<std::string> expected_column_names;
+        for (auto col_it = sql_query.column_names(); col_it; ++col_it) {
+          expected_column_names.insert(col_it->as_std_string());
+        }
+        if (!std::includes(
+                actual_column_names.begin(), actual_column_names.end(),
+                expected_column_names.begin(), expected_column_names.end())) {
+          std::vector<std::string> expected_vec(expected_column_names.begin(),
+                                                expected_column_names.end());
+          std::vector<std::string> actual_vec(actual_column_names.begin(),
+                                              actual_column_names.end());
+          return base::ErrStatus(
+              "Not all columns expected in metrics bundle '%s' were found. "
+              "Expected: [%s], Actual: [%s]",
+              bundle_id.c_str(), base::Join(expected_vec, ", ").c_str(),
+              base::Join(actual_vec, ", ").c_str());
+        }
+      }
+    }
     ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
                      GetDimensionsWithIndex(first_spec, query_it));
 

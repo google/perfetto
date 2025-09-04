@@ -24,7 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -37,11 +37,8 @@ class RegisteredFileTracker {
   explicit RegisteredFileTracker(TraceProcessorContext* context)
       : context_(context) {}
 
-  base::Status AddFile(const std::string& name, TraceBlobView data);
-  TraceBlobView GetContent(tables::FileTable::Id id) const {
-    PERFETTO_DCHECK(id.value < file_content_.size());
-    return file_content_[id.value].copy();
-  }
+  base::Status AddFile(const std::string& name, TraceBlob data);
+  TraceBlob& GetContent(tables::FileTable::Id id);
 
   std::optional<tables::ElfFileTable::Id> FindBuildId(
       const BuildId& build_id) const {
@@ -50,14 +47,13 @@ class RegisteredFileTracker {
   }
 
  private:
-  void IndexFileType(tables::FileTable::Id file_id,
-                     const TraceBlobView& content);
+  void IndexFileType(tables::FileTable::Id file_id, const TraceBlob& content);
 
   TraceProcessorContext* context_;
   base::FlatHashMap<BuildId, tables::ElfFileTable::Id> files_by_build_id_;
 
   // Indexed by `tables::FileTable::Id`
-  std::vector<TraceBlobView> file_content_;
+  std::vector<TraceBlob> file_content_;
 
   base::FlatHashMap<StringId, tables::FileTable::Id> files_by_path_;
 };

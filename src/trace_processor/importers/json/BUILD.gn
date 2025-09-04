@@ -15,24 +15,6 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/test.gni")
 
-source_set("minimal") {
-  sources = [
-    "json_parser.h",
-    "json_utils.cc",
-    "json_utils.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../containers",
-    "../../storage",
-    "../../types",
-    "../common",
-  ]
-  if (enable_perfetto_trace_processor_json) {
-    public_deps = [ "../../../../gn:jsoncpp" ]
-  }
-}
-
 if (enable_perfetto_trace_processor_json) {
   source_set("json") {
     sources = [
@@ -42,13 +24,13 @@ if (enable_perfetto_trace_processor_json) {
       "json_trace_tokenizer.h",
     ]
     deps = [
-      ":minimal",
       "../../../../gn:default_deps",
       "../../containers",
       "../../sorter",
       "../../storage",
       "../../tables",
       "../../types",
+      "../../util:json_parser",
       "../common",
       "../common:parser_types",
       "../systrace:full",
@@ -61,18 +43,11 @@ if (enable_perfetto_trace_processor_json) {
 
   perfetto_unittest_source_set("unittests") {
     testonly = true
-    sources = [
-      "json_parser_unittest.cc",
-      "json_trace_tokenizer_unittest.cc",
-      "json_utils_unittest.cc",
-    ]
+    sources = [ "json_trace_tokenizer_unittest.cc" ]
     deps = [
       ":json",
-      ":minimal",
       "../../../../gn:default_deps",
       "../../../../gn:gtest_and_gmock",
-      "../../../base",
-      "../../types",
     ]
   }
 }

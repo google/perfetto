@@ -23,9 +23,7 @@
     font-weight: 400;
     padding: 4px 10px;
     vertical-align: middle;
-    border-color: var(--pf-color-border);
-    border-style: solid;
-    border-width: 1px 0;
+    border-bottom: 1px solid var(--pf-color-border);
     z-index: 1;
   }
 

@@ -26,7 +26,7 @@ packet {
 }
 packet {
   # Emitted on tid 1.
-  # Should set the legacy_passthrough_utid to utid 1.
+  # Should set the legacy_passthrough_utid to utid 2.
   trusted_packet_sequence_id: 1
   timestamp: 1000
   track_event {

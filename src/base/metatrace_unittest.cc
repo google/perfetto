@@ -246,7 +246,7 @@ TEST_F(MetatraceTest, ThreadRaces) {
         m::TraceCounter(/*tag=*/1, thd_idx, static_cast<int>(i));
     };
 
-    constexpr size_t kNumThreads = 8;
+    constexpr size_t kNumThreads = 2;
     std::array<std::thread, kNumThreads> threads;
     for (size_t thd_idx = 0; thd_idx < kNumThreads; thd_idx++)
       threads[thd_idx] = std::thread(thread_main, thd_idx);

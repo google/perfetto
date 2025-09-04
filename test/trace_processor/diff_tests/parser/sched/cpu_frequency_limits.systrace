@@ -1,0 +1,12 @@
+       <unknown>-200   (-----) [000] .... 0.090000: cpu_frequency_limits: min=500000 max=2800000 cpu_id=6
+       <unknown>-500   (-----) [000] .... 0.100000: cpu_frequency_limits: min=500000 max=1700000 cpu_id=6
+       <unknown>-80    (-----) [000] .... 0.110000: cpu_frequency_limits: min=1400000 max=2800000 cpu_id=6
+       <unknown>-300   (-----) [000] .... 0.120000: cpu_frequency_limits: min=500000 max=1500000 cpu_id=6
+       <unknown>-300   (-----) [004] .... 0.120000: cpu_frequency_limits: min=600000 max=1400000 cpu_id=4
+       <unknown>-600   (-----) [004] .... 0.130000: cpu_frequency_limits: min=800000 max=2200000 cpu_id=4
+       <unknown>-200   (-----) [000] .... 1.090000: cpu_frequency_limits: min_freq=500000 max_freq=2800000 cpu_id=6
+       <unknown>-500   (-----) [000] .... 1.100000: cpu_frequency_limits: min_freq=500000 max_freq=1700000 cpu_id=6
+       <unknown>-80    (-----) [000] .... 1.110000: cpu_frequency_limits: min_freq=1400000 max_freq=2800000 cpu_id=6
+       <unknown>-300   (-----) [000] .... 1.120000: cpu_frequency_limits: min_freq=500000 max_freq=1500000 cpu_id=6
+       <unknown>-300   (-----) [004] .... 1.120000: cpu_frequency_limits: min_freq=600000 max_freq=1400000 cpu_id=4
+       <unknown>-600   (-----) [004] .... 1.130000: cpu_frequency_limits: min_freq=800000 max_freq=2200000 cpu_id=4

@@ -26,12 +26,14 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/symbolize_profile.h"
 #include "src/traceconv/trace.descriptor.h"
+#include "src/traceconv/trace_to_bundle.h"
 #include "src/traceconv/trace_to_firefox.h"
 #include "src/traceconv/trace_to_hprof.h"
 #include "src/traceconv/trace_to_json.h"
@@ -51,23 +53,72 @@ namespace perfetto::trace_to_text {
 namespace {
 
 int Usage(const char* argv0) {
-  fprintf(
-      stderr,
-      "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
-      "modes:\n"
-      "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate|firefox"
-      "|java_heap_profile|decompress_packets|binary\n"
-      "options:\n"
-      "  [--truncate start|end]\n"
-      "  [--full-sort]\n"
-      "\"profile\" mode options:\n"
-      "  [--perf] generate a perf profile instead of a heap profile\n"
-      "  [--no-annotations] do not suffix frame names with derived "
-      "annotations\n"
-      "  [--timestamps TIMESTAMP1,TIMESTAMP2,...] generate profiles "
-      "only for these *specific* timestamps\n"
-      "  [--pid PID] generate profiles only for this process id\n",
-      argv0);
+  fprintf(stderr, R"(
+Trace format conversion tool.
+Usage: %s MODE [OPTIONS] [input_file] [output_file]
+
+CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
+
+ systrace                             Converts to systrace HTML format
+   --truncate [start|end]             Truncates trace to keep start or end
+   --full-sort                        Forces full trace sorting
+
+ json                                 Converts to Chrome JSON format
+   --truncate [start|end]             Truncates trace to keep start or end
+   --full-sort                        Forces full trace sorting
+
+ ctrace                               Converts to compressed systrace format
+   --truncate [start|end]             Truncates trace to keep start or end
+   --full-sort                        Forces full trace sorting
+
+ text                                 Converts to human-readable text format
+   (no additional options)
+
+ profile                              Converts heap profiles to pprof format
+                                      (profile.proto - default: heap profiles)
+   --perf                             Extract perf/CPU profiles instead
+   --no-annotations                   Don't add derived annotations to frames
+   --timestamps T1,T2,...             Generate profiles for specific timestamps
+   --pid PID                          Generate profiles for specific process
+
+ java_heap_profile                    Converts Java heap profiles to pprof format
+                                      (profile.proto)
+   --no-annotations                   Don't add derived annotations to frames
+   --timestamps T1,T2,...             Generate profiles for specific timestamps
+   --pid PID                          Generate profiles for specific process
+
+ hprof                                Converts heap profile to hprof format
+   --timestamps T1,T2,...             Generate profiles for specific timestamps
+   --pid PID                          Generate profiles for specific process
+
+ symbolize                            Symbolizes addresses in profiles
+   (no additional options)
+
+ deobfuscate                          Deobfuscates obfuscated profiles
+   (no additional options)
+
+ firefox                              Converts to Firefox profiler format
+   (no additional options)
+
+ decompress_packets                   Decompresses compressed trace packets
+   (no additional options)
+
+ bundle                               Creates bundle with trace + debug data
+                                      (outputs TAR with symbols/deobfuscation mappings)
+                                      Requires input and output file paths (no stdin/stdout)
+   --symbol-paths PATH1,PATH2,...     Additional paths to search for symbols
+                                      (beyond automatic discovery)
+   --no-auto-symbol-paths             Disable automatic symbol path discovery
+
+ binary                               Converts text proto to binary format
+   (no additional options)
+
+NOTES:
+ - If no input file is specified, reads from stdin
+ - If no output file is specified, writes to stdout
+ - Input/output files can be '-' to explicitly use stdin/stdout
+)",
+          argv0);
   return 1;
 }
 
@@ -106,6 +157,8 @@ int Main(int argc, char** argv) {
   bool full_sort = false;
   bool perf_profile = false;
   bool profile_no_annotations = false;
+  std::vector<std::string> symbol_paths;
+  bool no_auto_symbol_paths = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", base::GetVersionString());
@@ -138,6 +191,11 @@ int Main(int argc, char** argv) {
       profile_no_annotations = true;
     } else if (strcmp(argv[i], "--full-sort") == 0) {
       full_sort = true;
+    } else if (i < argc && strcmp(argv[i], "--symbol-paths") == 0) {
+      i++;
+      symbol_paths = base::SplitString(argv[i], ",");
+    } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
+      no_auto_symbol_paths = true;
     } else {
       positional_args.push_back(argv[i]);
     }
@@ -260,6 +318,40 @@ int Main(int argc, char** argv) {
 
   if (format == "decompress_packets")
     return UnpackCompressedPackets(input_stream, output_stream);
+
+  if (format == "bundle") {
+    // Bundle mode requires both input and output file paths
+    if (positional_args.size() < 3) {
+      PERFETTO_ELOG("Bundle mode requires both input and output file paths");
+      return Usage(argv[0]);
+    }
+
+    const char* input_file = positional_args[1];
+    const char* output_file = positional_args[2];
+
+    // Validate that stdin/stdout are not used for bundle mode
+    if (strcmp(input_file, "-") == 0) {
+      PERFETTO_ELOG(
+          "Bundle mode does not support stdin input, provide file path");
+      return 1;
+    }
+    if (strcmp(output_file, "-") == 0) {
+      PERFETTO_ELOG(
+          "Bundle mode does not support stdout output, provide file path");
+      return 1;
+    }
+
+    // Validate input file exists and is readable
+    if (!base::FileExists(input_file)) {
+      PERFETTO_ELOG("Input file does not exist: %s", input_file);
+      return 1;
+    }
+
+    BundleContext context;
+    context.symbol_paths = symbol_paths;
+    context.no_auto_symbol_paths = no_auto_symbol_paths;
+    return TraceToBundle(input_file, output_file, context);
+  }
 
   return Usage(argv[0]);
 }

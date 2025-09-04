@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {duration, TimeSpan} from '../../base/time';
+import {Trace} from '../../public/trace';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
@@ -116,30 +117,40 @@ export async function breakDownIntervalByThreadState(
   };
 }
 
-function renderChildren(node: Node, totalDur: duration): m.Child[] {
+function renderChildren(
+  trace: Trace,
+  node: Node,
+  totalDur: duration,
+): m.Child[] {
   const res = Array.from(node.children.entries()).map(([name, child]) =>
-    renderNode(child, name, totalDur),
+    renderNode(trace, child, name, totalDur),
   );
   return res;
 }
 
-function renderNode(node: Node, name: string, totalDur: duration): m.Child {
+function renderNode(
+  trace: Trace,
+  node: Node,
+  name: string,
+  totalDur: duration,
+): m.Child {
   const durPercent = (100 * Number(node.dur)) / Number(totalDur);
   return m(
     TreeNode,
     {
       left: name,
       right: [
-        m(DurationWidget, {dur: node.dur}),
+        m(DurationWidget, {trace, dur: node.dur}),
         ` (${durPercent.toFixed(2)}%)`,
       ],
       startsCollapsed: node.startsCollapsed,
     },
-    renderChildren(node, totalDur),
+    renderChildren(trace, node, totalDur),
   );
 }
 
 interface BreakdownByThreadStateTreeNodeAttrs {
+  trace: Trace;
   dur: duration;
   data: BreakdownByThreadState;
 }
@@ -149,6 +160,6 @@ export class BreakdownByThreadStateTreeNode
   implements m.ClassComponent<BreakdownByThreadStateTreeNodeAttrs>
 {
   view({attrs}: m.Vnode<BreakdownByThreadStateTreeNodeAttrs>): m.Child[] {
-    return renderChildren(attrs.data.root, attrs.dur);
+    return renderChildren(attrs.trace, attrs.data.root, attrs.dur);
   }
 }

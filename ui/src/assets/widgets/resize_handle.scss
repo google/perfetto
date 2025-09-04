@@ -15,11 +15,23 @@
 .pf-resize-handle {
   cursor: row-resize;
   margin-block: -3px;
-  height: 6px;
+  height: 7px;
   z-index: 10;
   position: relative;
 
   &:hover {
     background: var(--pf-color-accent);
+    &::after {
+      display: none;
+    }
+  }
+
+  &::after {
+    content: "";
+    height: 1px;
+    display: block;
+    position: relative;
+    top: 3px;
+    background: var(--pf-color-border);
   }
 }

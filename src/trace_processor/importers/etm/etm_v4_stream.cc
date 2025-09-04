@@ -26,6 +26,10 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/importers/etm/frame_decoder.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
@@ -139,9 +143,21 @@ base::Status EtmV4Stream::OnItraceStartRecord(
 void EtmV4Stream::StartSession(std::optional<int64_t> start_ts) {
   PERFETTO_CHECK(stream_active_);
   PERFETTO_CHECK(!session_.has_value());
-  session_.emplace(context_->storage->mutable_etm_v4_session_table()
-                       ->Insert({config_id_, start_ts})
-                       .id);
+  auto session_id = context_->storage->mutable_etm_v4_session_table()
+                        ->Insert({config_id_, start_ts})
+                        .id;
+  session_.emplace(session_id);
+
+  if (start_ts) {
+    static constexpr auto kETMSessionBlueprint =
+        tracks::CounterBlueprint("etm_session", tracks::UnknownUnitBlueprint(),
+                                 tracks::DimensionBlueprints(),
+                                 tracks::StaticNameBlueprint("ETMSession"));
+    TrackId track_id =
+        context_->track_tracker->InternTrack(kETMSessionBlueprint);
+    context_->event_tracker->PushCounter(
+        start_ts.value(), static_cast<double>(session_id.value), track_id);
+  }
 }
 
 void EtmV4Stream::AddChunk(TraceBlobView chunk) {

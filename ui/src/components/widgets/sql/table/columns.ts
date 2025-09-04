@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
+import {Trace} from '../../../../public/trace';
 import {SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   asSchedSqlId,
@@ -23,9 +24,7 @@ import {
   asUpid,
   asUtid,
 } from '../../../sql_utils/core_types';
-import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
-import {PopupMenu} from '../../../../widgets/menu';
 import {DurationWidget} from '../../duration';
 import {showProcessDetailsMenuItem} from '../../process';
 import {SchedRef} from '../../sched';
@@ -33,7 +32,7 @@ import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
-import {TableColumn, TableManager} from './table_column';
+import {RenderedCell, TableColumn, TableManager} from './table_column';
 import {
   getStandardContextMenuItems,
   renderStandardCell,
@@ -42,7 +41,9 @@ import {SqlColumn, sqlColumnId, SqlExpression} from './sql_column';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
-    `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
+    `Wrong type for ${type} column ${sqlColumnId(
+      name,
+    )}: bigint expected, ${typeof value} found`,
   );
 }
 
@@ -69,7 +70,7 @@ export class StandardColumn implements TableColumn {
     private params?: StandardColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, tableManager?: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     return renderStandardCell(value, this.column, tableManager);
   }
 
@@ -79,28 +80,39 @@ export class StandardColumn implements TableColumn {
 }
 
 export class TimestampColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
 
-  renderCell(value: SqlValue, tableManager?: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
       value = BigInt(Math.round(value));
     }
     if (typeof value !== 'bigint') {
       return renderStandardCell(value, this.column, tableManager);
     }
-    return m(Timestamp, {
-      ts: Time.fromRaw(value),
-      extraMenuItems:
+    return {
+      content: m(Timestamp, {
+        trace: this.trace,
+        ts: Time.fromRaw(value),
+      }),
+      menu: [
         tableManager &&
-        getStandardContextMenuItems(value, this.column, tableManager),
-    });
+          getStandardContextMenuItems(value, this.column, tableManager),
+      ],
+      isNumerical: true,
+    };
   }
 }
 
 export class DurationColumn implements TableColumn {
-  constructor(public column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public column: SqlColumn,
+  ) {}
 
-  renderCell(value: SqlValue, tableManager?: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
       value = BigInt(Math.round(value));
     }
@@ -108,43 +120,57 @@ export class DurationColumn implements TableColumn {
       return renderStandardCell(value, this.column, tableManager);
     }
 
-    return m(DurationWidget, {
-      dur: Duration.fromRaw(value),
-      extraMenuItems:
+    return {
+      content: m(DurationWidget, {
+        trace: this.trace,
+        dur: Duration.fromRaw(value),
+      }),
+      menu: [
         tableManager &&
-        getStandardContextMenuItems(value, this.column, tableManager),
-    });
+          getStandardContextMenuItems(value, this.column, tableManager),
+      ],
+      isNumerical: true,
+    };
   }
 }
 
 export class SliceIdColumn implements TableColumn {
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager): RenderedCell {
     const id = value;
 
     if (!manager || id === null) {
       return renderStandardCell(id, this.column, manager);
     }
 
-    return m(SliceRef, {
-      id: asSliceSqlId(Number(id)),
-      name: `${id}`,
-      switchToCurrentSelectionTab: false,
-    });
+    return {
+      content: m(SliceRef, {
+        trace: this.trace,
+        id: asSliceSqlId(Number(id)),
+        name: `${id}`,
+        switchToCurrentSelectionTab: false,
+      }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
+      isNumerical: true,
+    };
   }
 
   listDerivedColumns() {
     if (this.params?.type === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
-        ['ts', new TimestampColumn(this.getChildColumn('ts'))],
-        ['dur', new DurationColumn(this.getChildColumn('dur'))],
+        ['ts', new TimestampColumn(this.trace, this.getChildColumn('ts'))],
+        ['dur', new DurationColumn(this.trace, this.getChildColumn('dur'))],
         ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['parent_id', new SliceIdColumn(this.getChildColumn('parent_id'))],
+        [
+          'parent_id',
+          new SliceIdColumn(this.trace, this.getChildColumn('parent_id')),
+        ],
       ]);
   }
 
@@ -160,50 +186,71 @@ export class SliceIdColumn implements TableColumn {
 }
 
 export class SchedIdColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
 
     if (!manager || id === null) {
       return renderStandardCell(id, this.column, manager);
     }
-    if (typeof id !== 'bigint') return wrongTypeError('id', this.column, id);
+    if (typeof id !== 'bigint') {
+      return {content: wrongTypeError('id', this.column, id)};
+    }
 
-    return m(SchedRef, {
-      id: asSchedSqlId(Number(id)),
-      name: `${id}`,
-      switchToCurrentSelectionTab: false,
-    });
+    return {
+      content: m(SchedRef, {
+        trace: this.trace,
+        id: asSchedSqlId(Number(id)),
+        name: `${id}`,
+        switchToCurrentSelectionTab: false,
+      }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
+      isNumerical: true,
+    };
   }
 }
 
 export class ThreadStateIdColumn implements TableColumn {
-  constructor(public readonly column: SqlColumn) {}
+  constructor(
+    public readonly trace: Trace,
+    public readonly column: SqlColumn,
+  ) {}
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
 
     if (!manager || id === null) {
       return renderStandardCell(id, this.column, manager);
     }
-    if (typeof id !== 'bigint') return wrongTypeError('id', this.column, id);
+    if (typeof id !== 'bigint') {
+      return {content: wrongTypeError('id', this.column, id)};
+    }
 
-    return m(ThreadStateRef, {
-      id: asThreadStateSqlId(Number(id)),
-      name: `${id}`,
-      switchToCurrentSelectionTab: false,
-    });
+    return {
+      content: m(ThreadStateRef, {
+        trace: this.trace,
+        id: asThreadStateSqlId(Number(id)),
+        name: `${id}`,
+        switchToCurrentSelectionTab: false,
+      }),
+      menu: getStandardContextMenuItems(id, this.column, manager),
+      isNumerical: true,
+    };
   }
 }
 
 export class ThreadIdColumn implements TableColumn {
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager) {
     const utid = value;
 
     if (!manager || utid === null) {
@@ -216,15 +263,14 @@ export class ThreadIdColumn implements TableColumn {
       );
     }
 
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Anchor, `${utid}`),
-      },
-
-      showThreadDetailsMenuItem(asUtid(Number(utid))),
-      getStandardContextMenuItems(utid, this.column, manager),
-    );
+    return {
+      content: `${utid}`,
+      menu: [
+        showThreadDetailsMenuItem(this.trace, asUtid(Number(utid))),
+        getStandardContextMenuItems(utid, this.column, manager),
+      ],
+      isNumerical: true,
+    };
   }
 
   listDerivedColumns() {
@@ -233,9 +279,15 @@ export class ThreadIdColumn implements TableColumn {
       new Map<string, TableColumn>([
         ['tid', new StandardColumn(this.getChildColumn('tid'))],
         ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-        ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
-        ['upid', new ProcessIdColumn(this.getChildColumn('upid'))],
+        [
+          'start_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+        ],
+        [
+          'end_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+        ],
+        ['upid', new ProcessIdColumn(this.trace, this.getChildColumn('upid'))],
         [
           'is_main_thread',
           new StandardColumn(this.getChildColumn('is_main_thread')),
@@ -266,11 +318,12 @@ export class ThreadIdColumn implements TableColumn {
 
 export class ProcessIdColumn implements TableColumn {
   constructor(
+    public readonly trace: Trace,
     public readonly column: SqlColumn,
     private params?: IdColumnParams,
   ) {}
 
-  renderCell(value: SqlValue, manager?: TableManager): m.Children {
+  renderCell(value: SqlValue, manager?: TableManager) {
     const upid = value;
 
     if (!manager || upid === null) {
@@ -283,15 +336,14 @@ export class ProcessIdColumn implements TableColumn {
       );
     }
 
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Anchor, `${upid}`),
-      },
-
-      showProcessDetailsMenuItem(asUpid(Number(upid))),
-      getStandardContextMenuItems(upid, this.column, manager),
-    );
+    return {
+      content: `${upid}`,
+      menu: [
+        showProcessDetailsMenuItem(this.trace, asUpid(Number(upid))),
+        getStandardContextMenuItems(upid, this.column, manager),
+      ],
+      isNumerical: true,
+    };
   }
 
   listDerivedColumns() {
@@ -300,11 +352,17 @@ export class ProcessIdColumn implements TableColumn {
       new Map<string, TableColumn>([
         ['pid', new StandardColumn(this.getChildColumn('pid'))],
         ['name', new StandardColumn(this.getChildColumn('name'))],
-        ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-        ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
+        [
+          'start_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+        ],
+        [
+          'end_ts',
+          new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+        ],
         [
           'parent_upid',
-          new ProcessIdColumn(this.getChildColumn('parent_upid')),
+          new ProcessIdColumn(this.trace, this.getChildColumn('parent_upid')),
         ],
         [
           'is_main_thread',
@@ -378,7 +436,7 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
     value: SqlValue,
     tableManager?: TableManager,
     values?: {type: SqlValue},
-  ): m.Children {
+  ) {
     // If the value is NULL, then filters can check for id column for better performance.
     if (value === null) {
       return renderStandardCell(
@@ -415,7 +473,7 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
 export class ArgSetIdColumn implements TableColumn {
   constructor(public readonly column: SqlColumn) {}
 
-  renderCell(value: SqlValue, tableManager: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager: TableManager) {
     return renderStandardCell(value, this.column, tableManager);
   }
 

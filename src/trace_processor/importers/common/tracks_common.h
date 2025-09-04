@@ -133,6 +133,22 @@ inline constexpr auto kCpuFrequencyBlueprint = tracks::CounterBlueprint(
     tracks::DimensionBlueprints(kCpuDimensionBlueprint),
     tracks::StaticNameBlueprint("cpufreq"));
 
+inline constexpr auto kCpuMaxFrequencyLimitBlueprint = tracks::CounterBlueprint(
+    "cpu_max_frequency_limit",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
+    }));
+
+inline constexpr auto kCpuMinFrequencyLimitBlueprint = tracks::CounterBlueprint(
+    "cpu_min_frequency_limit",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
+    }));
+
 inline constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
     "gpu_frequency",
     tracks::StaticUnitBlueprint("MHz"),

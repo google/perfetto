@@ -26,7 +26,7 @@ SELECT
   IFNULL(cuj.begin_vsync, MIN(vsync)) AS vsync_min,
   IFNULL(cuj.end_vsync, MAX(vsync)) AS vsync_max
 FROM android_jank_cuj cuj
-JOIN android_jank_cuj_do_frame_slice USING (cuj_id)
+JOIN _android_jank_cuj_do_frames USING (cuj_id)
 GROUP BY cuj.cuj_id, cuj.upid, cuj.layer_id;
 
 -- Similarly, extract the min/max vsync for the SF from
@@ -83,7 +83,7 @@ cuj_frame_timeline AS (
   GROUP BY cuj_id, e.vsync, e.ts
 ),
 -- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
--- android_jank_cuj_do_frame_slice only contains frames within the CUJ so
+-- _android_jank_cuj_do_frames only contains frames within the CUJ so
 -- the ts_prev_do_frame_end is always missing for the very first frame
 -- For now this is acceptable as it keeps the query simpler.
 do_frame_ordered AS (
@@ -91,7 +91,7 @@ do_frame_ordered AS (
     *,
     -- ts_end of the previous do_frame, or -1 if no previous do_frame found
     COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY vsync ASC), -1) AS ts_prev_do_frame_end
-  FROM android_jank_cuj_do_frame_slice
+  FROM _android_jank_cuj_do_frames
 ),
 -- introducing an intermediate table since we want to calculate dur = ts_end - ts
 frame_boundary_base AS (
@@ -179,7 +179,7 @@ frame_boundary_base AS (
       MIN(draw_frame.ts)) AS ts,
     MAX(draw_frame.ts_end) AS ts_end
   FROM draw_frame_ordered draw_frame
-  JOIN android_jank_cuj_do_frame_slice do_frame USING (cuj_id, vsync)
+  JOIN _android_jank_cuj_do_frames do_frame USING (cuj_id, vsync)
   JOIN descendant_slice(do_frame.id) post_and_wait
   WHERE post_and_wait.name = 'postAndWait'
   GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync
@@ -216,7 +216,7 @@ WITH boundary_base AS (
         THEN MAX(timeline_slice.ts + timeline_slice.dur)
       ELSE (
         SELECT MAX(MAX(ts_end), cuj.ts_end)
-        FROM android_jank_cuj_do_frame_slice do_frame
+        FROM _android_jank_cuj_do_frames do_frame
         WHERE do_frame.cuj_id = cuj.cuj_id)
     END AS ts_end
   FROM android_jank_cuj_main_thread_cuj_boundary main_thread_boundary

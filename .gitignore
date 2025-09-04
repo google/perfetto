@@ -41,3 +41,6 @@ GTAGS
 mise.toml
 perf.data*
 TAGS
+
+.gemini/
+gha-creds-*.json

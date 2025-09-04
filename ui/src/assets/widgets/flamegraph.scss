@@ -62,7 +62,8 @@
 
 .pf-flamegraph-filter-bar-popup-content {
   white-space: pre-line;
-  width: max-content;
+  width: 100%;
+  word-wrap: break-word;
 }
 
 .pf-flamegraph-tooltip-popup {

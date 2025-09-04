@@ -53,6 +53,7 @@ export interface BuilderAttrs {
   // Add derived nodes.
   readonly onAddSubQueryNode: (node: QueryNode) => void;
   readonly onAddAggregationNode: (node: QueryNode) => void;
+  readonly onAddIntervalIntersectNode: (node: QueryNode) => void;
 
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
@@ -164,6 +165,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onDuplicateNode: attrs.onDuplicateNode,
           onAddSubQuery: attrs.onAddSubQueryNode,
           onAddAggregation: attrs.onAddAggregationNode,
+          onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
           onDeleteNode: (node: QueryNode) => {
             if (
               node.state.isExecuted &&

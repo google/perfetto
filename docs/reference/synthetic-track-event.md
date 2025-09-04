@@ -76,7 +76,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 8008
@@ -186,7 +186,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 8009
@@ -299,7 +299,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9000
@@ -399,7 +399,7 @@ All counter tracks that have the same `y_axis_share_key` and the same parent tra
 In this example, we create two counter tracks with the same `y_axis_share_key`. This will cause them to be rendered with the same Y-axis range in the Perfetto UI.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9005
@@ -487,7 +487,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9002
@@ -574,6 +574,78 @@ your `trace_converter_template.py` script.
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
 
+### Adding a Track Description
+
+You can add a human-readable description to any track to provide more context
+about the data it contains. In the Perfetto UI, this description appears in a
+popup when the user clicks the help icon next to the track's name. This is
+useful for explaining what a track represents, the meaning of its events, or how
+it should be interpreted, especially in complex custom traces.
+
+To add a description, you simply set the optional `description` field in the
+track's `TrackDescriptor`.
+
+#### Python Example
+
+This example defines two tracks: one with a `description` field set and one
+without, to illustrate the difference in the UI.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9005
+
+    # --- Define Track UUID ---
+    described_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    undescribed_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # --- 1. Define two tracks, one with a description and one without ---
+    # Track WITH description
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = described_track_uuid
+    desc.name = "Track With Description"
+    desc.description = "This track shows the processing stages for incoming user requests. Click the (?) icon to see this text."
+
+    # Track WITHOUT description
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = undescribed_track_uuid
+    desc.name = "Track Without Description"
+    # The 'description' field is simply not set.
+
+    # Helper to add a slice event to the track
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # --- 2. Emit some events on both tracks ---
+    # Events for the described track
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=described_track_uuid, name="Request #123")
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=described_track_uuid)
+
+    # Events for the undescribed track
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=undescribed_track_uuid, name="Some Other Task")
+    add_slice_event(ts=1500, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=undescribed_track_uuid)
+```
+
+</details>
+
+![Adding a Track Description](/docs/images/synthetic-track-event-description.png)
+
 ## {#controlling-track-merging} Controlling Track Merging
 
 By default, the Perfetto UI merges tracks that share the same name. This is
@@ -605,7 +677,7 @@ In this example, we create two tracks with the same name. By setting their
 always displayed as distinct tracks in the UI.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9003
@@ -657,7 +729,7 @@ into a single visual track. The name of the merged group will be taken from one
 of the tracks (usually the one with the lower UUID).
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 9004
@@ -732,7 +804,7 @@ Slices" example from the [Getting Started guide](/docs/getting-started/convertin
 You can save this code as a new file (e.g., `streaming_converter.py`) and run it.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
 #!/usr/bin/env python3

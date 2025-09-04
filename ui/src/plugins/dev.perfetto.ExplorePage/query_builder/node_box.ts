@@ -43,6 +43,7 @@ export interface NodeBoxAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }
 
@@ -84,7 +85,7 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddAggregation} = attrs;
+  const {node, onAddAggregation, onAddIntervalIntersect} = attrs;
   return m(
     PopupMenu,
     {
@@ -96,6 +97,10 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     m(MenuItem, {
       label: 'Aggregate',
       onclick: () => onAddAggregation(node),
+    }),
+    m(MenuItem, {
+      label: 'Interval Intersect',
+      onclick: () => onAddIntervalIntersect(node),
     }),
   );
 }
@@ -139,7 +144,13 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         draggable: true,
         ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
       },
-      node.prevNode && m('.pf-node-box-port.pf-node-box-port-top'),
+      node.prevNodes?.map((_, i) => {
+        const portCount = node.prevNodes ? node.prevNodes.length : 0;
+        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+        return m('.pf-node-box-port.pf-node-box-port-top', {
+          style: {left},
+        });
+      }),
       renderWarningIcon(node),
       m('span.pf-node-box__title', node.getTitle()),
       renderContextMenu(attrs),

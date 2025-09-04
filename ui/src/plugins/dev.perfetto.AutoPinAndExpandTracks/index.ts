@@ -19,6 +19,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertIsInstance} from '../../base/logging';
+import {RouteArg} from '../../public/route_schema';
 
 const PLUGIN_ID = 'dev.perfetto.AutoPinAndExpandTracks';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -29,17 +30,12 @@ const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
 const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
 
 // Parse the plugin parameters values, only one value support for now
-function getParamValues(pluginParams: string): string[] {
-  if (pluginParams == null) {
-    return [];
-  }
+function getParamValues(param: RouteArg | undefined): string[] {
+  if (typeof param === 'boolean') return [];
+  if (param === undefined) return [];
 
-  const trimmed = pluginParams.trim();
-
-  if (trimmed === '') {
-    return [];
-  }
-
+  const trimmed = param.trim();
+  if (trimmed === '') return [];
   return [trimmed];
 }
 
@@ -83,12 +79,12 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       addOrReplaceNamedPinnedTracks(parsed.data);
     });
     document.body.appendChild(input);
-    const pluginParams = app.initialPluginRouteArgs ?? {};
+    const pluginParams = app.initialPluginRouteArgs;
     AutoPinAndExpandTracks.expandTracks = getParamValues(
-      String(pluginParams[URL_PARAM_EXPAND_TRACKS]),
+      pluginParams[URL_PARAM_EXPAND_TRACKS],
     );
     AutoPinAndExpandTracks.pinTracks = getParamValues(
-      String(pluginParams[URL_PARAM_PINNED_TRACKS]),
+      pluginParams[URL_PARAM_PINNED_TRACKS],
     );
   }
 

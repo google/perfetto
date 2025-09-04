@@ -69,10 +69,22 @@ TEST_F(ProcessTrackerTest, StartNewProcess) {
 
 TEST_F(ProcessTrackerTest, StartNewProcessWithoutMainThread) {
   auto upid = context.process_tracker->StartNewProcessWithoutMainThread(
-      1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
+      1000, 0u, 123, kNullStringId, ThreadNamePriority::kGenericKernelTask);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
   ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
   ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+}
+
+TEST_F(ProcessTrackerTest, StartNewProcessWithoutMainThread_withUpdateThread) {
+  auto upid = context.process_tracker->StartNewProcessWithoutMainThread(
+      1000, 0u, 123, kNullStringId, ThreadNamePriority::kGenericKernelTask);
+
+  context.process_tracker->UpdateThread(12345, 123);
+
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(123).has_value());
+  ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(12345).has_value());
 }
 
 TEST_F(ProcessTrackerTest, UpdateProcessWithParent) {
@@ -124,6 +136,40 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   auto opt_upid = context.process_tracker->UpidForPidForTesting(2);
   ASSERT_TRUE(opt_upid.has_value());
   ASSERT_EQ(context.storage->process_table().row_count(), 2u);
+}
+
+TEST_F(ProcessTrackerTest, UpdateThread_withStartNewProcessWithoutMainThread) {
+  context.process_tracker->UpdateThread(12, 2);
+
+  auto opt_orig_upid = context.process_tracker->UpidForPidForTesting(2);
+  ASSERT_TRUE(opt_orig_upid.has_value());
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(2), *opt_orig_upid);
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(2).has_value());
+
+  // Should override the previous created process
+  auto upid = context.process_tracker->StartNewProcessWithoutMainThread(
+      1000, 0u, 2, kNullStringId, ThreadNamePriority::kGenericKernelTask);
+
+  ASSERT_NE(*opt_orig_upid, upid);
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(2), upid);
+  ASSERT_FALSE(context.process_tracker->GetThreadOrNull(2).has_value());
+  ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+}
+
+TEST_F(ProcessTrackerTest,
+       UpdateThread_withGetOrCreateProcessWithoutMainThread) {
+  context.process_tracker->UpdateThread(12, 2);
+
+  auto opt_orig_upid = context.process_tracker->UpidForPidForTesting(2);
+  ASSERT_TRUE(opt_orig_upid.has_value());
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(2), *opt_orig_upid);
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(2).has_value());
+
+  auto upid = context.process_tracker->GetOrCreateProcessWithoutMainThread(2);
+
+  ASSERT_EQ(*opt_orig_upid, upid);
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(2), *opt_orig_upid);
+  ASSERT_TRUE(context.process_tracker->GetThreadOrNull(2).has_value());
 }
 
 TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {

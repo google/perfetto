@@ -310,59 +310,78 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   return std::nullopt;
 }
 
-std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
-  std::map<std::string, FoundBinary> result;
-  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
-    static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
-    char magic[EI_MAG3 + 1];
-    // Scope file access. On windows OpenFile opens an exclusive lock.
-    // This lock needs to be released before mapping the file.
-    {
-      base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-      if (!fd) {
-        PERFETTO_PLOG("Failed to open %s", fname);
-        return;
-      }
-      auto rd = base::Read(*fd, &magic, sizeof(magic));
-      if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
-                                  !IsMachO64(magic, static_cast<size_t>(rd)))) {
-        PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
-        return;
-      }
-    }
-    std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
-    if (!binary_info) {
-      PERFETTO_DLOG("Failed to extract build id from %s.", fname);
+// Helper function to process a single binary file and add it to the index
+void ProcessBinaryFile(const char* fname,
+                       size_t size,
+                       std::map<std::string, FoundBinary>& result) {
+  static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
+  char magic[EI_MAG3 + 1];
+  // Scope file access. On windows OpenFile opens an exclusive lock.
+  // This lock needs to be released before mapping the file.
+  {
+    base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+    if (!fd) {
+      PERFETTO_PLOG("Failed to open %s", fname);
       return;
     }
-    auto it = result.emplace(binary_info->build_id, FoundBinary{
-                                                        fname,
-                                                        binary_info->p_vaddr,
-                                                        binary_info->p_offset,
-                                                        binary_info->type,
-                                                    });
-
-    // If there was already an existing FoundBinary, the emplace wouldn't insert
-    // anything. But, for Mac binaries, we prefer dSYM files over the original
-    // binary, so make sure these overwrite the FoundBinary entry.
-    bool has_existing = it.second == false;
-    if (has_existing) {
-      if (it.first->second.type == BinaryType::kMachO &&
-          binary_info->type == BinaryType::kMachODsym) {
-        PERFETTO_LOG("Overwriting index entry for %s to %s.",
-                     base::ToHex(binary_info->build_id).c_str(), fname);
-        it.first->second =
-            FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
-                        binary_info->type};
-      } else {
-        PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
-                      base::ToHex(binary_info->build_id).c_str());
-      }
-    } else {
-      PERFETTO_LOG("Indexed: %s (%s)", fname,
-                   base::ToHex(binary_info->build_id).c_str());
+    auto rd = base::Read(*fd, &magic, sizeof(magic));
+    if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
+                                !IsMachO64(magic, static_cast<size_t>(rd)))) {
+      PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
+      return;
     }
-  });
+  }
+  std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
+  if (!binary_info) {
+    PERFETTO_DLOG("Failed to extract build id from %s.", fname);
+    return;
+  }
+  auto [it, inserted] =
+      result.emplace(binary_info->build_id, FoundBinary{
+                                                fname,
+                                                binary_info->p_vaddr,
+                                                binary_info->p_offset,
+                                                binary_info->type,
+                                            });
+
+  if (inserted) {
+    PERFETTO_DLOG("Indexed: %s (%s)", fname,
+                  base::ToHex(binary_info->build_id).c_str());
+    return;
+  }
+
+  // If there was already an existing FoundBinary, the emplace wouldn't insert
+  // anything. But, for Mac binaries, we prefer dSYM files over the original
+  // binary, so make sure these overwrite the FoundBinary entry.
+  if (it->second.type == BinaryType::kMachO &&
+      binary_info->type == BinaryType::kMachODsym) {
+    PERFETTO_LOG("Overwriting index entry for %s to %s.",
+                 base::ToHex(binary_info->build_id).c_str(), fname);
+    it->second = FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
+                             binary_info->type};
+  } else {
+    PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
+                  base::ToHex(binary_info->build_id).c_str());
+  }
+}
+
+std::map<std::string, FoundBinary> BuildIdIndex(
+    std::vector<std::string> dirs,
+    std::vector<std::string> files) {
+  std::map<std::string, FoundBinary> result;
+
+  // Process directories
+  if (!dirs.empty()) {
+    WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
+      ProcessBinaryFile(fname, size, result);
+    });
+  }
+
+  // Process individual files
+  for (const std::string& file_path : files) {
+    ProcessBinaryFile(file_path.c_str(), 0, result);
+  }
+
   return result;
 }
 
@@ -749,8 +768,11 @@ bool ParseLlvmSymbolizerJsonLine(const std::string& line,
 
 BinaryFinder::~BinaryFinder() = default;
 
-LocalBinaryIndexer::LocalBinaryIndexer(std::vector<std::string> roots)
-    : buildid_to_file_(BuildIdIndex(std::move(roots))) {}
+LocalBinaryIndexer::LocalBinaryIndexer(
+    std::vector<std::string> directories,
+    std::vector<std::string> individual_files)
+    : buildid_to_file_(
+          BuildIdIndex(std::move(directories), std::move(individual_files))) {}
 
 std::optional<FoundBinary> LocalBinaryIndexer::FindBinary(
     const std::string& abspath,
@@ -891,17 +913,19 @@ LocalSymbolizer::~LocalSymbolizer() = default;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
 std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
-    std::vector<std::string> binary_path,
+    std::vector<std::string> directories,
+    std::vector<std::string> individual_files,
     const char* mode) {
   std::unique_ptr<Symbolizer> symbolizer;
 
-  if (!binary_path.empty()) {
+  if (!directories.empty() || !individual_files.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
     std::unique_ptr<BinaryFinder> finder;
     if (!mode || strncmp(mode, "find", 4) == 0) {
-      finder = std::make_unique<LocalBinaryFinder>(std::move(binary_path));
+      finder = std::make_unique<LocalBinaryFinder>(std::move(directories));
     } else if (strncmp(mode, "index", 5) == 0) {
-      finder = std::make_unique<LocalBinaryIndexer>(std::move(binary_path));
+      finder = std::make_unique<LocalBinaryIndexer>(
+          std::move(directories), std::move(individual_files));
     } else {
       PERFETTO_FATAL("Invalid symbolizer mode [find | index]: %s", mode);
     }

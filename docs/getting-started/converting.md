@@ -78,7 +78,7 @@ or a similar name. Each subsequent example will show you what code to place
 inside the `populate_packets` function.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
 #!/usr/bin/env python3
@@ -189,7 +189,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     # Define a unique ID for this sequence of packets (generate once per trace producer)
@@ -287,7 +287,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     # Define a unique ID for this sequence of packets
@@ -388,7 +388,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script:
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 3003
@@ -470,7 +470,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 4004
@@ -556,7 +556,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 5005
@@ -664,7 +664,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 6006
@@ -764,7 +764,7 @@ Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
 
 <details>
-<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+<summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
     TRUSTED_PACKET_SEQUENCE_ID = 7007

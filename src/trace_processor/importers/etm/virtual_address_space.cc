@@ -49,17 +49,19 @@ void VirtualAddressSpace::Builder::AddMapping(
   AddressRange range(static_cast<uint64_t>(mapping.start()),
                      static_cast<uint64_t>(mapping.end()));
 
-  std::optional<TraceBlobView> content;
+  std::optional<TraceBlob> content;
   if (mmap.file_id()) {
-    content = context_->registered_file_tracker->GetContent(*mmap.file_id());
-    auto file_range = AddressRange::FromStartAndSize(0, content->size());
+    TraceBlob& blob =
+        context_->registered_file_tracker->GetContent(*mmap.file_id());
+    auto file_range = AddressRange::FromStartAndSize(0, blob.size());
     auto required_file_range = AddressRange::FromStartAndSize(
         static_cast<uint64_t>(mapping.exact_offset()), range.size());
 
     PERFETTO_CHECK(file_range.Contains(required_file_range));
-
-    content = content->slice_off(required_file_range.start(),
-                                 required_file_range.length());
+    // TODO(rasikanavarange): The following copy is not efficient and will need
+    // clean up later
+    content = TraceBlob::CopyFrom(blob.data() + required_file_range.start(),
+                                  required_file_range.length());
   }
 
   auto [it, success] = mappings_.insert(

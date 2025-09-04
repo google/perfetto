@@ -128,7 +128,7 @@ export class HeapProfileFlamegraphDetailsPanel
             ],
           ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
-            m('span', `Snapshot time: `, m(Timestamp, {ts})),
+            m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
               type === ProfileType.JAVA_HEAP_SAMPLES) &&
               m(Button, {
@@ -425,8 +425,7 @@ function flamegraphMetricsForHeapProfile(
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_size,
           self_count,
           self_alloc_size,
@@ -448,14 +447,9 @@ function flamegraphMetricsForHeapProfile(
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
-        name: 'source_file',
-        displayName: 'Source File',
-        mergeAggregation: 'ONE_OR_NULL',
-      },
-      {
-        name: 'line_number',
-        displayName: 'Line Number',
-        mergeAggregation: 'ONE_OR_NULL',
+        name: 'source_location',
+        displayName: 'Source Location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
       },
     ],
   );

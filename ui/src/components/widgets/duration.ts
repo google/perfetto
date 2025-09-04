@@ -14,10 +14,8 @@
 
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
-import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
-import {AppImpl} from '../../core/app_impl';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
@@ -26,26 +24,17 @@ import {DurationPrecisionMenuItem} from './duration_precision_menu_items';
 import {TimestampFormatMenuItem} from './timestamp_format_menu';
 
 interface DurationWidgetAttrs {
+  trace: Trace;
   dur: duration;
   extraMenuItems?: m.Child[];
 }
 
 export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
-  private readonly trace: Trace;
-
-  constructor() {
-    // TODO(primiano): the Trace object should be injected into the attrs, but
-    // there are too many users of this class and doing so requires a larger
-    // refactoring CL. Either that or we should find a different way to plumb
-    // the hoverCursorTimestamp.
-    this.trace = assertExists(AppImpl.instance.trace);
-  }
-
   view({attrs}: m.Vnode<DurationWidgetAttrs>) {
-    const {dur} = attrs;
+    const {trace, dur} = attrs;
 
     const value: m.Children =
-      dur === -1n ? m('i', '(Did not end)') : formatDuration(this.trace, dur);
+      dur === -1n ? m('i', '(Did not end)') : formatDuration(trace, dur);
 
     return m(
       PopupMenu,
@@ -59,8 +48,8 @@ export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
           copyToClipboard(dur.toString());
         },
       }),
-      m(TimestampFormatMenuItem, {trace: this.trace}),
-      m(DurationPrecisionMenuItem, {trace: this.trace}),
+      m(TimestampFormatMenuItem, {trace: trace}),
+      m(DurationPrecisionMenuItem, {trace: trace}),
       attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
     );
   }
