@@ -398,10 +398,9 @@ SELECT
   base.cpu5_curve,
   base.cpu6_curve,
   base.cpu7_curve,
-  base.l3_hit_count,
-  base.l3_miss_count,
+  iif(base.all_cpu_deep_idle = 1, 0, base.l3_hit_count) AS l3_hit_count,
+  iif(base.all_cpu_deep_idle = 1, 0, base.l3_miss_count) AS l3_miss_count,
   base.no_static,
-  base.all_cpu_deep_idle,
   base.static_1d,
   -- Use DSU frequency if required, else use the calculated dependency
   -- frequency, else use the fallback default frequency
