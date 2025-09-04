@@ -12908,6 +12908,51 @@ message GenericKernelTaskRenameEvent {
   optional string comm = 2;
 }
 
+// Metadata about the processes and threads in the trace.
+// The main goal of this proto is to provide a generic kernel
+// implementation a mechanism to outline its process structure.
+message GenericKernelProcessTree {
+  // Representation of a thread.
+  message Thread {
+    // Thread id.
+    optional int64 tid = 1;
+
+    // Id of the parent process.
+    optional int64 pid = 2;
+
+    // The command name of the thread.
+    optional string comm = 3;
+
+    // True if thread is the main thread.
+    optional bool is_main_thread = 4;
+  }
+
+  // Representation of a process.
+  message Process {
+    // Process id.
+    optional int64 pid = 1;
+
+    // Parent process id.
+    optional int64 ppid = 2;
+
+    // The command line of the process.
+    // If the cmdline has spaces in it, then we use the characters from
+    // position 0 to the first instance of the space char (' ') as the name
+    // of the process. If no spaces are present, then the entire cmdline is
+    // used as the name.
+    optional string cmdline = 3;
+  }
+
+  // List of processes and threads in the kernel. These lists are incremental
+  // and not exhaustive. A process and its threads might show up separately in
+  // different ProcessTree messages. A thread might not show up at all, if
+  // no sched switch activity was detected, for instance:
+  // #0 { processes: [{pid: 10, ...}], threads: [{tid: 11, pid: 10}] }
+  // #1 { threads: [{tid: 12, pid: 10}] }
+  // #2 { processes: [{pid: 20, ...}], threads: [{tid: 13, pid: 10}] }
+  repeated Process processes = 1;
+  repeated Thread threads = 2;
+}
 
 // End of protos/perfetto/trace/generic_kernel/generic_task.proto
 
@@ -17019,7 +17064,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 122.
+// Next id: 123.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17170,6 +17215,7 @@ message TracePacket {
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
     GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
     GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+    GenericKernelProcessTree generic_kernel_process_tree = 122;
 
     CpuPerUidData cpu_per_uid_data = 119;
 

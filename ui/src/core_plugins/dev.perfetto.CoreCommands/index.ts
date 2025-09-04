@@ -131,11 +131,8 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
 
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
-  static app: AppImpl;
 
   static onActivate(ctx: AppImpl) {
-    CoreCommands.app = ctx;
-
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
         id: 'dev.perfetto.ToggleLeftSidebar',
@@ -398,14 +395,13 @@ export default class CoreCommands implements PerfettoPlugin {
       },
     });
 
-    const app = CoreCommands.app;
     ctx.commands.registerCommand({
       id: 'dev.perfetto.SetTimestampFormat',
       name: 'Set timestamp and duration format',
       callback: async () => {
         const TF = TimestampFormat;
         const timeZone = formatTimezone(ctx.traceInfo.tzOffMin);
-        const result = await app.omnibox.prompt('Select format...', {
+        const result = await ctx.omnibox.prompt('Select format...', {
           values: [
             {format: TF.Timecode, name: 'Timecode'},
             {format: TF.UTC, name: 'Realtime (UTC)'},
@@ -426,7 +422,7 @@ export default class CoreCommands implements PerfettoPlugin {
         if (!result) return;
 
         if (result.format === TF.CustomTimezone) {
-          const result = await app.omnibox.prompt('Select format...', {
+          const result = await ctx.omnibox.prompt('Select format...', {
             values: Object.entries(timezoneOffsetMap),
             getName: ([key]) => key,
           });
@@ -444,7 +440,7 @@ export default class CoreCommands implements PerfettoPlugin {
       name: 'Set duration precision',
       callback: async () => {
         const DF = DurationPrecision;
-        const result = await app.omnibox.prompt(
+        const result = await ctx.omnibox.prompt(
           'Select duration precision mode...',
           {
             values: [
@@ -461,7 +457,7 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.TogglePerformanceMetrics',
       name: 'Toggle performance metrics',
-      callback: () => (app.perfDebugging.enabled = !app.perfDebugging.enabled),
+      callback: () => (ctx.perfDebugging.enabled = !ctx.perfDebugging.enabled),
     });
 
     ctx.commands.registerCommand({
@@ -787,7 +783,7 @@ export default class CoreCommands implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: `${app.pluginId}#RestoreDefaults`,
+      id: `dev.perfetto.RestoreDefaults`,
       name: 'Reset all flags back to default values',
       callback: () => {
         featureFlags.resetAll();
