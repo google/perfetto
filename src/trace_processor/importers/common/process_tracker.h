@@ -197,16 +197,6 @@ class ProcessTracker {
     return std::make_pair(deque.begin(), deque.end());
   }
 
-  // Associates the passed pid as the parent process of the passed thread.
-  // The is_main_thread arguments specifies whether the thread is the process'
-  // main thread. The associate_main_threads boolean parameter is used to
-  // determine if a thread should be marked as the main thread if the tid and
-  // pid match, when resolving pending process associations.
-  void AssociateThreadToProcess(UniqueTid utid,
-                                UniquePid upid,
-                                bool is_main_thread,
-                                bool associate_main_threads);
-
   // Marks the two threads as belonging to the same process, even if we don't
   // know which one yet. If one of the two threads is later mapped to a process,
   // the other will be mapped to the same process. The order of the two threads
