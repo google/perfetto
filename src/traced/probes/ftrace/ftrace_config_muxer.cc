@@ -169,7 +169,7 @@ bool ValidateKprobeName(const std::string& name) {
 // See: "Advanced Single-Tenant Features" in ftrace_config.proto for more
 // details.
 bool HasExclusiveFeatures(const FtraceConfig& request) {
-  return !request.tids_to_trace().empty();
+  return !request.tids_to_trace().empty() || !request.tracefs_options().empty();
 }
 
 }  // namespace
@@ -454,6 +454,45 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       PERFETTO_ELOG("Failed to set event tid filter");
       return false;
     }
+  }
+
+  if (!request.tracefs_options().empty()) {
+    base::FlatHashMap<std::string, bool> current_tracefs_options;
+    for (const auto& tracefs_option : request.tracefs_options()) {
+      // Skip unset options.
+      if (tracefs_option.state() == FtraceConfig::TracefsOption::STATE_UNSET) {
+        continue;
+      }
+      // Validate the option name.
+      if (tracefs_option.name().empty() ||
+          !std::all_of(
+              tracefs_option.name().begin(), tracefs_option.name().end(),
+              [](char c) { return std::isalnum(c) || c == '-' || c == '_'; })) {
+        PERFETTO_ELOG(
+            "Invalid tracefs option name: %s. The string can only contain "
+            "alphanumeric characters, hyphens and underscores.",
+            tracefs_option.name().c_str());
+        return false;
+      }
+      // Get the current option state and save it for later.
+      auto option_state = ftrace_->GetTracefsOption(tracefs_option.name());
+      if (!option_state.has_value()) {
+        PERFETTO_ELOG("Tracefs option not found: %s",
+                      tracefs_option.name().c_str());
+        return false;
+      }
+      current_tracefs_options[tracefs_option.name()] = option_state.value();
+
+      if (!ftrace_->SetTracefsOption(
+              tracefs_option.name(),
+              tracefs_option.state() ==
+                  FtraceConfig::TracefsOption::STATE_ENABLED)) {
+        PERFETTO_ELOG("Failed to set tracefs option: %s",
+                      tracefs_option.name().c_str());
+        return false;
+      }
+    }
+    current_state_.saved_tracefs_options = std::move(current_tracefs_options);
   }
 
   current_state_.exclusive_feature_active = config_has_exclusive_features;
@@ -760,6 +799,11 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
 
     if (current_state_.exclusive_feature_active) {
       ftrace_->ClearEventTidFilter();
+      for (auto it = current_state_.saved_tracefs_options.GetIterator(); it;
+           ++it) {
+        ftrace_->SetTracefsOption(it.key(), it.value());
+      }
+      current_state_.saved_tracefs_options.Clear();
       current_state_.exclusive_feature_active = false;
     }
 

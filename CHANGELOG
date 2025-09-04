@@ -3,6 +3,7 @@ Unreleased:
     * Added support for advanced single-tenant features in ftrace data source.
       These features can only be used by a single tracing session.
     * Added support for ftrace filtering by TID as an exclusive feature.
+    * Added support for tracefs Options as an exclusive feature.
     * Deprecated: "resolve_process_fds" option in "linux.process_stats" data
       source. Asynchronous scraping is too unreliable and there are no known
       maintainers or users.
