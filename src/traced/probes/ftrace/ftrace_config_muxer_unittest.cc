@@ -1334,6 +1334,89 @@ TEST_F(FtraceConfigMuxerFakeTableTest, PreserveFtraceBufferNotSetBufferSizeKb) {
   ASSERT_TRUE(model_.SetupConfig(id, config));
 }
 
+TEST_F(FtraceConfigMuxerFakeTableTest, TidFilter) {
+  FtraceConfig config;
+  config.add_tids_to_trace(123);
+  config.add_tids_to_trace(456);
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+
+  // Ignore other calls.
+  EXPECT_CALL(ftrace_, WriteToFile(Not("/root/set_event_pid"), _))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, ClearFile(Not("/root/set_event_pid")))
+      .Times(AnyNumber());
+
+  EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "123 456"))
+      .WillOnce(Return(true));
+
+  FtraceConfigId id = 43;
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+  ASSERT_TRUE(model_.GetAdvancedFeatureActiveForTesting());
+
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
+  ASSERT_TRUE(model_.RemoveConfig(id));
+  ASSERT_FALSE(model_.GetAdvancedFeatureActiveForTesting());
+}
+
+TEST_F(FtraceConfigMuxerFakeTableTest,
+       AdvancedFeatureFailsIfAnotherConfigActive) {
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+  ON_CALL(ftrace_, ReadOneCharFromFile("/root/tracing_on"))
+      .WillByDefault(Return('0'));
+
+  FtraceConfig regular_config;
+  FtraceConfigId regular_id = 1;
+  ASSERT_TRUE(model_.SetupConfig(regular_id, regular_config));
+
+  FtraceConfig advanced_config;
+  advanced_config.add_tids_to_trace(123);
+  FtraceConfigId advanced_id = 2;
+  FtraceSetupErrors errors;
+  ASSERT_FALSE(model_.SetupConfig(advanced_id, advanced_config, &errors));
+  EXPECT_EQ(errors.exclusive_advanced_feature_error,
+            "Attempted to start an ftrace session with advanced features "
+            "while another session was active.");
+
+  ASSERT_TRUE(model_.RemoveConfig(regular_id));
+}
+
+TEST_F(FtraceConfigMuxerFakeTableTest,
+       AnotherConfigFailsIfAdvancedFeatureActive) {
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+  ON_CALL(ftrace_, ReadOneCharFromFile("/root/tracing_on"))
+      .WillByDefault(Return('0'));
+
+  FtraceConfig advanced_config;
+  advanced_config.add_tids_to_trace(123);
+  FtraceConfigId advanced_id = 1;
+
+  // We only care about set_event_pid, so we'll ignore other calls.
+  EXPECT_CALL(ftrace_, WriteToFile(Not(Eq("/root/set_event_pid")), _))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, ClearFile(Not(Eq("/root/set_event_pid"))))
+      .Times(AnyNumber());
+
+  EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "123"));
+  ASSERT_TRUE(model_.SetupConfig(advanced_id, advanced_config));
+  ASSERT_TRUE(model_.GetAdvancedFeatureActiveForTesting());
+
+  FtraceConfig regular_config;
+  FtraceConfigId regular_id = 2;
+  FtraceSetupErrors errors;
+  ASSERT_FALSE(model_.SetupConfig(regular_id, regular_config, &errors));
+  EXPECT_EQ(errors.exclusive_advanced_feature_error,
+            "Attempted to start an ftrace session while another session with "
+            "advanced features was active.");
+
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
+  ASSERT_TRUE(model_.RemoveConfig(advanced_id));
+  ASSERT_FALSE(model_.GetAdvancedFeatureActiveForTesting());
+}
+
 // Fixture that constructs a FtraceConfigMuxer with a mock
 // ProtoTranslationTable.
 class FtraceConfigMuxerMockTableTest : public FtraceConfigMuxerTest {
