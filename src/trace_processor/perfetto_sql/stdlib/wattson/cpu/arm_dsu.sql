@@ -71,30 +71,48 @@ CREATE VIRTUAL TABLE _arm_l3_rates USING SPAN_OUTER_JOIN (
 -- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
 -- DSU frequency is a prerequisite for power estimation on Pixel 9.
 CREATE PERFETTO TABLE _wattson_dsu_frequency AS
+WITH
+  base AS (
+    SELECT
+      *
+    FROM linux_devfreq_dsu_counter
+    UNION ALL
+    SELECT
+      0 AS id,
+      trace_start() AS ts,
+      trace_end() - trace_start() AS dur,
+      610000 AS dsu_freq
+    -- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
+    WHERE
+      (
+        SELECT
+          str_value
+        FROM metadata
+        WHERE
+          name = 'android_guest_soc_model'
+      ) IN (
+        SELECT
+          device
+        FROM _use_devfreq
+      )
+      AND (
+        SELECT
+          count(*)
+        FROM linux_devfreq_dsu_counter
+      ) = 0
+  )
 SELECT
-  *
-FROM linux_devfreq_dsu_counter
+  id,
+  ts,
+  dur,
+  dsu_freq
+FROM _use_devfreq_for_calc
+CROSS JOIN base
 UNION ALL
+-- Create fake entry for use with ii()
 SELECT
   0 AS id,
   trace_start() AS ts,
   trace_end() - trace_start() AS dur,
-  610000 AS dsu_freq
--- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
-WHERE
-  (
-    SELECT
-      str_value
-    FROM metadata
-    WHERE
-      name = 'android_guest_soc_model'
-  ) IN (
-    SELECT
-      device
-    FROM _use_devfreq
-  )
-  AND (
-    SELECT
-      count(*)
-    FROM linux_devfreq_dsu_counter
-  ) = 0;
+  NULL AS dsu_freq
+FROM _skip_devfreq_for_calc;
