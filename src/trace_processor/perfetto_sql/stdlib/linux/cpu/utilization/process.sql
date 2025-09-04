@@ -117,6 +117,9 @@ GROUP BY
   upid;
 
 -- Aggregated CPU statistics for each process in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -172,6 +175,9 @@ GROUP BY
 --
 -- Utilization is computed as runtime over the duration of the interval, aggregated by process name.
 -- Utilization can be normalized (divide by number of cpus) or unnormalized.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_process_utilization_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,

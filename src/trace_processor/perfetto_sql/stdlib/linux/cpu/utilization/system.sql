@@ -100,6 +100,9 @@ SELECT
 FROM _cpu_freq_per_thread;
 
 -- Aggregated CPU statistics in a provided interval. Results in one row.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -138,6 +141,9 @@ JOIN _cpu_freq_per_thread
 --
 -- Utilization  is computed as runtime over the duration of the interval.
 -- Utilization can be normalized (divide by number of cores) or unnormalized.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_utilization_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -204,6 +210,9 @@ GROUP BY
   ucpu;
 
 -- Aggregated CPU statistics for each CPU in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
