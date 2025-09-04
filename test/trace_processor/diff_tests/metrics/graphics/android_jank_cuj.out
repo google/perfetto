@@ -16,7 +16,7 @@ android_jank_cuj {
       is_kernel_task: false
     }
     ts: 0
-    dur: 123000000
+    dur: 115000000
     frame {
       frame_number: 1
       vsync: 10
@@ -194,7 +194,7 @@ android_jank_cuj {
       is_kernel_task: false
     }
     ts: 0
-    dur: 901000010
+    dur: 702000000
     frame {
       frame_number: 1
       vsync: 10
@@ -410,13 +410,13 @@ android_jank_cuj {
       missed_app_frames: 7
       missed_sf_frames: 2
       frame_dur_max: 61000000
-      frame_dur_avg: 27192307
-      frame_dur_p50: 22000000
-      frame_dur_p90: 56800000
+      frame_dur_avg: 31738461
+      frame_dur_p50: 25000000
+      frame_dur_p90: 60000000
       frame_dur_p95: 61000000
       frame_dur_p99: 61000000
-      frame_dur_ms_p50: 22.000000
-      frame_dur_ms_p90: 56.80000000000001
+      frame_dur_ms_p50: 25.0
+      frame_dur_ms_p90: 60.0
       frame_dur_ms_p95: 61.000000
       frame_dur_ms_p99: 61.000000
       sf_callback_missed_frames: 1
