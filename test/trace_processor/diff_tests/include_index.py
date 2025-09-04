@@ -108,6 +108,7 @@ from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfil
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
+from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
@@ -217,6 +218,7 @@ def fetch_all_diff_tests(
       ProfilingLlvmSymbolizer,
       SchedParser,
       Simpleperf,
+      SimpleperfProtoParser,
       StdlibSched,
       Smoke,
       SmokeComputeMetrics,
