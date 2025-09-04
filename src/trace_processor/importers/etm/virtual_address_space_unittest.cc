@@ -56,7 +56,7 @@ tables::MmapRecordTable::ConstRowReference AddMapping(
 
 TEST(VirtualAddressSpaceTest, Empty) {
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.storage = std::make_unique<TraceStorage>();
   VirtualAddressSpace vs = VirtualAddressSpace::Builder(&context).Build();
 
   EXPECT_THAT(vs.FindMapping(0, 5), IsNull());
@@ -64,7 +64,7 @@ TEST(VirtualAddressSpaceTest, Empty) {
 
 TEST(VirtualAddressSpaceTest, DisjointRanges) {
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.storage = std::make_unique<TraceStorage>();
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 
@@ -87,7 +87,7 @@ TEST(VirtualAddressSpaceTest, DisjointRanges) {
 
 TEST(VirtualAddressSpaceTest, ComplexLayout) {
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.storage = std::make_unique<TraceStorage>();
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 

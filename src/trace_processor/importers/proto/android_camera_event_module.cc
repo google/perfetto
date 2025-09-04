@@ -40,9 +40,10 @@ namespace perfetto::trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidCameraEventModule::AndroidCameraEventModule(
+    ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kAndroidCameraFrameEventFieldNumber, context);
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kAndroidCameraFrameEventFieldNumber);
 }
 
 AndroidCameraEventModule::~AndroidCameraEventModule() = default;
@@ -59,9 +60,9 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
   const auto android_camera_frame_event =
       protos::pbzero::AndroidCameraFrameEvent::Decoder(
           decoder.android_camera_frame_event());
-  context_->sorter->PushTracePacket(
+  module_context_->trace_packet_stream->Push(
       android_camera_frame_event.request_processing_started_ns(),
-      std::move(state), std::move(*packet), context_->machine_id());
+      TracePacketData{std::move(*packet), state});
   return ModuleResult::Handled();
 }
 

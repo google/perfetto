@@ -37,6 +37,7 @@ source_set("packages_list") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../base",
+    "../common",
   ]
   sources = [
     "packages_list_data_source.cc",

@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, Systrace
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
@@ -118,4 +118,60 @@ class Atrace(TestSuite):
         300,50,"sys_write",0
         350,300,"test",0
         600,50,"sys_write",1
+        """))
+
+  def test_cpus_header_removal(self):
+    return DiffTestBlueprint(
+        trace=Systrace("""cpus=8
+kworker/u16:1-77    (   77) [004] ....   316.196720: tracing_mark_write: B|77|test_slice
+kworker/u16:1-77    (   77) [004] ....   316.196730: tracing_mark_write: E|77
+        """),
+        query="""
+        SELECT ts, name, dur
+        FROM slice
+        WHERE name = 'test_slice';
+        """,
+        out=Csv("""
+        "ts","name","dur"
+        316196720000,"test_slice",10000
+        """))
+
+  def test_regex_pattern_no_gap_after_irq_flags(self):
+    return DiffTestBlueprint(
+        trace=Systrace("""cpus=8
+kworker/u16:1-77    (   77) [004] ....316.196720: tracing_mark_write: B|77|no_gap_after_dots
+kworker/u16:2-78    (   78) [005] .... 316.196730: tracing_mark_write: B|78|space_after_dots
+test-process-123    (  123) [002] d...316.196740: tracing_mark_write: B|123|no_gap_after_flags
+<idle>-0     [000]  0.002188: tracing_mark_write: E|77
+<idle>-0     [001]  0.002198: tracing_mark_write: E|78
+<idle>-0     [002]  0.002208: tracing_mark_write: E|123
+        """),
+        query="""
+        SELECT name, COUNT(*) as count
+        FROM slice
+        WHERE name IN ('no_gap_after_dots', 'space_after_dots', 'no_gap_after_flags')
+        GROUP BY name
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","count"
+        "no_gap_after_dots",1
+        "no_gap_after_flags",1
+        "space_after_dots",1
+        """))
+
+  def test_cpus_header_with_digits_only(self):
+    return DiffTestBlueprint(
+        trace=Systrace("""cpus=16
+task-1234-567    ( 567) [000] ....   100.000000: tracing_mark_write: B|567|task_work
+task-1234-567    ( 567) [000] ....   100.001000: tracing_mark_write: E|567
+        """),
+        query="""
+        SELECT COUNT(*) as slice_count
+        FROM slice
+        WHERE name = 'task_work';
+        """,
+        out=Csv("""
+        "slice_count"
+        1
         """))

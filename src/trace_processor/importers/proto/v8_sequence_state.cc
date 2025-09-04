@@ -40,8 +40,9 @@ protozero::ConstBytes ToConstBytes(const TraceBlobView& view) {
 
 }  // namespace
 
-V8SequenceState::V8SequenceState(TraceProcessorContext* context)
-    : context_(context), v8_tracker_(V8Tracker::GetOrCreate(context_)) {}
+V8SequenceState::V8SequenceState(TraceProcessorContext* context,
+                                 V8Tracker* v8_tracker)
+    : context_(context), v8_tracker_(v8_tracker) {}
 
 V8SequenceState::~V8SequenceState() = default;
 

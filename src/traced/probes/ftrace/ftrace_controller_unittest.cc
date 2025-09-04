@@ -44,7 +44,6 @@ using testing::ByMove;
 using testing::ElementsAre;
 using testing::Invoke;
 using testing::IsEmpty;
-using testing::MatchesRegex;
 using testing::Mock;
 using testing::NiceMock;
 using testing::Pair;
@@ -125,6 +124,9 @@ class MockTracefs : public Tracefs {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(cpu_count));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
 
+    ON_CALL(*this, NumberOfOnlineCpus()).WillByDefault(Return(cpu_count));
+    EXPECT_CALL(*this, NumberOfOnlineCpus()).Times(AnyNumber());
+
     ON_CALL(*this, ReadFileIntoString(root + "trace_clock"))
         .WillByDefault(Return("local global [boot]"));
     EXPECT_CALL(*this, ReadFileIntoString(root + "trace_clock"))
@@ -197,6 +199,7 @@ class MockTracefs : public Tracefs {
               (const std::string& path, const std::string& str),
               (override));
   MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
+  MOCK_METHOD(size_t, NumberOfOnlineCpus, (), (const, override));
   MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
   MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
   MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
@@ -352,9 +355,6 @@ TEST(FtraceControllerTest, OneSink) {
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->tracefs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
-  EXPECT_CALL(*controller->tracefs(),
-              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
-      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->tracefs(), WriteToFile(kFooEnablePath, "1"));
 
@@ -383,9 +383,6 @@ TEST(FtraceControllerTest, OneSink) {
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->tracefs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
-  EXPECT_CALL(*controller->tracefs(),
-              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
-      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/tracing_on", "1"));
 
   data_source.reset();
@@ -405,9 +402,6 @@ TEST(FtraceControllerTest, MultipleSinks) {
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->tracefs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
-  EXPECT_CALL(*controller->tracefs(),
-              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
-      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->tracefs(), WriteToFile(kFooEnablePath, "1"));
   auto data_sourceA = controller->AddFakeDataSource(configA);
@@ -441,9 +435,6 @@ TEST(FtraceControllerTest, MultipleSinks) {
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->tracefs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
-  EXPECT_CALL(*controller->tracefs(),
-              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
-      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/tracing_on", "1"));
   data_sourceB.reset();
   EXPECT_TRUE(controller->tracefs()->is_tracing_on());
@@ -458,9 +449,6 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->tracefs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
-  EXPECT_CALL(*controller->tracefs(),
-              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
-      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->tracefs(), WriteToFile(kFooEnablePath, "1"));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_percent", _))
@@ -478,9 +466,6 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->tracefs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
-  EXPECT_CALL(*controller->tracefs(),
-              ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
-      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/tracing_on", "1"));
   controller.reset();
   data_source.reset();

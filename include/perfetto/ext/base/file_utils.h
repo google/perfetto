@@ -36,9 +36,11 @@ namespace base {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using FileOpenMode = int;
 inline constexpr char kDevNull[] = "NUL";
+inline constexpr char kFopenReadFlag[] = "r";
 #else
 using FileOpenMode = mode_t;
 inline constexpr char kDevNull[] = "/dev/null";
+inline constexpr char kFopenReadFlag[] = "re";
 #endif
 
 constexpr FileOpenMode kFileModeInvalid = static_cast<FileOpenMode>(-1);
@@ -68,7 +70,7 @@ ScopedFile OpenFile(const std::string& path,
                     FileOpenMode = kFileModeInvalid);
 ScopedFstream OpenFstream(const char* path, const char* mode);
 
-// This is an alias for close(). It's to avoid leaking Windows.h in headers.
+// This is an alias for close(). It's to avoid leaking windows.h in headers.
 // Exported because ScopedFile is used in the /include/ext API by Chromium
 // component builds.
 int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);

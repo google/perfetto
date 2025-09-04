@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -486,10 +486,8 @@ class PerfettoTable(TestSuite):
         trace=Path('../parser/android/surfaceflinger_layers.textproto'),
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
-        WHERE
-          (flat_key GLOB "*id" AND int_value = 3)
-          OR flat_key IN (
-            "id",
+        WHERE flat_key IN (
+            'id',
             "z",
             "parent",
             "name",

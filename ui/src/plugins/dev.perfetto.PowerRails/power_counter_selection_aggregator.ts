@@ -49,7 +49,8 @@ export class PowerCounterSelectionAggregator implements Aggregator {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
 
-        const query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+        const query = `INCLUDE PERFETTO MODULE android.power_rails;
+          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
           WITH  aggregated AS (
             SELECT track_id,
               COUNT(1) AS count,
@@ -61,12 +62,11 @@ export class PowerCounterSelectionAggregator implements Aggregator {
             GROUP BY track_id
           )
           SELECT
-            name,
+            COALESCE(friendly_name, raw_power_rail_name) AS name,
             count,
-            last - first AS delta_value,
-            ROUND((last - first)/${durationSec}, 2) AS rate
-          FROM aggregated JOIN counter_track ON
-            track_id = counter_track.id
+            (last - first) / 1000 AS delta_value,
+            ROUND((last - first)/${durationSec} / 1000, 2) AS rate
+          FROM aggregated JOIN android_power_rails_metadata USING (track_id)
           GROUP BY track_id
         `;
         await engine.query(query);
@@ -85,11 +85,11 @@ export class PowerCounterSelectionAggregator implements Aggregator {
         columnId: 'name',
       },
       {
-        title: 'Delta energy (uJ)',
+        title: 'Delta energy (mJ)',
         columnId: 'delta_value',
       },
       {
-        title: 'Avg Power (uW)',
+        title: 'Avg Power (mW)',
         columnId: 'rate',
       },
       {

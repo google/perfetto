@@ -17,15 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 
+#include <cstdint>
+
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class FtraceModule : public ProtoImporterModule {
  public:
+  explicit FtraceModule(ProtoImporterModuleContext* module_context);
+
   virtual void ParseFtraceEventData(uint32_t cpu,
                                     int64_t ts,
                                     const TracePacketData& data);
@@ -39,7 +41,6 @@ class FtraceModule : public ProtoImporterModule {
                                       const InlineSchedWaking& data);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_

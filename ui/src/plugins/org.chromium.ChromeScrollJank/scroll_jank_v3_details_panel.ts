@@ -243,12 +243,15 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
     if (exists(this.data)) {
       details['Name'] = this.data.name;
       details['Expected Frame Presentation Timestamp'] = m(Timestamp, {
+        trace: this.trace,
         ts: this.data.ts,
       });
       details['Actual Frame Presentation Timestamp'] = m(Timestamp, {
+        trace: this.trace,
         ts: Time.add(this.data.ts, this.data.dur),
       });
       details['Frame Presentation Delay'] = m(DurationWidget, {
+        trace: this.trace,
         dur: this.data.dur,
       });
       details['Vsyncs Delayed'] = this.data.delayedVsyncCount;

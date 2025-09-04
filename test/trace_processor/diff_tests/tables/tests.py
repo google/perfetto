@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -386,6 +386,65 @@ class Tables(TestSuite):
           "id","slice_out","slice_in","trace_id","arg_set_id"
           0,0,1,57,"[NULL]"
           1,1,2,57,"[NULL]"
+        """))
+
+  def test_flow_direction_corrected_by_timestamp(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            timestamp: 50
+            track_event {
+              name: "Slice A"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 100
+            track_event {
+              name: "Slice B"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 20
+              flow_ids: 42
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 200
+            track_event {
+              name: "Slice B"
+              type: TYPE_SLICE_END
+              track_uuid: 20
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 400
+            track_event {
+              name: "Slice A"
+              type: TYPE_SLICE_END
+              track_uuid: 10
+              flow_ids: 42
+            }
+            trusted_packet_sequence_id: 123
+          }
+        """),
+        query="""
+        SELECT 
+          s_out.name as name_out,
+          s_out.ts as ts_out,
+          s_in.name as name_in,
+          s_in.ts as ts_in,
+          f.trace_id
+        FROM flow f
+        JOIN slice s_out ON f.slice_out = s_out.id  
+        JOIN slice s_in ON f.slice_in = s_in.id
+        ORDER BY f.id;
+        """,
+        out=Csv("""
+          "name_out","ts_out","name_in","ts_in","trace_id"
+          "Slice A",50,"Slice B",100,42
         """))
 
   def test_clock_snapshot_table_multiplier(self):

@@ -266,6 +266,15 @@ declare_args() {
   perfetto_thread_safety_annotations =
       perfetto_build_standalone && !is_perfetto_build_generator &&
       defined(use_custom_libcxx) && use_custom_libcxx
+
+  # Enables the use of priority-inheritance mutexes via PTHREAD_PRIO_INHERIT.
+  # Note that on Android platform (non-standalone) builds this flag is ignored
+  # and the Android flag "use_rt_mutex" is used instead (perfetto_flags.aconfig)
+  # This is disabled in chromium, because the BPF-sandbox allows PI-futex only
+  # when a field-trial is enabled, which is incompatible with a build time flag.
+  enable_perfetto_rt_mutex =
+      !is_wasm && (perfetto_build_standalone || is_perfetto_build_generator) &&
+      !build_with_chromium
 }
 
 declare_args() {
@@ -465,3 +474,10 @@ assert(!enable_perfetto_traced_probes || enable_perfetto_platform_services)
 # |perfetto_use_system_protobuf| must be set.
 assert(!perfetto_use_pkgconfig || perfetto_use_system_protobuf,
        "perfetto_use_pkgconfig requires perfetto_use_system_protobuf")
+
+# enable_perfetto_llvm_symbolizer is not compatible with use_custom_libcxx
+# because the former dynamically links to system llvm which is compiled using
+# libstdc++ which makes it incompatible with building using libcxx.
+assert(
+    !enable_perfetto_llvm_symbolizer || !use_custom_libcxx,
+    "enable_perfetto_llvm_symbolizer and use_custom_libcxx are mutually exclusive. If you are seeing this error then you have set enable_perfetto_llvm_symbolizer=true and must set use_custom_libcxx=false to use llvm_symbolizer.")

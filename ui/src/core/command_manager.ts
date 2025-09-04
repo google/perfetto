@@ -12,10 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
 import {Command, CommandManager} from '../public/command';
 import {raf} from './raf_scheduler';
+
+/**
+ * Zod schema for a single command invocation.
+ * Used for programmatic command execution like startup commands.
+ */
+export const commandInvocationSchema = z.object({
+  /** The command ID to execute (e.g., 'perfetto.CoreCommands#RunQueryAllProcesses'). */
+  id: z.string(),
+  /** Arguments to pass to the command. */
+  args: z.array(z.string()),
+});
+
+/**
+ * Specification for invoking a command with arguments.
+ * Inferred from the Zod schema to keep types in sync.
+ */
+export type CommandInvocation = z.infer<typeof commandInvocationSchema>;
+
+/**
+ * Zod schema for validating CommandInvocation arrays.
+ * Used by settings that store lists of commands to execute.
+ */
+export const commandInvocationArraySchema = z.array(commandInvocationSchema);
+
+/**
+ * Parses URL commands parameter from route args.
+ * @param commandsParam URL commands parameter (JSON-encoded string)
+ * @returns Parsed commands array or undefined if parsing fails
+ */
+export function parseUrlCommands(
+  commandsParam: string | undefined,
+): CommandInvocation[] | undefined {
+  if (!commandsParam) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(commandsParam);
+    return commandInvocationArraySchema.parse(parsed);
+  } catch {
+    return undefined;
+  }
+}
 
 export interface CommandWithMatchInfo extends Command {
   segments: FuzzySegment[];
@@ -55,5 +99,21 @@ export class CommandManagerImpl implements CommandManager {
     return finder.find(searchTerm).map((result) => {
       return {segments: result.segments, ...result.item};
     });
+  }
+
+  hasStartupCommands(): boolean {
+    // This should never be called on the global CommandManager.
+    // Startup commands should only be checked in trace context.
+    throw new Error(
+      'hasStartupCommands() should only be called on trace command manager',
+    );
+  }
+
+  async runStartupCommands(): Promise<void> {
+    // This should never be called on the global CommandManager.
+    // Startup commands should only be executed in trace context.
+    throw new Error(
+      'runStartupCommands() should only be called on trace command manager',
+    );
   }
 }

@@ -16,18 +16,25 @@
 
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <cstdint>
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/generic_kernel/generic_kernel_parser.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-GenericKernelModule::GenericKernelModule(TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kGenericKernelTaskRenameEventFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kGenericKernelCpuFreqEventFieldNumber, context);
+GenericKernelModule::GenericKernelModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kGenericKernelCpuFreqEventFieldNumber);
+  RegisterForField(TracePacket::kGenericKernelProcessTreeFieldNumber);
+  RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber);
+  RegisterForField(TracePacket::kGenericKernelTaskRenameEventFieldNumber);
 }
 
 void GenericKernelModule::ParseTracePacketData(
@@ -44,6 +51,9 @@ void GenericKernelModule::ParseTracePacketData(
       parser_.ParseGenericTaskRenameEvent(
           decoder.generic_kernel_task_rename_event());
       return;
+    case TracePacket::kGenericKernelProcessTreeFieldNumber:
+      parser_.ParseGenericProcessTree(decoder.generic_kernel_process_tree());
+      return;
     case TracePacket::kGenericKernelCpuFreqEventFieldNumber:
       parser_.ParseGenericCpuFrequencyEvent(
           ts, decoder.generic_kernel_cpu_freq_event());
@@ -51,5 +61,4 @@ void GenericKernelModule::ParseTracePacketData(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

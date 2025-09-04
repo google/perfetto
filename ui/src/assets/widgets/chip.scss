@@ -12,19 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-chip {
-  font-family: $pf-font;
+  @mixin color-theme($base-color) {
+    color: $base-color;
+    background: color-mix(in srgb, $base-color 15%, transparent);
+  }
+
+  font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
-  border-radius: $pf-border-radius;
-  padding: 2px 8px;
+  border-radius: $border-radius;
+  padding: 2px 4px;
   white-space: nowrap;
   min-width: max-content;
-  border: solid 1px $pf-minimal-border;
+  border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
 
-  &.pf-rounded {
+  &--rounded {
     border-radius: 100px;
   }
 
@@ -32,41 +37,34 @@
     margin-right: 6px; // Make some room between the icon and label
   }
 
-  & > .pf-right-icon {
+  & > .pf-button {
     margin-left: 6px; // Make some room between the icon and label
-  }
-
-  & > .material-icons,
-  & > .material-icons-filled {
-    font-size: inherit;
-    line-height: inherit;
   }
 
   &:focus-visible {
     @include focus;
   }
 
-  background: $pf-minimal-background;
-  color: inherit;
-
-  &[disabled] {
-    color: $pf-minimal-foreground-disabled;
-    background: $pf-minimal-background-disabled;
-    cursor: not-allowed;
-  }
-
   // Remove default background in minimal mode, showing only the text
   &.pf-intent-primary {
-    color: $pf-primary-foreground;
-    background: $pf-primary-background;
-    border: solid 1px $pf-primary-border;
+    @include color-theme(var(--pf-color-primary));
+  }
 
-    &[disabled] {
-      background: $pf-primary-background-disabled;
-      color: $pf-primary-foreground-disabled;
-      box-shadow: none;
-      cursor: not-allowed;
-    }
+  &.pf-intent-success {
+    @include color-theme(var(--pf-color-success));
+  }
+
+  &.pf-intent-warning {
+    @include color-theme(var(--pf-color-warning));
+  }
+
+  &.pf-intent-danger {
+    @include color-theme(var(--pf-color-danger));
+  }
+
+  &[disabled] {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 
   // Reduce padding when compact
@@ -76,7 +74,7 @@
       margin-right: 2px;
     }
 
-    & > .pf-right-icon {
+    & > .pf-button {
       margin-left: 2px;
     }
   }
@@ -93,10 +91,4 @@
       padding: 0;
     }
   }
-}
-
-.pf-chip-bar {
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
 }

@@ -59,6 +59,8 @@ interface CommonAttrs extends HTMLButtonAttrs {
   //   on toolbars.
   // Defaults to Filled.
   variant?: ButtonVariant;
+  // Turns the button into a pill shape.
+  rounded?: boolean;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -87,6 +89,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       iconFilled,
       intent = Intent.None,
       variant = ButtonVariant.Minimal,
+      rounded,
       ...htmlAttrs
     } = attrs;
 
@@ -100,6 +103,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       classForIntent(intent),
       iconOnly && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
+      rounded && 'pf-button--rounded',
       className,
     );
 
@@ -110,7 +114,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         className: classes,
       },
       this.renderIcon(attrs),
-      label || '\u200B', // Zero width space keeps button in-flow
+      label,
       rightIcon &&
         m(Icon, {
           className: 'pf-right-icon',

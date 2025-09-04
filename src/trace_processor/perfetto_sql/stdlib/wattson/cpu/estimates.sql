@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu.split;
+INCLUDE PERFETTO MODULE wattson.cpu.pivot;
 
 INCLUDE PERFETTO MODULE wattson.cpu.w_cpu_dependence;
 
@@ -50,8 +50,9 @@ CREATE PERFETTO VIEW _curves_w_dependencies (
   l3_miss_count LONG,
   no_static LONG,
   all_cpu_deep_idle LONG,
-  dependent_freq LONG,
-  dependent_policy LONG
+  freq_1d_static LONG,
+  freq_2d_static LONG,
+  dependency LONG
 ) AS
 -- Table that is dependent on differet CPU's frequency
 SELECT
@@ -82,49 +83,45 @@ SELECT
   coalesce(base.cpu5_curve, 0.0) AS cpu5_curve,
   coalesce(base.cpu6_curve, 0.0) AS cpu6_curve,
   coalesce(base.cpu7_curve, 0.0) AS cpu7_curve,
-  iif(no_static = 1, 0.0, coalesce(static_1d.curve_value, static_2d.curve_value)) AS static_curve,
+  iif(
+    no_static = 1,
+    0.0,
+    coalesce(static_1d.curve_value, 0.0) + coalesce(static_2d.curve_value, 0.0)
+  ) AS static_curve,
   iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
   iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value
 FROM _curves_w_dependencies AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
   ON lut0.freq_khz = base.freq_0
-  AND lut0.other_policy = base.dependent_policy
-  AND lut0.other_freq_khz = base.dependent_freq
+  AND lut0.dependency = base.dependency
   AND lut0.idle = base.idle_0
 LEFT JOIN _filtered_curves_2d AS lut1
   ON lut1.freq_khz = base.freq_1
-  AND lut1.other_policy = base.dependent_policy
-  AND lut1.other_freq_khz = base.dependent_freq
+  AND lut1.dependency = base.dependency
   AND lut1.idle = base.idle_1
 LEFT JOIN _filtered_curves_2d AS lut2
   ON lut2.freq_khz = base.freq_2
-  AND lut2.other_policy = base.dependent_policy
-  AND lut2.other_freq_khz = base.dependent_freq
+  AND lut2.dependency = base.dependency
   AND lut2.idle = base.idle_2
 LEFT JOIN _filtered_curves_2d AS lut3
   ON lut3.freq_khz = base.freq_3
-  AND lut3.other_policy = base.dependent_policy
-  AND lut3.other_freq_khz = base.dependent_freq
+  AND lut3.dependency = base.dependency
   AND lut3.idle = base.idle_3
--- LUT for static curve lookup
-LEFT JOIN _filtered_curves_2d AS static_2d
-  ON static_2d.freq_khz = base.freq_0
-  AND static_2d.other_policy = base.dependent_policy
-  AND static_2d.other_freq_khz = base.dependent_freq
-  AND static_2d.idle = 255
 LEFT JOIN _filtered_curves_1d AS static_1d
-  ON static_1d.policy = 0 AND static_1d.freq_khz = base.freq_0 AND static_1d.idle = 255
+  ON static_1d.freq_khz = base.freq_1d_static AND static_1d.idle = 255
+LEFT JOIN _filtered_curves_2d AS static_2d
+  ON static_2d.freq_khz = base.freq_2d_static
+  AND static_2d.dependency = base.dependency
+  AND static_2d.idle = 255
 -- LUT joins for L3 cache
 LEFT JOIN _filtered_curves_l3 AS l3_hit_lut
-  ON l3_hit_lut.freq_khz = base.freq_0
-  AND l3_hit_lut.other_policy = base.dependent_policy
-  AND l3_hit_lut.other_freq_khz = base.dependent_freq
+  ON l3_hit_lut.freq_khz = base.freq_2d_static
+  AND l3_hit_lut.dependency = base.dependency
   AND l3_hit_lut.action = 'hit'
 LEFT JOIN _filtered_curves_l3 AS l3_miss_lut
-  ON l3_miss_lut.freq_khz = base.freq_0
-  AND l3_miss_lut.other_policy = base.dependent_policy
-  AND l3_miss_lut.other_freq_khz = base.dependent_freq
+  ON l3_miss_lut.freq_khz = base.freq_2d_static
+  AND l3_miss_lut.dependency = base.dependency
   AND l3_miss_lut.action = 'miss';
 
 -- The most basic components of Wattson, all normalized to be in mW on a per

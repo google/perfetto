@@ -83,6 +83,13 @@ class ProcessTracker {
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(int64_t tid);
 
+  // Returns the utid of a thread whos parent matches the provided pid
+  // or creates a new thread if not present. If a new thread is created,
+  // it is never set as the main thread.
+  UniqueTid GetOrCreateThreadWithParent(int64_t tid,
+                                        UniquePid upid,
+                                        bool associate_main_threads);
+
   // Assigns the given name to the thread if the new name has a higher priority
   // than the existing one. The thread is identified by utid.
   virtual void UpdateThreadName(UniqueTid utid,
@@ -93,6 +100,9 @@ class ProcessTracker {
   // for the tid and the matching upid for the tgid and stores both.
   // Virtual for testing.
   virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
+
+  // Mark whether a thread is the main thread or not.
+  void SetMainThread(UniqueTid utid, bool is_main_thread);
 
   // Associates trusted_pid with track UUID.
   void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
@@ -112,19 +122,42 @@ class ProcessTracker {
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
-  UniquePid StartNewProcess(std::optional<int64_t> timestamp,
-                            std::optional<int64_t> parent_tid,
-                            int64_t pid,
-                            StringId main_thread_name,
-                            ThreadNamePriority priority);
-
-  // Called when a process is seen in a process tree. Retrieves the UniquePid
-  // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid SetProcessMetadata(int64_t pid,
-                                       std::optional<int64_t> ppid,
-                                       base::StringView name,
-                                       base::StringView cmdline);
+  virtual UniquePid StartNewProcess(std::optional<int64_t> timestamp,
+                                    std::optional<UniquePid> parent_upid,
+                                    int64_t pid,
+                                    StringId process_name,
+                                    ThreadNamePriority priority);
+
+  // Same as StartNewProcess, but doesn't create a main thread associated with
+  // the process.
+  UniquePid StartNewProcessWithoutMainThread(
+      std::optional<int64_t> timestamp,
+      std::optional<UniquePid> parent_upid,
+      int64_t pid,
+      StringId process_name,
+      ThreadNamePriority priority);
+
+  // Associates a process with its parent thread. Used when the tid that
+  // created the process is known, but not the parent process. Exclusively,
+  // used by Ftrace on new task events where only the parent tid is provided.
+  void AssociateCreatedProcessToParentThread(UniquePid upid,
+                                             UniqueTid parent_utid);
+
+  // Updates a process' parent. If the upid was previously associated with
+  // a different parent process, then the upid process is considered reused
+  // and a new upid for a new process is returned. If no new process is
+  // created, the same upid is returned.
+  // Virtual for testing.
+  virtual UniquePid UpdateProcessWithParent(UniquePid upid,
+                                            UniquePid pupid,
+                                            bool associate_main_thread);
+
+  // Set the process metadata. Called when a process is seen in a process tree.
+  // Virtual for testing.
+  virtual void SetProcessMetadata(UniquePid upid,
+                                  base::StringView name,
+                                  base::StringView cmdline);
 
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);
@@ -139,14 +172,17 @@ class ProcessTracker {
 
   // Called on a task rename event to set the thread name and possibly process
   // name (if the tid provided is the main thread of the process).
-  void UpdateThreadNameAndMaybeProcessName(int64_t tid,
+  void UpdateThreadNameAndMaybeProcessName(UniqueTid utid,
                                            StringId thread_name,
                                            ThreadNamePriority priority);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
-  // Virtual for testing.
   virtual UniquePid GetOrCreateProcess(int64_t pid);
+
+  // Same as GetOrCreateProcess, but doesn't create a new main thread associated
+  // to the pid.
+  UniquePid GetOrCreateProcessWithoutMainThread(int64_t pid);
 
   // Returns the upid for a given pid.
   std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
@@ -161,11 +197,24 @@ class ProcessTracker {
     return std::make_pair(deque.begin(), deque.end());
   }
 
+  // Associates the passed pid as the parent process of the passed thread.
+  // The is_main_thread arguments specifies whether the thread is the process'
+  // main thread. The associate_main_threads boolean parameter is used to
+  // determine if a thread should be marked as the main thread if the tid and
+  // pid match, when resolving pending process associations.
+  void AssociateThreadToProcess(UniqueTid utid,
+                                UniquePid upid,
+                                bool is_main_thread,
+                                bool associate_main_threads);
+
   // Marks the two threads as belonging to the same process, even if we don't
   // know which one yet. If one of the two threads is later mapped to a process,
   // the other will be mapped to the same process. The order of the two threads
-  // is irrelevant, Associate(A, B) has the same effect of Associate(B, A).
-  void AssociateThreads(UniqueTid, UniqueTid);
+  // is irrelevant, Associate(A, B) has the same effect of Associate(B, A). The
+  // associate_main_threads boolean parameter is used to determine if a thread
+  // should be marked as the main thread if the tid and pid match, when
+  // resolving process associations.
+  void AssociateThreads(UniqueTid, UniqueTid, bool);
 
   // Creates the mapping from tid 0 <-> utid 0 and pid 0 <-> upid 0. This is
   // done for Linux-based system traces (proto or ftrace format) as for these
@@ -200,14 +249,35 @@ class ProcessTracker {
   std::optional<uint32_t> GetThreadOrNull(int64_t tid,
                                           std::optional<int64_t> pid);
 
+  // Returns the utid of a thread whos parent matches the provided pid
+  // or creates a new thread if not present. If a new thread is created,
+  // |is_main_thread| determines if it is marked as the main thread.
+  UniqueTid GetOrCreateThreadWithParentInternal(int64_t tid,
+                                                UniquePid upid,
+                                                bool is_main_thread,
+                                                bool associate_main_threads);
+
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any
-  // other threads associated to the passed thread.
-  void ResolvePendingAssociations(UniqueTid, UniquePid);
+  // other threads associated to the passed thread. The associate_main_threads
+  // boolean parameter is used to determine if a thread should be marked as the
+  // main thread if the tid and pid match, when resolving parent process.
+  void ResolvePendingAssociations(UniqueTid, UniquePid, bool);
 
-  // Writes the association that the passed thread belongs to the passed
-  // process.
-  void AssociateThreadToProcess(UniqueTid, UniquePid);
+  // Associates the passed pid as the parent process of the passed thread.
+  // The is_main_thread arguments specifies whether the thread is the process'
+  // main thread.
+  void AssociateThreadToProcessInternal(UniqueTid, UniquePid, bool);
+
+  // Starts a new process
+  UniquePid StartNewProcessInternal(std::optional<int64_t> timestamp,
+                                    std::optional<UniquePid> parent_upid,
+                                    int64_t pid,
+                                    StringId process_name,
+                                    ThreadNamePriority priority,
+                                    bool associate_main_thread);
+
+  UniquePid GetOrCreateProcessInternal(int64_t pid, bool associate_main_thread);
 
   TraceProcessorContext* const context_;
 

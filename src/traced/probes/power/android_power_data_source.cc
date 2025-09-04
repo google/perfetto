@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -179,6 +180,18 @@ AndroidPowerDataSource::AndroidPowerDataSource(
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {
+  // Generate session UUID using boottime and thread ID.
+  // It should not be possible for two data sources to start at the same time
+  // on the same thread., so mixing tid ensures these should be unnique within
+  // the ~30 sec window that can be commidated by 35 bits worth of ns timestamp.
+  // tid is placed in upper bits to reduce typical trace size as tids will be
+  // ltypically closer to zero than max tix, and not have their upper bits set.
+  uint64_t boottime_bits =
+      static_cast<uint64_t>(base::GetBootTimeNs().count()) &
+      0x7FFFFFFFFULL;  // Lower 35 bits (max value of 34,359,738,367 ns)
+  uint64_t thread_bits = static_cast<uint64_t>(base::GetThreadId()) << 35;
+
+  session_uuid_ = boottime_bits | thread_bits;
   using protos::pbzero::AndroidPowerConfig;
   AndroidPowerConfig::Decoder pcfg(cfg.android_power_config_raw());
   poll_interval_ms_ = pcfg.battery_poll_ms();
@@ -311,6 +324,8 @@ void AndroidPowerDataSource::WritePowerRailsData() {
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
 
   auto* rails_proto = packet->set_power_rails();
+  rails_proto->set_session_uuid(session_uuid_);
+
   if (should_emit_descriptors_) {
     auto rail_descriptors = lib_->GetRailDescriptors();
     if (rail_descriptors.empty()) {

@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/widgets/theme";
-@import "./node_graph.scss";
+@import "../../../assets/theme";
+@import "./data_explorer.scss";
+@import "./graph.scss";
+@import "./help.scss";
 @import "./node_box.scss";
-@import "./query_node_explorer.scss";
-@import "./node_data_viewer.scss";
-@import "./sources/stdlib_table.scss";
-@import "./sources/slices_source.scss";
+@import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
-@import "./explore_page_help.scss";
+@import "./nodes/sources/slices_source.scss";
+@import "./nodes/sources/table_source.scss";
 
 .pf-query-builder-layout {
   display: grid;
   grid-template-columns: 50% 50%;
-  gap: 10px;
   height: 100%;
 
   &.no-selection {
@@ -76,6 +75,16 @@
     .pf-qb-viewer {
       grid-column: 1 / span 2;
       grid-row: 2;
+    }
+  }
+  &.full-page {
+    .pf-qb-node-graph,
+    .pf-qb-explorer {
+      display: none;
+    }
+    .pf-qb-viewer {
+      grid-column: 1 / span 2;
+      grid-row: 1 / span 2;
     }
   }
 }

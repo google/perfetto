@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-form {
   display: grid;
   grid-template-columns: auto auto;
   gap: 8px;
-  font-family: $pf-font;
 
   .pf-form-button-bar {
     grid-column: span 2;

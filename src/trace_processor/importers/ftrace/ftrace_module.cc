@@ -15,11 +15,16 @@
  */
 
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
-#include <cstdint>
-#include "src/trace_processor/importers/common/parser_types.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <cstdint>
+
+#include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+
+namespace perfetto::trace_processor {
+
+FtraceModule::FtraceModule(ProtoImporterModuleContext* module_context)
+    : ProtoImporterModule(module_context) {}
 
 void FtraceModule::ParseFtraceEventData(uint32_t /*cpu*/,
                                         int64_t /*ts*/,
@@ -33,5 +38,4 @@ void FtraceModule::ParseInlineSchedWaking(uint32_t /*cpu*/,
                                           int64_t /*ts*/,
                                           const InlineSchedWaking&) {}
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

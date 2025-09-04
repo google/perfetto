@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -283,5 +283,5 @@ class Fuchsia(TestSuite):
         "trace_id_is_process_scoped",0,"[NULL]","[NULL]","bool","false"
         "track_compressor_idx",0,"[NULL]","[NULL]","int","0"
         "upid",1,"[NULL]","[NULL]","int","1"
-        "utid",1,"[NULL]","[NULL]","int","1"
+        "utid",2,"[NULL]","[NULL]","int","2"
         """))

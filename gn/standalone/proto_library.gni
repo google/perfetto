@@ -162,7 +162,7 @@ template("proto_library") {
                     _host_executable_suffix
       protoc_rebased_path = "./" + rebase_path(protoc_path, root_build_dir)
     }
-    script = "//gn/standalone/protoc.py"
+    script = "//gn/run_binary.py"
     args = [
       # Path should be rebased because |root_build_dir| for current toolchain
       # may be different from |root_out_dir| of protoc built on host toolchain.
