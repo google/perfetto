@@ -34,7 +34,6 @@ using testing::Contains;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::Eq;
-using testing::Invoke;
 using testing::IsEmpty;
 using testing::NiceMock;
 using testing::Not;
@@ -944,12 +943,12 @@ TEST_F(FtraceConfigMuxerFakeTableTest, AtraceErrorsPropagated) {
       RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
                                   "cat_1", "cat_2"}),
                 _))
-      .WillOnce(Invoke([](const std::vector<std::string>&, std::string* err) {
+      .WillOnce([](const std::vector<std::string>&, std::string* err) {
         EXPECT_NE(err, nullptr);
         if (err)
           err->append("foo\nbar\n");
         return true;
-      }));
+      });
 
   FtraceSetupErrors errors{};
   FtraceConfigId id_a = 23;
