@@ -29,7 +29,6 @@ namespace base {
 namespace {
 
 using testing::_;
-using testing::Invoke;
 using testing::InvokeWithoutArgs;
 using testing::NiceMock;
 
@@ -104,7 +103,7 @@ TEST_F(HttpServerTest, GET) {
   const int kIterations = 3;
   EXPECT_CALL(handler_, OnHttpRequest(_))
       .Times(kIterations)
-      .WillRepeatedly(Invoke([](const HttpRequest& req) {
+      .WillRepeatedly([](const HttpRequest& req) {
         EXPECT_EQ(req.uri.ToStdString(), "/foo/bar");
         EXPECT_EQ(req.method.ToStdString(), "GET");
         EXPECT_EQ(req.origin.ToStdString(), "https://example.com");
@@ -114,7 +113,7 @@ TEST_F(HttpServerTest, GET) {
                   req.GetHeader("X-header2").value_or("N/A").ToStdString());
         EXPECT_FALSE(req.is_websocket_handshake);
         req.conn->SendResponseAndClose("200 OK", {}, "<html>");
-      }));
+      });
   EXPECT_CALL(handler_, OnHttpConnectionClosed(_)).Times(kIterations);
 
   for (int i = 0; i < 3; i++) {
@@ -137,12 +136,11 @@ TEST_F(HttpServerTest, GET) {
 
 TEST_F(HttpServerTest, GET_404) {
   HttpCli cli(&task_runner_);
-  EXPECT_CALL(handler_, OnHttpRequest(_))
-      .WillOnce(Invoke([&](const HttpRequest& req) {
-        EXPECT_EQ(req.uri.ToStdString(), "/404");
-        EXPECT_EQ(req.method.ToStdString(), "GET");
-        req.conn->SendResponseAndClose("404 Not Found");
-      }));
+  EXPECT_CALL(handler_, OnHttpRequest(_)).WillOnce([&](const HttpRequest& req) {
+    EXPECT_EQ(req.uri.ToStdString(), "/404");
+    EXPECT_EQ(req.method.ToStdString(), "GET");
+    req.conn->SendResponseAndClose("404 Not Found");
+  });
   cli.SendHttpReq({"GET /404 HTTP/1.1"}, "");
   EXPECT_CALL(handler_, OnHttpConnectionClosed(_));
   EXPECT_EQ(cli.RecvAndWaitConnClose(),
@@ -155,15 +153,14 @@ TEST_F(HttpServerTest, GET_404) {
 TEST_F(HttpServerTest, POST) {
   HttpCli cli(&task_runner_);
 
-  EXPECT_CALL(handler_, OnHttpRequest(_))
-      .WillOnce(Invoke([&](const HttpRequest& req) {
-        EXPECT_EQ(req.uri.ToStdString(), "/rpc");
-        EXPECT_EQ(req.method.ToStdString(), "POST");
-        EXPECT_EQ(req.origin.ToStdString(), "https://example.com");
-        EXPECT_EQ("foo", req.GetHeader("X-1").value_or("N/A").ToStdString());
-        EXPECT_EQ(req.body.ToStdString(), "the\r\npost\nbody\r\n\r\n");
-        req.conn->SendResponseAndClose("200 OK");
-      }));
+  EXPECT_CALL(handler_, OnHttpRequest(_)).WillOnce([&](const HttpRequest& req) {
+    EXPECT_EQ(req.uri.ToStdString(), "/rpc");
+    EXPECT_EQ(req.method.ToStdString(), "POST");
+    EXPECT_EQ(req.origin.ToStdString(), "https://example.com");
+    EXPECT_EQ("foo", req.GetHeader("X-1").value_or("N/A").ToStdString());
+    EXPECT_EQ(req.body.ToStdString(), "the\r\npost\nbody\r\n\r\n");
+    req.conn->SendResponseAndClose("200 OK");
+  });
 
   cli.SendHttpReq(
       {"POST /rpc HTTP/1.1", "Origin: https://example.com", "X-1: foo"},
@@ -197,14 +194,14 @@ TEST_F(HttpServerTest, POST_Keepalive) {
   EXPECT_CALL(handler_, OnHttpConnectionClosed(_)).Times(1);
   EXPECT_CALL(handler_, OnHttpRequest(_))
       .Times(3)
-      .WillRepeatedly(Invoke([&](const HttpRequest& req) {
+      .WillRepeatedly([&](const HttpRequest& req) {
         EXPECT_EQ(req.uri.ToStdString(), "/" + std::to_string(req_num));
         EXPECT_EQ(req.method.ToStdString(), "POST");
         EXPECT_EQ(req.body.ToStdString(), "body" + std::to_string(req_num));
         req.conn->SendResponseHeaders("200 OK");
         if (++req_num == kNumRequests)
           req.conn->Close();
-      }));
+      });
 
   for (int i = 0; i < kNumRequests; i++) {
     auto i_str = std::to_string(i);
@@ -229,13 +226,13 @@ TEST_F(HttpServerTest, Websocket) {
   for (int rep = 0; rep < 3; rep++) {
     HttpCli cli(&task_runner_);
     EXPECT_CALL(handler_, OnHttpRequest(_))
-        .WillOnce(Invoke([&](const HttpRequest& req) {
+        .WillOnce([&](const HttpRequest& req) {
           EXPECT_EQ(req.uri.ToStdString(), "/websocket");
           EXPECT_EQ(req.method.ToStdString(), "GET");
           EXPECT_EQ(req.origin.ToStdString(), "http://websocket.com");
           EXPECT_TRUE(req.is_websocket_handshake);
           req.conn->UpgradeToWebsocket(req);
-        }));
+        });
 
     cli.SendHttpReq({
         "GET /websocket HTTP/1.1",                      //
@@ -257,11 +254,11 @@ TEST_F(HttpServerTest, Websocket) {
 
     for (int i = 0; i < 3; i++) {
       EXPECT_CALL(handler_, OnWebsocketMessage(_))
-          .WillOnce(Invoke([i](const WebsocketMessage& msg) {
+          .WillOnce([i](const WebsocketMessage& msg) {
             EXPECT_EQ(msg.data.ToStdString(), "test message");
             StackString<6> resp("PONG%d", i);
             msg.conn->SendWebsocketMessage(resp.c_str(), resp.len());
-          }));
+          });
 
       // A frame from a real tcpdump capture:
       //   1... .... = Fin: True
@@ -298,12 +295,11 @@ TEST_F(HttpServerTest, Websocket_OriginNotAllowed) {
   auto close_checkpoint = task_runner_.CreateCheckpoint("close");
   EXPECT_CALL(handler_, OnHttpConnectionClosed(_))
       .WillOnce(InvokeWithoutArgs(close_checkpoint));
-  EXPECT_CALL(handler_, OnHttpRequest(_))
-      .WillOnce(Invoke([&](const HttpRequest& req) {
-        EXPECT_EQ(req.origin.ToStdString(), "http://notallowed.com");
-        EXPECT_TRUE(req.is_websocket_handshake);
-        req.conn->UpgradeToWebsocket(req);
-      }));
+  EXPECT_CALL(handler_, OnHttpRequest(_)).WillOnce([&](const HttpRequest& req) {
+    EXPECT_EQ(req.origin.ToStdString(), "http://notallowed.com");
+    EXPECT_TRUE(req.is_websocket_handshake);
+    req.conn->UpgradeToWebsocket(req);
+  });
 
   cli.SendHttpReq({
       "GET /websocket HTTP/1.1",                      //

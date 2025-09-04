@@ -521,16 +521,16 @@ void ProcessTracker::AssociateThreads(UniqueTid utid1,
   if (opt_upid1.has_value() && !opt_upid2.has_value()) {
     auto prr = pt[*opt_upid1];
     bool is_main_thread = associate_main_threads && rr2.tid() == prr.pid();
-    AssociateThreadToProcess(utid2, *opt_upid1, is_main_thread,
-                             associate_main_threads);
+    AssociateThreadToProcessInternal(utid2, *opt_upid1, is_main_thread);
+    ResolvePendingAssociations(utid2, *opt_upid1, associate_main_threads);
     return;
   }
 
   if (opt_upid2.has_value() && !opt_upid1.has_value()) {
     auto prr = pt[*opt_upid2];
     bool is_main_thread = associate_main_threads && rr1.tid() == prr.pid();
-    AssociateThreadToProcess(utid1, *opt_upid2, is_main_thread,
-                             associate_main_threads);
+    AssociateThreadToProcessInternal(utid1, *opt_upid2, is_main_thread);
+    ResolvePendingAssociations(utid1, *opt_upid2, associate_main_threads);
     return;
   }
 
@@ -629,14 +629,6 @@ void ProcessTracker::AssociateThreadToProcessInternal(UniqueTid utid,
   auto trr = thread_table[utid];
   trr.set_upid(upid);
   trr.set_is_main_thread(is_main_thread);
-}
-
-void ProcessTracker::AssociateThreadToProcess(UniqueTid utid,
-                                              UniquePid upid,
-                                              bool is_main_thread,
-                                              bool associate_main_threads) {
-  AssociateThreadToProcessInternal(utid, upid, is_main_thread);
-  ResolvePendingAssociations(utid, upid, associate_main_threads);
 }
 
 void ProcessTracker::SetMainThread(UniqueTid utid, bool is_main_thread) {
