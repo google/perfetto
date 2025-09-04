@@ -203,6 +203,9 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
       raw_pb->set_config(timebase.attr_config);
       raw_pb->set_config1(timebase.attr_config1);
       raw_pb->set_config2(timebase.attr_config2);
+      raw_pb->set_exclude_user(timebase.attr_exclude_user);
+      raw_pb->set_exclude_kernel(timebase.attr_exclude_kernel);
+      raw_pb->set_exclude_hv(timebase.attr_exclude_hv);
       break;
     }
   }
@@ -235,6 +238,9 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
         raw_pb->set_config(e.attr_config);
         raw_pb->set_config1(e.attr_config1);
         raw_pb->set_config2(e.attr_config2);
+        raw_pb->set_exclude_user(e.attr_exclude_user);
+        raw_pb->set_exclude_kernel(e.attr_exclude_kernel);
+        raw_pb->set_exclude_hv(e.attr_exclude_hv);
         break;
       }
     }
