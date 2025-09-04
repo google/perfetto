@@ -72,13 +72,13 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
 
   /**
    * Queries and processes vital timestamp data for visible time range
-   * @param start - Start time of visible range
-   * @param end - End time of visible range
+   * @param _start - Start time of visible range
+   * @param _end - End time of visible range
    * @returns Array of processed vital timestamp markers
    */
   async onBoundsChange(
-    start: time,
-    end: time,
+    _start: time,
+    _end: time,
     _resolution: duration,
   ): Promise<VitalTimestamp[]> {
     const paintEndQuery = TIMING_PAINT_END.map((name) => `'${name}'`).join(',');
@@ -86,7 +86,7 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
       select ts, slice.id as id, name, dur, track_id as trackId, args.key as argKey, args.display_value as argValue
         from slice 
         left join args on args.arg_set_id = slice.arg_set_id
-        where ts>=${start} and ts+dur <=${end} AND  slice.name in (${paintEndQuery})`);
+        where slice.name in (${paintEndQuery})`);
     const it = result.iter({
       name: STR,
       id: NUM,
