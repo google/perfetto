@@ -120,13 +120,15 @@ SELECT
   id_0 AS cpu0_id,
   id_1 AS cpu1_id,
   id_2 AS cpu2_id,
-  id_3 AS cpu3_id
+  id_3 AS cpu3_id,
+  id_4 AS dsu_id
 FROM _interval_intersect!(
   (
     _ii_subquery!(_stats_cpu0),
     _ii_subquery!(_stats_cpu1),
     _ii_subquery!(_stats_cpu2),
-    _ii_subquery!(_stats_cpu3)
+    _ii_subquery!(_stats_cpu3),
+    _ii_subquery!(_wattson_dsu_frequency)
   ),
   ()
 ) AS ii;
@@ -135,6 +137,7 @@ CREATE PERFETTO TABLE _stats_cpu01234567 AS
 SELECT
   ii.ts,
   ii.dur,
+  cpu0123.dsu_id,
   cpu0123.cpu0_id,
   cpu0123.cpu1_id,
   cpu0123.cpu2_id,
@@ -207,6 +210,7 @@ SELECT
   _stats_cpu5.default_dep_freq_5,
   _stats_cpu6.default_dep_freq_6,
   _stats_cpu7.default_dep_freq_7,
+  _wattson_dsu_frequency.dsu_freq,
   iif(0 IN _device_policies, coalesce(cpu0_static, 0), 0) + iif(1 IN _device_policies, coalesce(cpu1_static, 0), 0) + iif(2 IN _device_policies, coalesce(cpu2_static, 0), 0) + iif(3 IN _device_policies, coalesce(cpu3_static, 0), 0) + iif(4 IN _device_policies, coalesce(cpu4_static, 0), 0) + iif(5 IN _device_policies, coalesce(cpu5_static, 0), 0) + iif(6 IN _device_policies, coalesce(cpu6_static, 0), 0) + iif(7 IN _device_policies, coalesce(cpu7_static, 0), 0) AS static_1d,
   min(
     coalesce(idle_0, 1),
@@ -229,6 +233,8 @@ SELECT
     iif(7 IN _cpus_for_static, coalesce(idle_7, 1), 1)
   ) AS no_static
 FROM _idle_freq_l3_hit_l3_miss_slice AS base
+JOIN _wattson_dsu_frequency
+  ON _wattson_dsu_frequency._auto_id = base.dsu_id
 JOIN _stats_cpu0
   ON _stats_cpu0._auto_id = base.cpu0_id
 JOIN _stats_cpu1
@@ -404,22 +410,24 @@ SELECT
   base.no_static,
   base.all_cpu_deep_idle,
   base.static_1d,
-  coalesce(pivoted.dep_freq_0, base.default_dep_freq_0) AS dep_freq_0,
-  coalesce(pivoted.dep_freq_1, base.default_dep_freq_1) AS dep_freq_1,
-  coalesce(pivoted.dep_freq_2, base.default_dep_freq_2) AS dep_freq_2,
-  coalesce(pivoted.dep_freq_3, base.default_dep_freq_3) AS dep_freq_3,
-  coalesce(pivoted.dep_freq_4, base.default_dep_freq_4) AS dep_freq_4,
-  coalesce(pivoted.dep_freq_5, base.default_dep_freq_5) AS dep_freq_5,
-  coalesce(pivoted.dep_freq_6, base.default_dep_freq_6) AS dep_freq_6,
-  coalesce(pivoted.dep_freq_7, base.default_dep_freq_7) AS dep_freq_7,
-  coalesce(pivoted.dep_policy_0, base.default_dep_policy_0) AS dep_policy_0,
-  coalesce(pivoted.dep_policy_1, base.default_dep_policy_1) AS dep_policy_1,
-  coalesce(pivoted.dep_policy_2, base.default_dep_policy_2) AS dep_policy_2,
-  coalesce(pivoted.dep_policy_3, base.default_dep_policy_3) AS dep_policy_3,
-  coalesce(pivoted.dep_policy_4, base.default_dep_policy_4) AS dep_policy_4,
-  coalesce(pivoted.dep_policy_5, base.default_dep_policy_5) AS dep_policy_5,
-  coalesce(pivoted.dep_policy_6, base.default_dep_policy_6) AS dep_policy_6,
-  coalesce(pivoted.dep_policy_7, base.default_dep_policy_7) AS dep_policy_7
+  -- Use DSU frequency if required, else use the calculated dependency
+  -- frequency, else use the fallback default frequency
+  iif(0 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_0, default_dep_freq_0)) AS dep_freq_0,
+  iif(0 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_0, default_dep_policy_0)) AS dep_policy_0,
+  iif(1 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_1, default_dep_freq_1)) AS dep_freq_1,
+  iif(1 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_1, default_dep_policy_1)) AS dep_policy_1,
+  iif(2 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_2, default_dep_freq_2)) AS dep_freq_2,
+  iif(2 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_2, default_dep_policy_2)) AS dep_policy_2,
+  iif(3 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_3, default_dep_freq_3)) AS dep_freq_3,
+  iif(3 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_3, default_dep_policy_3)) AS dep_policy_3,
+  iif(4 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_4, default_dep_freq_4)) AS dep_freq_4,
+  iif(4 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_4, default_dep_policy_4)) AS dep_policy_4,
+  iif(5 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_5, default_dep_freq_5)) AS dep_freq_5,
+  iif(5 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_5, default_dep_policy_5)) AS dep_policy_5,
+  iif(6 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_6, default_dep_freq_6)) AS dep_freq_6,
+  iif(6 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_6, default_dep_policy_6)) AS dep_policy_6,
+  iif(7 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_7, default_dep_freq_7)) AS dep_freq_7,
+  iif(7 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_7, default_dep_policy_7)) AS dep_policy_7
 FROM _w_independent_cpus_calc AS base
 LEFT JOIN pivoted_results AS pivoted
   USING (ts);

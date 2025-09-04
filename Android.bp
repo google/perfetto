@@ -15242,7 +15242,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/pivot.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_dsu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_1d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_gpu.sql",

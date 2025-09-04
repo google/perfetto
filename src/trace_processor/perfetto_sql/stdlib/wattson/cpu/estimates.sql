@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE wattson.cpu.pivot;
 
-INCLUDE PERFETTO MODULE wattson.cpu.w_dsu_dependence;
-
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
@@ -49,7 +47,7 @@ SELECT
   ) AS static_curve,
   iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
   iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value
-FROM _w_dsu_dependence AS base
+FROM _w_dependent_cpus_calc AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
   ON lut0.freq_khz = base.freq_0
