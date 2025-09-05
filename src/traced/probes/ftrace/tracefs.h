@@ -104,6 +104,8 @@ class Tracefs {
   bool ClearMaxGraphDepth();
   bool SetEventTidFilter(const std::vector<std::string>& tids_to_trace);
   bool ClearEventTidFilter();
+  std::optional<bool> GetTracefsOption(const std::string& option);
+  bool SetTracefsOption(const std::string& option, bool enabled);
 
   // Get all triggers for event with the given |group| and |name|.
   std::vector<std::string> ReadEventTriggers(const std::string& group,
