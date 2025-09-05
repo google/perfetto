@@ -110,6 +110,7 @@ message TraceProcessorRpc {
     TPM_REGISTER_SQL_PACKAGE = 13;
     TPM_ANALYZE_STRUCTURED_QUERY = 14;
     TPM_SUMMARIZE_TRACE = 15;
+    TPM_SET_TRACE_TITLE = 16;
   }
 
   oneof type {
@@ -147,6 +148,8 @@ message TraceProcessorRpc {
     AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryArgs trace_summary_args = 110;
+    // For TPM_SET_TRACE_TITLE.
+    SetTraceTitleArgs set_trace_title_args = 111;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -257,9 +260,10 @@ message StatusArgs {}
 
 // Output for the /status endpoint.
 message StatusResult {
-  // If present and not empty, a trace is already loaded already. This happens
-  // when using the HTTP+RPC mode nad passing a trace file to the shell, via
-  // trace_processor_shell -D trace_file.pftrace .
+  // If present and not empty, a trace is already loaded already in one or more
+  // trace processors. This happens when using the HTTP+RPC mode and passing a
+  // trace file to the shell, via trace_processor_shell -D trace_file.pftrace .
+  // or opening a trace processor in a separate tab.
   optional string loaded_trace_name = 1;
 
   // Typically something like "v11.0.123", but could be just "v11" or "unknown",
@@ -279,6 +283,10 @@ message StatusResult {
   // but you should not attempt to parse it as the format may change
   // without warning.
   optional string version_code = 4;
+
+  // checks if a trace processor already has an existing tab. if yes, warns the
+  // user that they have to close the old tab to open the trace in a new tab.
+  optional bool has_existing_tab = 5;
 }
 
 // Input for the /compute_metric endpoint.
@@ -358,6 +366,10 @@ message ResetTraceProcessorArgs {
   optional ParsingMode parsing_mode = 5;
 }
 
+message SetTraceTitleArgs {
+  required string title = 1;
+}
+
 message RegisterSqlPackageArgs {
   message Module {
     optional string name = 1;
@@ -414,4 +426,24 @@ message TraceSummaryResult {
     string textproto_summary = 2;
   }
   optional string error = 3;
+}
+
+// Request message for the /status/all endpoint
+message StatusAllArgs {}
+
+// Individual status entry for a specific trace processor
+// Contains both the UUID identifier and the actual status
+message TraceProcessorStatus {
+  // UUID of the trace processor ("default" for global/default processor)
+  optional string uuid = 1;
+
+  // Status information for this trace processor
+  optional StatusResult status = 2;
+}
+
+// Response message for the /status/all endpoint
+// Contains status information for all available trace processors
+message StatusAllResult {
+  // List of all trace processor statuses
+  repeated TraceProcessorStatus trace_processor_statuses = 1;
 }

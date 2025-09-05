@@ -39,7 +39,8 @@ void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       bool is_preloaded_eof,
                       const std::string& listen_ip,
                       const std::string& port_number,
-                      const std::vector<std::string>& additional_cors_origins);
+                      const std::vector<std::string>& additional_cors_origins,
+                      size_t timeout_mins);
 
 }  // namespace perfetto::trace_processor
 
