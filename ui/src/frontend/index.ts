@@ -320,6 +320,7 @@ function onCssLoaded() {
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
+  document.body.classList.add('perfetto');
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
