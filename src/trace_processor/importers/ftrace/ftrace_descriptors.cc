@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 591> descriptors{{
+std::array<FtraceMessageDescriptor, 596> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6543,6 +6543,65 @@ std::array<FtraceMessageDescriptor, 591> descriptors{{
         {
             {},
             {"esr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_add_dep",
+        4,
+        {
+            {},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"ctx", ProtoSchemaType::kUint64},
+            {"seqno", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_done",
+        2,
+        {
+            {},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_queue",
+        7,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"job_count", ProtoSchemaType::kUint32},
+            {"hw_job_count", ProtoSchemaType::kInt32},
+            {"dev", ProtoSchemaType::kString},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"client_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_run",
+        7,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"job_count", ProtoSchemaType::kUint32},
+            {"hw_job_count", ProtoSchemaType::kInt32},
+            {"dev", ProtoSchemaType::kString},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"client_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drm_sched_job_unschedulable",
+        4,
+        {
+            {},
+            {"fence_context", ProtoSchemaType::kUint64},
+            {"fence_seqno", ProtoSchemaType::kUint64},
+            {"ctx", ProtoSchemaType::kUint64},
+            {"seqno", ProtoSchemaType::kUint64},
         },
     },
 }};
