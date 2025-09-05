@@ -99,7 +99,7 @@ function trackEvent(): RecordProbe {
         ]),
       ),
     }),
-    enabled_cats: new Textarea({
+    enabledCats: new Textarea({
       title: 'Additional categories:',
       placeholder: 'e.g. cat1\ncat2_*',
     }),
@@ -117,7 +117,7 @@ function trackEvent(): RecordProbe {
       tc.addTrackEventEnabledCategories(
         ...settings.categories.selectedValues(),
       );
-      for (const line of splitLinesNonEmpty(settings.enabled_cats.text)) {
+      for (const line of splitLinesNonEmpty(settings.enabledCats.text)) {
         tc.addTrackEventEnabledCategories(line);
       }
     },
