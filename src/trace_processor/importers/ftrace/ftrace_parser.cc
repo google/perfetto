@@ -1207,7 +1207,12 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kDmaFenceEmitFieldNumber:
       case FtraceEvent::kDmaFenceSignaledFieldNumber:
       case FtraceEvent::kDmaFenceWaitStartFieldNumber:
-      case FtraceEvent::kDmaFenceWaitEndFieldNumber: {
+      case FtraceEvent::kDmaFenceWaitEndFieldNumber:
+      case FtraceEvent::kDrmSchedJobAddDepFieldNumber:
+      case FtraceEvent::kDrmSchedJobDoneFieldNumber:
+      case FtraceEvent::kDrmSchedJobQueueFieldNumber:
+      case FtraceEvent::kDrmSchedJobRunFieldNumber:
+      case FtraceEvent::kDrmSchedJobUnschedulableFieldNumber: {
         drm_tracker_.ParseDrm(ts, fld.id(), pid, fld_bytes);
         break;
       }

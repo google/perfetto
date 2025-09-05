@@ -140,12 +140,12 @@ class DrmTracker {
   SchedRing& GetSchedRingByName(base::StringView name);
   void BeginSchedRingSlice(int64_t timestamp, SchedRing& ring);
 
-  void DrmSchedJob(int64_t timestamp,
-                   uint32_t pid,
-                   base::StringView name,
-                   SchedJob job);
-  void DrmRunJob(int64_t timestamp, base::StringView name, SchedJob job);
-  void DrmSchedProcessJob(int64_t timestamp, SchedJob job);
+  void DrmSchedJobQueue(int64_t timestamp,
+                        uint32_t pid,
+                        base::StringView name,
+                        SchedJob job);
+  void DrmSchedJobRun(int64_t timestamp, base::StringView name, SchedJob job);
+  void DrmSchedJobDone(int64_t timestamp, SchedJob job);
 
   struct FenceTimeline {
     TrackId track_id;
@@ -180,7 +180,7 @@ class DrmTracker {
   const StringId vblank_slice_signal_id_;
   const StringId vblank_slice_deliver_id_;
   const StringId vblank_arg_seqno_id_;
-  const StringId sched_slice_schedule_id_;
+  const StringId sched_slice_queue_id_;
   const StringId sched_slice_job_id_;
   const StringId sched_arg_ring_id_;
   const StringId sched_arg_job_id_;
