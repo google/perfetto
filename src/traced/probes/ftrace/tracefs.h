@@ -106,8 +106,8 @@ class Tracefs {
   bool ClearEventTidFilter();
   std::optional<bool> GetTracefsOption(const std::string& option);
   bool SetTracefsOption(const std::string& option, bool enabled);
+  std::optional<std::string> GetTracingCpuMask();
   bool SetTracingCpuMask(const std::string& cpumask);
-  bool ClearTracingCpuMask();
 
   // Get all triggers for event with the given |group| and |name|.
   std::vector<std::string> ReadEventTriggers(const std::string& group,
