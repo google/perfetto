@@ -97,6 +97,18 @@ main.pf-ui-main {
   overflow: hidden;
 }
 
+.perfetto {
+  h1,
+  h2,
+  h3 {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    padding: 0;
+    margin: 0;
+  }
+}
+
 // This is to minimize Mac vs Linux Chrome Headless rendering differences
 // when running UI intergrationtests via puppeteer.
 body.testing {
