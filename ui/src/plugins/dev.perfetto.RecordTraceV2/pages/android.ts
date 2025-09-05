@@ -30,6 +30,7 @@ export function androidRecordSection(): RecordSubpage {
     icon: 'android',
     probes: [
       atrace(),
+      trackEvent(),
       logcat(),
       frameTimeline(),
       gameInterventions(),
@@ -83,6 +84,41 @@ function atrace(): RecordProbe {
         settings.allApps.enabled
       ) {
         tc.addFtraceEvents('ftrace/print');
+      }
+    },
+  };
+}
+
+function trackEvent(): RecordProbe {
+  const settings = {
+    categories: new TypedMultiselect<string>({
+      options: new Map(
+        Object.entries(TRACK_EVENT_CATEGORIES).map(([id, name]) => [
+          `${id}: ${name}`,
+          id,
+        ]),
+      ),
+    }),
+    enabled_cats: new Textarea({
+      title: 'Additional categories:',
+      placeholder: 'e.g. cat1\ncat2_*',
+    }),
+  };
+  return {
+    id: 'track_event',
+    title: 'Perfetto SDK annotations',
+    image: 'rec_atrace.png',
+    description:
+      'Enables C++/Java codebase annotations (TRACE_EVENT(), os.PerfettoTrace())',
+    supportedPlatforms: ['ANDROID'],
+    settings,
+    genConfig: function (tc: TraceConfigBuilder) {
+      tc.addTrackEventDisabledCategories('*');
+      tc.addTrackEventEnabledCategories(
+        ...settings.categories.selectedValues(),
+      );
+      for (const line of splitLinesNonEmpty(settings.enabled_cats.text)) {
+        tc.addTrackEventEnabledCategories(line);
       }
     },
   };
@@ -269,4 +305,10 @@ const ATRACE_CATEGORIES = {
   view: 'View System',
   webview: 'WebView',
   wm: 'Window Manager',
+};
+
+const TRACK_EVENT_CATEGORIES = {
+  mq: 'Message Queue',
+  gfx: 'Graphics',
+  servicemanager: 'Service Manager',
 };
