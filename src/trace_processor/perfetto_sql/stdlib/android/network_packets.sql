@@ -106,7 +106,7 @@ $x;
 --   determining the time since the last group or event (per partition_columns)
 CREATE PERFETTO MACRO _add_overlap_group_id(
     src TableOrSubquery,
-    partition_columns _ColumnNameList
+    partition_columns ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (
@@ -135,7 +135,7 @@ CREATE PERFETTO MACRO android_network_uptime_spans(
     -- packet_count, and packet_length.
     src TableOrSubquery,
     -- A parenthesized set of columns to partition the analysis by.
-    partition_columns _ColumnNameList,
+    partition_columns ColumnNameList,
     -- The idle timeout, expressed in nanoseconds.
     timeout Expr
 )
@@ -208,7 +208,7 @@ CREATE PERFETTO MACRO android_network_uptime_cost(
     -- dur, and packet_count.
     src TableOrSubquery,
     -- A parenthesized set of columns to partition the analysis by.
-    partition_columns _ColumnNameList,
+    partition_columns ColumnNameList,
     -- The idle timeout, expressed in nanoseconds.
     timeout Expr
 )
