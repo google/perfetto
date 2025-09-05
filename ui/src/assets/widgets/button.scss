@@ -39,12 +39,10 @@
 }
 
 .pf-button {
-  background: none;
-  border: none;
-  cursor: pointer;
+  @include button-base;
+
   font-family: var(--pf-font-compact);
   line-height: 1;
-  user-select: none;
   border-radius: $border-radius;
   padding: 4px 8px;
   white-space: nowrap;
