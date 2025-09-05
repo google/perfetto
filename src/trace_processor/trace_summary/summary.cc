@@ -48,6 +48,10 @@
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
+
 namespace perfetto::trace_processor::summary {
 
 namespace {
@@ -577,6 +581,27 @@ base::Status CreateQueriesAndComputeMetrics(
       *output = std::vector<uint8_t>(out.begin(), out.end());
       break;
   }
+
+  // Compress the output if requested. If Zlib compression is requested but
+  // not supported, return an error.
+  if (output_spec.compression == TraceSummaryOutputSpec::Compression::kZlib &&
+      !output->empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+    uLongf compressed_size = compressBound(output->size());
+    auto compressed_buffer = std::make_unique<uint8_t[]>(compressed_size);
+    int res = compress(compressed_buffer.get(), &compressed_size,
+                       output->data(), output->size());
+    if (res != Z_OK) {
+      return base::ErrStatus("Failed to compress trace summary output");
+    }
+    output->assign(compressed_buffer.get(),
+                   compressed_buffer.get() + compressed_size);
+#else
+    return base::ErrStatus(
+        "Zlib compression requested but is not supported on this platform.");
+#endif
+  }
+
   return base::OkStatus();
 }
 
