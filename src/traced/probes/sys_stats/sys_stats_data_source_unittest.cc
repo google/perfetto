@@ -32,7 +32,6 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.gen.h"
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::UnorderedElementsAre;
 
@@ -497,9 +496,9 @@ TEST_F(SysStatsDataSourceTest, ThermalZones) {
   EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
                                 "/sys/class/thermal/",
                                 data_source->GetThermalErrorLoggedAddress()))
-      .WillRepeatedly(Invoke([&fake_thermal_symdir] {
+      .WillRepeatedly([&fake_thermal_symdir] {
         return base::ScopedDir(opendir(fake_thermal_symdir.path().c_str()));
-      }));
+      });
 
   EXPECT_CALL(*data_source,
               ReadFileToUInt64("/sys/class/thermal/thermal_zone0/temp"))
@@ -550,17 +549,17 @@ TEST_F(SysStatsDataSourceTest, CpuIdleStates) {
   EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
                                 "/sys/devices/system/cpu/",
                                 data_source->GetCpuIdleErrorLoggedAddress()))
-      .WillOnce(Invoke([&fake_cpuidle] {
+      .WillOnce([&fake_cpuidle] {
         return base::ScopedDir(opendir(fake_cpuidle.path().c_str()));
-      }));
+      });
 
   EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
                                 "/sys/devices/system/cpu/cpu0/cpuidle/",
                                 data_source->GetCpuIdleErrorLoggedAddress()))
-      .WillRepeatedly(Invoke([&fake_cpuidle] {
+      .WillRepeatedly([&fake_cpuidle] {
         std::string path = fake_cpuidle.path() + "/cpu0/cpuidle";
         return base::ScopedDir(opendir(path.c_str()));
-      }));
+      });
 
   EXPECT_CALL(
       *data_source,
@@ -693,9 +692,9 @@ TEST_F(SysStatsDataSourceTest, DevfreqAll) {
   EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
                                 "/sys/class/devfreq/",
                                 data_source->GetDevfreqErrorLoggedAddress()))
-      .WillRepeatedly(Invoke([&fake_devfreq_symdir] {
+      .WillRepeatedly([&fake_devfreq_symdir] {
         return base::ScopedDir(opendir(fake_devfreq_symdir.path().c_str()));
-      }));
+      });
   EXPECT_CALL(*data_source, ReadDevfreqCurFreq("10010.devfreq_device_a"))
       .WillRepeatedly(Return(kDevfreq1));
   EXPECT_CALL(*data_source, ReadDevfreqCurFreq("10020.devfreq_device_b"))

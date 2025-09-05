@@ -34,6 +34,14 @@ struct Size {
   double h;
 };
 
+// Represents a 2D rect's corner radii (specified in SurfaceFlinger).
+struct CornerRadii {
+  double tl = 0;
+  double tr = 0;
+  double bl = 0;
+  double br = 0;
+};
+
 // Used to represent and manipulate Winscope rect data to perform various
 // computations during Winscope data parsing, such as computing SurfaceFlinger
 // visibilities. These rects are added to the __intrinsic_winscope_rect table.
@@ -56,6 +64,7 @@ class Rect {
   double y = 0;
   double w = 0;
   double h = 0;
+  CornerRadii radii;
 };
 
 // Represents a region e.g. visible region, touchable region in SurfaceFlinger.
