@@ -499,11 +499,18 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   }
 
   if (!request.tracing_cpumask().empty()) {
+    auto current_tracing_cpumask = ftrace_->GetTracingCpuMask();
+    if (!current_tracing_cpumask.has_value()) {
+      PERFETTO_ELOG("Failed to get tracing cpumask");
+      return false;
+    }
     if (!ftrace_->SetTracingCpuMask(request.tracing_cpumask())) {
       PERFETTO_ELOG("Failed to set tracing cpumask: %s",
                     request.tracing_cpumask().c_str());
       return false;
     }
+    current_state_.saved_tracing_cpumask =
+        std::move(current_tracing_cpumask.value());
   }
 
   current_state_.exclusive_feature_active = config_has_exclusive_features;
@@ -810,7 +817,11 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
 
     if (current_state_.exclusive_feature_active) {
       ftrace_->ClearEventTidFilter();
-      ftrace_->ClearTracingCpuMask();
+      if (current_state_.saved_tracing_cpumask.has_value()) {
+        ftrace_->SetTracingCpuMask(
+            current_state_.saved_tracing_cpumask.value());
+        current_state_.saved_tracing_cpumask.reset();
+      }
       for (auto it = current_state_.saved_tracefs_options.GetIterator(); it;
            ++it) {
         ftrace_->SetTracefsOption(it.key(), it.value());

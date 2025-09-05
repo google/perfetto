@@ -1369,11 +1369,16 @@ TEST_F(FtraceConfigMuxerFakeTableTest, TracingCpuMask) {
       .WillByDefault(Return("nop"));
 
   // Ignore other calls.
+  EXPECT_CALL(ftrace_, ReadFileIntoString(Not("/root/tracing_cpumask")))
+      .Times(AnyNumber());
   EXPECT_CALL(ftrace_, WriteToFile(Not("/root/tracing_cpumask"), _))
       .Times(AnyNumber());
-  EXPECT_CALL(ftrace_, ClearFile(Not("/root/tracing_cpumask")))
-      .Times(AnyNumber());
 
+  // Mock the initial state of the cpumask.
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/tracing_cpumask"))
+      .WillOnce(Return("000000"));
+
+  // Expect the cpumask to be set.
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_cpumask", "ffffff"))
       .WillOnce(Return(true));
 
@@ -1381,7 +1386,9 @@ TEST_F(FtraceConfigMuxerFakeTableTest, TracingCpuMask) {
   ASSERT_TRUE(model_.SetupConfig(id, config));
   ASSERT_TRUE(model_.GetExclusiveFeatureActiveForTesting());
 
-  EXPECT_CALL(ftrace_, ClearFile("/root/tracing_cpumask"));
+  // Expect the cpumask to be restored.
+  EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_cpumask", "000000"))
+      .WillOnce(Return(true));
   ASSERT_TRUE(model_.RemoveConfig(id));
   ASSERT_FALSE(model_.GetExclusiveFeatureActiveForTesting());
 }
