@@ -72,6 +72,7 @@ perfetto_component("base") {
 
   if (!is_nacl) {
     sources += [
+      "lock_free_task_runner.cc",
       "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
@@ -298,6 +299,7 @@ if (enable_perfetto_benchmarks) {
       "flat_hash_map_benchmark.cc",
       "flat_set_benchmark.cc",
       "rt_mutex_benchmark.cc",
+      "task_runner_benchmark.cc",
     ]
   }
 }

@@ -92,6 +92,8 @@ class FlatSet {
   size_t size() const { return entries_.size(); }
   const_iterator begin() const { return entries_.begin(); }
   const_iterator end() const { return entries_.end(); }
+  const T& back() const { return entries_.back(); }
+  void pop_back() { entries_.pop_back(); }
 
  private:
   std::vector<T> entries_;

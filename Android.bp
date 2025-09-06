@@ -12283,6 +12283,7 @@ filegroup {
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
         "src/base/intrusive_tree.cc",
+        "src/base/lock_free_task_runner.cc",
         "src/base/logging.cc",
         "src/base/metatrace.cc",
         "src/base/paged_memory.cc",
