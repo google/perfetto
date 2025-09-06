@@ -25,7 +25,7 @@ import {TimestampFormat} from '../../public/timeline';
 
 // import {MenuItem, PopupMenu2} from './menu';
 
-interface TimestampAttrs {
+export interface TimestampAttrs {
   trace: Trace;
   // The timestamp to print, this should be the absolute, raw timestamp as
   // found in trace processor.

@@ -125,7 +125,7 @@ export class Menu implements m.ClassComponent<HTMLAttrs> {
   }
 }
 
-interface PopupMenuAttrs extends PopupAttrs {
+export interface PopupMenuAttrs extends PopupAttrs {
   // The trigger is mithril component which is used to toggle the popup when
   // clicked, and provides the anchor on the page which the popup shall hover
   // next to, and to which the popup's arrow shall point. The popup shall move

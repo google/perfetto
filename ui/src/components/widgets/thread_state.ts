@@ -19,7 +19,7 @@ import {Icons} from '../../base/semantic_icons';
 import {ThreadState} from '../sql_utils/thread_state';
 import {Trace} from '../../public/trace';
 
-interface ThreadStateRefAttrs {
+export interface ThreadStateRefAttrs {
   readonly trace: Trace;
 
   id: ThreadStateSqlId;

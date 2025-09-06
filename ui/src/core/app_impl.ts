@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../base/async_limiter';
+import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {createProxy, getOrCreate} from '../base/utils';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
@@ -27,6 +28,7 @@ import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {CommandInvocation, CommandManagerImpl} from './command_manager';
+import {embedderContext} from './embedder';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -40,6 +42,7 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceContext, TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {TraceStream} from './trace_stream';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -126,9 +129,14 @@ export class AppContext {
       initArgs.enforceStartupCommandAllowlistSetting;
     this.settingsManager = initArgs.settingsManager;
     this.initArgs = initArgs;
-    this.initialRouteArgs = initArgs.initialRouteArgs;
+    this.initialRouteArgs = {
+      ...initArgs.initialRouteArgs,
+      ...(embedderContext?.initialRouteArgs ?? {}),
+    };
     this.serviceWorkerController = new ServiceWorkerController();
-    this.embeddedMode = this.initialRouteArgs.mode === 'embedded';
+    this.embeddedMode =
+      this.initialRouteArgs.mode === 'embedded' ||
+      embedderContext !== undefined;
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
@@ -303,30 +311,34 @@ export class AppImpl implements App {
     };
   }
 
-  openTraceFromFile(file: File): void {
-    this.openTrace({type: 'FILE', file});
+  openTraceFromFile(file: File) {
+    return this.openTrace({type: 'FILE', file});
   }
 
-  openTraceFromMultipleFiles(files: ReadonlyArray<File>): void {
-    this.openTrace({type: 'MULTIPLE_FILES', files});
+  openTraceFromMultipleFiles(files: ReadonlyArray<File>) {
+    return this.openTrace({type: 'MULTIPLE_FILES', files});
   }
 
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
-    this.openTrace({type: 'URL', url, serializedAppState});
+    return this.openTrace({type: 'URL', url, serializedAppState});
+  }
+
+  openTraceFromStream(stream: TraceStream) {
+    return this.openTrace({type: 'STREAM', stream});
   }
 
   openTraceFromBuffer(
     args: OpenTraceArrayBufArgs,
     serializedAppState?: SerializedAppState,
-  ): void {
-    this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
+  ) {
+    return this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
   }
 
-  openTraceFromHttpRpc(): void {
-    this.openTrace({type: 'HTTP_RPC'});
+  openTraceFromHttpRpc() {
+    return this.openTrace({type: 'HTTP_RPC'});
   }
 
-  private async openTrace(src: TraceSource) {
+  private async openTrace(src: TraceSource): Promise<TraceImpl> {
     if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
       // Even though the type of `buffer` is ArrayBuffer, it's possible to
       // accidentally pass a Uint8Array here, because the interface of
@@ -345,13 +357,15 @@ export class AppImpl implements App {
       }
     }
 
+    const result = defer<TraceImpl>();
+
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
     // a long sequence of async tasks (e.g. invoking plugins' onLoad()). These
     // tasks cannot overlap if the user opens traces in rapid succession, as
     // they will mess up the state of registries. So once we start, we must
     // complete trace loading (we don't bother supporting cancellations. If the
     // user is too bothered, they can reload the tab).
-    this.appCtx.openTraceAsyncLimiter.schedule(async () => {
+    await this.appCtx.openTraceAsyncLimiter.schedule(async () => {
       this.appCtx.closeCurrentTrace();
       this.appCtx.isLoadingTrace = true;
       try {
@@ -362,18 +376,24 @@ export class AppImpl implements App {
         // - Call AppImpl.setActiveTrace(TraceImpl)
         // - Continue with the trace loading logic (track decider, plugins, etc)
         // - Resolve the promise when everything is done.
-        await loadTrace(this, src);
+        const trace = await loadTrace(this, src);
         this.omnibox.reset(/* focus= */ false);
         // loadTrace() internally will call setActiveTrace() and change our
         // _currentTrace in the middle of its ececution. We cannot wait for
         // loadTrace to be finished before setting it because some internal
         // implementation details of loadTrace() rely on that trace to be current
         // to work properly (mainly the router hash uuid).
+
+        result.resolve(trace);
+      } catch (error) {
+        result.reject(error);
       } finally {
         this.appCtx.isLoadingTrace = false;
         raf.scheduleFullRedraw();
       }
     });
+
+    return result;
   }
 
   // Called by trace_loader.ts soon after it has created a new TraceImpl.
