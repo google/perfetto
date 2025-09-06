@@ -33,6 +33,8 @@ import {Popup} from '../../widgets/popup';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {AreaSelection, Selection} from '../../public/selection';
 import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
+import {TrackSetting, TrackSettingDescriptor} from '../../public/track';
+import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -207,9 +209,62 @@ export class NotesPanel {
               workspaces.removeWorkspace(workspaces.currentWorkspace);
             },
           }),
+          this.trace.selection.selection.kind === 'area' &&
+            this.renderBulkSettingsMenu(),
         ),
       ),
     );
+  }
+
+  private renderBulkSettingsMenu(): m.Children {
+    const selection = this.trace.selection.selection;
+    if (selection.kind !== 'area') return null;
+
+    // Get all unique settings for the selected tracks.
+    const allSettings = new Map<
+      TrackSettingDescriptor<unknown>,
+      TrackSetting<unknown>[]
+    >();
+    for (const track of selection.tracks) {
+      const settings = track.renderer?.settings;
+      if (!settings) continue;
+      for (const setting of settings) {
+        const existing = allSettings.get(setting.descriptor) ?? [];
+        existing.push(setting);
+        allSettings.set(setting.descriptor, existing);
+      }
+    }
+
+    // Remove any settings that are not common to all selected tracks.
+    for (const [descriptor, settings] of allSettings) {
+      if (settings.length !== selection.tracks.length) {
+        allSettings.delete(descriptor);
+      }
+    }
+
+    // If no settings remain, don't render the menu.
+    if (allSettings.size === 0) return null;
+
+    // Iterate over all unique settings, rendering a menu entry for each.
+    const settingEntries: m.Children[] = [];
+    for (const [descriptor, settings] of allSettings) {
+      // If all values are the same, we can render a single select.
+
+      settingEntries.push(
+        renderTrackSettingMenu(
+          descriptor,
+          (value) => {
+            // Set all the settings to the same thing!
+            for (const setting of settings) {
+              setting.setValue(value);
+            }
+          },
+          settings.map((s) => s.getValue()),
+        ),
+      );
+    }
+
+    return [m(MenuDivider), settingEntries];
   }
 
   private renderTrackFilter() {
