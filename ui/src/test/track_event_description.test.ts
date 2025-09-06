@@ -74,7 +74,9 @@ async function getTrackHelpButton(
   },
 ].forEach((testCase) => {
   test(testCase.testName, async () => {
-    await pth.openTraceFile(testCase.traceFile);
+    await pth.openTraceFile(testCase.traceFile, {
+      enablePlugins: 'com.android.AndroidLog',
+    });
     let groupTrack: Locator | undefined;
     if (testCase.groupName) {
       groupTrack = pth.locateTrack(testCase.groupName);

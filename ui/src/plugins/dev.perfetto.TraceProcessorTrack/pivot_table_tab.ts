@@ -39,6 +39,12 @@ export class PivotTableTab implements AreaSelectionTab {
   constructor(private readonly trace: Trace) {}
 
   render(selection: AreaSelection) {
+    // Try to get the state - this can fail if the slice table is not registered.
+    const state = this.getOrCreateState();
+    if (state === undefined) {
+      return undefined;
+    }
+
     if (
       this.previousSelection === undefined ||
       !areaSelectionsEqual(this.previousSelection, selection)
@@ -47,7 +53,7 @@ export class PivotTableTab implements AreaSelectionTab {
       this.trackIds = selection.tracks
         .filter((track) => track.tags?.kind == SLICE_TRACK_KIND)
         .flatMap((track) => track.tags?.trackIds ?? []);
-      this.getOrCreateState().filters.setFilters([
+      state.filters.setFilters([
         {
           op: (cols) => `${cols[0]} + ${cols[1]} > ${selection.start}`,
           columns: ['ts', 'dur'],
@@ -60,8 +66,6 @@ export class PivotTableTab implements AreaSelectionTab {
       ]);
     }
     if (this.trackIds.length === 0) return undefined;
-    const state = this.getOrCreateState();
-
     return {
       isLoading: state?.getData() === undefined,
       content: m(PivotTable, {
@@ -85,17 +89,16 @@ export class PivotTableTab implements AreaSelectionTab {
     };
   }
 
-  private getOrCreateState(): PivotTableState {
+  private getOrCreateState(): PivotTableState | undefined {
     if (this.state !== undefined) return this.state;
-    const sliceTable = assertExists(
-      getSqlTableDescription(this.trace, 'slice'),
-    );
-    const name = assertExists(
-      sliceTable.columns.find((c) => c.column === 'name'),
-    );
-    const dur = assertExists(
-      sliceTable.columns.find((c) => c.column === 'dur'),
-    );
+    const sliceTable = getSqlTableDescription(this.trace, 'slice');
+    const name = sliceTable?.columns.find((c) => c.column === 'name');
+    const dur = sliceTable?.columns.find((c) => c.column === 'dur');
+
+    if (sliceTable === undefined || name === undefined || dur === undefined) {
+      return undefined;
+    }
+
     this.state = new PivotTableState({
       trace: this.trace,
       table: sliceTable,
