@@ -92,13 +92,6 @@ code {
   font-family: var(--pf-font-monospace);
 }
 
-// This is to minimize Mac vs Linux Chrome Headless rendering differences
-// when running UI intergrationtests via puppeteer.
-body.testing {
-  -webkit-font-smoothing: antialiased !important;
-  font-kerning: none !important;
-}
-
 h1,
 h2,
 h3 {
