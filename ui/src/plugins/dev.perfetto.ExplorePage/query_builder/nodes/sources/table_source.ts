@@ -184,6 +184,9 @@ export class TableSourceNode extends SourceNode {
     return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;

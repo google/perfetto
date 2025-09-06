@@ -23,7 +23,6 @@ import {
 } from './query_builder/nodes/sources/table_source';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
-import {SubQueryNode} from './query_builder/nodes/sub_query_node';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
@@ -155,14 +154,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  handleAddSubQuery(state: ExplorePageState, node: QueryNode) {
-    const newNode = new SubQueryNode({
-      prevNodes: [node],
-      filters: [],
-    });
-    this.addNode(state, newNode, node);
-  }
-
   private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
     const {state} = attrs;
     if (state.selectedNode !== undefined) {
@@ -226,7 +217,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onClearAllNodes: () => this.handleClearAllNodes(state),
         onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
         onDeleteNode: (node) => this.handleDeleteNode(state, node),
-        onAddSubQueryNode: (node) => this.handleAddSubQuery(state, node),
         onAddAggregationNode: (node) => this.handleAddAggregation(state, node),
         onAddIntervalIntersectNode: (node) =>
           this.handleAddIntervalIntersect(state, node),
