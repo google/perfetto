@@ -26,7 +26,7 @@ import {
 } from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -36,8 +36,8 @@ import {
   createThreadPerfSamplesProfileTrack,
 } from './perf_samples_profile_track';
 
-function makeUriForProc(upid: number) {
-  return `/process_${upid}/perf_samples_profile`;
+function makeUriForProc(upid: number, sessionId: number) {
+  return `/process_${upid}/perf_samples_profile_${sessionId}`;
 }
 
 export default class implements PerfettoPlugin {
@@ -59,35 +59,48 @@ export default class implements PerfettoPlugin {
 
   private async addProcessPerfSamplesTracks(trace: Trace) {
     const pResult = await trace.engine.query(`
-      SELECT DISTINCT upid
+      SELECT DISTINCT upid, pct.name AS cntrName, perf_session_id as sessionId
       FROM perf_sample
       JOIN thread USING (utid)
+      JOIN perf_counter_track AS pct USING (perf_session_id)
       WHERE
         callsite_id IS NOT NULL AND
-        upid IS NOT NULL
+        upid IS NOT NULL AND
+        pct.is_timebase
+      ORDER BY cntrName, perf_session_id
     `);
 
     // Remember all the track URIs so we can use them in the command.
     const trackUris: string[] = [];
 
-    for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const uri = makeUriForProc(upid);
+    for (
+      const it = pResult.iter({upid: NUM, cntrName: STR, sessionId: NUM});
+      it.valid();
+      it.next()
+    ) {
+      const {upid, cntrName, sessionId} = it;
+      const uri = makeUriForProc(upid, sessionId);
       trackUris.push(uri);
       trace.tracks.registerTrack({
         uri,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
+          perfSessionId: sessionId,
         },
-        renderer: createProcessPerfSamplesProfileTrack(trace, uri, upid),
+        renderer: createProcessPerfSamplesProfileTrack(
+          trace,
+          uri,
+          upid,
+          sessionId,
+        ),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForProcess(upid);
       const track = new TrackNode({
         uri,
-        name: 'Process Callstacks',
+        name: `(process aggregate) | ${cntrName}`,
         sortOrder: -40,
       });
       group?.addChildInOrder(track);
@@ -110,14 +123,16 @@ export default class implements PerfettoPlugin {
 
   private async addThreadPerfSamplesTracks(trace: Trace) {
     const tResult = await trace.engine.query(`
-      select distinct
-        utid,
-        tid,
-        thread.name as threadName,
-        upid
-      from perf_sample
-      join thread using (utid)
-      where callsite_id is not null
+      SELECT DISTINCT
+        upid, utid, tid, thread.name as threadName,
+        pct.name AS cntrName, perf_session_id as sessionId
+      FROM perf_sample
+      JOIN thread USING (utid)
+      JOIN perf_counter_track AS pct USING (perf_session_id)
+      WHERE
+        callsite_id IS NOT NULL AND
+        pct.is_timebase
+      ORDER BY cntrName, perf_session_id
     `);
     for (
       const it = tResult.iter({
@@ -125,24 +140,29 @@ export default class implements PerfettoPlugin {
         tid: NUM,
         threadName: STR_NULL,
         upid: NUM_NULL,
+        cntrName: STR,
+        sessionId: NUM,
       });
       it.valid();
       it.next()
     ) {
-      const {threadName, utid, tid, upid} = it;
-      const title =
-        threadName === null
-          ? `Thread Callstacks ${tid}`
-          : `${threadName} Callstacks ${tid}`;
-      const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`;
+      const {threadName, utid, tid, upid, cntrName, sessionId} = it;
+      const title = `${threadName ?? 'Thread'} ${tid} | ${cntrName}`;
+      const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile_${sessionId}`;
       trace.tracks.registerTrack({
         uri,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,
           upid: upid ?? undefined,
+          perfSessionId: sessionId,
         },
-        renderer: createThreadPerfSamplesProfileTrack(trace, uri, utid),
+        renderer: createThreadPerfSamplesProfileTrack(
+          trace,
+          uri,
+          utid,
+          sessionId,
+        ),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -215,7 +235,7 @@ export default class implements PerfettoPlugin {
 
 async function selectPerfSample(trace: Trace) {
   const profile = await assertExists(trace.engine).query(`
-    select upid
+    select upid, perf_session_id as sessionId
     from perf_sample
     join thread using (utid)
     where callsite_id is not null
@@ -223,14 +243,15 @@ async function selectPerfSample(trace: Trace) {
     limit 1
   `);
   if (profile.numRows() !== 1) return;
-  const row = profile.firstRow({upid: NUM});
+  const row = profile.firstRow({upid: NUM, sessionId: NUM});
   const upid = row.upid;
+  const sessionId = row.sessionId;
 
   // Create an area selection over the first process with a perf samples track
   trace.selection.selectArea({
     start: trace.traceInfo.start,
     end: trace.traceInfo.end,
-    trackUris: [makeUriForProc(upid)],
+    trackUris: [makeUriForProc(upid, sessionId)],
   });
 }
 
@@ -260,41 +281,59 @@ function createAreaSelectionTab(trace: Trace) {
   };
 }
 
-function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
-  const upids = [];
+function getSelectedProcessTrackTags(currentSelection: AreaSelection) {
+  const ret: number[][] = [];
   for (const trackInfo of currentSelection.tracks) {
+    // process-level aggregate tracks have a upid tag but no utid tags
     if (
       trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo.tags?.perfSessionId !== undefined &&
       trackInfo.tags?.utid === undefined
     ) {
-      upids.push(assertExists(trackInfo.tags?.upid));
+      ret.push([
+        assertExists(trackInfo.tags?.upid),
+        Number(trackInfo.tags.perfSessionId),
+      ]);
     }
   }
-  return upids;
+  return ret;
 }
 
-function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
-  const utids = [];
+function getSelectedThreadTrackTags(currentSelection: AreaSelection) {
+  const ret: number[][] = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
       trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo.tags?.perfSessionId !== undefined &&
       trackInfo.tags?.utid !== undefined
     ) {
-      utids.push(trackInfo.tags?.utid);
+      ret.push([trackInfo.tags?.utid, Number(trackInfo.tags.perfSessionId)]);
     }
   }
-  return utids;
+  return ret;
 }
 
 function computePerfSampleFlamegraph(
   trace: Trace,
   currentSelection: AreaSelection,
 ) {
-  const upids = getUpidsFromPerfSampleAreaSelection(currentSelection);
-  const utids = getUtidsFromPerfSampleAreaSelection(currentSelection);
-  if (utids.length === 0 && upids.length === 0) {
+  const processTrackTags = getSelectedProcessTrackTags(currentSelection);
+  const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
+  if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
     return undefined;
   }
+
+  const trackConstraints = [
+    ...processTrackTags.map(
+      ([upid, sessionId]) =>
+        `(t.upid = ${upid} AND p.perf_session_id = ${sessionId})`,
+    ),
+    ...threadTrackTags.map(
+      ([utid, sessionId]) =>
+        `(p.utid = ${utid} AND p.perf_session_id = ${sessionId})`,
+    ),
+  ].join(' OR ');
+
   const metrics = metricsFromTableOrSubquery(
     `
       (
@@ -311,10 +350,7 @@ function computePerfSampleFlamegraph(
           join thread t using (utid)
           where p.ts >= ${currentSelection.start}
             and p.ts <= ${currentSelection.end}
-            and (
-              p.utid in (${utids.join(',')})
-              or t.upid in (${upids.join(',')})
-            )
+            and (${trackConstraints})
         ))
       )
     `,

@@ -34,6 +34,7 @@ export function createProcessPerfSamplesProfileTrack(
   trace: Trace,
   uri: string,
   upid: number,
+  sessionId: number,
 ) {
   return new DatasetSliceTrack({
     trace,
@@ -52,7 +53,9 @@ export function createProcessPerfSamplesProfileTrack(
           upid
         FROM perf_sample p
         JOIN thread using (utid)
-        WHERE callsite_id IS NOT NULL
+        WHERE
+          p.perf_session_id = ${sessionId}
+          AND callsite_id IS NOT NULL
         ORDER BY ts
       `,
       filter: {
@@ -79,6 +82,7 @@ export function createProcessPerfSamplesProfileTrack(
               join thread t using (utid)
               where p.ts >= ${row.ts}
                 and p.ts <= ${row.ts}
+                and p.perf_session_id = ${sessionId}
                 and t.upid = ${upid}
             ))
           )
@@ -118,6 +122,7 @@ export function createThreadPerfSamplesProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
+  sessionId: number,
 ) {
   return new DatasetSliceTrack({
     trace,
@@ -135,7 +140,9 @@ export function createThreadPerfSamplesProfileTrack(
           callsite_id as callsiteId,
           utid
         FROM perf_sample p
-        WHERE callsite_id IS NOT NULL
+        WHERE
+          p.perf_session_id = ${sessionId}
+          AND callsite_id IS NOT NULL
         ORDER BY ts
       `,
       filter: {
@@ -161,6 +168,7 @@ export function createThreadPerfSamplesProfileTrack(
               from perf_sample p
               where p.ts >= ${row.ts}
                 and p.ts <= ${row.ts}
+                and p.perf_session_id = ${sessionId}
                 and p.utid = ${utid}
             ))
           )
