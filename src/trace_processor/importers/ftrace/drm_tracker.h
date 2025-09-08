@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -43,11 +44,98 @@ class DrmTracker {
   void DrmVblankEvent(int64_t timestamp, int32_t crtc, uint32_t seqno);
   void DrmVblankEventDelivered(int64_t timestamp, int32_t crtc, uint32_t seqno);
 
+  class SchedJob {
+   public:
+    static SchedJob WithFenceId(uint64_t context, uint64_t seqno) {
+      return SchedJob(SCHED_JOB_ID_FENCE, context, seqno);
+    }
+
+    static SchedJob WithGlobalAndLocalId(uint64_t global_id,
+                                         uint64_t local_id) {
+      return SchedJob(SCHED_JOB_ID_GLOBAL | SCHED_JOB_ID_LOCAL, global_id,
+                      local_id);
+    }
+
+    static SchedJob WithGlobalId(uint64_t global_id) {
+      return SchedJob(SCHED_JOB_ID_GLOBAL, global_id, 0);
+    }
+
+    static SchedJob WithLocalId(uint64_t local_id) {
+      return SchedJob(SCHED_JOB_ID_LOCAL, 0, local_id);
+    }
+
+    bool FenceId(uint64_t* context, uint64_t* seqno) const {
+      if (types_ & SCHED_JOB_ID_FENCE) {
+        *context = id_[0];
+        *seqno = id_[1];
+        return true;
+      } else {
+        *context = 0;
+        *seqno = 0;
+        return false;
+      }
+    }
+
+    uint64_t GlobalId() const {
+      return types_ & SCHED_JOB_ID_GLOBAL ? id_[0] : 0;
+    }
+
+    uint64_t LocalId() const {
+      return types_ & SCHED_JOB_ID_LOCAL ? id_[1] : 0;
+    }
+
+    bool operator==(const SchedJob& other) const {
+      // Jobs are referred to by fence ids since 6.17.
+      if (types_ & other.types_ & SCHED_JOB_ID_FENCE)
+        return id_[0] == other.id_[0] && id_[1] == other.id_[1];
+
+      if (types_ & other.types_ & SCHED_JOB_ID_GLOBAL)
+        return id_[0] == other.id_[0];
+
+      // Assume the two jobs are on the same ring.
+      if (types_ & other.types_ & SCHED_JOB_ID_LOCAL)
+        return id_[1] == other.id_[1];
+
+      return false;
+    }
+
+    struct GlobalHash {
+      size_t operator()(const SchedJob& job) const {
+        uint64_t context, seqno;
+        return job.FenceId(&context, &seqno)
+                   ? base::MurmurHashCombine(context, seqno)
+                   : base::MurmurHashValue(job.GlobalId());
+      }
+    };
+
+    struct LocalHash {
+      size_t operator()(const SchedJob& job) const {
+        uint64_t context, seqno;
+        return job.FenceId(&context, &seqno)
+                   ? base::MurmurHashCombine(context, seqno)
+                   : base::MurmurHashValue(job.LocalId());
+      }
+    };
+
+   private:
+    enum SchedJobIdType : uint8_t {
+      SCHED_JOB_ID_FENCE = 1 << 0,
+      SCHED_JOB_ID_GLOBAL = 1 << 1,
+      SCHED_JOB_ID_LOCAL = 1 << 2,
+    };
+
+    SchedJob(uint8_t types, uint64_t id0, uint64_t id1)
+        : types_(types), id_{id0, id1} {}
+
+    uint8_t types_;
+    uint64_t id_[2];
+  };
+
   struct SchedRing {
     TrackId track_id;
-    std::deque<uint64_t> running_jobs;
+    std::deque<SchedJob> running_jobs;
 
-    base::FlatHashMap<uint64_t, SliceId> out_slice_ids;
+    base::FlatHashMap<SchedJob, SliceId, SchedJob::LocalHash> out_slice_ids;
   };
   SchedRing& GetSchedRingByName(base::StringView name);
   void BeginSchedRingSlice(int64_t timestamp, SchedRing& ring);
@@ -55,12 +143,9 @@ class DrmTracker {
   void DrmSchedJob(int64_t timestamp,
                    uint32_t pid,
                    base::StringView name,
-                   uint64_t job_id);
-  void DrmRunJob(int64_t timestamp,
-                 base::StringView name,
-                 uint64_t job_id,
-                 uint64_t fence_id);
-  void DrmSchedProcessJob(int64_t timestamp, uint64_t fence_id);
+                   SchedJob job);
+  void DrmRunJob(int64_t timestamp, base::StringView name, SchedJob job);
+  void DrmSchedProcessJob(int64_t timestamp, SchedJob job);
 
   struct FenceTimeline {
     TrackId track_id;
@@ -105,7 +190,8 @@ class DrmTracker {
   const StringId fence_arg_seqno_id_;
 
   base::FlatHashMap<base::StringView, std::unique_ptr<SchedRing>> sched_rings_;
-  base::FlatHashMap<uint64_t, SchedRing*> sched_pending_fences_;
+  base::FlatHashMap<SchedJob, SchedRing*, SchedJob::GlobalHash>
+      sched_pending_fences_;
 
   base::FlatHashMap<uint32_t, std::unique_ptr<FenceTimeline>> fence_timelines_;
 };

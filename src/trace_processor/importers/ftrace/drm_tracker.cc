@@ -109,17 +109,20 @@ void DrmTracker::ParseDrm(int64_t timestamp,
     }
     case FtraceEvent::kDrmSchedJobFieldNumber: {
       protos::pbzero::DrmSchedJobFtraceEvent::Decoder evt(blob);
-      DrmSchedJob(timestamp, pid, evt.name(), evt.id());
+      SchedJob job = SchedJob::WithLocalId(evt.id());
+      DrmSchedJob(timestamp, pid, evt.name(), job);
       break;
     }
     case FtraceEvent::kDrmRunJobFieldNumber: {
       protos::pbzero::DrmRunJobFtraceEvent::Decoder evt(blob);
-      DrmRunJob(timestamp, evt.name(), evt.id(), evt.fence());
+      SchedJob job = SchedJob::WithGlobalAndLocalId(evt.fence(), evt.id());
+      DrmRunJob(timestamp, evt.name(), job);
       break;
     }
     case FtraceEvent::kDrmSchedProcessJobFieldNumber: {
       protos::pbzero::DrmSchedProcessJobFtraceEvent::Decoder evt(blob);
-      DrmSchedProcessJob(timestamp, evt.fence());
+      SchedJob job = SchedJob::WithGlobalId(evt.fence());
+      DrmSchedProcessJob(timestamp, job);
       break;
     }
     case FtraceEvent::kDmaFenceInitFieldNumber: {
@@ -195,10 +198,14 @@ DrmTracker::SchedRing& DrmTracker::GetSchedRingByName(base::StringView name) {
 
 void DrmTracker::BeginSchedRingSlice(int64_t timestamp, SchedRing& ring) {
   PERFETTO_DCHECK(!ring.running_jobs.empty());
-  uint64_t job_id = ring.running_jobs.front();
+  SchedJob job = ring.running_jobs.front();
 
-  auto args_inserter = [this, job_id](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(sched_arg_job_id_, Variadic::UnsignedInteger(job_id));
+  auto args_inserter = [this, job](ArgsTracker::BoundInserter* inserter) {
+    uint64_t context, seqno;
+    if (!job.FenceId(&context, &seqno)) {
+      inserter->AddArg(sched_arg_job_id_,
+                       Variadic::UnsignedInteger(job.LocalId()));
+    }
   };
 
   std::optional<SliceId> slice_id =
@@ -206,10 +213,10 @@ void DrmTracker::BeginSchedRingSlice(int64_t timestamp, SchedRing& ring) {
                                      sched_slice_job_id_, args_inserter);
 
   if (slice_id) {
-    SliceId* out_slice_id = ring.out_slice_ids.Find(job_id);
+    SliceId* out_slice_id = ring.out_slice_ids.Find(job);
     if (out_slice_id) {
       context_->flow_tracker->InsertFlow(*out_slice_id, *slice_id);
-      ring.out_slice_ids.Erase(job_id);
+      ring.out_slice_ids.Erase(job);
     }
   }
 }
@@ -217,7 +224,7 @@ void DrmTracker::BeginSchedRingSlice(int64_t timestamp, SchedRing& ring) {
 void DrmTracker::DrmSchedJob(int64_t timestamp,
                              uint32_t pid,
                              base::StringView name,
-                             uint64_t job_id) {
+                             SchedJob job) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   StringId ring_id = context_->storage->InternString(name);
@@ -225,35 +232,38 @@ void DrmTracker::DrmSchedJob(int64_t timestamp,
   std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, sched_slice_schedule_id_, 0,
       [&, this](ArgsTracker::BoundInserter* inserter) {
+        uint64_t context, seqno;
         inserter->AddArg(sched_arg_ring_id_, Variadic::String(ring_id));
-        inserter->AddArg(sched_arg_job_id_, Variadic::UnsignedInteger(job_id));
+        if (!job.FenceId(&context, &seqno)) {
+          inserter->AddArg(sched_arg_job_id_,
+                           Variadic::UnsignedInteger(job.LocalId()));
+        }
       });
   if (slice_id) {
     SchedRing& ring = GetSchedRingByName(name);
-    ring.out_slice_ids[job_id] = *slice_id;
+    ring.out_slice_ids[job] = *slice_id;
   }
 }
 
 void DrmTracker::DrmRunJob(int64_t timestamp,
                            base::StringView name,
-                           uint64_t job_id,
-                           uint64_t fence_id) {
+                           SchedJob job) {
   SchedRing& ring = GetSchedRingByName(name);
 
-  ring.running_jobs.push_back(job_id);
-  sched_pending_fences_.Insert(fence_id, &ring);
+  ring.running_jobs.push_back(job);
+  sched_pending_fences_.Insert(job, &ring);
 
   if (ring.running_jobs.size() == 1)
     BeginSchedRingSlice(timestamp, ring);
 }
 
-void DrmTracker::DrmSchedProcessJob(int64_t timestamp, uint64_t fence_id) {
+void DrmTracker::DrmSchedProcessJob(int64_t timestamp, SchedJob job) {
   // look up ring using fence_id
-  auto* iter = sched_pending_fences_.Find(fence_id);
+  auto* iter = sched_pending_fences_.Find(job);
   if (!iter)
     return;
   SchedRing& ring = **iter;
-  sched_pending_fences_.Erase(fence_id);
+  sched_pending_fences_.Erase(job);
 
   ring.running_jobs.pop_front();
   context_->slice_tracker->End(timestamp, ring.track_id);
