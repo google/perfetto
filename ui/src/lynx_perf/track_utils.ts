@@ -61,9 +61,12 @@ export function getBackgroundScriptThreadTrackNode(
   item: TrackNode,
 ): TrackNode | undefined {
   if (item.hasChildren) {
-    return item.children.find((value) =>
-      value.title.includes(LYNX_BACKGROUND_THREAD_NAME),
-    );
+    for (let i = item.children.length - 1; i >= 0; i--) {
+      const trackNode = item.children[i];
+      if (trackNode.title.includes(LYNX_BACKGROUND_THREAD_NAME)) {
+        return trackNode;
+      }
+    }
   }
   return undefined;
 }
