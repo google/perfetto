@@ -27,6 +27,7 @@ export abstract class SourceNode implements QueryNode {
   readonly nodeId: string;
   readonly prevNode = undefined;
   nextNodes: QueryNode[];
+  meterialisedAs?: string;
 
   abstract readonly sourceCols: ColumnInfo[];
   finalCols: ColumnInfo[];
@@ -44,7 +45,8 @@ export abstract class SourceNode implements QueryNode {
   abstract getTitle(): string;
   abstract clone(): QueryNode;
   abstract getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
-  abstract nodeSpecificModify(): m.Child;
+  abstract nodeSpecificModify(onExecute?: () => void): m.Child;
+  abstract isMaterialised(): boolean;
 
   validate(): boolean {
     return true;

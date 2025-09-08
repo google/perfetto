@@ -56,6 +56,16 @@ export default class implements PerfettoPlugin {
         });
       },
     });
+    app.commands.registerCommand({
+      id: 'dev.perfetto.RecordTraceV2.disconnectTarget',
+      name: 'Disconnect the current device',
+      callback: () => {
+        const recMgr = this.getRecordingManager(app);
+        if (recMgr.currentTarget) {
+          recMgr.currentTarget.disconnect();
+        }
+      },
+    });
   }
 
   // Lazily initialize the RecordingManager at first call. This is to prevent

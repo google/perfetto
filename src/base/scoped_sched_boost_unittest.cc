@@ -31,7 +31,6 @@
 using testing::_;
 using testing::ElementsAre;
 using testing::Eq;
-using testing::Invoke;
 using testing::NiceMock;
 using testing::Return;
 
@@ -67,14 +66,13 @@ class MockSchedOsHooks : public SchedOsHooks {
  public:
   explicit MockSchedOsHooks(SchedOsConfig init_config)
       : current_config(init_config) {
-    ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault(Invoke([&] {
+    ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault([&] {
       return current_config;
-    }));
-    ON_CALL(*this, SetSchedConfig)
-        .WillByDefault(Invoke([&](const SchedOsConfig& arg) {
-          current_config = arg;
-          return OkStatus();
-        }));
+    });
+    ON_CALL(*this, SetSchedConfig).WillByDefault([&](const SchedOsConfig& arg) {
+      current_config = arg;
+      return OkStatus();
+    });
   }
   MOCK_METHOD(base::Status, SetSchedConfig, (const SchedOsConfig&), (override));
   MOCK_METHOD(base::StatusOr<base::SchedOsHooks::SchedOsConfig>,
@@ -183,13 +181,13 @@ TEST_F(ScopedSchedBoostTest, MoveOperation) {
 
 TEST_F(ScopedSchedBoostTest, IgnoreWrongConfig) {
   ON_CALL(sched_hooks_, SetSchedConfig(_))
-      .WillByDefault(Invoke([&](const SchedOsHooks::SchedOsConfig& arg) {
+      .WillByDefault([&](const SchedOsHooks::SchedOsConfig& arg) {
         if (arg.policy == SCHED_FIFO && arg.rt_prio < 1) {
           return ErrStatus("Priority for SCHED_FIFO policy must be >= 1");
         }
         sched_hooks_.current_config = arg;
         return OkStatus();
-      }));
+      });
 
   auto ok_other_boost = ScopedSchedBoost::Boost(
       SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedOther, 5});
