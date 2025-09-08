@@ -38,202 +38,216 @@
   }
 }
 
-.pf-button {
-  font-family: var(--pf-font-compact);
-  line-height: 1;
-  user-select: none;
-  border-radius: $border-radius;
-  padding: 4px 8px;
-  white-space: nowrap;
-  min-width: max-content;
+@layer pf-widgets {
+  .pf-button {
+    background: none;
+    color: inherit;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    outline: inherit;
 
-  &--rounded {
-    border-radius: 100px;
-  }
+    font-family: var(--pf-font-compact);
+    line-height: 1;
+    user-select: none;
+    border-radius: $border-radius;
+    padding: 4px 8px;
+    white-space: nowrap;
+    min-width: max-content;
 
-  & > .pf-left-icon {
-    margin-right: 6px; // Make some room between the icon and label
-  }
+    &__label {
+      text-overflow: ellipsis;
+    }
 
-  & > .pf-right-icon {
-    margin-left: 6px; // Make some room between the icon and label
-  }
+    &--rounded {
+      border-radius: 100px;
+    }
 
-  &:focus-visible {
-    @include focus;
-  }
-
-  // Reduce padding when compact
-  &.pf-compact {
-    padding: 2px 4px;
     & > .pf-left-icon {
-      margin-right: 2px;
+      margin-right: 6px; // Make some room between the icon and label
     }
 
     & > .pf-right-icon {
-      margin-left: 2px;
-    }
-  }
-
-  // Reduce padding when we are icon-only
-  &.pf-icon-only {
-    & > .pf-left-icon {
-      margin: 0;
+      margin-left: 6px; // Make some room between the icon and label
     }
 
-    padding: 4px;
+    &:focus-visible {
+      @include focus;
+    }
 
+    // Reduce padding when compact
     &.pf-compact {
-      padding: 0;
+      padding: 2px 4px;
+      & > .pf-left-icon {
+        margin-right: 2px;
+      }
+
+      & > .pf-right-icon {
+        margin-left: 2px;
+      }
     }
 
-    &::before {
-      // Inserting a zero-width space to keep the button in flow. This allows it
-      // to stay aligned with the baseline of other text around it.
-      content: "\200B"; /* Zero-width space */
-    }
-  }
+    // Reduce padding when we are icon-only
+    &.pf-icon-only {
+      & > .pf-left-icon {
+        margin: 0;
+      }
 
-  &[disabled] {
-    filter: opacity(50%);
-    cursor: not-allowed;
-  }
+      padding: 4px;
 
-  // From here on in we just describe the colors
-  &--filled {
-    background: color-mix(
-      in srgb,
-      transparent,
-      var(--pf-color-interactive-base) 10%
-    );
+      &.pf-compact {
+        padding: 0;
+      }
 
-    &:hover {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 15%
-      );
-    }
-
-    &.pf-active,
-    &:active {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 20%
-      );
+      &::before {
+        // Inserting a zero-width space to keep the button in flow. This allows it
+        // to stay aligned with the baseline of other text around it.
+        content: "\200B"; /* Zero-width space */
+      }
     }
 
     &[disabled] {
+      filter: opacity(50%);
+      cursor: not-allowed;
+    }
+
+    // From here on in we just describe the colors
+    &--filled {
+      background: color-mix(
+        in srgb,
+        transparent,
+        var(--pf-color-interactive-base) 10%
+      );
+
       &:hover {
         background: color-mix(
           in srgb,
           transparent,
-          var(--pf-color-interactive-base) 10%
-        ); // Reset to the default background
+          var(--pf-color-interactive-base) 15%
+        );
       }
 
-      &.pf-active {
+      &.pf-active,
+      &:active {
         background: color-mix(
           in srgb,
           transparent,
-          var(--pf-color-interactive-base) 40%
+          var(--pf-color-interactive-base) 20%
+        );
+      }
+
+      &[disabled] {
+        &:hover {
+          background: color-mix(
+            in srgb,
+            transparent,
+            var(--pf-color-interactive-base) 10%
+          ); // Reset to the default background
+        }
+
+        &.pf-active {
+          background: color-mix(
+            in srgb,
+            transparent,
+            var(--pf-color-interactive-base) 40%
+          );
+        }
+      }
+
+      &.pf-intent-primary {
+        @include filled-color-scheme(
+          var(--pf-color-primary),
+          var(--pf-color-text-on-primary)
+        );
+      }
+
+      &.pf-intent-success {
+        @include filled-color-scheme(
+          var(--pf-color-success),
+          var(--pf-color-text-on-success)
+        );
+      }
+
+      &.pf-intent-danger {
+        @include filled-color-scheme(
+          var(--pf-color-danger),
+          var(--pf-color-text-on-danger)
+        );
+      }
+
+      &.pf-intent-warning {
+        @include filled-color-scheme(
+          var(--pf-color-warning),
+          var(--pf-color-text-on-warning)
         );
       }
     }
 
-    &.pf-intent-primary {
-      @include filled-color-scheme(
-        var(--pf-color-primary),
-        var(--pf-color-text-on-primary)
-      );
+    &--outlined {
+      border: solid 1px var(--pf-color-border);
     }
 
-    &.pf-intent-success {
-      @include filled-color-scheme(
-        var(--pf-color-success),
-        var(--pf-color-text-on-success)
-      );
-    }
-
-    &.pf-intent-danger {
-      @include filled-color-scheme(
-        var(--pf-color-danger),
-        var(--pf-color-text-on-danger)
-      );
-    }
-
-    &.pf-intent-warning {
-      @include filled-color-scheme(
-        var(--pf-color-warning),
-        var(--pf-color-text-on-warning)
-      );
-    }
-  }
-
-  &--outlined {
-    border: solid 1px var(--pf-color-border);
-  }
-
-  &--minimal,
-  &--outlined {
-    &:hover {
-      background: color_hover(transparent);
-    }
-
-    &:active,
-    &.pf-active {
-      background: color_active(transparent);
-    }
-
-    &.pf-intent-primary {
-      color: var(--pf-color-primary);
-    }
-
-    &.pf-intent-success {
-      color: var(--pf-color-success);
-    }
-
-    &.pf-intent-danger {
-      color: var(--pf-color-danger);
-    }
-
-    &.pf-intent-warning {
-      color: var(--pf-color-warning);
-    }
-
-    &[disabled] {
+    &--minimal,
+    &--outlined {
       &:hover {
-        background: unset;
+        background: color_hover(transparent);
       }
 
+      &:active,
       &.pf-active {
         background: color_active(transparent);
       }
+
+      &.pf-intent-primary {
+        color: var(--pf-color-primary);
+      }
+
+      &.pf-intent-success {
+        color: var(--pf-color-success);
+      }
+
+      &.pf-intent-danger {
+        color: var(--pf-color-danger);
+      }
+
+      &.pf-intent-warning {
+        color: var(--pf-color-warning);
+      }
+
+      &[disabled] {
+        &:hover {
+          background: unset;
+        }
+
+        &.pf-active {
+          background: color_active(transparent);
+        }
+      }
     }
   }
-}
 
-.pf-button-bar {
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-  align-items: baseline;
-}
-
-.pf-button-group {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-
-  .pf-button:not(:last-child) {
-    border-top-right-radius: unset;
-    border-bottom-right-radius: unset;
-    border-right: unset;
+  .pf-button-bar {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    align-items: baseline;
   }
 
-  .pf-button:not(:first-child) {
-    border-top-left-radius: unset;
-    border-bottom-left-radius: unset;
+  .pf-button-group {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+
+    .pf-button:not(:last-child) {
+      border-top-right-radius: unset;
+      border-bottom-right-radius: unset;
+      border-right: unset;
+    }
+
+    .pf-button:not(:first-child) {
+      border-top-left-radius: unset;
+      border-bottom-left-radius: unset;
+    }
   }
 }

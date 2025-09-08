@@ -114,7 +114,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         className: classes,
       },
       this.renderIcon(attrs),
-      label,
+      m('span', {className: 'pf-button__label'}, label),
       rightIcon &&
         m(Icon, {
           className: 'pf-right-icon',

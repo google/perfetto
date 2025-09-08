@@ -13,10 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
 import {Hotkey, Platform} from '../../base/hotkeys';
-import {isString} from '../../base/object_utils';
+import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
 import {Icons} from '../../base/semantic_icons';
+import {
+  DataGrid,
+  DataGridAttrs,
+} from '../../components/widgets/data_grid/data_grid';
+import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
+import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
+import {App} from '../../public/app';
+import {Engine} from '../../trace_processor/engine';
 import {Anchor} from '../../widgets/anchor';
 import {
   Button,
@@ -26,59 +33,17 @@ import {
   ButtonVariant,
 } from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
+import {Card, CardStack} from '../../widgets/card';
 import {Checkbox} from '../../widgets/checkbox';
+import {Chip} from '../../widgets/chip';
+import {CodeSnippet} from '../../widgets/code_snippet';
+import {Intent} from '../../widgets/common';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import {CopyableLink} from '../../widgets/copyable_link';
+import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {Editor} from '../../widgets/editor';
 import {EmptyState} from '../../widgets/empty_state';
 import {Form, FormLabel} from '../../widgets/form';
-import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {Icon} from '../../widgets/icon';
-import {Menu, MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
-import {showModal} from '../../widgets/modal';
-import {
-  MultiSelect,
-  MultiSelectDiff,
-  PopupMultiSelect,
-} from '../../widgets/multiselect';
-import {Popup, PopupPosition} from '../../widgets/popup';
-import {Portal} from '../../widgets/portal';
-import {Select} from '../../widgets/select';
-import {Spinner} from '../../widgets/spinner';
-import {Switch} from '../../widgets/switch';
-import {TextInput} from '../../widgets/text_input';
-import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
-import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
-import {VegaView} from '../../components/widgets/vega_view';
-import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
-import {Intent} from '../../widgets/common';
-import {
-  VirtualTable,
-  VirtualTableAttrs,
-  VirtualTableRow,
-} from '../../widgets/virtual_table';
-import {TagInput} from '../../widgets/tag_input';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
-import {Chip} from '../../widgets/chip';
-import {TrackShell} from '../../widgets/track_shell';
-import {CopyableLink} from '../../widgets/copyable_link';
-import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {SplitPanel, Tab} from '../../widgets/split_panel';
-import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
-import {CursorTooltip} from '../../widgets/cursor_tooltip';
-import {MultiselectInput} from '../../widgets/multiselect_input';
-import {
-  DataGrid,
-  DataGridAttrs,
-} from '../../components/widgets/data_grid/data_grid';
-import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
-import {App} from '../../public/app';
-import {Engine} from '../../trace_processor/engine';
-import {Card, CardStack} from '../../widgets/card';
-import {Stack} from '../../widgets/stack';
-import {Tooltip} from '../../widgets/tooltip';
-import {TabStrip} from '../../widgets/tabs';
-import {CodeSnippet} from '../../widgets/code_snippet';
 import {
   Grid,
   GridBody,
@@ -87,191 +52,47 @@ import {
   GridHeaderCell,
   GridRow,
 } from '../../widgets/grid';
-
-const DATA_ENGLISH_LETTER_FREQUENCY = {
-  table: [
-    {category: 'a', amount: 8.167},
-    {category: 'b', amount: 1.492},
-    {category: 'c', amount: 2.782},
-    {category: 'd', amount: 4.253},
-    {category: 'e', amount: 12.7},
-    {category: 'f', amount: 2.228},
-    {category: 'g', amount: 2.015},
-    {category: 'h', amount: 6.094},
-    {category: 'i', amount: 6.966},
-    {category: 'j', amount: 0.253},
-    {category: 'k', amount: 1.772},
-    {category: 'l', amount: 4.025},
-    {category: 'm', amount: 2.406},
-    {category: 'n', amount: 6.749},
-    {category: 'o', amount: 7.507},
-    {category: 'p', amount: 1.929},
-    {category: 'q', amount: 0.095},
-    {category: 'r', amount: 5.987},
-    {category: 's', amount: 6.327},
-    {category: 't', amount: 9.056},
-    {category: 'u', amount: 2.758},
-    {category: 'v', amount: 0.978},
-    {category: 'w', amount: 2.36},
-    {category: 'x', amount: 0.25},
-    {category: 'y', amount: 1.974},
-    {category: 'z', amount: 0.074},
-  ],
-};
-
-const DATA_POLISH_LETTER_FREQUENCY = {
-  table: [
-    {category: 'a', amount: 8.965},
-    {category: 'b', amount: 1.482},
-    {category: 'c', amount: 3.988},
-    {category: 'd', amount: 3.293},
-    {category: 'e', amount: 7.921},
-    {category: 'f', amount: 0.312},
-    {category: 'g', amount: 1.377},
-    {category: 'h', amount: 1.072},
-    {category: 'i', amount: 8.286},
-    {category: 'j', amount: 2.343},
-    {category: 'k', amount: 3.411},
-    {category: 'l', amount: 2.136},
-    {category: 'm', amount: 2.911},
-    {category: 'n', amount: 5.6},
-    {category: 'o', amount: 7.59},
-    {category: 'p', amount: 3.101},
-    {category: 'q', amount: 0.003},
-    {category: 'r', amount: 4.571},
-    {category: 's', amount: 4.263},
-    {category: 't', amount: 3.966},
-    {category: 'u', amount: 2.347},
-    {category: 'v', amount: 0.034},
-    {category: 'w', amount: 4.549},
-    {category: 'x', amount: 0.019},
-    {category: 'y', amount: 3.857},
-    {category: 'z', amount: 5.62},
-  ],
-};
-
-const DATA_EMPTY = {};
-
-const SPEC_BAR_CHART = `
-{
-  "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "A basic bar chart example, with value labels shown upon mouse hover.",
-  "width": 400,
-  "height": 200,
-  "padding": 5,
-
-  "data": [
-    {
-      "name": "table"
-    }
-  ],
-
-  "signals": [
-    {
-      "name": "tooltip",
-      "value": {},
-      "on": [
-        {"events": "rect:mouseover", "update": "datum"},
-        {"events": "rect:mouseout",  "update": "{}"}
-      ]
-    }
-  ],
-
-  "scales": [
-    {
-      "name": "xscale",
-      "type": "band",
-      "domain": {"data": "table", "field": "category"},
-      "range": "width",
-      "padding": 0.05,
-      "round": true
-    },
-    {
-      "name": "yscale",
-      "domain": {"data": "table", "field": "amount"},
-      "nice": true,
-      "range": "height"
-    }
-  ],
-
-  "axes": [
-    { "orient": "bottom", "scale": "xscale" },
-    { "orient": "left", "scale": "yscale" }
-  ],
-
-  "marks": [
-    {
-      "type": "rect",
-      "from": {"data":"table"},
-      "encode": {
-        "enter": {
-          "x": {"scale": "xscale", "field": "category"},
-          "width": {"scale": "xscale", "band": 1},
-          "y": {"scale": "yscale", "field": "amount"},
-          "y2": {"scale": "yscale", "value": 0}
-        },
-        "update": {
-          "fill": {"value": "steelblue"}
-        },
-        "hover": {
-          "fill": {"value": "red"}
-        }
-      }
-    },
-    {
-      "type": "text",
-      "encode": {
-        "enter": {
-          "align": {"value": "center"},
-          "baseline": {"value": "bottom"},
-          "fill": {"value": "#333"}
-        },
-        "update": {
-          "x": {"scale": "xscale", "signal": "tooltip.category", "band": 0.5},
-          "y": {"scale": "yscale", "signal": "tooltip.amount", "offset": -2},
-          "text": {"signal": "tooltip.amount"},
-          "fillOpacity": [
-            {"test": "datum === tooltip", "value": 0},
-            {"value": 1}
-          ]
-        }
-      }
-    }
-  ]
-}
-`;
-
-const SPEC_BAR_CHART_LITE = `
-{
-  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "description": "A simple bar chart with embedded data.",
-  "data": {
-    "name": "table"
-  },
-  "mark": "bar",
-  "encoding": {
-    "x": {"field": "category", "type": "nominal", "axis": {"labelAngle": 0}},
-    "y": {"field": "amount", "type": "quantitative"}
-  }
-}
-`;
-
-const SPEC_BROKEN = `{
-  "description": 123
-}
-`;
-
-enum SpecExample {
-  BarChart = 'Barchart',
-  BarChartLite = 'Barchart (Lite)',
-  Broken = 'Broken',
-}
-
-enum DataExample {
-  English = 'English',
-  Polish = 'Polish',
-  Empty = 'Empty',
-}
+import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
+import {Icon} from '../../widgets/icon';
+import {
+  Menu,
+  MenuDivider,
+  MenuItem,
+  MenuTitle,
+  PopupMenu,
+} from '../../widgets/menu';
+import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
+import {showModal} from '../../widgets/modal';
+import {
+  MultiSelect,
+  MultiSelectDiff,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
+import {MultiselectInput} from '../../widgets/multiselect_input';
+import {Popup, PopupPosition} from '../../widgets/popup';
+import {Portal} from '../../widgets/portal';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {Select} from '../../widgets/select';
+import {Spinner} from '../../widgets/spinner';
+import {SplitPanel, Tab} from '../../widgets/split_panel';
+import {Stack} from '../../widgets/stack';
+import {Switch} from '../../widgets/switch';
+import {TabStrip} from '../../widgets/tabs';
+import {TagInput} from '../../widgets/tag_input';
+import {TextInput} from '../../widgets/text_input';
+import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
+import {Tooltip} from '../../widgets/tooltip';
+import {TrackShell} from '../../widgets/track_shell';
+import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {
+  VirtualTable,
+  VirtualTableAttrs,
+  VirtualTableRow,
+} from '../../widgets/virtual_table';
+import {ButtonDemo} from './demos/button_demo';
+import {VegaDemo} from './demos/vega_demo';
+import {enumOption, renderWidgetContainer} from './widget_container';
 
 function arg<T>(
   anyArg: unknown,
@@ -279,34 +100,6 @@ function arg<T>(
   valueIfFalse: T | undefined = undefined,
 ): T | undefined {
   return Boolean(anyArg) ? valueIfTrue : valueIfFalse;
-}
-
-function getExampleSpec(example: SpecExample): string {
-  switch (example) {
-    case SpecExample.BarChart:
-      return SPEC_BAR_CHART;
-    case SpecExample.BarChartLite:
-      return SPEC_BAR_CHART_LITE;
-    case SpecExample.Broken:
-      return SPEC_BROKEN;
-    default:
-      const exhaustiveCheck: never = example;
-      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
-  }
-}
-
-function getExampleData(example: DataExample) {
-  switch (example) {
-    case DataExample.English:
-      return DATA_ENGLISH_LETTER_FREQUENCY;
-    case DataExample.Polish:
-      return DATA_POLISH_LETTER_FREQUENCY;
-    case DataExample.Empty:
-      return DATA_EMPTY;
-    default:
-      const exhaustiveCheck: never = example;
-      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
-  }
 }
 
 const options: {[key: string]: boolean} = {
@@ -398,21 +191,6 @@ function ControlledPopup() {
   };
 }
 
-type Options = {
-  [key: string]: EnumOption | boolean | string | number;
-};
-
-class EnumOption {
-  constructor(
-    public initial: string,
-    public options: string[],
-  ) {}
-}
-
-interface WidgetTitleAttrs {
-  label: string;
-}
-
 function recursiveTreeNode(): m.Children {
   return m(LazyTreeNode, {
     left: 'Recursive',
@@ -422,165 +200,6 @@ function recursiveTreeNode(): m.Children {
       return () => recursiveTreeNode();
     },
   });
-}
-
-class WidgetTitle implements m.ClassComponent<WidgetTitleAttrs> {
-  view({attrs}: m.CVnode<WidgetTitleAttrs>) {
-    const {label} = attrs;
-    const id = label.replaceAll(' ', '').toLowerCase();
-    const href = `#!/widgets#${id}`;
-    return m(Anchor, {id, href}, m('h2', label));
-  }
-}
-
-interface WidgetShowcaseAttrs {
-  label: string;
-  description?: string;
-  initialOpts?: Options;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  renderWidget: (options: any) => any;
-  wide?: boolean;
-}
-
-// A little helper class to render any vnode with a dynamic set of options
-class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private optValues: any = {};
-  private opts?: Options;
-
-  renderOptions(listItems: m.Child[]): m.Child {
-    if (listItems.length === 0) {
-      return null;
-    }
-    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
-  }
-
-  oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
-    this.opts = opts;
-    if (opts) {
-      // Make the initial options values
-      for (const key in opts) {
-        if (Object.prototype.hasOwnProperty.call(opts, key)) {
-          const option = opts[key];
-          if (option instanceof EnumOption) {
-            this.optValues[key] = option.initial;
-          } else {
-            this.optValues[key] = option;
-          }
-        }
-      }
-    }
-  }
-
-  view({attrs}: m.CVnode<WidgetShowcaseAttrs>) {
-    const {renderWidget, wide, label, description} = attrs;
-    const listItems = [];
-
-    if (this.opts) {
-      for (const key in this.opts) {
-        if (Object.prototype.hasOwnProperty.call(this.opts, key)) {
-          listItems.push(m('li', this.renderControlForOption(key)));
-        }
-      }
-    }
-
-    return [
-      m(WidgetTitle, {label}),
-      description && m('p', description),
-      m(
-        '.pf-widget-block',
-        m(
-          'div',
-          {
-            class: classNames(
-              'pf-widget-container',
-              wide && 'pf-widget-container--wide',
-            ),
-          },
-          renderWidget(this.optValues),
-        ),
-        this.renderOptions(listItems),
-      ),
-    ];
-  }
-
-  private renderControlForOption(key: string) {
-    if (!this.opts) return null;
-    const value = this.opts[key];
-    if (value instanceof EnumOption) {
-      return this.renderEnumOption(key, value);
-    } else if (typeof value === 'boolean') {
-      return this.renderBooleanOption(key);
-    } else if (isString(value)) {
-      return this.renderStringOption(key);
-    } else if (typeof value === 'number') {
-      return this.renderNumberOption(key);
-    } else {
-      return null;
-    }
-  }
-
-  private renderBooleanOption(key: string) {
-    return m(Checkbox, {
-      checked: this.optValues[key],
-      label: key,
-      onchange: () => {
-        this.optValues[key] = !Boolean(this.optValues[key]);
-      },
-    });
-  }
-
-  private renderStringOption(key: string) {
-    return m(
-      'label',
-      `${key}:`,
-      m(TextInput, {
-        placeholder: key,
-        value: this.optValues[key],
-        oninput: (e: Event) => {
-          this.optValues[key] = (e.target as HTMLInputElement).value;
-        },
-      }),
-    );
-  }
-
-  private renderNumberOption(key: string) {
-    return m(
-      'label',
-      `${key}:`,
-      m(TextInput, {
-        type: 'number',
-        placeholder: key,
-        value: this.optValues[key],
-        oninput: (e: Event) => {
-          this.optValues[key] = Number.parseInt(
-            (e.target as HTMLInputElement).value,
-          );
-        },
-      }),
-    );
-  }
-
-  private renderEnumOption(key: string, opt: EnumOption) {
-    const optionElements = opt.options.map((option: string) => {
-      return m('option', {value: option}, option);
-    });
-    return m(
-      'label',
-      `${key}:`,
-      m(
-        Select,
-        {
-          value: this.optValues[key],
-          onchange: (e: Event) => {
-            const el = e.target as HTMLSelectElement;
-            this.optValues[key] = el.value;
-          },
-        },
-        optionElements,
-      ),
-    );
-  }
 }
 
 interface File {
@@ -678,7 +297,7 @@ function TagInputDemo() {
   };
 }
 
-function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
+function SegmentedButtonsDemo({attrs}: {attrs: {disabled: boolean}}) {
   let selectedIdx = 0;
   return {
     view: () => {
@@ -731,133 +350,81 @@ function RadioButtonGroupDemo() {
 
 export class WidgetsPage implements m.ClassComponent<{app: App}> {
   view({attrs}: m.Vnode<{app: App}>) {
+    const trace = attrs.app.trace;
     return m(
       '.pf-widgets-page',
       m('h1', 'Widgets'),
-      m(WidgetShowcase, {
-        label: 'Button',
-        renderWidget: ({
-          label,
-          icon,
-          rightIcon,
-          showAsGrid,
-          showInlineWithText,
-          ...rest
-        }) =>
-          Boolean(showAsGrid)
-            ? m(
-                '',
-                {
-                  style: {
-                    display: 'grid',
-                    gridTemplateColumns: 'auto auto auto',
-                    gap: '4px',
-                  },
-                },
-                Object.values(Intent).map((intent) => {
-                  return Object.values(ButtonVariant).map((variant) => {
-                    return m(Button, {
-                      style: {
-                        width: '80px',
-                      },
-                      ...rest,
-                      label: variant,
-                      variant,
-                      intent,
-                    });
-                  });
-                }),
-              )
-            : m('', [
-                Boolean(showInlineWithText) && 'Inline',
-                m(Button, {
-                  icon: arg(icon, 'send'),
-                  rightIcon: arg(rightIcon, 'arrow_forward'),
-                  label: arg(label, 'Button', ''),
-                  onclick: () => console.log('button pressed'),
-                  ...rest,
-                }),
-                Boolean(showInlineWithText) && 'text',
-              ]),
-        initialOpts: {
-          label: true,
-          icon: true,
-          rightIcon: false,
-          disabled: false,
-          intent: new EnumOption(Intent.None, Object.values(Intent)),
-          active: false,
-          compact: false,
-          loading: false,
-          variant: new EnumOption(
-            ButtonVariant.Filled,
-            Object.values(ButtonVariant),
-          ),
-          showAsGrid: false,
-          showInlineWithText: false,
-          rounded: false,
-        },
-      }),
-      m(WidgetShowcase, {
+      m(ButtonDemo),
+      renderWidgetContainer({
         label: 'Segmented Buttons',
         description: `
           Segmented buttons are a group of buttons where one of them is
           'selected'; they act similar to a set of radio buttons.
         `,
-        renderWidget: (opts) => m(SegmentedButtonsDemo, opts),
-        initialOpts: {
+        render: (opts) => m(SegmentedButtonsDemo, opts),
+        schema: {
           disabled: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'ButtonGroup',
-        renderWidget: (opts) =>
+        render: ({variant, disabled, intent}) =>
           m(Stack, [
             m(ButtonGroup, [
               m(Button, {
                 label: 'Commit',
-                ...opts,
+                variant: variant as ButtonVariant,
+                disabled,
+                intent: intent as Intent,
               }),
               m(Button, {
                 icon: Icons.ContextMenu,
-                ...opts,
+                variant: variant as ButtonVariant,
+                disabled,
+                intent: intent as Intent,
               }),
             ]),
-            m(RadioButtonGroupDemo, opts),
+            m(RadioButtonGroupDemo, {
+              variant: variant as ButtonVariant,
+              disabled,
+              intent: intent as Intent,
+              label: '',
+            }),
           ]),
-        initialOpts: {
-          variant: new EnumOption(
+        schema: {
+          variant: enumOption(
             ButtonVariant.Filled,
             Object.values(ButtonVariant),
           ),
           disabled: false,
-          intent: new EnumOption(Intent.None, Object.values(Intent)),
+          intent: enumOption(Intent.None, Object.values(Intent)),
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Checkbox',
-        renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
-        initialOpts: {
+        render: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
+        schema: {
           disabled: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        renderWidget: ({label, labelLeft, ...rest}: any) =>
+        render: ({label, labelLeft, ...rest}: any) =>
           m(Switch, {
             label: arg(label, 'Switch'),
             labelLeft: arg(labelLeft, 'Left Label'),
             ...rest,
           }),
-        initialOpts: {
+        schema: {
           label: true,
           labelLeft: false,
           disabled: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Anchor',
-        renderWidget: ({icon, showInlineWithText, long}) =>
+        render: ({icon, showInlineWithText, long}) =>
           m('', [
             Boolean(showInlineWithText) && 'Inline',
             m(
@@ -874,41 +441,41 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             Boolean(showInlineWithText) && 'text',
           ]),
 
-        initialOpts: {
+        schema: {
           icon: true,
           showInlineWithText: false,
           long: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Text Input',
-        renderWidget: ({placeholder, leftIcon, ...rest}) =>
+        render: ({placeholder, leftIcon, ...rest}) =>
           m(TextInput, {
             placeholder: arg(placeholder, 'Placeholder...', ''),
             leftIcon: arg(leftIcon, 'search'),
             ...rest,
           }),
-        initialOpts: {
+        schema: {
           placeholder: true,
           disabled: false,
           leftIcon: true,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Select',
-        renderWidget: (opts) =>
+        render: (opts) =>
           m(Select, opts, [
             m('option', {value: 'foo', label: 'Foo'}),
             m('option', {value: 'bar', label: 'Bar'}),
             m('option', {value: 'baz', label: 'Baz'}),
           ]),
-        initialOpts: {
+        schema: {
           disabled: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Empty State',
-        renderWidget: ({header, content}) =>
+        render: ({header, content}) =>
           m(
             EmptyState,
             {
@@ -916,17 +483,17 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             },
             arg(content, m(Button, {label: 'Try again'})),
           ),
-        initialOpts: {
+        schema: {
           header: true,
           content: true,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Card',
         description: `A card is a simple container with a shadow and rounded
           corners. It can be used to display grouped content in a visually
           appealing way.`,
-        renderWidget: ({interactive}) =>
+        render: ({interactive}) =>
           m(Card, {interactive}, [
             m('h1', {style: {margin: 'unset'}}, 'Welcome!'),
             m('p', 'Would you like to start your journey?'),
@@ -942,78 +509,80 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               }),
             ]),
           ]),
-        initialOpts: {interactive: true},
+        schema: {interactive: true},
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'CardStack',
         description: `A container component that can be used to display
           multiple Card elements in a vertical stack. Cards placed in this list
           automatically have their borders adjusted to appear as one continuous
           card with thin borders between them.`,
-        renderWidget: ({direction, interactive}) =>
-          m(CardStack, {direction}, [
+        schema: {
+          direction: enumOption('vertical', ['vertical', 'horizontal']),
+          interactive: true,
+        },
+        render: ({direction, interactive}) =>
+          m(CardStack, {direction: direction as 'vertical' | 'horizontal'}, [
             m(Card, {interactive}, m(Switch, {label: 'Option 1'})),
             m(Card, {interactive}, m(Switch, {label: 'Option 2'})),
             m(Card, {interactive}, m(Switch, {label: 'Option 3'})),
           ]),
-        initialOpts: {
-          direction: new EnumOption('vertical', ['vertical', 'horizontal']),
-          interactive: true,
-        },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'CopyableLink',
-        renderWidget: ({noicon}) =>
+        render: ({noicon}) =>
           m(CopyableLink, {
             noicon: arg(noicon, true),
             url: 'https://perfetto.dev/docs/',
           }),
-        initialOpts: {
+        schema: {
           noicon: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'CopyToClipboardButton',
-        renderWidget: (opts) =>
+        render: (opts) =>
           m(CopyToClipboardButton, {
             textToCopy: 'Text to copy',
-            ...opts,
+            variant: opts.variant as ButtonVariant,
           }),
-        initialOpts: {
+        schema: {
           label: 'Copy',
-          variant: new EnumOption(
+          variant: enumOption(
             ButtonVariant.Outlined,
             Object.values(ButtonVariant),
           ),
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Portal',
         description: `A portal is a div rendered out of normal flow
           of the hierarchy.`,
-        renderWidget: (opts) => m(PortalButton, opts),
-        initialOpts: {
+        render: (opts) => m(PortalButton, opts),
+        schema: {
           absolute: true,
           zIndex: true,
           top: true,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Popup',
         description: `A popup is a nicely styled portal element whose position is
         dynamically updated to appear to float alongside a specific element on
         the page, even as the element is moved and scrolled around.`,
-        renderWidget: (opts) =>
+        render: ({position, closeOnEscape, closeOnOutsideClick}) =>
           m(
             Popup,
             {
               trigger: m(Button, {label: 'Toggle Popup'}),
-              ...opts,
+              position: position as PopupPosition,
+              closeOnEscape,
+              closeOnOutsideClick,
             },
             lorem(),
           ),
-        initialOpts: {
-          position: new EnumOption(
+        schema: {
+          position: enumOption(
             PopupPosition.Auto,
             Object.values(PopupPosition),
           ),
@@ -1021,7 +590,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           closeOnOutsideClick: true,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Controlled Popup',
         description: `The open/close state of a controlled popup is passed in via
         the 'isOpen' attribute. This means we can get open or close the popup
@@ -1031,31 +600,35 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         on this button.
         Note, this is the same component as the popup above, but used in
         controlled mode.`,
-        renderWidget: (opts) => m(ControlledPopup, opts),
-        initialOpts: {},
+        render: (opts) => m(ControlledPopup, opts),
+        schema: {},
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Icon',
-        renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
-        initialOpts: {
+        render: ({filled, intent}) =>
+          m(Icon, {icon: 'star', filled, intent: intent as Intent}),
+        schema: {
           filled: false,
-          intent: new EnumOption(Intent.None, Object.values(Intent)),
+          intent: enumOption(Intent.None, Object.values(Intent)),
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Tooltip',
         description: `A tooltip is a hover-only, useful as an alternative to the browser's inbuilt 'title' tooltip.`,
-        renderWidget: (opts) =>
+        render: ({position, showArrow, offset, edgeOffset}) =>
           m(
             Tooltip,
             {
               trigger: m(Icon, {icon: 'Warning'}),
-              ...opts,
+              position: position as PopupPosition,
+              showArrow,
+              offset,
+              edgeOffset,
             },
             lorem(),
           ),
-        initialOpts: {
-          position: new EnumOption(
+        schema: {
+          position: enumOption(
             PopupPosition.Auto,
             Object.values(PopupPosition),
           ),
@@ -1064,9 +637,9 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           edgeOffset: 0,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'MultiSelect panel',
-        renderWidget: ({...rest}) =>
+        render: ({...rest}) =>
           m(MultiSelect, {
             options: Object.entries(options).map(([key, value]) => {
               return {
@@ -1082,14 +655,14 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             },
             ...rest,
           }),
-        initialOpts: {
+        schema: {
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Popup with MultiSelect',
-        renderWidget: ({icon, ...rest}) =>
+        render: ({icon, ...rest}) =>
           m(PopupMultiSelect, {
             options: Object.entries(options).map(([key, value]) => {
               return {
@@ -1108,22 +681,24 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             },
             ...rest,
           }),
-        initialOpts: {
+        schema: {
           icon: true,
           showNumSelected: true,
           repeatCheckedItemsAtTop: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'MultiselectInput',
         description: `Tag input with options`,
-        renderWidget: () => {
+        render: () => {
           return m(MultiselectInputDemo);
         },
+        schema: {},
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Menu',
-        renderWidget: () =>
+        schema: {},
+        render: () =>
           m(
             Menu,
             m(MenuItem, {label: 'New', icon: 'add'}),
@@ -1132,6 +707,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             m(MenuDivider),
             m(MenuItem, {label: 'Delete', icon: 'delete'}),
             m(MenuDivider),
+            m(MenuTitle, {label: 'Sharing'}),
             m(
               MenuItem,
               {label: 'Share', icon: 'share'},
@@ -1153,64 +729,66 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             ),
           ),
       }),
-      m(WidgetShowcase, {
-        label: 'PopupMenu',
-        renderWidget: (opts) =>
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {
-                label: 'Menu',
-                rightIcon: Icons.ContextMenu,
-              }),
-              ...opts,
-            },
-            m(MenuItem, {label: 'New', icon: 'add'}),
-            m(MenuItem, {label: 'Open', icon: 'folder_open'}),
-            m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
-            m(MenuDivider),
-            m(MenuItem, {label: 'Delete', icon: 'delete'}),
-            m(MenuDivider),
-            m(
-              MenuItem,
-              {label: 'Share', icon: 'share'},
-              m(MenuItem, {label: 'Everyone', icon: 'public'}),
-              m(MenuItem, {label: 'Friends', icon: 'group'}),
-              m(
-                MenuItem,
-                {label: 'Specific people', icon: 'person_add'},
-                m(MenuItem, {label: 'Alice', icon: 'person'}),
-                m(MenuItem, {label: 'Bob', icon: 'person'}),
-              ),
-            ),
-            m(
-              MenuItem,
-              {label: 'More', icon: 'more_horiz'},
-              m(MenuItem, {label: 'Query', icon: 'database'}),
-              m(MenuItem, {label: 'Download', icon: 'download'}),
-              m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
-            ),
-          ),
-        initialOpts: {
-          popupPosition: new EnumOption(
-            PopupPosition.Bottom,
-            Object.values(PopupPosition),
-          ),
-        },
-      }),
-      m(WidgetShowcase, {
+      // renderWidgetContainer({
+      //   label: 'PopupMenu',
+      //   render: (opts) =>
+      //     m(
+      //       PopupMenu,
+      //       {
+      //         trigger: m(Button, {
+      //           label: 'Menu',
+      //           rightIcon: Icons.ContextMenu,
+      //         }),
+      //         ...opts,
+      //       },
+      //       m(MenuTitle, {label: 'File'}),
+      //       m(MenuItem, {label: 'New', icon: 'add'}),
+      //       m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+      //       m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
+      //       m(MenuItem, {label: 'Delete', icon: 'delete'}),
+      //       m(MenuDivider),
+      //       m(MenuTitle, {label: 'Sharing'}),
+      //       m(
+      //         MenuItem,
+      //         {label: 'Share', icon: 'share'},
+      //         m(MenuItem, {label: 'Everyone', icon: 'public'}),
+      //         m(MenuItem, {label: 'Friends', icon: 'group'}),
+      //         m(
+      //           MenuItem,
+      //           {label: 'Specific people', icon: 'person_add'},
+      //           m(MenuItem, {label: 'Alice', icon: 'person'}),
+      //           m(MenuItem, {label: 'Bob', icon: 'person'}),
+      //         ),
+      //       ),
+      //       m(
+      //         MenuItem,
+      //         {label: 'More', icon: 'more_horiz'},
+      //         m(MenuItem, {label: 'Query', icon: 'database'}),
+      //         m(MenuItem, {label: 'Download', icon: 'download'}),
+      //         m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
+      //       ),
+      //     ),
+      //   schema: {
+      //     popupPosition: enumOption(
+      //       PopupPosition.Bottom,
+      //       Object.values(PopupPosition),
+      //     ),
+      //   },
+      // }),
+      renderWidgetContainer({
         label: 'CursorTooltip',
         description: 'A tooltip that follows the mouse around.',
-        renderWidget: () => m(CursorTooltipShowcase),
+        schema: {},
+        render: () => m(CursorTooltipShowcase),
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Spinner',
         description: `Simple spinner, rotates forever.
             Width and height match the font size.`,
-        renderWidget: ({fontSize, easing}) =>
+        render: ({fontSize, easing}) =>
           m('', {style: {fontSize}}, m(Spinner, {easing})),
-        initialOpts: {
-          fontSize: new EnumOption('16px', [
+        schema: {
+          fontSize: enumOption('16px', [
             '12px',
             '16px',
             '24px',
@@ -1221,11 +799,12 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           easing: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Tree',
         description: `Hierarchical tree with left and right values aligned to
         a grid.`,
-        renderWidget: (opts) =>
+        schema: {},
+        render: (opts) =>
           m(
             Tree,
             opts,
@@ -1308,13 +887,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
         wide: true,
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Form',
-        renderWidget: () => renderForm('form'),
+        render: () => renderForm('form'),
+        schema: {},
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Nested Popups',
-        renderWidget: () =>
+        schema: {},
+        render: () =>
           m(
             Popup,
             {
@@ -1336,28 +917,31 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             ]),
           ),
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Callout',
-        renderWidget: (opts) =>
+        schema: {
+          intent: enumOption(Intent.None, Object.values(Intent)),
+          dismissable: false,
+          icon: true,
+        },
+        render: ({icon, intent, ...rest}) =>
           m(
             Callout,
             {
-              icon: 'info',
-              ...opts,
+              ...rest,
+              icon: icon ? 'info' : undefined,
+              intent: intent as Intent,
             },
             'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
               'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
               'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
               'finibus est.',
           ),
-        initialOpts: {
-          intent: new EnumOption(Intent.None, Object.values(Intent)),
-          dismissable: false,
-        },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Editor',
-        renderWidget: () =>
+        schema: {},
+        render: () =>
           m(Editor, {
             language: 'perfetto-sql',
             onUpdate: (text) => {
@@ -1365,30 +949,14 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             },
           }),
       }),
-      m(WidgetShowcase, {
-        label: 'VegaView',
-        renderWidget: (opt) =>
-          m(VegaView, {
-            spec: getExampleSpec(opt.exampleSpec),
-            data: getExampleData(opt.exampleData),
-          }),
-        initialOpts: {
-          exampleSpec: new EnumOption(
-            SpecExample.BarChart,
-            Object.values(SpecExample),
-          ),
-          exampleData: new EnumOption(
-            DataExample.English,
-            Object.values(DataExample),
-          ),
-        },
-      }),
-      m(WidgetShowcase, {
+      m(VegaDemo),
+      renderWidgetContainer({
         label: 'Form within PopupMenu',
         description: `A form placed inside a popup menu works just fine,
               and the cancel/submit buttons also dismiss the popup. A bit more
               margin is added around it too, which improves the look and feel.`,
-        renderWidget: () =>
+        schema: {},
+        render: () =>
           m(
             PopupMenu,
             {
@@ -1403,9 +971,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             ),
           ),
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Hotkey',
-        renderWidget: (opts) => {
+
+        render: (opts) => {
           if (opts.platform === 'auto') {
             return m(HotkeyGlyphs, {hotkey: opts.hotkey as Hotkey});
           } else {
@@ -1416,17 +985,17 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             });
           }
         },
-        initialOpts: {
+        schema: {
           hotkey: 'Mod+Shift+P',
-          platform: new EnumOption('auto', ['auto', 'Mac', 'PC']),
+          platform: enumOption('auto', ['auto', 'Mac', 'PC']),
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Text Paragraph',
         description: `A basic formatted text paragraph with wrapping. If
               it is desirable to preserve the original text format/line breaks,
               set the compressSpace attribute to false.`,
-        renderWidget: (opts) => {
+        render: (opts) => {
           return m(TextParagraph, {
             text: `Lorem ipsum dolor sit amet, consectetur adipiscing
                          elit. Nulla rhoncus tempor neque, sed malesuada eros
@@ -1435,14 +1004,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             compressSpace: opts.compressSpace,
           });
         },
-        initialOpts: {
+        schema: {
           compressSpace: true,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Multi Paragraph Text',
         description: `A wrapper for multiple paragraph widgets.`,
-        renderWidget: () => {
+        schema: {},
+        render: () => {
           return m(
             MultiParagraphText,
             m(TextParagraph, {
@@ -1465,11 +1035,12 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           );
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Modal',
         description: `Shows a dialog box in the center of the screen over the
                       top of other elements.`,
-        renderWidget: () =>
+        schema: {},
+        render: () =>
           m(Button, {
             label: 'Show Modal',
             onclick: () => {
@@ -1502,15 +1073,17 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             },
           }),
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Advanced Modal',
         description: `A helper for modal dialog.`,
-        renderWidget: () => m(ModalShowcase),
+        schema: {},
+        render: () => m(ModalShowcase),
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'TreeTable',
         description: `Hierarchical tree with multiple columns`,
-        renderWidget: () => {
+        schema: {},
+        render: () => {
           const attrs: TreeTableAttrs<File> = {
             rows: files,
             getChildren: (file) => file.children,
@@ -1523,10 +1096,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           return m(TreeTable<File>, attrs);
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'VirtualTable',
         description: `Virtualized table for efficient rendering of large datasets`,
-        renderWidget: () => {
+        schema: {},
+        render: () => {
           const attrs: VirtualTableAttrs = {
             columns: [
               {header: 'x', width: '4em'},
@@ -1551,22 +1125,23 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           return m(VirtualTable, attrs);
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Tag Input',
         description: `
           TagInput displays Tag elements inside an input, followed by an
           interactive text input. The container is styled to look like a
           TextInput, but the actual editable element appears after the last tag.
           Clicking anywhere on the container will focus the text input.`,
-        renderWidget: () => m(TagInputDemo),
+        schema: {},
+        render: () => m(TagInputDemo),
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Middle Ellipsis',
         description: `
           Sometimes the start and end of a bit of text are more important than
           the middle. This element puts the ellipsis in the midde if the content
           is too wide for its container.`,
-        renderWidget: (opts) =>
+        render: (opts) =>
           m(
             'div',
             {style: {width: Boolean(opts.squeeze) ? '150px' : '450px'}},
@@ -1574,37 +1149,40 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
             }),
           ),
-        initialOpts: {
+        schema: {
           squeeze: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Chip',
         description: `A little chip or tag`,
-        renderWidget: (opts) => {
-          const {icon, ...rest} = opts;
+        render: (opts) => {
+          const {icon, intent, ...rest} = opts;
           return m(
             Stack,
             {orientation: 'horizontal'},
             m(Chip, {
               label: 'Foo',
               icon: icon === true ? 'info' : undefined,
+              intent: intent as Intent,
               ...rest,
             }),
             m(Chip, {
               label: 'Bar',
               icon: icon === true ? 'warning' : undefined,
+              intent: intent as Intent,
               ...rest,
             }),
             m(Chip, {
               label: 'Baz',
               icon: icon === true ? 'error' : undefined,
+              intent: intent as Intent,
               ...rest,
             }),
           );
         },
-        initialOpts: {
-          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        schema: {
+          intent: enumOption(Intent.None, Object.values(Intent)),
           icon: true,
           compact: false,
           rounded: false,
@@ -1612,10 +1190,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           removable: true,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'TrackShell',
         description: `The Mithril parts of a track (the shell, mainly).`,
-        renderWidget: (opts) => {
+        render: (opts) => {
           const {buttons, chips, multipleTracks, error, ...rest} = opts;
           const dummyButtons = () => [
             m(Button, {icon: 'info', compact: true}),
@@ -1647,7 +1225,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               : renderTrack(),
           );
         },
-        initialOpts: {
+        schema: {
           title: 'This is the title of the track',
           subtitle: 'This is the subtitle of the track',
           buttons: true,
@@ -1664,12 +1242,12 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           lite: false,
         },
       }),
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'Virtual Overlay Canvas',
         description: `A scrolling container that draws a virtual canvas over
           the top of it's content and keeps it in the viewport to make it appear
           like there is one big canvas over the top of the content.`,
-        renderWidget: () => {
+        render: () => {
           const width = 200;
           const rowCount = 65536;
           const rowHeight = 20;
@@ -1706,13 +1284,13 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             }),
           );
         },
-        initialOpts: {},
+        schema: {},
       }),
 
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'SplitPanel',
         description: `Resizeable split panel with optional tabs.`,
-        renderWidget: (opts) => {
+        render: (opts) => {
           return m(
             '',
             {
@@ -1745,14 +1323,14 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             ),
           );
         },
-        initialOpts: {
+        schema: {
           leftContent: true,
           tabs: true,
           showCloseButtons: true,
         },
       }),
 
-      renderWidgetShowcase({
+      renderWidgetContainer({
         label: 'Grid',
         description: `
           Presentation layer for grid/table elements. Defines a consistent look
@@ -1761,7 +1339,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           reordering and column level aggregations, but doesn't have any
           opinions about the data or how they should be manipulated.
         `,
-        renderWidget: ({reorderable, ...rest}) =>
+        render: ({reorderable, ...rest}) =>
           m(
             '',
             {style: {height: '400px', width: '400px', overflow: 'hidden'}},
@@ -1987,21 +1565,16 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               ]),
             ]),
           ),
-        initialOpts: {
+        schema: {
           fillHeight: true,
           reorderable: true,
         },
       }),
 
-      renderWidgetShowcase({
+      renderWidgetContainer({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
-        renderWidget: ({
-          readonlyFilters,
-          readonlySorting,
-          aggregation,
-          ...rest
-        }) =>
+        render: ({readonlyFilters, readonlySorting, aggregation, ...rest}) =>
           m(DataGrid, {
             ...rest,
             filters: readonlyFilters ? [] : undefined,
@@ -2053,7 +1626,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               },
             ],
           }),
-        initialOpts: {
+        schema: {
           showFiltersInToolbar: true,
           readonlyFilters: false,
           readonlySorting: false,
@@ -2061,16 +1634,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
 
-      renderWidgetShowcase({
+      renderWidgetContainer({
         label: 'DataGrid (query backed)',
         description: `An interactive data explorer and viewer - fetched from SQL.`,
-        renderWidget: ({
-          readonlyFilters,
-          readonlySorting,
-          aggregation,
-          ...rest
-        }) => {
-          const trace = attrs.app.trace;
+        render: ({readonlyFilters, readonlySorting, aggregation, ...rest}) => {
           if (trace) {
             return m(QueryDataGrid, {
               ...rest,
@@ -2111,7 +1678,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             return 'Load a trace to start';
           }
         },
-        initialOpts: {
+        schema: {
           showFiltersInToolbar: true,
           readonlyFilters: false,
           readonlySorting: false,
@@ -2119,10 +1686,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
 
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'TabStrip',
         description: `A simple tab strip`,
-        renderWidget: () => {
+        render: () => {
           return m(TabStrip, {
             tabs: [
               {key: 'foo', title: 'Foo'},
@@ -2135,34 +1702,24 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             },
           });
         },
-        initialOpts: {},
+        schema: {},
       }),
 
-      m(WidgetShowcase, {
+      renderWidgetContainer({
         label: 'CodeSnippet',
-        renderWidget: ({wide}) =>
+        render: ({wide}) =>
           m(CodeSnippet, {
             language: 'SQL',
             text: Boolean(wide)
               ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
               : 'SELECT * FROM slice LIMIT 10;',
           }),
-        initialOpts: {
+        schema: {
           wide: false,
         },
       }),
     );
   }
-}
-
-function renderWidgetShowcase<T extends Options = {}>(attrs: {
-  label: string;
-  description?: string;
-  renderWidget(opts: T): m.Children;
-  initialOpts?: T;
-  wide?: boolean;
-}) {
-  return m(WidgetShowcase, attrs);
 }
 
 function CursorTooltipShowcase() {
