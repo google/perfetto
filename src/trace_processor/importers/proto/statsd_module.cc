@@ -295,8 +295,7 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
       name_id = context_->storage->InternString(name.string_view());
     } else {
       const FieldDescriptor& field = field_it->second;
-      name_id =
-          context_->storage->InternString(base::StringView(field.name()));
+      name_id = context_->storage->InternString(base::StringView(field.name()));
     }
     atom_names_[atom_field_id] = name_id;
     return name_id;
