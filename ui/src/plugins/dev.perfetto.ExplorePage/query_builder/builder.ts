@@ -46,10 +46,7 @@ export interface BuilderAttrs {
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (
-    nodeId: string,
-    layout: NodeBoxLayout,
-  ) => void;
+  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
 
   // Add source nodes.
   readonly onAddStdlibTableSource: () => void;

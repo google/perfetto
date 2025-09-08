@@ -52,6 +52,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       state.rootNodes.push(newNode);
     }
     this.selectNode(state, newNode);
+    m.redraw();
   }
 
   private selectNode(state: ExplorePageState, node: QueryNode) {
