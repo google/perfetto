@@ -44,3 +44,4 @@ TAGS
 
 .gemini/
 gha-creds-*.json
+1085_trace.perfetto_trace.gz

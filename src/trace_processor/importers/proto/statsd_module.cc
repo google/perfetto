@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/importers/proto/statsd_module.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -23,7 +22,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -53,7 +51,6 @@
 
 namespace perfetto::trace_processor {
 namespace {
-
 constexpr const char* kAtomProtoName = ".android.os.statsd.Atom";
 
 const unsigned char kTestAtomDescriptor[] = {
@@ -110,13 +107,13 @@ const unsigned char kTestAtomDescriptor[] = {
 // If we don't know about the atom format put whatever details we
 // can. This has the following restrictions:
 // - We can't tell the difference between double, fixed64, sfixed64
-//   so those all show up as double
+// so those all show up as double
 // - We can't tell the difference between float, fixed32, sfixed32
-//   so those all show up as float
+// so those all show up as float
 // - We can't tell the difference between int32, int64 and sint32
-//   and sint64. We assume int32/int64.
+// and sint64. We assume int32/int64.
 // - We only show the length of strings, nested messages, packed ints
-//   and any other length delimited fields.
+// and any other length delimited fields.
 base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
                                util::ProtoToArgsParser::Delegate& delegate) {
   protozero::ProtoDecoder decoder(cb);
@@ -167,13 +164,10 @@ StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
       // The ArgsParser is initialized with local_pool_.
       args_parser_(local_pool_) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber);
-
   local_pool_.AddFromFileDescriptorSet(kAtomsDescriptor.data(),
                                        kAtomsDescriptor.size());
-
   local_pool_.AddFromFileDescriptorSet(kTestAtomDescriptor,
                                        sizeof(kTestAtomDescriptor), {}, true);
-
   if (auto i = local_pool_.FindDescriptorIdx(kAtomProtoName)) {
     descriptor_idx_ = *i;
   } else {
@@ -192,11 +186,11 @@ ModuleResult StatsdModule::TokenizePacket(
   if (field_id != TracePacket::kStatsdAtomFieldNumber) {
     return ModuleResult::Ignored();
   }
+
   const auto& atoms_wrapper = StatsdAtom::Decoder(decoder.statsd_atom());
   auto it_timestamps = atoms_wrapper.timestamp_nanos();
   for (auto it = atoms_wrapper.atom(); it; ++it) {
     int64_t atom_timestamp;
-
     if (it_timestamps) {
       atom_timestamp = *it_timestamps++;
     } else {
@@ -215,7 +209,6 @@ ModuleResult StatsdModule::TokenizePacket(
     module_context_->trace_packet_stream->Push(
         atom_timestamp, TracePacketData{std::move(tbv), state});
   }
-
   return ModuleResult::Handled();
 }
 
@@ -239,7 +232,6 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   // nested_bytes is an Atom proto. We (deliberately) don't generate
   // decoding code for every kind of atom (or the parent Atom proto)
   // and instead use the descriptor to parse the args/name.
-
   // Atom is a giant oneof of all the possible 'kinds' of atom so here
   // we use the protozero decoder implementation to grab the first
   // field id which we we use to look up the field name:
@@ -249,12 +241,12 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   if (field.valid()) {
     nested_field_id = field.id();
   }
+
   StringId atom_name = GetAtomName(nested_field_id);
   context_->slice_tracker->Scoped(
       ts, InternTrackId(), kNullStringId, atom_name, 0,
       [&](ArgsTracker::BoundInserter* inserter) {
         ArgsParser delegate(ts, *inserter, *context_->storage);
-
         const auto& descriptor =
             local_pool_.descriptors()[descriptor_idx_];  // Use local_pool_
         const auto& field_it = descriptor.fields().find(nested_field_id);
@@ -270,13 +262,19 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
 
           status = ParseGenericEvent(field.as_bytes(), delegate);
         } else {
-          status = args_parser_.ParseMessage(nested_bytes, kAtomProtoName,
-                                             nullptr /* parse all fields */,
-                                             delegate);
-        }
+          const FieldDescriptor& field_desc = field_it->second;
+          const auto& payload_message_name = field_desc.resolved_type_name();
 
-        if (!status.ok()) {
-          context_->storage->IncrementStats(stats::atom_unknown);
+          if (payload_message_name.empty()) {
+            status = ParseGenericEvent(field.as_bytes(), delegate);
+          } else {
+            status = args_parser_.ParseMessage(
+                field.as_bytes(), payload_message_name, nullptr, delegate);
+          }
+
+          if (!status.ok()) {
+            context_->storage->IncrementStats(stats::atom_unknown);
+          }
         }
       });
 }
@@ -288,7 +286,6 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
       context_->storage->IncrementStats(stats::atom_unknown);
       return context_->storage->InternString("Could not load atom descriptor");
     }
-
     const auto& descriptor =
         local_pool_.descriptors()[descriptor_idx_];  // Use local_pool_
     StringId name_id;
@@ -298,7 +295,8 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
       name_id = context_->storage->InternString(name.string_view());
     } else {
       const FieldDescriptor& field = field_it->second;
-      name_id = context_->storage->InternString(base::StringView(field.name()));
+      name_id =
+          context_->storage->InternString(base::StringView(field.name()));
     }
     atom_names_[atom_field_id] = name_id;
     return name_id;
