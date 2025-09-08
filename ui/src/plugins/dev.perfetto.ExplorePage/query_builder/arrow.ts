@@ -18,18 +18,29 @@ import {NodeBoxLayout} from './node_box';
 export interface ArrowAttrs {
   from: NodeBoxLayout;
   to: NodeBoxLayout;
+  portSide: 'from' | 'to';
   portIndex: number;
   portCount: number;
 }
 
 export const Arrow: m.Component<ArrowAttrs> = {
   view({attrs}) {
-    const {from, to, portIndex, portCount} = attrs;
+    const {from, to, portSide, portIndex, portCount} = attrs;
     const fromWidth = from.width ?? 0;
-    const x1 = from.x + (fromWidth * (portIndex + 1)) / (portCount + 1);
+    const toWidth = to.width ?? 0;
+
+    const x1 =
+      portSide === 'from'
+        ? from.x + (fromWidth * (portIndex + 1)) / (portCount + 1)
+        : from.x + fromWidth / 2;
     const y1 = from.y + (from.height ?? 0);
-    const x2 = to.x + (to.width ?? 0) / 2;
+
+    const x2 =
+      portSide === 'to'
+        ? to.x + (toWidth * (portIndex + 1)) / (portCount + 1)
+        : to.x + toWidth / 2;
     const y2 = to.y;
+
     return m(
       'svg.pf-node-graph-arrow',
       {
