@@ -13,19 +13,24 @@
 // limitations under the License.
 
 html {
-  height: 100%;
-  width: 100%;
+  // TODO(stevegolton): Can this be moved to body?
   touch-action: pan-x pan-y;
 }
 
-html,
-body,
-body > main {
-  height: 100%;
-  width: 100%;
+body {
+  // Make the body fill the entire window.
+  height: 100vh;
+  width: 100vw;
+
+  // Disable any default margin/padding of the body element.
   padding: 0;
   margin: 0;
+
+  // Prevent navigation via swipe gestures.
   overscroll-behavior: none;
+
+  // Ensures anything that overflows the body is hidden.
+  // TODO(stevegolton): Unsure if this is necessary.
   overflow: hidden;
 }
 
