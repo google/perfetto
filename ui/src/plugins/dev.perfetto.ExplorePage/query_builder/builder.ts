@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
+import {QueryNode, Query, isAQuery, queryToRun, NodeType} from '../query_node';
 import {ExplorePageHelp} from './help';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph';
@@ -51,7 +51,6 @@ export interface BuilderAttrs {
   readonly onAddSqlSource: () => void;
 
   // Add derived nodes.
-  readonly onAddSubQueryNode: (node: QueryNode) => void;
   readonly onAddAggregationNode: (node: QueryNode) => void;
   readonly onAddIntervalIntersectNode: (node: QueryNode) => void;
 
@@ -93,7 +92,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       } else {
         this.tablePosition = 'bottom';
       }
-      this.runQuery(selectedNode);
+      this.response = undefined;
+      this.dataSource = undefined;
     }
     this.previousSelectedNode = selectedNode;
 
@@ -113,7 +113,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           key: selectedNode.nodeId,
           trace,
           node: selectedNode,
-          onQueryAnalyzed: (query: Query | Error, reexecute = true) => {
+          resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
+          onQueryAnalyzed: (
+            query: Query | Error,
+            reexecute = selectedNode.type !== NodeType.kSqlSource &&
+              selectedNode.type !== NodeType.kIntervalIntersect,
+          ) => {
             this.query = query;
             if (isAQuery(this.query) && reexecute) {
               this.queryExecuted = false;
@@ -121,15 +126,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
           },
           onExecute: () => {
+            console.log('Executing');
             this.queryExecuted = false;
             this.runQuery(selectedNode);
             m.redraw();
           },
-          onchange: () => {
-            this.queryExecuted = false;
-            this.runQuery(selectedNode);
-            m.redraw();
-          },
+          onchange: () => {},
         })
       : m(ExplorePageHelp, {
           sqlModules,
@@ -163,16 +165,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAddSqlSource,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onAddSubQuery: attrs.onAddSubQueryNode,
           onAddAggregation: attrs.onAddAggregationNode,
           onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
           onDeleteNode: (node: QueryNode) => {
-            if (
-              node.state.isExecuted &&
-              'graphTableName' in node &&
-              node.graphTableName
-            ) {
-              trace.engine.query(`DROP TABLE IF EXISTS ${node.graphTableName}`);
+            if (node.isMaterialised()) {
+              trace.engine.query(`DROP TABLE IF EXISTS ${node.meterialisedAs}`);
             }
             attrs.onDeleteNode(node);
           },
@@ -189,11 +186,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             executeQuery: !this.queryExecuted,
             response: this.response,
             dataSource: this.dataSource,
-            onchange: () => {
-              this.query = undefined;
-              this.queryExecuted = false;
-              m.redraw();
-            },
+            onchange: () => {},
             onQueryExecuted: ({
               columns,
               error,
@@ -233,6 +226,29 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           }),
         ),
     );
+  }
+
+  private resolveNode(
+    nodeId: string,
+    rootNodes: QueryNode[],
+  ): QueryNode | undefined {
+    const queue: QueryNode[] = [...rootNodes];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current.nodeId)) {
+        continue;
+      }
+      visited.add(current.nodeId);
+
+      if (current.nodeId === nodeId) {
+        return current;
+      }
+
+      queue.push(...current.nextNodes);
+    }
+    return undefined;
   }
 
   private runQuery(node: QueryNode) {

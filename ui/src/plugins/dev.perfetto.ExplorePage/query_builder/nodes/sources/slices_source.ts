@@ -70,6 +70,9 @@ export class SlicesSourceNode extends SourceNode {
     return this.state.customTitle ?? 'Simple slices';
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
