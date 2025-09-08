@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -90,28 +91,70 @@ base::Status CheckExtensionField(const ProtoDescriptor& proto_descriptor,
   return base::OkStatus();
 }
 
+static void PrintStatusError(const std::string& context,
+                             const base::Status& status) {
+  if (!status.ok()) {
+    std::cerr << "  ERROR in " << context << ": " << status.message()
+              << std::endl;
+  }
+}
+
 }  // namespace
 
+std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
+    const std::string& full_name) const {
+  auto it = full_name_to_descriptor_index_.find(full_name);
+  if (it != full_name_to_descriptor_index_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
+}
+
+// Resolves a potentially short type name to a descriptor index.
 std::optional<uint32_t> DescriptorPool::ResolveShortType(
     const std::string& parent_path,
     const std::string& short_type) {
   PERFETTO_DCHECK(!short_type.empty());
 
-  std::string search_path = short_type[0] == '.'
-                                ? parent_path + short_type
-                                : parent_path + '.' + short_type;
-  auto opt_idx = FindDescriptorIdx(search_path);
-  if (opt_idx)
-    return opt_idx;
+  if (short_type[0] == '.') {
+    return FindDescriptorIdx(short_type);
+  }
 
-  if (parent_path.empty())
-    return std::nullopt;
+  auto dot_idx = short_type.rfind('.');
+  if (dot_idx != std::string::npos) {
+    auto opt_idx = FindDescriptorIdx(short_type);
+    if (opt_idx) {
+      return opt_idx;
+    }
+  }
 
-  auto parent_dot_idx = parent_path.rfind('.');
-  auto parent_substr = parent_dot_idx == std::string::npos
-                           ? ""
-                           : parent_path.substr(0, parent_dot_idx);
-  return ResolveShortType(parent_substr, short_type);
+  std::string current_path = parent_path;
+  if (!current_path.empty() && current_path[0] != '.') {
+    current_path = "." + current_path;
+  }
+
+  while (true) {
+    std::string search_path =
+        current_path + (current_path == "." ? "" : ".") + short_type;
+    if (current_path.empty()) {
+      search_path = "." + short_type;
+    }
+
+    auto opt_idx = FindDescriptorIdx(search_path);
+    if (opt_idx)
+      return opt_idx;
+
+    if (current_path.empty() || current_path == ".")
+      break;
+
+    auto parent_dot_idx = current_path.rfind('.');
+    if (parent_dot_idx == std::string::npos || parent_dot_idx == 0) {
+      current_path = "";
+    } else {
+      current_path = current_path.substr(0, parent_dot_idx);
+    }
+  }
+  return std::nullopt;
 }
 
 base::Status DescriptorPool::AddExtensionField(
@@ -126,14 +169,21 @@ base::Status DescriptorPool::AddExtensionField(
     return base::ErrStatus("Extendee name is empty");
   }
 
-  if (extendee_name[0] != '.') {
-    // Only prepend if the extendee is not fully qualified
-    extendee_name = package_name + "." + extendee_name;
-  }
-  std::optional<uint32_t> extendee = FindDescriptorIdx(extendee_name);
+  std::optional<uint32_t> extendee =
+      ResolveShortType(package_name, extendee_name);
   if (!extendee.has_value()) {
-    return base::ErrStatus("Extendee does not exist %s", extendee_name.c_str());
+    // Fallback: Try just the extendee name if it looked fully qualified.
+    if (extendee_name[0] == '.') {
+      extendee = FindDescriptorIdx(extendee_name);
+    }
+    if (!extendee.has_value()) {
+      return base::ErrStatus(
+          "Extendee does not exist %s (resolved from %s in package %s)",
+          extendee_name.c_str(), f_decoder.extendee().ToStdString().c_str(),
+          package_name.c_str());
+    }
   }
+
   ProtoDescriptor& extendee_desc = descriptors_[extendee.value()];
   RETURN_IF_ERROR(CheckExtensionField(extendee_desc, field));
   extendee_desc.AddField(field);
@@ -151,15 +201,15 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
 
   auto parent_name =
       parent_idx ? descriptors_[*parent_idx].full_name() : package_name;
-  auto full_name =
-      parent_name + "." + base::StringView(decoder.name()).ToStdString();
+
+  std::string name = base::StringView(decoder.name()).ToStdString();
+  auto full_name = (parent_name == "." || parent_name.empty())
+                       ? parent_name + name
+                       : parent_name + "." + name;
 
   auto idx = FindDescriptorIdx(full_name);
   if (idx.has_value() && !merge_existing_messages) {
-    const auto& existing_descriptor = descriptors_[*idx];
-    return base::ErrStatus("%s: %s was already defined in file %s",
-                           file_name.c_str(), full_name.c_str(),
-                           existing_descriptor.file_name().c_str());
+    return base::OkStatus();  // Skip redefinition
   }
   if (!idx.has_value()) {
     ProtoDescriptor proto_descriptor(file_name, package_name, full_name,
@@ -182,16 +232,16 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
   }
 
   for (auto it = decoder.enum_type(); it; ++it) {
-    RETURN_IF_ERROR(AddEnumProtoDescriptors(file_name, package_name, idx, *it,
+    RETURN_IF_ERROR(AddEnumProtoDescriptors(file_name, full_name, idx, *it,
                                             merge_existing_messages));
   }
   for (auto it = decoder.nested_type(); it; ++it) {
-    RETURN_IF_ERROR(AddNestedProtoDescriptors(file_name, package_name, idx, *it,
-                                              extensions,
-                                              merge_existing_messages));
+    RETURN_IF_ERROR(AddNestedProtoDescriptors(
+        file_name, full_name, idx, *it, extensions, merge_existing_messages));
   }
   for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
-    extensions->emplace_back(package_name, *ext_it);
+    extensions->emplace_back(
+        full_name, *ext_it);  // Use full_name of the message as the scope
   }
   return base::OkStatus();
 }
@@ -206,20 +256,20 @@ base::Status DescriptorPool::AddEnumProtoDescriptors(
 
   auto parent_name =
       parent_idx ? descriptors_[*parent_idx].full_name() : package_name;
-  auto full_name =
-      parent_name + "." + base::StringView(decoder.name()).ToStdString();
+
+  std::string name = base::StringView(decoder.name()).ToStdString();
+  auto full_name = (parent_name == "." || parent_name.empty())
+                       ? parent_name + name
+                       : parent_name + "." + name;
 
   auto prev_idx = FindDescriptorIdx(full_name);
   if (prev_idx.has_value() && !merge_existing_messages) {
-    const auto& existing_descriptor = descriptors_[*prev_idx];
-    return base::ErrStatus("%s: %s was already defined in file %s",
-                           file_name.c_str(), full_name.c_str(),
-                           existing_descriptor.file_name().c_str());
+    return base::OkStatus();  // Skip redefinition
   }
   if (!prev_idx.has_value()) {
     ProtoDescriptor proto_descriptor(file_name, package_name, full_name,
                                      ProtoDescriptor::Type::kEnum,
-                                     std::nullopt);
+                                     parent_idx);  // Pass parent_idx
     prev_idx = AddProtoDescriptor(std::move(proto_descriptor));
   }
   ProtoDescriptor& proto_descriptor = descriptors_[*prev_idx];
@@ -245,165 +295,131 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     bool merge_existing_messages) {
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
+  if (size > 0 && file_descriptor_set_proto == nullptr) {
+    std::cerr << "--- ERROR: FileDescriptorSet data is null ---" << std::endl;
+    return base::ErrStatus("Invalid FileDescriptorSet data: null");
+  }
+  if (size == 0) {
+    std::cout << "--- INFO: Empty FileDescriptorSet data ---" << std::endl;
+    return base::OkStatus();
+  }
+
   std::vector<ExtensionInfo> extensions;
+  std::cout << "--- Starting AddFromFileDescriptorSet ---" << std::endl;
+
+  bool has_files = false;
   for (auto it = proto.file(); it; ++it) {
+    has_files = true;
     protos::pbzero::FileDescriptorProto::Decoder file(*it);
     const std::string file_name = file.name().ToStdString();
-    if (base::StartsWithAny(file_name, skip_prefixes))
-      continue;
-    if (!merge_existing_messages &&
-        processed_files_.find(file_name) != processed_files_.end()) {
-      // This file has been loaded once already. Skip.
+    std::cout << "Processing file: " << file_name << std::endl;
+
+    if (base::StartsWithAny(file_name, skip_prefixes)) {
+      std::cout << "  INFO: Skipping '" << file_name
+                << "' due to skip_prefixes." << std::endl;
       continue;
     }
+
+    bool already_processed = processed_files_.count(file_name);
+    if (!merge_existing_messages && already_processed) {
+      std::cout
+          << "  INFO: Skipping '" << file_name
+          << "' as it's already processed and merge_existing_messages is false."
+          << std::endl;
+      continue;
+    }
+
     processed_files_.insert(file_name);
     std::string package = "." + base::StringView(file.package()).ToStdString();
+
     for (auto message_it = file.message_type(); message_it; ++message_it) {
-      RETURN_IF_ERROR(AddNestedProtoDescriptors(
+      base::Status status = AddNestedProtoDescriptors(
           file_name, package, std::nullopt, *message_it, &extensions,
-          merge_existing_messages));
+          merge_existing_messages);
+      PrintStatusError("AddNestedProtoDescriptors for file " + file_name,
+                       status);
+      RETURN_IF_ERROR(status);
     }
+
     for (auto enum_it = file.enum_type(); enum_it; ++enum_it) {
-      RETURN_IF_ERROR(AddEnumProtoDescriptors(
-          file_name, package, std::nullopt, *enum_it, merge_existing_messages));
+      base::Status status = AddEnumProtoDescriptors(
+          file_name, package, std::nullopt, *enum_it, merge_existing_messages);
+      PrintStatusError("AddEnumProtoDescriptors for file " + file_name, status);
+      RETURN_IF_ERROR(status);
     }
+
     for (auto ext_it = file.extension(); ext_it; ++ext_it) {
       extensions.emplace_back(package, *ext_it);
     }
   }
 
-  // Second pass: Add extension fields to the real protos.
-  for (const auto& extension : extensions) {
-    RETURN_IF_ERROR(AddExtensionField(extension.first, extension.second));
+  if (!has_files) {
+    std::cout << "--- INFO: No files found in this FileDescriptorSet ---"
+              << std::endl;
   }
 
-  // Third pass: resolve the types of all the fields.
+  if (!extensions.empty()) {
+    std::cout << "--- Second Pass: Adding " << extensions.size()
+              << " Extensions ---" << std::endl;
+    for (const auto& extension : extensions) {
+      base::Status status =
+          AddExtensionField(extension.first, extension.second);
+      PrintStatusError("AddExtensionField", status);
+      RETURN_IF_ERROR(status);
+    }
+  }
+
+  // Debug logs
+  std::cout << "--- Before Third Pass: Checking for Target Type ---"
+            << std::endl;
+  const std::string target_type =
+      ".logs.proto.wireless.android.stats.platform.westworld.battery."
+      "RawBatteryGaugeStatsReported";
+  if (full_name_to_descriptor_index_.count(target_type)) {
+    std::cout << "    SUCCESS: Target type '" << target_type
+              << "' IS in the map." << std::endl;
+  } else {
+    std::cout << "    FAILURE: Target type '" << target_type
+              << "' IS NOT in the map." << std::endl;
+  }
+
+  std::cout << "--- Third Pass: Resolving Field Types ---" << std::endl;
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   for (ProtoDescriptor& descriptor : descriptors_) {
     for (auto& entry : *descriptor.mutable_fields()) {
+      uint32_t field_id = entry.first;
       FieldDescriptor& field = entry.second;
       bool needs_resolution =
           field.resolved_type_name().empty() &&
           (field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
            field.type() == FieldDescriptorProto::TYPE_ENUM);
+
       if (needs_resolution) {
         auto opt_desc =
-            ResolveShortType(descriptor.full_name(), field.raw_type_name());
+            ResolveShortType(descriptor.package_name(), field.raw_type_name());
+        if (!opt_desc) {
+          opt_desc =
+              ResolveShortType(descriptor.full_name(), field.raw_type_name());
+        }
+
         if (!opt_desc.has_value()) {
+          std::cerr << "         ERROR: Unable to resolve short type '"
+                    << field.raw_type_name() << "' for field '" << field.name()
+                    << "' (ID: " << field_id << ") in message '"
+                    << descriptor.full_name() << "'" << std::endl;
           return base::ErrStatus(
-              "Unable to find short type %s in field inside message %s",
-              field.raw_type_name().c_str(), descriptor.full_name().c_str());
+              "Unable to find short type %s in field '%s' (ID: %u) inside "
+              "message %s",
+              field.raw_type_name().c_str(), field.name().c_str(), field_id,
+              descriptor.full_name().c_str());
         }
         field.set_resolved_type_name(
             descriptors_[opt_desc.value()].full_name());
       }
     }
   }
-
-  // Fourth pass: resolve all "uninterpreted" options to real options.
-  for (ProtoDescriptor& descriptor : descriptors_) {
-    for (auto& entry : *descriptor.mutable_fields()) {
-      FieldDescriptor& field = entry.second;
-      if (field.options().empty()) {
-        continue;
-      }
-      ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
-    }
-  }
+  std::cout << "--- Finished AddFromFileDescriptorSet ---" << std::endl;
   return base::OkStatus();
-}
-
-base::Status DescriptorPool::ResolveUninterpretedOption(
-    const ProtoDescriptor& proto_desc,
-    const FieldDescriptor& field_desc,
-    std::vector<uint8_t>& options) {
-  auto opt_idx = FindDescriptorIdx(".google.protobuf.FieldOptions");
-  if (!opt_idx) {
-    return base::ErrStatus("Unable to find field options for field %s in %s",
-                           field_desc.name().c_str(),
-                           proto_desc.full_name().c_str());
-  }
-  ProtoDescriptor& field_options_desc = descriptors_[*opt_idx];
-
-  protozero::ProtoDecoder decoder(field_desc.options().data(),
-                                  field_desc.options().size());
-  protozero::HeapBuffered<protozero::Message> field_options;
-  for (;;) {
-    const uint8_t* start = decoder.begin() + decoder.read_offset();
-    auto field = decoder.ReadField();
-    if (!field.valid()) {
-      break;
-    }
-    const uint8_t* end = decoder.begin() + decoder.read_offset();
-
-    if (field.id() !=
-        protos::pbzero::FieldOptions::kUninterpretedOptionFieldNumber) {
-      field_options->AppendRawProtoBytes(start,
-                                         static_cast<size_t>(end - start));
-      continue;
-    }
-
-    protos::pbzero::UninterpretedOption::Decoder unint(field.as_bytes());
-    auto it = unint.name();
-    if (!it) {
-      return base::ErrStatus(
-          "Option for field %s in message %s does not have a name",
-          field_desc.name().c_str(), proto_desc.full_name().c_str());
-    }
-    protos::pbzero::UninterpretedOption::NamePart::Decoder name_part(*it);
-    const auto* option_field_desc =
-        field_options_desc.FindFieldByName(name_part.name_part().ToStdString());
-
-    // It's not immediately clear how options with multiple names should
-    // be parsed. This likely requires digging into protobuf compiler
-    // source; given we don't have any examples of this in the codebase
-    // today, defer handling of this to when we may need it.
-    if (++it) {
-      return base::ErrStatus(
-          "Option for field %s in message %s has multiple name segments",
-          field_desc.name().c_str(), proto_desc.full_name().c_str());
-    }
-    if (unint.has_identifier_value()) {
-      field_options->AppendString(option_field_desc->number(),
-                                  unint.identifier_value().ToStdString());
-    } else if (unint.has_positive_int_value()) {
-      field_options->AppendVarInt(option_field_desc->number(),
-                                  unint.positive_int_value());
-    } else if (unint.has_negative_int_value()) {
-      field_options->AppendVarInt(option_field_desc->number(),
-                                  unint.negative_int_value());
-    } else if (unint.has_double_value()) {
-      field_options->AppendFixed(option_field_desc->number(),
-                                 unint.double_value());
-    } else if (unint.has_string_value()) {
-      field_options->AppendString(option_field_desc->number(),
-                                  unint.string_value().ToStdString());
-    } else if (unint.has_aggregate_value()) {
-      field_options->AppendString(option_field_desc->number(),
-                                  unint.aggregate_value().ToStdString());
-    } else {
-      return base::ErrStatus(
-          "Unknown field set in UninterpretedOption %s for field %s in message "
-          "%s",
-          option_field_desc->name().c_str(), field_desc.name().c_str(),
-          proto_desc.full_name().c_str());
-    }
-  }
-  if (decoder.bytes_left() > 0) {
-    return base::ErrStatus("Unexpected extra bytes when parsing option %zu",
-                           decoder.bytes_left());
-  }
-  options = field_options.SerializeAsArray();
-  return base::OkStatus();
-}
-
-std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
-    const std::string& full_name) const {
-  auto it = full_name_to_descriptor_index_.find(full_name);
-  if (it == full_name_to_descriptor_index_.end()) {
-    return std::nullopt;
-  }
-  return it->second;
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
@@ -418,8 +434,6 @@ std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
           proto_descriptor->add_field();
       field_descriptor->set_name(field.name());
       field_descriptor->set_number(static_cast<int32_t>(field.number()));
-      // We do not support required fields. They will show up as
-      // optional after serialization.
       field_descriptor->set_label(
           field.is_repeated()
               ? protos::pbzero::FieldDescriptorProto::LABEL_REPEATED

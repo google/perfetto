@@ -58,6 +58,7 @@ class StatsdModule : public ProtoImporterModule {
   TrackId InternTrackId();
 
   TraceProcessorContext* context_;
+  DescriptorPool local_pool_;
   base::FlatHashMap<uint32_t, StringId> atom_names_;
   uint32_t descriptor_idx_ = std::numeric_limits<uint32_t>::max();
   util::ProtoToArgsParser args_parser_;
