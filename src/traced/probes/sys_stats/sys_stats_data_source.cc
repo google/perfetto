@@ -406,16 +406,24 @@ std::optional<uint64_t> SysStatsDataSource::ReadAMDGpuFreq() {
 }
 
 void SysStatsDataSource::ReadGpuFrequency(protos::pbzero::SysStats* sys_stats) {
-  std::optional<uint64_t> freq;
-  // Intel GPU Frequency.
-  freq = ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz");
+  // For Adreno GPUs.
+  auto freq = ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq");
   if (freq) {
-    sys_stats->add_gpufreq_mhz((*freq));
+    sys_stats->add_gpufreq_mhz((*freq) / 1'000'000);
     return;
   }
+
+  // For Intel GPUs.
+  freq = ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz");
+  if (freq) {
+    sys_stats->add_gpufreq_mhz(*freq);
+    return;
+  }
+
+  // For AMD GPUs.
   freq = ReadAMDGpuFreq();
   if (freq) {
-    sys_stats->add_gpufreq_mhz((*freq));
+    sys_stats->add_gpufreq_mhz(*freq);
   }
 }
 

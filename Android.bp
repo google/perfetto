@@ -14491,6 +14491,7 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation_unittest.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_geometry_unittest.cc",
     ],
 }
 
