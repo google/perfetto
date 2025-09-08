@@ -629,19 +629,14 @@ TEST(StructuredQueryGeneratorTest, ColumnTransformation) {
       column_names: "ts"
       column_names: "dur"
     }
-    select_columns: {column_name: "id"}
+    select_columns: {column_name_or_expression: "id"}
     select_columns: {
       alias: "ts_ms"
-      transformation: {
-        sql_expression: "ts / 1000"
-      }
+      column_name_or_expression: "ts / 1000"
     }
     select_columns: {
       alias: "ts_plus_dur"
-      transformation: {
-        sql_expression: "ts + dur"
-        module_name: "some.module"
-      }
+      column_name_or_expression: "ts + dur"
     }
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
@@ -656,49 +651,7 @@ TEST(StructuredQueryGeneratorTest, ColumnTransformation) {
     SELECT * FROM sq_table_source_thread_slice
   )"));
   ASSERT_THAT(gen.ComputeReferencedModules(),
-              UnorderedElementsAre("slices.with_context", "some.module"));
-}
-
-TEST(StructuredQueryGeneratorTest, ColumnTransformationWithoutAlias) {
-  StructuredQueryGenerator gen;
-  auto proto = ToProto(R"(
-    table: {
-      table_name: "thread_slice"
-    }
-    select_columns: {
-      transformation: {
-        sql_expression: "ts / 1000"
-      }
-    }
-  )");
-  auto ret = gen.Generate(proto.data(), proto.size());
-  ASSERT_FALSE(ret.ok());
-  ASSERT_THAT(
-      ret.status().message(),
-      testing::HasSubstr(
-          "When using a transformation, an alias for the column must be "
-          "provided."));
-}
-
-TEST(StructuredQueryGeneratorTest, ColumnTransformationWithEmptyExpression) {
-  StructuredQueryGenerator gen;
-  auto proto = ToProto(R"(
-    table: {
-      table_name: "thread_slice"
-    }
-    select_columns: {
-      alias: "ts_ms"
-      transformation: {
-        sql_expression: ""
-      }
-    }
-  )");
-  auto ret = gen.Generate(proto.data(), proto.size());
-  ASSERT_FALSE(ret.ok());
-  ASSERT_THAT(ret.status().message(),
-              testing::HasSubstr(
-                  "When using a transformation, the sql_expression cannot be "
-                  "empty"));
+              UnorderedElementsAre("slices.with_context"));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

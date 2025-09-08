@@ -336,8 +336,21 @@ class SummaryMetricsV2(TestSuite):
           dimensions: "thread_name"
           value: "max_dur_ms"
           query: {
-            sql: {
-              sql: "SELECT s.name as slice_name, t.name as thread_name, s.dur / 1000 as dur_ms FROM slice s JOIN thread_track tt ON s.track_id = tt.id JOIN thread t ON tt.utid = t.utid WHERE s.name = 'binder transaction'"
+            inner_query: {
+              sql: {
+                sql: "SELECT s.name, s.dur, t.name as thread_name FROM slice s JOIN thread_track tt ON s.track_id = tt.id JOIN thread t ON tt.utid = t.utid WHERE s.name = 'binder transaction'"
+              }
+              select_columns {
+                column_name_or_expression: "name"
+                alias: "slice_name"
+              }
+              select_columns {
+                column_name_or_expression: "thread_name"
+              }
+              select_columns {
+                column_name_or_expression: "dur / 1000"
+                alias: "dur_ms"
+              }
             }
             group_by: {
               column_names: "slice_name"
