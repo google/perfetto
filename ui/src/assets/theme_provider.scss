@@ -15,15 +15,6 @@
 .pf-theme-provider {
   display: contents;
 
-  // Set color at the root level as it's inherited by children.
-  color: var(--pf-color-text);
-
-  // Set background at the root level so that it applies to the entire app.
-  background-color: var(--pf-color-background);
-
-  // Theme scroll bars across the entire app.
-  scrollbar-color: var(--pf-color-border) var(--pf-color-background); /* thumb color track color */
-
   &--light {
     --pf-color-background: white;
     --pf-color-background-secondary: #edf0f1;
