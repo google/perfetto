@@ -36,7 +36,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Invoke;
 
 class SchedEventTrackerTest : public ::testing::Test {
  public:

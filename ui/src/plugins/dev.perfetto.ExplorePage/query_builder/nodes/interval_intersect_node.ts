@@ -39,6 +39,7 @@ export class IntervalIntersectNode implements QueryNode {
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: IntervalIntersectNodeState;
+  meterialisedAs?: string;
 
   get sourceCols(): ColumnInfo[] {
     return this.prevNodes[0]?.finalCols ?? this.prevNodes[0]?.sourceCols ?? [];
@@ -124,9 +125,10 @@ export class IntervalIntersectNode implements QueryNode {
     return this.state.customTitle ?? 'Interval Intersect';
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(onExecute?: () => void): m.Child {
     return m(IntervalIntersectComponent, {
       node: this,
+      onExecute,
     });
   }
 
@@ -143,6 +145,9 @@ export class IntervalIntersectNode implements QueryNode {
     return new IntervalIntersectNode(stateCopy);
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
