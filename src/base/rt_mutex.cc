@@ -25,9 +25,60 @@
 #include <dlfcn.h>
 #endif
 
+#if PERFETTO_HAS_RT_FUTEX()
+#include <linux/futex.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
 namespace perfetto::base {
 
 namespace internal {
+
+#if PERFETTO_HAS_RT_FUTEX()
+
+void RtFutex::LockSlowpath() {
+  auto res = PERFETTO_EINTR(
+      syscall(SYS_futex, &lock_, FUTEX_LOCK_PI_PRIVATE, 0, nullptr));
+  PERFETTO_CHECK(res == 0);
+}
+
+bool RtFutex::TryLockSlowpath() {
+  auto res = PERFETTO_EINTR(
+      syscall(SYS_futex, &lock_, FUTEX_TRYLOCK_PI_PRIVATE, 0, nullptr));
+  if (res == 0)
+    return true;
+  if (errno == EBUSY || errno == EDEADLK)
+    return false;
+  PERFETTO_FATAL("FUTEX_TRYLOCK_PI_PRIVATE failed");
+}
+
+void RtFutex::UnlockSlowpath() {
+  auto res = PERFETTO_EINTR(
+      syscall(SYS_futex, &lock_, FUTEX_UNLOCK_PI_PRIVATE, 0, nullptr));
+  PERFETTO_CHECK(res == 0);
+}
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+namespace {
+thread_local int g_cached_tid = -1;
+}  // namespace
+
+int RtFutex::GetTid() {
+  if (PERFETTO_UNLIKELY(g_cached_tid == -1)) {
+    static int register_atfork_once = [] {
+      return pthread_atfork(/*prepare=*/nullptr,
+                            /*parent=*/nullptr,
+                            /*child=*/[] { g_cached_tid = -1; });
+    }();
+    base::ignore_result(register_atfork_once);
+    g_cached_tid = static_cast<int>(syscall(SYS_gettid));
+  }
+  return g_cached_tid;
+}
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+#endif  // PERFETTO_HAS_RT_FUTEX
 
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
 

@@ -34,13 +34,24 @@
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/public/compiler.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define PERFETTO_HAS_RT_FUTEX() true
+#else
+#define PERFETTO_HAS_RT_FUTEX() false
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_HAS_POSIX_RT_MUTEX() true
 #else
 #define PERFETTO_HAS_POSIX_RT_MUTEX() false
 #endif
+
+// On Android gettid() isn't actually a syscall but returns very quickly the
+// tid stored in a TLS owned by Bionic.
+// GLIBC instead doesn't seem to have this optimization and we do the TLS
+// caching ourselves, because it makes a 4x difference to the uncontended case.
+#define PERFETTO_GETTID_IS_FAST() PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 #include <atomic>
 #include <mutex>
@@ -50,9 +61,99 @@
 #include <pthread.h>
 #endif
 
+#if PERFETTO_HAS_RT_FUTEX()
+#include <unistd.h>  // For gettid().
+#endif
+
 namespace perfetto::base {
 
 namespace internal {
+
+#if PERFETTO_HAS_RT_FUTEX()
+// A wrapper around PI Futexes. A futex is a wrapper around an atomic integer
+// with an ABI shared with the kernel to handle the slowpath in the cases when
+// the mutex is held, or we find out that there are waiters queued when we
+// unlock. The operating principle is the following:
+// - In the no-contention case, a futex boils down to an atomic
+//   compare-and-exchange, without involving the kernel.
+// - If a lock is contented at acquire time, we have to enter the kernel to
+//   suspend our execution and join a wait chain.
+// - It could still happen that we acquire the mutex via the fastpath (without
+//   involving the kernel) but other waiters might queue up while we hold the
+//   mutex. In that case the kernel will add a bit to the atomic int. That bit
+//   will cause the unlock() compare-and-exchange to fail (because it no longer
+//   matches our tid) which in turn will signal us to do a syscall to notify the
+//   waiters.
+class PERFETTO_LOCKABLE RtFutex {
+ public:
+  RtFutex() { PERFETTO_TSAN_MUTEX_CREATE(this, __tsan_mutex_not_static); }
+  ~RtFutex() { PERFETTO_TSAN_MUTEX_DESTROY(this, __tsan_mutex_not_static); }
+
+  // Disable copy or move. Copy doesn't make sense. Move isn't feasible because
+  // the pointer to the atomic integer is the handle used by the kernel to setup
+  // the wait chain. A movable futex would require the atomic integer to be heap
+  // allocated, but that would create an indirection layer that is not needed in
+  // most cases. If you really need a movable RtMutex, wrap it in a unique_ptr.
+  RtFutex(const RtFutex&) = delete;
+  RtFutex& operator=(const RtFutex&) = delete;
+  RtFutex(RtFutex&&) = delete;
+  RtFutex& operator=(RtFutex&&) = delete;
+
+  inline bool TryLockFastpath() noexcept {
+    int expected = 0;
+    return lock_.compare_exchange_strong(expected, GetTid(),
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed);
+  }
+
+  bool try_lock() noexcept PERFETTO_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
+    PERFETTO_TSAN_MUTEX_PRE_LOCK(this, __tsan_mutex_try_lock);
+    if (PERFETTO_LIKELY(TryLockFastpath()) || TryLockSlowpath()) {
+      PERFETTO_TSAN_MUTEX_POST_LOCK(this, __tsan_mutex_try_lock, 0);
+      return true;
+    }
+    PERFETTO_TSAN_MUTEX_POST_LOCK(
+        this, __tsan_mutex_try_lock | __tsan_mutex_try_lock_failed, 0);
+    return false;
+  }
+
+  void lock() PERFETTO_EXCLUSIVE_LOCK_FUNCTION() {
+    PERFETTO_TSAN_MUTEX_PRE_LOCK(this, 0);
+    if (!PERFETTO_LIKELY(TryLockFastpath())) {
+      LockSlowpath();
+    }
+    PERFETTO_TSAN_MUTEX_POST_LOCK(this, 0, 0);
+  }
+
+  void unlock() noexcept PERFETTO_UNLOCK_FUNCTION() {
+    PERFETTO_TSAN_MUTEX_PRE_UNLOCK(this, 0);
+    int expected = GetTid();
+    // If the current value is our tid, we can unlock without a syscall since
+    // there are no current waiters.
+    if (!PERFETTO_LIKELY(lock_.compare_exchange_strong(
+            expected, 0, std::memory_order_release,
+            std::memory_order_relaxed))) {
+      // The tid doesn't match because the kernel appended the FUTEX_WAITERS
+      // bit. There are waiters, tell the kernel to notify them and unlock.
+      UnlockSlowpath();
+    }
+    PERFETTO_TSAN_MUTEX_POST_UNLOCK(this, 0);
+  }
+
+ private:
+  std::atomic<int> lock_{};
+
+#if PERFETTO_GETTID_IS_FAST()
+  static int GetTid() { return ::gettid(); }
+#else
+  static int GetTid();
+#endif
+
+  void LockSlowpath();
+  bool TryLockSlowpath();
+  void UnlockSlowpath();
+};
+#endif  // PERFETTO_HAS_RT_FUTEX
 
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
 class PERFETTO_LOCKABLE RtPosixMutex {
@@ -84,8 +185,16 @@ using RtMutex = internal::RtPosixMutex;
 using RtMutex = std::mutex;
 #endif
 
-using MaybeRtMutex =
-    std::conditional_t<base::flags::use_rt_mutex, RtMutex, std::mutex>;
+#if PERFETTO_HAS_RT_FUTEX()
+using RtFutex = internal::RtFutex;
+#else
+using RtFutex = RtMutex;
+#endif
+
+using MaybeRtMutex = std::conditional_t<
+    base::flags::use_rt_futex_for_android,
+    RtFutex,
+    std::conditional_t<base::flags::use_rt_mutex, RtMutex, std::mutex> >;
 
 }  // namespace perfetto::base
 
