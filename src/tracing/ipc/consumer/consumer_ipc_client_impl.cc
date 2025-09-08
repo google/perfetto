@@ -464,11 +464,20 @@ void ConsumerIPCClientImpl::SaveTraceForBugreport(
   consumer_port_.SaveTraceForBugreport(req, std::move(async_response));
 }
 
-void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
+void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args,
+                                         base::ScopedFile fd) {
   if (!connected_) {
     PERFETTO_DLOG("Cannot CloneSession(), not connected to tracing service");
     return;
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd) {
+    consumer_->OnTracingDisabled(
+        "Passing FDs into CloneSession is not supported on Windows");
+    return;
+  }
+#endif
 
   protos::gen::CloneSessionRequest req;
   if (args.tsid) {
@@ -514,6 +523,6 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
               {response->success(), response->error(), uuid});
         }
       });
-  consumer_port_.CloneSession(req, std::move(async_response));
+  consumer_port_.CloneSession(req, std::move(async_response), *fd);
 }
 }  // namespace perfetto

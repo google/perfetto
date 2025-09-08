@@ -230,7 +230,7 @@ class TracingServiceImpl : public TracingService {
                            QueryServiceStateCallback) override;
     void QueryCapabilities(QueryCapabilitiesCallback) override;
     void SaveTraceForBugreport(SaveTraceForBugreportCallback) override;
-    void CloneSession(CloneSessionArgs) override;
+    void CloneSession(CloneSessionArgs, base::ScopedFile) override;
 
     // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
@@ -368,7 +368,8 @@ class TracingServiceImpl : public TracingService {
              FlushFlags);
   void FlushAndDisableTracing(TracingSessionID);
   base::Status FlushAndCloneSession(ConsumerEndpointImpl*,
-                                    ConsumerEndpoint::CloneSessionArgs);
+                                    ConsumerEndpoint::CloneSessionArgs,
+                                    base::ScopedFile);
 
   // Starts reading the internal tracing buffers from the tracing session `tsid`
   // and sends them to `*consumer` (which must be != nullptr).
@@ -508,6 +509,7 @@ class TracingServiceImpl : public TracingService {
     bool skip_trace_filter = false;
     std::optional<TriggerInfo> clone_trigger;
     int64_t clone_started_timestamp_ns = 0;
+    base::ScopedFile output_file_fd;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound
@@ -871,7 +873,8 @@ class TracingServiceImpl : public TracingService {
                                   bool final_flush_outcome,
                                   std::optional<TriggerInfo> clone_trigger,
                                   base::Uuid*,
-                                  int64_t clone_started_timestamp_ns);
+                                  int64_t clone_started_timestamp_ns,
+                                  base::ScopedFile output_file_fd);
   void OnFlushDoneForClone(TracingSessionID src_tsid,
                            PendingCloneID clone_id,
                            const std::set<BufferID>& buf_ids,
@@ -880,6 +883,17 @@ class TracingServiceImpl : public TracingService {
   // Returns true if `*tracing_session` is waiting for a trigger that hasn't
   // happened.
   static bool IsWaitingForTrigger(TracingSession* tracing_session);
+
+  // Reads all the tracing buffers from the `*tracing_session` (but no more than
+  // `max_size` bytes) and writes them into `file`.
+  //
+  // Sets `*bytes_written_into_file` to the amount of bytes being written.
+  //
+  // Returns false in case of error.
+  bool DoReadBuffersIntoFile(TracingSession* tracing_session,
+                             base::ScopedFile& file,
+                             uint64_t* bytes_written_into_file,
+                             uint64_t max_size);
 
   // Reads the buffers from `*tracing_session` and returns them (along with some
   // metadata packets).
@@ -900,13 +914,17 @@ class TracingServiceImpl : public TracingService {
   void MaybeCompressPackets(TracingSession* tracing_session,
                             std::vector<TracePacket>* packets);
 
-  // If `*tracing_session` is configured to write into a file, writes `packets`
-  // into the file.
+  // Writes `packets` (but no more than `max_size` bytes) into the `file`.
+  //
+  // Sets `*bytes_written_into_file` to the amount of bytes being written.
   //
   // Returns true if the file should be closed (because it's full or there has
   // been an error), false otherwise.
-  bool WriteIntoFile(TracingSession* tracing_session,
+  bool WriteIntoFile(base::ScopedFile& file,
+                     uint64_t* bytes_written_into_file,
+                     uint64_t max_size,
                      std::vector<TracePacket> packets);
+
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
                            const base::Uuid&,
