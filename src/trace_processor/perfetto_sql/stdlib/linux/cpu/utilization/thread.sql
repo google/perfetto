@@ -88,7 +88,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -103,7 +103,7 @@ SELECT
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
 GROUP BY
   utid;
@@ -126,9 +126,9 @@ RETURNS TABLE (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Total runtime duration, while 'awake' (CPUs not suspended).
-  awake_runtime LONG,
+  awake_runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -144,7 +144,7 @@ SELECT
   sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(ii.dur) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread AS c
   USING (id)
