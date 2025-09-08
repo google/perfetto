@@ -294,12 +294,26 @@ message PerfettoSqlStructuredQuery {
   //
   // If this is *not* specified, all columns from the source will be output.
   message SelectColumn {
-    // The existing name of the column from the source. Required.
+    // The name of the column from the source.
+    // This should *not* be set if `transformation` is present.
     optional string column_name = 1;
 
-    // The new name of the column. If not set, the name of the column is
-    // `column_name`. Optional.
+    // The new name of the column.
+    // If `transformation` is not set, this is a simple alias for `column_name`.
+    // If `transformation` is set, this is the required name for the new
+    // transformed column.
     optional string alias = 2;
+
+    message Transformation {
+      // The SQL expression for the transformation. Required.
+      optional string sql_expression = 1;
+      // The name of the module for a function in the expression. Optional.
+      optional string module_name = 2;
+    }
+    // If this is set, this column is a transformation. `column_name` is
+    // ignored and the SQL expression is used instead. The `alias` field
+    // must be set to name the resulting column.
+    optional Transformation transformation = 3;
   }
   repeated SelectColumn select_columns = 10;
 }

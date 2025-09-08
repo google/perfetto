@@ -326,3 +326,28 @@ class SummaryMetricsV2(TestSuite):
             }
           }
 """))
+
+  def test_column_transformation(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "max_duration_ms"
+          dimensions: "slice_name"
+          dimensions: "thread_name"
+          value: "max_dur_ms"
+          query: {
+            sql: {
+              sql: "SELECT s.name as slice_name, t.name as thread_name, s.dur / 1000 as dur_ms FROM slice s JOIN thread_track tt ON s.track_id = tt.id JOIN thread t ON tt.utid = t.utid WHERE s.name = 'binder transaction'"
+            }
+            group_by: {
+              column_names: "slice_name"
+              column_names: "thread_name"
+              aggregates: {
+                column_name: "dur_ms"
+                op: MAX
+                result_column_name: "max_dur_ms"
+              }
+            }
+          }
+        '''),
+        out=Path('column_transformation.out'))

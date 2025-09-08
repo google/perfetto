@@ -177,7 +177,7 @@ class GeneratorImpl {
       RepeatedString group_by,
       RepeatedProto aggregates,
       RepeatedProto select_cols);
-  static base::StatusOr<std::string> SelectColumnsNoAggregates(
+  base::StatusOr<std::string> SelectColumnsNoAggregates(
       RepeatedProto select_columns);
 
   // Helpers.
@@ -597,7 +597,26 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsNoAggregates(
     if (!sql.empty()) {
       sql += ", ";
     }
-    if (column.has_alias()) {
+    if (column.has_transformation()) {
+      if (!column.has_alias()) {
+        return base::ErrStatus(
+            "When using a transformation, an alias for the column must be "
+            "provided.");
+      }
+      StructuredQuery::SelectColumn::Transformation::Decoder trans(
+          column.transformation());
+      if (trans.sql_expression().size == 0) {
+        return base::ErrStatus(
+            "When using a transformation, the sql_expression cannot be empty");
+      }
+      if (trans.module_name().size > 0) {
+        referenced_modules_.Insert(trans.module_name().ToStdString(), nullptr);
+      }
+      // Note: The SQL expression is used directly. It is assumed to come from a
+      // trusted source and not external user input.
+      sql += trans.sql_expression().ToStdString();
+      sql += " AS " + column.alias().ToStdString();
+    } else if (column.has_alias()) {
       sql += column.column_name().ToStdString() + " AS " +
              column.alias().ToStdString();
     } else {
