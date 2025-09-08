@@ -22,7 +22,6 @@
 namespace perfetto::trace_processor {
 namespace {
 
-using testing::Invoke;
 using testing::MockFunction;
 
 std::string_view ToStringView(const TraceBlobView& tbv) {
@@ -41,14 +40,14 @@ TEST(ProtoTraceTokenizerTest, TwoPacketsSingleBlob) {
   ProtoTraceTokenizer tokenizer;
 
   EXPECT_CALL(cb, Call)
-      .WillOnce(Invoke([](TraceBlobView out) {
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload1");
         return base::OkStatus();
-      }))
-      .WillOnce(Invoke([](TraceBlobView out) {
+      })
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload2");
         return base::OkStatus();
-      }));
+      });
 
   auto bv = TraceBlobView(TraceBlob::CopyFrom(data.data(), data.size()));
   EXPECT_TRUE(tokenizer.Tokenize(std::move(bv), cb.AsStdFunction()).ok());
@@ -64,14 +63,14 @@ TEST(ProtoTraceTokenizerTest, TwoPacketsByteByByte) {
 
   MockFunction<base::Status(TraceBlobView)> cb;
   EXPECT_CALL(cb, Call)
-      .WillOnce(Invoke([](TraceBlobView out) {
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload1");
         return base::OkStatus();
-      }))
-      .WillOnce(Invoke([](TraceBlobView out) {
+      })
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload2");
         return base::OkStatus();
-      }));
+      });
 
   for (uint8_t c : data) {
     auto bv = TraceBlobView(TraceBlob::CopyFrom(&c, sizeof(c)));
@@ -94,18 +93,18 @@ TEST(ProtoTraceTokenizerTest, SkipFieldsSingleBlob) {
 
   MockFunction<base::Status(TraceBlobView)> cb;
   EXPECT_CALL(cb, Call)
-      .WillOnce(Invoke([](TraceBlobView out) {
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload1");
         return base::OkStatus();
-      }))
-      .WillOnce(Invoke([](TraceBlobView out) {
+      })
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload2");
         return base::OkStatus();
-      }))
-      .WillOnce(Invoke([](TraceBlobView out) {
+      })
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload3");
         return base::OkStatus();
-      }));
+      });
 
   auto bv = TraceBlobView(TraceBlob::CopyFrom(data.data(), data.size()));
   EXPECT_TRUE(tokenizer.Tokenize(std::move(bv), cb.AsStdFunction()).ok());
@@ -126,18 +125,18 @@ TEST(ProtoTraceTokenizerTest, SkipFieldsSingleByteByByte) {
 
   MockFunction<base::Status(TraceBlobView)> cb;
   EXPECT_CALL(cb, Call)
-      .WillOnce(Invoke([](TraceBlobView out) {
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload1");
         return base::OkStatus();
-      }))
-      .WillOnce(Invoke([](TraceBlobView out) {
+      })
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload2");
         return base::OkStatus();
-      }))
-      .WillOnce(Invoke([](TraceBlobView out) {
+      })
+      .WillOnce([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload3");
         return base::OkStatus();
-      }));
+      });
 
   for (uint8_t c : data) {
     auto bv = TraceBlobView(TraceBlob::CopyFrom(&c, sizeof(c)));

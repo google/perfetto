@@ -21,7 +21,6 @@
 #include "src/base/test/test_task_runner.h"
 
 using ::testing::_;
-using ::testing::Invoke;
 
 namespace perfetto {
 
@@ -34,7 +33,7 @@ MockConsumer::~MockConsumer() {
   static int i = 0;
   auto checkpoint_name = "on_consumer_disconnect_" + std::to_string(i++);
   auto on_disconnect = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  EXPECT_CALL(*this, OnDisconnect()).WillOnce(on_disconnect);
   service_endpoint_.reset();
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
@@ -45,7 +44,7 @@ void MockConsumer::Connect(
   static int i = 0;
   auto checkpoint_name = "on_consumer_connect_" + std::to_string(i++);
   auto on_connect = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(*this, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
@@ -125,9 +124,8 @@ std::vector<protos::gen::TracePacket> MockConsumer::ReadBuffers() {
   std::string checkpoint_name = "on_read_buffers_" + std::to_string(i++);
   auto on_read_buffers = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this, OnTraceData(_, _))
-      .WillRepeatedly(Invoke([&decoded_packets, on_read_buffers](
-                                 std::vector<TracePacket>* packets,
-                                 bool has_more) {
+      .WillRepeatedly([&decoded_packets, on_read_buffers](
+                          std::vector<TracePacket>* packets, bool has_more) {
         for (TracePacket& packet : *packets) {
           decoded_packets.emplace_back();
           protos::gen::TracePacket* decoded_packet = &decoded_packets.back();
@@ -135,7 +133,7 @@ std::vector<protos::gen::TracePacket> MockConsumer::ReadBuffers() {
         }
         if (!has_more)
           on_read_buffers();
-      }));
+      });
   service_endpoint_->ReadBuffers();
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   return decoded_packets;
@@ -158,10 +156,9 @@ TraceStats MockConsumer::WaitForTraceStats(bool success) {
     EXPECT_CALL(*this,
                 OnTraceStats(true, testing::Property(&TraceStats::total_buffers,
                                                      testing::Gt(0u))))
-        .WillOnce(Invoke(result_callback));
+        .WillOnce(result_callback);
   } else {
-    EXPECT_CALL(*this, OnTraceStats(false, _))
-        .WillOnce(Invoke(result_callback));
+    EXPECT_CALL(*this, OnTraceStats(false, _)).WillOnce(result_callback);
   }
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   return stats;
@@ -177,11 +174,11 @@ ObservableEvents MockConsumer::WaitForObservableEvents() {
   std::string checkpoint_name = "on_observable_events_" + std::to_string(i++);
   auto on_observable_events = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this, OnObservableEvents(_))
-      .WillOnce(Invoke([&events, on_observable_events](
-                           const ObservableEvents& observable_events) {
+      .WillOnce([&events, on_observable_events](
+                    const ObservableEvents& observable_events) {
         events = observable_events;
         on_observable_events();
-      }));
+      });
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   return events;
 }

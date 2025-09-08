@@ -41,7 +41,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
 
@@ -275,7 +274,7 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
 
     EXPECT_CALL(*sink_ptr, MockParse(_, _))
         .WillRepeatedly(
-            Invoke([&expectations](int64_t timestamp, FtraceEventData ftrace) {
+            [&expectations](int64_t timestamp, FtraceEventData ftrace) {
               EXPECT_EQ(expectations.begin()->first, timestamp);
               auto& cpus = expectations.begin()->second;
               bool cpu_found = false;
@@ -289,7 +288,7 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
               if (cpus.empty())
                 expectations.erase(expectations.begin());
               EXPECT_TRUE(cpu_found);
-            }));
+            });
   }
 
   // Allocate a 1000 byte trace blob and push one byte chunks to be sorted with

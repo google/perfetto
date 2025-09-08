@@ -41,7 +41,6 @@ export interface NodeBoxAttrs {
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;

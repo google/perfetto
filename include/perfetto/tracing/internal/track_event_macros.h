@@ -53,8 +53,8 @@
 //
 #define PERFETTO_INTERNAL_DECLARE_CATEGORIES(attrs, ...)                      \
   namespace internal {                                                        \
-  constexpr ::perfetto::Category kCategories[] = {__VA_ARGS__};               \
-  constexpr size_t kCategoryCount =                                           \
+  inline constexpr ::perfetto::Category kCategories[] = {__VA_ARGS__};        \
+  inline constexpr size_t kCategoryCount =                                    \
       sizeof(kCategories) / sizeof(kCategories[0]);                           \
   /* The per-instance enable/disable state per category */                    \
   attrs extern std::atomic<uint8_t> g_category_state_storage[kCategoryCount]; \
@@ -76,7 +76,7 @@
   /* https://bugs.llvm.org/show_bug.cgi?id=51558 */                           \
   /**/                                                                        \
   /* TODO(skyostil): Unify these using a C++17 inline constexpr variable. */  \
-  constexpr ::perfetto::internal::TrackEventCategoryRegistry                  \
+  inline constexpr ::perfetto::internal::TrackEventCategoryRegistry           \
       kConstExprCategoryRegistry(kCategoryCount, &kCategories[0], nullptr);   \
   attrs extern const ::perfetto::internal::TrackEventCategoryRegistry         \
       kCategoryRegistry;                                                      \
@@ -133,9 +133,13 @@
   do {                                                                         \
     ::perfetto::internal::ValidateEventNameType<decltype(name)>();             \
     namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                            \
-    /* Compute the category index outside the lambda to work around a */       \
-    /* GCC 7 bug */                                                            \
-    PERFETTO_INTERNAL_STATIC_FOR_MSVC constexpr auto PERFETTO_UID(             \
+    /* Compute the category index outside the lambda to work around a GCC 7 */ \
+    /* bug. */                                                                 \
+    /* This is more efficient as a non-static because it's passed into */      \
+    /* `method` by reference, so the compiler needs to take the address. */    \
+    /* Taking the address of a variable with static storage duration, held */  \
+    /* in .rodata, is more expensive than the address of a local. */           \
+    PERFETTO_INTERNAL_STATIC_FOR_MSVC constexpr size_t PERFETTO_UID(           \
         kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =               \
         PERFETTO_GET_CATEGORY_INDEX(category);                                 \
     if (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(         \
