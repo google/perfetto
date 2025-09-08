@@ -54,6 +54,7 @@ export class AggregationNode implements QueryNode {
   readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
+  meterialisedAs?: string;
 
   get sourceCols() {
     return (
@@ -176,6 +177,10 @@ export class AggregationNode implements QueryNode {
     return new AggregationNode(stateCopy);
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -257,7 +262,7 @@ export function GroupByAggregationAttrsToProto(
 
 export function placeholderNewColumnName(agg: Aggregation) {
   return agg.column && agg.aggregationOp
-    ? `${agg.column.name}_${agg.aggregationOp}`
+    ? `${agg.column.name}_${agg.aggregationOp.toLowerCase()}`
     : `agg_${agg.aggregationOp ?? ''}`;
 }
 
@@ -439,7 +444,7 @@ class AggregationOperationComponent
       }
 
       const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
-      const showAddButton = lastAgg.isValid && !lastAgg.isEditing;
+      const showAddButton = lastAgg.isValid;
 
       return [
         ...attrs.aggregations.map((agg, index) => {
@@ -453,6 +458,10 @@ class AggregationOperationComponent
           m(Button, {
             label: 'Add more aggregations',
             onclick: () => {
+              if (!lastAgg.newColumnName) {
+                lastAgg.newColumnName = placeholderNewColumnName(lastAgg);
+              }
+              lastAgg.isEditing = false;
               attrs.aggregations.push({isEditing: true});
               attrs.onchange?.();
             },

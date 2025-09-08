@@ -118,10 +118,17 @@ bool LayerContains(const LayerDecoder& layer,
       transform::IsInvalidRotation(transform_type_other)) {
     return false;
   }
+
   auto layer_bounds = layer::GetCroppedScreenBounds(layer, crop);
   auto other_bounds = layer::GetCroppedScreenBounds(other, crop);
-  return layer_bounds.has_value() && other_bounds.has_value() &&
-         layer_bounds->ContainsRect(other_bounds.value());
+
+  if (!layer_bounds.has_value() || !other_bounds.has_value()) {
+    return false;
+  }
+
+  layer_bounds.value().radii = layer::GetCornerRadii(layer);
+  other_bounds.value().radii = layer::GetCornerRadii(other);
+  return layer_bounds->ContainsRect(other_bounds.value());
 }
 
 bool LayerOverlaps(const LayerDecoder& layer,
@@ -236,8 +243,7 @@ VisibilityProperties VisibilityComputation::IsLayerVisible(
         continue;
       }
 
-      if (layer.corner_radius() <= opaque_layer.corner_radius() &&
-          LayerContains(opaque_layer, layer, crop)) {
+      if (LayerContains(opaque_layer, layer, crop)) {
         res.is_visible = false;
         res.occluding_layers.push_back(opaque_layer.id());
         continue;
