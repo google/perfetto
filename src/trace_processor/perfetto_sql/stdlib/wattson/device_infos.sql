@@ -165,6 +165,12 @@ JOIN _wattson_device AS device
 ORDER BY
   cpu;
 
+-- Identifies unique policies on this device
+CREATE PERFETTO TABLE _device_policies AS
+SELECT DISTINCT
+  policy
+FROM _dev_cpu_policy_map;
+
 -- Devices that require using devfreq
 CREATE PERFETTO TABLE _use_devfreq AS
 WITH
@@ -235,3 +241,46 @@ SELECT
       max(override_idle)
     FROM _idle_state_map_override
   ), 1) AS idle;
+
+-- Specify which device-cpu combination has 2D dependency that votes by
+-- frequency (as opposed to the default, vote by power)
+CREATE PERFETTO TABLE _vote_by_freq AS
+WITH
+  data(device, cpu) AS (
+    SELECT
+      *
+    FROM (VALUES
+      ("Tensor G5", 5),
+      ("Tensor G5", 6),
+      ("Tensor G5", 7)) AS _values
+  )
+SELECT
+  *
+FROM data;
+
+-- Gets all CPUs on device and whether the CPU vote is be freq or power
+CREATE PERFETTO TABLE _dev_vote_by_freq AS
+WITH
+  base AS (
+    SELECT
+      m.cpu,
+      0 AS vote_by_freq
+    FROM _dev_cpu_policy_map AS m
+    LEFT JOIN _vote_by_freq AS v
+      USING (cpu)
+    WHERE
+      v.cpu IS NULL
+    UNION ALL
+    SELECT
+      cpu,
+      1 AS vote_by_freq
+    FROM _vote_by_freq AS v
+    JOIN _wattson_device AS device
+      ON v.device = device.name
+  )
+SELECT
+  cpu,
+  vote_by_freq
+FROM base
+ORDER BY
+  cpu;

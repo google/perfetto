@@ -23,8 +23,6 @@ perfetto_sql_source_set("wattson") {
     "cpu/hotplug.sql",
     "cpu/idle.sql",
     "cpu/pivot.sql",
-    "cpu/w_cpu_dependence.sql",
-    "cpu/w_dsu_dependence.sql",
     "curves/device_cpu_1d.sql",
     "curves/device_cpu_2d.sql",
     "curves/device_gpu.sql",
