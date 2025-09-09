@@ -327,8 +327,24 @@ message FtraceConfig {
   }
   repeated TracefsOption tracefs_options = 36;
 
-  // This is a mask that lets the user only trace on specified CPUs.
-  // The format is a hex string representing the CPUs.
+  // This mask restricts tracing to a specific set of CPUs using a
+  // comma-separated hex mask. Each hex number (up to 8 digits) represents a
+  // 32-bit chunk of the CPU mask.
+  //
+  // The chunks are ordered from high CPUs to low CPUs (left to right):
+  //    - Rightmost chunk: CPUs 0-31
+  //    - 2nd chunk from right: CPUs 32-63
+  //    - ...and so on.
+  //
+  // Example (assuming NR_CPUS=128, requiring 4 chunks):
+  // The full mask would be in the format: "chunk3,chunk2,chunk1,chunk0"
+  // where chunk3 maps to CPUs 96-127, chunk2 to 64-95, chunk1 to 32-63, and
+  // chunk0 to 0-31.
+  //    - "ffffffff,0,0,0": Enables CPUs 96-127 only.
+  //    - "f,ff": Enables CPUs 0-7 (from "ff") and CPUs 32-35 (from "f").
+  //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
   //
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
