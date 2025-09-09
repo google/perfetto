@@ -137,38 +137,50 @@ export async function CheckHttpRpcConnection(): Promise<void> {
 
   // use the first trace processor if available, otherwise fallback
   const firstTpStatusData = tpStatusAll.instances[0];
-  if (!firstTpStatusData) {
-    // No trace processors available, use RPC without preloaded trace
-    return;
-  }
-
-  // Create a proper StatusResult instance from the IStatusResult interface
-  const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
 
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
-  // Check short version:
-  if (
-    firstTpStatus.versionCode !== '' &&
-    firstTpStatus.versionCode !== VERSION
-  ) {
-    const url = await isVersionAvailable(firstTpStatus.versionCode);
-    if (url !== undefined) {
-      // If matched UI available show a dialog asking the user to
-      // switch.
-      const result = await showDialogVersionMismatch(firstTpStatus, url);
+  if (firstTpStatusData) {
+    const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
+    // Check short version:
+    if (
+      firstTpStatus.versionCode !== '' &&
+      firstTpStatus.versionCode !== VERSION
+    ) {
+      const url = await isVersionAvailable(firstTpStatus.versionCode);
+      if (url !== undefined) {
+        // If matched UI available show a dialog asking the user to
+        // switch.
+        const result = await showDialogVersionMismatch(firstTpStatus, url);
+        switch (result) {
+          case MismatchedVersionDialog.Dismissed:
+          case MismatchedVersionDialog.UseMatchingUi:
+            navigateToVersion(firstTpStatus.versionCode);
+            return;
+          case MismatchedVersionDialog.UseMismatchedRpc:
+            break;
+          case MismatchedVersionDialog.UseWasm:
+            forceWasm();
+            return;
+          default:
+            const x: never = result;
+            throw new Error(`Unsupported result ${x}`);
+        }
+      }
+    }
+
+    // Check the RPC version:
+    if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
+      const result = await showDialogIncompatibleRPC(firstTpStatus);
       switch (result) {
-        case MismatchedVersionDialog.Dismissed:
-        case MismatchedVersionDialog.UseMatchingUi:
-          navigateToVersion(firstTpStatus.versionCode);
-          return;
-        case MismatchedVersionDialog.UseMismatchedRpc:
-          break;
-        case MismatchedVersionDialog.UseWasm:
+        case IncompatibleRpcDialogResult.Dismissed:
+        case IncompatibleRpcDialogResult.UseWasm:
           forceWasm();
           return;
+        case IncompatibleRpcDialogResult.UseIncompatibleRpc:
+          break;
         default:
           const x: never = result;
           throw new Error(`Unsupported result ${x}`);
@@ -176,23 +188,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     }
   }
 
-  // Check the RPC version:
-  if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
-    const result = await showDialogIncompatibleRPC(firstTpStatus);
-    switch (result) {
-      case IncompatibleRpcDialogResult.Dismissed:
-      case IncompatibleRpcDialogResult.UseWasm:
-        forceWasm();
-        return;
-      case IncompatibleRpcDialogResult.UseIncompatibleRpc:
-        break;
-      default:
-        const x: never = result;
-        throw new Error(`Unsupported result ${x}`);
-    }
-  }
-
-  const result = await showDialogToUsePreloadedTrace(firstTpStatus);
+  const result = await showDialogToUsePreloadedTrace();
   switch (result) {
     case PreloadedDialogResult.Dismissed:
       closeModal();
@@ -291,9 +287,7 @@ enum PreloadedDialogResult {
   Dismissed = 'dismissed',
 }
 
-async function showDialogToUsePreloadedTrace(
-  tpStatus: protos.StatusResult,
-): Promise<PreloadedDialogResult> {
+async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
   return new Promise<PreloadedDialogResult>(async (resolve) => {
     try {
       // Fetch actual trace processor data for the comprehensive modal
@@ -322,15 +316,13 @@ async function showDialogToUsePreloadedTrace(
           const elements: m.Child[] = [
             m(
               'p',
-              `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with loaded traces including ${tpStatus.loadedTraceName}.`,
+              `Current active sessions on ${HttpRpcEngine.hostAndPort} (choose one or pick another option below):`,
             ),
           ];
 
           // Option 1: Select from loaded traces (only shown if available)
           if (processorsWithTraces.length > 0) {
             elements.push(
-              m('h4', 'Select a loaded trace:'),
-
               // Add warning banner for active tabs
               (() => {
                 const activeTabCount = sortedProcessors.filter(
@@ -442,6 +434,20 @@ async function showDialogToUsePreloadedTrace(
                 }),
               ]),
             );
+          } else {
+            elements.push(
+              m(
+                'div',
+                {
+                  style: {
+                    'margin': '8px 0',
+                    'font-style': 'italic',
+                    'color': '#6c757d',
+                  },
+                },
+                `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
+              ),
+            );
           }
 
           // Add explanatory text section for the other options
@@ -458,17 +464,17 @@ async function showDialogToUsePreloadedTrace(
                 },
               },
               [
-                m('h4', {style: {'margin-top': '0'}}, 'Other Options:'),
+                m('h4', {style: {'margin-top': '0', 'margin-bottom': '8px'}}, 'Other Options:'),
                 m('div', {style: {'margin-bottom': '12px'}}, [
-                  m('strong', 'Load new trace:'),
+                  m('strong', {style: {'font-size': '14px'}}, 'Yes, Attach to external RPC:'),
                   m('br'),
                   m(
                     'small',
                     'Use this if you want to open another trace but still use the accelerator.',
                   ),
                 ]),
-                m('div', {style: {'margin-bottom': '12px'}}, [
-                  m('strong', 'Use built-in WASM:'),
+                m('div', {style: {}}, [
+                  m('strong', {style: {'font-size': '14px'}}, 'Use built-in WASM:'),
                   m('br'),
                   m('small', 'Will not use the accelerator in this tab.'),
                 ]),
@@ -517,7 +523,7 @@ async function showDialogToUsePreloadedTrace(
         buttons: [
           // Main action buttons moved to footer
           {
-            text: 'Load new trace',
+            text: 'Yes, Attach to external RPC',
             action: () => {
               closeModal();
               resolve(PreloadedDialogResult.UseRpc);
