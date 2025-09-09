@@ -318,10 +318,43 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       "Transfer-Encoding: chunked",            //
   };
 
-  // legacy endpoint that only accesses the global trace processor
   if (req.uri == "/status") {
-    auto status = global_trace_processor_rpc_.GetStatus();
-    return conn.SendResponse("200 OK", default_headers, Vec2Sv(status));
+    protozero::HeapBuffered<protos::pbzero::RpcStatus> result;
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+      for (const auto& entry : uuid_to_tp_map) {
+        const std::string& uuid = entry.first;
+        const auto& tp_rpc = entry.second;
+        auto* tp_status = result->add_instances();
+        tp_status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
+        tp_status->set_human_readable_version(base::GetVersionString());
+        tp_status->set_api_version(
+            protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+        if (const char* version_code = base::GetVersionCode(); version_code) {
+          tp_status->set_version_code(version_code);
+        }
+        tp_status->set_instance_id(uuid.c_str());
+        tp_status->set_last_activity(tp_rpc->GetLastAccessedNs());
+        tp_status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
+      }
+    }
+
+    // for backward compatibility, add the global instance if it has a trace
+    // loaded
+    if (!global_trace_processor_rpc_.GetCurrentTraceName().empty()) {
+      auto* tp_status = result->add_instances();
+      tp_status->set_loaded_trace_name(
+          global_trace_processor_rpc_.GetCurrentTraceName());
+      tp_status->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        tp_status->set_version_code(version_code);
+      }
+      tp_status->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+      tp_status->set_instance_id(DEFAULT_TP_UUID);
+    }
+    return conn.SendResponse("200 OK", default_headers,
+                             Vec2Sv(result.SerializeAsArray()));
   }
 
   // new endpoint that accesses all trace processors

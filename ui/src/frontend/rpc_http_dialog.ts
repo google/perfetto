@@ -136,7 +136,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   const tpStatusAll = assertExists(state.status);
 
   // use the first trace processor if available, otherwise fallback
-  const firstTpStatusData = tpStatusAll.traceProcessorStatuses?.[0]?.status;
+  const firstTpStatusData = tpStatusAll.instances[0];
   if (!firstTpStatusData) {
     // No trace processors available, use RPC without preloaded trace
     return;
@@ -192,29 +192,23 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     }
   }
 
-  // Check if pre-loaded:
-  if (firstTpStatus.loadedTraceName) {
-    // If a trace is already loaded in the trace processor (e.g., the user
-    // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
-    // initialize the UI with the already-loaded trace.
-    const result = await showDialogToUsePreloadedTrace(firstTpStatus);
-    switch (result) {
-      case PreloadedDialogResult.Dismissed:
-        closeModal();
-        return;
-      case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-        AppImpl.instance.openTraceFromHttpRpc();
-        return;
-      case PreloadedDialogResult.UseRpc:
-        // Resetting state is the default.
-        return;
-      case PreloadedDialogResult.UseWasm:
-        forceWasm();
-        return;
-      default:
-        const x: never = result;
-        throw new Error(`Unsupported result ${x}`);
-    }
+  const result = await showDialogToUsePreloadedTrace(firstTpStatus);
+  switch (result) {
+    case PreloadedDialogResult.Dismissed:
+      closeModal();
+      return;
+    case PreloadedDialogResult.UseRpcWithPreloadedTrace:
+      AppImpl.instance.openTraceFromHttpRpc();
+      return;
+    case PreloadedDialogResult.UseRpc:
+      // Resetting state is the default.
+      return;
+    case PreloadedDialogResult.UseWasm:
+      forceWasm();
+      return;
+    default:
+      const x: never = result;
+      throw new Error(`Unsupported result ${x}`);
   }
 }
 
@@ -305,20 +299,20 @@ async function showDialogToUsePreloadedTrace(
       // Fetch actual trace processor data for the comprehensive modal
       const httpRpcState = await HttpRpcEngine.checkConnection();
 
-      let traceProcessors: Array<protos.ITraceProcessorStatus> = [];
+      let traceProcessors: Array<protos.IStatusResult> = [];
       if (httpRpcState.connected && httpRpcState.status) {
-        traceProcessors = httpRpcState.status.traceProcessorStatuses ?? [];
+        traceProcessors = httpRpcState.status.instances ?? [];
       }
 
       // Filter to only show trace processors that have a loaded trace
       const processorsWithTraces = traceProcessors.filter(
-        (tp) => tp.status?.loadedTraceName && tp.status.loadedTraceName !== '',
+        (tp) => tp?.loadedTraceName && tp.loadedTraceName !== '',
       );
 
       // Sort processors: those without active tabs first, then those with active tabs
       const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
-        const aHasTab = a.status?.hasExistingTab ?? false;
-        const bHasTab = b.status?.hasExistingTab ?? false;
+        const aHasTab = a.hasExistingTab ?? false;
+        const bHasTab = b.hasExistingTab ?? false;
         return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
       });
 
@@ -340,7 +334,7 @@ async function showDialogToUsePreloadedTrace(
               // Add warning banner for active tabs
               (() => {
                 const activeTabCount = sortedProcessors.filter(
-                  (tp) => tp.status?.hasExistingTab ?? false,
+                  (tp) => tp.hasExistingTab ?? false,
                 ).length;
 
                 if (activeTabCount > 0) {
@@ -369,13 +363,13 @@ async function showDialogToUsePreloadedTrace(
               // Interactive trace processor selection
               m('div', {style: {margin: '8px 0'}}, [
                 sortedProcessors.map((tp, index) => {
-                  const status = tp.status!;
+                  const status = tp;
                   const hasActiveTab = status.hasExistingTab ?? false;
 
                   return m(
                     'button',
                     {
-                      key: tp.uuid || `default-${index}`,
+                      key: tp.instanceId || `default-${index}`,
                       style: {
                         'display': 'block',
                         'width': '100%',
@@ -402,9 +396,9 @@ async function showDialogToUsePreloadedTrace(
                           : '#f8f9fa';
                       },
                       onclick: () => {
-                        if (tp.uuid) {
+                        if (tp.instanceId) {
                           AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
-                            tp.uuid;
+                            tp.instanceId;
                           closeModal();
                           resolve(
                             PreloadedDialogResult.UseRpcWithPreloadedTrace,
@@ -422,7 +416,7 @@ async function showDialogToUsePreloadedTrace(
                       m('div', [
                         m('strong', status.loadedTraceName),
                         m('br'),
-                        m('small', `UUID: ${tp.uuid || 'default'}`),
+                        m('small', `UUID: ${tp.instanceId || 'default'}`),
                         m('br'),
                         m(
                           'small',
