@@ -61,6 +61,11 @@ interface CommonAttrs extends HTMLButtonAttrs {
   variant?: ButtonVariant;
   // Turns the button into a pill shape.
   rounded?: boolean;
+  // Makes the button shrink to fit inside it's container, rather than its width
+  // being defined by its content. Useful for when you have buttons with dynamic
+  // content that may change size, and you don't want the button to change size
+  // as that happens. Defaults to false.
+  shrink?: boolean;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -90,6 +95,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       intent = Intent.None,
       variant = ButtonVariant.Minimal,
       rounded,
+      shrink,
       ...htmlAttrs
     } = attrs;
 
@@ -104,6 +110,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       iconOnly && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
       rounded && 'pf-button--rounded',
+      shrink && 'pf-button--shrink',
       className,
     );
 
@@ -114,7 +121,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         className: classes,
       },
       this.renderIcon(attrs),
-      label,
+      m('span', {className: 'pf-button__label'}, label),
       rightIcon &&
         m(Icon, {
           className: 'pf-right-icon',

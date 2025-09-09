@@ -35,7 +35,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Invoke;
 
 class EventTrackerTest : public ::testing::Test {
  public:

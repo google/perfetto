@@ -79,4 +79,14 @@
     border-bottom: solid 1px var(--pf-color-border);
     margin: 5px 0 5px 0;
   }
+
+  .pf-menu-title {
+    font-family: var(--pf-font-compact);
+    font-weight: 800;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    // color: var(--pf-color-text-muted);
+    padding: 3px 8px 3px 8px;
+    user-select: none;
+  }
 }

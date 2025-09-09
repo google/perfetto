@@ -35,6 +35,11 @@ source_set("trace_summary") {
     "../util:descriptors",
     "../util:protozero_to_text",
   ]
+
+  # trace_summary optionally depends on zlib.
+  if (enable_perfetto_zlib) {
+    deps += [ "../../../gn:zlib" ]
+  }
 }
 
 perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {

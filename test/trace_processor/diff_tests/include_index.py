@@ -124,6 +124,7 @@ from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
 from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
 from diff_tests.stdlib.android.memory import AndroidMemory
+from diff_tests.stdlib.android.network_packets import AndroidNetworkPackets
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
@@ -279,6 +280,7 @@ def fetch_all_diff_tests(
 
   stdlib_tests = [
       AndroidMemory,
+      AndroidNetworkPackets,
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,

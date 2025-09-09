@@ -20,6 +20,7 @@ import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
+  NodeType,
   Query,
   QueryNode,
   queryToRun,
@@ -33,6 +34,7 @@ import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
+import {NodeIssues} from './node_issues';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -40,6 +42,7 @@ export interface NodeExplorerAttrs {
   readonly onQueryAnalyzed: (query: Query | Error, reexecute?: boolean) => void;
   readonly onExecute: () => void;
   readonly onchange?: () => void;
+  readonly resolveNode: (nodeId: string) => QueryNode | undefined;
 }
 
 enum SelectedView {
@@ -58,7 +61,11 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
 
-  private renderTitleRow(node: QueryNode, renderMenu: () => m.Child): m.Child {
+  private renderTitleRow(
+    node: QueryNode,
+    attrs: NodeExplorerAttrs,
+    renderMenu: () => m.Child,
+  ): m.Child {
     return m(
       '.pf-node-explorer__title-row',
       m(
@@ -85,11 +92,45 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         ` [${node.nodeId}]`,
       ),
       m('span.spacer'), // Added spacer to push menu to the right
+      m(Button, {
+        label: 'Run',
+        onclick: attrs.onExecute,
+      }),
       renderMenu(),
     );
   }
 
   private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
+    if (node instanceof SqlSourceNode && node.state.sql) {
+      // Clear this node from the prevNodes
+      for (const prevNode of node.prevNodes) {
+        prevNode.nextNodes = prevNode.nextNodes.filter((n) => n !== node);
+      }
+
+      const nodeIds = node.findDependencies();
+      const dependencies: QueryNode[] = [];
+      for (const nodeId of nodeIds) {
+        if (nodeId === node.nodeId) {
+          node.state.issues = new NodeIssues();
+          node.state.issues.queryError = new Error(
+            'Node cannot depend on itself',
+          );
+          return;
+        }
+
+        const dependencyNode = attrs.resolveNode(nodeId);
+        if (dependencyNode) {
+          dependencies.push(dependencyNode);
+        }
+      }
+      node.prevNodes = dependencies;
+      for (const prevNode of node.prevNodes) {
+        if (!prevNode.nextNodes.includes(node)) {
+          prevNode.nextNodes.push(node);
+        }
+      }
+    }
+
     const sq = node.getStructuredQuery();
     if (sq === undefined) return;
 
@@ -104,14 +145,17 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         if (node instanceof AggregationNode) {
           node.updateGroupByColumns();
         }
-        attrs.onQueryAnalyzed(this.currentQuery);
-        attrs.onExecute();
+        attrs.onQueryAnalyzed(
+          this.currentQuery,
+          node.type !== NodeType.kSqlSource &&
+            node.type !== NodeType.kAggregation,
+        );
         this.prevSqString = curSqString;
       });
     }
   }
 
-  private renderContent(node: QueryNode): m.Child {
+  private renderContent(node: QueryNode, attrs: NodeExplorerAttrs): m.Child {
     const sql: string =
       this.sqlForDisplay ??
       (isAQuery(this.currentQuery)
@@ -125,7 +169,9 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     return m(
       'article',
-      this.selectedView === SelectedView.kModify && [node.nodeSpecificModify()],
+      this.selectedView === SelectedView.kModify && [
+        node.nodeSpecificModify(attrs.onExecute),
+      ],
       this.selectedView === SelectedView.kSql &&
         (isAQuery(this.currentQuery)
           ? m(CodeSnippet, {language: 'SQL', text: sql})
@@ -180,8 +226,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       `.pf-node-explorer${
         node instanceof SqlSourceNode ? '.pf-node-explorer-sql-source' : ''
       }`,
-      this.renderTitleRow(node, renderModeMenu),
-      this.renderContent(node),
+      this.renderTitleRow(node, attrs, renderModeMenu),
+      this.renderContent(node, attrs),
     );
   }
 }

@@ -45,7 +45,7 @@ TEST(WinscopeGeometryRect, BuildsFromRectProto) {
   UpdateRect(&rect_proto, test_rect);
   auto blob = rect_proto.SerializeAsString();
   protos::pbzero::RectProto::Decoder rect_decoder(blob);
-  auto rect_from_proto = Rect(rect_decoder);
+  Rect rect_from_proto(rect_decoder);
   CheckRectEquality(rect_from_proto, test_rect);
 }
 
@@ -54,17 +54,17 @@ TEST(WinscopeGeometryRect, BuildsFromFloatRectProto) {
   UpdateRect(&rect_proto, test_rect);
   auto blob = rect_proto.SerializeAsString();
   protos::pbzero::FloatRectProto::Decoder rect_decoder(blob);
-  auto rect_from_proto = Rect(rect_decoder);
+  Rect rect_from_proto(rect_decoder);
   CheckRectEquality(rect_from_proto, test_rect);
 }
 
 TEST(WinscopeGeometryRectIsEmpty, ZeroRect) {
-  auto rect = Rect(0, 0, 0, 0);
+  Rect rect(0, 0, 0, 0);
   ASSERT_TRUE(rect.IsEmpty());
 }
 
 TEST(WinscopeGeometryRectIsEmpty, NegativeHW) {
-  auto rect = Rect(0, 0, -10, -10);
+  Rect rect(0, 0, -10, -10);
   ASSERT_TRUE(rect.IsEmpty());
 }
 
@@ -73,31 +73,41 @@ TEST(WinscopeGeometryRectIsEmpty, ValidRect) {
 }
 
 TEST(WinscopeGeometryRectIsEmpty, NegativeLT) {
-  auto rect = Rect(-1, -1, 0, 0);
+  Rect rect(-1, -1, 0, 0);
   ASSERT_FALSE(rect.IsEmpty());
 }
 
 TEST(WinscopeGeometryRectCropRect, ReducesHeight) {
-  auto rect = Rect(0, 0, 2, 10);
-  auto crop = Rect(0, 0, 10, 5);
+  Rect rect(0, 0, 2, 10);
+  Rect crop(0, 0, 10, 5);
   auto cropped_rect = rect.CropRect(crop);
-  auto expected_rect = Rect(0, 0, 2, 5);
+  Rect expected_rect(0, 0, 2, 5);
   CheckRectEquality(expected_rect, cropped_rect);
 }
 
 TEST(WinscopeGeometryRectCropRect, ReducesWidth) {
-  auto rect = Rect(0, 0, 10, 2);
-  auto crop = Rect(0, 0, 5, 10);
+  Rect rect(0, 0, 10, 2);
+  Rect crop(0, 0, 5, 10);
   auto cropped_rect = rect.CropRect(crop);
-  auto expected_rect = Rect(0, 0, 5, 2);
+  Rect expected_rect(0, 0, 5, 2);
   CheckRectEquality(expected_rect, cropped_rect);
 }
 
 TEST(WinscopeGeometryRectCropRect, NoChangeForLargerCrop) {
-  auto rect = Rect(0, 0, 5, 5);
-  auto crop = Rect(0, 0, 10, 10);
+  Rect rect(0, 0, 5, 5);
+  Rect crop(0, 0, 10, 10);
   auto cropped_rect = rect.CropRect(crop);
   CheckRectEquality(cropped_rect, rect);
+}
+
+TEST(WinscopeGeometryRectContainsRect, SmallerBounds) {
+  Rect other(1.5, 2.5, 9.5, 14.5);
+  ASSERT_TRUE(test_rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, LargerBounds) {
+  Rect rect(1.5, 2.5, 9.5, 14.5);
+  ASSERT_FALSE(rect.ContainsRect(test_rect));
 }
 
 TEST(WinscopeGeometryRectContainsRect, ExactMatch) {
@@ -105,18 +115,110 @@ TEST(WinscopeGeometryRectContainsRect, ExactMatch) {
 }
 
 TEST(WinscopeGeometryRectContainsRect, MatchWithinThreshold) {
-  auto other = Rect(0.99994, 1.99994, 5, 5);
+  Rect other(0.99994, 1.99994, 5, 5);
   ASSERT_TRUE(test_rect.ContainsRect(other));
 }
 
-TEST(WinscopeGeometryRectContainsRect, SmallerRect) {
-  auto other = Rect(1.5, 2.5, 9.5, 14.5);
+TEST(WinscopeGeometryRectContainsRect, ExactMatchLargerRadiusTl) {
+  Rect other(1, 2, 10, 15);
+  other.radii.tl = 1;
   ASSERT_TRUE(test_rect.ContainsRect(other));
 }
 
-TEST(WinscopeGeometryRectContainsRect, LargerRect) {
-  auto rect = Rect(1.5, 2.5, 9.5, 14.5);
-  ASSERT_FALSE(rect.ContainsRect(test_rect));
+TEST(WinscopeGeometryRectContainsRect, SmallerBoundsSmallerRadiusTlContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.tl = 2;
+  Rect other(2, 3, 9.5, 14.5);
+  other.radii.tl = 1;
+  ASSERT_TRUE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect,
+     SmallerBoundsSmallerRadiusTlNotContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.tl = 2;
+  Rect other(1.25, 2.25, 9.5, 14.5);
+  other.radii.tl = 0.25;
+  ASSERT_FALSE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, ExactMatchLargerRadiusTr) {
+  Rect other(1, 2, 10, 15);
+  other.radii.tr = 1;
+  ASSERT_TRUE(test_rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, SmallerBoundsSmallerRadiusTrContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.tr = 2;
+  Rect other(1, 3, 9, 15);
+  other.radii.tr = 1;
+  ASSERT_TRUE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect,
+     SmallerBoundsSmallerRadiusTrNotContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.tr = 2;
+  Rect other(1, 2.25, 10, 14.75);
+  other.radii.tr = 0.25;
+  ASSERT_FALSE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, ExactMatchLargerRadiusBl) {
+  Rect other(1, 2, 10, 15);
+  other.radii.bl = 1;
+  ASSERT_TRUE(test_rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, SmallerBoundsSmallerRadiusBlContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.bl = 2;
+  Rect other(2, 2, 10, 14);
+  other.radii.bl = 1;
+  ASSERT_TRUE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect,
+     SmallerBoundsSmallerRadiusBlNotContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.bl = 2;
+  Rect other(1.25, 2, 10, 14.75);
+  other.radii.bl = 0.25;
+  ASSERT_FALSE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, ExactMatchLargerRadiusBr) {
+  Rect other(1, 2, 10, 15);
+  other.radii.br = 1;
+  ASSERT_TRUE(test_rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, SmallerBoundsSmallerRadiusBrContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.bl = 2;
+  Rect other(1, 2, 9, 14);
+  other.radii.bl = 1;
+  ASSERT_TRUE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect,
+     SmallerBoundsSmallerRadiusBrNotContained) {
+  Rect rect(1, 2, 10, 15);
+  rect.radii.br = 2;
+  Rect other(1, 2, 9.75, 14.75);
+  other.radii.br = 0.25;
+  ASSERT_FALSE(rect.ContainsRect(other));
+}
+
+TEST(WinscopeGeometryRectContainsRect, SmallerBoundsZeroRadii) {
+  Rect rect(0, 1000, 1080, 2162);
+  rect.radii.tl = 47;
+  rect.radii.tr = 47;
+  rect.radii.bl = 47;
+  rect.radii.br = 47;
+  Rect other(0, 1137, 1080, 1293);
+  ASSERT_TRUE(rect.ContainsRect(other));
 }
 
 TEST(WinscopeGeometryRectIntersectsRect, ExactMatch) {
@@ -124,34 +226,34 @@ TEST(WinscopeGeometryRectIntersectsRect, ExactMatch) {
 }
 
 TEST(WinscopeGeometryRectIntersectsRect, Overlap) {
-  auto rect = Rect(0, 0, 5, 5);
-  auto other = Rect(2, 2, 7, 7);
+  Rect rect(0, 0, 5, 5);
+  Rect other(2, 2, 7, 7);
   ASSERT_TRUE(rect.IntersectsRect(other));
 }
 
 TEST(WinscopeGeometryRectIntersectsRect, NoOverlap) {
-  auto rect = Rect(0, 0, 5, 5);
-  auto other = Rect(5, 5, 10, 10);
+  Rect rect(0, 0, 5, 5);
+  Rect other(5, 5, 10, 10);
   ASSERT_FALSE(rect.IntersectsRect(other));
 }
 
 TEST(WinscopeGeometryRectIsAlmostEqual, SameRects) {
-  auto other = Rect(1, 2, 10, 15);
+  Rect other(1, 2, 10, 15);
   ASSERT_TRUE(test_rect.IsAlmostEqual(other));
 }
 
 TEST(WinscopeGeometryRectIsAlmostEqual, WithinThreshold) {
-  auto other = Rect(1, 2, 10, 15.005);
+  Rect other(1, 2, 10, 15.005);
   ASSERT_TRUE(test_rect.IsAlmostEqual(other));
 }
 
 TEST(WinscopeGeometryRectIsAlmostEqual, OutsideThreshold) {
-  auto other = Rect(1, 2, 10, 15.011);
+  Rect other(1, 2, 10, 15.011);
   ASSERT_FALSE(test_rect.IsAlmostEqual(other));
 }
 
 TEST(WinscopeGeometryRectIsAlmostEqual, DifferentRects) {
-  auto other = Rect(1, 2, 10, 16);
+  Rect other(1, 2, 10, 16);
   ASSERT_FALSE(test_rect.IsAlmostEqual(other));
 }
 }  // namespace perfetto::trace_processor::winscope::geometry::test

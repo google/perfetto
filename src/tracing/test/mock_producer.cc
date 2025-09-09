@@ -27,7 +27,6 @@
 
 using ::testing::_;
 using ::testing::Eq;
-using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Property;
 
@@ -62,7 +61,7 @@ MockProducer::~MockProducer() {
   static int i = 0;
   auto checkpoint_name = "on_producer_disconnect_" + std::to_string(i++);
   auto on_disconnect = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  EXPECT_CALL(*this, OnDisconnect()).WillOnce(on_disconnect);
   service_endpoint_.reset();
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
@@ -87,7 +86,7 @@ void MockProducer::Connect(TracingService* svc,
                            /*sdk_version=*/{}, machine_name);
   auto checkpoint_name = "on_producer_connect_" + producer_name;
   auto on_connect = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(*this, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
@@ -137,7 +136,7 @@ void MockProducer::WaitForTracingSetup() {
   auto checkpoint_name =
       "on_shmem_initialized_" + producer_name_ + "_" + std::to_string(i++);
   auto on_tracing_enabled = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, OnTracingSetup()).WillOnce(Invoke(on_tracing_enabled));
+  EXPECT_CALL(*this, OnTracingSetup()).WillOnce(on_tracing_enabled);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
@@ -147,8 +146,8 @@ void MockProducer::WaitForDataSourceSetup(const std::string& name) {
   auto on_ds_start = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this,
               SetupDataSource(_, Property(&DataSourceConfig::name, Eq(name))))
-      .WillOnce(Invoke([on_ds_start, this](DataSourceInstanceID ds_id,
-                                           const DataSourceConfig& cfg) {
+      .WillOnce([on_ds_start, this](DataSourceInstanceID ds_id,
+                                    const DataSourceConfig& cfg) {
         EXPECT_FALSE(data_source_instances_.count(cfg.name()));
         auto target_buffer = static_cast<BufferID>(cfg.target_buffer());
         auto session_id =
@@ -156,7 +155,7 @@ void MockProducer::WaitForDataSourceSetup(const std::string& name) {
         data_source_instances_.emplace(
             cfg.name(), EnabledDataSource{ds_id, target_buffer, session_id});
         on_ds_start();
-      }));
+      });
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
@@ -166,8 +165,8 @@ void MockProducer::WaitForDataSourceStart(const std::string& name) {
   auto on_ds_start = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this,
               StartDataSource(_, Property(&DataSourceConfig::name, Eq(name))))
-      .WillOnce(Invoke([on_ds_start, this](DataSourceInstanceID ds_id,
-                                           const DataSourceConfig& cfg) {
+      .WillOnce([on_ds_start, this](DataSourceInstanceID ds_id,
+                                    const DataSourceConfig& cfg) {
         // The data source might have been seen already through
         // WaitForDataSourceSetup().
         if (data_source_instances_.count(cfg.name()) == 0) {
@@ -178,7 +177,7 @@ void MockProducer::WaitForDataSourceStart(const std::string& name) {
               cfg.name(), EnabledDataSource{ds_id, target_buffer, session_id});
         }
         on_ds_start();
-      }));
+      });
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
@@ -215,20 +214,20 @@ void MockProducer::ExpectFlush(std::vector<TraceWriter*> writers_to_flush,
                                bool reply,
                                FlushFlags expected_flags) {
   auto& expected_call = EXPECT_CALL(*this, Flush(_, _, _, _));
-  expected_call.WillOnce(
-      Invoke([this, writers_to_flush, reply, expected_flags](
-                 FlushRequestID flush_req_id, const DataSourceInstanceID*,
-                 size_t, FlushFlags actual_flags) {
-        if (expected_flags.flags()) {
-          EXPECT_EQ(actual_flags, expected_flags);
-        }
-        for (auto* writer : writers_to_flush) {
-          writer->Flush();
-        }
-        if (reply) {
-          service_endpoint_->NotifyFlushComplete(flush_req_id);
-        }
-      }));
+  expected_call.WillOnce([this, writers_to_flush, reply, expected_flags](
+                             FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t,
+                             FlushFlags actual_flags) {
+    if (expected_flags.flags()) {
+      EXPECT_EQ(actual_flags, expected_flags);
+    }
+    for (auto* writer : writers_to_flush) {
+      writer->Flush();
+    }
+    if (reply) {
+      service_endpoint_->NotifyFlushComplete(flush_req_id);
+    }
+  });
 }
 
 DataSourceInstanceID MockProducer::GetDataSourceInstanceId(

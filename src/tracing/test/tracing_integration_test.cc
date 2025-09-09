@@ -47,7 +47,6 @@ namespace perfetto {
 namespace {
 
 using testing::_;
-using testing::Invoke;
 using testing::InvokeWithoutArgs;
 
 ipc::TestSocket kProducerSock{"tracing_test-producer"};
@@ -150,7 +149,7 @@ class TracingIntegrationTest : public ::testing::Test {
         task_runner_.get(), GetProducerSMBScrapingMode());
     auto on_producer_connect =
         task_runner_->CreateCheckpoint("on_producer_connect");
-    EXPECT_CALL(producer_, OnConnect()).WillOnce(Invoke(on_producer_connect));
+    EXPECT_CALL(producer_, OnConnect()).WillOnce(on_producer_connect);
     task_runner_->RunUntilCheckpoint("on_producer_connect");
 
     // Register a data source.
@@ -163,7 +162,7 @@ class TracingIntegrationTest : public ::testing::Test {
         kConsumerSock.name(), &consumer_, task_runner_.get());
     auto on_consumer_connect =
         task_runner_->CreateCheckpoint("on_consumer_connect");
-    EXPECT_CALL(consumer_, OnConnect()).WillOnce(Invoke(on_consumer_connect));
+    EXPECT_CALL(consumer_, OnConnect()).WillOnce(on_consumer_connect);
     task_runner_->RunUntilCheckpoint("on_consumer_connect");
 
     ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&producer_));
@@ -176,13 +175,11 @@ class TracingIntegrationTest : public ::testing::Test {
 
     auto on_producer_disconnect =
         task_runner_->CreateCheckpoint("on_producer_disconnect");
-    EXPECT_CALL(producer_, OnDisconnect())
-        .WillOnce(Invoke(on_producer_disconnect));
+    EXPECT_CALL(producer_, OnDisconnect()).WillOnce(on_producer_disconnect);
 
     auto on_consumer_disconnect =
         task_runner_->CreateCheckpoint("on_consumer_disconnect");
-    EXPECT_CALL(consumer_, OnDisconnect())
-        .WillOnce(Invoke(on_consumer_disconnect));
+    EXPECT_CALL(consumer_, OnDisconnect()).WillOnce(on_consumer_disconnect);
 
     svc_.reset();
     task_runner_->RunUntilCheckpoint("on_producer_disconnect");
@@ -230,28 +227,26 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   DataSourceInstanceID setup_id;
   DataSourceConfig setup_cfg_proto;
   EXPECT_CALL(producer_, SetupDataSource(_, _))
-      .WillOnce(
-          Invoke([&setup_id, &setup_cfg_proto](DataSourceInstanceID id,
-                                               const DataSourceConfig& cfg) {
-            setup_id = id;
-            setup_cfg_proto = cfg;
-          }));
+      .WillOnce([&setup_id, &setup_cfg_proto](DataSourceInstanceID id,
+                                              const DataSourceConfig& cfg) {
+        setup_id = id;
+        setup_cfg_proto = cfg;
+      });
   EXPECT_CALL(producer_, StartDataSource(_, _))
-      .WillOnce(
-          Invoke([on_create_ds_instance, &ds_iid, &global_buf_id, &setup_id,
-                  &setup_cfg_proto](DataSourceInstanceID id,
-                                    const DataSourceConfig& cfg) {
-            // id and config should match the ones passed to SetupDataSource.
-            ASSERT_EQ(id, setup_id);
-            ASSERT_EQ(setup_cfg_proto, cfg);
-            ASSERT_NE(0u, id);
-            ds_iid = id;
-            ASSERT_EQ("perfetto.test", cfg.name());
-            global_buf_id = static_cast<BufferID>(cfg.target_buffer());
-            ASSERT_NE(0u, global_buf_id);
-            ASSERT_LE(global_buf_id, std::numeric_limits<BufferID>::max());
-            on_create_ds_instance();
-          }));
+      .WillOnce([on_create_ds_instance, &ds_iid, &global_buf_id, &setup_id,
+                 &setup_cfg_proto](DataSourceInstanceID id,
+                                   const DataSourceConfig& cfg) {
+        // id and config should match the ones passed to SetupDataSource.
+        ASSERT_EQ(id, setup_id);
+        ASSERT_EQ(setup_cfg_proto, cfg);
+        ASSERT_NE(0u, id);
+        ds_iid = id;
+        ASSERT_EQ("perfetto.test", cfg.name());
+        global_buf_id = static_cast<BufferID>(cfg.target_buffer());
+        ASSERT_NE(0u, global_buf_id);
+        ASSERT_LE(global_buf_id, std::numeric_limits<BufferID>::max());
+        on_create_ds_instance();
+      });
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
 
   // Now let the data source fill some pages within the same task.
@@ -281,41 +276,41 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   bool saw_trace_stats = false;
   auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
   EXPECT_CALL(consumer_, OnTracePackets(_, _))
-      .WillRepeatedly(
-          Invoke([&num_pack_rx, all_packets_rx, &trace_config,
-                  &saw_clock_snapshot, &saw_trace_config, &saw_trace_stats](
-                     std::vector<TracePacket>* packets, bool has_more) {
+      .WillRepeatedly([&num_pack_rx, all_packets_rx, &trace_config,
+                       &saw_clock_snapshot, &saw_trace_config,
+                       &saw_trace_stats](std::vector<TracePacket>* packets,
+                                         bool has_more) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-            const int kExpectedMinNumberOfClocks = 1;
+        const int kExpectedMinNumberOfClocks = 1;
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-            const int kExpectedMinNumberOfClocks = 2;
+        const int kExpectedMinNumberOfClocks = 2;
 #else
-            const int kExpectedMinNumberOfClocks = 6;
+        const int kExpectedMinNumberOfClocks = 6;
 #endif
 
-            for (auto& encoded_packet : *packets) {
-              protos::gen::TracePacket packet;
-              ASSERT_TRUE(packet.ParseFromString(
-                  encoded_packet.GetRawBytesForTesting()));
-              if (packet.has_for_testing()) {
-                char buf[8];
-                base::SprintfTrunc(buf, sizeof(buf), "evt_%zu", num_pack_rx++);
-                EXPECT_EQ(std::string(buf), packet.for_testing().str());
-              } else if (packet.has_clock_snapshot()) {
-                EXPECT_GE(packet.clock_snapshot().clocks_size(),
-                          kExpectedMinNumberOfClocks);
-                saw_clock_snapshot = true;
-              } else if (packet.has_trace_config()) {
-                EXPECT_EQ(packet.trace_config(), trace_config);
-                saw_trace_config = true;
-              } else if (packet.has_trace_stats()) {
-                saw_trace_stats = true;
-                CheckTraceStats(packet);
-              }
-            }
-            if (!has_more)
-              all_packets_rx();
-          }));
+        for (auto& encoded_packet : *packets) {
+          protos::gen::TracePacket packet;
+          ASSERT_TRUE(
+              packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
+          if (packet.has_for_testing()) {
+            char buf[8];
+            base::SprintfTrunc(buf, sizeof(buf), "evt_%zu", num_pack_rx++);
+            EXPECT_EQ(std::string(buf), packet.for_testing().str());
+          } else if (packet.has_clock_snapshot()) {
+            EXPECT_GE(packet.clock_snapshot().clocks_size(),
+                      kExpectedMinNumberOfClocks);
+            saw_clock_snapshot = true;
+          } else if (packet.has_trace_config()) {
+            EXPECT_EQ(packet.trace_config(), trace_config);
+            saw_trace_config = true;
+          } else if (packet.has_trace_stats()) {
+            saw_trace_stats = true;
+            CheckTraceStats(packet);
+          }
+        }
+        if (!has_more)
+          all_packets_rx();
+      });
   task_runner_->RunUntilCheckpoint("all_packets_rx");
   ASSERT_EQ(kNumPackets, num_pack_rx);
   EXPECT_TRUE(saw_clock_snapshot);
@@ -354,10 +349,10 @@ TEST_F(TracingIntegrationTest, ValidErrorOnDisconnection) {
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
 
   EXPECT_CALL(consumer_, OnTracingDisabled(_))
-      .WillOnce(Invoke([](const std::string& err) {
+      .WillOnce([](const std::string& err) {
         EXPECT_THAT(err,
                     testing::HasSubstr("EnableTracing IPC request rejected"));
-      }));
+      });
 
   // TearDown() will destroy the service via svc_.reset(). That will drop the
   // connection and trigger the EXPECT_CALL(OnTracingDisabled) above.
@@ -383,11 +378,11 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   EXPECT_CALL(producer_, OnTracingSetup());
   EXPECT_CALL(producer_, SetupDataSource(_, _));
   EXPECT_CALL(producer_, StartDataSource(_, _))
-      .WillOnce(Invoke([on_create_ds_instance, &global_buf_id](
-                           DataSourceInstanceID, const DataSourceConfig& cfg) {
+      .WillOnce([on_create_ds_instance, &global_buf_id](
+                    DataSourceInstanceID, const DataSourceConfig& cfg) {
         global_buf_id = static_cast<BufferID>(cfg.target_buffer());
         on_create_ds_instance();
-      }));
+      });
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
 
   std::unique_ptr<TraceWriter> writer = producer_endpoint_->CreateTraceWriter(
@@ -472,11 +467,11 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
 
   EXPECT_CALL(producer_, SetupDataSource(_, _));
   EXPECT_CALL(producer_, StartDataSource(_, _))
-      .WillOnce(Invoke([on_create_ds_instance, &global_buf_id](
-                           DataSourceInstanceID, const DataSourceConfig& cfg) {
+      .WillOnce([on_create_ds_instance, &global_buf_id](
+                    DataSourceInstanceID, const DataSourceConfig& cfg) {
         global_buf_id = static_cast<BufferID>(cfg.target_buffer());
         on_create_ds_instance();
-      }));
+      });
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
 
   // Create writer, which will post a task to register the writer with the
@@ -506,10 +501,10 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
       },
       flush_flags);
   EXPECT_CALL(producer_, Flush(_, _, _, flush_flags))
-      .WillOnce(Invoke([this](FlushRequestID flush_req_id,
-                              const DataSourceInstanceID*, size_t, FlushFlags) {
+      .WillOnce([this](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                       size_t, FlushFlags) {
         producer_endpoint_->NotifyFlushComplete(flush_req_id);
-      }));
+      });
   task_runner_->RunUntilCheckpoint("on_flush_complete");
 
   // Read the log buffer. We should see all the packets.
@@ -518,20 +513,19 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
   size_t num_test_pack_rx = 0;
   auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
   EXPECT_CALL(consumer_, OnTracePackets(_, _))
-      .WillRepeatedly(
-          Invoke([&num_test_pack_rx, all_packets_rx](
-                     std::vector<TracePacket>* packets, bool has_more) {
-            for (auto& encoded_packet : *packets) {
-              protos::gen::TracePacket packet;
-              ASSERT_TRUE(packet.ParseFromString(
-                  encoded_packet.GetRawBytesForTesting()));
-              if (packet.has_for_testing()) {
-                num_test_pack_rx++;
-              }
-            }
-            if (!has_more)
-              all_packets_rx();
-          }));
+      .WillRepeatedly([&num_test_pack_rx, all_packets_rx](
+                          std::vector<TracePacket>* packets, bool has_more) {
+        for (auto& encoded_packet : *packets) {
+          protos::gen::TracePacket packet;
+          ASSERT_TRUE(
+              packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
+          if (packet.has_for_testing()) {
+            num_test_pack_rx++;
+          }
+        }
+        if (!has_more)
+          all_packets_rx();
+      });
   task_runner_->RunUntilCheckpoint("all_packets_rx");
   ASSERT_EQ(3u, num_test_pack_rx);
 

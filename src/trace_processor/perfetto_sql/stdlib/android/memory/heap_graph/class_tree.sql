@@ -73,7 +73,7 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     count(r.owned_id) AS outgoing_reference_count,
     o.*
   FROM _path_hashes AS h
@@ -105,8 +105,8 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
-    r.field_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
+    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
     r.field_type_name,
     src.*
   FROM _path_hashes AS h
@@ -138,8 +138,8 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
-    r.field_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
+    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
     r.field_type_name,
     dst.*
   FROM _path_hashes AS h
@@ -162,7 +162,7 @@ CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
 RETURNS TableOrSubquery AS
 (
   SELECT
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
     o.root_type,
     o.reachable,
@@ -206,7 +206,7 @@ CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
 RETURNS TableOrSubquery AS
 (
   SELECT
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
     o.root_type,
     o.reachable,
@@ -253,7 +253,7 @@ RETURNS TableOrSubquery AS
     count() AS object_count,
     sum(o.self_size) AS total_size,
     sum(o.native_size) AS total_native_size,
-    c.name AS class_name
+    coalesce(c.deobfuscated_name, c.name) AS class_name
   FROM $path_hashes AS h
   JOIN heap_graph_object AS o
     ON h.id = o.id

@@ -17,20 +17,24 @@
 .pf-sidebar {
   --sidebar-padding-bottom: 40px;
   --sidebar-timing: 0.15s;
+
+  color: var(--pf-sidebar-on-surface);
   grid-area: sidebar;
   z-index: 4;
-  background-color: #262f3c;
+  background-color: var(--pf-sidebar-surface);
   overflow: hidden;
   width: var(--sidebar-width);
   display: flex;
   position: relative;
   flex-direction: column;
+  border-right: 1px solid var(--pf-sidebar-border);
   transition:
     margin-left var(--anim-easing) var(--sidebar-timing),
     visibility linear var(--sidebar-timing);
   > * {
-    border-bottom: 1px solid #404854;
+    border-bottom: 1px solid var(--pf-sidebar-border-secondary);
   }
+
   input[type="file"] {
     display: none;
   }
@@ -42,7 +46,7 @@
     line-height: var(--topbar-height);
     vertical-align: middle;
     padding: 0 12px;
-    color: #fff;
+    color: var(--pf-sidebar-on-surface);
     overflow: visible;
     .pf-sidebar__brand {
       height: 36px;
@@ -70,17 +74,17 @@
       color: #aed581;
     }
   }
+
   .pf-sidebar-button {
     position: fixed;
     z-index: 5;
-    background-color: #262f3c;
     height: var(--topbar-height);
     left: calc(var(--sidebar-width) - 50px);
-    border-radius: 0 5px 5px 0;
+    border-radius: 0;
     border-bottom: inherit;
     visibility: visible; // So stays visible when the sidebar is hidden.
     transition: left var(--anim-easing) var(--sidebar-timing);
-    width: 48px;
+    width: 50px;
     overflow: hidden;
     > button {
       vertical-align: middle;
@@ -105,17 +109,18 @@
 
     // Override scrollbar colors for the sidebar as it doesn't use the theme
     // provided styles.
-    scrollbar-color: #b4b7ba6e #19212b;
+    scrollbar-color: var(--pf-sidebar-border)
+      var(--pf-sidebar-surface-secondary);
 
     &::-webkit-scrollbar {
       width: 0.5em;
     }
     &::-webkit-scrollbar-track {
-      background-color: #19212b;
+      background-color: var(--pf-sidebar-surface-secondary);
       border-radius: 2px;
     }
     &::-webkit-scrollbar-thumb {
-      background: #b4b7ba6e;
+      background: var(--pf-sidebar-border);
       border-radius: 2px;
     }
   }
@@ -126,7 +131,6 @@
     padding-bottom: var(--sidebar-padding-bottom);
 
     > section {
-      @include transition();
       padding: 20px 0;
       max-height: 80px;
       .pf-sidebar__section-header {
@@ -140,11 +144,9 @@
           margin: 0 12px;
         }
         > h1 {
-          color: #fff;
           font-size: 15px;
         }
         > h2 {
-          @include transition();
           color: rgba(255, 255, 255, 0.5);
           font-size: 12px;
           margin-top: 8px;
@@ -159,10 +161,10 @@
         }
       }
       &:hover {
-        background-color: #373f4b;
+        background: color-hover-surface(transparent, currentColor);
       }
       &.pf-sidebar__section--expanded {
-        background-color: #19212b;
+        background-color: var(--pf-sidebar-surface-secondary);
         max-height: unset;
         .pf-sidebar__section-header {
           h2 {
@@ -183,11 +185,11 @@
 
     .pf-sidebar__section-content {
       pointer-events: none;
-      @include transition();
+
       opacity: 0;
-      color: #b4b7ba;
+      color: var(--pf-sidebar-on-surface-muted);
       a {
-        color: #b4b7ba;
+        color: inherit;
       }
       ul {
         list-style-type: none;
@@ -195,7 +197,6 @@
         padding: 0;
       }
       li {
-        @include transition();
         a {
           line-height: 24px;
           font-size: 14px;
@@ -235,7 +236,7 @@
           font-size: 20px;
         }
         &:hover {
-          background-color: #373f4b;
+          background: color-hover-surface(transparent, currentColor);
         }
         .pf-sidebar__trace-file-name {
           white-space: break-spaces;
@@ -244,7 +245,6 @@
           font-weight: 300;
           letter-spacing: 0;
           margin-top: -10px;
-          color: #fff;
         }
       }
     }
@@ -276,28 +276,27 @@
       width: 24px;
       height: 24px;
       line-height: 24px;
+      user-select: none;
       display: flex;
       justify-content: center;
       flex-direction: column;
       align-items: center;
-
       margin: 1px 0;
-      background: #12161b;
-      color: #4e71b3;
+      background: var(--pf-sidebar-surface-secondary);
       border-radius: $border-radius;
       font-size: 12px;
       text-align: center;
       &--green {
-        background: #7aca75;
-        color: #12161b;
+        background: var(--pf-color-success);
+        color: var(--pf-color-text-on-success);
       }
       &--amber {
-        background: #ffc107;
-        color: #333;
+        background: var(--pf-color-warning);
+        color: var(--pf-color-text-on-warning);
       }
       &--red {
-        background: #d32f2f;
-        color: #fff;
+        background: var(--pf-color-danger);
+        color: var(--pf-color-text-on-danger);
       }
       > div {
         font-size: 10px;
@@ -320,6 +319,7 @@
   }
 }
 
+// Note: The hiring banner doesn't use theme colors.
 .pf-hiring-banner {
   font-size: 12px;
   background: #db4634;

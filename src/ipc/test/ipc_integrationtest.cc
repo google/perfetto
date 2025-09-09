@@ -33,7 +33,6 @@ using ::perfetto::ipc::Host;
 using ::perfetto::ipc::Service;
 using ::perfetto::ipc::ServiceProxy;
 using ::testing::_;
-using ::testing::Invoke;
 
 using namespace ::ipc_test::gen;
 
@@ -86,7 +85,7 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
   ASSERT_TRUE(host->ExposeService(std::unique_ptr<Service>(svc)));
 
   auto on_connect = task_runner_.CreateCheckpoint("on_connect");
-  EXPECT_CALL(svc_proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(svc_proxy_events_, OnConnect()).WillOnce(on_connect);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   auto socket_pair = perfetto::base::UnixSocketRaw::CreatePairPosix(
@@ -120,12 +119,12 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
         });
 
     EXPECT_CALL(*svc, OnSayHello(_, _))
-        .WillOnce(Invoke([](const GreeterRequestMsg& host_req,
-                            Deferred<GreeterReplyMsg>* host_reply) {
+        .WillOnce([](const GreeterRequestMsg& host_req,
+                     Deferred<GreeterReplyMsg>* host_reply) {
           auto reply = AsyncResult<GreeterReplyMsg>::Create();
           reply->set_message("Hello " + host_req.name());
           host_reply->Resolve(std::move(reply));
-        }));
+        });
     svc_proxy->SayHello(req, std::move(deferred_reply));
     task_runner_.RunUntilCheckpoint("on_hello_reply");
   }
@@ -143,12 +142,12 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
         });
 
     EXPECT_CALL(*svc, OnWaveGoodbye(_, _))
-        .WillOnce(Invoke([](const GreeterRequestMsg& host_req,
-                            Deferred<GreeterReplyMsg>* host_reply) {
+        .WillOnce([](const GreeterRequestMsg& host_req,
+                     Deferred<GreeterReplyMsg>* host_reply) {
           auto reply = AsyncResult<GreeterReplyMsg>::Create();
           reply->set_message("Goodbye " + host_req.name());
           host_reply->Resolve(std::move(reply));
-        }));
+        });
     svc_proxy->WaveGoodbye(req, std::move(deferred_reply));
     task_runner_.RunUntilCheckpoint("on_goodbye_reply");
   }

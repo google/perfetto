@@ -27,7 +27,6 @@ using ::testing::AllOf;
 using ::testing::Field;
 using ::testing::HasSubstr;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::IsNull;
 using ::testing::MockFunction;
 using ::testing::Not;
@@ -89,12 +88,12 @@ TEST_F(InterceptorTraceWriterTest, NewTracePacketAutomaticallyAddedFields) {
   std::string first_packet;
   std::string second_packet;
   EXPECT_CALL(trace_packet_callback_, Call)
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      .WillOnce([&](TracePacketCallbackArgs args) {
         first_packet = args.packet_data.ToStdString();
-      }))
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      })
+      .WillOnce([&](TracePacketCallbackArgs args) {
         second_packet = args.packet_data.ToStdString();
-      }));
+      });
 
   tw_.NewTracePacket();
   tw_.NewTracePacket();
@@ -112,12 +111,12 @@ TEST_F(InterceptorTraceWriterTest, NewTracePacketLargePacket) {
   size_t first_packet_size;
   size_t second_packet_size;
   EXPECT_CALL(trace_packet_callback_, Call)
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      .WillOnce([&](TracePacketCallbackArgs args) {
         first_packet_size = args.packet_data.size;
-      }))
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      })
+      .WillOnce([&](TracePacketCallbackArgs args) {
         second_packet_size = args.packet_data.size;
-      }));
+      });
 
   tw_.NewTracePacket();
   {
@@ -134,12 +133,12 @@ TEST_F(InterceptorTraceWriterTest, NewTracePacketTakeWriterLargePacket) {
   size_t first_packet_size;
   size_t second_packet_size;
   EXPECT_CALL(trace_packet_callback_, Call)
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      .WillOnce([&](TracePacketCallbackArgs args) {
         first_packet_size = args.packet_data.size;
-      }))
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      })
+      .WillOnce([&](TracePacketCallbackArgs args) {
         second_packet_size = args.packet_data.size;
-      }));
+      });
 
   tw_.NewTracePacket();
   tw_.FinishTracePacket();
@@ -159,24 +158,24 @@ TEST_F(InterceptorTraceWriterTest, MixManualTakeAndMessage) {
   std::string content2 = "BBBBB";
   std::string content3 = "CCCCC";
   EXPECT_CALL(trace_packet_callback_, Call)
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      .WillOnce([&](TracePacketCallbackArgs args) {
         std::string data = args.packet_data.ToStdString();
         EXPECT_THAT(data, HasSubstr(content1));
         EXPECT_THAT(data, Not(HasSubstr(content2)));
         EXPECT_THAT(data, Not(HasSubstr(content3)));
-      }))
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      })
+      .WillOnce([&](TracePacketCallbackArgs args) {
         std::string data = args.packet_data.ToStdString();
         EXPECT_THAT(data, Not(HasSubstr(content1)));
         EXPECT_THAT(data, HasSubstr(content2));
         EXPECT_THAT(data, Not(HasSubstr(content3)));
-      }))
-      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+      })
+      .WillOnce([&](TracePacketCallbackArgs args) {
         std::string data = args.packet_data.ToStdString();
         EXPECT_THAT(data, Not(HasSubstr(content1)));
         EXPECT_THAT(data, Not(HasSubstr(content2)));
         EXPECT_THAT(data, HasSubstr(content3));
-      }));
+      });
 
   protozero::ScatteredStreamWriter* writer =
       tw_.NewTracePacket().TakeStreamWriter();

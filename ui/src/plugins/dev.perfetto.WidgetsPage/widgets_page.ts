@@ -1338,11 +1338,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       }),
       m(WidgetShowcase, {
         label: 'Callout',
-        renderWidget: (opts) =>
+        renderWidget: ({icon, ...opts}) =>
           m(
             Callout,
             {
-              icon: 'info',
+              icon: Boolean(icon) ? 'info' : undefined,
               ...opts,
             },
             'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
@@ -1353,6 +1353,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         initialOpts: {
           intent: new EnumOption(Intent.None, Object.values(Intent)),
           dismissable: false,
+          icon: true,
         },
       }),
       m(WidgetShowcase, {

@@ -65,7 +65,6 @@ export interface GraphAttrs {
   readonly onAddStdlibTableSource: () => void;
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
-  readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
@@ -377,7 +376,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddSubQuery: attrs.onAddSubQuery,
             onAddAggregation: attrs.onAddAggregation,
             onAddIntervalIntersect: attrs.onAddIntervalIntersect,
             onNodeRendered: this.onNodeRendered,

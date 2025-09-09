@@ -29,7 +29,7 @@ RETURNS Expr AS $x;
 
 CREATE PERFETTO MACRO _interval_agg(
   tab TableOrSubquery,
-  agg_columns _ColumnNameList
+  agg_columns ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (
@@ -48,7 +48,7 @@ RETURNS TableOrSubquery AS
 
 CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
-  agg_columns _ColumnNameList
+  agg_columns ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (

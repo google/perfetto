@@ -25,11 +25,12 @@
   line-height: 1;
   background: var(--pf-color-background-secondary);
   border-radius: $border-radius;
-  padding: 4px;
+  padding: 4px 6px;
   border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
-  gap: 6px;
+  gap: 0.2em;
 
   & > .pf-left-icon {
+    margin-left: -0.2em;
     align-items: baseline;
   }
 
