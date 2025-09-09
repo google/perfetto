@@ -502,7 +502,11 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
     std::string uuid = conn_to_uuid_it->second;
     auto uuid_to_tp_it = uuid_to_tp_map.find(uuid);
     if (uuid_to_tp_it != uuid_to_tp_map.end()) {
-      uuid_to_tp_it->second->rpc_->has_existing_tab = false;
+      if (uuid_to_tp_it->second->rpc_->GetCurrentTraceName().empty()) {
+        uuid_to_tp_map.erase(uuid_to_tp_it);
+      } else {
+        uuid_to_tp_it->second->rpc_->has_existing_tab = false;
+      }
     }
     conn_to_uuid_map.erase(conn_to_uuid_it);
   }

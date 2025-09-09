@@ -143,50 +143,50 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   if (firstTpStatusData) {
-    const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
-    // Check short version:
-    if (
-      firstTpStatus.versionCode !== '' &&
-      firstTpStatus.versionCode !== VERSION
-    ) {
-      const url = await isVersionAvailable(firstTpStatus.versionCode);
-      if (url !== undefined) {
-        // If matched UI available show a dialog asking the user to
-        // switch.
-        const result = await showDialogVersionMismatch(firstTpStatus, url);
-        switch (result) {
-          case MismatchedVersionDialog.Dismissed:
-          case MismatchedVersionDialog.UseMatchingUi:
-            navigateToVersion(firstTpStatus.versionCode);
-            return;
-          case MismatchedVersionDialog.UseMismatchedRpc:
-            break;
-          case MismatchedVersionDialog.UseWasm:
-            forceWasm();
-            return;
-          default:
-            const x: never = result;
-            throw new Error(`Unsupported result ${x}`);
-        }
-      }
-    }
-
-    // Check the RPC version:
-    if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
-      const result = await showDialogIncompatibleRPC(firstTpStatus);
+  const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
+  // Check short version:
+  if (
+    firstTpStatus.versionCode !== '' &&
+    firstTpStatus.versionCode !== VERSION
+  ) {
+    const url = await isVersionAvailable(firstTpStatus.versionCode);
+    if (url !== undefined) {
+      // If matched UI available show a dialog asking the user to
+      // switch.
+      const result = await showDialogVersionMismatch(firstTpStatus, url);
       switch (result) {
-        case IncompatibleRpcDialogResult.Dismissed:
-        case IncompatibleRpcDialogResult.UseWasm:
+        case MismatchedVersionDialog.Dismissed:
+        case MismatchedVersionDialog.UseMatchingUi:
+          navigateToVersion(firstTpStatus.versionCode);
+          return;
+        case MismatchedVersionDialog.UseMismatchedRpc:
+          break;
+        case MismatchedVersionDialog.UseWasm:
           forceWasm();
           return;
-        case IncompatibleRpcDialogResult.UseIncompatibleRpc:
-          break;
         default:
           const x: never = result;
           throw new Error(`Unsupported result ${x}`);
       }
     }
   }
+
+  // Check the RPC version:
+  if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
+    const result = await showDialogIncompatibleRPC(firstTpStatus);
+    switch (result) {
+      case IncompatibleRpcDialogResult.Dismissed:
+      case IncompatibleRpcDialogResult.UseWasm:
+        forceWasm();
+        return;
+      case IncompatibleRpcDialogResult.UseIncompatibleRpc:
+        break;
+      default:
+        const x: never = result;
+        throw new Error(`Unsupported result ${x}`);
+    }
+  }
+}
 
   const result = await showDialogToUsePreloadedTrace();
   switch (result) {
@@ -464,9 +464,17 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 },
               },
               [
-                m('h4', {style: {'margin-top': '0', 'margin-bottom': '8px'}}, 'Other Options:'),
+                m(
+                  'h4',
+                  {style: {'margin-top': '0', 'margin-bottom': '8px'}},
+                  'Other Options:',
+                ),
                 m('div', {style: {'margin-bottom': '12px'}}, [
-                  m('strong', {style: {'font-size': '14px'}}, 'Yes, Attach to external RPC:'),
+                  m(
+                    'strong',
+                    {style: {'font-size': '14px'}},
+                    'Yes, Attach to external RPC:',
+                  ),
                   m('br'),
                   m(
                     'small',
@@ -474,7 +482,11 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                   ),
                 ]),
                 m('div', {style: {}}, [
-                  m('strong', {style: {'font-size': '14px'}}, 'Use built-in WASM:'),
+                  m(
+                    'strong',
+                    {style: {'font-size': '14px'}},
+                    'Use built-in WASM:',
+                  ),
                   m('br'),
                   m('small', 'Will not use the accelerator in this tab.'),
                 ]),
