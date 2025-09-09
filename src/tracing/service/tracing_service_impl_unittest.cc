@@ -57,7 +57,6 @@
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
-#include "src/perfetto_cmd/packet_writer.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_writer_impl.h"
