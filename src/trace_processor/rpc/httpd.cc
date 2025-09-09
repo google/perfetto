@@ -357,56 +357,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
                              Vec2Sv(result.SerializeAsArray()));
   }
 
-  // new endpoint that accesses all trace processors
-  if (req.uri == "/status/all") {
-    // Use protozero::HeapBuffered to get SerializeAsArray() method
-    protozero::HeapBuffered<protos::pbzero::StatusAllResult> result;
-
-    // Add per-UUID trace processors
-    {
-      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-      for (const auto& entry : uuid_to_tp_map) {
-        const std::string& uuid = entry.first;
-        const auto& tp_rpc = entry.second;
-
-        auto* tp_status = result->add_trace_processor_statuses();
-        tp_status->set_uuid(uuid.c_str());
-
-        auto* status = tp_status->set_status();
-        status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
-
-        status->set_human_readable_version(base::GetVersionString());
-
-        status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
-
-        if (const char* version_code = base::GetVersionCode(); version_code) {
-          status->set_version_code(version_code);
-        }
-        status->set_api_version(
-            protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
-      }
-    }
-
-    if (!global_trace_processor_rpc_.GetCurrentTraceName().empty()) {
-      auto* tp_status = result->add_trace_processor_statuses();
-      tp_status->set_uuid(DEFAULT_TP_UUID);
-
-      auto* status = tp_status->set_status();
-      // Use GetLoadedTraceName() which returns empty string if no trace loaded
-      status->set_loaded_trace_name(
-          global_trace_processor_rpc_.GetCurrentTraceName());
-      status->set_human_readable_version(base::GetVersionString());
-      if (const char* version_code = base::GetVersionCode(); version_code) {
-        status->set_version_code(version_code);
-      }
-      status->set_api_version(
-          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
-    }
-
-    return conn.SendResponse("200 OK", default_headers,
-                             Vec2Sv(result.SerializeAsArray()));
-  }
-
   if (req.uri == "/websocket" && req.is_websocket_handshake) {
     // Will trigger OnWebsocketMessage() when is received.
     // It returns a 403 if the origin is not one of the allowed CORS origins.

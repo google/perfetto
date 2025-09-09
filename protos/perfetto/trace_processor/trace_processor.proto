@@ -427,26 +427,6 @@ message TraceSummaryResult {
   optional string error = 3;
 }
 
-// Request message for the /status/all endpoint
-message StatusAllArgs {}
-
-// Individual status entry for a specific trace processor
-// Contains both the UUID identifier and the actual status
-message TraceProcessorStatus {
-  // UUID of the trace processor ("default" for global/default processor)
-  optional string uuid = 1;
-
-  // Status information for this trace processor
-  optional StatusResult status = 2;
-}
-
-// Response message for the /status/all endpoint
-// Contains status information for all available trace processors
-message StatusAllResult {
-  // List of all trace processor statuses
-  repeated TraceProcessorStatus trace_processor_statuses = 1;
-}
-
 message RpcStatus {
   // For legacy reasons, this returns the laoded trace name of the first
   // instance (if any)
