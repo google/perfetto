@@ -136,57 +136,56 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   const tpStatusAll = assertExists(state.status);
 
   // use the first trace processor if available, otherwise fallback
-  const firstTpStatusData = tpStatusAll.instances[0];
-
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
-  if (firstTpStatusData) {
-  const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
-  // Check short version:
-  if (
-    firstTpStatus.versionCode !== '' &&
-    firstTpStatus.versionCode !== VERSION
-  ) {
-    const url = await isVersionAvailable(firstTpStatus.versionCode);
-    if (url !== undefined) {
-      // If matched UI available show a dialog asking the user to
-      // switch.
-      const result = await showDialogVersionMismatch(firstTpStatus, url);
+  if (tpStatusAll.instances.length > 0) {
+    const firstTpStatusData = tpStatusAll.instances[0];
+    const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
+    // Check short version:
+    if (
+      firstTpStatus.versionCode !== '' &&
+      firstTpStatus.versionCode !== VERSION
+    ) {
+      const url = await isVersionAvailable(firstTpStatus.versionCode);
+      if (url !== undefined) {
+        // If matched UI available show a dialog asking the user to
+        // switch.
+        const result = await showDialogVersionMismatch(firstTpStatus, url);
+        switch (result) {
+          case MismatchedVersionDialog.Dismissed:
+          case MismatchedVersionDialog.UseMatchingUi:
+            navigateToVersion(firstTpStatus.versionCode);
+            return;
+          case MismatchedVersionDialog.UseMismatchedRpc:
+            break;
+          case MismatchedVersionDialog.UseWasm:
+            forceWasm();
+            return;
+          default:
+            const x: never = result;
+            throw new Error(`Unsupported result ${x}`);
+        }
+      }
+    }
+
+    // Check the RPC version:
+    if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
+      const result = await showDialogIncompatibleRPC(firstTpStatus);
       switch (result) {
-        case MismatchedVersionDialog.Dismissed:
-        case MismatchedVersionDialog.UseMatchingUi:
-          navigateToVersion(firstTpStatus.versionCode);
-          return;
-        case MismatchedVersionDialog.UseMismatchedRpc:
-          break;
-        case MismatchedVersionDialog.UseWasm:
+        case IncompatibleRpcDialogResult.Dismissed:
+        case IncompatibleRpcDialogResult.UseWasm:
           forceWasm();
           return;
+        case IncompatibleRpcDialogResult.UseIncompatibleRpc:
+          break;
         default:
           const x: never = result;
           throw new Error(`Unsupported result ${x}`);
       }
     }
   }
-
-  // Check the RPC version:
-  if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
-    const result = await showDialogIncompatibleRPC(firstTpStatus);
-    switch (result) {
-      case IncompatibleRpcDialogResult.Dismissed:
-      case IncompatibleRpcDialogResult.UseWasm:
-        forceWasm();
-        return;
-      case IncompatibleRpcDialogResult.UseIncompatibleRpc:
-        break;
-      default:
-        const x: never = result;
-        throw new Error(`Unsupported result ${x}`);
-    }
-  }
-}
 
   const result = await showDialogToUsePreloadedTrace();
   switch (result) {
