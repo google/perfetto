@@ -150,9 +150,6 @@ void DrmTracker::ParseDrm(int64_t timestamp,
       DmaFenceWaitEnd(timestamp, pid);
       break;
     }
-    case FtraceEvent::kDrmSchedJobAddDepFieldNumber: {
-      break;
-    }
     case FtraceEvent::kDrmSchedJobDoneFieldNumber: {
       protos::pbzero::DrmSchedJobDoneFtraceEvent::Decoder evt(blob);
       SchedJob job =
@@ -172,9 +169,6 @@ void DrmTracker::ParseDrm(int64_t timestamp,
       SchedJob job =
           SchedJob::WithFenceId(evt.fence_context(), evt.fence_seqno());
       DrmSchedJobRun(timestamp, evt.name(), job);
-      break;
-    }
-    case FtraceEvent::kDrmSchedJobUnschedulableFieldNumber: {
       break;
     }
     default:
