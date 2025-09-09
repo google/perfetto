@@ -95,11 +95,11 @@ WITH
           device
         FROM _use_devfreq
       )
-      AND (
+      AND NOT EXISTS(
         SELECT
-          count(*)
+          1
         FROM linux_devfreq_dsu_counter
-      ) = 0
+      )
   )
 SELECT
   id,
