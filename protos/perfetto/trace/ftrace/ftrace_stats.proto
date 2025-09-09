@@ -105,8 +105,8 @@ message FtraceStats {
   // one or more atrace categories not available on the device.
   optional string atrace_errors = 5;
 
-  // Error message due to advanced feature exclusivity violation.
-  optional string exclusive_advanced_feature_error = 13;
+  // Error message due to exclusivity violation of a single-tenant feature.
+  optional string exclusive_feature_error = 13;
 
   // Ftrace events requested by the config but not present on device.
   repeated string unknown_ftrace_events = 6;

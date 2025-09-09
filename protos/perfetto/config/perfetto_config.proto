@@ -1286,7 +1286,7 @@ message FtraceConfig {
   optional bool debug_ftrace_abi = 31;
 
   // =================================================
-  // Advanced Single-Tenant Features: HERE BE DRAGONS
+  // Exclusive single-tenant features: HERE BE DRAGONS
   // =================================================
   // The features below are considered "advanced" and require an exclusive
   // tracing session (as of Android 25Q3+ and Perfetto v52).
@@ -1300,9 +1300,8 @@ message FtraceConfig {
   // To run the session in exclusive mode, see:
   // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
 
-  // Configuration for filtering ftrace events by Thread ID (TID).
-  // List of Thread IDs (TIDs) to include in the trace.
-  // Interacts with `/sys/kernel/tracing/set_event_pid`.
+  // Filter ftrace events by Thread ID (TID).
+  // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
   //
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.

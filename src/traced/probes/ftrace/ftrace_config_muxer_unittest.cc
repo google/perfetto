@@ -1353,15 +1353,15 @@ TEST_F(FtraceConfigMuxerFakeTableTest, TidFilter) {
 
   FtraceConfigId id = 43;
   ASSERT_TRUE(model_.SetupConfig(id, config));
-  ASSERT_TRUE(model_.GetAdvancedFeatureActiveForTesting());
+  ASSERT_TRUE(model_.GetExclusiveFeatureActiveForTesting());
 
   EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
   ASSERT_TRUE(model_.RemoveConfig(id));
-  ASSERT_FALSE(model_.GetAdvancedFeatureActiveForTesting());
+  ASSERT_FALSE(model_.GetExclusiveFeatureActiveForTesting());
 }
 
 TEST_F(FtraceConfigMuxerFakeTableTest,
-       AdvancedFeatureFailsIfAnotherConfigActive) {
+       ExclusiveFeatureFailsIfAnotherConfigActive) {
   ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));
   ON_CALL(ftrace_, ReadOneCharFromFile("/root/tracing_on"))
@@ -1376,7 +1376,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest,
   FtraceConfigId advanced_id = 2;
   FtraceSetupErrors errors;
   ASSERT_FALSE(model_.SetupConfig(advanced_id, advanced_config, &errors));
-  EXPECT_EQ(errors.exclusive_advanced_feature_error,
+  EXPECT_EQ(errors.exclusive_feature_error,
             "Attempted to start an ftrace session with advanced features "
             "while another session was active.");
 
@@ -1384,7 +1384,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest,
 }
 
 TEST_F(FtraceConfigMuxerFakeTableTest,
-       AnotherConfigFailsIfAdvancedFeatureActive) {
+       AnotherConfigFailsIfExclusiveFeatureActive) {
   ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));
   ON_CALL(ftrace_, ReadOneCharFromFile("/root/tracing_on"))
@@ -1402,19 +1402,19 @@ TEST_F(FtraceConfigMuxerFakeTableTest,
 
   EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "123"));
   ASSERT_TRUE(model_.SetupConfig(advanced_id, advanced_config));
-  ASSERT_TRUE(model_.GetAdvancedFeatureActiveForTesting());
+  ASSERT_TRUE(model_.GetExclusiveFeatureActiveForTesting());
 
   FtraceConfig regular_config;
   FtraceConfigId regular_id = 2;
   FtraceSetupErrors errors;
   ASSERT_FALSE(model_.SetupConfig(regular_id, regular_config, &errors));
-  EXPECT_EQ(errors.exclusive_advanced_feature_error,
+  EXPECT_EQ(errors.exclusive_feature_error,
             "Attempted to start an ftrace session while another session with "
             "advanced features was active.");
 
   EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
   ASSERT_TRUE(model_.RemoveConfig(advanced_id));
-  ASSERT_FALSE(model_.GetAdvancedFeatureActiveForTesting());
+  ASSERT_FALSE(model_.GetExclusiveFeatureActiveForTesting());
 }
 
 // Fixture that constructs a FtraceConfigMuxer with a mock

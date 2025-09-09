@@ -168,7 +168,7 @@ bool ValidateKprobeName(const std::string& name) {
 // Returns true if the config has any advanced features enabled.
 // See: "Advanced Single-Tenant Features" in ftrace_config.proto for more
 // details.
-bool HasAdvancedFeatures(const FtraceConfig& request) {
+bool HasExclusiveFeatures(const FtraceConfig& request) {
   return !request.tids_to_trace().empty();
 }
 
@@ -388,7 +388,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
                                     const FtraceConfig& request,
                                     FtraceSetupErrors* errors) {
   EventFilter filter;
-  bool config_has_advanced_features = HasAdvancedFeatures(request);
+  bool config_has_exclusive_features = HasExclusiveFeatures(request);
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
 
@@ -425,28 +425,21 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       RememberActiveClock();
     }
   } else {
-    // Advanced features are not supported when another config is active.
-    if (config_has_advanced_features) {
-      PERFETTO_ELOG(
+    std::string exclusive_feature_error;
+    if (config_has_exclusive_features) {
+      exclusive_feature_error =
           "Attempted to start an ftrace session with advanced features while "
-          "another session was active.");
-      if (errors) {
-        errors->exclusive_advanced_feature_error =
-            "Attempted to start an ftrace session with advanced features while "
-            "another session was active.";
-      }
-      return false;
-    }
-    // If a config with advanced features is already active, reject this one.
-    if (current_state_.advanced_feature_active) {
-      PERFETTO_ELOG(
+          "another session was active.";
+    } else if (current_state_.exclusive_feature_active) {
+      exclusive_feature_error =
           "Attempted to start an ftrace session while another session with "
-          "advanced features was active.");
-      if (errors) {
-        errors->exclusive_advanced_feature_error =
-            "Attempted to start an ftrace session while another session with "
-            "advanced features was active.";
-      }
+          "advanced features was active.";
+    }
+
+    if (!exclusive_feature_error.empty()) {
+      PERFETTO_ELOG("%s", exclusive_feature_error.c_str());
+      if (errors)
+        errors->exclusive_feature_error = exclusive_feature_error;
       return false;
     }
   }
@@ -463,7 +456,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
   }
 
-  current_state_.advanced_feature_active = config_has_advanced_features;
+  current_state_.exclusive_feature_active = config_has_exclusive_features;
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
 
@@ -765,9 +758,9 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       table_->RemoveEvent(probe);
     }
 
-    if (current_state_.advanced_feature_active) {
+    if (current_state_.exclusive_feature_active) {
       ftrace_->ClearEventTidFilter();
-      current_state_.advanced_feature_active = false;
+      current_state_.exclusive_feature_active = false;
     }
 
     current_state_.installed_kprobes.clear();
