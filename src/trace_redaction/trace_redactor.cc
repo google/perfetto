@@ -30,6 +30,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_redaction/add_synth_threads_to_process_trees.h"
 #include "src/trace_redaction/broadphase_packet_filter.h"
+#include "src/trace_redaction/collect_clocks.h"
 #include "src/trace_redaction/collect_frame_cookies.h"
 #include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
@@ -38,6 +39,7 @@
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
+#include "src/trace_redaction/prune_perf_events.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/reduce_threads_in_process_trees.h"
@@ -168,6 +170,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   redactor->emplace_collect<CollectTimelineEvents>();
   redactor->emplace_collect<CollectFrameCookies>();
   redactor->emplace_collect<CollectSystemInfo>();
+  redactor->emplace_collect<CollectClocks>();
 
   // Add all builders.
   redactor->emplace_build<ReduceFrameCookies>();
@@ -198,6 +201,12 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   }
 
   redactor->emplace_transform<PrunePackageList>();
+
+  {
+    // Remove callstacks that don't belong to target package.
+    auto* primitive = redactor->emplace_transform<PrunePerfEvents>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
 
   // Process stats includes per-process information, such as:
   //
