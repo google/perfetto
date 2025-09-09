@@ -7460,7 +7460,7 @@ class FtraceConfig(_message.Message):
         STATE_DISABLED: FtraceConfig.TracefsOption.State
         STATE_ENABLED: FtraceConfig.TracefsOption.State
         STATE_FIELD_NUMBER: _ClassVar[int]
-        STATE_UNSET: FtraceConfig.TracefsOption.State
+        STATE_UNKNOWN: FtraceConfig.TracefsOption.State
         name: str
         state: FtraceConfig.TracefsOption.State
         def __init__(self, name: _Optional[str] = ..., state: _Optional[_Union[FtraceConfig.TracefsOption.State, str]] = ...) -> None: ...
