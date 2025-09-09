@@ -47,6 +47,12 @@
   white-space: nowrap;
   min-width: max-content;
 
+  &--shrink {
+    min-width: 0;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+
   &--rounded {
     border-radius: 100px;
   }
