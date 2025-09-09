@@ -14,6 +14,7 @@
 -- limitations under the License.
 -- Device specific device curves with 2D dependency (i.e. curve characteristics
 -- are dependent on another CPU policy). See go/wattson for more info.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_cpu_2d;
 
 CREATE PERFETTO TABLE _device_curves_2d AS
 WITH
@@ -545,4 +546,8 @@ WITH
   )
 SELECT
   *
-FROM data;
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_2d_lut;

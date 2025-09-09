@@ -209,7 +209,8 @@ CREATE PERFETTO TABLE _cpu_lut_dependencies AS
 WITH
   base_cpus AS (
     SELECT DISTINCT
-      m.cpu
+      m.cpu,
+      m.policy
     FROM _filtered_curves_2d_raw AS c
     JOIN _dev_cpu_policy_map AS m
       USING (policy)
@@ -218,15 +219,16 @@ WITH
   ),
   dep_cpus AS (
     SELECT DISTINCT
-      m.cpu AS dep_cpu
+      m.cpu AS dep_cpu,
+      m.policy AS dep_policy
     FROM _filtered_curves_2d_raw AS c
     JOIN _dev_cpu_policy_map AS m
       ON c.dep_policy = m.policy
   )
 SELECT
-  cpu,
-  dep_cpu
-FROM base_cpus
-CROSS JOIN dep_cpus
+  b.cpu,
+  d.dep_cpu
+FROM base_cpus AS b
+CROSS JOIN dep_cpus AS d
 WHERE
-  cpu != dep_cpu;
+  b.policy != d.dep_policy;

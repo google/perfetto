@@ -475,3 +475,26 @@ class WattsonStdlib(TestSuite):
           251889143,"50000.corporate"
           241043219,"traced_probes"
           """))
+
+  # Tests freq dependent static along with DSU dependent static calculations on
+  # the same device
+  def test_wattson_multi_variant_static(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_freq_dep_static.pb'),
+        query="""
+          INCLUDE PERFETTO MODULE wattson.estimates;
+             SELECT
+               ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
+               cpu6_mw, cpu7_mw, dsu_scu_mw
+             FROM _system_state_mw
+             WHERE ts >= 11209755572327
+             LIMIT 5
+        """,
+        out=Csv("""
+          "ts","dur","cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
+          11209755572327,32239,100.800000,100.800000,3.360000,30.950000,30.950000,100.980000,100.980000,1959.070000,144.309659
+          11209755604566,43021,100.800000,100.800000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,144.307743
+          11209755647587,3776,139.420000,100.800000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,156.206139
+          11209755651363,50651,139.420000,139.420000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,156.229919
+          11209755702014,8177,139.420000,139.420000,30.950000,3.360000,30.950000,100.980000,100.980000,1959.070000,156.204294
+          """))
