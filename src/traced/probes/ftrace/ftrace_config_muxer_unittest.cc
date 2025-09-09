@@ -1479,7 +1479,6 @@ TEST_F(FtraceConfigMuxerFakeTableTest,
       .Times(AnyNumber());
 
   EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "123"));
-
   ASSERT_TRUE(model_.SetupConfig(advanced_id, advanced_config));
   ASSERT_TRUE(model_.GetExclusiveFeatureActiveForTesting());
 

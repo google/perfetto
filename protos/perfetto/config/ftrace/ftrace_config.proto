@@ -290,27 +290,38 @@ message FtraceConfig {
   // Filter ftrace events by Thread ID (TID).
   // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
   //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   repeated uint32 tids_to_trace = 35;
 
   // Options control the tracers or the trace output.
-  // They let the user control the amount of data that is displayed in the
-  // trace and how a tracer or events work (stack traces, timestamps, etc).
-  // Interacts with trace option in /sys/kernel/tracing/options directory.
+  // For a full list of options, see:
+  // https://docs.kernel.org/trace/ftrace.html#trace-options
+  //
+  // Some of the Perfetto relevant ones include:
+  // - event-fork: To additionally trace events of children forked from Thread
+  // IDs (TIDs) listed in tids_to_trace.
+  // - record-cmd: To enable mapping the TID to its command name.
+  // - record-tgid: To enable mapping the TID to its Thread Group ID(TGID) .
+  // - Options for function_graph tracer (funcgraph-proc, funcgraph-irqs,
+  // graph-time, etc.)
+  //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
   //
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   message TracefsOption {
     enum State {
-      STATE_UNSET = 0;
+      STATE_UNKNOWN = 0;
       STATE_ENABLED = 1;
       STATE_DISABLED = 2;
     }
-    // Note: The string must exactly match (including case) the sysfs file name.
-    // The string can only contain alphanumeric characters, hyphens and
-    // underscores.
-    // For all possible options, see: https://docs.kernel.org/trace/ftrace.html.
+    // The name of the tracefs option as found in tracefs/trace_options (without
+    // the "no" prefix).
     optional string name = 1;
     optional State state = 2;
   }

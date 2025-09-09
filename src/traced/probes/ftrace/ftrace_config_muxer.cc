@@ -171,6 +171,12 @@ bool HasExclusiveFeatures(const FtraceConfig& request) {
   return !request.tids_to_trace().empty() || !request.tracefs_options().empty();
 }
 
+bool IsValidTracefsOptionName(const std::string& name) {
+  return !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
+    return std::isalnum(c) || c == '-' || c == '_';
+  });
+}
+
 }  // namespace
 
 std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
@@ -459,35 +465,30 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     base::FlatHashMap<std::string, bool> current_tracefs_options;
     for (const auto& tracefs_option : request.tracefs_options()) {
       // Skip unset options.
-      if (tracefs_option.state() == FtraceConfig::TracefsOption::STATE_UNSET) {
+      if (tracefs_option.state() ==
+          FtraceConfig::TracefsOption::STATE_UNKNOWN) {
         continue;
       }
-      // Validate the option name.
-      if (tracefs_option.name().empty() ||
-          !std::all_of(
-              tracefs_option.name().begin(), tracefs_option.name().end(),
-              [](char c) { return std::isalnum(c) || c == '-' || c == '_'; })) {
+      const auto& name = tracefs_option.name();
+      if (!IsValidTracefsOptionName(name)) {
         PERFETTO_ELOG(
             "Invalid tracefs option name: %s. The string can only contain "
             "alphanumeric characters, hyphens and underscores.",
-            tracefs_option.name().c_str());
+            name.c_str());
         return false;
       }
       // Get the current option state and save it for later.
-      auto option_state = ftrace_->GetTracefsOption(tracefs_option.name());
+      auto option_state = ftrace_->GetTracefsOption(name);
       if (!option_state.has_value()) {
-        PERFETTO_ELOG("Tracefs option not found: %s",
-                      tracefs_option.name().c_str());
+        PERFETTO_ELOG("Tracefs option not found: %s", name.c_str());
         return false;
       }
-      current_tracefs_options[tracefs_option.name()] = option_state.value();
+      current_tracefs_options[name] = option_state.value();
 
-      if (!ftrace_->SetTracefsOption(
-              tracefs_option.name(),
-              tracefs_option.state() ==
-                  FtraceConfig::TracefsOption::STATE_ENABLED)) {
-        PERFETTO_ELOG("Failed to set tracefs option: %s",
-                      tracefs_option.name().c_str());
+      bool new_state =
+          tracefs_option.state() == FtraceConfig::TracefsOption::STATE_ENABLED;
+      if (!ftrace_->SetTracefsOption(name, new_state)) {
+        PERFETTO_ELOG("Failed to set tracefs option: %s", name.c_str());
         return false;
       }
     }
