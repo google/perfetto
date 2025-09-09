@@ -12,27 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
+.pf-timeline-toolbar {
+  width: var(--track-shell-width);
+}
 
-.pf-json-settings-editor {
-  width: 400px;
-
-  &__editor-section {
-    margin-bottom: 10px;
+.pf-timeline-toolbar__bulk {
+  font-family: var(--pf-font-compact);
+  background: var(--pf-color-accent);
+  color: var(--pf-color-text-on-primary);
+  border-radius: 100px;
+  padding: 1px 2px;
+  align-items: baseline;
+  line-height: 1;
+  &-icon {
+    align-self: center;
   }
+}
 
-  &__editor {
-    height: 200px;
-    width: 100%;
-  }
+.pf-timeline-toolbar__multiselect-pill {
+  background: var(--pf-color-accent);
+  color: var(--pf-color-text-on-primary);
+}
 
-  &__error {
-    margin-top: 10px;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-  }
-
-  &__actions {
-    margin-top: 10px;
-  }
+.pf-timeline-toolbar__bulk-callout {
+  margin: 4px 8px;
+  font-size: 0.7em;
+  font-style: italic;
 }
