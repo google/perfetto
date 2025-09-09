@@ -17,6 +17,7 @@ import {TraceConfigBuilder} from '../config/trace_config_builder';
 import {Toggle} from './widgets/toggle';
 import {Textarea} from './widgets/textarea';
 import {splitLinesNonEmpty} from '../../../base/string_utils';
+import {Slider} from './widgets/slider';
 
 export function networkRecordSection(): RecordSubpage {
   return {
@@ -45,6 +46,13 @@ function wifiNetworkTracing(): RecordProbe {
       default: false,
       descr: 'Kernel events for packet transmission/reception.',
     }),
+    bufSizeMb: new Slider({
+      title: 'Dedicated Packet Traffic Buffer (MB)',
+      cssClass: '.thin',
+      values: [0, 4, 8, 16, 32, 64, 128, 256, 512],
+      unit: 'MB',
+      zeroIsDefault: true,
+    }),
     driverEventsText: new Textarea({
       title: 'Additional ftrace events to track (e.g., family_name/event_name)',
       placeholder: 'One per line',
@@ -62,7 +70,16 @@ function wifiNetworkTracing(): RecordProbe {
         tc.addFtraceEvents(...cfgMacEvents);
       }
       if (settings.net.enabled) {
-        tc.addFtraceEvents(...netEvents);
+        if (settings.bufSizeMb.value === 0) {
+          tc.addFtraceEvents(...netEvents);
+        } else {
+          const bufId = 'ftrace_net';
+          tc.addBuffer(bufId, settings.bufSizeMb.value * 1024);
+          const cfg = tc.addDataSource('linux.ftrace', bufId);
+          cfg.ftraceConfig ??= {};
+          cfg.ftraceConfig.ftraceEvents ??= [];
+          cfg.ftraceConfig.ftraceEvents.push(...netEvents);
+        }
       }
       if (settings.driverEventsText.text) {
         const [driverEvents] = extractEvents(settings.driverEventsText.text);
