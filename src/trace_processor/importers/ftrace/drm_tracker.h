@@ -25,12 +25,15 @@
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
+// Tracker for DRM-related events, including vblanks, gpu schedulers, and
+// dma-fences.
 class DrmTracker {
  public:
   explicit DrmTracker(TraceProcessorContext*);
@@ -44,6 +47,16 @@ class DrmTracker {
   void DrmVblankEvent(int64_t timestamp, int32_t crtc, uint32_t seqno);
   void DrmVblankEventDelivered(int64_t timestamp, int32_t crtc, uint32_t seqno);
 
+  // A SchedJob represents a scheduler job.
+  //
+  // Since linux 6.17, a job is always identified by a fence id (dma-fence
+  // context and seqno).
+  //
+  // Before linux 6.17, a job is identified by
+  //
+  //  - a local id (local to the ring) in DrmSchedJobFtraceEvent,
+  //  - a global id (dma-fence addr) in DrmSchedProcessJobFtraceEvent, and
+  //  - both local and global id in DrmRunJobFtraceEvent.
   class SchedJob {
    public:
     static SchedJob WithFenceId(uint64_t context, uint64_t seqno) {
@@ -85,7 +98,6 @@ class DrmTracker {
     }
 
     bool operator==(const SchedJob& other) const {
-      // Jobs are referred to by fence ids since 6.17.
       if (types_ & other.types_ & SCHED_JOB_ID_FENCE)
         return id_[0] == other.id_[0] && id_[1] == other.id_[1];
 
@@ -99,6 +111,7 @@ class DrmTracker {
       return false;
     }
 
+    // Hash the global id (before 6.17) or the fence id (since 6.17).
     struct GlobalHash {
       size_t operator()(const SchedJob& job) const {
         uint64_t context, seqno;
@@ -108,6 +121,7 @@ class DrmTracker {
       }
     };
 
+    // Hash the local id (before 6.17) or the fence id (since 6.17).
     struct LocalHash {
       size_t operator()(const SchedJob& job) const {
         uint64_t context, seqno;
@@ -119,25 +133,38 @@ class DrmTracker {
 
    private:
     enum SchedJobIdType : uint8_t {
+      // dma-fence context in id_[0] and dma-fence seqno id_[1]
       SCHED_JOB_ID_FENCE = 1 << 0,
+      // Global id in id_[0].
       SCHED_JOB_ID_GLOBAL = 1 << 1,
+      // Local id in id_[1].
       SCHED_JOB_ID_LOCAL = 1 << 2,
     };
 
     SchedJob(uint8_t types, uint64_t id0, uint64_t id1)
         : types_(types), id_{id0, id1} {}
 
+    // Since 6.17, always SCHED_JOB_ID_FENCE.
+    // Before 6.17, a bitmask of SCHED_JOB_ID_GLOBAL and SCHED_JOB_ID_LOCAL.
     uint8_t types_;
+
     uint64_t id_[2];
   };
 
+  // A SchedRing represents a scheduler ring buffer.
   struct SchedRing {
     TrackId track_id;
+
+    // Jobs that are running and have yet done.
     std::deque<SchedJob> running_jobs;
 
+    // Map queued jobs to their slice ids on the thread track.
     base::FlatHashMap<SchedJob, SliceId, SchedJob::LocalHash> out_slice_ids;
   };
+
   SchedRing& GetSchedRingByName(base::StringView name);
+  void InsertSchedJobArgs(ArgsTracker::BoundInserter* inserter,
+                          SchedJob job) const;
   void BeginSchedRingSlice(int64_t timestamp, SchedRing& ring);
 
   void DrmSchedJobQueue(int64_t timestamp,
@@ -147,9 +174,12 @@ class DrmTracker {
   void DrmSchedJobRun(int64_t timestamp, base::StringView name, SchedJob job);
   void DrmSchedJobDone(int64_t timestamp, SchedJob job);
 
+  // A FenceTimeline represents a dma-fence context.
   struct FenceTimeline {
     TrackId track_id;
     bool has_dma_fence_emit;
+
+    // dma-fences that are initialized and have yet signaled.
     std::deque<uint32_t> pending_fences;
   };
   FenceTimeline& GetFenceTimelineByContext(uint32_t context,
@@ -189,10 +219,13 @@ class DrmTracker {
   const StringId fence_arg_context_id_;
   const StringId fence_arg_seqno_id_;
 
+  // Map scheduler ring names to SchedRings.
   base::FlatHashMap<base::StringView, std::unique_ptr<SchedRing>> sched_rings_;
+  // Map running jobs to SchedRings.
   base::FlatHashMap<SchedJob, SchedRing*, SchedJob::GlobalHash>
-      sched_pending_fences_;
+      sched_busy_rings_;
 
+  // Map dma-fence contexts to FenceTimelines.
   base::FlatHashMap<uint32_t, std::unique_ptr<FenceTimeline>> fence_timelines_;
 };
 
