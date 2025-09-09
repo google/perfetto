@@ -15,6 +15,11 @@
 .pf-theme-provider {
   display: contents;
 
+  // Fonts
+  --pf-font: "Roboto", sans-serif;
+  --pf-font-compact: "Roboto Condensed", sans-serif;
+  --pf-font-monospace: "Roboto Mono", monospace;
+
   &--light {
     --pf-color-background: white;
     --pf-color-background-secondary: #edf0f1;
