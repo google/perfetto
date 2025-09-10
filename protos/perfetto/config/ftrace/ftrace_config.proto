@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 36
+// Next id: 37
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -290,9 +290,41 @@ message FtraceConfig {
   // Filter ftrace events by Thread ID (TID).
   // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
   //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   repeated uint32 tids_to_trace = 35;
+
+  // Tracefs options to set directly in the tracefs instance. This is a very
+  // niche feature since almost all of the options deal with formatting textual
+  // output (the /trace file), which perfetto doesn't use.
+  //
+  // The options with a known use-case:
+  // * event-fork: when using `tids_to_trace` above, the kernel will
+  //   automatically add newly spawned descendant threads to the set of TIDs.
+  //
+  // Full list of options is available at
+  // https://docs.kernel.org/trace/ftrace.html#trace-options.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  message TracefsOption {
+    enum State {
+      STATE_UNKNOWN = 0;
+      STATE_ENABLED = 1;
+      STATE_DISABLED = 2;
+    }
+    // The name of the tracefs option as found in tracefs/trace_options (without
+    // the "no" prefix).
+    optional string name = 1;
+    optional State state = 2;
+  }
+  repeated TracefsOption tracefs_options = 36;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.

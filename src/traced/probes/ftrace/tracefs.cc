@@ -293,6 +293,20 @@ bool Tracefs::ClearEventTidFilter() {
   return ClearFile(path);
 }
 
+std::optional<bool> Tracefs::GetTracefsOption(const std::string& option) {
+  std::string path = root_ + "options/" + option;
+  std::string value = base::TrimWhitespace(ReadFileIntoString(path));
+  if (value != "0" && value != "1") {
+    return std::nullopt;
+  }
+  return value == "1";
+}
+
+bool Tracefs::SetTracefsOption(const std::string& option, bool enabled) {
+  std::string path = root_ + "options/" + option;
+  return WriteToFile(path, enabled ? "1" : "0");
+}
+
 bool Tracefs::AppendFunctionGraphFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_graph_function";
