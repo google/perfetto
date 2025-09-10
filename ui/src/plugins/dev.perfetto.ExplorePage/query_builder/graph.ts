@@ -27,11 +27,37 @@ import {
   PADDING,
   DEFAULT_NODE_WIDTH,
 } from './node_box';
-import {Arrow} from './arrow';
+import {Arrow, Port} from './arrow';
 import {Icon} from '../../../widgets/icon';
 
 const BUTTONS_AREA_WIDTH = 300;
 const BUTTONS_AREA_HEIGHT = 50;
+
+function getOutputPorts(layout: NodeBoxLayout, portCount: number): Port[] {
+  const ports: Port[] = [];
+  for (let i = 0; i < portCount; i++) {
+    ports.push({
+      x:
+        layout.x +
+        ((layout.width ?? DEFAULT_NODE_WIDTH) * (i + 1)) / (portCount + 1),
+      y: layout.y + (layout.height ?? NODE_HEIGHT),
+    });
+  }
+  return ports;
+}
+
+function getInputPorts(layout: NodeBoxLayout, portCount: number): Port[] {
+  const ports: Port[] = [];
+  for (let i = 0; i < portCount; i++) {
+    ports.push({
+      x:
+        layout.x +
+        ((layout.width ?? DEFAULT_NODE_WIDTH) * (i + 1)) / (portCount + 1),
+      y: layout.y,
+    });
+  }
+  return ports;
+}
 
 function keycap(glyph: m.Children): m.Children {
   return m('.pf-keycap', glyph);
@@ -60,8 +86,10 @@ const SourceCard: m.Component<SourceCardAttrs> = {
 export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
+  readonly nodeLayouts: Map<string, NodeBoxLayout>;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
+  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
   readonly onAddStdlibTableSource: () => void;
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
@@ -73,12 +101,14 @@ export interface GraphAttrs {
 }
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
+  private attrs?: GraphAttrs;
+
   // The node currently being dragged. This is used to apply styles and
   // transformations to the node while it is being moved.
   private dragNode?: QueryNode;
   // A map from nodes to their layout information (position and size). This
   // allows us to quickly look up the position of any node in the graph.
-  private nodeLayouts: Map<QueryNode, NodeBoxLayout> = new Map();
+  private resolvedNodeLayouts: Map<QueryNode, NodeBoxLayout> = new Map();
   // The width of the node graph area. This is used to constrain the nodes
   // within the bounds of the graph.
   private nodeGraphWidth: number = 0;
@@ -87,14 +117,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   // position when the drag starts.
   private dragOffset?: {x: number; y: number};
 
-  oncreate({dom}: m.VnodeDOM<GraphAttrs>) {
+  oncreate({dom, attrs}: m.VnodeDOM<GraphAttrs>) {
     const box = dom as HTMLElement;
     this.nodeGraphWidth = box.getBoundingClientRect().width;
 
     box.ondragover = (event) => {
       event.preventDefault(); // Allow dropping
       if (this.dragNode) {
-        const dragNodeLayout = this.nodeLayouts.get(this.dragNode);
+        const dragNodeLayout = this.resolvedNodeLayouts.get(this.dragNode);
         if (dragNodeLayout && this.dragOffset) {
           const rect = box.getBoundingClientRect();
           const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
@@ -104,7 +134,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           // connecting arrows to follow the node smoothly.
           const x = event.clientX - rect.left - this.dragOffset.x;
           const y = event.clientY - rect.top - this.dragOffset.y;
-          this.nodeLayouts.set(this.dragNode, {
+          this.resolvedNodeLayouts.set(this.dragNode, {
             ...dragNodeLayout,
             x: Math.max(0, Math.min(x, rect.width - w)),
             y: Math.max(0, Math.min(y, rect.height - h)),
@@ -115,7 +145,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     };
 
     box.ondrop = (event) => {
-      this.onDrop(event, box);
+      this.onDrop(event, box, attrs);
     };
 
     box.ondragend = () => {
@@ -127,10 +157,10 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     };
   }
 
-  private onDrop = (event: DragEvent, box: HTMLElement) => {
+  private onDrop = (event: DragEvent, box: HTMLElement, attrs: GraphAttrs) => {
     event.preventDefault();
     if (!this.dragNode) return;
-    const dragNodeLayout = this.nodeLayouts.get(this.dragNode);
+    const dragNodeLayout = this.resolvedNodeLayouts.get(this.dragNode);
     if (!dragNodeLayout) return;
 
     const rect = box.getBoundingClientRect();
@@ -148,7 +178,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       height: BUTTONS_AREA_HEIGHT,
     };
 
-    const otherLayouts = [...this.nodeLayouts.entries()]
+    const otherLayouts = [...this.resolvedNodeLayouts.entries()]
       .filter(([node, _]) => node !== this.dragNode)
       .map(([, layout]) => layout);
 
@@ -166,37 +196,36 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       rect,
     );
 
-    this.nodeLayouts.set(this.dragNode, newLayout);
+    attrs.onNodeLayoutChange(this.dragNode.nodeId, {
+      ...newLayout,
+      width: w,
+      height: h,
+    });
     m.redraw();
   };
 
-  onNodeRendered = (node: QueryNode, element: HTMLElement) => {
-    const layout = this.nodeLayouts.get(node);
-    if (layout) {
-      const newWidth = element.offsetWidth;
-      const newHeight = element.offsetHeight;
-      // The dimensions of a node can change after it is rendered, for example
-      // if the user edits the node's title. To ensure that the layout is
-      // always accurate, we update the node's dimensions in the layout map
-      // whenever they change.
-      if (layout.width !== newWidth || layout.height !== newHeight) {
-        this.nodeLayouts.set(node, {
-          ...layout,
-          width: newWidth,
-          height: newHeight,
-        });
+  onNodeDragStart = (
+    node: QueryNode,
+    event: DragEvent,
+    layout: NodeBoxLayout,
+  ) => {
+    if (!this.attrs) return;
+
+    const allNodes = this.getAllNodes(this.attrs.rootNodes);
+    this.resolvedNodeLayouts = new Map<QueryNode, NodeBoxLayout>();
+    for (const node of allNodes) {
+      const layout = this.attrs.nodeLayouts.get(node.nodeId);
+      if (layout) {
+        this.resolvedNodeLayouts.set(node, layout);
       }
     }
-  };
 
-  onNodeDragStart = (node: QueryNode, event: DragEvent) => {
     this.dragNode = node;
     const nodeElem = (event.target as HTMLElement).closest(
       '.pf-node-box',
     ) as HTMLElement;
 
-    const layout = this.nodeLayouts.get(node) || {x: 10, y: 10};
-    this.nodeLayouts.set(node, {
+    this.resolvedNodeLayouts.set(node, {
       ...layout,
       width: nodeElem.offsetWidth,
       height: nodeElem.offsetHeight,
@@ -217,6 +246,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       event.dataTransfer.effectAllowed = 'move';
     }
   };
+
+  private getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
+    const allNodes: QueryNode[] = [];
+    for (const root of rootNodes) {
+      const queue: QueryNode[] = [root];
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        allNodes.push(curr);
+        for (const child of curr.nextNodes) {
+          queue.push(child);
+        }
+      }
+    }
+    return allNodes;
+  }
 
   private renderEmptyNodeGraph(attrs: GraphAttrs) {
     return m(
@@ -294,29 +338,53 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   view({attrs}: m.CVnode<GraphAttrs>) {
+    this.attrs = attrs;
     const {rootNodes, onNodeSelected, selectedNode} = attrs;
 
-    const allNodes: QueryNode[] = [];
-    for (const root of rootNodes) {
-      const queue: QueryNode[] = [root];
-      while (queue.length > 0) {
-        const curr = queue.shift()!;
-        allNodes.push(curr);
-        for (const child of curr.nextNodes) {
-          queue.push(child);
+    const onNodeRendered = (node: QueryNode, element: HTMLElement) => {
+      const layout = this.resolvedNodeLayouts.get(node);
+      if (layout) {
+        const newWidth = element.offsetWidth;
+        const newHeight = element.offsetHeight;
+        if (layout.width !== newWidth || layout.height !== newHeight) {
+          attrs.onNodeLayoutChange(node.nodeId, {
+            ...layout,
+            width: newWidth,
+            height: newHeight,
+          });
+        }
+      }
+    };
+
+    const allNodes = this.getAllNodes(rootNodes);
+
+    // Prune layouts for nodes that no longer exist.
+    if (!this.dragNode) {
+      this.resolvedNodeLayouts = new Map<QueryNode, NodeBoxLayout>();
+      for (const node of allNodes) {
+        const layout = attrs.nodeLayouts.get(node.nodeId);
+        if (layout) {
+          this.resolvedNodeLayouts.set(node, layout);
         }
       }
     }
 
-    // Prune layouts for nodes that no longer exist.
-    const newLayouts = new Map<QueryNode, NodeBoxLayout>();
+    // Pre-flight to calculate layout for new nodes before rendering.
     for (const node of allNodes) {
-      const layout = this.nodeLayouts.get(node);
-      if (layout) {
-        newLayouts.set(node, layout);
+      if (!this.resolvedNodeLayouts.has(node)) {
+        const newLayout = findNextAvailablePosition(
+          node,
+          Array.from(this.resolvedNodeLayouts.values()),
+          this.resolvedNodeLayouts,
+          this.nodeGraphWidth,
+        );
+        this.resolvedNodeLayouts.set(node, newLayout);
+        attrs.onNodeLayoutChange(node.nodeId, {
+          x: newLayout.x,
+          y: newLayout.y,
+        });
       }
     }
-    this.nodeLayouts = newLayouts;
 
     const children: m.Child[] = [];
 
@@ -324,48 +392,20 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       children.push(this.renderEmptyNodeGraph(attrs));
     } else {
       for (const node of allNodes) {
-        const prevNodes = node.prevNodes ?? [];
-        if (prevNodes.length > 1) {
-          prevNodes.forEach((prevNode, i) => {
-            const from = this.nodeLayouts.get(prevNode);
-            const to = this.nodeLayouts.get(node);
-            if (from && to) {
-              children.push(
-                m(Arrow, {
-                  from,
-                  to,
-                  portIndex: i,
-                  portCount: prevNodes.length,
-                }),
-              );
-            }
-          });
-        } else {
-          node.nextNodes.forEach((child, i) => {
-            const from = this.nodeLayouts.get(node);
-            const to = this.nodeLayouts.get(child);
-            if (from && to) {
-              children.push(
-                m(Arrow, {
-                  from,
-                  to,
-                  portIndex: i,
-                  portCount: node.nextNodes.length,
-                }),
-              );
-            }
-          });
+        const layout = this.resolvedNodeLayouts.get(node)!;
+        const inputPorts = getInputPorts(layout, node.prevNodes?.length ?? 1);
+        for (let i = 0; i < (node.prevNodes?.length ?? 0); i++) {
+          const prevNode = node.prevNodes![i];
+          const from = this.resolvedNodeLayouts.get(prevNode);
+          if (from) {
+            const outputPorts = getOutputPorts(from, prevNode.nextNodes.length);
+            const fromPort =
+              outputPorts[prevNode.nextNodes.indexOf(node)] ?? outputPorts[0];
+            const toPort = inputPorts[i];
+            children.push(m(Arrow, {from: fromPort, to: toPort}));
+          }
         }
-        let layout = this.nodeLayouts.get(node);
-        if (!layout) {
-          layout = findNextAvailablePosition(
-            node,
-            Array.from(this.nodeLayouts.values()),
-            this.nodeLayouts,
-            this.nodeGraphWidth,
-          );
-          this.nodeLayouts.set(node, layout);
-        }
+
         children.push(
           m(NodeBox, {
             node,
@@ -378,7 +418,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onDeleteNode: attrs.onDeleteNode,
             onAddAggregation: attrs.onAddAggregation,
             onAddIntervalIntersect: attrs.onAddIntervalIntersect,
-            onNodeRendered: this.onNodeRendered,
+            onNodeRendered,
           }),
         );
       }

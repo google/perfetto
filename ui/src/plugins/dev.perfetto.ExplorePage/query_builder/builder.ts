@@ -33,6 +33,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
+import {NodeBoxLayout} from './node_box';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -40,10 +41,12 @@ export interface BuilderAttrs {
   readonly sqlModules: SqlModules;
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
+  readonly nodeLayouts: Map<string, NodeBoxLayout>;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
+  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
 
   // Add source nodes.
   readonly onAddStdlibTableSource: () => void;
@@ -159,6 +162,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           rootNodes,
           selectedNode,
           onNodeSelected,
+          nodeLayouts: attrs.nodeLayouts,
+          onNodeLayoutChange: attrs.onNodeLayoutChange,
           onDeselect: attrs.onDeselect,
           onAddStdlibTableSource,
           onAddSlicesSource,
