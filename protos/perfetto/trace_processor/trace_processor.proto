@@ -337,9 +337,7 @@ message DescriptorSet {
   repeated DescriptorProto descriptors = 1;
 }
 
-// Input for setting Trace Processor config. This method works only in the WASM
-// mode. trace_processor_shell supports configuration through command line
-// flags.
+// Input for setting Trace Processor config.
 message ResetTraceProcessorArgs {
   enum DropTrackEventDataBefore {
     NO_DROP = 0;

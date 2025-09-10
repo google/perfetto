@@ -188,7 +188,8 @@ CREATE PERFETTO MACRO _intervals_to_positions(
     track_group_key_col ColumnName,
     track_group_order_col ColumnName,
     max_width Expr,
-    min_width Expr
+    min_width Expr,
+    use_shared_counter_scale Expr
 )
 RETURNS Expr AS
 (
@@ -206,8 +207,8 @@ RETURNS Expr AS
       GROUP BY
         $svg_group_key_col
     ),
-    -- Calculate counter bounds per individual counter name for independent scaling
-    counter_bounds AS (
+    -- Calculate counter bounds per individual counter
+    counter_bounds_individual AS (
       SELECT
         $svg_group_key_col AS svg_group_key,
         $track_group_key_col AS track_group_key,
@@ -221,6 +222,38 @@ RETURNS Expr AS
         $svg_group_key_col,
         $track_group_key_col,
         name
+    ),
+    -- Calculate shared counter bounds across all counters in SVG
+    counter_bounds_shared AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        min(counter_value) AS min_counter_value,
+        max(counter_value) AS max_counter_value
+      FROM $intervals_table
+      WHERE
+        dur > 0 AND element_type = 'counter'
+      GROUP BY
+        $svg_group_key_col
+    ),
+    -- Select the appropriate bounds based on shared counter scale setting
+    counter_bounds AS (
+      SELECT
+        cbi.svg_group_key,
+        cbi.track_group_key,
+        cbi.counter_name,
+        CASE
+          WHEN $use_shared_counter_scale = 1
+          THEN cbs.min_counter_value
+          ELSE cbi.min_counter_value
+        END AS min_counter_value,
+        CASE
+          WHEN $use_shared_counter_scale = 1
+          THEN cbs.max_counter_value
+          ELSE cbi.max_counter_value
+        END AS max_counter_value
+      FROM counter_bounds_individual AS cbi
+      JOIN counter_bounds_shared AS cbs
+        ON cbi.svg_group_key = cbs.svg_group_key
     ),
     scale_params AS (
       SELECT
@@ -925,7 +958,7 @@ RETURNS Expr AS
   SELECT
     *
   FROM _intervals_to_positions!(
-    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, 0
   )
 );
 
@@ -968,7 +1001,7 @@ RETURNS Expr AS
   SELECT
     *
   FROM _intervals_to_positions!(
-    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, 0
   )
 );
 
@@ -982,7 +1015,8 @@ CREATE PERFETTO MACRO _counter_intervals_to_positions(
     track_group_key_col ColumnName,
     track_group_order_col ColumnName,
     max_width Expr,
-    min_width Expr
+    min_width Expr,
+    use_shared_counter_scale Expr
 )
 RETURNS Expr AS
 (
@@ -1011,7 +1045,7 @@ RETURNS Expr AS
   SELECT
     *
   FROM _intervals_to_positions!(
-    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, $use_shared_counter_scale
   )
 );
 
@@ -1089,7 +1123,8 @@ CREATE PERFETTO MACRO _svg_timeline_with_counters(
     track_group_key_col ColumnName,
     track_group_order_col ColumnName,
     max_width Expr,
-    left_margin Expr
+    left_margin Expr,
+    use_shared_counter_scale Expr
 )
 RETURNS Expr AS
 (
@@ -1112,7 +1147,7 @@ RETURNS Expr AS
       SELECT
         *
       FROM _counter_intervals_to_positions!(
-        $counter_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 1
+        $counter_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 1, $use_shared_counter_scale
       )
     ),
     slice_tracks AS (

@@ -177,7 +177,7 @@ class GeneratorImpl {
       RepeatedString group_by,
       RepeatedProto aggregates,
       RepeatedProto select_cols);
-  static base::StatusOr<std::string> SelectColumnsNoAggregates(
+  base::StatusOr<std::string> SelectColumnsNoAggregates(
       RepeatedProto select_columns);
 
   // Helpers.
@@ -228,6 +228,10 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
 
 base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
   StructuredQuery::Decoder q(state_[state_index_].bytes);
+
+  for (auto it = q.referenced_modules(); it; ++it) {
+    referenced_modules_.Insert(it->as_std_string(), nullptr);
+  }
 
   // Warning: do *not* keep a reference to elements in `state_` across any of
   // these functions: `state_` can be modified by them.
@@ -528,8 +532,13 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
   if (select_cols) {
     for (auto it = select_cols; it; ++it) {
       StructuredQuery::SelectColumn::Decoder select(*it);
-      std::string selected_col_name = select.column_name().ToStdString();
-      output.Insert(select.column_name().ToStdString(),
+      std::string selected_col_name;
+      if (select.has_column_name_or_expression()) {
+        selected_col_name = select.column_name_or_expression().ToStdString();
+      } else {
+        selected_col_name = select.column_name().ToStdString();
+      }
+      output.Insert(selected_col_name,
                     select.has_alias()
                         ? std::make_optional(select.alias().ToStdString())
                         : std::nullopt);
@@ -597,11 +606,17 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsNoAggregates(
     if (!sql.empty()) {
       sql += ", ";
     }
-    if (column.has_alias()) {
-      sql += column.column_name().ToStdString() + " AS " +
-             column.alias().ToStdString();
+    std::string col_expr;
+    if (column.has_column_name_or_expression()) {
+      col_expr = column.column_name_or_expression().ToStdString();
     } else {
-      sql += column.column_name().ToStdString();
+      col_expr = column.column_name().ToStdString();
+    }
+
+    if (column.has_alias()) {
+      sql += col_expr + " AS " + column.alias().ToStdString();
+    } else {
+      sql += col_expr;
     }
   }
   return sql;

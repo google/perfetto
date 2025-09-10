@@ -740,6 +740,11 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
         storage->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
       }
+      if (evt.exclusive_feature_error().size > 0) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace exclusive feature error: " +
+                     evt.exclusive_feature_error().ToStdString();
+      }
       if (!error_str.empty()) {
         auto error_str_id = storage->InternString(base::StringView(error_str));
         context_->metadata_tracker->AppendMetadata(

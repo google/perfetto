@@ -38,7 +38,11 @@ export interface NodeBoxAttrs {
   readonly isSelected: boolean;
   readonly isDragging: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
-  readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
+  readonly onNodeDragStart: (
+    node: QueryNode,
+    event: DragEvent,
+    layout: NodeBoxLayout,
+  ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
@@ -112,14 +116,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     attrs.onNodeRendered(attrs.node, dom as HTMLElement);
   },
   view({attrs}) {
-    const {
-      node,
-      layout,
-      isSelected,
-      isDragging,
-      onNodeSelected,
-      onNodeDragStart,
-    } = attrs;
+    const {node, layout, isSelected, onNodeSelected, onNodeDragStart} = attrs;
 
     const conditionalClasses = classNames(
       isSelected && 'pf-node-box__selected',
@@ -131,7 +128,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     const boxStyle = {
       left: `${layout.x}px`,
       top: `${layout.y}px`,
-      opacity: isDragging ? '0' : '1',
     };
 
     return m(
@@ -141,7 +137,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         style: boxStyle,
         onclick: () => onNodeSelected(node),
         draggable: true,
-        ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
+        ondragstart: (event: DragEvent) => onNodeDragStart(node, event, layout),
       },
       node.prevNodes?.map((_, i) => {
         const portCount = node.prevNodes ? node.prevNodes.length : 0;

@@ -282,6 +282,17 @@ bool Tracefs::ClearMaxGraphDepth() {
   return WriteNumberToFile(path, 0);
 }
 
+bool Tracefs::SetEventTidFilter(const std::vector<std::string>& tids_to_trace) {
+  std::string path = root_ + "set_event_pid";
+  std::string filter = base::Join(tids_to_trace, " ");
+  return WriteToFile(path, filter);
+}
+
+bool Tracefs::ClearEventTidFilter() {
+  std::string path = root_ + "set_event_pid";
+  return ClearFile(path);
+}
+
 bool Tracefs::AppendFunctionGraphFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_graph_function";

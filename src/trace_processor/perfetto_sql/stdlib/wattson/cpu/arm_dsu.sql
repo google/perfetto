@@ -13,6 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE linux.devfreq;
+
+INCLUDE PERFETTO MODULE wattson.device_infos;
+
 -- Converts event counter from count to rate (num of accesses per ns).
 CREATE PERFETTO FUNCTION _get_rate(
     event STRING
@@ -62,3 +66,53 @@ CREATE VIRTUAL TABLE _arm_l3_rates USING SPAN_OUTER_JOIN (
   _arm_l3_miss_rate,
   _arm_l3_hit_rate
 );
+
+-- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
+-- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
+-- DSU frequency is a prerequisite for power estimation on Pixel 9.
+CREATE PERFETTO TABLE _wattson_dsu_frequency AS
+WITH
+  base AS (
+    SELECT
+      *
+    FROM linux_devfreq_dsu_counter
+    UNION ALL
+    SELECT
+      0 AS id,
+      trace_start() AS ts,
+      trace_end() - trace_start() AS dur,
+      610000 AS dsu_freq
+    -- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
+    WHERE
+      (
+        SELECT
+          str_value
+        FROM metadata
+        WHERE
+          name = 'android_guest_soc_model'
+      ) IN (
+        SELECT
+          device
+        FROM _use_devfreq
+      )
+      AND NOT EXISTS(
+        SELECT
+          1
+        FROM linux_devfreq_dsu_counter
+      )
+  )
+SELECT
+  id,
+  ts,
+  dur,
+  dsu_freq
+FROM _use_devfreq_for_calc
+CROSS JOIN base
+UNION ALL
+-- Create fake entry for use with ii()
+SELECT
+  0 AS id,
+  trace_start() AS ts,
+  trace_end() - trace_start() AS dur,
+  NULL AS dsu_freq
+FROM _skip_devfreq_for_calc;
