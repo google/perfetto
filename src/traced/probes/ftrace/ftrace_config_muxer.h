@@ -199,6 +199,10 @@ class FtraceConfigMuxer {
     return current_state_.syscall_filter;
   }
 
+  bool GetExclusiveFeatureActiveForTesting() const {
+    return current_state_.exclusive_feature_active;
+  }
+
   size_t GetDataSourcesCount() const { return ds_configs_.size(); }
 
   // Returns the syscall ids for the current architecture
@@ -212,6 +216,8 @@ class FtraceConfigMuxer {
     EventFilter ftrace_events;
     std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
     bool funcgraph_on = false;        // current_tracer == "function_graph"
+    // Any exclusive single-tenant feature active.
+    bool exclusive_feature_active = false;
     size_t cpu_buffer_size_pages = 0;
     protos::pbzero::FtraceClock ftrace_clock{};
     // Used only in Android for ATRACE_EVENT/os.Trace() userspace:
