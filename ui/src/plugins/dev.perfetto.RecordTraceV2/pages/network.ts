@@ -37,7 +37,7 @@ function wifiNetworkTracing(): RecordProbe {
     cfg_mac: new Toggle({
       title: '802.11 layer events',
       cssClass: '.thin',
-      default: true,
+      default: false,
       descr: 'Configuration (cfg80211) and MAC layer events (mac80211).',
     }),
     net: new Toggle({
@@ -47,14 +47,16 @@ function wifiNetworkTracing(): RecordProbe {
       descr: 'Kernel events for packet transmission/reception.',
     }),
     bufSizeMb: new Slider({
-      title: 'Dedicated Packet Traffic Buffer (MB)',
+      title: 'Dedicated buffer for packet tracing (MB)',
       cssClass: '.thin',
       values: [0, 4, 8, 16, 32, 64, 128, 256, 512],
       unit: 'MB',
       zeroIsDefault: true,
     }),
     driverEventsText: new Textarea({
-      title: 'Additional ftrace events to track (e.g., family_name/event_name)',
+      title:
+        'Additional ftrace events (e.g. driver specific ones). ' +
+        'Format is "family_name/event_name".',
       placeholder: 'One per line',
     }),
   };
@@ -63,7 +65,11 @@ function wifiNetworkTracing(): RecordProbe {
     image: 'rec_wifi.png',
     title: 'Wi-Fi/network ftrace events',
     supportedPlatforms: ['ANDROID', 'LINUX', 'CHROME_OS'],
-    description: 'Tracing of kernel events related to Wi-Fi/network operation.',
+    description:
+      'Tracing of kernel events related to Wi-Fi/network operation.\n' +
+      'Note - these events are meant only to facilitate debugging of ' +
+      'communication problems and have potential to overflow your buffers ' +
+      'leading to data loss.',
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
       if (settings.cfg_mac.enabled) {
