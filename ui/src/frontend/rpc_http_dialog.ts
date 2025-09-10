@@ -17,7 +17,11 @@ import protos from '../protos';
 import {assertExists} from '../base/logging';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
+import {Callout} from '../widgets/callout';
+import {Card, CardStack} from '../widgets/card';
+import {Intent} from '../widgets/common';
 import {showModal, closeModal} from '../widgets/modal';
+import {Stack} from '../widgets/stack';
 import {AppImpl} from '../core/app_impl';
 
 const CURRENT_API_VERSION =
@@ -321,105 +325,66 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
           // Option 1: Select from loaded traces (only shown if available)
           if (processorsWithTraces.length > 0) {
+            const activeTabCount = sortedProcessors.filter(
+              (tp) => tp.hasExistingTab ?? false,
+            ).length;
+
+            if (activeTabCount > 0) {
+              elements.push(
+                m(
+                  Callout,
+                  {
+                    intent: Intent.Warning,
+                    icon: 'warning',
+                  },
+                  'Each loaded trace can be opened in at most one tab at a time.',
+                ),
+              );
+            }
+
             elements.push(
-              // Add warning banner for active tabs
-              (() => {
-                const activeTabCount = sortedProcessors.filter(
-                  (tp) => tp.hasExistingTab ?? false,
-                ).length;
-
-                if (activeTabCount > 0) {
-                  return m(
-                    '.warning-banner',
-                    {
-                      style: {
-                        'background-color': '#fff3cd',
-                        'border': '1px solid #ffeaa7',
-                        'border-radius': '4px',
-                        'padding': '8px 12px',
-                        'margin': '8px 0 16px 0',
-                        'color': '#856404',
-                        'font-size': '13px',
-                      },
-                    },
-                    [
-                      m('strong', '⚠️ Warning: '),
-                      'Each loaded trace can be opened in at most one tab at a time.',
-                    ],
-                  );
-                }
-                return null;
-              })(),
-
-              // Interactive trace processor selection
-              m('div', {style: {margin: '8px 0'}}, [
+              m(
+                CardStack,
                 sortedProcessors.map((tp, index) => {
                   const status = tp;
                   const hasActiveTab = status.hasExistingTab ?? false;
 
                   return m(
-                    'button',
+                    Card,
                     {
                       key: tp.instanceId || `default-${index}`,
-                      style: {
-                        'display': 'block',
-                        'width': '100%',
-                        'padding': '12px',
-                        'margin': '8px 0',
-                        'border': '1px solid #ddd',
-                        'border-radius': '4px',
-                        'background-color': hasActiveTab
-                          ? '#fff3cd'
-                          : '#f8f9fa',
-                        'cursor': 'pointer',
-                        'opacity': hasActiveTab ? '1.0' : '1',
-                        'text-align': 'left',
-                        'transition': 'background-color 0.2s ease',
-                      },
-                      onmouseenter: function (this: HTMLElement) {
-                        this.style.backgroundColor = hasActiveTab
-                          ? '#ffeaa7'
-                          : '#e2e6ea';
-                      },
-                      onmouseleave: function (this: HTMLElement) {
-                        this.style.backgroundColor = hasActiveTab
-                          ? '#fff3cd'
-                          : '#f8f9fa';
-                      },
+                      interactive: true,
                       onclick: () => {
                         if (tp.instanceId) {
                           AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
                             tp.instanceId;
-                          closeModal();
-                          resolve(
-                            PreloadedDialogResult.UseRpcWithPreloadedTrace,
-                          );
-                        } else {
-                          // Handle case where uuid is null/undefined
-                          closeModal();
-                          resolve(
-                            PreloadedDialogResult.UseRpcWithPreloadedTrace,
-                          );
                         }
+                        closeModal();
+                        resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
                       },
                     },
                     [
                       m('div', [
                         m('strong', status.loadedTraceName),
                         m('br'),
-                        m('small', `UUID: ${tp.instanceId || 'default'}`),
+                        m(
+                          'small',
+                          {style: {color: 'var(--pf-color-text-muted)'}},
+                          `UUID: ${tp.instanceId || 'default'}`,
+                        ),
                         m('br'),
                         m(
                           'small',
+                          {style: {color: 'var(--pf-color-text-muted)'}},
                           `Version: ${status.humanReadableVersion || 'unknown'}`,
                         ),
                       ]),
                       hasActiveTab &&
                         m(
-                          'span',
+                          'div',
                           {
                             style: {
-                              'color': '#d63384',
+                              'color': 'var(--pf-color-danger)',
                               'font-weight': 'bold',
                               'font-size': '11px',
                               'display': 'block',
@@ -431,17 +396,17 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                     ],
                   );
                 }),
-              ]),
+              ),
             );
           } else {
             elements.push(
               m(
-                'div',
+                'p',
                 {
                   style: {
                     'margin': '8px 0',
                     'font-style': 'italic',
-                    'color': '#6c757d',
+                    'color': 'var(--pf-color-text-muted)',
                   },
                 },
                 `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
@@ -451,81 +416,74 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
           // Add explanatory text section for the other options
           elements.push(
-            m(
-              'div',
-              {
-                style: {
-                  'margin-top': '20px',
-                  'padding': '16px',
-                  'background-color': '#f8f9fa',
-                  'border-radius': '4px',
-                  'border-left': '4px solid #007bff',
-                },
-              },
-              [
+            m(Stack,
+              {spacing: 'medium', style: {'margin-top': '20px'}},
+              m('div', [
+                m('h4', 'Other Options:'),
+                m('strong', 'Yes, Attach to external RPC:'),
                 m(
-                  'h4',
-                  {style: {'margin-top': '0', 'margin-bottom': '8px'}},
-                  'Other Options:',
+                  'ul',
+                  {style: {'margin-left': '20px', 'margin-top': '4px'}},
+                  m(
+                    'li',
+                    m(
+                      'small',
+                      {style: {color: 'var(--pf-color-text-muted)'}},
+                      'Use this if you want to open another trace but still use the accelerator.',
+                    ),
+                  ),
                 ),
-                m('div', {style: {'margin-bottom': '12px'}}, [
+                m(
+                  'strong',
+                  {style: {'margin-top': '8px', 'display': 'block'}},
+                  'Use built-in WASM:',
+                ),
+                m(
+                  'ul',
+                  {style: {'margin-left': '20px', 'margin-top': '4px'}},
                   m(
-                    'strong',
-                    {style: {'font-size': '14px'}},
-                    'Yes, Attach to external RPC:',
+                    'li',
+                    m(
+                      'small',
+                      {style: {color: 'var(--pf-color-text-muted)'}},
+                      'Will not use the accelerator in this tab.',
+                    ),
                   ),
-                  m('br'),
-                  m(
-                    'small',
-                    'Use this if you want to open another trace but still use the accelerator.',
-                  ),
-                ]),
-                m('div', {style: {}}, [
-                  m(
-                    'strong',
-                    {style: {'font-size': '14px'}},
-                    'Use built-in WASM:',
-                  ),
-                  m('br'),
-                  m('small', 'Will not use the accelerator in this tab.'),
-                ]),
-              ],
-            ),
-          );
-
-          // Caveats section
-          elements.push(
-            m(
-              'div',
-              {
-                style: {
-                  'margin-top': '20px',
-                  'padding': '12px',
-                  'background-color': '#f8f9fa',
-                  'border-left': '4px solid #007bff',
-                  'border-radius': '4px',
-                },
-              },
-              [
+                ),
+              ]),
+              m('div', [
                 m(
                   'strong',
                   'Using the native accelerator has some minor caveats:',
                 ),
                 m(
                   'ul',
-                  {style: {'margin': '8px 0 0 20px', 'font-size': '14px'}},
+                  {
+                    style: {
+                      'margin-left': '20px',
+                      'margin-top': '4px',
+                    },
+                  },
                   [
                     m(
                       'li',
-                      "Sharing, downloading and conversion-to-legacy aren't supported.",
+                      m(
+                        'small',
+                        {style: {color: 'var(--pf-color-text-muted)'}},
+                        "Sharing, downloading and conversion-to-legacy aren't supported.",
+                      ),
                     ),
                     m(
                       'li',
-                      'Each trace file can be opened in at most one tab at a time.',
+                      m(
+                        'small',
+                        {style: {color: 'var(--pf-color-text-muted)'}},
+                        'Each trace file can be opened in at most one tab at a time.',
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ]),
             ),
           );
 
