@@ -168,7 +168,9 @@ bool ValidateKprobeName(const std::string& name) {
 // See: "Exclusive single-tenant features" in ftrace_config.proto for more
 // details.
 bool HasExclusiveFeatures(const FtraceConfig& request) {
-  return !request.tids_to_trace().empty() || !request.tracefs_options().empty();
+  return !request.tids_to_trace().empty() ||
+         !request.tracefs_options().empty() ||
+         !request.tracing_cpumask().empty();
 }
 
 bool IsValidTracefsOptionName(const std::string& name) {
@@ -495,6 +497,21 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     current_state_.saved_tracefs_options = std::move(current_tracefs_options);
   }
 
+  if (!request.tracing_cpumask().empty()) {
+    auto current_tracing_cpumask = ftrace_->GetTracingCpuMask();
+    if (!current_tracing_cpumask.has_value()) {
+      PERFETTO_ELOG("Failed to get tracing cpumask");
+      return false;
+    }
+    if (!ftrace_->SetTracingCpuMask(request.tracing_cpumask())) {
+      PERFETTO_ELOG("Failed to set tracing cpumask: %s",
+                    request.tracing_cpumask().c_str());
+      return false;
+    }
+    current_state_.saved_tracing_cpumask =
+        std::move(current_tracing_cpumask.value());
+  }
+
   current_state_.exclusive_feature_active = config_has_exclusive_features;
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
@@ -799,6 +816,11 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
 
     if (current_state_.exclusive_feature_active) {
       ftrace_->ClearEventTidFilter();
+      if (current_state_.saved_tracing_cpumask.has_value()) {
+        ftrace_->SetTracingCpuMask(
+            current_state_.saved_tracing_cpumask.value());
+        current_state_.saved_tracing_cpumask.reset();
+      }
       for (auto it = current_state_.saved_tracefs_options.GetIterator(); it;
            ++it) {
         ftrace_->SetTracefsOption(it.key(), it.value());
