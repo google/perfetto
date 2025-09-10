@@ -165,6 +165,12 @@ bool ValidateKprobeName(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
+// See: "Exclusive single-tenant features" in ftrace_config.proto for more
+// details.
+bool HasExclusiveFeatures(const FtraceConfig& request) {
+  return !request.tids_to_trace().empty();
+}
+
 }  // namespace
 
 std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
@@ -381,6 +387,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
                                     const FtraceConfig& request,
                                     FtraceSetupErrors* errors) {
   EventFilter filter;
+  bool config_has_exclusive_features = HasExclusiveFeatures(request);
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
 
@@ -416,7 +423,39 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       // clock or buffer sizes because that clears the kernel buffers.
       RememberActiveClock();
     }
+  } else {
+    std::string exclusive_feature_error;
+    if (config_has_exclusive_features) {
+      exclusive_feature_error =
+          "Attempted to start an ftrace session with advanced features while "
+          "another session was active.";
+    } else if (current_state_.exclusive_feature_active) {
+      exclusive_feature_error =
+          "Attempted to start an ftrace session while another session with "
+          "advanced features was active.";
+    }
+
+    if (!exclusive_feature_error.empty()) {
+      PERFETTO_ELOG("%s", exclusive_feature_error.c_str());
+      if (errors)
+        errors->exclusive_feature_error = exclusive_feature_error;
+      return false;
+    }
   }
+
+  if (!request.tids_to_trace().empty()) {
+    std::vector<std::string> tid_strings;
+    for (const auto& tid : request.tids_to_trace()) {
+      tid_strings.push_back(std::to_string(tid));
+    }
+
+    if (!ftrace_->SetEventTidFilter(tid_strings)) {
+      PERFETTO_ELOG("Failed to set event tid filter");
+      return false;
+    }
+  }
+
+  current_state_.exclusive_feature_active = config_has_exclusive_features;
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
 
@@ -717,6 +756,12 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       ftrace_->RemoveKprobeEvent(probe.group(), probe.name());
       table_->RemoveEvent(probe);
     }
+
+    if (current_state_.exclusive_feature_active) {
+      ftrace_->ClearEventTidFilter();
+      current_state_.exclusive_feature_active = false;
+    }
+
     current_state_.installed_kprobes.clear();
   }
 

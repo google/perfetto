@@ -7410,7 +7410,7 @@ class FrozenFtraceConfig(_message.Message):
     def __init__(self, instance_name: _Optional[str] = ...) -> None: ...
 
 class FtraceConfig(_message.Message):
-    __slots__ = ["atrace_apps", "atrace_categories", "atrace_categories_prefer_sdk", "atrace_userspace_only", "buffer_size_kb", "buffer_size_lower_bound", "compact_sched", "debug_ftrace_abi", "denser_generic_event_encoding", "disable_generic_events", "drain_buffer_percent", "drain_period_ms", "enable_function_graph", "ftrace_events", "function_filters", "function_graph_max_depth", "function_graph_roots", "initialize_ksyms_synchronously_for_testing", "instance_name", "kprobe_events", "ksyms_mem_policy", "preserve_ftrace_buffer", "print_filter", "symbolize_ksyms", "syscall_events", "throttle_rss_stat", "use_monotonic_raw_clock"]
+    __slots__ = ["atrace_apps", "atrace_categories", "atrace_categories_prefer_sdk", "atrace_userspace_only", "buffer_size_kb", "buffer_size_lower_bound", "compact_sched", "debug_ftrace_abi", "denser_generic_event_encoding", "disable_generic_events", "drain_buffer_percent", "drain_period_ms", "enable_function_graph", "ftrace_events", "function_filters", "function_graph_max_depth", "function_graph_roots", "initialize_ksyms_synchronously_for_testing", "instance_name", "kprobe_events", "ksyms_mem_policy", "preserve_ftrace_buffer", "print_filter", "symbolize_ksyms", "syscall_events", "throttle_rss_stat", "tids_to_trace", "use_monotonic_raw_clock"]
     class KsymsMemPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class CompactSchedConfig(_message.Message):
@@ -7481,6 +7481,7 @@ class FtraceConfig(_message.Message):
     SYMBOLIZE_KSYMS_FIELD_NUMBER: _ClassVar[int]
     SYSCALL_EVENTS_FIELD_NUMBER: _ClassVar[int]
     THROTTLE_RSS_STAT_FIELD_NUMBER: _ClassVar[int]
+    TIDS_TO_TRACE_FIELD_NUMBER: _ClassVar[int]
     USE_MONOTONIC_RAW_CLOCK_FIELD_NUMBER: _ClassVar[int]
     atrace_apps: _containers.RepeatedScalarFieldContainer[str]
     atrace_categories: _containers.RepeatedScalarFieldContainer[str]
@@ -7508,8 +7509,9 @@ class FtraceConfig(_message.Message):
     symbolize_ksyms: bool
     syscall_events: _containers.RepeatedScalarFieldContainer[str]
     throttle_rss_stat: bool
+    tids_to_trace: _containers.RepeatedScalarFieldContainer[int]
     use_monotonic_raw_clock: bool
-    def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., atrace_userspace_only: bool = ..., buffer_size_kb: _Optional[int] = ..., buffer_size_lower_bound: bool = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., function_graph_max_depth: _Optional[int] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., debug_ftrace_abi: bool = ..., initialize_ksyms_synchronously_for_testing: bool = ...) -> None: ...
+    def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., atrace_userspace_only: bool = ..., buffer_size_kb: _Optional[int] = ..., buffer_size_lower_bound: bool = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., function_graph_max_depth: _Optional[int] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., debug_ftrace_abi: bool = ..., tids_to_trace: _Optional[_Iterable[int]] = ..., initialize_ksyms_synchronously_for_testing: bool = ...) -> None: ...
 
 class FtraceCpuStats(_message.Message):
     __slots__ = ["bytes_read", "commit_overrun", "cpu", "dropped_events", "entries", "now_ts", "oldest_event_ts", "overrun", "read_events"]
@@ -8772,7 +8774,7 @@ class FtraceKprobeStats(_message.Message):
     def __init__(self, hits: _Optional[int] = ..., misses: _Optional[int] = ...) -> None: ...
 
 class FtraceStats(_message.Message):
-    __slots__ = ["atrace_errors", "cached_cpu_buffer_size_pages", "cpu_buffer_size_pages", "cpu_stats", "failed_ftrace_events", "ftrace_parse_errors", "kernel_symbols_mem_kb", "kernel_symbols_parsed", "kprobe_stats", "phase", "preserve_ftrace_buffer", "unknown_ftrace_events"]
+    __slots__ = ["atrace_errors", "cached_cpu_buffer_size_pages", "cpu_buffer_size_pages", "cpu_stats", "exclusive_feature_error", "failed_ftrace_events", "ftrace_parse_errors", "kernel_symbols_mem_kb", "kernel_symbols_parsed", "kprobe_stats", "phase", "preserve_ftrace_buffer", "unknown_ftrace_events"]
     class Phase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ATRACE_ERRORS_FIELD_NUMBER: _ClassVar[int]
@@ -8780,6 +8782,7 @@ class FtraceStats(_message.Message):
     CPU_BUFFER_SIZE_PAGES_FIELD_NUMBER: _ClassVar[int]
     CPU_STATS_FIELD_NUMBER: _ClassVar[int]
     END_OF_TRACE: FtraceStats.Phase
+    EXCLUSIVE_FEATURE_ERROR_FIELD_NUMBER: _ClassVar[int]
     FAILED_FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
     FTRACE_PARSE_ERRORS_FIELD_NUMBER: _ClassVar[int]
     KERNEL_SYMBOLS_MEM_KB_FIELD_NUMBER: _ClassVar[int]
@@ -8794,6 +8797,7 @@ class FtraceStats(_message.Message):
     cached_cpu_buffer_size_pages: int
     cpu_buffer_size_pages: int
     cpu_stats: _containers.RepeatedCompositeFieldContainer[FtraceCpuStats]
+    exclusive_feature_error: str
     failed_ftrace_events: _containers.RepeatedScalarFieldContainer[str]
     ftrace_parse_errors: _containers.RepeatedScalarFieldContainer[FtraceParseStatus]
     kernel_symbols_mem_kb: int
@@ -8802,7 +8806,7 @@ class FtraceStats(_message.Message):
     phase: FtraceStats.Phase
     preserve_ftrace_buffer: bool
     unknown_ftrace_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, phase: _Optional[_Union[FtraceStats.Phase, str]] = ..., cpu_stats: _Optional[_Iterable[_Union[FtraceCpuStats, _Mapping]]] = ..., kernel_symbols_parsed: _Optional[int] = ..., kernel_symbols_mem_kb: _Optional[int] = ..., atrace_errors: _Optional[str] = ..., unknown_ftrace_events: _Optional[_Iterable[str]] = ..., failed_ftrace_events: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., ftrace_parse_errors: _Optional[_Iterable[_Union[FtraceParseStatus, str]]] = ..., kprobe_stats: _Optional[_Union[FtraceKprobeStats, _Mapping]] = ..., cpu_buffer_size_pages: _Optional[int] = ..., cached_cpu_buffer_size_pages: _Optional[int] = ...) -> None: ...
+    def __init__(self, phase: _Optional[_Union[FtraceStats.Phase, str]] = ..., cpu_stats: _Optional[_Iterable[_Union[FtraceCpuStats, _Mapping]]] = ..., kernel_symbols_parsed: _Optional[int] = ..., kernel_symbols_mem_kb: _Optional[int] = ..., atrace_errors: _Optional[str] = ..., exclusive_feature_error: _Optional[str] = ..., unknown_ftrace_events: _Optional[_Iterable[str]] = ..., failed_ftrace_events: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., ftrace_parse_errors: _Optional[_Iterable[_Union[FtraceParseStatus, str]]] = ..., kprobe_stats: _Optional[_Union[FtraceKprobeStats, _Mapping]] = ..., cpu_buffer_size_pages: _Optional[int] = ..., cached_cpu_buffer_size_pages: _Optional[int] = ...) -> None: ...
 
 class FuncgraphEntryFtraceEvent(_message.Message):
     __slots__ = ["depth", "func"]
