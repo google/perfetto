@@ -295,7 +295,7 @@ bool Tracefs::ClearEventTidFilter() {
 
 std::optional<bool> Tracefs::GetTracefsOption(const std::string& option) {
   std::string path = root_ + "options/" + option;
-  auto value = base::TrimWhitespace(ReadFileIntoString(path));
+  std::string value = base::TrimWhitespace(ReadFileIntoString(path));
   if (value != "0" && value != "1") {
     return std::nullopt;
   }

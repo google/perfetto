@@ -290,26 +290,25 @@ message FtraceConfig {
   // Filter ftrace events by Thread ID (TID).
   // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
   //
-  // Note: This is an exclusive feature, see:
+  // Note: this is an exclusive feature, see:
   // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
   //
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   repeated uint32 tids_to_trace = 35;
 
-  // Options control the tracers or the trace output.
-  // For a full list of options, see:
-  // https://docs.kernel.org/trace/ftrace.html#trace-options
+  // Tracefs options to set directly in the tracefs instance. This is a very
+  // niche feature since almost all of the options deal with formatting textual
+  // output (the /trace file), which perfetto doesn't use.
   //
-  // Some of the Perfetto relevant ones include:
-  // - event-fork: To additionally trace events of children forked from Thread
-  // IDs (TIDs) listed in tids_to_trace.
-  // - record-cmd: To enable mapping the TID to its command name.
-  // - record-tgid: To enable mapping the TID to its Thread Group ID(TGID) .
-  // - Options for function_graph tracer (funcgraph-proc, funcgraph-irqs,
-  // graph-time, etc.)
+  // The options with a known use-case:
+  // * event-fork: when using `tids_to_trace` above, the kernel will
+  //   automatically add newly spawned descendant threads to the set of TIDs.
   //
-  // Note: This is an exclusive feature, see:
+  // Full list of options is available at
+  // https://docs.kernel.org/trace/ftrace.html#trace-options.
+  //
+  // Note: this is an exclusive feature, see:
   // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
   //
   // Introduced in: perfetto v52.
