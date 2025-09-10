@@ -229,6 +229,10 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
 base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
   StructuredQuery::Decoder q(state_[state_index_].bytes);
 
+  for (auto it = q.referenced_modules(); it; ++it) {
+    referenced_modules_.Insert(it->as_std_string(), nullptr);
+  }
+
   // Warning: do *not* keep a reference to elements in `state_` across any of
   // these functions: `state_` can be modified by them.
   std::string source;

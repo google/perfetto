@@ -50,17 +50,15 @@ message PerfettoSqlStructuredQuery {
     // The name of the table or view to query. Required.
     optional string table_name = 1;
 
-    // The name of the module this table lives in. Optional, does not need to
-    // be specified if the table exists in the global scope (e.g. track table,
-    // slice table, any table/function in the prelude). Required otherwise.
-    optional string module_name = 2;
-
     // The name of the columns of this table which will be used by this query.
     // Required.
     //
     // Note: specifying this field is *mandatory* at all times. In the future,
     // this may become option for public tables in the standard library.
     repeated string column_names = 3;
+
+    // DEPRECATED: Use PerfettoSqlStructuredQuery.referenced_modules instead.
+    optional string module_name = 2;
   }
 
   // A set of slices which will act as the source for the query. This is
@@ -187,6 +185,10 @@ message PerfettoSqlStructuredQuery {
   // case but strongly recommended for good error messages. Required in cases
   // where this query is used as a "shared" query.
   optional string id = 1;
+
+  // The names of any modules required for functions used in expressions.
+  // Optional.
+  repeated string referenced_modules = 11;
 
   // Represents the "source" of the query which will be translared to an SQL
   // "FROM" clause. One of the following is required.
