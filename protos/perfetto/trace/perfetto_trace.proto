@@ -1003,6 +1003,8 @@ message EtwConfig {
   enum KernelFlag {
     CSWITCH = 0;
     DISPATCHER = 1;
+    FILE_IO = 2;
+    FILE_IO_INIT = 3;
   }
 
   // The kernel_flags determines the flags that will be used by the etw tracing
@@ -1017,7 +1019,10 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }
+
 // End of protos/perfetto/config/etw/etw_config.proto
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
@@ -7660,6 +7665,12 @@ message EtwTraceEvent {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
     MemInfoEtwEvent mem_info = 6;
+    FileIoCreateEtwEvent file_io_create = 7;
+    FileIoDirEnumEtwEvent file_io_dir_enum = 8;
+    FileIoInfoEtwEvent file_io_info = 9;
+    FileIoReadWriteEtwEvent file_io_read_write = 10;
+    FileIoSimpleOpEtwEvent file_io_simple_op = 11;
+    FileIoOpEndEtwEvent file_io_op_end = 12;
   }
 }
 
