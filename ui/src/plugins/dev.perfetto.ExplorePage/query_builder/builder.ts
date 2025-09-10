@@ -60,6 +60,8 @@ export interface BuilderAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onImport: () => void;
+  readonly onExport: () => void;
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -129,7 +131,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
           },
           onExecute: () => {
-            console.log('Executing');
             this.queryExecuted = false;
             this.runQuery(selectedNode);
             m.redraw();
@@ -178,6 +179,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
             attrs.onDeleteNode(node);
           },
+          onImport: attrs.onImport,
+          onExport: attrs.onExport,
         }),
       ),
       m('.pf-qb-explorer', explorer),

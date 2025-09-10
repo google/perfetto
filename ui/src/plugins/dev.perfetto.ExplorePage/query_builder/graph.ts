@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Icons} from '../../../base/semantic_icons';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
@@ -98,6 +98,8 @@ export interface GraphAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onImport: () => void;
+  readonly onExport: () => void;
 }
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
@@ -299,6 +301,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           onclick: attrs.onAddSqlSource,
         }),
       ),
+      m(Button, {
+        label: 'Import',
+        onclick: attrs.onImport,
+        variant: ButtonVariant.Filled,
+        icon: 'file_upload',
+      }),
     );
   }
 
@@ -311,7 +319,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: m(Button, {
             label: 'Add Node',
             icon: Icons.Add,
-            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
           }),
         },
         m(MenuItem, {
@@ -327,6 +335,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           onclick: attrs.onAddSqlSource,
         }),
       ),
+      m(Button, {
+        label: 'Export',
+        icon: Icons.Download,
+        variant: ButtonVariant.Minimal,
+        onclick: attrs.onExport,
+        style: {marginLeft: '8px'},
+      }),
       m(Button, {
         label: 'Clear All Nodes',
         icon: Icons.Delete,
