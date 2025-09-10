@@ -26,10 +26,12 @@ import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {Trace} from '../../public/trace';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
+import {NodeBoxLayout} from './query_builder/node_box';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
+  nodeLayouts: Map<string, NodeBoxLayout>;
 }
 
 interface ExplorePageAttrs {
@@ -50,6 +52,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       state.rootNodes.push(newNode);
     }
     this.selectNode(state, newNode);
+    m.redraw();
   }
 
   private selectNode(state: ExplorePageState, node: QueryNode) {
@@ -208,9 +211,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         sqlModules,
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
+        nodeLayouts: state.nodeLayouts,
         onRootNodeCreated: (node) => this.addNode(state, node),
         onNodeSelected: (node) => (state.selectedNode = node),
         onDeselect: () => this.deselectNode(state),
+        onNodeLayoutChange: (nodeId, layout) => {
+          state.nodeLayouts.set(nodeId, layout);
+        },
         onAddStdlibTableSource: () => this.handleAddStdlibTableSource(attrs),
         onAddSlicesSource: () => this.handleAddSlicesSource(state),
         onAddSqlSource: () => this.handleAddSqlSource(attrs),

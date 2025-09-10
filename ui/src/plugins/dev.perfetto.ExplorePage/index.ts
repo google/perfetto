@@ -27,6 +27,7 @@ export default class implements PerfettoPlugin {
   // trace.
   private readonly state: ExplorePageState = {
     rootNodes: [],
+    nodeLayouts: new Map(),
   };
 
   async onTraceLoad(trace: Trace): Promise<void> {
