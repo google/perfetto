@@ -127,14 +127,14 @@ class GraphicsDrmRelatedFtraceEvents(TestSuite):
         """,
         out=Csv("""
         "utid","ts","dur","name","flat_key","int_value","string_value"
-        1,9246165326050,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        1,9246165326050,0,"drm_sched_job","gpu sched job",13481,"[NULL]"
-        3,9246166957616,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        3,9246166957616,0,"drm_sched_job","gpu sched job",13482,"[NULL]"
-        3,9246167272512,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        3,9246167272512,0,"drm_sched_job","gpu sched job",13483,"[NULL]"
-        1,9246181907439,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
-        1,9246181907439,0,"drm_sched_job","gpu sched job",13484,"[NULL]"
+        1,9246165326050,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        1,9246165326050,0,"drm_sched_job_queue","gpu sched job",13481,"[NULL]"
+        3,9246166957616,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        3,9246166957616,0,"drm_sched_job_queue","gpu sched job",13482,"[NULL]"
+        3,9246167272512,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        3,9246167272512,0,"drm_sched_job_queue","gpu sched job",13483,"[NULL]"
+        1,9246181907439,0,"drm_sched_job_queue","gpu sched ring","[NULL]","ring0"
+        1,9246181907439,0,"drm_sched_job_queue","gpu sched job",13484,"[NULL]"
         """))
 
   def test_drm_dma_fence_gpu_track(self):
