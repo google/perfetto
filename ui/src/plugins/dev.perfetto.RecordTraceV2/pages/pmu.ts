@@ -47,6 +47,9 @@ import {
 import {App} from '../../../public/app';
 import {TextInput} from '../../../widgets/text_input';
 
+const DEFAULT_RING_BUFFER_PAGES = 256;
+const DEFAULT_RING_BUFFER_READ_PERIOD_MS = 100;
+
 export function pmuRecordSection(
   recMgr: RecordingManager,
   app: App,
@@ -235,6 +238,9 @@ interface PerfCpuConfigurationState {
   period: number;
   frequency: number;
   captureCallstack: boolean;
+  automaticRingBufferSettings: boolean;
+  ringBufferPages: number;
+  ringBufferReadPeriodMs: number;
 }
 
 interface PerfConfigurationState {
@@ -726,6 +732,12 @@ class PerfCpuConfiguration
         enabled: this.controller.state!.sampleByFrequency,
         onToggle: (enabled: boolean) => {
           this.controller.state!.sampleByFrequency = enabled;
+          if (enabled === false) {
+            if (this.controller.state!.automaticRingBufferSettings) {
+              this.controller.state!.automaticRingBufferSettings = false;
+              SetDefaultRingBufferParams(this.controller.state!);
+            }
+          }
         },
       } as ToggleAttrs),
       m(Slider, {
@@ -764,6 +776,66 @@ class PerfCpuConfiguration
         val: this.controller.state!.frequency,
         onValueChange: (val: number) => {
           this.controller.state!.frequency = val;
+          if (this.controller.state!.automaticRingBufferSettings) {
+            UpdateAutomaticRingBufferParams(this.controller.state!);
+          }
+        },
+      } as SliderAttrs),
+      m(Toggle, {
+        title: 'Automatic ring buffer settings',
+        cssClass: `.thin${
+          this.controller.state!.sampleByFrequency === false
+            ? '.greyed-out'
+            : ''
+        }`,
+        descr: `If ‘Sample by frequency’ is enabled, predefined values for ring buffer size and read period
+        are assigned based on the selected frequency.`,
+        enabled:
+          this.controller.state!.sampleByFrequency &&
+          this.controller.state!.automaticRingBufferSettings,
+        onToggle: (enabled: boolean) => {
+          if (this.controller.state!.sampleByFrequency) {
+            this.controller.state!.automaticRingBufferSettings = enabled;
+          }
+          if (enabled === true) {
+            UpdateAutomaticRingBufferParams(this.controller.state!);
+          } else {
+            SetDefaultRingBufferParams(this.controller.state!);
+          }
+        },
+      } as ToggleAttrs),
+      m(Slider, {
+        title: 'Ring buffer read period',
+        description: 'Interval at which the ring buffer data is read',
+        cssClass: `.thin${
+          this.controller.state!.automaticRingBufferSettings === true
+            ? '.greyed-out'
+            : ''
+        }`,
+        values: [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        unit: 'ms',
+        min: 1,
+        disabled: this.controller.state!.automaticRingBufferSettings === true,
+        val: this.controller.state!.ringBufferReadPeriodMs,
+        onValueChange: (val: number) => {
+          this.controller.state!.ringBufferReadPeriodMs = val;
+        },
+      } as SliderAttrs),
+      m(Slider, {
+        title: 'Ring buffer pages',
+        description: 'Size of each per-cpu ring buffer',
+        cssClass: `.thin${
+          this.controller.state!.automaticRingBufferSettings === true
+            ? '.greyed-out'
+            : ''
+        }`,
+        values: [64, 128, 256, 512, 1024, 2048, 4096],
+        unit: 'pages',
+        min: 64,
+        disabled: this.controller.state!.automaticRingBufferSettings === true,
+        val: this.controller.state!.ringBufferPages,
+        onValueChange: (val: number) => {
+          this.controller.state!.ringBufferPages = val;
         },
       } as SliderAttrs),
     );
@@ -912,6 +984,9 @@ class PerfConfiguration implements m.ClassComponent<PerfConfigurationAttrs> {
               period: 10000,
               frequency: 100,
               captureCallstack: false,
+              automaticRingBufferSettings: false,
+              ringBufferPages: DEFAULT_RING_BUFFER_PAGES,
+              ringBufferReadPeriodMs: DEFAULT_RING_BUFFER_READ_PERIOD_MS,
             };
             state.tabs.push({
               key,
@@ -1021,6 +1096,14 @@ function tracedPerf(recMgr: RecordingManager, app: App): RecordProbe {
 
         if (state.sampleByFrequency) {
           perfConf.timebase.frequency = state.frequency;
+          if (state.ringBufferPages != DEFAULT_RING_BUFFER_PAGES) {
+            perfConf.ringBufferPages = state.ringBufferPages;
+          }
+          if (
+            state.ringBufferReadPeriodMs != DEFAULT_RING_BUFFER_READ_PERIOD_MS
+          ) {
+            perfConf.ringBufferReadPeriodMs = state.ringBufferReadPeriodMs;
+          }
         } else {
           perfConf.timebase.period = state.period;
         }
@@ -1071,4 +1154,19 @@ function ParseTargetCpus(cpus: string | undefined): [number[], string?] {
   }
 
   return [Array.from(cpuSet)];
+}
+
+function SetDefaultRingBufferParams(state: PerfCpuConfigurationState) {
+  state.ringBufferPages = DEFAULT_RING_BUFFER_PAGES;
+  state.ringBufferReadPeriodMs = DEFAULT_RING_BUFFER_READ_PERIOD_MS;
+}
+
+function UpdateAutomaticRingBufferParams(state: PerfCpuConfigurationState) {
+  if (state.frequency < 500) {
+    SetDefaultRingBufferParams(state);
+  } else {
+    state.ringBufferPages = 1024;
+    state.ringBufferReadPeriodMs =
+      state.frequency >= 1000 ? 50 : 100 - ((state.frequency - 500) / 100) * 10;
+  }
 }
