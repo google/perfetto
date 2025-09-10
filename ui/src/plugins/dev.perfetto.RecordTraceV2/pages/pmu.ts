@@ -46,6 +46,7 @@ import {
 } from '../../../public/cpu_info';
 import {App} from '../../../public/app';
 import {TextInput} from '../../../widgets/text_input';
+import protos from '../../../protos';
 
 const DEFAULT_RING_BUFFER_PAGES = 256;
 const DEFAULT_RING_BUFFER_READ_PERIOD_MS = 100;
@@ -238,6 +239,8 @@ interface PerfCpuConfigurationState {
   period: number;
   frequency: number;
   captureCallstack: boolean;
+  callStackSymbolization: boolean;
+  stackUnwindingByKernel: boolean;
   automaticRingBufferSettings: boolean;
   ringBufferPages: number;
   ringBufferReadPeriodMs: number;
@@ -722,6 +725,36 @@ class PerfCpuConfiguration
         enabled: this.controller.state!.captureCallstack,
         onToggle: (enabled: boolean) => {
           this.controller.state!.captureCallstack = enabled;
+          this.controller.state!.callStackSymbolization = enabled;
+          this.controller.state!.stackUnwindingByKernel = false;
+        },
+      } as ToggleAttrs),
+      m(Toggle, {
+        title: 'Symbolization',
+        cssClass: `.thin${
+          this.controller.state!.captureCallstack === false ? '.greyed-out' : ''
+        }`,
+        descr: `If enabled, symbol names are resolved during capture. Disabling this option speeds up capture but
+        requires post-processing the trace with traceconv to symbolize callchains.`,
+        enabled:
+          this.controller.state!.captureCallstack &&
+          this.controller.state!.callStackSymbolization,
+        onToggle: (enabled: boolean) => {
+          this.controller.state!.callStackSymbolization = enabled;
+        },
+      } as ToggleAttrs),
+      m(Toggle, {
+        title: 'Stack unwinding by kernel',
+        cssClass: `.thin${
+          this.controller.state!.captureCallstack === false ? '.greyed-out' : ''
+        }`,
+        descr: `Use kernel space to unwind callchains for better performance. However, this may not work correctly with JIT code
+         or binaries that omit frame pointer preservation during function calls.`,
+        enabled:
+          this.controller.state!.captureCallstack &&
+          this.controller.state!.stackUnwindingByKernel,
+        onToggle: (enabled: boolean) => {
+          this.controller.state!.stackUnwindingByKernel = enabled;
         },
       } as ToggleAttrs),
       m(Toggle, {
@@ -984,6 +1017,8 @@ class PerfConfiguration implements m.ClassComponent<PerfConfigurationAttrs> {
               period: 10000,
               frequency: 100,
               captureCallstack: false,
+              callStackSymbolization: true,
+              stackUnwindingByKernel: false,
               automaticRingBufferSettings: false,
               ringBufferPages: DEFAULT_RING_BUFFER_PAGES,
               ringBufferReadPeriodMs: DEFAULT_RING_BUFFER_READ_PERIOD_MS,
@@ -1110,6 +1145,13 @@ function tracedPerf(recMgr: RecordingManager, app: App): RecordProbe {
         }
         if (state.captureCallstack) {
           perfConf.callstackSampling = {};
+          if (state.stackUnwindingByKernel) {
+            perfConf.callstackSampling.userFrames =
+              protos.PerfEventConfig.UnwindMode.UNWIND_KERNEL;
+          }
+          if (!state.callStackSymbolization) {
+            perfConf.callstackSampling.skipSymbolization = true;
+          }
         }
       });
     },
