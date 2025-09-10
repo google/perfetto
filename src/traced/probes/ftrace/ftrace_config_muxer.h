@@ -216,7 +216,7 @@ class FtraceConfigMuxer {
     EventFilter ftrace_events;
     std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
     bool funcgraph_on = false;        // current_tracer == "function_graph"
-    // Any exclsuive single-tenant feature active.
+    // Any exclusive single-tenant feature active.
     bool exclusive_feature_active = false;
     size_t cpu_buffer_size_pages = 0;
     protos::pbzero::FtraceClock ftrace_clock{};

@@ -165,8 +165,7 @@ bool ValidateKprobeName(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
-// Returns true if the config has any advanced features enabled.
-// See: "Advanced Single-Tenant Features" in ftrace_config.proto for more
+// See: "Exclusive single-tenant features" in ftrace_config.proto for more
 // details.
 bool HasExclusiveFeatures(const FtraceConfig& request) {
   return !request.tids_to_trace().empty();
