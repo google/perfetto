@@ -25,12 +25,12 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/json/json_parser.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/interned_message_view.h"
+#include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor {
 

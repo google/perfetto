@@ -25,6 +25,8 @@ FROM _callstacks_for_callsites!((
 ORDER BY
   c.id;
 
+CREATE PERFETTO INDEX _linux_perf_raw_callstacks_parent_id_idx ON _linux_perf_raw_callstacks(parent_id);
+
 -- Table summarising the callstacks captured during all
 -- perf samples in the trace.
 --

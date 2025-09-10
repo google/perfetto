@@ -20,22 +20,21 @@ import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
+  NodeType,
   Query,
   QueryNode,
   queryToRun,
-  setOperationChanged,
 } from '../query_node';
 import {Button} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
-import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
+import {NodeIssues} from './node_issues';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -43,6 +42,7 @@ export interface NodeExplorerAttrs {
   readonly onQueryAnalyzed: (query: Query | Error, reexecute?: boolean) => void;
   readonly onExecute: () => void;
   readonly onchange?: () => void;
+  readonly resolveNode: (nodeId: string) => QueryNode | undefined;
 }
 
 enum SelectedView {
@@ -61,7 +61,11 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
 
-  private renderTitleRow(node: QueryNode, renderMenu: () => m.Child): m.Child {
+  private renderTitleRow(
+    node: QueryNode,
+    attrs: NodeExplorerAttrs,
+    renderMenu: () => m.Child,
+  ): m.Child {
     return m(
       '.pf-node-explorer__title-row',
       m(
@@ -88,75 +92,45 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         ` [${node.nodeId}]`,
       ),
       m('span.spacer'), // Added spacer to push menu to the right
+      m(Button, {
+        label: 'Run',
+        onclick: attrs.onExecute,
+      }),
       renderMenu(),
     );
   }
 
-  private renderOperators(node: QueryNode, onchange?: () => void): m.Child {
-    if (node instanceof SqlSourceNode) {
-      return;
-    }
-    return m(Operator, {
-      filter: {
-        sourceCols: node.sourceCols,
-        filters: node.state.filters,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          node.state.filters = newFilters as FilterDefinition[];
-          onchange?.();
-        },
-      },
-      onchange: () => {
-        setOperationChanged(node);
-        onchange?.();
-      },
-    });
-  }
-
   private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
-    if (node instanceof SqlSourceNode) {
-      this.updateSqlSourceQuery(node, attrs);
-    } else {
-      this.updateRegularQuery(node, attrs);
-    }
-  }
-
-  private updateSqlSourceQuery(node: SqlSourceNode, attrs: NodeExplorerAttrs) {
-    const sql = node.state.sql ?? '';
-    const sq = node.getStructuredQuery();
-    const newSqString = sq ? JSON.stringify(sq.toJSON(), null, 2) : '';
-
-    const rawSqlHasChanged =
-      !this.currentQuery ||
-      !isAQuery(this.currentQuery) ||
-      sql !== this.currentQuery.sql;
-
-    if (newSqString !== this.prevSqString || rawSqlHasChanged) {
-      if (sq) {
-        this.tableAsyncLimiter.schedule(async () => {
-          const analyzedQuery = await analyzeNode(node, attrs.trace.engine);
-          if (isAQuery(analyzedQuery)) {
-            this.sqlForDisplay = queryToRun(analyzedQuery);
-          }
-          m.redraw();
-        });
+    if (node instanceof SqlSourceNode && node.state.sql) {
+      // Clear this node from the prevNodes
+      for (const prevNode of node.prevNodes) {
+        prevNode.nextNodes = prevNode.nextNodes.filter((n) => n !== node);
       }
 
-      this.currentQuery = {
-        sql,
-        textproto: newSqString,
-        modules: [],
-        preambles: [],
-      };
-      attrs.onQueryAnalyzed(this.currentQuery, false);
-      this.prevSqString = newSqString;
+      const nodeIds = node.findDependencies();
+      const dependencies: QueryNode[] = [];
+      for (const nodeId of nodeIds) {
+        if (nodeId === node.nodeId) {
+          node.state.issues = new NodeIssues();
+          node.state.issues.queryError = new Error(
+            'Node cannot depend on itself',
+          );
+          return;
+        }
 
-      if (rawSqlHasChanged) {
-        attrs.onExecute();
+        const dependencyNode = attrs.resolveNode(nodeId);
+        if (dependencyNode) {
+          dependencies.push(dependencyNode);
+        }
+      }
+      node.prevNodes = dependencies;
+      for (const prevNode of node.prevNodes) {
+        if (!prevNode.nextNodes.includes(node)) {
+          prevNode.nextNodes.push(node);
+        }
       }
     }
-  }
 
-  private updateRegularQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
     const sq = node.getStructuredQuery();
     if (sq === undefined) return;
 
@@ -171,8 +145,11 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         if (node instanceof AggregationNode) {
           node.updateGroupByColumns();
         }
-        attrs.onQueryAnalyzed(this.currentQuery);
-        attrs.onExecute();
+        attrs.onQueryAnalyzed(
+          this.currentQuery,
+          node.type !== NodeType.kSqlSource &&
+            node.type !== NodeType.kAggregation,
+        );
         this.prevSqString = curSqString;
       });
     }
@@ -193,8 +170,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     return m(
       'article',
       this.selectedView === SelectedView.kModify && [
-        node.nodeSpecificModify(),
-        this.renderOperators(node, attrs.onchange),
+        node.nodeSpecificModify(attrs.onExecute),
       ],
       this.selectedView === SelectedView.kSql &&
         (isAQuery(this.currentQuery)
@@ -250,7 +226,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       `.pf-node-explorer${
         node instanceof SqlSourceNode ? '.pf-node-explorer-sql-source' : ''
       }`,
-      this.renderTitleRow(node, renderModeMenu),
+      this.renderTitleRow(node, attrs, renderModeMenu),
       this.renderContent(node, attrs),
     );
   }

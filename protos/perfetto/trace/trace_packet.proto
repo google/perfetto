@@ -111,7 +111,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 122.
+// Next id: 123.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -262,6 +262,7 @@ message TracePacket {
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
     GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
     GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+    GenericKernelProcessTree generic_kernel_process_tree = 122;
 
     CpuPerUidData cpu_per_uid_data = 119;
 

@@ -16,13 +16,13 @@ import m from 'mithril';
 import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink, uploadTraceBlob} from './permalink';
 import {showModal} from '../widgets/modal';
-import {globals} from './globals';
 import {Trace} from '../public/trace';
 import {TraceImpl} from '../core/trace_impl';
 import {CopyableLink} from '../widgets/copyable_link';
+import {AppImpl} from '../core/app_impl';
 
 export function isShareable(trace: Trace) {
-  return globals.isInternalUser && trace.traceInfo.downloadable;
+  return AppImpl.instance.isInternalUser && trace.traceInfo.downloadable;
 }
 
 const STATE_HASH_PLACEHOLDER = 'perfettoStateHashPlaceholder';

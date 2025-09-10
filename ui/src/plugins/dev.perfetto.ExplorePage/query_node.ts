@@ -57,7 +57,7 @@ export interface QueryNode {
   readonly nodeId: string;
   meterialisedAs?: string;
   readonly type: NodeType;
-  readonly prevNodes?: QueryNode[];
+  prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
@@ -72,9 +72,10 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(): m.Child;
+  nodeSpecificModify(onExecute?: () => void): m.Child;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
+  isMaterialised(): boolean;
 }
 
 export interface Query {
@@ -82,6 +83,7 @@ export interface Query {
   textproto: string;
   modules: string[];
   preambles: string[];
+  columns: string[];
 }
 
 export function createSelectColumnsProto(
@@ -152,6 +154,7 @@ export async function analyzeNode(
       textproto: '',
       modules: [],
       preambles: [],
+      columns: [],
     };
     return sql;
   }
@@ -195,6 +198,7 @@ export async function analyzeNode(
     textproto: lastRes.textproto ?? '',
     modules: lastRes.modules ?? [],
     preambles: lastRes.preambles ?? [],
+    columns: lastRes.columns ?? [],
   };
   return sql;
 }

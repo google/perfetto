@@ -199,6 +199,10 @@ class FtraceConfigMuxer {
     return current_state_.syscall_filter;
   }
 
+  bool GetExclusiveFeatureActiveForTesting() const {
+    return current_state_.exclusive_feature_active;
+  }
+
   size_t GetDataSourcesCount() const { return ds_configs_.size(); }
 
   // Returns the syscall ids for the current architecture
@@ -212,6 +216,8 @@ class FtraceConfigMuxer {
     EventFilter ftrace_events;
     std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
     bool funcgraph_on = false;        // current_tracer == "function_graph"
+    // Any exclusive single-tenant feature active.
+    bool exclusive_feature_active = false;
     size_t cpu_buffer_size_pages = 0;
     protos::pbzero::FtraceClock ftrace_clock{};
     // Used only in Android for ATRACE_EVENT/os.Trace() userspace:
@@ -227,6 +233,14 @@ class FtraceConfigMuxer {
     bool saved_tracing_on;  // Backup for the original tracing_on.
     // Set of kprobes that we've installed, to be cleaned up when tracing stops.
     base::FlatSet<GroupAndName> installed_kprobes;
+    // State of tracefs options before tracing started.
+    // Since there is no "default" value for tracefs options, we save the
+    // original values when tracing starts and restore them when tracing stops.
+    base::FlatHashMap<std::string, bool> saved_tracefs_options;
+    // The value of tracing_cpumask before tracing started.
+    // Since there is no "default" value for tracing_cpumask, we save the
+    // original value when tracing starts and restore it when tracing stops.
+    std::optional<std::string> saved_tracing_cpumask;
   };
 
   void SetupClock(const FtraceConfig& request);

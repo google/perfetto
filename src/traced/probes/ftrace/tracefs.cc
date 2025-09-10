@@ -282,6 +282,45 @@ bool Tracefs::ClearMaxGraphDepth() {
   return WriteNumberToFile(path, 0);
 }
 
+bool Tracefs::SetEventTidFilter(const std::vector<std::string>& tids_to_trace) {
+  std::string path = root_ + "set_event_pid";
+  std::string filter = base::Join(tids_to_trace, " ");
+  return WriteToFile(path, filter);
+}
+
+bool Tracefs::ClearEventTidFilter() {
+  std::string path = root_ + "set_event_pid";
+  return ClearFile(path);
+}
+
+std::optional<bool> Tracefs::GetTracefsOption(const std::string& option) {
+  std::string path = root_ + "options/" + option;
+  std::string value = base::TrimWhitespace(ReadFileIntoString(path));
+  if (value != "0" && value != "1") {
+    return std::nullopt;
+  }
+  return value == "1";
+}
+
+bool Tracefs::SetTracefsOption(const std::string& option, bool enabled) {
+  std::string path = root_ + "options/" + option;
+  return WriteToFile(path, enabled ? "1" : "0");
+}
+
+std::optional<std::string> Tracefs::GetTracingCpuMask() {
+  std::string path = root_ + "tracing_cpumask";
+  std::string cpumask = base::TrimWhitespace(ReadFileIntoString(path));
+  if (cpumask.empty()) {
+    return std::nullopt;
+  }
+  return cpumask;
+}
+
+bool Tracefs::SetTracingCpuMask(const std::string& cpumask) {
+  std::string path = root_ + "tracing_cpumask";
+  return WriteToFile(path, cpumask);
+}
+
 bool Tracefs::AppendFunctionGraphFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_graph_function";

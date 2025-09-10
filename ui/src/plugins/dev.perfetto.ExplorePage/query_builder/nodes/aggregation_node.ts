@@ -26,7 +26,8 @@ import {
   columnInfoFromName,
   newColumnInfoList,
 } from '../column_info';
-import {createFiltersProto} from '../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../operations/filter';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
@@ -53,6 +54,7 @@ export class AggregationNode implements QueryNode {
   readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
+  meterialisedAs?: string;
 
   get sourceCols() {
     return (
@@ -144,11 +146,22 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return m(AggregationOperationComponent, {
-      groupByColumns: this.state.groupByColumns,
-      aggregations: this.state.aggregations,
-      onchange: this.state.onchange,
-    });
+    return m(
+      '.node-specific-modify',
+      m(AggregationOperationComponent, {
+        groupByColumns: this.state.groupByColumns,
+        aggregations: this.state.aggregations,
+        onchange: this.state.onchange,
+      }),
+      m(FilterOperation, {
+        filters: this.state.filters,
+        sourceCols: this.finalCols,
+        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+          this.state.filters = newFilters as FilterDefinition[];
+          this.state.onchange?.();
+        },
+      }),
+    );
   }
 
   clone(): QueryNode {
@@ -164,6 +177,10 @@ export class AggregationNode implements QueryNode {
     return new AggregationNode(stateCopy);
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -175,41 +192,36 @@ export class AggregationNode implements QueryNode {
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
+    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
 
     // If the previous node already has an aggregation, we need to create a
     // subquery.
+    let sq: protos.PerfettoSqlStructuredQuery;
     if (prevSq.groupBy) {
-      const sq = new protos.PerfettoSqlStructuredQuery();
-      sq.id = this.nodeId;
+      sq = new protos.PerfettoSqlStructuredQuery();
+      sq.id = nextNodeId();
       sq.innerQuery = prevSq;
-      if (filtersProto) sq.filters = filtersProto;
-      if (groupByProto) sq.groupBy = groupByProto;
-      const selectedColumns = createSelectColumnsProto(this);
-      if (selectedColumns) sq.selectColumns = selectedColumns;
-      return sq;
+    } else {
+      sq = prevSq;
     }
 
-    // Otherwise, we can just add the aggregation and filters to the previous
-    // query.
-    if (filtersProto) {
-      if (prevSq.filters !== undefined) {
-        prevSq.filters.push(...filtersProto);
-      } else {
-        prevSq.filters = filtersProto;
-      }
-    }
     if (groupByProto) {
-      prevSq.groupBy = groupByProto;
+      sq.groupBy = groupByProto;
     }
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) {
-      prevSq.selectColumns = selectedColumns;
+      sq.selectColumns = selectedColumns;
     }
-    return prevSq;
+
+    if (filtersProto) {
+      const outerSq = new protos.PerfettoSqlStructuredQuery();
+      outerSq.id = this.nodeId;
+      outerSq.innerQuery = sq;
+      outerSq.filters = filtersProto;
+      return outerSq;
+    }
+
+    return sq;
   }
 }
 
@@ -250,7 +262,7 @@ export function GroupByAggregationAttrsToProto(
 
 export function placeholderNewColumnName(agg: Aggregation) {
   return agg.column && agg.aggregationOp
-    ? `${agg.column.name}_${agg.aggregationOp}`
+    ? `${agg.column.name}_${agg.aggregationOp.toLowerCase()}`
     : `agg_${agg.aggregationOp ?? ''}`;
 }
 
@@ -432,7 +444,7 @@ class AggregationOperationComponent
       }
 
       const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
-      const showAddButton = lastAgg.isValid && !lastAgg.isEditing;
+      const showAddButton = lastAgg.isValid;
 
       return [
         ...attrs.aggregations.map((agg, index) => {
@@ -446,6 +458,10 @@ class AggregationOperationComponent
           m(Button, {
             label: 'Add more aggregations',
             onclick: () => {
+              if (!lastAgg.newColumnName) {
+                lastAgg.newColumnName = placeholderNewColumnName(lastAgg);
+              }
+              lastAgg.isEditing = false;
               attrs.aggregations.push({isEditing: true});
               attrs.onchange?.();
             },

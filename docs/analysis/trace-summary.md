@@ -51,8 +51,8 @@ metric_spec {
   query: {
     table: {
       table_name: "memory_rss_and_swap_per_process"
-      module_name: "linux.memory.process"
     }
+    referenced_modules: "linux.memory.process"
     group_by: {
       column_names: "process_name"
       aggregates: {
@@ -123,8 +123,8 @@ metric_template_spec {
   query: {
     table: {
       table_name: "memory_rss_and_swap_per_process"
-      module_name: "linux.memory.process"
     }
+    referenced_modules: "linux.memory.process"
     group_by: {
       column_names: "process_name"
       aggregates: {
@@ -227,8 +227,8 @@ metric_template_spec {
   query: {
     table: {
       table_name: "memory_rss_and_swap_per_process"
-      module_name: "linux.memory.process"
     }
+    referenced_modules: "linux.memory.process"
     group_by: {
       column_names: "process_name"
       aggregates: {
@@ -256,7 +256,6 @@ each generated metric, making the output richer and more useful for automated
 tooling.
 
 ## Using Summaries with Custom SQL Modules
-
 
 While the standard library is powerful, you will often need to analyze custom
 events specific to your application. You can achieve this by writing your own
@@ -312,9 +311,9 @@ metric_template_spec {
     table: {
       // The module name is the directory path relative to the package root,
       // with the .sql extension removed.
-      module_name: "my_game.metrics"
       table_name: "game_frame_stats"
     }
+    referenced_modules: "my_game.metrics"
   }
 }
 ```
@@ -373,6 +372,40 @@ trace_processor_shell --summary \
 
 ## Common Patterns and Techniques
 
+### Column Transformations
+
+The `select_columns` field provides a powerful way to manipulate the columns of
+your query result. You can rename columns and perform transformations using SQL
+expressions.
+
+Each `SelectColumn` message has two fields:
+
+-   `column_name_or_expression`: The name of a column from the source or a SQL
+    expression.
+-   `alias`: The new name for the column.
+
+#### Example: Renaming and Transforming Columns
+
+This example shows how to select the `ts` and `dur` columns from the `slice`
+table, rename `ts` to `timestamp`, and create a new column `dur_ms` by
+converting `dur` from nanoseconds to milliseconds.
+
+```protobuf
+query: {
+  table: {
+    table_name: "slice"
+  }
+  select_columns: {
+    column_name_or_expression: "ts"
+    alias: "timestamp"
+  }
+  select_columns: {
+    column_name_or_expression: "dur / 1000"
+    alias: "dur_ms"
+  }
+}
+```
+
 ### Analyzing Time Intervals with `interval_intersect`
 
 A common analysis pattern is to analyze data from one source (e.g., CPU usage)
@@ -405,8 +438,8 @@ query: {
        // The base data is CPU time per thread.
        table: {
          table_name: "thread_slice_cpu_time"
-         module_name: "slices.cpu_time"
        }
+       referenced_modules: "slices.cpu_time"
        filters: {
          column_name: "thread_name"
          op: EQUAL
@@ -427,6 +460,50 @@ query: {
       column_name: "cpu_time"
       op: SUM
       result_column_name: "total_cpu_time"
+    }
+  }
+}
+```
+
+### Composing Queries with `dependencies`
+
+The `dependencies` field in the `Sql` source allows you to build complex
+queries by composing them from other structured queries. This is especially
+useful for breaking down a complex analysis into smaller, reusable parts.
+
+Each dependency is given an `alias`, which is a string that can be used in the
+SQL query to refer to the result of the dependency. The SQL query can then
+use this alias as if it were a table.
+
+#### Example: Joining CPU data with CUJ slices
+
+This example shows how to use `dependencies` to join CPU scheduling data
+with CUJ slices. We define two dependencies, one for the CPU data and one for
+the CUJ slices, and then join them in the main SQL query.
+
+```protobuf
+query: {
+  sql: {
+    sql: "SELECT s.id, s.ts, s.dur, t.track_name FROM $slice_table s JOIN $track_table t ON s.track_id = t.id"
+    column_names: "id"
+    column_names: "ts"
+    column_names: "dur"
+    column_names: "track_name"
+    dependencies: {
+      alias: "slice_table"
+      query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+    }
+    dependencies: {
+      alias: "track_table"
+      query: {
+        table: {
+          table_name: "track"
+        }
+      }
     }
   }
 }

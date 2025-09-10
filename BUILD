@@ -360,7 +360,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -413,6 +412,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -2057,16 +2057,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/json:minimal
-perfetto_filegroup(
-    name = "src_trace_processor_importers_json_minimal",
-    srcs = [
-        "src/trace_processor/importers/json/json_parser.h",
-        "src/trace_processor/importers/json/json_utils.cc",
-        "src/trace_processor/importers/json/json_utils.h",
-    ],
-)
-
 # GN target: //src/trace_processor/importers/memory_tracker:graph_processor
 perfetto_filegroup(
     name = "src_trace_processor_importers_memory_tracker_graph_processor",
@@ -3391,12 +3381,15 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/pivot.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_cpu_dependence.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_dsu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_1d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_gpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_1d.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_2.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_l3.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
@@ -3717,6 +3710,16 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:json_parser
+perfetto_filegroup(
+    name = "src_trace_processor_util_json_parser",
+    srcs = [
+        "src/trace_processor/util/json_parser.h",
+        "src/trace_processor/util/json_utils.cc",
+        "src/trace_processor/util/json_utils.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:profile_builder
 perfetto_filegroup(
     name = "src_trace_processor_util_profile_builder",
@@ -3797,6 +3800,15 @@ perfetto_filegroup(
     name = "src_trace_processor_util_stdlib",
     srcs = [
         "src/trace_processor/util/sql_modules.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:tar_writer
+perfetto_filegroup(
+    name = "src_trace_processor_util_tar_writer",
+    srcs = [
+        "src/trace_processor/util/tar_writer.cc",
+        "src/trace_processor/util/tar_writer.h",
     ],
 )
 
@@ -3935,6 +3947,8 @@ perfetto_filegroup(
         "src/traceconv/deobfuscate_profile.h",
         "src/traceconv/symbolize_profile.cc",
         "src/traceconv/symbolize_profile.h",
+        "src/traceconv/trace_to_bundle.cc",
+        "src/traceconv/trace_to_bundle.h",
         "src/traceconv/trace_to_firefox.cc",
         "src/traceconv/trace_to_firefox.h",
         "src/traceconv/trace_to_hprof.cc",
@@ -7367,7 +7381,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -7419,6 +7432,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7574,7 +7588,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -7629,6 +7642,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7773,7 +7787,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_json_json",
-        ":src_trace_processor_importers_json_minimal",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
@@ -7825,6 +7838,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7834,6 +7848,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_tar_writer",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_winscope_proto_mapping",
