@@ -27,7 +27,6 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
-#include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -66,25 +65,6 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
   if (decoder.has_mem_info()) {
     ParseMemInfo(ts, decoder.mem_info());
-  }
-
-  if (decoder.has_file_io_create()) {
-    ParseFileIoCreate(ts, decoder.file_io_create());
-  }
-  if (decoder.has_file_io_dir_enum()) {
-    ParseFileIoDirEnum(ts, decoder.file_io_dir_enum());
-  }
-  if (decoder.has_file_io_info()) {
-    ParseFileIoInfo(ts, decoder.file_io_info());
-  }
-  if (decoder.has_file_io_read_write()) {
-    ParseFileIoReadWrite(ts, decoder.file_io_read_write());
-  }
-  if (decoder.has_file_io_simple_op()) {
-    ParseFileIoSimpleOp(ts, decoder.file_io_simple_op());
-  }
-  if (decoder.has_file_io_op_end()) {
-    ParseFileIoOpEnd(ts, decoder.file_io_op_end());
   }
 
   return base::OkStatus();
@@ -213,71 +193,6 @@ void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
         timestamp, static_cast<double>(*repurposed_page_count_iterator),
         repurposed_page_count_track_id);
   }
-}
-
-void EtwParser::ParseFileIoCreate(int64_t timestamp, ConstBytes blob) {
-  protos::pbzero::FileIoCreateEtwEvent::Decoder decoder(blob);
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(decoder.ttid());
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-
-  StringId cat_id = context_->storage->InternString("FileIO");
-  StringId name_id = context_->storage->InternString("Create");
-
-  // ⭐ TODO: finish this function, and replace slice with the right type.
-  SliceTracker::SetArgsCallback set_args_callback =
-      [&](ArgsTracker::BoundInserter* inserter) {
-        if (decoder.has_irp_ptr()) {
-          inserter->AddArg(/*key==*/context_->storage->InternString("irp"),
-                           /*v=*/Variadic::UnsignedInteger(decoder.irp()));
-        }
-        if (decoder.has_file_object()) {
-          inserter->AddArg(context_->storage->InternString("file_object"),
-                        Variadic::UnsignedInteger(decoder.file_object()));
-        }
-        if (decoder.has_create_options()) {
-          inserter->AddArg(context_->storage->InternString("create_options"),
-                        Variadic::UnsignedInteger(decoder.create_options()));
-        }
-        if (decoder.has_file_attributes()) {
-          inserter->AddArg(context_->storage->InternString("file_attributes"),
-                        Variadic::UnsignedInteger(decoder.file_attributes()));
-        }
-        if (decoder.has_share_access()) {
-          inserter->AddArg(context_->storage->InternString("share_access"),
-                        Variadic::UnsignedInteger(decoder.share_access()));
-        }
-        if (decoder.has_open_path()) {
-          inserter->AddArg(
-              context_->storage->InternString("open_path"),
-              Variadic::String(context_->storage->InternString(decoder.open_path())));
-        }
-      };
-  std::optional<SliceId> slice = context_->slice_tracker->Begin(
-      timestamp, track_id, cat_id, name_id, std::move(set_args_callback));
-  if (!slice) {
-    return;
-  }
-}
-
-void EtwParser::ParseFileIoDirEnum(int64_t timestamp, protozero::ConstBytes) {
-  // ⭐ TODO: implement
-}
-
-void EtwParser::ParseFileIoInfo(int64_t timestamp, protozero::ConstBytes) {
-  // ⭐ TODO: implement
-}
-
-void EtwParser::ParseFileIoReadWrite(int64_t timestamp, protozero::ConstBytes) {
-  // ⭐ TODO: implement
-}
-
-void EtwParser::ParseFileIoSimpleOp(int64_t timestamp, protozero::ConstBytes) {
-  // ⭐ TODO: implement
-}
-
-void EtwParser::ParseFileIoOpEnd(int64_t timestamp, protozero::ConstBytes) {
-  // ⭐ TODO: implement
 }
 
 void EtwParser::PushSchedSwitch(uint32_t cpu,
