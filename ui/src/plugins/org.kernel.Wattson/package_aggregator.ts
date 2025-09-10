@@ -67,11 +67,13 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
                 COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
                 3
               ) as total_mws,
-              uid,
+              wattson_plugin_unioned_per_cpu_total.uid AS uid,
               package_name
             FROM wattson_plugin_unioned_per_cpu_total
-            LEFT JOIN wattson_plugin_per_package_idle_attribution USING (uid)
-            GROUP BY uid, package_name
+            LEFT JOIN wattson_plugin_per_package_idle_attribution
+              ON wattson_plugin_unioned_per_cpu_total.uid IS
+              wattson_plugin_per_package_idle_attribution.uid
+            GROUP BY wattson_plugin_unioned_per_cpu_total.uid, package_name
           )
           select *,
             total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
