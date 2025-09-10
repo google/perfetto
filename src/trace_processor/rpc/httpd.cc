@@ -80,7 +80,6 @@ class Httpd : public base::HttpRequestHandler {
 
   static void ServeHelpPage(const base::HttpRequest&);
   static std::string ExtractUuidFromMessage(base::StringView data);
-  void registerConnection(base::HttpServerConnection* conn, std::string uuid);
   void cleanUpInactiveInstances();
 
   class UuidRpcThread {
@@ -357,10 +356,64 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
                              Vec2Sv(result.SerializeAsArray()));
   }
 
-  if (req.uri == "/websocket" && req.is_websocket_handshake) {
-    // Will trigger OnWebsocketMessage() when is received.
-    // It returns a 403 if the origin is not one of the allowed CORS origins.
-    return conn.UpgradeToWebsocket(req);
+  if (base::StartsWith(req.uri.ToStdString(), "/websocket") &&
+      req.is_websocket_handshake) {
+    std::string path =
+        req.uri.substr(strlen("/websocket"))
+            .ToStdString();  // path is e.g., "", "/", "/new", "/<uuid>"
+    std::string uuid;
+    bool send_uuid_back = false;
+
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+
+      if (path.empty() || path == "/") {  // Legacy /websocket endpoint
+        if (uuid_to_tp_map.empty()) {
+          // Case 1: No instances exist, so behave like /new.
+          send_uuid_back = true;
+          base::Uuid new_uuid = base::Uuidv4();
+          uuid = new_uuid.ToPrettyString();
+          auto new_thread = std::make_unique<UuidRpcThread>();
+          uuid_to_tp_map.emplace(uuid, std::move(new_thread));
+          PERFETTO_ILOG("Legacy /websocket: creating new TP instance %s",
+                        uuid.c_str());
+        } else {
+          // Case 2: Instances exist, attach to the "first" one for back-compat.
+          uuid = uuid_to_tp_map.begin()->first;
+          PERFETTO_ILOG(
+              "Legacy /websocket: attaching to existing TP instance %s",
+              uuid.c_str());
+        }
+      } else if (path == "/new") {
+        // Case 3: Explicit request for a new instance.
+        send_uuid_back = true;
+        base::Uuid new_uuid = base::Uuidv4();
+        uuid = new_uuid.ToPrettyString();
+        auto new_thread = std::make_unique<UuidRpcThread>();
+        uuid_to_tp_map.emplace(uuid, std::move(new_thread));
+        PERFETTO_ILOG("New TP instance %s created via /websocket/new",
+                      uuid.c_str());
+      } else {                  // Case 4: Must be /websocket/<uuid>
+        uuid = path.substr(1);  // Remove leading '/'
+        if (uuid_to_tp_map.find(uuid) == uuid_to_tp_map.end()) {
+          // For the new API, if a specific UUID is requested, it must exist.
+          return conn.SendResponseAndClose("404 Not Found", {});
+        }
+        PERFETTO_ILOG("Attaching to existing TP instance %s", uuid.c_str());
+      }
+
+      // Associate the connection with the determined UUID before upgrading.
+      conn_to_uuid_map.emplace(&conn, uuid);
+    }
+
+    conn.UpgradeToWebsocket(req);
+
+    if (send_uuid_back) {
+      // Immediately send the new UUID to the client upon connection.
+      std::string json_response = "{\"uuid\": \"" + uuid + "\"}";
+      conn.SendWebsocketMessage(json_response.c_str(), json_response.length());
+    }
+    return;
   }
 
   // --- Everything below this line is a legacy endpoint not used by the UI.
@@ -410,7 +463,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   // New endpoint, returns data in batches using chunked transfer encoding.
-  // The batch size is determined by |cells_per_batch_| and
+  // The batch size is determined by |cells_per_batch_|
   // |batch_split_threshold_| in query_result_serializer.h.
   // This is temporary, it will be switched to WebSockets soon.
   if (req.uri == "/query") {
@@ -465,34 +518,30 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-
-  // Check if this connection already has a dedicated thread
   if (!ExtractUuidFromMessage(msg.data).empty()) {
-    registerConnection(msg.conn, ExtractUuidFromMessage(msg.data));
-  } else {
-    auto it = conn_to_uuid_map.find(msg.conn);
-    // if we cannot find the connection and uuid being registered then the ui is
-    // older. we fall back to the global rpc for backward compatibility
-    if (it == conn_to_uuid_map.end() || it->second == DEFAULT_TP_UUID) {
-      if (!global_trace_processor_rpc_.has_existing_tab) {
-        global_trace_processor_rpc_.has_existing_tab = true;
-      }
-      global_trace_processor_rpc_.SetRpcResponseFunction(
-          [&](const void* data, uint32_t len) {
-            SendRpcChunk(msg.conn, data, len);
-          });
-      // OnRpcRequest() will call SendRpcChunk() one or more times.
-      global_trace_processor_rpc_.OnRpcRequest(msg.data.data(),
-                                               msg.data.size());
-      global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
-      return;
-    } else {
-      // Dispatch to the dedicated thread
-      UuidRpcThread* thread = uuid_to_tp_map.find(it->second)->second.get();
-      thread->OnWebsocketMessage(msg);
-    }
+    // This is a legacy handshake from an old client. The connection has
+    // already been assigned to a TP instance in OnHttpRequest. We can
+    // safely ignore this handshake and just wait for real RPC messages.
+    return;
   }
+
+  // This is a regular RPC message.
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+  auto it = conn_to_uuid_map.find(msg.conn);
+  if (it == conn_to_uuid_map.end()) {
+    PERFETTO_ELOG("Websocket message from an un-associated connection.");
+    return;
+  }
+
+  const std::string& uuid = it->second;
+  auto uuid_it = uuid_to_tp_map.find(uuid);
+  if (uuid_it == uuid_to_tp_map.end()) {
+    PERFETTO_ELOG("Inconsistent state: conn mapped to non-existent uuid %s",
+                  uuid.c_str());
+    return;
+  }
+
+  uuid_it->second->OnWebsocketMessage(msg);
 }
 
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
@@ -509,21 +558,6 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
       }
     }
     conn_to_uuid_map.erase(conn_to_uuid_it);
-  }
-}
-
-void Httpd::registerConnection(base::HttpServerConnection* conn,
-                               std::string uuid) {
-  auto con_to_uuid_it = conn_to_uuid_map.find(conn);
-  if (con_to_uuid_it == conn_to_uuid_map.end()) {
-    conn_to_uuid_map.emplace(conn, uuid);
-  }
-
-  auto uuid_to_tp_it = uuid_to_tp_map.find(uuid);
-  if (uuid_to_tp_it == uuid_to_tp_map.end()) {
-    // Create new thread for this connection
-    auto new_thread = std::make_unique<UuidRpcThread>();
-    uuid_to_tp_map.emplace(uuid, std::move(new_thread));
   }
 }
 
@@ -553,7 +587,7 @@ std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
   if (str_data.find("\"type\":\"TP_UUID\"") != std::string::npos) {
     size_t uuid_pos = str_data.find("\"uuid\":\"");
     if (uuid_pos != std::string::npos) {
-      uuid_pos += 8;  // Skip past "\"uuid\":\""
+      uuid_pos += 8;  // Skip past \"uuid\":\"
       size_t end_quote = str_data.find("\"", uuid_pos);
       if (end_quote != std::string::npos) {
         return str_data.substr(uuid_pos, end_quote - uuid_pos);
@@ -620,7 +654,8 @@ void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
-  static const char kPage[] = R"(Perfetto Trace Processor RPC Server
+  static const char kPage[] = R"(
+Perfetto Trace Processor RPC Server
 
 
 This service can be used in two ways:
