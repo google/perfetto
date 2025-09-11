@@ -439,9 +439,42 @@ export default class implements PerfettoPlugin {
           loadArray.push({ts, dur: resolution, load});
         }
 
+        // Sort rows to match timeline ordering using actual workspace track order
+        const processGroupsPlugin = ctx.plugins.getPlugin(
+          ProcessThreadGroupsPlugin,
+        );
+        const topLevelTracks = ctx.workspace.children;
+        const upidOrderMap = new Map<string, number>();
+
+        // Get the position of each upid's process group in the top-level tracks
+        for (const upidStr of slicesData.keys()) {
+          const upid = Number(upidStr);
+          const processGroup = processGroupsPlugin.getGroupForProcess(upid);
+          if (processGroup) {
+            const orderIndex = topLevelTracks.indexOf(processGroup);
+            upidOrderMap.set(upidStr, orderIndex);
+          }
+        }
+
+        // Create rows array and sort by workspace track order
         const rows: MinimapRow[] = [];
-        for (const row of slicesData.values()) {
-          rows.push(row);
+        const sortedUpids = Array.from(slicesData.keys()).sort((a, b) => {
+          const orderA = upidOrderMap.get(a);
+          const orderB = upidOrderMap.get(b);
+          if (orderA === undefined) {
+            throw new Error(`Order not found for upid ${a}`);
+          }
+          if (orderB === undefined) {
+            throw new Error(`Order not found for upid ${b}`);
+          }
+          return orderA - orderB;
+        });
+
+        for (const upidStr of sortedUpids) {
+          const row = slicesData.get(upidStr);
+          if (row) {
+            rows.push(row);
+          }
         }
         return rows;
       },
