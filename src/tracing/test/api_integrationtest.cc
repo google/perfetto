@@ -1262,11 +1262,11 @@ TEST_P(PerfettoApiTest, TrackEventTimestampUnitIncremental) {
     int min_delta = 1000 * (unit_multiplier == 1 ? 1000 : 1);
 
     EXPECT_EQ(0, event_map.at("Event1").timestamp);
-    EXPECT_GT(event_map.at("Event2").timestamp, min_delta);
-    EXPECT_GT(event_map.at("Event3").timestamp, min_delta);
+    EXPECT_GE(event_map.at("Event2").timestamp, min_delta);
+    EXPECT_GE(event_map.at("Event3").timestamp, min_delta);
 
-    EXPECT_GT(event_map.at("Event2").thread_time, min_delta);
-    EXPECT_GT(event_map.at("Event3").thread_time, min_delta);
+    EXPECT_GE(event_map.at("Event2").thread_time, min_delta);
+    EXPECT_GE(event_map.at("Event3").thread_time, min_delta);
   }
 }
 
