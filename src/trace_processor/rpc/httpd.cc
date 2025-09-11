@@ -79,7 +79,6 @@ class Httpd : public base::HttpRequestHandler {
   void OnHttpConnectionClosed(base::HttpServerConnection* conn) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
-  static std::string ExtractUuidFromMessage(base::StringView data);
   void cleanUpInactiveInstances();
 
   class UuidRpcThread {
@@ -360,7 +359,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       req.is_websocket_handshake) {
     std::string path =
         req.uri.substr(strlen("/websocket"))
-            .ToStdString();  // path is e.g., "", "/", "/new", "/<uuid>"
+            .ToStdString();  // path may be "", "/", "/new", "/<uuid>"
     std::string uuid;
     bool send_uuid_back = false;
 
@@ -393,7 +392,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         uuid_to_tp_map.emplace(uuid, std::move(new_thread));
         PERFETTO_ILOG("New TP instance %s created via /websocket/new",
                       uuid.c_str());
-      } else {                  // Case 4: Must be /websocket/<uuid>
+      } else {
+        // Case 4: Must be /websocket/<uuid>
         uuid = path.substr(1);  // Remove leading '/'
         if (uuid_to_tp_map.find(uuid) == uuid_to_tp_map.end()) {
           // For the new API, if a specific UUID is requested, it must exist.
@@ -518,14 +518,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  if (!ExtractUuidFromMessage(msg.data).empty()) {
-    // This is a legacy handshake from an old client. The connection has
-    // already been assigned to a TP instance in OnHttpRequest. We can
-    // safely ignore this handshake and just wait for real RPC messages.
-    return;
-  }
-
-  // This is a regular RPC message.
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
   auto it = conn_to_uuid_map.find(msg.conn);
   if (it == conn_to_uuid_map.end()) {
@@ -540,7 +532,6 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
                   uuid.c_str());
     return;
   }
-
   uuid_it->second->OnWebsocketMessage(msg);
 }
 
@@ -559,43 +550,6 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
     }
     conn_to_uuid_map.erase(conn_to_uuid_it);
   }
-}
-
-std::string Httpd::ExtractUuidFromMessage(base::StringView data) {
-  // Check if JSON support is available
-  if (json::IsJsonSupported()) {
-    // Use JSON parsing for robust handling
-    std::optional<Json::Value> parsed_json = json::ParseJsonString(data);
-    if (parsed_json.has_value()) {
-      const Json::Value& root = parsed_json.value();
-      // Check if this is a TP_UUID message
-      if (root.isObject() && root.isMember("type") && root["type"].isString() &&
-          root["type"].asString() == "TP_UUID") {
-        // Extract the UUID value
-        if (root.isMember("uuid") && root["uuid"].isString()) {
-          return root["uuid"].asString();
-        }
-      }
-    }
-  }
-
-  // If JSON parsing fails or doesn't match expected format, fall through to
-  // manual parsing
-  std::string str_data(data.data(), data.size());
-
-  // Look for UUID handshake pattern in the message's data
-  if (str_data.find("\"type\":\"TP_UUID\"") != std::string::npos) {
-    size_t uuid_pos = str_data.find("\"uuid\":\"");
-    if (uuid_pos != std::string::npos) {
-      uuid_pos += 8;  // Skip past \"uuid\":\"
-      size_t end_quote = str_data.find("\"", uuid_pos);
-      if (end_quote != std::string::npos) {
-        return str_data.substr(uuid_pos, end_quote - uuid_pos);
-      }
-    }
-  }
-
-  return "";  // Empty means it is not a handshake message
 }
 
 void Httpd::cleanUpInactiveInstances() {
