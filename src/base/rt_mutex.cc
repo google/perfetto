@@ -59,25 +59,6 @@ void RtFutex::UnlockSlowpath() {
   PERFETTO_CHECK(res == 0);
 }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-namespace {
-thread_local int g_cached_tid = -1;
-}  // namespace
-
-int RtFutex::GetTid() {
-  if (PERFETTO_UNLIKELY(g_cached_tid == -1)) {
-    static int register_atfork_once = [] {
-      return pthread_atfork(/*prepare=*/nullptr,
-                            /*parent=*/nullptr,
-                            /*child=*/[] { g_cached_tid = -1; });
-    }();
-    base::ignore_result(register_atfork_once);
-    g_cached_tid = static_cast<int>(syscall(SYS_gettid));
-  }
-  return g_cached_tid;
-}
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
 #endif  // PERFETTO_HAS_RT_FUTEX
 
 #if PERFETTO_HAS_POSIX_RT_MUTEX()

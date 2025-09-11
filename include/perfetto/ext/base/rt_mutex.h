@@ -47,12 +47,6 @@
 #define PERFETTO_HAS_POSIX_RT_MUTEX() false
 #endif
 
-// On Android gettid() isn't actually a syscall but returns very quickly the
-// tid stored in a TLS owned by Bionic.
-// GLIBC instead doesn't seem to have this optimization and we do the TLS
-// caching ourselves, because it makes a 4x difference to the uncontended case.
-#define PERFETTO_GETTID_IS_FAST() PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
 #include <atomic>
 #include <mutex>
 #include <type_traits>
@@ -101,7 +95,7 @@ class PERFETTO_LOCKABLE RtFutex {
 
   inline bool TryLockFastpath() noexcept {
     int expected = 0;
-    return lock_.compare_exchange_strong(expected, GetTid(),
+    return lock_.compare_exchange_strong(expected, ::gettid(),
                                          std::memory_order_acquire,
                                          std::memory_order_relaxed);
   }
@@ -127,7 +121,7 @@ class PERFETTO_LOCKABLE RtFutex {
 
   void unlock() noexcept PERFETTO_UNLOCK_FUNCTION() {
     PERFETTO_TSAN_MUTEX_PRE_UNLOCK(this, 0);
-    int expected = GetTid();
+    int expected = ::gettid();
     // If the current value is our tid, we can unlock without a syscall since
     // there are no current waiters.
     if (!PERFETTO_LIKELY(lock_.compare_exchange_strong(
@@ -143,16 +137,11 @@ class PERFETTO_LOCKABLE RtFutex {
  private:
   std::atomic<int> lock_{};
 
-#if PERFETTO_GETTID_IS_FAST()
-  static int GetTid() { return ::gettid(); }
-#else
-  static int GetTid();
-#endif
-
   void LockSlowpath();
   bool TryLockSlowpath();
   void UnlockSlowpath();
 };
+
 #endif  // PERFETTO_HAS_RT_FUTEX
 
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
