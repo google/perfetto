@@ -21,7 +21,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
-import {dictToTreeNodes, Tree} from '../../widgets/tree';
+import {Tree, TreeNode} from '../../widgets/tree';
 import {asUpid, Upid} from '../../components/sql_utils/core_types';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -81,30 +81,6 @@ export class StartupDetailsPanel implements TrackEventDetailsPanel {
     }
   }
 
-  private getDetailsDictionary() {
-    const details: {[key: string]: m.Child} = {};
-    if (this.data === undefined) return details;
-    details['Activity ID'] = this.data.startupId;
-    details['Browser Upid'] = this.data.upid;
-    details['Startup Event'] = this.data.eventName;
-    details['Startup Timestamp'] = m(Timestamp, {
-      trace: this.trace,
-      ts: this.data.startupBeginTs,
-    });
-    details['Duration to First Visible Content'] = m(DurationWidget, {
-      trace: this.trace,
-      dur: this.data.durToFirstVisibleContent,
-    });
-    if (this.data.launchCause) {
-      details['Launch Cause'] = this.data.launchCause;
-    }
-    details['SQL ID'] = m(SqlRef, {
-      table: 'chrome_startups',
-      id: this.id,
-    });
-    return details;
-  }
-
   render() {
     if (!this.data) {
       return m('h2', 'Loading');
@@ -122,7 +98,37 @@ export class StartupDetailsPanel implements TrackEventDetailsPanel {
           m(
             Section,
             {title: 'Details'},
-            m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
+            m(Tree, [
+              m(TreeNode, {left: 'Activity ID', right: this.data.startupId}),
+              m(TreeNode, {left: 'Browser Upid', right: this.data.upid}),
+              m(TreeNode, {left: 'Startup Event', right: this.data.eventName}),
+              m(TreeNode, {
+                left: 'Startup Timestamp',
+                right: m(Timestamp, {
+                  trace: this.trace,
+                  ts: this.data.startupBeginTs,
+                }),
+              }),
+              m(TreeNode, {
+                left: 'Duration to First Visible Content',
+                right: m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.data.durToFirstVisibleContent,
+                }),
+              }),
+              this.data.launchCause &&
+                m(TreeNode, {
+                  left: 'Launch Cause',
+                  right: this.data.launchCause,
+                }),
+              m(TreeNode, {
+                left: 'SQL ID',
+                right: m(SqlRef, {
+                  table: 'chrome_startups',
+                  id: this.id,
+                }),
+              }),
+            ]),
           ),
         ),
       ),
