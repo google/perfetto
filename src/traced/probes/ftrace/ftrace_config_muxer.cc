@@ -165,6 +165,20 @@ bool ValidateKprobeName(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
+// See: "Exclusive single-tenant features" in ftrace_config.proto for more
+// details.
+bool HasExclusiveFeatures(const FtraceConfig& request) {
+  return !request.tids_to_trace().empty() ||
+         !request.tracefs_options().empty() ||
+         !request.tracing_cpumask().empty();
+}
+
+bool IsValidTracefsOptionName(const std::string& name) {
+  return !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
+    return std::isalnum(c) || c == '-' || c == '_';
+  });
+}
+
 }  // namespace
 
 std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
@@ -381,6 +395,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
                                     const FtraceConfig& request,
                                     FtraceSetupErrors* errors) {
   EventFilter filter;
+  bool config_has_exclusive_features = HasExclusiveFeatures(request);
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
 
@@ -416,7 +431,88 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       // clock or buffer sizes because that clears the kernel buffers.
       RememberActiveClock();
     }
+  } else {
+    std::string exclusive_feature_error;
+    if (config_has_exclusive_features) {
+      exclusive_feature_error =
+          "Attempted to start an ftrace session with advanced features while "
+          "another session was active.";
+    } else if (current_state_.exclusive_feature_active) {
+      exclusive_feature_error =
+          "Attempted to start an ftrace session while another session with "
+          "advanced features was active.";
+    }
+
+    if (!exclusive_feature_error.empty()) {
+      PERFETTO_ELOG("%s", exclusive_feature_error.c_str());
+      if (errors)
+        errors->exclusive_feature_error = exclusive_feature_error;
+      return false;
+    }
   }
+
+  if (!request.tids_to_trace().empty()) {
+    std::vector<std::string> tid_strings;
+    for (const auto& tid : request.tids_to_trace()) {
+      tid_strings.push_back(std::to_string(tid));
+    }
+
+    if (!ftrace_->SetEventTidFilter(tid_strings)) {
+      PERFETTO_ELOG("Failed to set event tid filter");
+      return false;
+    }
+  }
+
+  if (!request.tracefs_options().empty()) {
+    base::FlatHashMap<std::string, bool> current_tracefs_options;
+    for (const auto& tracefs_option : request.tracefs_options()) {
+      // Skip unset options.
+      if (tracefs_option.state() ==
+          FtraceConfig::TracefsOption::STATE_UNKNOWN) {
+        continue;
+      }
+      const auto& name = tracefs_option.name();
+      if (!IsValidTracefsOptionName(name)) {
+        PERFETTO_ELOG(
+            "Invalid tracefs option name: %s. The string can only contain "
+            "alphanumeric characters, hyphens and underscores.",
+            name.c_str());
+        return false;
+      }
+      // Get the current option state and save it for later.
+      auto option_state = ftrace_->GetTracefsOption(name);
+      if (!option_state.has_value()) {
+        PERFETTO_ELOG("Tracefs option not found: %s", name.c_str());
+        return false;
+      }
+      current_tracefs_options[name] = option_state.value();
+
+      bool new_state =
+          tracefs_option.state() == FtraceConfig::TracefsOption::STATE_ENABLED;
+      if (!ftrace_->SetTracefsOption(name, new_state)) {
+        PERFETTO_ELOG("Failed to set tracefs option: %s", name.c_str());
+        return false;
+      }
+    }
+    current_state_.saved_tracefs_options = std::move(current_tracefs_options);
+  }
+
+  if (!request.tracing_cpumask().empty()) {
+    auto current_tracing_cpumask = ftrace_->GetTracingCpuMask();
+    if (!current_tracing_cpumask.has_value()) {
+      PERFETTO_ELOG("Failed to get tracing cpumask");
+      return false;
+    }
+    if (!ftrace_->SetTracingCpuMask(request.tracing_cpumask())) {
+      PERFETTO_ELOG("Failed to set tracing cpumask: %s",
+                    request.tracing_cpumask().c_str());
+      return false;
+    }
+    current_state_.saved_tracing_cpumask =
+        std::move(current_tracing_cpumask.value());
+  }
+
+  current_state_.exclusive_feature_active = config_has_exclusive_features;
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
 
@@ -717,6 +813,22 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       ftrace_->RemoveKprobeEvent(probe.group(), probe.name());
       table_->RemoveEvent(probe);
     }
+
+    if (current_state_.exclusive_feature_active) {
+      ftrace_->ClearEventTidFilter();
+      if (current_state_.saved_tracing_cpumask.has_value()) {
+        ftrace_->SetTracingCpuMask(
+            current_state_.saved_tracing_cpumask.value());
+        current_state_.saved_tracing_cpumask.reset();
+      }
+      for (auto it = current_state_.saved_tracefs_options.GetIterator(); it;
+           ++it) {
+        ftrace_->SetTracefsOption(it.key(), it.value());
+      }
+      current_state_.saved_tracefs_options.Clear();
+      current_state_.exclusive_feature_active = false;
+    }
+
     current_state_.installed_kprobes.clear();
   }
 
