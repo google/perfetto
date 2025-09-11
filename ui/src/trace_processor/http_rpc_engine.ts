@@ -21,7 +21,7 @@ const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
   connected: boolean;
-  status?: protos.StatusResult;
+  status?: protos.RpcStatus;
   failure?: string;
 }
 
@@ -34,43 +34,64 @@ export class HttpRpcEngine extends EngineBase {
   private disposed = false;
   private queue: Blob[] = [];
   private isProcessingQueue = false;
+  private trace_processor_uuid = '';
+  private isWaitingForUuid = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string) {
+  constructor(id: string, traceProcessorUuid?: string) {
     super();
     this.id = id;
+    this.trace_processor_uuid = traceProcessorUuid || '';
+  }
+
+  private connect() {
+    if (this.websocket !== undefined || this.disposed) return;
+
+    let wsUrl: string;
+    if (this.trace_processor_uuid === '') {
+      // This is a new session. Ask the server for a new TP instance.
+      wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/new`;
+      this.isWaitingForUuid = true;
+    } else {
+      // We have a UUID (e.g. from the page URL), connect to that specific instance.
+      wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.trace_processor_uuid}`;
+      this.isWaitingForUuid = false;
+    }
+
+    this.websocket = new WebSocket(wsUrl);
+    this.websocket.onopen = () => this.onWebsocketConnected();
+    this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
+    this.websocket.onclose = (e) => this.onWebsocketClosed(e);
+    this.websocket.onerror = (e) =>
+      super.fail(
+        `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
+      );
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {
-    if (this.websocket === undefined) {
-      if (this.disposed) return;
-      const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;
-      this.websocket = new WebSocket(wsUrl);
-      this.websocket.onopen = () => this.onWebsocketConnected();
-      this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
-      this.websocket.onclose = (e) => this.onWebsocketClosed(e);
-      this.websocket.onerror = (e) =>
-        super.fail(
-          `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
-        );
-    }
+    this.connect(); // Ensures a connection is requested.
 
     if (this.connected) {
-      this.websocket.send(data);
+      assertExists(this.websocket).send(data);
     } else {
       this.requestQueue.push(data); // onWebsocketConnected() will flush this.
     }
   }
 
-  private onWebsocketConnected() {
+  onWebsocketConnected() {
+    // If we are waiting for the UUID, the connection is not truly "ready"
+    // until that UUID has been received. onWebsocketMessage will call this
+    // again once the UUID arrives.
+    if (this.isWaitingForUuid) return;
+
+    this.connected = true;
     for (;;) {
       const queuedMsg = this.requestQueue.shift();
       if (queuedMsg === undefined) break;
       assertExists(this.websocket).send(queuedMsg);
     }
-    this.connected = true;
   }
 
   private onWebsocketClosed(e: CloseEvent) {
@@ -81,7 +102,10 @@ export class HttpRpcEngine extends EngineBase {
       console.log('Websocket closed, reconnecting');
       this.websocket = undefined;
       this.connected = false;
-      this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.connect(); // triggers a reconnection after a small delay to prevent race conditions
+      }, 200);
     } else {
       super.fail(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
@@ -89,6 +113,28 @@ export class HttpRpcEngine extends EngineBase {
 
   private onWebsocketMessage(e: MessageEvent) {
     const blob = assertExists(e.data as Blob);
+    if (this.isWaitingForUuid) {
+      // The very first message for a 'new' connection contains the UUID.
+      blob.text().then((text) => {
+        try {
+          const data = JSON.parse(text);
+          if (data.uuid as string) {
+            this.trace_processor_uuid = data.uuid;
+            this.isWaitingForUuid = false;
+            // Now that we have the UUID and are fully connected,
+            // mark the connection as ready and send any queued data.
+            this.onWebsocketConnected();
+          } else {
+            this.fail(`Initial message missing UUID: ${text}`);
+          }
+        } catch (error) {
+          this.fail(`Failed to parse UUID message from server: ${error}`);
+        }
+      });
+      return;
+    }
+
+    // Standard RPC message processing.
     this.queue.push(blob);
     this.processQueue();
   }
@@ -126,9 +172,7 @@ export class HttpRpcEngine extends EngineBase {
         httpRpcState.failure = `${resp.status} - ${resp.statusText}`;
       } else {
         const buf = new Uint8Array(await resp.arrayBuffer());
-        // Decode the response buffer first. If decoding is successful, update the connection state.
-        // This ensures that the connection state is only set to true if the data is correctly parsed.
-        httpRpcState.status = protos.StatusResult.decode(buf);
+        httpRpcState.status = protos.RpcStatus.decode(buf);
         httpRpcState.connected = true;
       }
     } catch (err) {
@@ -138,7 +182,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   static get hostAndPort() {
-    return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
+    return `${window.location.hostname}:${HttpRpcEngine.rpcPort}`;
   }
 
   [Symbol.dispose]() {

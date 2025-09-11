@@ -112,6 +112,7 @@ class Rpc {
   void EnableMetatrace(const uint8_t*, size_t);
   std::vector<uint8_t> DisableAndReadMetatrace();
   std::vector<uint8_t> GetStatus();
+  void SetTraceTitle(const uint8_t*, size_t);
 
   // Creates a new RPC session by deleting all tables and views that have been
   // created (by the UI or user) after the trace was loaded; built-in
@@ -129,6 +130,7 @@ class Rpc {
   using QueryResultBatchCallback = std::function<
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
+  bool has_existing_tab = false;
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);

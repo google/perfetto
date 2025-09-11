@@ -17,33 +17,14 @@ import protos from '../protos';
 import {assertExists} from '../base/logging';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
-import {showModal} from '../widgets/modal';
+import {Callout} from '../widgets/callout';
+import {Card, CardStack} from '../widgets/card';
+import {Intent} from '../widgets/common';
+import {showModal, closeModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
-
-function getPromptMessage(tpStatus: protos.StatusResult): string {
-  return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with:
-${tpStatus.loadedTraceName}
-
-YES, use loaded trace:
-Will load from the current state of Trace Processor. If you did run
-trace_processor_shell --httpd file.pftrace this is likely what you want.
-
-YES, but reset state:
-Use this if you want to open another trace but still use the
-accelerator. This is the equivalent of killing and restarting
-trace_processor_shell --httpd.
-
-NO, Use builtin WASM:
-Will not use the accelerator in this tab.
-
-Using the native accelerator has some minor caveats:
-- Only one tab can be using the accelerator.
-- Sharing, downloading and conversion-to-legacy aren't supported.
-`;
-}
 
 function getIncompatibleRpcMessage(tpStatus: protos.StatusResult): string {
   return `The Trace Processor instance on ${HttpRpcEngine.hostAndPort} is too old.
@@ -155,29 +136,53 @@ export async function checkHttpRpcConnection(): Promise<void> {
     // No RPC = exit immediately to the WASM UI.
     return;
   }
-  const tpStatus = assertExists(state.status);
+  const tpStatusAll = assertExists(state.status);
 
+  // use the first trace processor if available, otherwise fallback
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
-  // Check short version:
-  if (tpStatus.versionCode !== '' && tpStatus.versionCode !== VERSION) {
-    const url = await isVersionAvailable(tpStatus.versionCode);
-    if (url !== undefined) {
-      // If matched UI available show a dialog asking the user to
-      // switch.
-      const result = await showDialogVersionMismatch(tpStatus, url);
+  if (tpStatusAll.instances.length > 0) {
+    const firstTpStatusData = tpStatusAll.instances[0];
+    const firstTpStatus = protos.StatusResult.create(firstTpStatusData);
+    // Check short version:
+    if (
+      firstTpStatus.versionCode !== '' &&
+      firstTpStatus.versionCode !== VERSION
+    ) {
+      const url = await isVersionAvailable(firstTpStatus.versionCode);
+      if (url !== undefined) {
+        // If matched UI available show a dialog asking the user to
+        // switch.
+        const result = await showDialogVersionMismatch(firstTpStatus, url);
+        switch (result) {
+          case MismatchedVersionDialog.Dismissed:
+          case MismatchedVersionDialog.UseMatchingUi:
+            navigateToVersion(firstTpStatus.versionCode);
+            return;
+          case MismatchedVersionDialog.UseMismatchedRpc:
+            break;
+          case MismatchedVersionDialog.UseWasm:
+            forceWasm();
+            return;
+          default:
+            const x: never = result;
+            throw new Error(`Unsupported result ${x}`);
+        }
+      }
+    }
+
+    // Check the RPC version:
+    if (firstTpStatus.apiVersion < CURRENT_API_VERSION) {
+      const result = await showDialogIncompatibleRPC(firstTpStatus);
       switch (result) {
-        case MismatchedVersionDialog.Dismissed:
-        case MismatchedVersionDialog.UseMatchingUi:
-          navigateToVersion(tpStatus.versionCode);
-          return;
-        case MismatchedVersionDialog.UseMismatchedRpc:
-          break;
-        case MismatchedVersionDialog.UseWasm:
+        case IncompatibleRpcDialogResult.Dismissed:
+        case IncompatibleRpcDialogResult.UseWasm:
           forceWasm();
           return;
+        case IncompatibleRpcDialogResult.UseIncompatibleRpc:
+          break;
         default:
           const x: never = result;
           throw new Error(`Unsupported result ${x}`);
@@ -185,43 +190,23 @@ export async function checkHttpRpcConnection(): Promise<void> {
     }
   }
 
-  // Check the RPC version:
-  if (tpStatus.apiVersion < CURRENT_API_VERSION) {
-    const result = await showDialogIncompatibleRPC(tpStatus);
-    switch (result) {
-      case IncompatibleRpcDialogResult.Dismissed:
-      case IncompatibleRpcDialogResult.UseWasm:
-        forceWasm();
-        return;
-      case IncompatibleRpcDialogResult.UseIncompatibleRpc:
-        break;
-      default:
-        const x: never = result;
-        throw new Error(`Unsupported result ${x}`);
-    }
-  }
-
-  // Check if pre-loaded:
-  if (tpStatus.loadedTraceName) {
-    // If a trace is already loaded in the trace processor (e.g., the user
-    // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
-    // initialize the UI with the already-loaded trace.
-    const result = await showDialogToUsePreloadedTrace(tpStatus);
-    switch (result) {
-      case PreloadedDialogResult.Dismissed:
-      case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-        AppImpl.instance.openTraceFromHttpRpc();
-        return;
-      case PreloadedDialogResult.UseRpc:
-        // Resetting state is the default.
-        return;
-      case PreloadedDialogResult.UseWasm:
-        forceWasm();
-        return;
-      default:
-        const x: never = result;
-        throw new Error(`Unsupported result ${x}`);
-    }
+  const result = await showDialogToUsePreloadedTrace();
+  switch (result) {
+    case PreloadedDialogResult.Dismissed:
+      closeModal();
+      return;
+    case PreloadedDialogResult.UseRpcWithPreloadedTrace:
+      AppImpl.instance.openTraceFromHttpRpc();
+      return;
+    case PreloadedDialogResult.UseRpc:
+      // Resetting state is the default.
+      return;
+    case PreloadedDialogResult.UseWasm:
+      forceWasm();
+      return;
+    default:
+      const x: never = result;
+      throw new Error(`Unsupported result ${x}`);
   }
 }
 
@@ -304,36 +289,220 @@ enum PreloadedDialogResult {
   Dismissed = 'dismissed',
 }
 
-async function showDialogToUsePreloadedTrace(
-  tpStatus: protos.StatusResult,
-): Promise<PreloadedDialogResult> {
-  let result = PreloadedDialogResult.Dismissed;
-  await showModal({
-    title: 'Use trace processor native acceleration?',
-    content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
-    buttons: [
-      {
-        text: 'YES, use loaded trace',
-        primary: true,
-        action: () => {
-          result = PreloadedDialogResult.UseRpcWithPreloadedTrace;
+async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
+  return new Promise<PreloadedDialogResult>(async (resolve) => {
+    try {
+      // Fetch actual trace processor data for the comprehensive modal
+      const httpRpcState = await HttpRpcEngine.checkConnection();
+
+      let traceProcessors: Array<protos.IStatusResult> = [];
+      if (httpRpcState.connected && httpRpcState.status) {
+        traceProcessors = httpRpcState.status.instances ?? [];
+      }
+
+      // Filter to only show trace processors that have a loaded trace
+      const processorsWithTraces = traceProcessors.filter(
+        (tp) => tp?.loadedTraceName && tp.loadedTraceName !== '',
+      );
+
+      // Sort processors: those without active tabs first, then those with active tabs
+      const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
+        const aHasTab = a.hasExistingTab ?? false;
+        const bHasTab = b.hasExistingTab ?? false;
+        return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
+      });
+
+      showModal({
+        title: 'Use trace processor native acceleration?',
+        content: () => {
+          const elements: m.Child[] = [
+            m(
+              'p',
+              `Current active sessions on ${HttpRpcEngine.hostAndPort} (choose one or pick another option below):`,
+            ),
+          ];
+
+          if (processorsWithTraces.length > 0) {
+            const activeTabCount = sortedProcessors.filter(
+              (tp) => tp.hasExistingTab ?? false,
+            ).length;
+
+            if (activeTabCount > 0) {
+              elements.push(
+                m(
+                  Callout,
+                  {
+                    intent: Intent.Warning,
+                    icon: 'warning',
+                  },
+                  'Each loaded trace can be opened in at most one tab at a time.',
+                ),
+              );
+            }
+
+            elements.push(
+              m(
+                CardStack,
+                sortedProcessors.map((tp, index) => {
+                  const status = tp;
+                  const hasActiveTab = status.hasExistingTab ?? false;
+
+                  return m(
+                    Card,
+                    {
+                      key: tp.instanceId || `default-${index}`,
+                      interactive: true,
+                      onclick: () => {
+                        if (tp.instanceId) {
+                          AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
+                            tp.instanceId;
+                        }
+                        closeModal();
+                        resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+                      },
+                    },
+                    [
+                      m('div', [
+                        m('strong', status.loadedTraceName),
+                        m('br'),
+                        m(
+                          'small',
+                          {style: {color: 'var(--pf-color-text-muted)'}},
+                          `UUID: ${tp.instanceId || 'default'}`,
+                        ),
+                        m('br'),
+                        m(
+                          'small',
+                          {style: {color: 'var(--pf-color-text-muted)'}},
+                          `Version: ${status.humanReadableVersion || 'unknown'}`,
+                        ),
+                      ]),
+                      hasActiveTab &&
+                        m(
+                          'div',
+                          {
+                            style: {
+                              'color': 'var(--pf-color-danger)',
+                              'font-weight': 'bold',
+                              'font-size': '11px',
+                              'display': 'block',
+                              'margin-top': '4px',
+                            },
+                          },
+                          '⚠️ Active tab exists - close the old tab first before loading to prevent crashing',
+                        ),
+                    ],
+                  );
+                }),
+              ),
+            );
+          } else {
+            elements.push(
+              m(
+                'p',
+                {
+                  style: {
+                    'margin': '8px 0',
+                    'font-style': 'italic',
+                    'color': 'var(--pf-color-text-muted)',
+                  },
+                },
+                `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
+              ),
+            );
+          }
+
+          elements.push(
+            m('div', {style: {'margin-top': '20px'}}, [
+              m('h4', 'Other Options:'),
+              m('strong', 'Yes, Attach to external RPC:'),
+              m(
+                'ul',
+                {style: {'margin-left': '20px', 'margin-top': '4px'}},
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    'Use this if you want to open another trace but still use the accelerator.',
+                  ),
+                ),
+              ),
+              m(
+                'strong',
+                {style: {'margin-top': '8px', 'display': 'block'}},
+                'Use built-in WASM:',
+              ),
+              m(
+                'ul',
+                {style: {'margin-left': '20px', 'margin-top': '4px'}},
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    'Will not use the accelerator in this tab.',
+                  ),
+                ),
+              ),
+              m(
+                'strong',
+                {style: {'margin-top': '16px', 'display': 'block'}},
+                'Using the native accelerator has some minor caveats:',
+              ),
+              m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}}, [
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    "Sharing, downloading and conversion-to-legacy aren't supported.",
+                  ),
+                ),
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    'Each trace file can be opened in at most one tab at a time.',
+                  ),
+                ),
+              ]),
+            ]),
+          );
+
+          return elements;
         },
-      },
-      {
-        text: 'YES, but reset state',
-        action: () => {
-          result = PreloadedDialogResult.UseRpc;
-        },
-      },
-      {
-        text: 'NO, Use builtin WASM',
-        action: () => {
-          result = PreloadedDialogResult.UseWasm;
-        },
-      },
-    ],
+        buttons: [
+          // Main action buttons moved to footer
+          {
+            text: 'Yes, Attach to external RPC',
+            action: () => {
+              closeModal();
+              resolve(PreloadedDialogResult.UseRpc);
+            },
+          },
+          {
+            text: 'Use built-in WASM',
+            action: () => {
+              closeModal();
+              resolve(PreloadedDialogResult.UseWasm);
+            },
+          },
+          {
+            text: 'Cancel',
+            action: () => {
+              closeModal();
+              resolve(PreloadedDialogResult.Dismissed);
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      console.error('Error showing trace processor selection modal:', error);
+      resolve(PreloadedDialogResult.UseWasm);
+    }
   });
-  return result;
 }
 
 function getUrlForVersion(versionCode: string): string {

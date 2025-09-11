@@ -145,6 +145,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
+  private pendingSendTraceTitles = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
@@ -329,6 +330,12 @@ export abstract class EngineBase implements Engine, Disposable {
         // We don't have any pending promises for this request so just
         // return.
         break;
+      case TPM.TPM_SET_TRACE_TITLE:
+        const pendingPromise = assertExists(
+          this.pendingSendTraceTitles.shift(),
+        );
+        pendingPromise.resolve();
+        break;
       default:
         console.log(
           'Unexpected TraceProcessor response received: ',
@@ -367,6 +374,17 @@ export abstract class EngineBase implements Engine, Disposable {
     this.pendingEOFs.push(asyncRes);
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_FINALIZE_TRACE_DATA;
+    this.rpcSendRequest(rpc);
+    return asyncRes; // Linearize with the worker.
+  }
+
+  sendTraceTitle(title: string): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingSendTraceTitles.push(asyncRes);
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_SET_TRACE_TITLE;
+    rpc.setTraceTitleArgs = new protos.SetTraceTitleArgs();
+    rpc.setTraceTitleArgs.title = title;
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
   }

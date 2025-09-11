@@ -44,6 +44,7 @@ export interface TraceUrlSource {
 
 export interface TraceHttpRpcSource {
   readonly type: 'HTTP_RPC';
+  readonly traceProcessorUuid?: string;
 }
 
 export interface TraceArrayBufferSource {
