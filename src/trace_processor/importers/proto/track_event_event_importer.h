@@ -795,7 +795,10 @@ class TrackEventEventImporter {
     std::optional<int64_t> tts = slice_ref.thread_ts();
     if (tts) {
       PERFETTO_DCHECK(thread_timestamp_);
-      slice_ref.set_thread_dur(*thread_timestamp_ - *tts);
+      int64_t delta = *thread_timestamp_ - *tts;
+      if (delta != 0) {
+        slice_ref.set_thread_dur(delta);
+      }
     }
     std::optional<int64_t> tic = slice_ref.thread_instruction_count();
     if (tic) {
