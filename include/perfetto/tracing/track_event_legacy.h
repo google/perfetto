@@ -128,6 +128,12 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
           /* Fallthrough. */                                               \
           break;                                                           \
       }                                                                    \
+    } else if ((phase) == TRACE_EVENT_PHASE_MARK) {                        \
+      /* Similarly, mark events should always go on the global track. */   \
+      PERFETTO_INTERNAL_LEGACY_EVENT_WITH_FLAGS_ON_TRACK(                  \
+          phase, category, name, ::perfetto::Track::Global(0), flags,      \
+          ##__VA_ARGS__);                                                  \
+      return;                                                              \
     }                                                                      \
     /* If an event targets the current thread or another process, write    \
      * it on the current thread's track. The process override case is      \
@@ -172,6 +178,12 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
           /* Fallthrough. */                                                 \
           break;                                                             \
       }                                                                      \
+    } else if ((phase) == TRACE_EVENT_PHASE_MARK) {                          \
+      /* Similarly, mark events should always go on the global track. */     \
+      PERFETTO_INTERNAL_LEGACY_EVENT_WITH_FLAGS_ON_TRACK(                    \
+          phase, category, name, ::perfetto::Track::Global(0), flags,        \
+          ##__VA_ARGS__);                                                    \
+      return;                                                                \
     }                                                                        \
     /* If an event targets the current thread or another process, write      \
      * it on the current thread's track. The process override case is        \
