@@ -59,7 +59,11 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
   protected maxSliceDepth = 0;
   private selectedMarker: VitalTimestamp | undefined;
   private besselControlX = 3 * SLICE_LAYOUT_FIT_CONTENT_DEFAULTS.padding;
-
+  /**
+   * To enable the flow_manager to automatically query flow connection information for the selected trace events,
+   * the rootTableName is proactively set to "slice".
+   */
+  readonly rootTableName = 'slice';
   /**
    * Returns fixed track height including padding and slice height
    */

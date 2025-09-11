@@ -823,6 +823,16 @@ class TrackEventParser::EventImporter {
         context_->flow_tracker->Step(slice_id, flow_id);
       }
     }
+
+    // Add `flow_id` parameter to the `paintEnd` event to support linking with
+    // the corresponding update Trace event via flow connection.
+    if (paint_end_flow_ids_.size() > 0) {
+      for (auto flow_id : paint_end_flow_ids_) {
+        context_->flow_tracker->End(slice_id, flow_id, true);
+      }
+      paint_end_flow_ids_.clear();
+    }
+
     if (event_.has_terminating_flow_ids_old() ||
         event_.has_terminating_flow_ids()) {
       auto it = event_.has_terminating_flow_ids()
@@ -1356,58 +1366,73 @@ class TrackEventParser::EventImporter {
     bool is_timing_flag_event = false;
     bool is_load_template_event = false;
     bool has_instance_id_parameter = false;
+    bool is_paint_end_event = false;
     if (!name.empty() &&
         strcmp(name.c_str(), BindPipelineIDWithTimingFlag) == 0) {
       is_timing_flag_event = true;
     } else if (!name.empty() && strcmp(name.c_str(), LynxLoadTemplate) == 0) {
       is_load_template_event = true;
+    } else if (!name.empty() &&
+               strcmp(name.c_str(), "Timing::Mark.paintEnd") == 0) {
+      is_paint_end_event = true;
     }
 
     std::string timing_flag = "";
     for (auto it = event_.debug_annotations(); it; ++it) {
       protos::pbzero::DebugAnnotation::Decoder annotation(*it);
-      if (!is_timing_flag_event) {
-        if (annotation.has_name()) {
-          auto name = annotation.name().ToStdString();
-          if (name == "pipeline_id" && annotation.has_string_value()) {
-            const std::string& id = annotation.string_value().ToStdString();
-            auto flags = context_->storage->GetPipelineFlags(id);
-            if (flags) {
-              auto debug_key =
-                  parser_->args_parser_.EnterDictionary("timing_flags");
-              args_writer.AddString(debug_key.key(), *flags);
+
+      if (annotation.has_name()) {
+        auto annotation_name = annotation.name().ToStdString();
+        if (!is_timing_flag_event && annotation_name == "pipeline_id" &&
+            annotation.has_string_value()) {
+          const std::string& id = annotation.string_value().ToStdString();
+          auto flags = context_->storage->GetPipelineFlags(id);
+          if (flags) {
+            auto debug_key =
+                parser_->args_parser_.EnterDictionary("timing_flags");
+            args_writer.AddString(debug_key.key(), *flags);
+          }
+        }
+        if (!is_load_template_event && (annotation_name == "instance_id" ||
+                                        annotation_name == "instance_id_")) {
+          std::string id = "";
+          if (annotation.has_string_value()) {
+            id = annotation.string_value().ToStdString();
+            if (id != "-1") {
+              has_instance_id_parameter = true;
+              context_->storage->SetInstanceIdForSlice(row_id, id);
+            }
+          } else if (annotation.has_uint_value()) {
+            id = std::to_string(annotation.uint_value());
+          } else if (annotation.has_int_value()) {
+            id = std::to_string(annotation.int_value());
+            if (id != "-1") {
+              has_instance_id_parameter = true;
+              context_->storage->SetInstanceIdForSlice(row_id, id);
+            }
+          }
+          if (!id.empty()) {
+            auto url = context_->storage->GetInstanceUrl(id);
+            if (url) {
+              auto debug_key = parser_->args_parser_.EnterDictionary("url");
+              args_writer.AddString(debug_key.key(), *url);
             }
           }
         }
-      }
-      if (!is_load_template_event) {
-        if (annotation.has_name()) {
-          auto name = annotation.name().ToStdString();
-          if ((name == "instance_id" || name == "instance_id_")) {
-            std::string id = "";
-            if (annotation.has_string_value()) {
-              id = annotation.string_value().ToStdString();
-              if (id != "-1") {
-                has_instance_id_parameter = true;
-                context_->storage->SetInstanceIdForSlice(row_id, id);
-              }
-            } else if (annotation.has_uint_value()) {
-              id = std::to_string(annotation.uint_value());
-            } else if (annotation.has_int_value()) {
-              id = std::to_string(annotation.int_value());
-              if (id != "-1") {
-                has_instance_id_parameter = true;
-                context_->storage->SetInstanceIdForSlice(row_id, id);
-              }
-            }
-            if (!id.empty()) {
-              auto url = context_->storage->GetInstanceUrl(id);
-              if (url) {
-                auto debug_key = parser_->args_parser_.EnterDictionary("url");
-                args_writer.AddString(debug_key.key(), *url);
-              }
-            }
+        if (is_paint_end_event && annotation_name == "pipeline_id") {
+          const std::string& pipeline_id =
+              annotation.string_value().ToStdString();
+          auto flow_ids = context_->storage->GetPipelineFlowIds(pipeline_id);
+          if (!flow_ids || flow_ids->empty()) {
+            continue;
           }
+          paint_end_flow_ids_ = *flow_ids;
+          auto debug_key = parser_->args_parser_.EnterDictionary("flowId");
+          // The best approach here is to write all flow_ids into the
+          // args_writer. However, currently only one flow_id is displayed, and
+          // it is of integer type. Here, for compatibility reason, only the
+          // last flow_id will be shown.
+          args_writer.AddUnsignedInteger(debug_key.key(), flow_ids->back());
         }
       }
     }
@@ -1470,6 +1495,7 @@ class TrackEventParser::EventImporter {
   std::optional<UniqueTid> legacy_passthrough_utid_;
 
   uint32_t packet_sequence_id_;
+  std::vector<uint64_t> paint_end_flow_ids_;
 };
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context,

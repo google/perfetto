@@ -280,9 +280,9 @@ std::vector<ProfileEvent> GenerateProfileEvents(
     }
     // Open nodes on the stack
     while (!stackNodes.empty()) {
-      int32_t node_id = stackNodes.top();
+      int32_t top_node_id = stackNodes.top();
       stackNodes.pop();
-      events.emplace_back(ProfileEventType::BEGIN, node_id, last_timestamp);
+      events.emplace_back(ProfileEventType::BEGIN, top_node_id, last_timestamp);
     }
     prevId = id;
   }
@@ -391,7 +391,6 @@ ModuleResult JSProfileModule::TokenizePacket(
     // for old js profile field number
     case TracePacket::kStatsdAtomFieldNumber: {
       return this->TokenizeJsProfilePacketOld(state, decoder, packet);
-      ;
     }
   }
   return ModuleResult::Ignored();
