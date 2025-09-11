@@ -395,8 +395,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
                       instance_id);
       } else {
         // Case 4: Must be /websocket/<id>
-        instance_id = static_cast<uint32_t>(
-            std::stoul(path.substr(1)));  // Remove leading '/'
+        std::optional<uint32_t> parsed_id =
+            base::StringToUInt32(path.substr(1));
+        if (!parsed_id) {
+          return conn.SendResponseAndClose("404 Not Found", {});
+        }
+        instance_id = *parsed_id;
         if (id_tp_tp_map.find(instance_id) == id_tp_tp_map.end()) {
           // For the new API, if a specific instance ID is requested, it must
           // exist.
