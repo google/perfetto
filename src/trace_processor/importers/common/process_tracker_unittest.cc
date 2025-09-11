@@ -31,7 +31,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Invoke;
 
 class ProcessTrackerTest : public ::testing::Test {
  public:

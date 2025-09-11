@@ -47,7 +47,6 @@ using ::perfetto::ipc::Frame;
 using ::perfetto::ipc::gen::ReplyProto;
 using ::perfetto::ipc::gen::RequestProto;
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 
@@ -224,7 +223,7 @@ class HostImplTest : public ::testing::Test {
     ASSERT_NE(nullptr, host);
     host_.reset(static_cast<HostImpl*>(host));
     auto on_connect = task_runner_->CreateCheckpoint("on_connect");
-    EXPECT_CALL(*cli_, OnConnect()).WillOnce(Invoke(on_connect));
+    EXPECT_CALL(*cli_, OnConnect()).WillOnce(on_connect);
     task_runner_->RunUntilCheckpoint("on_connect");
   }
 
@@ -249,10 +248,10 @@ TEST_F(HostImplTest, BindService) {
   cli_->BindService("FakeService");  // FakeService does not exist yet.
   auto on_bind_failure = task_runner_->CreateCheckpoint("on_bind_failure");
   EXPECT_CALL(*cli_, OnServiceBound(_))
-      .WillOnce(Invoke([on_bind_failure](const Frame::BindServiceReply& reply) {
+      .WillOnce([on_bind_failure](const Frame::BindServiceReply& reply) {
         ASSERT_FALSE(reply.success());
         on_bind_failure();
-      }));
+      });
   task_runner_->RunUntilCheckpoint("on_bind_failure");
 
   // Now expose the service and bind it.
@@ -261,10 +260,10 @@ TEST_F(HostImplTest, BindService) {
   auto on_bind_success = task_runner_->CreateCheckpoint("on_bind_success");
   cli_->BindService("FakeService");
   EXPECT_CALL(*cli_, OnServiceBound(_))
-      .WillOnce(Invoke([on_bind_success](const Frame::BindServiceReply& reply) {
+      .WillOnce([on_bind_success](const Frame::BindServiceReply& reply) {
         ASSERT_TRUE(reply.success());
         on_bind_success();
-      }));
+      });
   task_runner_->RunUntilCheckpoint("on_bind_success");
 }
 
@@ -279,12 +278,11 @@ TEST_F(HostImplTest, InvokeNonExistingMethod) {
   auto on_invoke_failure = task_runner_->CreateCheckpoint("on_invoke_failure");
   cli_->InvokeMethod(cli_->last_bound_service_id_, 42, RequestProto());
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_))
-      .WillOnce(
-          Invoke([on_invoke_failure](const Frame::InvokeMethodReply& reply) {
-            ASSERT_FALSE(reply.success());
-            ASSERT_FALSE(reply.has_more());
-            on_invoke_failure();
-          }));
+      .WillOnce([on_invoke_failure](const Frame::InvokeMethodReply& reply) {
+        ASSERT_FALSE(reply.success());
+        ASSERT_FALSE(reply.has_more());
+        on_invoke_failure();
+      });
   task_runner_->RunUntilCheckpoint("on_invoke_failure");
 }
 
@@ -301,28 +299,26 @@ TEST_F(HostImplTest, InvokeMethod) {
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(
-          Invoke([on_reply_sent](const RequestProto& req, DeferredBase* reply) {
-            ASSERT_EQ("foo", req.data());
-            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
-            reply_args->set_data("bar");
-            reply->Resolve(AsyncResult<ProtoMessage>(
-                std::unique_ptr<ProtoMessage>(reply_args.release())));
-            on_reply_sent();
-          }));
+      .WillOnce([on_reply_sent](const RequestProto& req, DeferredBase* reply) {
+        ASSERT_EQ("foo", req.data());
+        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+        reply_args->set_data("bar");
+        reply->Resolve(AsyncResult<ProtoMessage>(
+            std::unique_ptr<ProtoMessage>(reply_args.release())));
+        on_reply_sent();
+      });
   task_runner_->RunUntilCheckpoint("on_reply_sent");
 
   auto on_reply_received = task_runner_->CreateCheckpoint("on_reply_received");
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_))
-      .WillOnce(
-          Invoke([on_reply_received](const Frame::InvokeMethodReply& reply) {
-            ASSERT_TRUE(reply.success());
-            ASSERT_FALSE(reply.has_more());
-            ReplyProto reply_args;
-            reply_args.ParseFromString(reply.reply_proto());
-            ASSERT_EQ("bar", reply_args.data());
-            on_reply_received();
-          }));
+      .WillOnce([on_reply_received](const Frame::InvokeMethodReply& reply) {
+        ASSERT_TRUE(reply.success());
+        ASSERT_FALSE(reply.has_more());
+        ReplyProto reply_args;
+        reply_args.ParseFromString(reply.reply_proto());
+        ASSERT_EQ("bar", reply_args.data());
+        on_reply_received();
+      });
   task_runner_->RunUntilCheckpoint("on_reply_received");
 }
 
@@ -339,25 +335,24 @@ TEST_F(HostImplTest, InvokeMethodDropReply) {
   // - Reply on the 2nd call, when |drop_reply| == false.
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
       .Times(2)
-      .WillRepeatedly(Invoke([](const RequestProto& req, DeferredBase* reply) {
+      .WillRepeatedly([](const RequestProto& req, DeferredBase* reply) {
         if (req.data() == "drop_reply")
           return;
         std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
         reply_args->set_data("the_reply");
         reply->Resolve(AsyncResult<ProtoMessage>(
             std::unique_ptr<ProtoMessage>(reply_args.release())));
-      }));
+      });
 
   auto on_reply_received = task_runner_->CreateCheckpoint("on_reply_received");
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_))
-      .WillOnce(
-          Invoke([on_reply_received](const Frame::InvokeMethodReply& reply) {
-            ASSERT_TRUE(reply.success());
-            ReplyProto reply_args;
-            reply_args.ParseFromString(reply.reply_proto());
-            ASSERT_EQ("the_reply", reply_args.data());
-            on_reply_received();
-          }));
+      .WillOnce([on_reply_received](const Frame::InvokeMethodReply& reply) {
+        ASSERT_TRUE(reply.success());
+        ReplyProto reply_args;
+        reply_args.ParseFromString(reply.reply_proto());
+        ASSERT_EQ("the_reply", reply_args.data());
+        on_reply_received();
+      });
 
   // Invoke the method first with |drop_reply|=true, then |drop_reply|=false.
   RequestProto rp;
@@ -389,7 +384,7 @@ TEST_F(HostImplTest, SendFileDescriptor) {
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [on_reply_sent, &tx_file](const RequestProto&, DeferredBase* reply) {
             std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
             auto async_res = AsyncResult<ProtoMessage>(
@@ -397,20 +392,20 @@ TEST_F(HostImplTest, SendFileDescriptor) {
             async_res.set_fd(tx_file.fd());
             reply->Resolve(std::move(async_res));
             on_reply_sent();
-          }));
+          });
   task_runner_->RunUntilCheckpoint("on_reply_sent");
   tx_file.ReleaseFD();
 
   auto on_fd_received = task_runner_->CreateCheckpoint("on_fd_received");
   EXPECT_CALL(*cli_, OnFileDescriptorReceived(_))
-      .WillOnce(Invoke([on_fd_received](int fd) {
+      .WillOnce([on_fd_received](int fd) {
         char buf[sizeof(kFileContent)] = {};
         ASSERT_EQ(0, lseek(fd, 0, SEEK_SET));
         ASSERT_EQ(static_cast<int32_t>(sizeof(buf)),
                   PERFETTO_EINTR(read(fd, buf, sizeof(buf))));
         ASSERT_STREQ(kFileContent, buf);
         on_fd_received();
-      }));
+      });
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
   task_runner_->RunUntilCheckpoint("on_fd_received");
 }
@@ -435,11 +430,11 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_));
   base::ScopedFile rx_fd;
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke([received, &fake_service, &rx_fd](const RequestProto&,
-                                                         DeferredBase*) {
+      .WillOnce([received, &fake_service, &rx_fd](const RequestProto&,
+                                                  DeferredBase*) {
         rx_fd = fake_service->TakeReceivedFD();
         received();
-      }));
+      });
 
   task_runner_->RunUntilCheckpoint("received");
 
@@ -468,11 +463,10 @@ TEST_F(HostImplTest, OnClientDisconnect) {
   cli_.reset();  // Disconnect the client.
   auto on_host_method = task_runner_->CreateCheckpoint("on_host_method");
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(
-          Invoke([on_host_method](const RequestProto& req, DeferredBase*) {
-            ASSERT_EQ("foo", req.data());
-            on_host_method();
-          }));
+      .WillOnce([on_host_method](const RequestProto& req, DeferredBase*) {
+        ASSERT_EQ("foo", req.data());
+        on_host_method();
+      });
   task_runner_->RunUntilCheckpoint("on_host_method");
 }
 
@@ -493,11 +487,11 @@ TEST_F(HostImplTest, MoveReplyObjectAndReplyAsynchronously) {
   auto on_invoke = task_runner_->CreateCheckpoint("on_invoke");
   DeferredBase moved_reply;
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke(
+      .WillOnce(
           [on_invoke, &moved_reply](const RequestProto&, DeferredBase* reply) {
             moved_reply = std::move(*reply);
             on_invoke();
-          }));
+          });
   task_runner_->RunUntilCheckpoint("on_invoke");
 
   // Check that the FakeClient doesn't see any reply yet.
@@ -515,15 +509,14 @@ TEST_F(HostImplTest, MoveReplyObjectAndReplyAsynchronously) {
 
   auto on_reply_received = task_runner_->CreateCheckpoint("on_reply_received");
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_))
-      .WillOnce(
-          Invoke([on_reply_received](const Frame::InvokeMethodReply& reply) {
-            ASSERT_TRUE(reply.success());
-            ASSERT_FALSE(reply.has_more());
-            ReplyProto reply_args;
-            reply_args.ParseFromString(reply.reply_proto());
-            ASSERT_EQ("bar", reply_args.data());
-            on_reply_received();
-          }));
+      .WillOnce([on_reply_received](const Frame::InvokeMethodReply& reply) {
+        ASSERT_TRUE(reply.success());
+        ASSERT_FALSE(reply.has_more());
+        ReplyProto reply_args;
+        reply_args.ParseFromString(reply.reply_proto());
+        ASSERT_EQ("bar", reply_args.data());
+        on_reply_received();
+      });
   task_runner_->RunUntilCheckpoint("on_reply_received");
 }
 
@@ -542,18 +535,17 @@ TEST_F(HostImplTest, ServiceClientInfo) {
   req_args.set_data("foo");
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(
-          Invoke([fake_service](const RequestProto& req, DeferredBase* reply) {
-            ASSERT_EQ("foo", req.data());
-            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
-            reply_args->set_data("bar");
-            reply->Resolve(AsyncResult<ProtoMessage>(
-                std::unique_ptr<ProtoMessage>(reply_args.release())));
-            // Verifies the pid() and uid() values in ClientInfo.
-            const auto& client_info = fake_service->client_info();
-            ASSERT_EQ(client_info.uid(), getuid());
-            ASSERT_EQ(client_info.pid(), getpid());
-          }));
+      .WillOnce([fake_service](const RequestProto& req, DeferredBase* reply) {
+        ASSERT_EQ("foo", req.data());
+        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+        reply_args->set_data("bar");
+        reply->Resolve(AsyncResult<ProtoMessage>(
+            std::unique_ptr<ProtoMessage>(reply_args.release())));
+        // Verifies the pid() and uid() values in ClientInfo.
+        const auto& client_info = fake_service->client_info();
+        ASSERT_EQ(client_info.uid(), getuid());
+        ASSERT_EQ(client_info.pid(), getpid());
+      });
 
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_)).WillOnce(Return());
   task_runner_->RunUntilIdle();
@@ -575,19 +567,18 @@ TEST_F(HostImplTest, SetPeerIdentityUnixSocket) {
   req_args.set_data("foo");
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(
-          Invoke([fake_service](const RequestProto& req, DeferredBase* reply) {
-            ASSERT_EQ("foo", req.data());
-            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
-            reply_args->set_data("bar");
-            reply->Resolve(AsyncResult<ProtoMessage>(
-                std::unique_ptr<ProtoMessage>(reply_args.release())));
-            // Verifies the pid() and uid() values in ClientInfo.
-            const auto& client_info = fake_service->client_info();
-            ASSERT_EQ(client_info.uid(), getuid());
-            ASSERT_EQ(client_info.pid(), getpid());
-            ASSERT_EQ(client_info.machine_id(), base::kDefaultMachineID);
-          }));
+      .WillOnce([fake_service](const RequestProto& req, DeferredBase* reply) {
+        ASSERT_EQ("foo", req.data());
+        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+        reply_args->set_data("bar");
+        reply->Resolve(AsyncResult<ProtoMessage>(
+            std::unique_ptr<ProtoMessage>(reply_args.release())));
+        // Verifies the pid() and uid() values in ClientInfo.
+        const auto& client_info = fake_service->client_info();
+        ASSERT_EQ(client_info.uid(), getuid());
+        ASSERT_EQ(client_info.pid(), getpid());
+        ASSERT_EQ(client_info.machine_id(), base::kDefaultMachineID);
+      });
 
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_)).WillOnce(Return());
   task_runner_->RunUntilIdle();
@@ -614,7 +605,7 @@ TEST(HostImpl, SetPeerIdentityTcpSocket) {
   cli.reset(new FakeClient(sock_name.c_str(), task_runner.get()));
 
   auto on_connect = task_runner->CreateCheckpoint("on_connect");
-  EXPECT_CALL(*cli, OnConnect()).WillOnce(Invoke(on_connect));
+  EXPECT_CALL(*cli, OnConnect()).WillOnce(on_connect);
   task_runner->RunUntilCheckpoint("on_connect");
 
   FakeService* fake_service = new FakeService("FakeService");
@@ -631,20 +622,19 @@ TEST(HostImpl, SetPeerIdentityTcpSocket) {
   req_args.set_data("foo");
   cli->InvokeMethod(cli->last_bound_service_id_, 1, req_args);
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(
-          Invoke([fake_service](const RequestProto& req, DeferredBase* reply) {
-            ASSERT_EQ("foo", req.data());
-            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
-            reply_args->set_data("bar");
-            reply->Resolve(AsyncResult<ProtoMessage>(
-                std::unique_ptr<ProtoMessage>(reply_args.release())));
-            // Verify peer identity.
-            const auto& client_info = fake_service->client_info();
-            ASSERT_EQ(client_info.uid(), 123u);
-            ASSERT_EQ(client_info.pid(), 456);
-            // ClientInfo contains non-default raw machine ID.
-            ASSERT_NE(client_info.machine_id(), base::kDefaultMachineID);
-          }));
+      .WillOnce([fake_service](const RequestProto& req, DeferredBase* reply) {
+        ASSERT_EQ("foo", req.data());
+        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+        reply_args->set_data("bar");
+        reply->Resolve(AsyncResult<ProtoMessage>(
+            std::unique_ptr<ProtoMessage>(reply_args.release())));
+        // Verify peer identity.
+        const auto& client_info = fake_service->client_info();
+        ASSERT_EQ(client_info.uid(), 123u);
+        ASSERT_EQ(client_info.pid(), 456);
+        // ClientInfo contains non-default raw machine ID.
+        ASSERT_NE(client_info.machine_id(), base::kDefaultMachineID);
+      });
 
   EXPECT_CALL(*cli, OnInvokeMethodReply(_)).WillOnce(Return());
   task_runner->RunUntilIdle();

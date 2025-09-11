@@ -194,7 +194,6 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: `CPU${cpu.ucpu}`,
-        groupName: `Wattson`,
       },
     });
     group.addChildInOrder(
@@ -218,7 +217,6 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
     tags: {
       kind: CPUSS_ESTIMATE_TRACK_KIND,
       wattson: 'Dsu_Scu',
-      groupName: `Wattson`,
     },
   });
   group.addChildInOrder(new TrackNode({uri, name: title}));
@@ -265,7 +263,6 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
     tags: {
       kind: GPUSS_ESTIMATE_TRACK_KIND,
       wattson: 'Gpu',
-      groupName: `Wattson`,
     },
   });
   group.addChildInOrder(new TrackNode({uri: id, name: `GPU Estimate`}));

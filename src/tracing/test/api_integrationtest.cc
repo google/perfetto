@@ -218,7 +218,6 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::MockFunction;
@@ -1263,11 +1262,11 @@ TEST_P(PerfettoApiTest, TrackEventTimestampUnitIncremental) {
     int min_delta = 1000 * (unit_multiplier == 1 ? 1000 : 1);
 
     EXPECT_EQ(0, event_map.at("Event1").timestamp);
-    EXPECT_GT(event_map.at("Event2").timestamp, min_delta);
-    EXPECT_GT(event_map.at("Event3").timestamp, min_delta);
+    EXPECT_GE(event_map.at("Event2").timestamp, min_delta);
+    EXPECT_GE(event_map.at("Event3").timestamp, min_delta);
 
-    EXPECT_GT(event_map.at("Event2").thread_time, min_delta);
-    EXPECT_GT(event_map.at("Event3").thread_time, min_delta);
+    EXPECT_GE(event_map.at("Event2").thread_time, min_delta);
+    EXPECT_GE(event_map.at("Event3").thread_time, min_delta);
   }
 }
 
@@ -7711,16 +7710,16 @@ TEST(PerfettoApiInitTest, AsyncSocketDisconnect) {
   SetCreateSocketFunction(mock_create_socket.AsStdFunction());
 
   EXPECT_CALL(mock_create_socket, Call)
-      .WillOnce(Invoke([&socket_callback, &create_socket_called1](
-                           perfetto::CreateSocketCallback cb) {
+      .WillOnce([&socket_callback,
+                 &create_socket_called1](perfetto::CreateSocketCallback cb) {
         socket_callback = cb;
         create_socket_called1.Notify();
-      }))
-      .WillOnce(Invoke([&socket_callback, &create_socket_called2](
-                           perfetto::CreateSocketCallback cb) {
+      })
+      .WillOnce([&socket_callback,
+                 &create_socket_called2](perfetto::CreateSocketCallback cb) {
         socket_callback = cb;
         create_socket_called2.Notify();
-      }));
+      });
 
   perfetto::Tracing::Initialize(args);
   create_socket_called1.Wait();

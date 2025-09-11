@@ -34,6 +34,19 @@ import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {NodeIssues} from '../node_issues';
 
+export interface AggregationSerializedState {
+  groupByColumns: {name: string; checked: boolean}[];
+  aggregations: {
+    column?: ColumnInfo;
+    aggregationOp?: string;
+    newColumnName?: string;
+    isValid?: boolean;
+    isEditing?: boolean;
+  }[];
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
+
 export interface AggregationNodeState extends QueryNodeState {
   prevNodes?: QueryNode[];
   groupByColumns: ColumnInfo[];
@@ -54,6 +67,7 @@ export class AggregationNode implements QueryNode {
   readonly prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
+  meterialisedAs?: string;
 
   get sourceCols() {
     return (
@@ -78,7 +92,9 @@ export class AggregationNode implements QueryNode {
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
-    this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
+    if (!this.state.groupByColumns.length) {
+      this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
+    }
   }
 
   updateGroupByColumns() {
@@ -176,6 +192,10 @@ export class AggregationNode implements QueryNode {
     return new AggregationNode(stateCopy);
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -218,6 +238,66 @@ export class AggregationNode implements QueryNode {
 
     return sq;
   }
+
+  resolveColumns() {
+    const sourceCols = this.sourceCols;
+    this.state.groupByColumns.forEach((c) => {
+      const sourceCol = sourceCols.find((s) => s.name === c.name);
+      if (sourceCol) {
+        c.column = sourceCol.column;
+      }
+    });
+    this.state.aggregations.forEach((a) => {
+      if (a.column) {
+        const sourceCol = sourceCols.find((s) => s.name === a.column?.name);
+        if (sourceCol) {
+          a.column = sourceCol;
+        }
+      }
+    });
+  }
+
+  serializeState(): AggregationSerializedState {
+    return {
+      groupByColumns: this.state.groupByColumns.map((c) => ({
+        name: c.name,
+        checked: c.checked,
+      })),
+      aggregations: this.state.aggregations.map((a) => ({
+        column: a.column,
+        aggregationOp: a.aggregationOp,
+        newColumnName: a.newColumnName,
+        isValid: a.isValid,
+        isEditing: a.isEditing,
+      })),
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
+  static deserializeState(
+    state: AggregationSerializedState,
+  ): AggregationNodeState {
+    const groupByColumns = state.groupByColumns.map((c) => {
+      const col = columnInfoFromName(c.name);
+      col.checked = c.checked;
+      return col;
+    });
+    const aggregations = state.aggregations.map((a) => {
+      return {
+        column: a.column,
+        aggregationOp: a.aggregationOp,
+        newColumnName: a.newColumnName,
+        isValid: a.isValid,
+        isEditing: a.isEditing,
+      };
+    });
+    return {
+      ...state,
+      groupByColumns,
+      aggregations,
+    };
+  }
 }
 
 export function createGroupByProto(
@@ -257,7 +337,7 @@ export function GroupByAggregationAttrsToProto(
 
 export function placeholderNewColumnName(agg: Aggregation) {
   return agg.column && agg.aggregationOp
-    ? `${agg.column.name}_${agg.aggregationOp}`
+    ? `${agg.column.name}_${agg.aggregationOp.toLowerCase()}`
     : `agg_${agg.aggregationOp ?? ''}`;
 }
 
@@ -439,7 +519,7 @@ class AggregationOperationComponent
       }
 
       const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
-      const showAddButton = lastAgg.isValid && !lastAgg.isEditing;
+      const showAddButton = lastAgg.isValid;
 
       return [
         ...attrs.aggregations.map((agg, index) => {
@@ -453,6 +533,10 @@ class AggregationOperationComponent
           m(Button, {
             label: 'Add more aggregations',
             onclick: () => {
+              if (!lastAgg.newColumnName) {
+                lastAgg.newColumnName = placeholderNewColumnName(lastAgg);
+              }
+              lastAgg.isEditing = false;
               attrs.aggregations.push({isEditing: true});
               attrs.onchange?.();
             },

@@ -18,10 +18,11 @@
   display: flex;
   align-items: baseline;
 
-  background: rgb(38, 47, 60);
+  background: var(--pf-sidebar-surface);
   padding: 0px 8px;
-  color: white;
+  color: var(--pf-sidebar-on-surface);
   font-size: 14px;
+  border-top: solid 1px var(--pf-sidebar-border);
 
   > .pf-button {
     border-radius: unset;

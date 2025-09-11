@@ -83,6 +83,13 @@ class ProcessTracker {
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(int64_t tid);
 
+  // Returns the utid of a thread whos parent matches the provided pid
+  // or creates a new thread if not present. If a new thread is created,
+  // it is never set as the main thread.
+  UniqueTid GetOrCreateThreadWithParent(int64_t tid,
+                                        UniquePid upid,
+                                        bool associate_main_threads);
+
   // Assigns the given name to the thread if the new name has a higher priority
   // than the existing one. The thread is identified by utid.
   virtual void UpdateThreadName(UniqueTid utid,
@@ -93,6 +100,9 @@ class ProcessTracker {
   // for the tid and the matching upid for the tgid and stores both.
   // Virtual for testing.
   virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
+
+  // Mark whether a thread is the main thread or not.
+  void SetMainThread(UniqueTid utid, bool is_main_thread);
 
   // Associates trusted_pid with track UUID.
   void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
@@ -187,16 +197,6 @@ class ProcessTracker {
     return std::make_pair(deque.begin(), deque.end());
   }
 
-  // Associates the passed pid as the parent process of the passed thread.
-  // The is_main_thread arguments specifies whether the thread is the process'
-  // main thread. The associate_main_threads boolean parameter is used to
-  // determine if a thread should be marked as the main thread if the tid and
-  // pid match, when resolving pending process associations.
-  void AssociateThreadToProcess(UniqueTid utid,
-                                UniquePid upid,
-                                bool is_main_thread,
-                                bool associate_main_threads);
-
   // Marks the two threads as belonging to the same process, even if we don't
   // know which one yet. If one of the two threads is later mapped to a process,
   // the other will be mapped to the same process. The order of the two threads
@@ -238,6 +238,14 @@ class ProcessTracker {
   // Returns std::nullopt if such a thread doesn't exist.
   std::optional<uint32_t> GetThreadOrNull(int64_t tid,
                                           std::optional<int64_t> pid);
+
+  // Returns the utid of a thread whos parent matches the provided pid
+  // or creates a new thread if not present. If a new thread is created,
+  // |is_main_thread| determines if it is marked as the main thread.
+  UniqueTid GetOrCreateThreadWithParentInternal(int64_t tid,
+                                                UniquePid upid,
+                                                bool is_main_thread,
+                                                bool associate_main_threads);
 
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any
