@@ -240,6 +240,7 @@ export function deserializeState(
         nextNode.prevNodes.push(node);
       }
     }
+
     if (serializedNode.type === NodeType.kIntervalIntersect) {
       (node as IntervalIntersectNode).state.intervalNodes =
         IntervalIntersectNode.deserializeState(
