@@ -26,8 +26,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/intrusive_list.h"
 
-
-#define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
+#define TRACE_BUFFER_VERBOSE_LOGGING() 1  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
 #else
@@ -47,7 +46,10 @@ constexpr uint8_t kLastPacketContinuesOnNextChunk =
 constexpr uint8_t kChunkNeedsPatching =
     SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 
-constexpr uint8_t kChunkComplete = 0x80;
+constexpr uint8_t kChunkIncomplete = 0x80;
+
+// Mask out the flags that don't come from the ABI like kChunkIncomplete.
+constexpr uint8_t kFlagsMask = SharedMemoryABI::ChunkHeader::kFlagsMask;
 
 // Compares two ChunkID(s) in a wrapping 32-bit ID space.
 // Returns:
@@ -77,226 +79,12 @@ SequenceState& SequenceState::operator=(const SequenceState&) noexcept =
     default;
 
 // +---------------------------------------------------------------------------+
-// | BufIterator implementation                                                |
+// | FragIterator                                                              |
 // +---------------------------------------------------------------------------+
 
-BufIterator::BufIterator() : buf_(nullptr) {}
-
-BufIterator::BufIterator(TraceBufferV2* buf, size_t limit)
-    : buf_(buf), limit_(limit) {
-  if (buf_->used_size_ > 0)
-    NextChunkInBuffer();
-}
-
-// static
-BufIterator BufIterator::CloneReadOnly(const BufIterator& other) noexcept {
-  auto bi = BufIterator(other);
-  bi.read_only_iterator_ = true;
-  bi.data_loss_ = false;
-  return bi;
-}
-
-bool BufIterator::NextChunkInBuffer() {
-  PERFETTO_DCHECK(buf_->used_size_ > 0);
-  PERFETTO_DCHECK(buf_->wr_ < buf_->size_);
-
-  // Before starting the loop we need to determine the offset of the current
-  // chunk, the one we are advancing from. Here we have a classic iterator
-  // problem, where the first time we build the iterator we need to do some
-  // slightly different work to identify the first valid chunk.
-  // Overall, we have 3 cases:
-  // Case 1: wr_ hasn't wrapped yet, not even once. So wr_ == used_size_.
-  //         we want to start reading at 0, and stop at used_size_.
-  // Case 2: wr_ wrapped at least once and is somewhere in the middle of
-  //         the buffer. The data immediately after wr_ is the oldest data
-  //         where we want to start from. We want to start @ wr_, wrap over
-  //         at used_size_ and stop once we reach again wr_.
-  // Case 3: (edge case) wr_ wrapped and is precisely at offset 0. Proceed as
-  //         case 2 (start at 0, wrap, end at 0).
-
-  TBChunk* cur_chunk = nullptr;
-  size_t off;
-  if (end_chunk_ == nullptr) {
-    // end_chunk_ is nullptr the first time we initialize from the ctor.
-    if (buf_->wr_ < buf_->used_size_) {
-      off = buf_->wr_;
-    } else {
-      off = 0;
-      if (limit_ > 0)
-        return false;
-    }
-    // cur_chunk stays deliberately = nullptr
-  } else {
-    cur_chunk = end_chunk_;
-    off = buf_->OffsetOf(cur_chunk);
-  }
-
-  for (;;) {
-    // If we have a chunk (always, with the exception of the first call from the
-    // constructor) move to its end and start the search there.
-    if (cur_chunk) {
-      PERFETTO_DCHECK(cur_chunk->IsChecksumValid(off));
-      off += cur_chunk->outer_size();
-      if (limit_ && off >= limit_)
-        return false;
-      if (off == buf_->used_size_) {
-        if (buf_->wr_ == buf_->used_size_) {
-          return false;  // Case 1.
-        }
-        off = 0;
-      }
-      if (off == buf_->wr_)
-        return false;  // Case 2-3. We reached the write pointer. Stop.
-    }
-
-    cur_chunk = buf_->GetTBChunkAt(off);
-    if (cur_chunk->is_padding()) {
-      continue;  // The chunk has been erased.
-    }
-
-    SequenceState* seq = buf_->GetSeqForChunk(cur_chunk);
-    PERFETTO_DCHECK(seq);  // A non-padding chunk must be part of a sequence.
-
-    // `next_chunk` might not be logically contiguous with the last chunk
-    // consumed for the sequence. However that does NOT imply that we are
-    // missing the chunk. Giving up here would be premature.
-    // Imagine the buffer contains, in buffer order:
-    // C1 (last consumed), C3 (cur_chunk), C2. Here we want to rewind in the
-    // sequence (using SequenceState.chunks) to see if we have C2.
-    // If yes, we should start a detour and proceed in sequence order until we
-    // reach back C3 (which is where we started in buffer order).
-    // If not, we have a gap and we should skip this sequence for the current
-    // read cycle.
-    // However, if instead we have: C1 (last consumed), C4 (next_chunk), C3
-    // we should TODO here just mark data loss skip the sequence now and in
-    // future (until BeginRead() is called again).
-
-    auto& chunk_list = seq->chunks;
-    PERFETTO_CHECK(!chunk_list.empty());
-    PERFETTO_DCHECK(chunk_list.Find(off) != chunk_list.end());
-    size_t first_off = *chunk_list.begin();
-    TBChunk* first_chunk_of_seq = buf_->GetTBChunkAt(first_off);
-    PERFETTO_DCHECK(!first_chunk_of_seq->is_padding());
-
-    // TODO this cannot fail because violates the expectations of
-    // // DeleteNextChunksFor(...)
-    if (SetNextChunkIfContiguousAndValid(
-            seq, /*prev_chunk_id=*/seq->last_chunk_id_consumed,
-            /*next_chunk=*/first_chunk_of_seq, /*next_seq_idx=*/0)) {
-      end_chunk_ = cur_chunk;
-      return true;
-    }
-  }
-}
-
-bool BufIterator::NextChunkInSequence() {
-  PERFETTO_DCHECK(valid());
-  PERFETTO_DCHECK(seq_);
-
-  auto& chunk_list = seq_->chunks;
-
-  // Either the current chunk has been deleted (is_padding()), or if it exist it
-  // must be consistent with the internal tracking in seq_idx_.
-  PERFETTO_DCHECK(chunk_->is_padding() ||
-                  chunk_list.at(seq_idx_) == buf_->OffsetOf(chunk_));
-
-  size_t next_seq_idx = seq_idx_ + 1;
-  if (next_seq_idx >= chunk_list.size()) {
-    // There is no "next chunk" the chunk list for this sequence.
-    // NOTE: this has nothing to do with the "ChunkID is not consecutive" check
-    // which is performed below. This is a more basic failure mode where we just
-    // don't have any chunks at all, whether they are consecutive or not.
-    return false;
-  }
-
-  // At this point we need to work out if the sequence of ChunkID(s) is
-  // contiguous or we have gaps. There are two scenarios here:
-  // 1) We are iterating and consuming as part of ReadNextTracePacket(). When
-  //    we do this, each iteration erases the last chunk before moving onto the
-  //    next one. We can't use the SequenceState.chunks because the upcoming
-  //    chunk will always be the "first" in this case. However, we can look at
-  //    last_chunk_id_consumed.
-  // 2) We are iterating read-only as part of ReassembleFragmentedPacket(). In
-  //    this case we are not consuming any chunk, and we can use the combination
-  //    of SequenceState.chunks[SequenceState.next_seq_idx].
-
-  std::optional<ChunkID> last_chunk_id;
-  if (chunk_->is_padding()) {
-    last_chunk_id = seq_->last_chunk_id_consumed;  // Case 1.
-  } else {
-    last_chunk_id = chunk_->chunk_id;  // Case 2
-  }
-
-  size_t next_chunk_off = chunk_list.at(next_seq_idx);       // O(1)
-  TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
-
-  return SetNextChunkIfContiguousAndValid(seq_, last_chunk_id, next_chunk,
-                                          next_seq_idx);
-}
-
-// TODO remove the IfContiguous part of the name
-bool BufIterator::SetNextChunkIfContiguousAndValid(
-    SequenceState* seq,
-    const std::optional<ChunkID>& prev_chunk_id,
-    TBChunk* next_chunk,
-    size_t next_seq_idx) {
-  PERFETTO_DCHECK(seq);
-
-  if (seq->skip_in_generation == buf_->read_generation_) {
-    // If we hit this, it means that we tried to read this chunk while
-    // trying to reassmble a fragmented packet started in a prior chunk, but
-    // we failed. We want to skip any chunk in this sequence until the next
-    // BeginRead(), which will increment the read_pass_.
-    return false;
-  }
-
-  PERFETTO_DCHECK(seq->chunks.at(next_seq_idx) == buf_->OffsetOf(next_chunk));
-
-  bool chunk_id_gap =
-      prev_chunk_id.has_value() && next_chunk->chunk_id != *prev_chunk_id + 1;
-
-  bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
-
-  if (/*chunk_id_gap || */ needs_patching) {
-    if (PERFETTO_LIKELY(!read_only_iterator_)) {
-      seq->skip_in_generation = buf_->read_generation_;
-    }
-    return false;
-  }
-
-  if (chunk_id_gap)
-    data_loss_ = true;
-
-  chunk_ = next_chunk;
-  seq_ = seq;
-  seq_idx_ = next_seq_idx;
-  next_frag_off_ = next_chunk->unread_payload_off();
-  return true;
-}
-
-// See comments around BufIterator in the .h file for the rationale.
-bool BufIterator::NextChunk() {
-  PERFETTO_DCHECK(valid());
-  const bool move_in_seq_order = chunk_ != end_chunk_;
-  if (move_in_seq_order) {
-    // Move to the next chunk in the linked list.
-    // We should be able to move next in the list because we reached this
-    // state by initially rewining to the beginning of the list.
-    // However, if there is a gap in the sequence (e.g. producer data loss)
-    // NextChunkInSequence() will return false.
-    if (NextChunkInSequence()) {
-      return true;
-    }
-  }
-
-  // Otherwise Move to the next chunk in buffer order.
-  return NextChunkInBuffer();
-}
-
-std::optional<TraceBufferV2::Frag> BufIterator::NextFragmentInChunk() {
-  PERFETTO_DCHECK(valid());
-  // We don't need to do anything special about padding chunks, because their
-  // payload_avail is always 0.
+std::optional<Frag> FragIterator::NextFragmentInChunk() {
+  // This function must always visit all the fragments without ever returning
+  // early. If some early return is needed, it must be done by the caller.
 
   PERFETTO_DCHECK(next_frag_off_ >= chunk_->unread_payload_off());
   PERFETTO_DCHECK(next_frag_off_ <= chunk_->payload_size);
@@ -317,19 +105,22 @@ std::optional<TraceBufferV2::Frag> BufIterator::NextFragmentInChunk() {
   size_t hdr_size =  // The fragment "header" is just a varint stating its size.
       static_cast<size_t>(reinterpret_cast<uintptr_t>(frag_begin) -
                           reinterpret_cast<uintptr_t>(hdr_begin));
+  PERFETTO_DCHECK(hdr_size > 0);
 
-  // TODO what happens if hdr_size == 0? do we spin loop?
+  // We don't need to do anything special about padding chunks, because their
+  // payload_avail is always 0. We naturally return nullopt on the check below.
+
   if (frag_size_u64 > reinterpret_cast<uintptr_t>(chunk_end) -
                           reinterpret_cast<uintptr_t>(frag_begin)) {
     // TODO mark ABI violation in stats.
-    PERFETTO_DCHECK(buf_->suppress_client_dchecks_for_testing_);
     chunk_->payload_avail = 0;
-    // TODO consume and delete chunk.
+    // TODO consume and delete chunk in the caller.
     return std::nullopt;
   }
 
+  // TODO if last frag and needs patching return false?
+
   frag.chunk = chunk_;
-  frag.seq = seq_;
   frag.off = next_frag_off_;
   frag.hdr_size = static_cast<uint8_t>(hdr_size);
   frag.size = static_cast<uint16_t>(hdr_size + frag_size_u64);
@@ -353,58 +144,321 @@ std::optional<TraceBufferV2::Frag> BufIterator::NextFragmentInChunk() {
   return frag;
 }
 
-bool BufIterator::EraseCurrentChunkAndMoveNext() {
-  PERFETTO_DCHECK(seq_);
-  // We should not erase an unconsumed chunk. The cases of ABI violation should
-  // forcefully clear the payload_avail.
-  PERFETTO_DCHECK(chunk_->payload_avail == 0);
-  if (!(chunk_->flags & kChunkComplete)) {
-    // TODO this doesn't work with EraseNextChunksFor
-    seq_->skip_in_generation = buf_->read_generation_;  // TODO: why?
-  } else if (!chunk_->is_padding()) {
-    size_t chunk_off = buf_->OffsetOf(chunk_);
-    TRACE_BUFFER_DLOG("EraseChunk(%zu)", chunk_off);
-    const uint32_t chunk_size = chunk_->size;
-    const uint32_t outer_size = chunk_->outer_size();
-    seq_->last_chunk_id_consumed = chunk_->chunk_id;
+// +---------------------------------------------------------------------------+
+// | ChunkSeqIterator                                                          |
+// +---------------------------------------------------------------------------+
 
-    // TODO check statistics
-
-    // At the time of writing the only case when we invoke EraseTBChunk is to
-    // delete the first chunk of the sequence. Deleting the chunks in any other
-    // order feels suspicious. If you ever need to remove this CHECK ask
-    // yourself if you have been thinking of all the possible implications of
-    // it.
-    auto& chunk_list = seq_->chunks;
-
-    // At the time of writing we only support erasing the first chunk of the
-    // sequence. Erasing from the middle is possible but requires more efforts
-    // to keep in sync the SequenceState.chunks with our seq_idx_.
-    PERFETTO_CHECK(seq_idx_ == 0 && *chunk_list.begin() == chunk_off);
-    chunk_list.pop_front();
-
-    // Zero all the fields of the chunk.
-    uint16_t old_payload_size = chunk_->payload_size;
-    TBChunk* cleared_chunk = buf_->CreateTBChunk(chunk_off, chunk_size);
-    cleared_chunk->payload_size = old_payload_size;
-
-    auto& stats = buf_->stats_;
-    stats.set_chunks_overwritten(stats.chunks_overwritten() + 1);
-    stats.set_bytes_overwritten(stats.bytes_overwritten() + outer_size);
-  }  //  if (!is_padding)
-
-  // Rationale for the -1: seq_idx_ is expected to point to the current chunk_.
-  // However we have just deleted the "current" chunk from the
-  // SequenceState.chunks list. The best "current chunk" is 0xff..ff, so that
-  // the next call to NextChunkInSequence will +1 and move to the 0th entry,
-  // which is the right "next".
-  seq_idx_ = std::numeric_limits<decltype(seq_idx_)>::max();
-  return NextChunk();
+ChunkSeqIterator::ChunkSeqIterator(TraceBufferV2* buf, SequenceState* seq)
+    : buf_(buf), seq_(seq) {
+  auto& chunk_list = seq_->chunks;
+  PERFETTO_CHECK(!chunk_list.empty());
+  size_t first_off = *chunk_list.begin();
+  TBChunk* first_chunk_of_seq = buf->GetTBChunkAt(first_off);
+  PERFETTO_DCHECK(!first_chunk_of_seq->is_padding());
+  chunk_ = first_chunk_of_seq;
 }
+
+TBChunk* ChunkSeqIterator::NextChunkInSequence() {
+  PERFETTO_DCHECK(seq_);
+  auto& chunk_list = seq_->chunks;
+
+  // Either the current chunk has been deleted (is_padding()), or if it exist it
+  // must be consistent with the internal tracking in list_idx_.
+  PERFETTO_DCHECK(chunk_->is_padding() ||
+                  chunk_list.at(list_idx_) == buf_->OffsetOf(chunk_));
+
+  size_t next_list_idx = list_idx_ + 1;
+  if (next_list_idx >= chunk_list.size()) {
+    // There is no "next chunk" the chunk list for this sequence.
+    // NOTE: this has nothing to do with the "ChunkID is not consecutive" check
+    // which is performed below. This is a more basic failure mode where we just
+    // don't have any chunks at all, whether they are consecutive or not.
+    return nullptr;
+  }
+
+  // At this point we need to work out if the sequence of ChunkID(s) is
+  // contiguous or we have gaps. There are two scenarios here:
+  // 1) We are iterating and consuming as part of ReadNextTracePacket(). When
+  //    we do this, each iteration erases the last chunk before moving onto the
+  //    next one. We can't use the SequenceState.chunks because the upcoming
+  //    chunk will always be the "first" in this case. However, we can look at
+  //    last_chunk_id_consumed.
+  // 2) We are iterating read-only as part of ReassembleFragmentedPacket(). In
+  //    this case we are not consuming any chunk, and we can use the combination
+  //    of SequenceState.chunks[SequenceState.next_seq_idx].
+  std::optional<ChunkID> last_chunk_id;
+  if (chunk_->is_padding()) {
+    last_chunk_id = seq_->last_chunk_id_consumed;  // Case 1.
+  } else {
+    last_chunk_id = chunk_->chunk_id;  // Case 2
+  }
+
+  size_t next_chunk_off = chunk_list.at(next_list_idx);      // O(1)
+  TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
+
+  if (last_chunk_id.has_value() && next_chunk->chunk_id != *last_chunk_id + 1)
+    sequence_gap_detected_ = true;
+
+  chunk_ = next_chunk;
+  list_idx_ = next_list_idx;
+  return next_chunk;
+}
+
+void ChunkSeqIterator::EraseCurrentChunk() {
+  size_t chunk_off = buf_->OffsetOf(chunk_);
+  TRACE_BUFFER_DLOG("EraseChunk(%zu)", chunk_off);
+  const uint32_t chunk_size = chunk_->size;
+  const uint32_t outer_size = chunk_->outer_size();
+  seq_->last_chunk_id_consumed = chunk_->chunk_id;
+
+  // TODO check statistics
+
+  auto& chunk_list = seq_->chunks;
+
+  // At the time of writing we only support erasing the first chunk of the
+  // sequence. Erasing from the middle is possible but requires more efforts
+  // to keep in sync the SequenceState.chunks with our list_idx_.
+  PERFETTO_CHECK(list_idx_ == 0 && *chunk_list.begin() == chunk_off);
+  chunk_list.pop_front();
+
+  // list_idx_ points to the current index, but we just deleted it.
+  // Point it to -1, so the next time that is incremented it goes back to the
+  // 0th element, which is the one after the one being deleted.
+  list_idx_ = static_cast<size_t>(-1);
+
+  // Zero all the fields of the chunk.
+  uint16_t old_payload_size = chunk_->payload_size;
+  TBChunk* cleared_chunk = buf_->CreateTBChunk(chunk_off, chunk_size);
+  cleared_chunk->payload_size = old_payload_size;
+
+  auto& stats = buf_->stats_;
+  stats.set_chunks_overwritten(stats.chunks_overwritten() + 1);
+  stats.set_bytes_overwritten(stats.bytes_overwritten() + outer_size);
+
+}
+
+// +---------------------------------------------------------------------------+
+// | ChunkSeqReader                                                            |
+// +---------------------------------------------------------------------------+
+
+ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf, TBChunk* end_chunk)
+    : buf_(buf), end_(end_chunk), iter_(end_chunk), frag_iter_(end_chunk) {
+  PERFETTO_DCHECK(!iter_->is_padding());
+  seq_ = buf_->GetSeqForChunk(iter_);
+  seq_iter_ = ChunkSeqIterator(buf, seq_);
+  iter_ = seq_iter_.chunk();  // Rewinds to the first chunk.
+  frag_iter_ = FragIterator(iter_);
+}
+
+// TODO somewhere here we should check if we are linear on the chunkid or gaps.
+// Idelaly we should have the check in a single unified place.
+bool ChunkSeqReader::ReadNextPacket(TracePacket* out_packet) {
+  PERFETTO_DCHECK(!iter_->is_padding());
+  PERFETTO_DCHECK(frag_iter_.next_frag_off() >= iter_->unread_payload_off());
+  PERFETTO_DCHECK(frag_iter_.next_frag_off() <= iter_->payload_size);
+
+  if (seq_->skip_in_generation == buf_->read_generation_ && !force_erase_)
+    return false;
+
+  // Note: it is very important that this loop terminates only after having
+  // visited all the fragments of all the chunks in the sequence up to `end_`
+  // (which is the chunk passed initially to the ChunkSeqReader's ctor).
+  // This is because this class is used both while doing readbacks and,
+  // importantly, in DeleteNextChunksFor() when overwriting.
+  for (;;) {
+    std::optional<Frag> maybe_frag = frag_iter_.NextFragmentInChunk();
+    if (!maybe_frag.has_value()) {
+      // Once we exhaust all fragments, move to the next chunk in the sequence.
+      bool end_reached = iter_ == end_;
+      if (iter_->flags & kChunkIncomplete) {
+        // If the chunk is incomplete, we don't want to read past it.
+        // TODO(minor) add a test to make sure that this doesn't mess deletion.
+        seq_->skip_in_generation = buf_->read_generation_;
+        end_reached = true;
+      } else {
+       seq_iter_.EraseCurrentChunk();
+      }
+      if (end_reached)
+        return false;  // We reached our target chunk (or an incomplete chunk).
+      TBChunk* next_chunk = seq_iter_.NextChunkInSequence();
+      if (!next_chunk)
+        return false;  // There are no more chunks in the sequence.
+      iter_ = next_chunk;
+      frag_iter_ = FragIterator(next_chunk);
+      continue;
+    }
+    Frag& frag = *maybe_frag;
+    switch (frag.type) {
+      case Frag::kFragWholePacket:
+        ConsumeFragment(&frag);
+        // It's questionable whether we should propagate out empty packets. Here
+        // we match the behavrior of the old TraceBuffer. Some clients might
+        // be relying on the fact that empty packets don't bloat the final trace
+        // file size.
+        if (frag.payload_size() == 0) {
+          break;  // Breaks the switch(), continues the loop.
+        }
+        out_packet->AddSlice(frag.begin(), frag.payload_size());
+        TRACE_BUFFER_DLOG("  ReadNextPacket -> true (whole packet)");
+        return true;
+
+      case Frag::kFragContinue:
+      case Frag::kFragEnd:
+        // We should never hit these cases while iterating in this loop.
+        // In nominal conditions we should only see kFragBegin, and then we
+        // should iterate over the Continue/End in ReassembleFragmentedPacket(),
+        // which performs the lookahead. If we hit this code path, either a
+        // producer emitted a chunk that looks like
+        // [kWholePacket, kFragContinue] or [kWholePacket, kFragEnd].
+        // or, more realistically, we had a data losss and missed the chunk with
+        // the kFragBegin.
+        seq_->data_loss = true;
+        ConsumeFragment(&frag);
+        break;  // Break the switch, continue the loop.
+
+      case Frag::kFragBegin:
+        // TODO what happens if the chunk needs patching?
+        auto reassembly_res = ReassembleFragmentedPacket(out_packet, &frag);
+        if (reassembly_res == FragReassemblyResult::kSuccess) {
+          buf_->stats_.set_readaheads_succeeded(
+              buf_->stats_.readaheads_succeeded() + 1);
+
+          // We found and consumed all the fragments for the packet.
+          // On the next ReadNextTracePacket() call, NextFragmentInChunk() will
+          // return nullopt (because, modulo client bugs, the kFragBegin here
+          // is the alst fragment of the chunk). That code branch above will
+          // erase the chunk and continue with the next chunk (either in buffer
+          // or sequence order).
+          TRACE_BUFFER_DLOG("  ReadNextPacket -> true (reassembly)");
+          return true;  // ReadRes::kOk;
+        } else if (reassembly_res == FragReassemblyResult::kNotEnoughData) {
+          // If we got no more chunks, there is no point insisting with this
+          // chunk, give up and let the caller try other chunks in buffer order.
+          // Note that if we get this, it does NOT mean there are no other
+          // chunks next in the sequence. We might have hit a "needs patching"
+          // chunk.
+          seq_->skip_in_generation = buf_->read_generation_;
+          if (!force_erase_)
+            return false;
+          // If force_erase_ = true, we want to continue the loop and let the
+          // prologue of the loop EraseCurrentChunk().
+        } else if (reassembly_res == FragReassemblyResult::kDataLoss) {
+          // If we detect a data loss, ReassembleFragmentedPacket() consumes all
+          // fragments up until the discontinuity point, so they don't trigger
+          // further error stats when we iterate over them again.
+          // The break below will continue with the next chunk in sequence, if
+          // any. Keep this case in mind here:
+          // - We start the read cycle
+          // - On the first chunk we find there are prior in-sequence chunks,
+          //   so we rewind (we go back on the sequence's chunk list).
+          // - Then we find that, in this sequence, there is a "broken" packet.
+          // We should keep going on the same sequence and mark the data loss.
+          seq_->data_loss = true;
+        }
+        break;  // case kFragBegin
+    }  // switch(frag.type)
+  }  // for(;;)
+}
+
+void ChunkSeqReader::ConsumeFragment(Frag* frag) {
+  TBChunk* chunk = frag->chunk;
+  // We must consume fragments in order (and no more than once).
+  PERFETTO_DCHECK(frag->off == chunk->unread_payload_off());
+  PERFETTO_DCHECK(chunk->payload_avail >= frag->size);
+  chunk->payload_avail -= frag->size;
+  if (chunk->payload_avail == 0) {
+    auto& stats = buf_->stats_;
+    stats.set_chunks_read(stats.chunks_read() + 1);
+    stats.set_bytes_read(stats.bytes_read() + chunk->outer_size());
+  }
+}
+
+ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
+    TracePacket* out_packet,
+    Frag* initial_frag) {
+  PERFETTO_DCHECK(initial_frag->type == Frag::kFragBegin);
+
+  if (initial_frag->chunk->flags & kChunkNeedsPatching)
+    return FragReassemblyResult::kNotEnoughData;
+
+  base::SmallVector<Frag, 8> frags;
+  frags.emplace_back(*initial_frag);
+  ChunkSeqIterator chunk_iter = seq_iter_;  // Make copy.
+
+  // Iterate over chunks using the linked list.
+  FragReassemblyResult res;
+  for (;;) {
+    PERFETTO_DCHECK((chunk_iter.valid()));
+    TBChunk* next_chunk = chunk_iter.NextChunkInSequence();
+    if (!next_chunk || next_chunk->flags & kChunkNeedsPatching) {
+      res = FragReassemblyResult::kNotEnoughData;
+      break;
+    }
+    if (chunk_iter.sequence_gap_detected()) {
+      // There is a gap in the sequence ID.
+      // TODO reason if we want to delete now also next fragments.
+      res = FragReassemblyResult::kDataLoss;
+      break;
+    }
+    FragIterator frag_iter = FragIterator(next_chunk);
+    // When we reassemble a fragmented packets we only care about one fragment
+    // per chunk. We never need to iterate (more than once) over fragments in a
+    // chunk but only look at the first one. Think about it, either:
+    // 1. The packet spans across two chunks, so we move to the next chunk,
+    //    read the first fragment, and realize that it doesn't continue further.
+    // 2. If the packet spans across chunks [0, N], the chunks [1, N-1] must
+    //    have only one fragment, with both kFirstPacketContinuesFromPrevChunk
+    //    and kLastPacketContinuesOnNextChunk flags.
+    std::optional<Frag> frag = frag_iter.NextFragmentInChunk();
+    if (!frag.has_value()) {
+      // This can happen if a chunk in the middle of a sequence is empty. Rare
+      // but technically possible. See test Fragments_EmptyChunkInTheMiddle.
+      continue;
+    }
+
+    const auto& frag_type = frag->type;
+    if (frag_type == Frag::kFragContinue) {
+      frags.emplace_back(*frag);
+      continue;
+    }
+    if (frag_type == Frag::kFragEnd) {
+      frags.emplace_back(*frag);
+
+      res = FragReassemblyResult::kSuccess;
+      break;
+    }
+    // else: kFragBegin or kFragWholePacket
+    // This is a very weird case: the sequence id is contiguous but somehow the
+    // chain of continue-onto-next/prev is broken.
+    // In this case we want to leave frags these untouched as they don't belog
+    // to us. The next ReadNextPacket calls will deal with them. Our job here is
+    // to consume only fragments for the packet we are trying to reassemble.
+    res = FragReassemblyResult::kDataLoss;
+    break;
+  }  // for (chunk in list)
+
+  if (res == FragReassemblyResult::kDataLoss) {
+    seq_->data_loss = true;  // TODO: Here or the caller does it? maybe caller.
+  }
+
+  for (Frag& f : frags) {
+    if (res == FragReassemblyResult::kSuccess && f.payload_size() > 0) {
+      out_packet->AddSlice(f.begin(), f.payload_size());
+    }
+    if (res == FragReassemblyResult::kSuccess ||
+        res == FragReassemblyResult::kDataLoss
+        // || force_erase // TODO unneded, remove
+    ) {
+      ConsumeFragment(&f);
+    }
+  }
+  return res;
+}
+
 }  // namespace internal
 
 // +---------------------------------------------------------------------------+
-// | TraceBuffer implementation                                                |
+// | TraceBuffer                                                               |
 // +---------------------------------------------------------------------------+
 
 // static
@@ -421,7 +475,7 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
 }
 
 TraceBufferV2::TraceBufferV2(OverwritePolicy pol)
-    : overwrite_policy_(pol), rd_iter_(this) {}
+    : overwrite_policy_(pol) {}
 
 bool TraceBufferV2::Initialize(size_t size) {
   size = base::AlignUp(std::max(size, size_t(1)), 4096);
@@ -444,248 +498,67 @@ bool TraceBufferV2::Initialize(size_t size) {
   return true;
 }
 
-void TraceBufferV2::BeginRead(size_t limit) {
+void TraceBufferV2::BeginRead() {
   // Start the read at the first chunk after the write cursor. However, if
   // due to out-of-order commits there is another chunk in the same sequence
   // prior to that (even if it's physically after in the buffer) start there
   // to respect sequence FIFO-ness.
-  TRACE_BUFFER_DLOG("BeginRead(limit=%zu)", limit);
+  TRACE_BUFFER_DLOG("BeginRead(), wr_=%zu", wr_);
+  rd_ = wr_ == used_size_ ? 0 : wr_;
+  chunk_seq_reader_.reset();
   ++read_generation_;
-  rd_iter_.Reset(limit);
 }
 
 bool TraceBufferV2::ReadNextTracePacket(
     TracePacket* out_packet,
     PacketSequenceProperties* sequence_properties,
     bool* previous_packet_on_sequence_dropped) {
-  auto res = ReadNextTracePacketInternal(out_packet, sequence_properties,
-                                         ReadPolicy::kStandardRead);
-  *previous_packet_on_sequence_dropped = rd_iter_.data_loss();
-  return res == ReadRes::kOk;
-}
-
-TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
-    TracePacket* out_packet,
-    PacketSequenceProperties* sequence_properties,
-    ReadPolicy read_policy) {
-  TRACE_BUFFER_DLOG("ReadNextTracePacket(policy=%d)", read_policy);
-  bool force_erase = read_policy == kForceErase;
-  DumpForTesting();  // DNS
-
-  // Just in case we forget to initialize these below.
+  // TODO(minor): Do we really need to set these if we return false?
   *sequence_properties = {0, ClientIdentity(), 0};
-  // TODO DCHECK changed_since_last_read_
+  *previous_packet_on_sequence_dropped = false;
+
   for (;;) {
-    if (!rd_iter_.valid())
-      return ReadRes::kFail;
-
-    if (PERFETTO_UNLIKELY(read_policy == kNoOverwrite)) {
-      // kNoOverwrite is set by DeleteNextChunksFor() when the buffer is in
-      // DISCARD mode. If we end up hitting valid data we should bail.
-      if (rd_iter_.chunk()->payload_avail > 0) {
-        return ReadRes::kWouldOverwrite;
+    size_t next_rd = 0;
+    if (chunk_seq_reader_.has_value()) {
+      // ReadNextPacket reads only packets for the current chunk. Eventually it
+      // might go back to previous chunks in the sequence (even if they are in
+      // Random parts of the buffer) and might go a bit futher if the last
+      // fragment of the chunk continues beyond.
+      // But, +- edge cases, it logically reads only the chunk and stops there.
+      // If it returns false, we should continue in buffer order.
+      if (chunk_seq_reader_->ReadNextPacket(out_packet)) {
+        const SequenceState& s = *chunk_seq_reader_->seq();
+        *sequence_properties = {s.producer_id, s.client_identity, s.writer_id};
+        // TODO here return if prev data loss.
+        return true;
       }
-    }
-
-    // If the current chunk is a padding chunk, NextFragmentInChunk() will just
-    // rerturn nullopt. no need of special casing it.
-    std::optional<Frag> maybe_frag = rd_iter_.NextFragmentInChunk();
-    if (!maybe_frag.has_value()) {
-      // We read all the fragments in the current chunk (or the current chunk
-      // has none). Erase the current chunk and move to the next chunk.
-      bool has_next_chunk = rd_iter_.EraseCurrentChunkAndMoveNext();
-      // NextChunk() moves "in the right direction", either in buffer order or
-      // sequence order, depending on its internal state. If it returns false
-      // we wrapped around the ring buffer and hit the wr_ pointer again.
-      if (!has_next_chunk) {
-        // (1) There is nothing else to read in the buffer; (2) We reached the
-        // `limit` passed to BeginRead() (for the deletion case).
-        TRACE_BUFFER_DLOG("  ReadNextTracePacket -> false");
-        return ReadRes::kFail;
+      // If ReadNextPacket fails, skip to the block below the else which will
+      // increment the rd_ cursor and try with the next chunk in buffer order.
+      TBChunk* chunk = chunk_seq_reader_->end();
+      next_rd = OffsetOf(chunk) + chunk->outer_size();
+    } else {
+      // Note: in the edge case when the buffer is completely empty, TBChunk
+      // is designed in a way such that GetTBChunkAt(0) returns a padding chunk
+      // with a valid checksum (which happens to be 0) of inner-size=0.
+      // This is so we don't need extra branches to deal with this rare case.
+      TBChunk* chunk = GetTBChunkAt(rd_);
+      if (!chunk->is_padding()) {
+        chunk_seq_reader_ = ChunkSeqReader(this, chunk);
+        continue;
       }
-      continue;
-    }
-    Frag& frag = *maybe_frag;
-    switch (frag.type) {
-      case Frag::kFragWholePacket:
-        // It's questionable whether we should propagate out empty packets. Here
-        // we match the implementation of the old TraceBuffer. Some client might
-        // be relying on the fact that empty packets don't bloat the final trace
-        // file size.
-        ConsumeFragment(&frag);
-        if (frag.payload_size() == 0) {
-          break;
-        }
-        out_packet->AddSlice(frag.begin(), frag.payload_size());
-        *sequence_properties = {frag.seq->producer_id,
-                                frag.seq->client_identity,
-                                frag.seq->writer_id};
-        TRACE_BUFFER_DLOG("  ReadNextTracePacket -> true (whole packet)");
-        return ReadRes::kOk;
-
-      case Frag::kFragContinue:
-      case Frag::kFragEnd:
-        // We should never hit these cases while iterating in this loop.
-        // In nominal conditions we should only see kFragBegin, and then we
-        // should iterate over the Continue/End in ReassembleFragmentedPacket(),
-        // which performs the lookahead. If we hit this code path, either a
-        // producer emitted a chunk that looks like
-        // [kWholePacket, kFragContinue] or [kWholePacket, kFragEnd].
-        // or, more realistically, we had a data losss and missed the chunk with
-        // the kFragBegin.
-        rd_iter_.set_data_loss();  // TODO This is a bit weird.
-        ConsumeFragment(&frag);
-        break;
-
-      case Frag::kFragBegin:
-        auto reassembly_res =
-            ReassembleFragmentedPacket(out_packet, &frag, force_erase);
-        if (reassembly_res == FragReassemblyResult::kSuccess) {
-          *sequence_properties = {frag.seq->producer_id,
-                                  frag.seq->client_identity,
-                                  frag.seq->writer_id};
-          stats_.set_readaheads_succeeded(stats_.readaheads_succeeded() + 1);
-
-          // We found and consumed all the fragments for the packet.
-          // On the next ReadNextTracePacket() call, NextFragmentInChunk() will
-          // return nullopt (because, modulo client bugs, the kFragBegin here
-          // is the alst fragment of the chunk). That code branch above will
-          // erase the chunk and continue with the next chunk (either in buffer
-          // or sequence order).
-          TRACE_BUFFER_DLOG("  ReadNextTracePacket -> true (reassembly)");
-          return ReadRes::kOk;
-        }
-        if (reassembly_res == FragReassemblyResult::kDataLoss) {
-          // If we detect a data loss, ReassembleFragmentedPacket() marks
-          // all fragments as consumed, so they don't trigger further error
-          // stats when we iterate over them again.
-          // The break below will continue with the next fragments leaving the
-          // chunk iteration unaltered. Imagine this:
-          // - We start the read iteration
-          // - On the first chunk we find there are prior in-sequence chunks
-          //   so we rewind (we go back on the list, but go forward in buffer
-          //   order)
-          // - Then we find here that a fragmented packet is broken due to some
-          //   data loss.
-          // There is no point skipping the sequence as a data loss is forever.
-          // We should keep going as if the data was invalid.
-          break;
-        }
-        PERFETTO_DCHECK(reassembly_res == FragReassemblyResult::kNotEnoughData);
-        stats_.set_readaheads_failed(stats_.readaheads_failed() + 1);
-        // In this case we need two different behaviors:
-        // 1. If we are doing a pure readback (force_erase = false), we should
-        //    move away from this sequence non-destructively, as there is a
-        //    chance that the missing chunks will appear in future.
-        //    Note that by moving to NextChunkInBuffer we might still stumble
-        //    on futher chunks of the current sequence. But the read_pass_
-        //    generation counter will cause BufIterator to skip over them.
-        // 2. We are overwriting chunks as part of a write: this was the last
-        //    chance to read back the data. We should destroy it and treat
-        //    this as a kDataLoss.
-        if (!force_erase) {
-          // Case 1: Continue the iteration on the next chunk in buffer order.
-          // Any chunks of the current sequence encountered within the current
-          // BeginRead() session will be skipped. TODO explain this is to avoid
-          // marking future chunks as data losses or loops.
-          frag.seq->skip_in_generation = read_generation_;
-
-          // TODO make thid rd_iter_.InterruptSequence and hanlde the rest above
-          // uniformly. Hmm not that easy, we don't want to EraseCurrentChunk
-          // in this case.
-          if (!rd_iter_.NextChunkInBuffer()) {
-            TRACE_BUFFER_DLOG("  ReadNextTracePacket -> false (reassembly)");
-            return ReadRes::kFail;
-          }
-        }
-        // In case 2: ReassembleFragmentedPacket has invalidated the fragments,
-        // we should break the switch and continue with whatever is next.
-        break;  // case kFragBegin
-    }  // switch(frag.type)
-  }  // for (;;)
-  PERFETTO_DCHECK(false);  // Unreacahble
-  return ReadRes::kFail;
-}
-
-TraceBufferV2::FragReassemblyResult TraceBufferV2::ReassembleFragmentedPacket(
-    TracePacket* out_packet,
-    Frag* initial_frag,
-    bool force_erase) {
-  PERFETTO_DCHECK(initial_frag->type == Frag::kFragBegin);
-
-  base::SmallVector<Frag, 16> frags;
-  frags.emplace_back(*initial_frag);
-  BufIterator it = BufIterator::CloneReadOnly(rd_iter_);
-
-  // Iterate over chunks using the linked list.
-  FragReassemblyResult res;
-  for (;;) {
-    PERFETTO_DCHECK((it.valid()));
-    if (!it.NextChunkInSequence()) {
-      res = FragReassemblyResult::kNotEnoughData;
-      break;
-    }
-    if (it.data_loss()) {
-      // There is a gap in the sequence ID.
-      // TODO reason if we want to delete now also next fragments.
-      res = FragReassemblyResult::kDataLoss;
-      break;
-    }
-    // TODO explain why we don't iterate over fragments but only read one.
-    std::optional<Frag> frag = it.NextFragmentInChunk();
-    if (!frag.has_value()) {
-      // This can happen if a chunk in the middle of a sequence is empty. Rare
-      // but technically possible. See test Fragments_EmptyChunkInTheMiddle.
-      continue;
+      // If this chunk is empty, try with the chunk in buffer order.
+      next_rd = rd_ + chunk->outer_size();
     }
 
-    const auto& frag_type = frag->type;
-    if (frag_type == Frag::kFragContinue) {
-      frags.emplace_back(*frag);
-      continue;
+    PERFETTO_DCHECK(next_rd > 0);
+    const bool wrap = next_rd >= used_size_;
+    chunk_seq_reader_.reset();
+    if (next_rd == wr_ || (wrap && wr_ == 0)) {
+      // We tried every possible chunk and hit the write cursor. Give up.
+      return false;
     }
-    if (frag_type == Frag::kFragEnd) {
-      frags.emplace_back(*frag);
-
-      res = FragReassemblyResult::kSuccess;
-      break;
-    }
-    // else: kFragBegin or kFragWholePacket
-
-    // Even if force_consume is true, we want to leave frags these untouched
-    // as they don't belog to us. The next ReadNextPacket calls will deal with
-    // them. Our job here is to consume (forcefully or not) only fragments for
-    // the packet we are trying to reassemble.
-    // TODO report possible ABI violations? DNS
-    // TODO record the data loss somewhere in SeqState?
-    res = FragReassemblyResult::kDataLoss;
-    break;
-  }  // for (chunk in list)
-
-  for (Frag& f : frags) {
-    if (res == FragReassemblyResult::kSuccess && f.payload_size() > 0) {
-      out_packet->AddSlice(f.begin(), f.payload_size());
-    }
-    if (res == FragReassemblyResult::kSuccess ||
-        res == FragReassemblyResult::kDataLoss || force_erase) {
-      ConsumeFragment(&f);
-    }
-  }
-  return res;
-}
-
-void TraceBufferV2::ConsumeFragment(Frag* frag) {
-  TBChunk* chunk = frag->chunk;
-  // We must consume fragments in order (and no more than once).
-  PERFETTO_DCHECK(frag->off == chunk->unread_payload_off());
-  PERFETTO_DCHECK(chunk->payload_avail >= frag->size);
-  chunk->payload_avail -= frag->size;
-  // TODO update stats
-  if (chunk->payload_avail == 0) {
-    stats_.set_chunks_read(stats_.chunks_read() + 1);
-    stats_.set_bytes_read(stats_.bytes_read() + chunk->outer_size());
-    // EraseTBChunk(chunk, frag->seq);
-  }
+    rd_ = wrap ? 0 : next_rd;
+  }  // for(;;)
 }
 
 void TraceBufferV2::CopyChunkUntrusted(
@@ -717,6 +590,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   // |num_fragments - 1| packets. For simplicity, we simply disregard
   // the last one when we copy the chunk.
   if (PERFETTO_UNLIKELY(!chunk_complete)) {
+    chunk_flags |= kChunkIncomplete;
     if (num_fragments > 0) {
       num_fragments--;
       // These flags should only affect the last packet in the chunk. We clear
@@ -725,8 +599,6 @@ void TraceBufferV2::CopyChunkUntrusted(
       chunk_flags &= ~kLastPacketContinuesOnNextChunk;
       chunk_flags &= ~kChunkNeedsPatching;
     }
-  } else {
-    chunk_flags |= kChunkComplete;
   }
 
   // Compute the SUM(frags.size).
@@ -825,7 +697,10 @@ void TraceBufferV2::CopyChunkUntrusted(
   // record to clear the end of the buffer, wrap and start at offset 0.
   const size_t cached_size_to_end = size_to_end();
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
-    if (!DeleteNextChunksFor(cached_size_to_end))
+    DeleteNextChunksFor(cached_size_to_end);
+    // If we reached the end of the buffer and we are using discard policy,
+    // stop accepting data forever.
+    if (overwrite_policy_ == kDiscard)
       return DiscardWrite();
     wr_ = 0;
     stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
@@ -833,15 +708,12 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
-  if (!DeleteNextChunksFor(tbchunk_outer_size))
-    return DiscardWrite();
+  DeleteNextChunksFor(tbchunk_outer_size);
 
   // Find the insert poisition in the SequenceState's chunk list. We iterate the
   // list in reverse order as in the majority of cases chunks arrive naturally
   // in order. SMB scraping is really the only thing that might commit chunks
   // slightly out of order.
-  // This loop must happen before the DeleteNextChunksFor(), as that can
-  // delete chunks and hence invalidate the `insert_pos`.
   auto& chunk_list = seq.chunks;
   auto insert_pos = chunk_list.rbegin();
   TBChunk* recommit_chunk = nullptr;
@@ -863,15 +735,17 @@ void TraceBufferV2::CopyChunkUntrusted(
   // In the case of a re-commit we don't need to create a new chunk, we just
   // want to overwrite the existing one.
   if (recommit_chunk) {
+    const uint8_t recommit_flags = recommit_chunk->flags & kFlagsMask;
     if (all_frags_size < recommit_chunk->payload_size ||
         all_frags_size > recommit_chunk->size ||
-        (recommit_chunk->flags & chunk_flags) != recommit_chunk->flags) {
+        (recommit_flags & chunk_flags) != recommit_flags) {
       // The payload should never shrink, cannot grow more than the original
       // chunk size. Flags can be added but not removed.
       stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
+    recommit_chunk->flags &= ~kChunkIncomplete;
     if (all_frags_size == recommit_chunk->payload_size) {
       TRACE_BUFFER_DLOG("  skipping recommit of identical chunk");
       return;
@@ -931,12 +805,15 @@ TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
 // Note for reviewer: unlike the old v1 impl, here DeleteNextChunksFor also
 // takes care of writing the padding chunk in case of truncation.
 // TODO copy over the diagram from v1::CopyChunkUntrusted.
-bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
+void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   TRACE_BUFFER_DLOG("DeleteNextChunksFor(%zu) @ wr=%zu", bytes_to_clear, wr_);
   PERFETTO_CHECK(!discard_writes_);
   PERFETTO_DCHECK(bytes_to_clear >= sizeof(TBChunk));
   PERFETTO_DCHECK((bytes_to_clear % alignof(TBChunk)) == 0);
-  PERFETTO_DCHECK(bytes_to_clear <= TBChunk::kMaxSize);
+
+  // TODO move the discard policy check thing to the caller. We should just stop
+  // at size_ without wrapping, witnout too much drama here.
+
   DcheckIsAlignedAndWithinBounds(wr_);
   const size_t clear_end = wr_ + bytes_to_clear;
   PERFETTO_DCHECK(clear_end <= size_);
@@ -945,23 +822,38 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // uint64_t bytes_overwritten = stats_.bytes_overwritten();
   // uint64_t padding_bytes_cleared = stats_.padding_bytes_cleared();
 
-  // TODO here what if there is nothing to read?
-
-  BeginRead(/*limit=*/clear_end);
-  for (;;) {
-    TracePacket packet;
-    PacketSequenceProperties seq_props{};
-    ReadPolicy read_pol = overwrite_policy_ == kDiscard
-                              ? ReadPolicy::kNoOverwrite
-                              : ReadPolicy::kForceErase;
-    ReadRes res = ReadNextTracePacketInternal(&packet, &seq_props, read_pol);
-    if (res == ReadRes::kFail) {
+  for (size_t off = wr_, next_off = 0; off < clear_end; off = next_off) {
+    if (PERFETTO_UNLIKELY(off >= used_size_)) {
+      // This happens only on the first round of writing, when there are no
+      // chunks in the buffer yet. There is nothing to delete here, easy.
       break;
     }
-    if (res == ReadRes::kWouldOverwrite) {
-      PERFETTO_DCHECK(overwrite_policy_ == kDiscard);
-      return false;
+    TBChunk* chunk = GetTBChunkAt(off);
+    next_off = off + chunk->outer_size();
+    if (chunk->is_padding())
+      continue;
+    // Reads all the packets up to the current chunk:
+    // If there are chunks prior to this (due to OOO) reads first those
+    // If the last fragment continues in the next chunk, reads that as well
+    // (but then stops and doesn't read fully the subsequent chunk).
+    ChunkSeqReader csr(this, chunk);
+    csr.set_force_erase(true);
+    for (;;) {
+      // TODO what to do in case of gaps?
+      TracePacket packet;
+      if (!csr.ReadNextPacket(&packet))
+        break;
+      // TODO(minor) here pass to protovm.
     }
+    // ChunkRead with force_erase=true must delete the chunk once ReadNextPacket
+    // returns false.
+    PERFETTO_DCHECK(chunk->is_padding());
+
+    // TODO If the reader bailed because there isn't enough data or because
+    // there is a needs patching, oh well, we have to delete anyways and
+    // count it as a data loss.
+    // if (!cv.consumed_all_packets)
+    //   TODO_mark_sequence_as_data_loss();
   }
 
   // When we set a limit in BeginRead(), ReadNextTracePacket() will stop
@@ -998,7 +890,6 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   //           |                  |
   //           +- bytes_to_clear -+
   //
-
   for (size_t off = wr_; off < clear_end && off < used_size_;) {
     TBChunk* chunk = GetTBChunkAt(off);
     PERFETTO_DCHECK(chunk->is_padding());
@@ -1013,7 +904,6 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
 
   // stats_.set_padding_bytes_cleared(padding_bytes_cleared);
   // update chunks_overwritten and bytes_overwritten
-  return true;
 }
 
 bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
@@ -1095,9 +985,9 @@ void TraceBufferV2::DumpForTesting() {
   PERFETTO_DLOG(
       "------------------- DUMP BEGIN ------------------------------");
   PERFETTO_DLOG("wr=%zu, size=%zu, used_size=%zu", wr_, size_, used_size_);
-  if (rd_iter_.valid()) {
-    PERFETTO_DLOG("rd=%zu, target=%zu, seq=%d", OffsetOf(rd_iter_.chunk()),
-                  OffsetOf(rd_iter_.end_chunk()), !!rd_iter_.sequence_state());
+  if (chunk_seq_reader_.has_value()) {
+    PERFETTO_DLOG("rd=%zu, target=%zu", OffsetOf(chunk_seq_reader_->iter()),
+                  OffsetOf(chunk_seq_reader_->end()));
   } else {
     PERFETTO_DLOG("rd=invalid");
   }
@@ -1128,3 +1018,6 @@ void TraceBufferV2::DumpForTesting() {
 // TODO delete SequenceState once its empty?
 
 // TODO add a test to check that we fixed the "previous_packet_dropped" cases.
+
+// TODO add a test that simulates a real-time reading where we write, and we
+// read a bit, we write more, we read more and we see everything in sequence

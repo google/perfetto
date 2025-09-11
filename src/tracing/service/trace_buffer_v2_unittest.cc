@@ -535,15 +535,13 @@ TEST_F(TraceBufferV2Test, Fragments_OutOfOrderLastChunkIsMiddle) {
       .CopyIntoTraceBuffer();
   EXPECT_EQ(0u, trace_buffer()->stats().chunks_committed_out_of_order());
   trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
-  // ASSERT_THAT(ReadPacket(), IsEmpty());
-
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
       .AddPacket(20, 'b')
       .CopyIntoTraceBuffer();
   EXPECT_EQ(1u, trace_buffer()->stats().chunks_committed_out_of_order());
 
   trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
@@ -558,9 +556,6 @@ TEST_F(TraceBufferV2Test, Fragments_OutOfOrderLastChunkIsMiddleFragmentation) {
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
       .AddPacket(30, 'c', kContFromPrevChunk)
       .CopyIntoTraceBuffer();
-  trace_buffer()->BeginRead();
-  // ASSERT_THAT(ReadPacket(), IsEmpty());
-
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
       .AddPacket(20, 'b', kContFromPrevChunk | kContOnNextChunk)
       .CopyIntoTraceBuffer();
@@ -581,13 +576,6 @@ TEST_F(TraceBufferV2Test, Fragments_OutOfOrderLastChunkIsMaxFragmentation) {
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
       .AddPacket(30, 'c', kContFromPrevChunk)
       .CopyIntoTraceBuffer();
-  // CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
-  //     .AddPacket(10, 'd')
-  //     .CopyIntoTraceBuffer();
-  // trace_buffer()->BeginRead();
-  // ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'd')));
-  // ASSERT_THAT(ReadPacket(), IsEmpty());
-
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
       .AddPacket(20, 'b', kContFromPrevChunk | kContOnNextChunk)
       .CopyIntoTraceBuffer();
@@ -913,27 +901,30 @@ TEST_F(TraceBufferV2Test, Patching_ReadWaitsForPatchComplete) {
   ResetBuffer(4096);
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
-      .AddPacket(16, 'a', kChunkNeedsPatching)
+      .AddPacket(16, 'a', kChunkNeedsPatching | kContOnNextChunk)
       .ClearBytes(1, 4)  // 1 := 0th payload byte. Byte 0 is the varint header.
       .CopyIntoTraceBuffer();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
-      .AddPacket(16, 'b')
+      .AddPacket(16, 'b', kContFromPrevChunk)
       .CopyIntoTraceBuffer();
 
   CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
       .AddPacket(16, 'c')
       .CopyIntoTraceBuffer();
   CreateChunk(ProducerID(2), WriterID(1), ChunkID(1))
-      .AddPacket(16, 'd', kChunkNeedsPatching)
+      .AddPacket(16, 'd', kChunkNeedsPatching | kContOnNextChunk)
       .ClearBytes(1, 4)  // 1 := 0th payload byte. Byte 0 is the varint header.
       .CopyIntoTraceBuffer();
   CreateChunk(ProducerID(2), WriterID(1), ChunkID(2))
-      .AddPacket(16, 'e')
+      .AddPacket(16, 'e', kContFromPrevChunk)
       .CopyIntoTraceBuffer();
 
   CreateChunk(ProducerID(3), WriterID(1), ChunkID(0))
-      .AddPacket(16, 'f', kChunkNeedsPatching)
+      .AddPacket(16, 'f', kChunkNeedsPatching | kContOnNextChunk)
       .ClearBytes(1, 8)  // 1 := 0th payload byte. Byte 0 is the varint header.
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(3), WriterID(1), ChunkID(1))
+      .AddPacket(1, '\0', kContFromPrevChunk)
       .CopyIntoTraceBuffer();
 
   // The only thing that can be read right now is the 1st packet of the 2nd
@@ -947,8 +938,8 @@ TEST_F(TraceBufferV2Test, Patching_ReadWaitsForPatchComplete) {
                                     {{1, {{'P', 'A', 'T', 'C'}}}}));
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(),
-              ElementsAre(FakePacketFragment("PATCd01-d02-d03", 15)));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(16, 'e')));
+              ElementsAre(FakePacketFragment("PATCd01-d02-d03", 15),
+                          FakePacketFragment(16, 'e')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
   // Now patch the 3rd sequence, but in the first patch set
@@ -1716,46 +1707,35 @@ TEST_F(TraceBufferV2Test, DiscardPolicy) {
   ResetBuffer(4096, TraceBufferV2::kDiscard);
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
-      .AddPacket(96 - 16, 'a')
+      .AddPacket(32 - 16, 'a')
       .CopyIntoTraceBuffer();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
       .AddPacket(4000 - 16, 'b')
       .CopyIntoTraceBuffer();
+  // Leave 32 bytes free at the end of the buffer.
 
   trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(96 - 16, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'a')));
 
-  // As long as the reader catches up, writes should succeed.
+  // This should still fit
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
-      .AddPacket(48 - 16, 'c')
+      .AddPacket(20 - 16, 'c')
       .CopyIntoTraceBuffer();
+
+  // Neither of these should fit.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
-      .AddPacket(48 - 16, 'd')
+      .AddPacket(48 - 16, 'x')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(4))
+      .AddPacket(48 - 16, 'x')
       .CopyIntoTraceBuffer();
 
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4000 - 16, 'b')));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(48 - 16, 'c')));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(48 - 16, 'd')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20 - 16, 'c')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
-  // This will succeed.
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(4))
-      .AddPacket(4000 - 16, 'e')
-      .CopyIntoTraceBuffer();
-
-  // But this will fail, preventing any further write.
-  for (int i = 0; i < 3; i++) {
-    CreateChunk(ProducerID(1), WriterID(i + 2), ChunkID(0))
-        .AddPacket(120 - 16, 'X')
-        .CopyIntoTraceBuffer();
-  }
-
-  trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4000 - 16, 'e')));
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-
-  // Even after the reader catches up, writes should still be discarded.
+  // More writes should still be discarded.
   for (int i = 0; i < 3; i++) {
     CreateChunk(ProducerID(1), WriterID(i + 10), ChunkID(0))
         .AddPacket(64 - 16, 'X')
