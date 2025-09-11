@@ -47,14 +47,15 @@ type SerializedNodeState =
   | IntervalIntersectSerializedState;
 
 // Interfaces for the serialized JSON structure
-interface SerializedNode {
+export interface SerializedNode {
   nodeId: string;
   type: NodeType;
   state: SerializedNodeState; // This will hold the serializable state of the node
   nextNodes: string[];
+  prevNodes: string[];
 }
 
-interface SerializedGraph {
+export interface SerializedGraph {
   nodes: SerializedNode[];
   rootNodeIds: string[];
   selectedNodeId?: string;
@@ -73,6 +74,9 @@ function serializeNode(node: QueryNode): SerializedNode {
     type: node.type,
     state: state,
     nextNodes: node.nextNodes.map((n: QueryNode) => n.nodeId),
+    prevNodes: node.prevNodes
+      ? node.prevNodes.map((n: QueryNode) => n.nodeId)
+      : [],
   };
 }
 
@@ -205,12 +209,25 @@ export function deserializeState(
       }
       return nextNode;
     });
-    for (const nextNode of node.nextNodes) {
-      if (nextNode.prevNodes == null) {
-        nextNode.prevNodes = [];
+
+    // Backwards compatibility: if prevNodes is not in the JSON, infer it.
+    if (serializedNode.prevNodes.length > 0) {
+      node.prevNodes = serializedNode.prevNodes.map((id) => {
+        const prevNode = nodes.get(id);
+        if (prevNode == null) {
+          throw new Error(`Graph is corrupted. Node "${id}" not found.`);
+        }
+        return prevNode;
+      });
+    } else {
+      for (const nextNode of node.nextNodes) {
+        if (nextNode.prevNodes == null) {
+          nextNode.prevNodes = [];
+        }
+        nextNode.prevNodes.push(node);
       }
-      nextNode.prevNodes.push(node);
     }
+
     if (serializedNode.type === NodeType.kIntervalIntersect) {
       (node as IntervalIntersectNode).state.intervalNodes =
         IntervalIntersectNode.deserializeState(

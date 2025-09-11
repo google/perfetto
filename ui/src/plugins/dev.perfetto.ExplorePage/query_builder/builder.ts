@@ -62,6 +62,7 @@ export interface BuilderAttrs {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onImport: () => void;
+  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -182,6 +183,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             attrs.onDeleteNode(node);
           },
           onImport: attrs.onImport,
+          onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
           onRemoveFilter: attrs.onRemoveFilter,
         }),
