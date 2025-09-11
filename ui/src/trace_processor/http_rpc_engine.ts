@@ -34,30 +34,30 @@ export class HttpRpcEngine extends EngineBase {
   private disposed = false;
   private queue: Blob[] = [];
   private isProcessingQueue = false;
-  private trace_processor_uuid = '';
-  private isWaitingForUuid = false;
+  private trace_processor_id = 0;
+  private isWaitingForid = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string, traceProcessorUuid?: string) {
+  constructor(id: string, traceProcessorId?: number) {
     super();
     this.id = id;
-    this.trace_processor_uuid = traceProcessorUuid || '';
+    this.trace_processor_id = traceProcessorId ?? 0;
   }
 
   private connect() {
     if (this.websocket !== undefined || this.disposed) return;
 
     let wsUrl: string;
-    if (this.trace_processor_uuid === '') {
+    if (this.trace_processor_id === 0) {
       // This is a new session. Ask the server for a new TP instance.
       wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/new`;
-      this.isWaitingForUuid = true;
+      this.isWaitingForid = true;
     } else {
-      // We have a UUID (e.g. from the page URL), connect to that specific instance.
-      wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.trace_processor_uuid}`;
-      this.isWaitingForUuid = false;
+      // We have an existing instance id, connect to that specific instance.
+      wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.trace_processor_id}`;
+      this.isWaitingForid = false;
     }
 
     this.websocket = new WebSocket(wsUrl);
@@ -81,10 +81,10 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   onWebsocketConnected() {
-    // If we are waiting for the UUID, the connection is not truly "ready"
-    // until that UUID has been received. onWebsocketMessage will call this
-    // again once the UUID arrives.
-    if (this.isWaitingForUuid) return;
+    // If we are waiting for the instance ID, the connection is not truly "ready"
+    // until that instance ID has been received. onWebsocketMessage will call this
+    // again once the instance ID arrives.
+    if (this.isWaitingForid) return;
 
     this.connected = true;
     for (;;) {
@@ -113,22 +113,23 @@ export class HttpRpcEngine extends EngineBase {
 
   private onWebsocketMessage(e: MessageEvent) {
     const blob = assertExists(e.data as Blob);
-    if (this.isWaitingForUuid) {
-      // The very first message for a 'new' connection contains the UUID.
+    if (this.isWaitingForid) {
+      // The very first message for a 'new' connection contains the instance ID.
       blob.text().then((text) => {
         try {
           const data = JSON.parse(text);
-          if (data.uuid as string) {
-            this.trace_processor_uuid = data.uuid;
-            this.isWaitingForUuid = false;
-            // Now that we have the UUID and are fully connected,
-            // mark the connection as ready and send any queued data.
+
+          if (data.id !== undefined) {
+            this.trace_processor_id = parseInt(data.id, 10) >>> 0;
+            this.isWaitingForid = false;
             this.onWebsocketConnected();
           } else {
-            this.fail(`Initial message missing UUID: ${text}`);
+            this.fail(`Initial message missing instance ID: ${text}`);
           }
         } catch (error) {
-          this.fail(`Failed to parse UUID message from server: ${error}`);
+          this.fail(
+            `Failed to parse instance ID message from server: ${error}`,
+          );
         }
       });
       return;

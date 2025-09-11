@@ -284,7 +284,7 @@ message StatusResult {
   // without warning.
   optional string version_code = 4;
 
-  optional string instance_id = 5;
+  optional uint32 instance_id = 5;
   optional uint64 last_activity = 6;
   optional bool has_existing_tab = 7;
 }

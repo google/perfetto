@@ -354,7 +354,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                       interactive: true,
                       onclick: () => {
                         if (tp.instanceId) {
-                          AppImpl.instance.httpRpc.selectedTraceProcessorUuid =
+                          AppImpl.instance.httpRpc.selectedTraceProcessorId =
                             tp.instanceId;
                         }
                         closeModal();
@@ -368,7 +368,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                         m(
                           'small',
                           {style: {color: 'var(--pf-color-text-muted)'}},
-                          `UUID: ${tp.instanceId || 'default'}`,
+                          `ID: ${tp.instanceId || 'default'}`,
                         ),
                         m('br'),
                         m(

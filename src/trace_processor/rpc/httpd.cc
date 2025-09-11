@@ -31,7 +31,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -47,7 +46,7 @@ namespace {
 constexpr int kBindPort = 9001;
 constexpr int kMilliSecondPerMinute = 60 * 1000;
 constexpr uint64_t kNanosecondPerMinute = 60 * 1000000000ULL;
-constexpr const char* DEFAULT_TP_UUID = "default";
+constexpr uint32_t DEFAULT_TP_ID = 0;
 
 // Sets by default the Access-Control-Allow-Origin: $origin on the following
 // origins. This affects only browser clients that use CORS. Other HTTP clients
@@ -81,9 +80,9 @@ class Httpd : public base::HttpRequestHandler {
   static void ServeHelpPage(const base::HttpRequest&);
   void cleanUpInactiveInstances();
 
-  class UuidRpcThread {
+  class RpcThread {
    public:
-    explicit UuidRpcThread()
+    explicit RpcThread()
         : last_accessed_ns_(
               static_cast<uint64_t>(base::GetWallTimeNs().count())) {
       rpc_thread_ = std::thread([this]() {
@@ -104,8 +103,8 @@ class Httpd : public base::HttpRequestHandler {
         task_runner.Run();
       });
     }
-    explicit UuidRpcThread(std::unique_ptr<TraceProcessor> preloaded_instance,
-                           bool is_preloaded_eof)
+    explicit RpcThread(std::unique_ptr<TraceProcessor> preloaded_instance,
+                       bool is_preloaded_eof)
         : last_accessed_ns_(
               static_cast<uint64_t>(base::GetWallTimeNs().count())) {
       rpc_thread_ =
@@ -136,7 +135,7 @@ class Httpd : public base::HttpRequestHandler {
           });
     }
 
-    ~UuidRpcThread() {
+    ~RpcThread() {
       {
         std::lock_guard<std::mutex> lock(init_mutex_);
         if (initialized_ && task_runner_) {
@@ -188,15 +187,18 @@ class Httpd : public base::HttpRequestHandler {
     std::atomic<uint64_t> last_accessed_ns_;
   };
 
+  uint32_t nextInstanceId = 1;
+
+  uint32_t generateInstanceId() { return nextInstanceId++; }
+
   // global rpc for older uis that don't have the rpc map and for opening files
   // via trace_processor_shell
   Rpc global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::mutex websocket_rpc_mutex_;
-  std::unordered_map<std::string, std::unique_ptr<UuidRpcThread>>
-      uuid_to_tp_map;
-  std::unordered_map<base::HttpServerConnection*, std::string> conn_to_uuid_map;
+  std::unordered_map<uint32_t, std::unique_ptr<RpcThread>> id_tp_tp_map;
+  std::unordered_map<base::HttpServerConnection*, uint32_t> conn_to_id_map;
   size_t tp_timeout_mins_;
 };
 
@@ -231,15 +233,14 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
     : global_trace_processor_rpc_(),  // Create empty global RPC
       http_srv_(&task_runner_, this),
       tp_timeout_mins_(timeout_mins) {
-  // If we have a preloaded instance, create a UUID for it and store in map
+  // If we have a preloaded instance, create a ID for it and store in map
   if (!preloaded_instance->GetCurrentTraceName().empty()) {
-    base::Uuid uuid = base::Uuidv4();
-    std::string uuid_str = uuid.ToPrettyString();
-    auto new_thread = std::make_unique<UuidRpcThread>(
-        std::move(preloaded_instance), is_preloaded_eof);
-    uuid_to_tp_map.emplace(uuid_str, std::move(new_thread));
-    PERFETTO_ILOG("Preloaded trace processor assigned UUID: %s",
-                  uuid_str.c_str());
+    auto new_thread = std::make_unique<RpcThread>(std::move(preloaded_instance),
+                                                  is_preloaded_eof);
+    uint32_t instance_id = generateInstanceId();
+    id_tp_tp_map.emplace(instance_id, std::move(new_thread));
+    PERFETTO_ILOG("Preloaded trace processor assigned ID: %" PRIu32,
+                  instance_id);
   }
 }
 Httpd::~Httpd() = default;
@@ -320,8 +321,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     protozero::HeapBuffered<protos::pbzero::RpcStatus> result;
     {
       std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-      for (const auto& entry : uuid_to_tp_map) {
-        const std::string& uuid = entry.first;
+      for (const auto& entry : id_tp_tp_map) {
+        uint32_t instance_id = entry.first;
         const auto& tp_rpc = entry.second;
         auto* tp_status = result->add_instances();
         tp_status->set_loaded_trace_name(tp_rpc->rpc_->GetCurrentTraceName());
@@ -331,7 +332,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         if (const char* version_code = base::GetVersionCode(); version_code) {
           tp_status->set_version_code(version_code);
         }
-        tp_status->set_instance_id(uuid.c_str());
+        tp_status->set_instance_id(instance_id);
         tp_status->set_last_activity(tp_rpc->GetLastAccessedNs());
         tp_status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
       }
@@ -349,7 +350,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       }
       tp_status->set_api_version(
           protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
-      tp_status->set_instance_id(DEFAULT_TP_UUID);
+      tp_status->set_instance_id(DEFAULT_TP_ID);
     }
     return conn.SendResponse("200 OK", default_headers,
                              Vec2Sv(result.SerializeAsArray()));
@@ -359,58 +360,63 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       req.is_websocket_handshake) {
     std::string path =
         req.uri.substr(strlen("/websocket"))
-            .ToStdString();  // path may be "", "/", "/new", "/<uuid>"
-    std::string uuid;
-    bool send_uuid_back = false;
+            .ToStdString();  // path may be "", "/", "/new", "/<id>"
+    uint32_t instance_id;
+    bool send_id_back = false;
 
     {
       std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
       if (path.empty() || path == "/") {  // Legacy /websocket endpoint
-        if (uuid_to_tp_map.empty()) {
+        if (id_tp_tp_map.empty()) {
           // Case 1: No instances exist, so behave like /new.
-          send_uuid_back = true;
-          base::Uuid new_uuid = base::Uuidv4();
-          uuid = new_uuid.ToPrettyString();
-          auto new_thread = std::make_unique<UuidRpcThread>();
-          uuid_to_tp_map.emplace(uuid, std::move(new_thread));
-          PERFETTO_ILOG("Legacy /websocket: creating new TP instance %s",
-                        uuid.c_str());
+          send_id_back = true;
+          uint32_t new_id = generateInstanceId();
+          instance_id = new_id;
+          auto new_thread = std::make_unique<RpcThread>();
+          id_tp_tp_map.emplace(instance_id, std::move(new_thread));
+          PERFETTO_ILOG("Legacy /websocket: creating new TP instance %" PRIu32,
+                        instance_id);
         } else {
           // Case 2: Instances exist, attach to the "first" one for back-compat.
-          uuid = uuid_to_tp_map.begin()->first;
+          instance_id = id_tp_tp_map.begin()->first;
           PERFETTO_ILOG(
-              "Legacy /websocket: attaching to existing TP instance %s",
-              uuid.c_str());
+              "Legacy /websocket: attaching to existing TP instance %" PRIu32,
+              instance_id);
         }
       } else if (path == "/new") {
         // Case 3: Explicit request for a new instance.
-        send_uuid_back = true;
-        base::Uuid new_uuid = base::Uuidv4();
-        uuid = new_uuid.ToPrettyString();
-        auto new_thread = std::make_unique<UuidRpcThread>();
-        uuid_to_tp_map.emplace(uuid, std::move(new_thread));
-        PERFETTO_ILOG("New TP instance %s created via /websocket/new",
-                      uuid.c_str());
+        send_id_back = true;
+        uint32_t new_id = generateInstanceId();
+        instance_id = new_id;
+        auto new_thread = std::make_unique<RpcThread>();
+        id_tp_tp_map.emplace(instance_id, std::move(new_thread));
+        PERFETTO_ILOG("New TP instance %" PRIu32 " created via /websocket/new",
+                      instance_id);
       } else {
-        // Case 4: Must be /websocket/<uuid>
-        uuid = path.substr(1);  // Remove leading '/'
-        if (uuid_to_tp_map.find(uuid) == uuid_to_tp_map.end()) {
-          // For the new API, if a specific UUID is requested, it must exist.
+        // Case 4: Must be /websocket/<id>
+        instance_id = static_cast<uint32_t>(
+            std::stoul(path.substr(1)));  // Remove leading '/'
+        if (id_tp_tp_map.find(instance_id) == id_tp_tp_map.end()) {
+          // For the new API, if a specific instance ID is requested, it must
+          // exist.
           return conn.SendResponseAndClose("404 Not Found", {});
         }
-        PERFETTO_ILOG("Attaching to existing TP instance %s", uuid.c_str());
+        PERFETTO_ILOG("Attaching to existing TP instance %" PRIu32,
+                      instance_id);
       }
 
-      // Associate the connection with the determined UUID before upgrading.
-      conn_to_uuid_map.emplace(&conn, uuid);
+      // Associate the connection with the determined instance ID before
+      // upgrading.
+      conn_to_id_map.emplace(&conn, instance_id);
     }
 
     conn.UpgradeToWebsocket(req);
 
-    if (send_uuid_back) {
-      // Immediately send the new UUID to the client upon connection.
-      std::string json_response = "{\"uuid\": \"" + uuid + "\"}";
+    if (send_id_back) {
+      // Immediately send the new instance ID to the client upon connection.
+      std::string json_response =
+          "{\"id\": \"" + std::to_string(instance_id) + "\"}";
       conn.SendWebsocketMessage(json_response.c_str(), json_response.length());
     }
     return;
@@ -519,36 +525,37 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-  auto it = conn_to_uuid_map.find(msg.conn);
-  if (it == conn_to_uuid_map.end()) {
+  auto it = conn_to_id_map.find(msg.conn);
+  if (it == conn_to_id_map.end()) {
     PERFETTO_ELOG("Websocket message from an un-associated connection.");
     return;
   }
 
-  const std::string& uuid = it->second;
-  auto uuid_it = uuid_to_tp_map.find(uuid);
-  if (uuid_it == uuid_to_tp_map.end()) {
-    PERFETTO_ELOG("Inconsistent state: conn mapped to non-existent uuid %s",
-                  uuid.c_str());
+  const uint32_t instance_id = it->second;
+  auto id_it = id_tp_tp_map.find(instance_id);
+  if (id_it == id_tp_tp_map.end()) {
+    PERFETTO_ELOG(
+        "Inconsistent state: conn mapped to non-existent instance id %" PRIu32,
+        instance_id);
     return;
   }
-  uuid_it->second->OnWebsocketMessage(msg);
+  id_it->second->OnWebsocketMessage(msg);
 }
 
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-  auto conn_to_uuid_it = conn_to_uuid_map.find(conn);
-  if (conn_to_uuid_it != conn_to_uuid_map.end()) {
-    std::string uuid = conn_to_uuid_it->second;
-    auto uuid_to_tp_it = uuid_to_tp_map.find(uuid);
-    if (uuid_to_tp_it != uuid_to_tp_map.end()) {
-      if (uuid_to_tp_it->second->rpc_->GetCurrentTraceName().empty()) {
-        uuid_to_tp_map.erase(uuid_to_tp_it);
+  auto conn_to_id_it = conn_to_id_map.find(conn);
+  if (conn_to_id_it != conn_to_id_map.end()) {
+    uint32_t instance_id = conn_to_id_it->second;
+    auto id_to_tp_it = id_tp_tp_map.find(instance_id);
+    if (id_to_tp_it != id_tp_tp_map.end()) {
+      if (id_to_tp_it->second->rpc_->GetCurrentTraceName().empty()) {
+        id_tp_tp_map.erase(id_to_tp_it);
       } else {
-        uuid_to_tp_it->second->rpc_->has_existing_tab = false;
+        id_to_tp_it->second->rpc_->has_existing_tab = false;
       }
     }
-    conn_to_uuid_map.erase(conn_to_uuid_it);
+    conn_to_id_map.erase(conn_to_id_it);
   }
 }
 
@@ -564,28 +571,28 @@ void Httpd::cleanUpInactiveInstances() {
       static_cast<uint64_t>(tp_timeout_mins_) * kNanosecondPerMinute;
   uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
 
-  for (auto it = uuid_to_tp_map.begin(); it != uuid_to_tp_map.end();) {
-    const std::string& uuid = it->first;
+  for (auto it = id_tp_tp_map.begin(); it != id_tp_tp_map.end();) {
+    const uint32_t instance_id = it->first;
     uint64_t last_accessed = it->second->GetLastAccessedNs();
 
     if (now - last_accessed > kInactivityNs) {
       PERFETTO_ILOG(
-          "Cleaning up inactive RPC instance: %s (inactive for %.1f minutes)",
-          uuid.c_str(),
+          "Cleaning up inactive RPC instance: %" PRIu32
+          " (inactive for %.1f minutes)",
+          instance_id,
           static_cast<double>(now - last_accessed) / (60.0 * 1000000000.0));
-
-      // Remove from conn_to_uuid_map as well
-      for (auto conn_it = conn_to_uuid_map.begin();
-           conn_it != conn_to_uuid_map.end();) {
-        if (conn_it->second == uuid) {
-          conn_it = conn_to_uuid_map.erase(conn_it);
+      // Remove from conn_to_id_map as well
+      for (auto conn_it = conn_to_id_map.begin();
+           conn_it != conn_to_id_map.end();) {
+        if (conn_it->second == instance_id) {
+          conn_it = conn_to_id_map.erase(conn_it);
         } else {
           ++conn_it;
         }
       }
 
-      // Remove the UuidRpcThread
-      it = uuid_to_tp_map.erase(it);
+      // Remove the RpcThread
+      it = id_tp_tp_map.erase(it);
     } else {
       ++it;
     }
