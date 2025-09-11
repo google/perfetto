@@ -49,12 +49,13 @@ namespace internal {
 // - The size of the chunk is variable (% 16B alignment) and matches the payload
 //   to minimize internal fragmentation and buffer efficiency.
 // - The metadata (ChunkID, etc) is stored slighly differently
-// - It keeps track both of the original payload, and the consumed payload, as
+// - It keeps track both of the size of the original payload, and the consumed
 //   reads in the buffer are destructive.
 struct TBChunk {
   static constexpr size_t kMaxSize = std::numeric_limits<uint16_t>::max();
-
   static uint8_t Checksum(size_t off, size_t size) {
+    // Note: the checksum must be 0 for (off=0,size=0). See the comment in
+    // ReadNextTracePacket() about the edge case of the buffer completely empty.
     return ((off >> 24) ^ (off >> 16) ^ (off >> 8) ^ off ^ (size >> 8) ^ size) &
            0xFF;
   }
@@ -86,7 +87,7 @@ struct TBChunk {
   // The number of payload bytes unconsumed. This starts at payload_size and
   // shrinks until it reaches 0 as we consume fragments.
   // It is always <= size and <= payload_size.
-  // Effectively (payload_size - payload-avail) points to the the next
+  // Effectively (payload_size - payload-avail) is the offset of the the next
   // unconsumed fragment header (the varint with the size).
   uint16_t payload_avail = 0;
 
@@ -105,7 +106,7 @@ struct TBChunk {
     return payload_size - payload_avail;
   }
 
-  static size_t OuterSize(size_t sz) {
+  static inline size_t OuterSize(size_t sz) {
     return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + sz);
   }
   size_t outer_size() { return OuterSize(size); }
@@ -122,6 +123,8 @@ struct TBChunk {
 };
 
 // Holds the state for each sequence that has TBCHunk(s) in the buffer.
+// Remember that this struct must be copyable for CloneReadOnly(). Don't hold
+// onto any pointers in here.
 // TODO handle destruction of these.
 struct SequenceState {
   SequenceState(ProducerID, WriterID, ClientIdentity);
@@ -138,166 +141,118 @@ struct SequenceState {
   // skip := skip_in_generation == TraceBuffer.read_generation_.
   uint64_t skip_in_generation = 0;
 
+  // When `chunks` becomes empty the SequenceState is eligible to be deleted.
+  // Rather than deleting it immediately, we remember its age (derived by
+  // incrementing TraceBufferV2.seq_age_) and remove only the oldest entries.
+  // See comments in DeleteStaleEmptySequences().
+  uint64_t age_for_gc = 0;
+
   std::optional<ChunkID> last_chunk_id_consumed;
+
+  // This is set whenever a data loss is detected and cleared when reading the
+  // next packet for the sequence (which will report previous_packet_dropped).
+  bool data_loss = false;
 
   // An ordered list of chunk offsets, sorted by their ChunkID. Each member
   // corresponsds to the offset within buf_ for the chunk.
   // We store buffer offsets rather than pointers to make buffer cloning easier.
   // This is effectively a deque of TBChunk* (% a call to GetTBChunkAt(off)).
-  base::CircularQueue<size_t> chunks;  // TODO make initial capacity smaller.
+  base::CircularQueue<size_t> chunks;
 };
 
 // A packet fragment in the buffer.
+// This struct is used in two places:
+// 1. When tokenizing the fragments in CopyChunkUntrusted()
+// 2. When reading/manipulating the buffer.
 struct Frag {
   enum FragType : uint8_t {
     // 1 packet == 1 fragment.
     kFragWholePacket,
 
     // Fragmentation cases:
+
+    // The last fragment of a chunk, when kLastPacketContinuesOnNextChunk
     kFragBegin,
+
+    // The only fragment of a chunk when both kLastPacketContinuesOnNextChunk &
+    // kFirstPacketContinuesFromPrevChunk
     kFragContinue,
+
+    // The first fragment of a chunk when kFirstPacketContinuesFromPrevChunk
     kFragEnd,
   };
 
-  TBChunk* chunk = nullptr;
-  SequenceState* seq = nullptr;  // TODO maybe unneeded delete.
+  // TODO add ascii diagram.
+  // Pointes to the fragment payload, immediately after the header.
+  const uint8_t* const begin = nullptr;
+  FragType const type = kFragWholePacket;
+  uint8_t const hdr_size = 0;
+  uint16_t const size = 0;
 
-  uint16_t off = 0;      // The offset of the fragment header within the chunk.
-  uint16_t size = 0;     // Size of the fragment, including the varint header.
-  uint8_t hdr_size = 0;  // The size of the varint header.
-  FragType type = kFragWholePacket;
+  uint16_t size_with_header() { return size + hdr_size; }
 
-  uint16_t payload_size() const { return size - hdr_size; }
-  uint8_t* begin() { return chunk->fragments_begin() + off + hdr_size; }
-  uint8_t* end() { return begin() + size; }
+  Frag(const uint8_t* b, FragType t, uint8_t h, uint16_t s)
+      : begin(b), type(t), hdr_size(h), size(s) {}
 };
 
-// BufIterator encapsulates the logic to move around chunks and fragments in
-// the buffer, to implement readback and overwrite logic. There are two ways
-// we can iterate chunks in the buffer: (1) following their physical order
-// in the ring buffer; (2) following their logical order via the per-sequence
-// `chunks` CircularQueue. This is how a typical iteration works:
-//
-// Step 1: identify the "target" chunk we want to read.
-// ----------------------------------------------------
-// We start the iteration saying "I want to read (or overwrite) this chunk",
-// where "this chunk" is the one immediately after the write pointer. That is,
-// by definition of ring buffer, the place where the oldest data lives.
-// At the time of writing, all iterations (i.e. all BufIterator ctor calls)
-// start always at `TraceBuffer.wr_`
-//
-// Step 2: rewinding back in the sequence using the `chunks` CircularQueue.
-// ------------------------------------------------------------------------
-// We can't just read the target chunk right away. Due to out-of-order commits
-// (which are very rare, but possible, due to scraping) there might be chunks
-// that logically precedes the current chunk, but are stored physically after
-// our target chunk. We want reads to respect FIFO-ness of data, so we jump to
-// the beginning of the chunks list and start from there (even if that chunk
-// might be physically stored after our target chunk address-wise).
-//
-// Step 3: keep following the queue until we reach our target chunk.
-// -----------------------------------------------------------------
-// In order to respect FIFO-ness, we want to jump around (address-wise)
-// wherever needed in the buffer to keep following the chunks in logical
-// sequence. Eventually we weill reach back the target chunk we wanted to
-// read in the first place in step 1. In practice these list walks are very
-// rare, and in most cases resolve within a few iterations.
-//
-// Step 4: proceed in buffer order -> repeat.
-// ------------------------------------------
-// Once we have consumed the target chunk, we want to move to the next chunk
-// in the buffer in physical (address) order, as we want to consume the ring
-// buffer in order. However, moving to the next chunk poses the same problem
-// we faced in Step 1 (there might be other chunks that logically precede that
-// one), so we have repeat the same walking pattern again.
-//
-// Overall the iteration in the buffer can be summarized as follows:
-// - Set a target chunk using the next chunk in buffer order.
-// - Walk all the way back from that target using the linked list.
-// - Follow the linked list forward, until we reach back the target.
-// - Move to the next chunk in buffer order and repeat.
-class BufIterator {
+// Iterates over Chunks in a SequenceState
+class ChunkSeqIterator {
  public:
-  BufIterator();
+  // Rewinds to the first chunk of the sequence.
+  explicit ChunkSeqIterator(TraceBufferV2*, SequenceState*);
+  ChunkSeqIterator() = default;  // Creates an invalid object, for default init.
+  ChunkSeqIterator(const ChunkSeqIterator&) = default;  // Allow copy.
+  ChunkSeqIterator& operator=(const ChunkSeqIterator&) = default;
 
-  // if `limit` > 0, it is interpreted as an offset in the buffer. The iterator
-  // stops prematurely soon after crossing the limit. This is used to implement
-  // EraseNextChunksFor(), where we want to destructively read chunks, but only
-  // up to a certain point, as little as required to make space in the buffer.
-  explicit BufIterator(TraceBufferV2*, size_t limit = 0);
-
-  static BufIterator CloneReadOnly(const BufIterator&) noexcept;
-
-  void Reset(size_t limit) { *this = BufIterator(buf_, limit); }
-
-  // Depending on the current iteration state, either:
-  // 1. Moves next in the linked list, if chunk_ != end_chunk_.
-  // 2. Moves next in buffer order, if chunk_ == end_chunk_.
-  // If `limit` is non-null, NextChunk returns prematurely false if we hit the
-  // `limit` chunk while iterating in buffer order mode. This is used to
-  // implement the "DeleteNextChunksFor()" while overwriting.
-  bool NextChunk();
-  bool NextChunkInSequence();
-  bool NextChunkInBuffer();
-  std::optional<Frag> NextFragmentInChunk();
-  bool EraseCurrentChunkAndMoveNext();
-  bool SetNextChunkIfContiguousAndValid(SequenceState*,
-                                        const std::optional<ChunkID>&,
-                                        TBChunk*,
-                                        size_t next_seq_idx);
-
-  bool valid() {
-    PERFETTO_DCHECK((!chunk_ && !end_chunk_) || (chunk_ && end_chunk_));
-    return chunk_ != nullptr;
-  }
-  TBChunk* chunk() { return chunk_; }
-  TBChunk* end_chunk() { return end_chunk_; }
-  SequenceState* sequence_state() { return seq_; }
-  void set_data_loss() { data_loss_ = true; }
-  bool data_loss() { return data_loss_; }
+  TBChunk* NextChunkInSequence();
+  void EraseCurrentChunk();
+  TBChunk* chunk() const { return chunk_; }
+  bool sequence_gap_detected() const { return sequence_gap_detected_; }
+  bool valid() const { return !!seq_ && !!chunk_; }
 
  private:
-  BufIterator(const BufIterator&) noexcept = default;  // For CopyReadOnly.
-  BufIterator& operator=(const BufIterator&) noexcept = default;
-
   TraceBufferV2* buf_ = nullptr;
-
-  // The chunk we are currently visiting. This is either == end_chunk_ (if we
-  // are iterating in buffer order), or a chunk that logically precedes
-  // end_chunk_ (if iterating in sequence order).
-  TBChunk* chunk_ = nullptr;
-
-  // When we are proceeding in buffer order this is == chunk_.
-  // When we are proceeding in sequence order, this is the chunk where the
-  // sequence iteration should stop. Note that this is NOT the last chunk of the
-  // sequence.
-  TBChunk* end_chunk_ = nullptr;
-
-  // The SequenceState where both chunk_ an end_chunk_ belong to.
-  // There should neve be a case where chunk_ and end_chunk_ point to different
-  // sequences.
   SequenceState* seq_ = nullptr;
+  TBChunk* chunk_ = nullptr;
+  bool sequence_gap_detected_ = false;
+  size_t list_idx_ = 0;  // Offset of the current chunk in seq_.chunks.
+};
 
-  // This field is the offset within the seq_.chunks queue of the current chunk
-  // id. This is incremented every time NextChunkInSequence() advances
-  // (non-destructively) and reset every time NextChunkInBuffer moves to a
-  // different sequence changing `seq_`.
-  size_t seq_idx_ = 0;
+// Iterates over fragments of a chunk.
+// TODO(minor) add explanation/drawings and mention that is used in two places.
+class FragIterator {
+ public:
+  explicit FragIterator(TBChunk* chunk)
+      : chunk_begin_(chunk->fragments_begin()),
+        chunk_size_(chunk->payload_size),
+        next_frag_off_(chunk->unread_payload_off()),
+        chunk_flags_(chunk->flags) {}
 
-  // [optional] Offset in the buffer, which causes a premature stop.
-  // See comment in the constructor for its semantic.
-  size_t limit_ = 0;
+  FragIterator(const uint8_t* begin, size_t size, uint8_t flags)
+      : chunk_begin_(begin), chunk_size_(size), chunk_flags_(flags) {}
 
-  // Position of the next fragment within the current `chunk_`.
-  // We cannot just use TBChunk.payload_avail, as we need to be able to make
-  // non-destructive reads when trying to reassemble fragments.
-  uint16_t next_frag_off_ = 0;
+  std::optional<Frag> NextFragmentInChunk();
+  size_t next_frag_off() const { return next_frag_off_; }
+  bool chunk_corrupted() { return chunk_corrupted_; }
+  bool trace_writer_data_drop() { return trace_writer_data_drop_; }
 
-  // If true, doesn't make changes to the SequenceState. This is used by the
-  // fragment reassembly logic.
-  bool read_only_iterator_ = false;
+ private:
+  const uint8_t* chunk_begin_ = nullptr;
+  size_t chunk_size_ = 0;
+  size_t next_frag_off_ = 0;
+  uint8_t chunk_flags_ = 0;
+  bool chunk_corrupted_ = false;
+  bool trace_writer_data_drop_ = false;
+};
 
-  bool data_loss_ = false;
+// Identifiers that are constant for a packet sequence.
+struct PacketSequenceProperties {
+  ProducerID producer_id_trusted;
+  ClientIdentity client_identity_trusted;
+  WriterID writer_id;
+
+  uid_t producer_uid_trusted() const { return client_identity_trusted.uid(); }
+  pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
 };
 
 // TODO rework comment.
@@ -306,38 +261,58 @@ class BufIterator {
 // and goes through all fragments in the chunk range.
 // It can also go beyond the input (end_) chunk, if the last fragment is a
 // fragmented packet that continues beyond.
-class ChunkIterator {
+class ChunkSeqReader {
  public:
-  ChunkIterator(TBChunk*, TraceBufferV2* buf);
+  enum Mode { kReadMode, kEraseMode };
 
-  // TODO should this extract packets or fragments?
-  std::optional<Frag> NextFragment();
-  NextPacket(); TODO
+  ChunkSeqReader(TraceBufferV2*, TBChunk*, Mode);
 
+  bool ReadNextPacket(TracePacket*);
+  TBChunk* end() { return end_; }
+  TBChunk* iter() { return iter_; }
+  SequenceState* seq() { return seq_; }
 
  private:
-  TBChunk* begin_ = nullptr;
-  TBChunk* end_ = nullptr;
-  SequenceState* seq_ = nullptr;
+  ChunkSeqReader(const ChunkSeqReader&) = delete;
+  ChunkSeqReader& operator=(const ChunkSeqReader&) = delete;
+  ChunkSeqReader(ChunkSeqReader&&) = delete;
+  ChunkSeqReader& operator=(ChunkSeqReader&&) = delete;
+
+  enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
+  FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
+                                                  Frag* initial_frag);
+  void ConsumeFragment(TBChunk*, Frag*);
+
+  TraceBufferV2* const buf_ = nullptr;
+  Mode const mode_;
+
+  // This is the chunk passed in the constructor and is our stopping point.
+  // It never changes throuhgout the lifetime of ChunkSeqReader.
+  // Note that this is NOT the end of the sequence. This is simply where we
+  // want to stop iterating, which might be < seq_.end().
+  TBChunk* const end_ = nullptr;
+
+  // TODO invalidate this if we delete the seq ?
+  SequenceState* const seq_ = nullptr;
+
+  ChunkSeqIterator seq_iter_;
+
+  // This is initially reset to the first chunk of the sequence, and advanced
+  // until we hit end_. chunk_ and end_ always belong to the same seq_.
+  TBChunk* iter_ = nullptr;
+
+  FragIterator frag_iter_;
 };
+
 }  // namespace internal
 
 class TraceBufferV2 {
  public:
   using TBChunk = internal::TBChunk;
+  using PacketSequenceProperties = internal::PacketSequenceProperties;
 
   // See comment in the header above.
   enum OverwritePolicy { kOverwrite, kDiscard };
-
-  // Identifiers that are constant for a packet sequence.
-  struct PacketSequenceProperties {
-    ProducerID producer_id_trusted;
-    ClientIdentity client_identity_trusted;
-    WriterID writer_id;
-
-    uid_t producer_uid_trusted() const { return client_identity_trusted.uid(); }
-    pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
-  };
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().
   struct Patch {
@@ -368,7 +343,7 @@ class TraceBufferV2 {
   // No other calls to any other method should be interleaved between
   // BeginRead() and ReadNextTracePacket().
   // Reads in the TraceBufferV2 are NOT idempotent.
-  void BeginRead(size_t limit = 0);
+  void BeginRead();
 
   bool ReadNextTracePacket(TracePacket*,
                            PacketSequenceProperties* sequence_properties,
@@ -381,6 +356,12 @@ class TraceBufferV2 {
                              size_t patches_size,
                              bool other_patches_pending);
 
+  // Creates a read-only clone of the trace buffer. The read iterators of the
+  // new buffer will be reset, as if no Read() had been called. Calls to
+  // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned
+  // TraceBuffer will CHECK().
+  std::unique_ptr<TraceBufferV2> CloneReadOnly() const;
+
   size_t size() const { return size_; }
   size_t used_size() const { return used_size_; }
   OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
@@ -389,12 +370,13 @@ class TraceBufferV2 {
   void DumpForTesting();
 
  private:
-  using BufIterator = internal::BufIterator;
   using Frag = internal::Frag;
   using SequenceState = internal::SequenceState;
+  using ChunkSeqReader = internal::ChunkSeqReader;
 
   friend class TraceBufferV2Test;
-  friend class internal::BufIterator;
+  friend class internal::ChunkSeqReader;
+  friend class internal::ChunkSeqIterator;
 
   explicit TraceBufferV2(OverwritePolicy);
   TraceBufferV2(const TraceBufferV2&) = delete;
@@ -407,20 +389,7 @@ class TraceBufferV2 {
 
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
-  bool DeleteNextChunksFor(size_t bytes_to_clear);
-  void ConsumeFragment(Frag*);
-
-  enum ReadPolicy { kStandardRead, kForceErase, kNoOverwrite };
-  enum ReadRes { kFail = 0, kOk, kWouldOverwrite };
-  ReadRes ReadNextTracePacketInternal(
-      TracePacket*,
-      PacketSequenceProperties* sequence_properties,
-      ReadPolicy);
-
-  enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
-  FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
-                                                  Frag* initial_frag,
-                                                  bool force_erase);
+  void DeleteNextChunksFor(size_t bytes_to_clear);
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
     PERFETTO_DCHECK((off & (alignof(TBChunk) - 1)) == 0);
@@ -428,7 +397,6 @@ class TraceBufferV2 {
   }
 
   // This should only be used when followed by a placement new.
-  // TODO remove this, it's useless.
   TBChunk* GetTBChunkAtUnchecked(size_t off) {
     DcheckIsAlignedAndWithinBounds(off);
     return reinterpret_cast<TBChunk*>(begin() + off);
@@ -455,6 +423,7 @@ class TraceBufferV2 {
   }
 
   void DiscardWrite();
+  void DeleteStaleEmptySequences();
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
@@ -462,12 +431,15 @@ class TraceBufferV2 {
 
   base::PagedMemory data_;
   size_t size_ = 0;  // Size in bytes of |data_|.
-  size_t wr_ = 0;    // Write cursor (offset since start()).
 
   // High watermark. The number of bytes (<= |size_|) written into the buffer
   // before the first wraparound. This increases as data is written into the
   // buffer and then saturates at |size_|.
   size_t used_size_ = 0;
+
+  size_t wr_ = 0;  // Write cursor (offset since start()).
+  size_t rd_ = 0;  // Read cursor. Reset to wr_ on every BeginRead().
+  std::optional<ChunkSeqReader> chunk_seq_reader_;
 
   // Statistics about buffer usage.
   TraceStats::BufferStats stats_;
@@ -476,14 +448,22 @@ class TraceBufferV2 {
 
   // Note: we need stable pointers for SequenceState, as they get cached in
   // BufIterator.
-  // TODO remember to delete from here if all chunks are gone.
   std::unordered_map<ProducerAndWriterID, SequenceState> sequences_;
 
-  // Iterator used to implement ReadNextTracePacket().
-  internal::BufIterator rd_iter_;
+  // COUNT(sequences_) WHERE sequence.chunks.empty().
+  // This is maintained best effort and needs revalidation against sequences_.
+  size_t empty_sequences_ = 0;
 
   // A generation counter incremented every time BeginRead() is called.
   uint64_t read_generation_ = 0;
+
+  // A monotonic counter incremented every time a SequenceState becomes empty.
+  // This is used to sort SequenceState by least-recently cleared.
+  uint64_t seq_age_ = 0;
+
+  // This buffer is a read-only snapshot obtained via Clone(). If this is true
+  // calls to CopyChunkUntrusted() and TryPatchChunkContents() will CHECK().
+  bool read_only_ = false;
 
   // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
   // a write fails because it would overwrite unread chunks.
