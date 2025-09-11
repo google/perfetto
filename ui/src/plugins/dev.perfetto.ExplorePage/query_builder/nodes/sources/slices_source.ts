@@ -28,6 +28,15 @@ import {createFiltersProto, FilterOperation} from '../../operations/filter';
 import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {SourceNode} from '../../source_node';
 
+export interface SlicesSourceSerializedState {
+  slice_name?: string;
+  thread_name?: string;
+  process_name?: string;
+  track_name?: string;
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
+
 export interface SlicesSourceState extends QueryNodeState {
   slice_name?: string;
   thread_name?: string;
@@ -73,6 +82,18 @@ export class SlicesSourceNode extends SourceNode {
   isMaterialised(): boolean {
     return this.state.isExecuted === true && this.meterialisedAs !== undefined;
   }
+
+  serializeState(): SlicesSourceSerializedState {
+    return {
+      slice_name: this.state.slice_name,
+      thread_name: this.state.thread_name,
+      process_name: this.state.process_name,
+      track_name: this.state.track_name,
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
