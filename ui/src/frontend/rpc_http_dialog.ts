@@ -302,7 +302,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
       // Filter to only show trace processors that have a loaded trace
       const processorsWithTraces = traceProcessors.filter(
-        (tp) => tp?.loadedTraceName && tp.loadedTraceName !== '',
+        (tp) => (tp.loadedTraceName ?? '') !== '',
       );
 
       // Sort processors: those without active tabs first, then those with active tabs
@@ -350,10 +350,10 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                   return m(
                     Card,
                     {
-                      key: tp.instanceId || `default-${index}`,
+                      key: tp.instanceId ?? `default-${index}`,
                       interactive: true,
                       onclick: () => {
-                        if (tp.instanceId) {
+                        if (tp.instanceId != null) {
                           AppImpl.instance.httpRpc.selectedTraceProcessorId =
                             tp.instanceId;
                         }
@@ -368,7 +368,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                         m(
                           'small',
                           {style: {color: 'var(--pf-color-text-muted)'}},
-                          `ID: ${tp.instanceId || 'default'}`,
+                          `ID: ${tp.instanceId ?? 'default'}`,
                         ),
                         m('br'),
                         m(
