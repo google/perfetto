@@ -1272,7 +1272,7 @@ TEST_P(PerfettoApiTest, TrackEventTimestampUnitIncremental) {
 }
 
 TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
-  for (auto subsampling : {0u, 10u, 1000u}) {
+  for (auto subsampling : {0u, 1000u, 1000000u}) {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.set_enable_thread_time_sampling(true);
     te_cfg.set_thread_time_subsampling_ns(subsampling);
@@ -1282,7 +1282,7 @@ TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
     TRACE_EVENT_BEGIN("foo", "Event1");
     SpinForThreadTimeNanos(10);
     TRACE_EVENT_BEGIN("foo", "Event2");
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    SpinForThreadTimeNanos(10 * 1000 * 1000);
     TRACE_EVENT_BEGIN("foo", "Event3");
     auto trace = StopSessionAndReturnParsedTrace(tracing_session);
     struct TimeInfo {
@@ -1308,9 +1308,12 @@ TEST_P(PerfettoApiTest, TrackEventThreadTimeSubsampling) {
     EXPECT_GT(event_map.at("Event2").timestamp, 10);
     EXPECT_GT(event_map.at("Event3").timestamp, 1000 * 1000 * 10);
 
-    EXPECT_GT(event_map.at("Event2").thread_time, 10);
-    EXPECT_LT(event_map.at("Event3").thread_time,
-              event_map.at("Event3").timestamp);
+    if (event_map.at("Event2").timestamp < subsampling) {
+      EXPECT_EQ(event_map.at("Event2").thread_time, 0);
+    } else {
+      EXPECT_GT(event_map.at("Event2").thread_time, 10);
+    }
+    EXPECT_GT(event_map.at("Event3").thread_time, 1000 * 1000 * 10);
   }
 }
 
