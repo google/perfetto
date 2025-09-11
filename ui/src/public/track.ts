@@ -344,9 +344,6 @@ interface WellKnownTrackTags {
   // Optional: The UPID associated with this track.
   upid: number;
 
-  // Used for sorting and grouping
-  scope: string;
-
   // Track type, used for filtering
   type: string;
 }
