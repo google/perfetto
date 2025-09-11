@@ -51,6 +51,7 @@ config("extra_warnings") {
         "-Wno-float-equal",
         "-Wno-unused-macros",
         "-Wno-old-style-cast",
+        "-Wno-nonportable-system-include-path",
       ]
     }
   } else {
