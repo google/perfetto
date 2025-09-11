@@ -416,35 +416,59 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             m('div', {style: {'margin-top': '20px'}}, [
               m('h4', 'Other Options:'),
               m('strong', 'Yes, Attach to external RPC:'),
-              m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}},
-                m('li',
-                  m('small', {style: {color: 'var(--pf-color-text-muted)'}},
-                    'Use this if you want to open another trace but still use the accelerator.'
-                  )
-                )
-              ),
-              m('strong', {style: {'margin-top': '8px', 'display': 'block'}}, 'Use built-in WASM:'),
-              m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}},
-                m('li',
-                  m('small', {style: {color: 'var(--pf-color-text-muted)'}},
-                    'Will not use the accelerator in this tab.'
-                  )
-                )
-              ),
-              m('strong', {style: {'margin-top': '16px', 'display': 'block'}}, 'Using the native accelerator has some minor caveats:'),
-              m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}}, [
-                m('li',
-                  m('small', {style: {color: 'var(--pf-color-text-muted)'}},
-                    "Sharing, downloading and conversion-to-legacy aren't supported."
-                  )
+              m(
+                'ul',
+                {style: {'margin-left': '20px', 'margin-top': '4px'}},
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    'Use this if you want to open another trace but still use the accelerator.',
+                  ),
                 ),
-                m('li',
-                  m('small', {style: {color: 'var(--pf-color-text-muted)'}},
-                    'Each trace file can be opened in at most one tab at a time.'
-                  )
+              ),
+              m(
+                'strong',
+                {style: {'margin-top': '8px', 'display': 'block'}},
+                'Use built-in WASM:',
+              ),
+              m(
+                'ul',
+                {style: {'margin-left': '20px', 'margin-top': '4px'}},
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    'Will not use the accelerator in this tab.',
+                  ),
+                ),
+              ),
+              m(
+                'strong',
+                {style: {'margin-top': '16px', 'display': 'block'}},
+                'Using the native accelerator has some minor caveats:',
+              ),
+              m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}}, [
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    "Sharing, downloading and conversion-to-legacy aren't supported.",
+                  ),
+                ),
+                m(
+                  'li',
+                  m(
+                    'small',
+                    {style: {color: 'var(--pf-color-text-muted)'}},
+                    'Each trace file can be opened in at most one tab at a time.',
+                  ),
                 ),
               ]),
-            ])
+            ]),
           );
 
           return elements;

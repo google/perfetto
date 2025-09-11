@@ -102,7 +102,10 @@ export class HttpRpcEngine extends EngineBase {
       console.log('Websocket closed, reconnecting');
       this.websocket = undefined;
       this.connected = false;
-      this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.connect(); // triggers a reconnection after a small delay to prevent race conditions
+      }, 200);
     } else {
       super.fail(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
