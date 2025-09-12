@@ -173,7 +173,7 @@ GROUP BY
 
 -- Returns a table with process utilization over a given interval.
 --
--- Utilization is computed as runtime over the duration of the interval, aggregated by process name.
+-- Utilization is computed as runtime over the duration of the interval, aggregated by UPID.
 -- Utilization can be normalized (divide by number of cpus) or unnormalized.
 --
 -- This function is only designed to run over a small number of intervals
@@ -185,9 +185,11 @@ CREATE PERFETTO FUNCTION cpu_process_utilization_in_interval(
     dur LONG
 )
 RETURNS TABLE (
-  -- The name of the process
+  -- Unique process id.
+  upid JOINID(process.id),
+  -- The name of the process.
   process_name STRING,
-  -- Total runtime of all processes with this name, while 'awake' (CPUs not suspended).
+  -- Total runtime of all processes with this UPID, while 'awake' (CPUs not suspended).
   awake_dur LONG,
   -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
   -- Values in [0.0, 100.0]
@@ -197,6 +199,7 @@ RETURNS TABLE (
   awake_unnormalized_utilization DOUBLE
 ) AS
 SELECT
+  upid,
   process.name AS process_name,
   sum(awake_runtime) AS awake_dur,
   round(
@@ -207,15 +210,13 @@ SELECT
         max(cpu) + 1
       FROM cpu
     ),
-    2
+    6
   ) AS awake_utilization,
   round(sum(awake_runtime) * 100.0 / (
     to_monotonic($ts + $dur) - to_monotonic($ts)
-  ), 2) AS awake_unnormalized_utilization
+  ), 6) AS awake_unnormalized_utilization
 FROM cpu_cycles_per_process_in_interval($ts, $dur)
 JOIN process
   USING (upid)
-WHERE
-  process.name IS NOT NULL
 GROUP BY
-  process.name;
+  upid;
