@@ -250,6 +250,13 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Basic Timeline Slices](/docs/images/converting-basic-slices.png)
 
+You can query these slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, dur, name FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name = 'My Custom Data Timeline';
+```
+
 ## Nested Slices (Hierarchical Activities)
 
 Often, an activity or operation is made up of several sub-activities that must
@@ -344,6 +351,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Nested Slices](/docs/images/converting-nested.png)
 
+You can query these nested slices and see their hierarchy using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, dur, name, depth FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE track.name = 'My Nested Operations Timeline'
+ORDER BY ts;
+```
+
 ## Asynchronous Slices and Overlapping Events
 
 Many systems deal with asynchronous operations where multiple activities can be
@@ -436,6 +451,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Asynchronous Slices](/docs/images/converting-async-slices.png)
 
+You can query these overlapping slices across all HTTP connection tracks using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, dur, name FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE track.name = 'HTTP Connections'
+ORDER BY ts;
+```
+
 ## Counters (Values Changing Over Time)
 
 Counters are used to represent a numerical value that changes over time. They
@@ -513,6 +536,13 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 [Perfetto UI](https://ui.perfetto.dev) will display the following output:
 
 ![Counters](/docs/images/converting-counters.png)
+
+You can query the counter values using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, value FROM counter
+JOIN track ON counter.track_id = track.id
+WHERE track.name = 'Outstanding Network Requests';
+```
 
 ## Flows (Connecting Causally Related Events)
 
@@ -630,6 +660,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Flows](/docs/images/converting-flows.png)
 
+You can query flow connections between slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice_out.name AS source_slice, slice_in.name AS dest_slice
+FROM flow
+JOIN slice AS slice_out ON flow.slice_out = slice_out.id
+JOIN slice AS slice_in ON flow.slice_in = slice_in.id;
+```
+
 ## Grouping Tracks with Hierarchies
 
 As traces become more complex, you might want to group related tracks together
@@ -741,6 +779,15 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Grouping Tracks with Hierarchies](/docs/images/converting-track-groups.png)
 
+You can query slices across the track hierarchy using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.ts, slice.dur, slice.name, track.name AS track_name
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name IN ('Main System', 'Subsystem A', 'Subsystem B', 'Detail A.1')
+ORDER BY slice.ts;
+```
+
 ## Track Hierarchies for Waterfall / Trace Views
 
 Another powerful use of track hierarchies is to visualize the breakdown of a
@@ -850,6 +897,15 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 [Perfetto UI](https://ui.perfetto.dev) will display the following output:
 
 ![Track Hierarchies for Waterfall / Trace Views](/docs/images/converting-waterfall.png)
+
+You can query this request breakdown to analyze timing using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.ts, slice.dur, slice.name, track.name AS service
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name LIKE '%Request%' OR track.name LIKE '%Service%'
+ORDER BY slice.ts;
+```
 
 ## Adding Debug Annotations to Events
 
@@ -966,6 +1022,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Adding Debug Annotations](/docs/images/converting-debug-basic.png)
 
+You can query debug annotations using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.name, EXTRACT_ARG(slice.arg_set_id, 'debug.query_id') AS query_id
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name = 'Debug Annotations Example';
+```
+
 ### Python Example: Nested Debug Annotations
 
 Debug annotations can represent complex nested data structures including
@@ -1044,6 +1108,16 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 [Perfetto UI](https://ui.perfetto.dev) will display the following output:
 
 ![Nested Debug Annotations](/docs/images/converting-debug-nested.png)
+
+You can query nested debug annotations using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.name, 
+       EXTRACT_ARG(slice.arg_set_id, 'debug.config.database') AS database,
+       EXTRACT_ARG(slice.arg_set_id, 'debug.server_list[0]') AS first_server
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name = 'Nested Debug Annotations';
+```
 
 ## Next Steps
 

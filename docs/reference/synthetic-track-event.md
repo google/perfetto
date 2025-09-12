@@ -130,6 +130,15 @@ your `trace_converter_template.py` script.
 
 ![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
 
+You can query process-associated counter data using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT counter.ts, counter.value, process.name AS process_name 
+FROM counter 
+JOIN process_counter_track ON counter.track_id = process_counter_track.id
+JOIN process USING(upid)
+WHERE process.pid = 1234;
+```
+
 Once you have defined a process track, you can parent various other kinds of
 tracks to it. This includes tracks for specific threads within that process (see
 next section), as well as custom tracks for process-wide counters (as shown
@@ -254,6 +263,15 @@ your `trace_converter_template.py` script.
 </details>
 
 ![Associating Tracks with Threads](/docs/images/synthetic-track-event-thread-slice.png)
+
+You can query thread-specific slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+INCLUDE PERFETTO MODULE slices.with_context;
+
+SELECT ts, dur, name, thread_name
+FROM thread_slice 
+WHERE tid = 5678;
+```
 
 ## Advanced Track Customization
 
