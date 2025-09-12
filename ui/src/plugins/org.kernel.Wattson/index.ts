@@ -110,7 +110,6 @@ async function hasWattsonSufficientCPUConfigs(
     `,
   );
 
-  // required for Pixel 9/10/...
   if (dsuDependencyQuery.firstRow({count: NUM}).count > 0) {
     requiredFtraceEvents.push('devfreq/devfreq_frequency');
   }
