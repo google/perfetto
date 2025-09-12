@@ -494,6 +494,56 @@ TEST(EventConfigTest, GroupMultipleType) {
   EXPECT_TRUE(tracepoint.sample_type & PERF_SAMPLE_READ);
 }
 
+TEST(EventConfigTest, ExclusiveCountingForRawCounters) {
+  protos::gen::PerfEventConfig cfg;
+  {
+    // timebase:
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_period(500);
+    mutable_timebase->set_counter(protos::gen::PerfEvents::HW_CPU_CYCLES);
+    mutable_timebase->set_name("timebase");
+
+    // exclude_user:
+    {
+      auto* raw_follower_eu = cfg.add_followers();
+      raw_follower_eu->set_name("exclude_user");
+      auto* raw_event_eu = raw_follower_eu->mutable_raw_event();
+      raw_event_eu->set_type(8);
+      raw_event_eu->set_config(8);
+      raw_event_eu->set_exclude_user(true);
+    }
+
+    // exclude kernel:
+    {
+      auto* raw_follower_ek = cfg.add_followers();
+      raw_follower_ek->set_name("exclude_kernel");
+      auto* raw_event_ek = raw_follower_ek->mutable_raw_event();
+      raw_event_ek->set_type(8);
+      raw_event_ek->set_config(8);
+      raw_event_ek->set_exclude_kernel(true);
+    }
+
+    // exclude hypervisor:
+    {
+      auto* raw_follower_hv = cfg.add_followers();
+      raw_follower_hv->set_name("exclude_hypervisor");
+      auto* raw_event_hv = raw_follower_hv->mutable_raw_event();
+      raw_event_hv->set_type(8);
+      raw_event_hv->set_config(8);
+      raw_event_hv->set_exclude_hv(true);
+    }
+  }
+  std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+  ASSERT_TRUE(event_config.has_value());
+  const auto& raw_event1 = event_config->perf_attr_followers().at(0);
+  EXPECT_EQ(raw_event1.exclude_user, true);
+  const auto& raw_event2 = event_config->perf_attr_followers().at(1);
+  EXPECT_EQ(raw_event2.exclude_kernel, true);
+  const auto& raw_event3 = event_config->perf_attr_followers().at(2);
+  EXPECT_EQ(raw_event3.exclude_hv, true);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
