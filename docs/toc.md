@@ -125,6 +125,7 @@
     - [Android](#)
 
       - [Boot Tracing](case-studies/android-boot-tracing.md)
+      - [OutOfMemoryError](case-studies/android-outofmemoryerror.md)
       - [Android Version Notes](reference/android-version-notes.md)
 
     - [Linux](#)
