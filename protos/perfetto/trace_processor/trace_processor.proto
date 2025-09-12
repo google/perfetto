@@ -110,6 +110,7 @@ message TraceProcessorRpc {
     TPM_REGISTER_SQL_PACKAGE = 13;
     TPM_ANALYZE_STRUCTURED_QUERY = 14;
     TPM_SUMMARIZE_TRACE = 15;
+    TPM_REGISTER_ADDITIONAL_DESCRIPTORS = 16;
   }
 
   oneof type {
@@ -147,6 +148,8 @@ message TraceProcessorRpc {
     AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryArgs trace_summary_args = 110;
+    // For TPM_REGISTER_ADDITIONAL_DESCRIPTORS.
+    bytes register_additional_descriptor_args = 111;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -169,6 +172,8 @@ message TraceProcessorRpc {
     AnalyzeStructuredQueryResult analyze_structured_query_result = 213;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryResult trace_summary_result = 214;
+    // For TPM_REGISTER_ADDITIONAL_DESCRIPTORS
+    RegisterAdditionalDescriptorResult register_additional_descriptors_result = 215;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -373,6 +378,10 @@ message RegisterSqlPackageResult {
 }
 
 message FinalizeDataResult {
+  optional string error = 1;
+}
+
+message RegisterAdditionalDescriptorResult {
   optional string error = 1;
 }
 

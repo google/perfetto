@@ -354,6 +354,24 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_REGISTER_ADDITIONAL_DESCRIPTORS: {
+      Response resp(tx_seq_id_++, req_type);
+      auto* result = resp->set_register_additional_descriptors_result();
+      if (!req.has_register_additional_descriptor_args()) {
+        result->set_error(kErrFieldNotSet);
+      } else {
+        protozero::ConstBytes byte_range =
+            req.register_additional_descriptor_args();
+        // This function will be defined in the next files.
+        base::Status status =
+            trace_processor_->ExtendDescriptorPool(byte_range.data, byte_range.size);
+        if (!status.ok()) {
+          result->set_error(status.message());
+        }
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     case RpcProto::TPM_ANALYZE_STRUCTURED_QUERY: {
       Response resp(tx_seq_id_++, req_type);
       protozero::ConstBytes args = req.analyze_structured_query_args();

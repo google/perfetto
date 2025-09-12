@@ -35,6 +35,16 @@ interface QueryResultBypass {
   rawQueryResult: Uint8Array;
 }
 
+function base64Decode(str: string): Uint8Array {
+  const binaryStr = atob(str);
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export interface TraceProcessorConfig {
   // When true, the trace processor will only tokenize the trace without
   // performing a full parse. This is a performance optimization that allows for
@@ -121,6 +131,8 @@ export interface Engine {
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
+
+  registerExtraDescriptors(base64: string): Promise<void>;
 }
 
 // Abstract interface of a trace proccessor.
@@ -148,6 +160,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
+  private pendingRegisterDescriptors?: Deferred<void>;
   private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private pendingTraceSummary?: Deferred<protos.TraceSummaryResult>;
   private _numRequestsPending = 0;
@@ -310,6 +323,19 @@ export abstract class EngineBase implements Engine, Disposable {
           res.resolve();
         }
         break;
+      case TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS: {
+        const registerResult = assertExists(
+          rpc.registerAdditionalDescriptorsResult,
+        );
+        const res = assertExists(this.pendingRegisterDescriptors);
+        if (exists(registerResult.error) && registerResult.error.length > 0) {
+          res.reject(registerResult.error);
+        } else {
+          res.resolve();
+        }
+        this.pendingRegisterDescriptors = undefined;
+        break;
+      }
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
           rpc.traceSummaryResult,
@@ -607,6 +633,8 @@ export abstract class EngineBase implements Engine, Disposable {
     if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already registering SQL package'));
     }
+  
+  
 
     const result = defer<void>();
 
@@ -618,6 +646,27 @@ export abstract class EngineBase implements Engine, Disposable {
     args.modules = pkg.modules;
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  registerExtraDescriptors(base64: string): Promise<void> {
+    if (this.pendingRegisterDescriptors) {
+      return Promise.reject(new Error('Already registering descriptors'));
+    }
+
+    const result = defer<void>();
+
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS;
+
+    const decodedBytes = base64Decode(base64);
+
+    console.log('UI CHECK: Sending descriptors to backend...', decodedBytes);
+
+    rpc.registerAdditionalDescriptorArgs = decodedBytes;
+
+    this.pendingRegisterDescriptors = result;
     this.rpcSendRequest(rpc);
     return result;
   }
@@ -730,6 +779,13 @@ export class EngineProxy implements Engine, Disposable {
       metadataId,
       format,
     );
+  }
+
+  async registerExtraDescriptors(base64: string): Promise<void> {
+    if (this.disposed) {
+      return Promise.reject(new Error('EngineProxy was disposed'));
+    }
+    return this.engine.registerExtraDescriptors(base64);
   }
 
   enableMetatrace(categories?: protos.MetatraceCategories): void {

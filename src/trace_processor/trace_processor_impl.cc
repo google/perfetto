@@ -960,6 +960,11 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   return base::OkStatus();
 }
 
+base::Status TraceProcessorImpl::ExtendDescriptorPool(const uint8_t* data,
+                                                      size_t size) {
+  return context()->descriptor_pool_->AddFromFileDescriptorSet(data, size, {}, true);
+}
+
 base::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
                                                     size_t size) {
   return ExtendMetricsProto(data, size, /*skip_prefixes*/ {});

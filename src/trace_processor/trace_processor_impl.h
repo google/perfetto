@@ -76,6 +76,8 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status RegisterSqlPackage(SqlPackage) override;
 
+  base::Status ExtendDescriptorPool(const uint8_t* data, size_t size) override;
+
   base::Status RegisterSqlModule(SqlModule module) override;
 
   // =================================================================
