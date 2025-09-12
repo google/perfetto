@@ -48,6 +48,7 @@ export interface NodeBoxAttrs {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onModifyColumns: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
@@ -91,7 +92,8 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddAggregation, onAddIntervalIntersect} = attrs;
+  const {node, onAddAggregation, onModifyColumns, onAddIntervalIntersect} =
+    attrs;
   return m(
     PopupMenu,
     {
@@ -103,6 +105,10 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     m(MenuItem, {
       label: 'Aggregate',
       onclick: () => onAddAggregation(node),
+    }),
+    m(MenuItem, {
+      label: 'Modify Columns',
+      onclick: () => onModifyColumns(node),
     }),
     m(MenuItem, {
       label: 'Interval Intersect',

@@ -160,6 +160,11 @@ export interface SqlType {
   readonly tableAndColumn?: TableAndColumn;
 }
 
+export const unknownType: SqlType = {
+  name: 'unknown',
+  shortName: 'unknown',
+};
+
 export function createTableColumnFromPerfettoSql(
   trace: Trace,
   col: SqlColumn,
