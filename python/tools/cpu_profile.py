@@ -342,12 +342,15 @@ def record_trace(config, profile_target):
     sys.exit("This tool requires Android T+ to run.")
 
   # Push configuration to the device.
-  tf = tempfile.NamedTemporaryFile()
-  tf.file.write(config.encode('utf-8'))
-  tf.file.flush()
-  profile_config_path = '/data/misc/perfetto-configs/config-' + UUID
-  adb_check_output(['adb', 'push', tf.name, profile_config_path])
-  tf.close()
+  tf = tempfile.NamedTemporaryFile(delete=False)
+  try:
+    tf.file.write(config.encode('utf-8'))
+    tf.file.flush()
+    tf.close()
+    profile_config_path = '/data/misc/perfetto-configs/config-' + UUID
+    adb_check_output(['adb', 'push', tf.name, profile_config_path])
+  finally:
+    os.remove(tf.name)
 
   profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
   perfetto_command = ('perfetto --txt -c {} -o {} -d')
