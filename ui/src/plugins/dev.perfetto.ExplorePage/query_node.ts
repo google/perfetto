@@ -76,6 +76,7 @@ export interface QueryNode {
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   isMaterialised(): boolean;
+  serializeState(): object;
 }
 
 export interface Query {
