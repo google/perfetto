@@ -173,7 +173,8 @@ message TraceProcessorRpc {
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryResult trace_summary_result = 214;
     // For TPM_REGISTER_ADDITIONAL_DESCRIPTORS
-    RegisterAdditionalDescriptorResult register_additional_descriptors_result = 215;
+    RegisterAdditionalDescriptorResult register_additional_descriptors_result =
+        215;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED

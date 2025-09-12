@@ -363,8 +363,8 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         protozero::ConstBytes byte_range =
             req.register_additional_descriptor_args();
         // This function will be defined in the next files.
-        base::Status status =
-            trace_processor_->ExtendDescriptorPool(byte_range.data, byte_range.size);
+        base::Status status = trace_processor_->ExtendDescriptorPool(
+            byte_range.data, byte_range.size);
         if (!status.ok()) {
           result->set_error(status.message());
         }

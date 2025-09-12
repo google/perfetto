@@ -36,13 +36,13 @@ interface QueryResultBypass {
 }
 
 function base64Decode(str: string): Uint8Array {
-  const binaryStr = atob(str);
-  const len = binaryStr.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return bytes;
+  const binaryStr = atob(str);
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes;
 }
 
 export interface TraceProcessorConfig {
@@ -633,8 +633,6 @@ export abstract class EngineBase implements Engine, Disposable {
     if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already registering SQL package'));
     }
-  
-  
 
     const result = defer<void>();
 
