@@ -24,12 +24,19 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <regex.h>
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define PERFETTO_WIN_NORETURN PERFETTO_NORETURN
+#else
+#define PERFETTO_WIN_NORETURN
 #endif
 
 namespace perfetto::trace_processor::regex {
@@ -94,7 +101,8 @@ class Regex {
   // The first element is the full match. Subsequent elements are parenthesized
   // subexpressions.
   // Returns nullopt if there is no match.
-  void Submatch(const char* s, std::vector<std::string_view>& out) {
+  void Submatch(const char* s,
+                std::vector<std::string_view>& out) PERFETTO_WIN_NORETURN {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     PERFETTO_CHECK(regex_);
     const auto& rgx = regex_.value();
@@ -117,6 +125,7 @@ class Regex {
     }
 #else
     base::ignore_result(s);
+    base::ignore_result(out);
     PERFETTO_FATAL("Windows regex is not supported.");
 #endif
   }
