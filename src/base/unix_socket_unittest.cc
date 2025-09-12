@@ -1182,6 +1182,67 @@ TEST_F(UnixSocketTest, ShmemSupported) {
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
+// Test UnixSocketWatch functionality on platforms that support inotify
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST_F(UnixSocketTest, UnixSocketWatch) {
+  TempDir tmp_dir = TempDir::Create();
+  std::string sock_path = tmp_dir.path() + "/test_watch.sock";
+
+  bool callback_called = false;
+  auto callback_checkpoint = task_runner_.CreateCheckpoint("callback_called");
+
+  // Create a UnixSocketWatch to monitor socket creation
+  auto watch = UnixSocketWatch::WatchUnixSocketCreation(
+      &task_runner_, sock_path.c_str(),
+      [&callback_called, callback_checkpoint]() {
+        callback_called = true;
+        callback_checkpoint();
+      });
+
+  // The watch should be created successfully for filesystem-linked sockets
+  ASSERT_NE(watch, nullptr);
+
+  // Initially, callback should not have been called
+  ASSERT_FALSE(callback_called);
+
+  // Create the socket file by creating and binding a Unix socket to it
+  auto srv = UnixSocket::Listen(sock_path, &event_listener_, &task_runner_,
+                                SockFamily::kUnix, SockType::kStream);
+  ASSERT_TRUE(srv && srv->is_listening());
+
+  // Wait for the callback to be triggered
+  task_runner_.RunUntilCheckpoint("callback_called");
+
+  // Verify that the callback was called
+  ASSERT_TRUE(callback_called);
+
+  // Clean up
+  srv.reset();
+  remove(sock_path.c_str());
+}
+
+TEST_F(UnixSocketTest, UnixSocketWatchAbstractSocket) {
+  // UnixSocketWatch should return nullptr for abstract sockets
+  auto watch = UnixSocketWatch::WatchUnixSocketCreation(
+      &task_runner_, "@abstract_socket", []() {});
+
+  ASSERT_EQ(watch, nullptr);
+}
+
+TEST_F(UnixSocketTest, UnixSocketWatchInvalidPath) {
+  // UnixSocketWatch should return nullptr for non-Unix socket paths
+  auto watch1 = UnixSocketWatch::WatchUnixSocketCreation(
+      &task_runner_, "127.0.0.1:8080", []() {});
+
+  auto watch2 = UnixSocketWatch::WatchUnixSocketCreation(
+      &task_runner_, "vsock://1:1000", []() {});
+
+  ASSERT_EQ(watch1, nullptr);
+  ASSERT_EQ(watch2, nullptr);
+}
+#endif  // OS_LINUX || OS_ANDROID || OS_MAC
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

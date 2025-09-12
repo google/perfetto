@@ -136,7 +136,6 @@ class UnixSocketRaw {
   static std::pair<UnixSocketRaw, UnixSocketRaw> CreatePairPosix(SockFamily,
                                                                  SockType);
 #endif
-
   // Creates an uninitialized unix socket.
   UnixSocketRaw();
 
@@ -476,6 +475,50 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
   EventListener* const event_listener_;
   TaskRunner* const task_runner_;
   WeakPtrFactory<UnixSocket> weak_ptr_factory_;  // Keep last.
+};
+
+// UnixSocketWatch monitors filesystem-linked Unix domain socket creation.
+// This class uses inotify (on Linux/Android) to watch for the creation of
+// Unix socket files in the filesystem. When the specified socket file is
+// created, it triggers a callback function.
+// Destroying the returned unique_ptr will automatically unregister the watch.
+//
+// Note: This only works with filesystem-linked Unix sockets (not abstract
+// sockets that start with '@').
+// It's only supported on Linux and Android, it's a no-op (returns nullptr) on
+// other platforms.
+//
+// Usage:
+//   auto watch = UnixSocketWatch::WatchUnixSocketCreation(
+//       task_runner, "/tmp/my_socket", []() {
+//         // Called when /tmp/my_socket is created
+//       });
+class UnixSocketWatch {
+ public:
+  // Creates a watcher for Unix socket file creation. Returns nullptr if the
+  // socket name is not a filesystem-linked Unix socket or if the platform
+  // doesn't support inotify. The callback will be invoked on the provided
+  // TaskRunner when the socket file is created.
+  static std::unique_ptr<UnixSocketWatch> WatchUnixSocketCreation(
+      TaskRunner*,
+      const char* sock_name,
+      std::function<void()> callback);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  ~UnixSocketWatch();
+
+ private:
+  UnixSocketWatch(TaskRunner*,
+                  std::string sock_base_name,
+                  ScopedPlatformHandle inotify_fd,
+                  std::function<void()> callback);
+  TaskRunner* task_runner = nullptr;
+  std::string sock_base_name;  // Only the name without the path.
+  ScopedPlatformHandle inotify_fd;
+  std::function<void()> callback;
+  WeakPtrFactory<UnixSocketWatch> weak_ptr_factory_;  // Keep last.
+#endif
 };
 
 }  // namespace base
