@@ -545,6 +545,13 @@ In Perfetto's `TrackEvent` model, you establish a flow by:
 The Perfetto UI will draw arrows connecting the slices that share a common
 `flow_id`, making the dependency chain explicit.
 
+**Alternative: Correlation IDs** For events that are part of the same logical
+operation but not causally connected, consider using correlation IDs instead of
+or in addition to flows. Correlation IDs group related events visually (e.g.,
+with consistent colors) without implying causality. See the
+[Linking Related Events with Correlation IDs](/docs/reference/synthetic-track-event.md#linking-related-events-with-correlation-ids)
+section in the Advanced Guide for details.
+
 ### Python Example
 
 Let's model a simple system where a "Request Handler" track dispatches work to a
