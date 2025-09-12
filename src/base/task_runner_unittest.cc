@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+
 #include <random>
 #include <thread>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -29,24 +32,28 @@
 
 namespace perfetto {
 namespace base {
-namespace {
 
 template <typename TaskRunnerType>
 class TaskRunnerTest : public ::testing::Test {
  public:
   TaskRunnerType task_runner;
 };
+using LockFreeTaskRunnerTest = TaskRunnerTest<LockFreeTaskRunner>;
+
+namespace {
 
 struct TaskRunnerTestNames {
   template <typename T>
   static std::string GetName(int) {
     if (std::is_same<T, UnixTaskRunner>::value)
       return "UnixTaskRunner";
+    if (std::is_same<T, LockFreeTaskRunner>::value)
+      return "LockFreeTaskRunner";
     return testing::internal::GetTypeName<T>();
   }
 };
 
-using TaskRunnerTypes = ::testing::Types<UnixTaskRunner>;
+using TaskRunnerTypes = ::testing::Types<UnixTaskRunner, LockFreeTaskRunner>;
 TYPED_TEST_SUITE(TaskRunnerTest, TaskRunnerTypes, TaskRunnerTestNames);
 
 TYPED_TEST(TaskRunnerTest, QuitImmediately) {
@@ -548,6 +555,76 @@ TYPED_TEST(TaskRunnerTest, MultiThreadedStress) {
     thread.join();
   }
   EXPECT_EQ(tasks_posted.load(), kTotalTasks);
+}
+
+// [LockFreeTaskRunner-only] Covers the slab allocator logic, ensuring that
+// slabs are recycled properly and are not leaked. It run tasks in bursts
+// (one tasks spwaning up to kBurstMax subtasks), catches up, then repeats.
+TEST_F(LockFreeTaskRunnerTest, NoSlabLeaks) {
+  constexpr size_t kMaxTasks = 10000;
+  constexpr size_t kBurstMax = task_runner_internal::kSlabSize - 2;
+  size_t tasks_posted = 0;
+  std::function<void()> task_fn;
+  std::minstd_rand0 rnd;
+  LockFreeTaskRunner task_runner;
+
+  task_fn = [&] {
+    int burst_count = std::uniform_int_distribution<int>(1, kBurstMax)(rnd);
+    for (int i = 0; i < burst_count; i++, tasks_posted++) {
+      task_runner.PostTask([] {});
+    }
+    if (tasks_posted < kMaxTasks) {
+      task_runner.PostTask(task_fn);
+    } else {
+      task_runner.PostTask([&] { task_runner.Quit(); });
+    }
+  };
+
+  task_fn();
+  task_runner.Run();
+
+  EXPECT_LE(task_runner.slabs_allocated(), 2u);
+}
+
+TEST_F(LockFreeTaskRunnerTest, HashSpreading) {
+  constexpr uint32_t kBuckets = task_runner_internal::kNumRefcountBuckets;
+  constexpr uint32_t kSamples = kBuckets * 16;
+  std::array<int, kBuckets> hits{};
+  std::vector<std::unique_ptr<task_runner_internal::Slab>> slabs;
+
+  for (uint32_t i = 0; i < kSamples; i++) {
+    slabs.emplace_back(std::make_unique<task_runner_internal::Slab>());
+    ++hits[task_runner_internal::HashSlabPtr(slabs.back().get())];
+  }
+
+  // Print a histogram of the distribution.
+  std::string distrib_str = "Hash distribution:\n";
+  for (uint32_t i = 0; i < kBuckets; i++) {
+    distrib_str += "Bucket " + std::to_string(i) + ": [" +
+                   std::to_string(hits[i]) + "]\t" +
+                   std::string(static_cast<size_t>(hits[i]), '*') + "\n";
+  }
+  PERFETTO_DLOG("%s", distrib_str.c_str());
+
+  // Check that the distribution is reasonable.
+  // 1. Check that not too many buckets are empty.
+  // 2. Check that there are no major hotspots.
+  int empty_buckets = 0;
+  int max_hits = 0;
+  for (int h : hits) {
+    if (h == 0)
+      empty_buckets++;
+    if (h > max_hits)
+      max_hits = h;
+  }
+
+  // With kSamples, we expect an average of kSamples / kBuckets = 16 hits per
+  // bucket. A real random distribution will have some empty buckets.
+  // Allow up to 4 empty buckets (12.5%).
+  EXPECT_LE(empty_buckets, 4);
+
+  // Check for hotspots. No bucket should have more than 2.5x the average.
+  EXPECT_LE(max_hits, kSamples * 2.5 / kBuckets);
 }
 
 }  // namespace
