@@ -125,7 +125,8 @@ is our last problem).
 The main compromise of this design is that it scales poorly with a large number
 of tasks, as Run() becomes both slower (to traverse the list) and stack-greedy
 (it uses recursion on the stack to walk the list without using the heap).
-We don't expect a large number of outstanding tasks in Perfetto.
+We don't expect a large number of outstanding tasks in Perfetto (with the
+exception of known issues like b/330580374 which should be fixed regardless).
 
 ## Threading Considerations
 

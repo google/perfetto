@@ -32,8 +32,8 @@
 
 #include <array>
 #include <atomic>
-#include <map>
 #include <thread>
+#include <unordered_map>
 
 namespace perfetto {
 namespace base {
@@ -155,7 +155,7 @@ class PERFETTO_EXPORT_COMPONENT LockFreeTaskRunner : public TaskRunner {
   };
 
   // Accessed only from the main thread.
-  std::map<PlatformHandle, WatchTask> watch_tasks_;
+  std::unordered_map<PlatformHandle, WatchTask> watch_tasks_;
   bool watch_tasks_changed_ = false;
 
   // An array of 32 refcount buckets. Every Slab* maps to a bucket via a hash
@@ -175,7 +175,8 @@ namespace task_runner_internal {
 
 // Returns the index of the refcount_ bucket for the passed Slab pointer.
 static uint32_t HashSlabPtr(Slab* slab) {
-  // Hash the pointer to obtain a bucket.
+  // This is a SplitMix64 hash, which is very fast and effective with pointers
+  // (See the test LockFreeTaskRunnerTest.HashSpreading).
   uint64_t u = reinterpret_cast<uintptr_t>(slab);
   u &= 0x00FFFFFFFFFFFFFFull;  // Clear asan/MTE top byte for tagged pointers.
   u += 0x9E3779B97F4A7C15ull;
