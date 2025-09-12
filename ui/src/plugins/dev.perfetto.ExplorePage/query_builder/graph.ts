@@ -19,6 +19,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
 
 import {
   NodeBox,
@@ -100,6 +101,7 @@ export interface GraphAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
@@ -434,6 +436,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onAddAggregation: attrs.onAddAggregation,
             onAddIntervalIntersect: attrs.onAddIntervalIntersect,
             onNodeRendered,
+            onRemoveFilter: attrs.onRemoveFilter,
           }),
         );
       }
