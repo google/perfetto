@@ -161,8 +161,9 @@ export default class CoreCommands implements PerfettoPlugin {
       render: (setting) => macroSettingsEditor.render(setting),
     });
 
-    const macros = setting.get() as MacroConfig;
-    for (const [macroName, commands] of Object.entries(macros)) {
+    // Register both user-defined macros from settings and extra macros from google3
+    const allMacros = {...setting.get(), ...ctx.extraMacros} as MacroConfig;
+    for (const [macroName, commands] of Object.entries(allMacros)) {
       ctx.commands.registerCommand({
         id: `dev.perfetto.UserMacro.${macroName}`,
         name: macroName,

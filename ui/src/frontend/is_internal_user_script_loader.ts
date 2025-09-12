@@ -15,6 +15,7 @@
 import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
 import {SqlPackage} from '../public/extra_sql_packages';
+import {CommandInvocation} from '../core/command_manager';
 
 // This controls how long we wait for the script to load before giving up and
 // proceeding as if the user is not internal.
@@ -40,6 +41,11 @@ interface Globals {
   // internal_user script.
   readonly extraSqlPackages: SqlPackage[];
 
+  // The script adds to this list, hence why it's readonly.
+  // WARNING: do not change/rename/move without considering impact on the
+  // internal_user script.
+  readonly extraMacros: Record<string, CommandInvocation[]>;
+
   // TODO(stevegolton): Check if we actually need to use these.
   // Used when switching to the legacy TraceViewer UI.
   // Most resources are cleaned up by replacing the current |window| object,
@@ -64,6 +70,9 @@ function setupGlobalsProxy(app: AppImpl) {
     },
     get extraSqlPackages(): SqlPackage[] {
       return app.extraSqlPackages;
+    },
+    get extraMacros(): Record<string, CommandInvocation[]> {
+      return app.extraMacros;
     },
     shutdown() {
       raf.shutdown();
