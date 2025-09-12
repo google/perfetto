@@ -105,29 +105,7 @@ async function hasWattsonSufficientCPUConfigs(
 
   const dsuDependencyQuery = await engine.query(
     `
-    INCLUDE PERFETTO MODULE wattson.device_infos;
-    INCLUDE PERFETTO MODULE wattson.curves.device_cpu_2d;
-    CREATE OR REPLACE PERFETTO TABLE _filtered_curves_2d_raw AS
-    SELECT
-      dc.policy,
-      dc.freq_khz,
-      dc.dep_policy,
-      dc.dep_freq,
-      dc.active,
-      dc.idle0,
-      dc.idle1,
-      dc.static
-    FROM _device_curves_2d AS dc
-    JOIN _wattson_device AS device
-      ON dc.device = device.name;
-    CREATE OR REPLACE PERFETTO TABLE _cpu_w_dsu_dependency AS
-    SELECT DISTINCT
-      cpu
-    FROM _filtered_curves_2d_raw
-    JOIN _dev_cpu_policy_map
-      USING (policy)
-    WHERE
-      dep_policy = 255;
+    INCLUDE PERFETTO MODULE wattson.curves.utils;
     SELECT count(*) AS count FROM _cpu_w_dsu_dependency;
     `,
   );
