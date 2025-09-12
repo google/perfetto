@@ -25,6 +25,7 @@ import {DataExplorer} from './data_explorer';
 import {
   DataGridDataSource,
   DataGridModel,
+  FilterDefinition,
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -62,6 +63,7 @@ export interface BuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -181,6 +183,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           },
           onImport: attrs.onImport,
           onExport: attrs.onExport,
+          onRemoveFilter: attrs.onRemoveFilter,
         }),
       ),
       m('.pf-qb-explorer', explorer),
