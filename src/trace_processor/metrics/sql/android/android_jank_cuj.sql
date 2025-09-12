@@ -90,6 +90,8 @@ SELECT
   -- the actual frame timeline slices.
   MIN(frame_ts) AS ts_actual_min,
   MAX(ts_end) AS ts_end_actual_max,
+  -- In case expected timeline is missing, as a fallback we use the typical frame deadline
+  -- for 60Hz.
   COALESCE(MAX(e.dur), 16600000) AS dur_expected
 FROM frames_in_cuj vsync_boundary
 JOIN expected_timeline_with_vsync e
@@ -157,7 +159,6 @@ WITH android_jank_cuj_sf_frame_base AS (
     gpu_composition,
     -- In case expected timeline is missing, as a fallback we use the typical frame deadline
     -- for 60Hz.
-    -- See similar expression in android_jank_cuj_frame_timeline.
     COALESCE(expected_timeline.dur, 16600000) AS dur_expected
   FROM _android_jank_cuj_sf_main_thread_frame_boundary boundary
   JOIN _android_sf_process sf_process
@@ -193,7 +194,9 @@ WITH cujs_ordered AS (
     CASE
       WHEN process_name GLOB 'com.android.*' THEN ts_end
       WHEN process_name = 'com.google.android.apps.nexuslauncher' THEN ts_end
-      -- Some processes publish counters just before logging the CUJ end
+      -- Some processes publish (a subset of) counters right before ending the
+      -- CUJ marker slice. Updating the SQL query to consider counters up to 4ms
+      -- before the CUJ ends in that case.
       ELSE MAX(ts, ts_end - 4000000)
     END AS ts_earliest_allowed_counter,
     LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end ASC) AS ts_end_next_cuj
