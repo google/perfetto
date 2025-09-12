@@ -153,7 +153,7 @@ GROUP BY
 
 -- Returns a table of thread utilization over a given interval.
 --
--- Utilization is computed as runtime over the duration of the interval, aggregated by thread name.
+-- Utilization is computed as runtime over the duration of the interval, aggregated by UTID.
 -- Utilization can be normalized (divide by number of CPUs) or unnormalized.
 --
 -- This function is only designed to run over a small number of intervals
@@ -165,9 +165,13 @@ CREATE PERFETTO FUNCTION cpu_thread_utilization_in_interval(
     dur LONG
 )
 RETURNS TABLE (
+  -- Unique process id.
+  upid JOINID(process.id),
+  -- Unique thread id.
+  utid JOINID(thread.id),
   -- The name of the thread
   thread_name STRING,
-  -- Total runtime of all threads with this name, while 'awake' (CPUs not suspended).
+  -- Total runtime of all threads with this UTID, while 'awake' (CPUs not suspended).
   awake_dur LONG,
   -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
   -- Values in [0.0, 100.0]
@@ -177,6 +181,8 @@ RETURNS TABLE (
   awake_unnormalized_utilization DOUBLE
 ) AS
 SELECT
+  upid,
+  utid,
   thread.name AS thread_name,
   sum(awake_runtime) AS awake_dur,
   round(
@@ -187,13 +193,13 @@ SELECT
         max(cpu) + 1
       FROM cpu
     ),
-    2
+    6
   ) AS awake_utilization,
   round(sum(awake_runtime) * 100.0 / (
     to_monotonic($ts + $dur) - to_monotonic($ts)
-  ), 2) AS awake_unnormalized_utilization
+  ), 6) AS awake_unnormalized_utilization
 FROM cpu_cycles_per_thread_in_interval($ts, $dur)
 JOIN thread
   USING (utid)
 GROUP BY
-  thread.name;
+  utid;
