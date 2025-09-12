@@ -108,6 +108,8 @@ function parseSqlWithModules(sql: string): ParsedSql {
 }
 
 function parseSql(sql: string): ParsedNode[] {
+  // TODO(mayzner): This whole logic is very fragile and should be replaced
+  // with Trace Processor SQL parser, when it becomes available.
   const nodes: ParsedNode[] = [];
   const sqlUpperCase = sql.toUpperCase();
   const withIndex = sqlUpperCase.indexOf('WITH');

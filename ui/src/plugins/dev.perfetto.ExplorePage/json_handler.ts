@@ -211,7 +211,7 @@ export function deserializeState(
     });
 
     // Backwards compatibility: if prevNodes is not in the JSON, infer it.
-    if (serializedNode.prevNodes.length > 0) {
+    if (serializedNode.prevNodes && serializedNode.prevNodes.length > 0) {
       node.prevNodes = serializedNode.prevNodes.map((id) => {
         const prevNode = nodes.get(id);
         if (prevNode == null) {
