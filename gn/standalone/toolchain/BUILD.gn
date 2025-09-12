@@ -466,7 +466,7 @@ toolchain("msvc") {
   tool("cc") {
     precompiled_header_type = "msvc"
     pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
-    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
+    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256 /Qspectre"
     depsformat = "msvc"
     outputs =
         [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
@@ -476,7 +476,7 @@ toolchain("msvc") {
   tool("cxx") {
     precompiled_header_type = "msvc"
     pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
-    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
+    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256 /Qspectre"
     depsformat = "msvc"
     outputs =
         [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
@@ -505,7 +505,7 @@ toolchain("msvc") {
     pdbname = "${dllname}.pdb"
     rspfile = "${dllname}.rsp"
 
-    command = "$linker /nologo /IMPLIB:$libname ${sys_lib_flags} /DLL /OUT:$dllname /PDB:$pdbname @$rspfile"
+    command = "$linker /nologo /IMPLIB:$libname ${sys_lib_flags} /DLL /guard:cf /DYNAMICBASE /CETCOMPAT /OUT:$dllname /PDB:$pdbname @$rspfile"
     outputs = [
       dllname,
       libname,
@@ -536,7 +536,7 @@ toolchain("msvc") {
     pdbname = "$exename.pdb"
     rspfile = "$exename.rsp"
 
-    command = "$linker /nologo /guard:cf /DYNAMICBASE /OUT:$exename ${sys_lib_flags} /DEBUG /PDB:$pdbname @$rspfile"
+    command = "$linker /nologo /guard:cf /DYNAMICBASE /CETCOMPAT /OUT:$exename ${sys_lib_flags} /DEBUG /PDB:$pdbname @$rspfile"
     default_output_extension = ".exe"
     default_output_dir = "{{root_out_dir}}"
     outputs = [ exename ]
