@@ -94,6 +94,7 @@ export interface GraphAttrs {
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onAddModifyColumns: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
@@ -432,6 +433,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
             onAddAggregation: attrs.onAddAggregation,
+            onModifyColumns: attrs.onAddModifyColumns,
             onAddIntervalIntersect: attrs.onAddIntervalIntersect,
             onNodeRendered,
           }),

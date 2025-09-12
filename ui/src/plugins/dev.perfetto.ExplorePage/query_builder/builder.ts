@@ -55,6 +55,7 @@ export interface BuilderAttrs {
 
   // Add derived nodes.
   readonly onAddAggregationNode: (node: QueryNode) => void;
+  readonly onAddModifyColumnsNode: (node: QueryNode) => void;
   readonly onAddIntervalIntersectNode: (node: QueryNode) => void;
 
   readonly onClearAllNodes: () => void;
@@ -172,6 +173,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onAddAggregation: attrs.onAddAggregationNode,
+          onAddModifyColumns: attrs.onAddModifyColumnsNode,
           onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
           onDeleteNode: (node: QueryNode) => {
             if (node.isMaterialised()) {
