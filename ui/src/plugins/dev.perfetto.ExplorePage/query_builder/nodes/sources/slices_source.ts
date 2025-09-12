@@ -24,8 +24,18 @@ import protos from '../../../../../protos';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
-import {createFiltersProto} from '../../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../../operations/filter';
+import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {SourceNode} from '../../source_node';
+
+export interface SlicesSourceSerializedState {
+  slice_name?: string;
+  thread_name?: string;
+  process_name?: string;
+  track_name?: string;
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
 
 export interface SlicesSourceState extends QueryNodeState {
   slice_name?: string;
@@ -67,6 +77,21 @@ export class SlicesSourceNode extends SourceNode {
 
   getTitle(): string {
     return this.state.customTitle ?? 'Simple slices';
+  }
+
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
+
+  serializeState(): SlicesSourceSerializedState {
+    return {
+      slice_name: this.state.slice_name,
+      thread_name: this.state.thread_name,
+      process_name: this.state.process_name,
+      track_name: this.state.track_name,
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -161,6 +186,14 @@ export class SlicesSourceNode extends SourceNode {
           }),
         ),
       ),
+      m(FilterOperation, {
+        filters: this.state.filters,
+        sourceCols: this.sourceCols,
+        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+          this.state.filters = newFilters as FilterDefinition[];
+          this.state.onchange?.();
+        },
+      }),
     );
   }
 }

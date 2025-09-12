@@ -28,11 +28,18 @@ import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
-import {createFiltersProto} from '../../operations/operation_component';
+import {createFiltersProto, FilterOperation} from '../../operations/filter';
+import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {SourceNode} from '../../source_node';
+
+export interface TableSourceSerializedState {
+  sqlTable?: string;
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
 
 export interface TableSourceState extends QueryNodeState {
   readonly trace: Trace;
@@ -88,6 +95,7 @@ export function modalForTableSelection(
 
 export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
+  readonly prevNodes: QueryNode[] = [];
   showColumns: boolean = false;
 
   get sourceCols() {
@@ -123,7 +131,7 @@ export class TableSourceNode extends SourceNode {
   }
 
   nodeSpecificModify(): m.Child {
-    if (this.state.sqlTable) {
+    if (this.state.sqlTable != null) {
       const table = this.state.sqlTable;
       return m(
         '.pf-stdlib-table-node',
@@ -161,6 +169,14 @@ export class TableSourceNode extends SourceNode {
               ),
             ),
         ),
+        m(FilterOperation, {
+          filters: this.state.filters,
+          sourceCols: this.sourceCols,
+          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+            this.state.filters = newFilters as FilterDefinition[];
+            this.state.onchange?.();
+          },
+        }),
       );
     }
     return m(TextParagraph, 'No description available for this table.');
@@ -174,6 +190,9 @@ export class TableSourceNode extends SourceNode {
     return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
@@ -198,5 +217,29 @@ export class TableSourceNode extends SourceNode {
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
+  }
+
+  serializeState(): TableSourceSerializedState {
+    return {
+      sqlTable: this.state.sqlTable?.name,
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
+  static deserializeState(
+    trace: Trace,
+    sqlModules: SqlModules,
+    state: TableSourceSerializedState,
+  ): TableSourceState {
+    const sqlTable = state.sqlTable
+      ? sqlModules.getTable(state.sqlTable)
+      : undefined;
+    return {
+      ...state,
+      trace,
+      sqlModules,
+      sqlTable,
+    };
   }
 }

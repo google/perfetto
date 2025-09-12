@@ -26,7 +26,6 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md)
-    - [UI Automation](visualization/ui-automation-cookbook.md)
 
   - [Case Studies](#)
 
@@ -74,6 +73,7 @@
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
+    - [UI Automation](visualization/ui-automation.md)
 
   - [Contributing](#)
 
@@ -158,6 +158,10 @@
   - [Advanced Perfetto SDK](#)
 
     - [Interceptors](instrumentation/interceptors.md)
+
+  - [Advanced Trace Visualization](#)
+
+    - [Commands Automation Reference](visualization/commands-automation-reference.md)
 
   - [Contributor Reference](#)
 

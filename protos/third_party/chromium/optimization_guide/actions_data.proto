@@ -276,9 +276,45 @@ message ScriptToolAction {
   string input_arguments = 4 [features = { field_presence: EXPLICIT }];
 }
 
+// Play media action plays the media session.
+// Next ID: 1
+message PlayMediaAction {
+}
+
+// Pause media action pauses the media session.
+// Next ID: 1
+message PauseMediaAction {
+}
+
+// Seek media action seeks the media session to the given seek time in
+// microseconds from the beginning of the media. The seek time should be
+// non-negative.
+// Next ID: 2
+message SeekMediaAction {
+  int64 seek_time_microseconds = 1 [features = { field_presence: EXPLICIT }];
+}
+
+// Controls media session in a tab.
+// Next ID: 6
+message MediaControlAction {
+  oneof media_control_action {
+    PlayMediaAction play = 3;
+
+    PauseMediaAction pause = 4;
+
+    SeekMediaAction seek = 5;
+  }
+
+  // The document which controls the media session.
+  DocumentIdentifier document_identifier = 1 [features = { field_presence: EXPLICIT }];
+
+  // The id of the tab which contains the document.
+  int32 tab_id = 2 [features = { field_presence: EXPLICIT }];
+}
+
 // All of the actions that can be taken.
 // Only one of these is allowed per action.
-// Next ID: 21
+// Next ID: 22
 message Action {
   oneof action {
     ClickAction click = 1;
@@ -320,6 +356,8 @@ message Action {
     ScrollToAction scroll_to = 19;
 
     ScriptToolAction script_tool = 20;
+
+    MediaControlAction media_control = 21;
   }
 }
 
@@ -393,7 +431,7 @@ message WindowObservation {
 }
 
 // Information about a chrome tab.
-// Next ID: 5
+// Next ID: 7
 message TabObservation {
   // Unique id
   int32 id = 1 [features = { field_presence: EXPLICIT }];
@@ -406,6 +444,26 @@ message TabObservation {
 
   // The mime type of the |screenshot|.
   string screenshot_mime_type = 4 [features = { field_presence: EXPLICIT }];
+
+  // The result of the tab observation.
+  TabObservationResult result = 5 [features = { field_presence: EXPLICIT }];
+
+  // Metadata about the page content.
+  // The number of meta tags returned is limited to 32.
+  PageMetadata metadata = 6 [features = { field_presence: EXPLICIT }];
+
+  // Result codes of a tab observation. It may be possible
+  // to retry an observation given specific error codes.
+  enum TabObservationResult {
+    // The tab was observed successfully.
+    TAB_OBSERVATION_OK = 0;
+
+    // The tab is not available because it went away.
+    TAB_OBSERVATION_TAB_WENT_AWAY = 1;
+
+    // The screenshot of the tab timed out.
+    TAB_OBSERVATION_SCREENSHOT_TIMEOUT = 2;
+  }
 }
 
 // All relevant state in chrome after the actions are taken or an error has

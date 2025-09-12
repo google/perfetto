@@ -70,7 +70,6 @@ export default class implements PerfettoPlugin {
         description: `Ftrace events for CPU ${cpu.toString()}`,
         tags: {
           cpu: cpu.cpu,
-          groupName: 'Ftrace Events',
         },
         renderer: createFtraceTrack(ctx, uri, cpu, filterStore),
       });

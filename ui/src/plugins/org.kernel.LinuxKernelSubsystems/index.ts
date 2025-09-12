@@ -72,7 +72,6 @@ export default class implements PerfettoPlugin {
         tags: {
           kind: SLICE_TRACK_KIND,
           trackIds: [trackId],
-          groupName: `Linux Kernel Devices`,
         },
       });
       const track = new TrackNode({uri, name: name});

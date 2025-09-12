@@ -740,6 +740,11 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
         storage->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
       }
+      if (evt.exclusive_feature_error().size > 0) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace exclusive feature error: " +
+                     evt.exclusive_feature_error().ToStdString();
+      }
       if (!error_str.empty()) {
         auto error_str_id = storage->InternString(base::StringView(error_str));
         context_->metadata_tracker->AppendMetadata(
@@ -2503,7 +2508,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
   proc_tracker->UpdateThreadName(new_utid, new_comm,
                                  ThreadNamePriority::kFtrace);
-  proc_tracker->AssociateThreads(source_utid, new_utid);
+  proc_tracker->AssociateThreads(source_utid, new_utid,
+                                 /*associate_main_threads*/ true);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
       timestamp, new_utid, source_utid);
@@ -3274,27 +3280,13 @@ void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
                                            protozero::ConstBytes blob) {
   protos::pbzero::CpuFrequencyLimitsFtraceEvent::Decoder evt(blob);
 
-  static constexpr auto kMaxBlueprint = tracks::CounterBlueprint(
-      "cpu_max_frequency_limit", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
-      }));
-
   TrackId max_track = context_->track_tracker->InternTrack(
-      kMaxBlueprint, tracks::Dimensions(evt.cpu_id()));
+      tracks::kCpuMaxFrequencyLimitBlueprint, tracks::Dimensions(evt.cpu_id()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.max_freq()), max_track);
 
-  static constexpr auto kMinBlueprint = tracks::CounterBlueprint(
-      "cpu_min_frequency_limit", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
-      }));
-
   TrackId min_track = context_->track_tracker->InternTrack(
-      kMinBlueprint, tracks::Dimensions(evt.cpu_id()));
+      tracks::kCpuMinFrequencyLimitBlueprint, tracks::Dimensions(evt.cpu_id()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.min_freq()), min_track);
 }

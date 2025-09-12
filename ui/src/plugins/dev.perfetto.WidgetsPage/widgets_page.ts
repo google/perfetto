@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
 import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {SplitPanel, Tab} from '../../widgets/split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
@@ -972,6 +973,21 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'CopyToClipboardButton',
+        renderWidget: (opts) =>
+          m(CopyToClipboardButton, {
+            textToCopy: 'Text to copy',
+            ...opts,
+          }),
+        initialOpts: {
+          label: 'Copy',
+          variant: new EnumOption(
+            ButtonVariant.Outlined,
+            Object.values(ButtonVariant),
+          ),
+        },
+      }),
+      m(WidgetShowcase, {
         label: 'Portal',
         description: `A portal is a div rendered out of normal flow
           of the hierarchy.`,
@@ -1322,11 +1338,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       }),
       m(WidgetShowcase, {
         label: 'Callout',
-        renderWidget: (opts) =>
+        renderWidget: ({icon, ...opts}) =>
           m(
             Callout,
             {
-              icon: 'info',
+              icon: Boolean(icon) ? 'info' : undefined,
               ...opts,
             },
             'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
@@ -1336,6 +1352,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
         initialOpts: {
           intent: new EnumOption(Intent.None, Object.values(Intent)),
+          dismissable: false,
+          icon: true,
         },
       }),
       m(WidgetShowcase, {

@@ -38,11 +38,15 @@ export interface NodeBoxAttrs {
   readonly isSelected: boolean;
   readonly isDragging: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
-  readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
+  readonly onNodeDragStart: (
+    node: QueryNode,
+    event: DragEvent,
+    layout: NodeBoxLayout,
+  ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }
 
@@ -84,7 +88,7 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddAggregation} = attrs;
+  const {node, onAddAggregation, onAddIntervalIntersect} = attrs;
   return m(
     PopupMenu,
     {
@@ -97,6 +101,10 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
       label: 'Aggregate',
       onclick: () => onAddAggregation(node),
     }),
+    m(MenuItem, {
+      label: 'Interval Intersect',
+      onclick: () => onAddIntervalIntersect(node),
+    }),
   );
 }
 
@@ -108,14 +116,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     attrs.onNodeRendered(attrs.node, dom as HTMLElement);
   },
   view({attrs}) {
-    const {
-      node,
-      layout,
-      isSelected,
-      isDragging,
-      onNodeSelected,
-      onNodeDragStart,
-    } = attrs;
+    const {node, layout, isSelected, onNodeSelected, onNodeDragStart} = attrs;
 
     const conditionalClasses = classNames(
       isSelected && 'pf-node-box__selected',
@@ -127,7 +128,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     const boxStyle = {
       left: `${layout.x}px`,
       top: `${layout.y}px`,
-      opacity: isDragging ? '0' : '1',
     };
 
     return m(
@@ -137,9 +137,15 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         style: boxStyle,
         onclick: () => onNodeSelected(node),
         draggable: true,
-        ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
+        ondragstart: (event: DragEvent) => onNodeDragStart(node, event, layout),
       },
-      node.prevNode && m('.pf-node-box-port.pf-node-box-port-top'),
+      node.prevNodes?.map((_, i) => {
+        const portCount = node.prevNodes ? node.prevNodes.length : 0;
+        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+        return m('.pf-node-box-port.pf-node-box-port-top', {
+          style: {left},
+        });
+      }),
       renderWarningIcon(node),
       m('span.pf-node-box__title', node.getTitle()),
       renderContextMenu(attrs),

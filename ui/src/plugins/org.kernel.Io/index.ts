@@ -47,7 +47,6 @@ export default class implements PerfettoPlugin {
         uri,
         tags: {
           device: device['id'],
-          groupName: 'Queued IO requests',
         },
         renderer: track,
       });
