@@ -1,12 +1,12 @@
-# Getting a OutOfMemoryError heap dump on Android
+# Getting an OutOfMemoryError heap dump on Android
 
 Starting with Android 14 (U), perfetto can be configured to collect a heap dump
 when any Java (ART) process crashes because of a java.lang.OutOfMemoryError.
 
 ## Steps
 
-You can configure collection using the java_heap_dump tool from the perfetto
-directory `tools/java_heap_dump` and passing the `--wait-for-oom` parameter.
+You can configure collection using the `tools/java_heap_dump` tool and passing
+the `--wait-for-oom` parameter.
 
 Alternatively, a quick way to do it (without any dependencies except for adb
 access):
