@@ -460,9 +460,9 @@ struct CounterPerTrackAgg
       // to "reset" the counter to zero when it returns to zero (so we don't
       // keep showing a non-zero value), but don't then need a long stream of
       // zeroes after that.
-      std::vector<double> prev_vals = new_rows_track->val;
+      const std::vector<double>& prev_vals = new_rows_track->val;
       auto size = prev_vals.size();
-      if (size > 1 && std::equal_to<double>()(prev_vals[size - 1], val) &&
+      if (std::equal_to<double>()(prev_vals[size - 1], val) && size > 1 &&
           std::equal_to<double>()(prev_vals[size - 2], val)) {
         // TODO(mayzner): In the future we should also support "lagging" - if
         // the next one has the same value as the previous, we should remove the

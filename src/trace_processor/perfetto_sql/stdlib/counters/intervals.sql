@@ -38,7 +38,8 @@
 --
 -- Then this macro will generate the following intervals:
 -- ```
--- ts=0, dur=20, value=10, track_id=1
+-- ts=0, dur=10, value=10, track_id=1
+-- ts=10, dur=10, value=10, track_id=1
 -- ts=20, dur=10, value=30, track_id=1
 -- ts=0, dur=10, value=10, track_id=2
 -- ts=10, dur=30, value=20, track_id=2
