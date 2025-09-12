@@ -24,13 +24,12 @@ SELECT
     THEN NULL
     WHEN $subject GLOB 'Broadcast of*'
     THEN 'BROADCAST_OF_INTENT'
+    WHEN $subject GLOB 'Input dispatching timed out*does not have a focused window*'
+    THEN 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW'
+    WHEN $subject GLOB 'Input dispatching timed out*Waiting because no window has focus but there is a focused application*'
+    THEN 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW'
     WHEN $subject GLOB 'Input dispatching timed out*'
-    THEN CASE
-      WHEN $subject GLOB '*does not have a focused window*'
-      OR $subject GLOB '*Waiting because no window has focus but there is a focused application*'
-      THEN 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW'
-      ELSE 'INPUT_DISPATCHING_TIMEOUT'
-    END
+    THEN 'INPUT_DISPATCHING_TIMEOUT'
     WHEN $subject GLOB 'Context.startForegroundService() did not then call Service.startForeground()*'
     THEN 'START_FOREGROUND_SERVICE'
     WHEN $subject GLOB 'executing service*'
