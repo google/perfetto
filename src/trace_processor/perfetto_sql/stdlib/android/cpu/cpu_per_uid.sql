@@ -54,7 +54,7 @@ WITH
   deltas AS (
     SELECT
       *
-    FROM counter_leading_intervals_keep_zeroes!((
+    FROM counter_leading_intervals!((
     select 
       c.id,
       c.ts,

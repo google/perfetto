@@ -431,7 +431,7 @@ struct IntervalTreeIntervalsAgg
 struct CounterPerTrackAgg
     : public sqlite::AggregateFunction<perfetto_sql::PartitionedCounter> {
   static constexpr char kName[] = "__intrinsic_counter_per_track_agg";
-  static constexpr int kArgCount = 5;
+  static constexpr int kArgCount = 4;
   struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedCounter tracks;
   };
@@ -446,19 +446,21 @@ struct CounterPerTrackAgg
     int64_t ts = sqlite::value::Int64(argv[1]);
     int64_t track_id = static_cast<uint32_t>(sqlite::value::Int64(argv[2]));
     double val = sqlite::value::Double(argv[3]);
-    bool keep_zeroes = sqlite::value::Int64(argv[4]) != 0;
 
     auto* new_rows_track = tracks.partitions_map.Find(track_id);
     if (!new_rows_track) {
       new_rows_track = tracks.partitions_map.Insert(track_id, {}).first;
-    } else if (!keep_zeroes &&
-               std::equal_to<double>()(new_rows_track->val.back(), val)) {
-      // TODO(mayzner): This algorithm is focused on "leading" counters - if the
+    } else {
+      std::vector<double> prev_vals = new_rows_track->val;
+      // This algorithm is focused on "leading" counters - if the
       // counter before had the same value we can safely remove the new one as
-      // it adds no value. In the future we should also support "lagging" - if
-      // the next one has the same value as the previous, we should remove the
-      // previous.
-      return;
+      // it adds no value. 
+      if (prev_vals.back() == val && prev_vals.size() > 1 && prev_vals[prev_vals.size() - 2] == val) {
+        // TODO(mayzner): In the future we should also support "lagging" - if
+        // the next one has the same value as the previous, we should remove the
+        // previous.
+        return;
+      }
     }
 
     new_rows_track->id.push_back(id);
