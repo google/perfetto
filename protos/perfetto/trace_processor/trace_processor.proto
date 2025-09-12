@@ -428,7 +428,7 @@ message TraceSummaryResult {
 }
 
 message RpcStatus {
-  // For legacy reasons, this returns the laoded trace name of the first
+  // For legacy reasons, this returns the loaded trace name of the first
   // instance (if any)
   optional string loaded_trace_name = 1;
   optional string human_readable_version = 2;

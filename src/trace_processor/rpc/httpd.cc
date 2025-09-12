@@ -197,7 +197,7 @@ class Httpd : public base::HttpRequestHandler {
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::mutex websocket_rpc_mutex_;
-  std::unordered_map<uint32_t, std::unique_ptr<RpcThread>> id_tp_tp_map;
+  std::unordered_map<uint32_t, std::unique_ptr<RpcThread>> id_to_tp_map;
   std::unordered_map<base::HttpServerConnection*, uint32_t> conn_to_id_map;
   size_t tp_timeout_mins_;
 };
@@ -238,7 +238,7 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
     auto new_thread = std::make_unique<RpcThread>(std::move(preloaded_instance),
                                                   is_preloaded_eof);
     uint32_t instance_id = generateInstanceId();
-    id_tp_tp_map.emplace(instance_id, std::move(new_thread));
+    id_to_tp_map.emplace(instance_id, std::move(new_thread));
     PERFETTO_ILOG("Preloaded trace processor assigned ID: %" PRIu32,
                   instance_id);
   }
@@ -321,7 +321,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     protozero::HeapBuffered<protos::pbzero::RpcStatus> result;
     {
       std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
-      for (const auto& entry : id_tp_tp_map) {
+      for (const auto& entry : id_to_tp_map) {
         uint32_t instance_id = entry.first;
         const auto& tp_rpc = entry.second;
         auto* tp_status = result->add_instances();
@@ -352,6 +352,29 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
           protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
       tp_status->set_instance_id(DEFAULT_TP_ID);
     }
+
+    // adding legacy support for older uis
+    auto id_to_tp_it = id_to_tp_map.begin();
+    if (id_to_tp_it != id_to_tp_map.end()) {
+      result->set_loaded_trace_name(
+          id_to_tp_it->second->rpc_->GetCurrentTraceName());
+      result->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        result->set_version_code(version_code);
+      }
+      result->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    } else {
+      result->set_loaded_trace_name(
+          global_trace_processor_rpc_.GetCurrentTraceName());
+      result->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        result->set_version_code(version_code);
+      }
+      result->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+    }
+
     return conn.SendResponse("200 OK", default_headers,
                              Vec2Sv(result.SerializeAsArray()));
   }
@@ -368,18 +391,18 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
       if (path.empty() || path == "/") {  // Legacy /websocket endpoint
-        if (id_tp_tp_map.empty()) {
+        if (id_to_tp_map.empty()) {
           // Case 1: No instances exist, so behave like /new.
           send_id_back = true;
           uint32_t new_id = generateInstanceId();
           instance_id = new_id;
           auto new_thread = std::make_unique<RpcThread>();
-          id_tp_tp_map.emplace(instance_id, std::move(new_thread));
+          id_to_tp_map.emplace(instance_id, std::move(new_thread));
           PERFETTO_ILOG("Legacy /websocket: creating new TP instance %" PRIu32,
                         instance_id);
         } else {
           // Case 2: Instances exist, attach to the "first" one for back-compat.
-          instance_id = id_tp_tp_map.begin()->first;
+          instance_id = id_to_tp_map.begin()->first;
           PERFETTO_ILOG(
               "Legacy /websocket: attaching to existing TP instance %" PRIu32,
               instance_id);
@@ -390,7 +413,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         uint32_t new_id = generateInstanceId();
         instance_id = new_id;
         auto new_thread = std::make_unique<RpcThread>();
-        id_tp_tp_map.emplace(instance_id, std::move(new_thread));
+        id_to_tp_map.emplace(instance_id, std::move(new_thread));
         PERFETTO_ILOG("New TP instance %" PRIu32 " created via /websocket/new",
                       instance_id);
       } else {
@@ -401,7 +424,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
           return conn.SendResponseAndClose("404 Not Found", {});
         }
         instance_id = *parsed_id;
-        if (id_tp_tp_map.find(instance_id) == id_tp_tp_map.end()) {
+        if (id_to_tp_map.find(instance_id) == id_to_tp_map.end()) {
           // For the new API, if a specific instance ID is requested, it must
           // exist.
           return conn.SendResponseAndClose("404 Not Found", {});
@@ -536,8 +559,8 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   }
 
   const uint32_t instance_id = it->second;
-  auto id_it = id_tp_tp_map.find(instance_id);
-  if (id_it == id_tp_tp_map.end()) {
+  auto id_it = id_to_tp_map.find(instance_id);
+  if (id_it == id_to_tp_map.end()) {
     PERFETTO_ELOG(
         "Inconsistent state: conn mapped to non-existent instance id %" PRIu32,
         instance_id);
@@ -551,10 +574,10 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   auto conn_to_id_it = conn_to_id_map.find(conn);
   if (conn_to_id_it != conn_to_id_map.end()) {
     uint32_t instance_id = conn_to_id_it->second;
-    auto id_to_tp_it = id_tp_tp_map.find(instance_id);
-    if (id_to_tp_it != id_tp_tp_map.end()) {
+    auto id_to_tp_it = id_to_tp_map.find(instance_id);
+    if (id_to_tp_it != id_to_tp_map.end()) {
       if (id_to_tp_it->second->rpc_->GetCurrentTraceName().empty()) {
-        id_tp_tp_map.erase(id_to_tp_it);
+        id_to_tp_map.erase(id_to_tp_it);
       } else {
         id_to_tp_it->second->rpc_->has_existing_tab = false;
       }
@@ -575,7 +598,7 @@ void Httpd::cleanUpInactiveInstances() {
       static_cast<uint64_t>(tp_timeout_mins_) * kNanosecondPerMinute;
   uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
 
-  for (auto it = id_tp_tp_map.begin(); it != id_tp_tp_map.end();) {
+  for (auto it = id_to_tp_map.begin(); it != id_to_tp_map.end();) {
     const uint32_t instance_id = it->first;
     uint64_t last_accessed = it->second->GetLastAccessedNs();
 
@@ -596,7 +619,7 @@ void Httpd::cleanUpInactiveInstances() {
       }
 
       // Remove the RpcThread
-      it = id_tp_tp_map.erase(it);
+      it = id_to_tp_map.erase(it);
     } else {
       ++it;
     }
