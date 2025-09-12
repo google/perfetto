@@ -844,12 +844,207 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Track Hierarchies for Waterfall / Trace Views](/docs/images/converting-waterfall.png)
 
+## Adding Debug Annotations to Events
+
+Debug annotations allow you to attach arbitrary key-value data to any
+`TrackEvent`. They appear in the Perfetto UI when you inspect individual
+events, making them useful for providing additional context about what was
+happening during specific slices or instants.
+
+Debug annotations are useful for:
+
+- Adding object IDs, request IDs, or other identifiers
+- Including configuration values or state information
+- Attaching error messages or status codes
+- Providing structured data like arrays or nested objects
+- Any contextual data that enriches your trace events
+
+Debug annotations support various data types including basic values (strings,
+integers, booleans, doubles), nested dictionaries, and arrays. They use the
+`DebugAnnotation` protobuf message, which can represent complex nested
+structures.
+
+### Python Example: Basic Debug Annotations
+
+This example shows how to add simple key-value debug annotations to track
+events. This is useful for attaching additional information like object IDs,
+state values, or other contextual data.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    # Define a unique ID for this sequence of packets
+    TRUSTED_PACKET_SEQUENCE_ID = 6001
+
+    # Define a unique UUID for your custom track
+    DEBUG_TRACK_UUID = 87654321
+
+    # 1. Define the Custom Track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = DEBUG_TRACK_UUID
+    packet.track_descriptor.name = "Debug Annotations Example"
+
+    # Helper to add a slice event with debug annotations
+    def add_slice_with_debug_annotations(ts, event_type, name=None, debug_annotations=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = DEBUG_TRACK_UUID
+        if name:
+            packet.track_event.name = name
+
+        # Add debug annotations
+        if debug_annotations:
+            for key, value in debug_annotations.items():
+                annotation = packet.track_event.debug_annotations.add()
+                annotation.name = key
+
+                # Set the appropriate value field based on type
+                if isinstance(value, bool):
+                    annotation.bool_value = value
+                elif isinstance(value, int):
+                    annotation.int_value = value
+                elif isinstance(value, float):
+                    annotation.double_value = value
+                elif isinstance(value, str):
+                    annotation.string_value = value
+
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Create slices with various debug annotations
+    add_slice_with_debug_annotations(
+        ts=1000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="Database Query",
+        debug_annotations={
+            "query_id": 12345,
+            "table_name": "users",
+            "is_cached": False,
+            "timeout_ms": 5000.0
+        }
+    )
+
+    add_slice_with_debug_annotations(
+        ts=1200,
+        event_type=TrackEvent.TYPE_SLICE_END
+    )
+
+    # Another example with different annotation types
+    add_slice_with_debug_annotations(
+        ts=1500,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="HTTP Request",
+        debug_annotations={
+            "method": "POST",
+            "url": "/api/users/create",
+            "content_length": 2048,
+            "keep_alive": True
+        }
+    )
+
+    add_slice_with_debug_annotations(
+        ts=1800,
+        event_type=TrackEvent.TYPE_SLICE_END
+    )
+```
+
+</details>
+
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Adding Debug Annotations](/docs/images/converting-debug-basic.png)
+
+### Python Example: Nested Debug Annotations
+
+Debug annotations can represent complex nested data structures including
+dictionaries and arrays. This is useful when you need to attach structured
+information like configuration objects, arrays of values, or hierarchical data.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    # Define a unique ID for this sequence of packets
+    TRUSTED_PACKET_SEQUENCE_ID = 6002
+
+    # Define a unique UUID for your custom track
+    NESTED_DEBUG_TRACK_UUID = 87654322
+
+    # 1. Define the Custom Track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = NESTED_DEBUG_TRACK_UUID
+    packet.track_descriptor.name = "Nested Debug Annotations"
+
+    # 2. Create a slice with nested debug annotations
+    packet = builder.add_packet()
+    packet.timestamp = 2000
+    packet.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+    packet.track_event.track_uuid = NESTED_DEBUG_TRACK_UUID
+    packet.track_event.name = "Complex Operation"
+
+    # Add a dictionary annotation with nested structure
+    config_annotation = packet.track_event.debug_annotations.add()
+    config_annotation.name = "config"
+
+    # Add dictionary entries
+    db_entry = config_annotation.dict_entries.add()
+    db_entry.name = "database"
+    db_entry.string_value = "postgres://localhost:5432/mydb"
+
+    timeout_entry = config_annotation.dict_entries.add()
+    timeout_entry.name = "timeout_ms"
+    timeout_entry.int_value = 30000
+
+    retry_entry = config_annotation.dict_entries.add()
+    retry_entry.name = "retry_enabled"
+    retry_entry.bool_value = True
+
+    # Add an array annotation
+    servers_annotation = packet.track_event.debug_annotations.add()
+    servers_annotation.name = "server_list"
+
+    # Add array values
+    server1 = servers_annotation.array_values.add()
+    server1.string_value = "server-1.example.com"
+
+    server2 = servers_annotation.array_values.add()
+    server2.string_value = "server-2.example.com"
+
+    server3 = servers_annotation.array_values.add()
+    server3.string_value = "server-3.example.com"
+
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # End the slice
+    packet = builder.add_packet()
+    packet.timestamp = 2500
+    packet.track_event.type = TrackEvent.TYPE_SLICE_END
+    packet.track_event.track_uuid = NESTED_DEBUG_TRACK_UUID
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+```
+
+</details>
+
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Nested Debug Annotations](/docs/images/converting-debug-nested.png)
+
 ## Next Steps
 
 You've now seen how to convert various types of custom timestamped data into
 Perfetto traces using Python and the `TrackEvent` protobuf. With these
 techniques, you can represent simple activities, nested operations, asynchronous
-events, counters, flows, and create organized track hierarchies.
+events, counters, flows, create organized track hierarchies, and add debug
+annotations to your events.
 
 Once you have your custom data in the Perfetto trace format (`.pftrace` file),
 you can:
