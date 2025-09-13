@@ -30,6 +30,7 @@ export const defaultPlugins = [
   'com.android.AndroidPerf',
   'com.android.AndroidPerfTraceCounters',
   'com.android.AndroidStartup',
+  'com.android.CpuPerUid',
   'com.android.GpuWorkPeriod',
   'com.android.LargeScreensPerf',
   'com.android.PinAndroidPerfMetrics',

@@ -14,6 +14,47 @@
 -- limitations under the License.
 --
 
+CREATE PERFETTO MACRO _counter_leading_intervals(
+    counter_table TableOrSubquery,
+    keep_zeroes Expr
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    c0 AS id,
+    c1 AS ts,
+    c2 AS dur,
+    c3 AS track_id,
+    c4 AS value,
+    c5 AS next_value,
+    c6 AS delta_value
+  FROM __intrinsic_table_ptr(
+    __intrinsic_counter_intervals(
+      "leading",
+      trace_end(),
+      (
+        SELECT
+          __intrinsic_counter_per_track_agg(input.id, input.ts, input.track_id, input.value, $keep_zeroes)
+        FROM (
+          SELECT
+            *
+          FROM $counter_table
+          ORDER BY
+            ts
+        ) AS input
+      )
+    )
+  )
+  WHERE
+    __intrinsic_table_ptr_bind(c0, 'id')
+    AND __intrinsic_table_ptr_bind(c1, 'ts')
+    AND __intrinsic_table_ptr_bind(c2, 'dur')
+    AND __intrinsic_table_ptr_bind(c3, 'track_id')
+    AND __intrinsic_table_ptr_bind(c4, 'value')
+    AND __intrinsic_table_ptr_bind(c5, 'next_value')
+    AND __intrinsic_table_ptr_bind(c6, 'delta_value')
+);
+
 -- For a given counter timeline (e.g. a single counter track), returns
 -- intervals of time where the counter has the same value.
 --
@@ -22,6 +63,8 @@
 -- value and it should continue to have that value until the next
 -- value change. The final value is assumed to hold until the very end of
 -- the trace.
+--
+-- Input times for which the delta is zero will therefore not be present in the result.
 --
 -- For example, suppose we have the following data:
 -- ```
@@ -49,38 +92,16 @@ CREATE PERFETTO MACRO counter_leading_intervals(
 -- Table with the schema (id LONG, ts TIMESTAMP, dur DURATION, track_id JOINID(track.id),
 -- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
 RETURNS TableOrSubquery AS
-(
-  SELECT
-    c0 AS id,
-    c1 AS ts,
-    c2 AS dur,
-    c3 AS track_id,
-    c4 AS value,
-    c5 AS next_value,
-    c6 AS delta_value
-  FROM __intrinsic_table_ptr(
-    __intrinsic_counter_intervals(
-      "leading",
-      trace_end(),
-      (
-        SELECT
-          __intrinsic_counter_per_track_agg(input.id, input.ts, input.track_id, input.value)
-        FROM (
-          SELECT
-            *
-          FROM $counter_table
-          ORDER BY
-            ts
-        ) AS input
-      )
-    )
-  )
-  WHERE
-    __intrinsic_table_ptr_bind(c0, 'id')
-    AND __intrinsic_table_ptr_bind(c1, 'ts')
-    AND __intrinsic_table_ptr_bind(c2, 'dur')
-    AND __intrinsic_table_ptr_bind(c3, 'track_id')
-    AND __intrinsic_table_ptr_bind(c4, 'value')
-    AND __intrinsic_table_ptr_bind(c5, 'next_value')
-    AND __intrinsic_table_ptr_bind(c6, 'delta_value')
-);
+_counter_leading_intervals!($counter_table, false);
+
+-- Like counter_leading_intervals() but does not remove rows from the result where the delta is zero.
+CREATE PERFETTO MACRO counter_leading_intervals_keep_zeroes(
+    -- A table/view/subquery corresponding to a "counter-like" table.
+    -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
+    -- to an id, timestamp, counter track_id and associated counter value.
+    counter_table TableOrSubquery
+)
+-- Table with the schema (id LONG, ts TIMESTAMP, dur DURATION, track_id JOINID(track.id),
+-- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
+RETURNS TableOrSubquery AS
+_counter_leading_intervals!($counter_table, true);
