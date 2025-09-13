@@ -32,6 +32,8 @@
   }
 
   button {
+    @include button-base;
+
     padding: 10px;
     border-radius: 3px;
     color: #fff;
@@ -42,7 +44,8 @@
     }
   }
   button:hover {
+    @include button-base;
+
     background-color: #373f4b;
-    cursor: pointer;
   }
 }
