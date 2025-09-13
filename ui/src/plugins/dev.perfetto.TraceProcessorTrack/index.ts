@@ -439,9 +439,31 @@ export default class implements PerfettoPlugin {
           loadArray.push({ts, dur: resolution, load});
         }
 
+        // Order minimap rows to match the current process track order in the
+        // workspace so the overview aligns with the timeline ordering.
         const rows: MinimapRow[] = [];
-        for (const row of slicesData.values()) {
-          rows.push(row);
+        const processUriRe = /^\/process_(\d+)$/;
+        const orderedUpids: string[] = [];
+        // Walk the ordered flat track tree and collect process upids.
+        for (const node of ctx.workspace.tracks.flatTracksOrdered) {
+          if (!node.uri) continue;
+          const m = node.uri.match(processUriRe);
+          if (m) {
+            orderedUpids.push(m[1]);
+          }
+        }
+        const seen = new Set<string>();
+        for (const upid of orderedUpids) {
+          const row = slicesData.get(upid);
+          if (row) {
+            rows.push(row);
+            seen.add(upid);
+          }
+        }
+        // Append any remaining rows that might not have a corresponding
+        // process track (fallback to provider iteration order).
+        for (const [upid, row] of slicesData.entries()) {
+          if (!seen.has(upid)) rows.push(row);
         }
         return rows;
       },
