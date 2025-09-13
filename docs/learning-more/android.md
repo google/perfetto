@@ -184,6 +184,10 @@ You should use an exclusive session in the following scenarios:
 * For sensitive performance measurements where you need to minimize interference from other concurrent tracing activities.
 * When using data sources with high overhead, such as `function_graph` in ftrace, to ensure their behavior is not affected by other sessions.
 * When configuring parameters that apply globally and are not multiplexed, like the ftrace buffer size (`buffer_size_kb`), which is only configured by the first active session.
+*   When using specific ftrace features that modify global kernel state. As of Perfetto v52 (Android 25Q3+), these include:
+    *   `tids_to_trace`: Filters ftrace events by specific Thread IDs (TIDs).
+    *   `tracefs_options`: Control the tracers or the trace output via tracefs/trace_options
+    *   `tracing_cpumask`: Restricts tracing to a specific set of CPUs.
 
 ### Behavior
 
@@ -193,6 +197,16 @@ An exclusive session has the following behavior:
 *   **Preemption**: If a new exclusive session is requested with a priority strictly higher than any other active session, it will be started, and all other existing sessions (both exclusive and non-exclusive) will be aborted. Consumers of aborted sessions will receive an error message (e.g., `Aborted due to user requested higher-priority (#priority) exclusive session.`).
 *   **Blocking**: While an exclusive session is active, any attempt to start a new non-exclusive session, or an exclusive session with a lower or equal priority, will be rejected.
 *   **Privileged Access**: On Android, requesting an exclusive session is a privileged operation and can only be done by `root` or `shell` users.
+
+**Implications for Ftrace Exclusive Features:**
+
+*   To guarantee the ftrace features listed above work without conflict, run the tracing session with `exclusive_prio > 0`.
+*   If you attempt to use these ftrace features *without* setting `exclusive_prio`:
+    *   The session will only succeed if *no other* ftrace session is currently running.
+    *   If any other ftrace session is active, the request will be rejected.
+    *   If a session using these features starts without `exclusive_prio`, it will block any subsequent attempts to start another ftrace session *unless* that new session sets a higher `exclusive_prio`.
+
+So it's recommended to use `exclusive_prio` when using these advanced ftrace capabilities for reliability.
 
 ### How to enable
 
