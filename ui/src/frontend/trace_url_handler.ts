@@ -41,7 +41,7 @@ export function maybeOpenTraceFromRoute(route: Route) {
     // /?url=https://commondatastorage.googleapis.com/bucket/trace
     // This really works only for GCS because the Content Security Policy
     // forbids any other url.
-    loadTraceFromUrl(url);
+    loadTraceFromUrl(url, route.args.referrer);
     return;
   }
 
@@ -214,13 +214,13 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   }
 }
 
-function loadTraceFromUrl(url: string) {
+function loadTraceFromUrl(url: string, referrer?: string) {
   const isLocalhostTraceUrl = ['127.0.0.1', 'localhost'].includes(
     new URL(url).hostname,
   );
 
-  if (isLocalhostTraceUrl) {
-    // This handles the special case of tools/record_android_trace serving the
+  if (isLocalhostTraceUrl && referrer === 'open_trace_in_ui') {
+    // This handles the special case of tools/open_trace_in_ui serving the
     // traces from a local webserver and killing it immediately after having
     // seen the HTTP GET request. In those cases store the trace as a file, so
     // when users click on share we don't fail the re-fetch().
