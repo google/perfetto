@@ -31,7 +31,8 @@ WITH
   suspend_slice_from_minimal AS (
     SELECT
       ts,
-      dur
+      dur,
+      lead(ts) OVER (ORDER BY ts) - ts - dur AS duration_gap
     FROM track AS t
     JOIN slice AS s
       ON s.track_id = t.id
@@ -61,12 +62,14 @@ WITH
   suspend_slice_pre_filter AS (
     SELECT
       ts,
-      dur
+      dur,
+      duration_gap
     FROM suspend_slice_from_minimal
     UNION ALL
     SELECT
       ts,
-      dur
+      dur,
+      duration_gap
     FROM suspend_slice_latency
   ),
   suspend_slice AS (
@@ -77,7 +80,7 @@ WITH
       dur
     FROM suspend_slice_pre_filter
     WHERE
-      dur > 0
+      duration_gap > 0
   ),
   awake_slice AS (
     -- If we don't have any rows, use the trace bounds if bounds are defined.
