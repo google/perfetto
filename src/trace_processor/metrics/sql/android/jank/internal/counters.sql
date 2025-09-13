@@ -12,6 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
 INCLUDE PERFETTO MODULE android.cujs.sysui_cuj_counters;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
@@ -31,7 +32,9 @@ WITH cujs_ordered AS (
     CASE
       WHEN process_name GLOB 'com.android.*' THEN ts_end
       WHEN process_name = 'com.google.android.apps.nexuslauncher' THEN ts_end
-      -- Some processes publish counters just before logging the CUJ end
+      -- Some processes publish (a subset of) counters right before ending the
+      -- CUJ marker slice. Updating the SQL query to consider counters up to 4ms
+      -- before the CUJ ends in that case.
       ELSE MAX(ts, ts_end - 4000000)
     END AS ts_earliest_allowed_counter,
     LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end ASC) AS ts_end_next_cuj

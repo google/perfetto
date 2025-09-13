@@ -32,10 +32,10 @@ class SystemUICujs(TestSuite):
         FROM android_sysui_jank_cujs;
         """,
         out=Csv("""
-        "cuj_id","upid","process_name","cuj_slice_name","cuj_name","slice_id","ts","ts_end","dur","state","ui_thread","layer_id","begin_vsync","end_vsync"
-        1,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",4,27000000,65000000,38000000,"completed",3,0,20,30
-        2,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",25,85000000,89000000,4000000,"completed",3,2,60,70
-        3,2,"com.google.android.apps.nexuslauncher","J<CUJ_NAME>","CUJ_NAME",39,121000000,143000000,22000000,"completed",5,1,80,90
+        "cuj_id","upid","process_name","cuj_slice_name","cuj_name","slice_id","ts","ts_end","dur","state","ui_thread","layer_id","layer_name","begin_vsync","end_vsync"
+        1,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",4,27000000,65000000,38000000,"completed",3,0,"TX - first_layer#0",20,30
+        2,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",25,85000000,89000000,4000000,"completed",3,2,"TX - third_layer#2",60,70
+        3,2,"com.google.android.apps.nexuslauncher","J<CUJ_NAME>","CUJ_NAME",39,121000000,143000000,22000000,"completed",5,1,"TX - second_layer#1",80,90
         """))
 
   def test_android_sysui_latency_cujs(self):
