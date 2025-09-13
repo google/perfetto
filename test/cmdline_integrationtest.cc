@@ -247,6 +247,8 @@ class PerfettoCmdlineTest : public ::testing::Test {
     task_runner_.RunUntilCheckpoint("data_written");
 
     ASSERT_EQ(0, perfetto_br_proc.Run(&stderr_)) << "stderr: " << stderr_;
+    PERFETTO_LOG("perfetto_br_proc, stderr:\n%s\n==========================",
+                 stderr_.c_str());
     perfetto_proc.SendSigterm();
     background_trace.join();
 
@@ -1042,7 +1044,39 @@ TEST_F(PerfettoCmdlineTest, SaveForBugreport) {
   RunBugreportTest(std::move(trace_config));
 }
 
-TEST_F(PerfettoCmdlineTest, SaveForBugreport_WriteIntoFile) {
+// TEST_F(PerfettoCmdlineTest, SaveForBugreport_WriteIntoFileFast) {
+//   TraceConfig trace_config = CreateTraceConfigForBugreportTest();
+//   trace_config.set_file_write_period_ms(1);
+//   trace_config.set_write_into_file(true);
+//   RunBugreportTest(std::move(trace_config));
+// }
+
+// TEST_F(PerfettoCmdlineTest, SaveForBugreport_WriteIntoFile) {
+//   TraceConfig trace_config = CreateTraceConfigForBugreportTest();
+//   trace_config.set_file_write_period_ms(
+//       1);  // Now the file should be written and copied.
+//   trace_config.set_write_into_file(true);
+//   const std::string write_into_file_path = RandomTraceFileName();
+//   ScopedFileRemove remove_on_test_exit(write_into_file_path);
+//   trace_config.set_output_path(write_into_file_path);
+//   RunBugreportTest(std::move(trace_config));
+//   {
+//     uint32_t expected_packets = 0;
+//     for (auto& ds : trace_config.data_sources()) {
+//       if (ds.config().has_for_testing())
+//         expected_packets = ds.config().for_testing().message_count();
+//     }
+//
+//     protos::gen::Trace trace;
+//     ASSERT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+//     uint32_t test_packets = 0;
+//     for (const auto& p : trace.packet())
+//       test_packets += p.has_for_testing() ? 1 : 0;
+//     ASSERT_EQ(test_packets, expected_packets) << write_into_file_path;
+//   }
+// }
+
+TEST_F(PerfettoCmdlineTest, SaveForBugreport_WriteIntoFileOld) {
   TraceConfig trace_config = CreateTraceConfigForBugreportTest();
   trace_config.set_file_write_period_ms(60000);  // Will never hit this.
   trace_config.set_write_into_file(true);
@@ -1218,6 +1252,9 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_FourTraces) {
   traces.emplace_back(CreateTraceConfigForBugreportTest(/*score=*/4, add_filt));
   traces.back().cfg.set_unique_session_name(session_prefix + "_4");
 
+  const std::string write_into_file_path = RandomTraceFileName();
+  PERFETTO_LOG("normal output file: %s", write_into_file_path.c_str());
+
   for (auto& trace : traces) {
     std::string cfg = trace.cfg.SerializeAsString();
     trace.proc = ExecPerfetto({"-o", base::kDevNull, "-c", "-"}, cfg);
@@ -1349,5 +1386,15 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   ExpectTraceContainsTestMessages(trace, kMsgCount);
   ExpectTraceContainsTestMessagesWithSize(trace, kMsgSize);
 }
+
+// TEST_F(PerfettoCmdlineTest, WriteIntoFileSaveForBugreport) {
+//   const std::string write_into_file_path = RandomTraceFileName();
+//   ScopedFileRemove remove_on_test_exit(write_into_file_path);
+//   TraceConfig cfg = CreateTraceConfigForBugreportTest();
+//   cfg.set_write_into_file(true);
+//   cfg.set_write_into_file(write_into_file_path);
+//   Exec trace_proc = ExecPerfetto({"-o", base::kDevNull, "-c", "-"},
+//                                   cfg.SerializeAsString());
+// }
 
 }  // namespace perfetto

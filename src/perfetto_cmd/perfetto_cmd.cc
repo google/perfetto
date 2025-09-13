@@ -1020,6 +1020,14 @@ void PerfettoCmd::OnConnect() {
     return;
   }
 
+  PERFETTO_LOG(
+      "PerfettoCmd::OnConnect, is_clone(): %d, trace_out_stream_: %p, "
+      "trace_out_path_: %s, trace_config_->write_into_file(): %d, "
+      "snapshot_config_.empty(): %d",
+      is_clone(), static_cast<void*>(trace_out_stream_.get()),
+      trace_out_path_.c_str(), trace_config_->write_into_file(),
+      snapshot_config_.empty());
+
   if (is_clone()) {
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
                                  kCloneTimeoutMs);
@@ -1039,7 +1047,14 @@ void PerfettoCmd::OnConnect() {
       args.clone_trigger_boot_time_ns = snapshot_trigger_info_->boot_time_ns;
       args.clone_trigger_delay_ms = snapshot_trigger_info_->trigger_delay_ms;
     }
-    consumer_endpoint_->CloneSession(std::move(args));
+
+    base::ScopedFile optional_fd;
+    if (trace_out_stream_) {
+      optional_fd.reset(dup(fileno(*trace_out_stream_)));
+    }
+
+    PERFETTO_LOG("PerfettoCmd::OnConnect, consumer_endpoint_->CloneSession");
+    consumer_endpoint_->CloneSession(std::move(args), std::move(optional_fd));
     return;
   }
 
@@ -1123,6 +1138,9 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   trace_data_timeout_armed_ = false;
 
+  // PERFETTO_DLOG("PerfettoCmd::OnTraceData, packets.size(): %lu",
+  //               packets.size());
+
   PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
     PERFETTO_ELOG("Failed to write packets");
@@ -1138,6 +1156,7 @@ void PerfettoCmd::OnTracingDisabled(const std::string& error) {
 }
 
 void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
+  PERFETTO_LOG("ReadbackTraceDataAndQuit, error: %s", error.c_str());
   if (!error.empty()) {
     // Some of these errors (e.g. unique session name already exists) are soft
     // errors and likely to happen in nominal condition. As such they shouldn't

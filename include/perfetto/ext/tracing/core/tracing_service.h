@@ -227,7 +227,8 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // milliseconds) of the trigger that caused the clone.
     uint64_t clone_trigger_delay_ms = 0;
   };
-  virtual void CloneSession(CloneSessionArgs) = 0;
+  virtual void CloneSession(CloneSessionArgs,
+                            base::ScopedFile = base::ScopedFile()) = 0;
 
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case
