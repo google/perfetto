@@ -509,6 +509,46 @@ query: {
 }
 ```
 
+### Joining Tables with `join`
+
+The `join` source provides a structured way to perform `INNER` or `LEFT` joins
+between two queries. This is a powerful tool for combining data from different
+sources based on a common key.
+
+Each `join` operation requires:
+
+- `left_query` and `right_query`: The two structured queries to join.
+- `left_column` and `right_column`: The names of the columns to join on.
+- `type`: The type of join to perform (`INNER` or `LEFT`).
+
+#### Example: Correlating Slices with their Tracks
+
+This example demonstrates how to join the `slice` table with the `track` table
+to include the track name in the slice data.
+
+```protobuf
+query: {
+  join: {
+    left_query: {
+      table: {
+        table_name: "slice"
+      }
+    }
+    right_query: {
+      table: {
+        table_name: "track"
+      }
+    }
+    left_column: "track_id"
+    right_column: "id"
+    type: INNER
+  }
+}
+```
+
+This query will produce a new table containing all columns from both the `slice`
+and `track` tables, where `slice.track_id` matches `track.id`.
+
 ### Adding Trace-Wide Metadata
 
 You can add key-value metadata to your summary to provide context for the
@@ -786,6 +826,7 @@ A query's source can be one of the following:
 - **`table`**: A PerfettoSQL table or view.
 - **`sql`**: An arbitrary SQL `SELECT` statement.
 - **`simple_slices`**: A convenience for querying the `slice` table.
+- **`join`**: A structured `INNER` or `LEFT` join between two queries.
 - **`inner_query`**: A nested structured query.
 - **`inner_query_id`**: A reference to a shared structured query.
 - **`interval_intersect`**: A time-based intersection of a `base` data source

@@ -168,6 +168,8 @@ class GeneratorImpl {
   base::StatusOr<std::string> IntervalIntersect(
       const StructuredQuery::IntervalIntersect::Decoder&);
 
+  base::StatusOr<std::string> Join(const StructuredQuery::Join::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
 
@@ -246,6 +248,9 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_join()) {
+      StructuredQuery::Join::Decoder join(q.join());
+      ASSIGN_OR_RETURN(source, Join(join));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -427,6 +432,41 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
   }
   sql += ")";
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::Join(
+    const StructuredQuery::Join::Decoder& join) {
+  if (!join.has_left_query()) {
+    return base::ErrStatus("Join must specify a left query");
+  }
+  if (!join.has_right_query()) {
+    return base::ErrStatus("Join must specify a right query");
+  }
+  if (!join.has_left_column()) {
+    return base::ErrStatus("Join must specify a left column");
+  }
+  if (!join.has_right_column()) {
+    return base::ErrStatus("Join must specify a right column");
+  }
+
+  std::string left_table = NestedSource(join.left_query());
+  std::string right_table = NestedSource(join.right_query());
+
+  std::string join_type_str;
+  switch (join.type()) {
+    case StructuredQuery::Join::INNER:
+      join_type_str = "INNER";
+      break;
+    case StructuredQuery::Join::LEFT:
+      join_type_str = "LEFT";
+      break;
+  }
+
+  std::string sql = "(SELECT * FROM " + left_table + " " + join_type_str +
+                    " JOIN " + right_table + " ON " + left_table + "." +
+                    join.left_column().ToStdString() + " = " + right_table +
+                    "." + join.right_column().ToStdString() + ")";
   return sql;
 }
 

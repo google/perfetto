@@ -180,6 +180,32 @@ message PerfettoSqlStructuredQuery {
     repeated PerfettoSqlStructuredQuery interval_intersect = 2;
   }
 
+  // Performs a structured JOIN between two queries. This is a powerful way to
+  // combine data from different sources based on a common key.
+  message Join {
+    // The type of join to perform.
+    enum Type {
+      // Standard SQL INNER JOIN. A row is produced only if the join condition
+      // is met in both the left and right queries.
+      INNER = 0;
+      // Standard SQL LEFT JOIN. All rows from the left query are included,
+      // with matching rows from the right query. If there is no match, the
+      // columns from the right query will be NULL.
+      LEFT = 1;
+    }
+
+    // The type of join. Required.
+    optional Type type = 1;
+    // The "left" query in the join. Required.
+    optional PerfettoSqlStructuredQuery left_query = 2;
+    // The "right" query in the join. Required.
+    optional PerfettoSqlStructuredQuery right_query = 3;
+    // The name of the column in the left query to join on. Required.
+    optional string left_column = 4;
+    // The name of the column in the right query to join on. Required.
+    optional string right_column = 5;
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -223,6 +249,10 @@ message PerfettoSqlStructuredQuery {
     // Source is an interval intersect operation. See IntervalIntersect
     // documentation for more information.
     IntervalIntersect interval_intersect = 7;
+
+    // Source is a join operation. See Join documentation for more
+    // information.
+    Join join = 12;
   }
 
   // Represents a single filter on a column.
