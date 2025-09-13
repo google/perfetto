@@ -441,10 +441,29 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     conn.UpgradeToWebsocket(req);
 
     if (send_id_back) {
-      // Immediately send the new instance ID to the client upon connection.
-      std::string json_response =
-          "{\"id\": \"" + std::to_string(instance_id) + "\"}";
-      conn.SendWebsocketMessage(json_response.c_str(), json_response.length());
+      // Immediately send a status message to the client upon connection.
+      // This follows the pattern of TPM_GET_STATUS responses.
+      // We need to wrap the TraceProcessorRpc message into a
+      // TraceProcessorRpcStream to be compliant with the RPC protocol on the
+      // wire.
+      protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream> stream;
+      auto* rpc = stream->add_msg();
+      rpc->set_seq(0);  // This is the first message, seq can be 0.
+      rpc->set_response(protos::pbzero::TraceProcessorRpc::TPM_GET_STATUS);
+
+      auto* status = rpc->set_status();
+      // For a new instance, the trace name is empty.
+      status->set_loaded_trace_name("");
+      status->set_human_readable_version(base::GetVersionString());
+      if (const char* version_code = base::GetVersionCode(); version_code) {
+        status->set_version_code(version_code);
+      }
+      status->set_api_version(
+          protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+      status->set_instance_id(instance_id);
+      req.conn->SendWebsocketMessage(
+          Vec2Sv(stream.SerializeAsArray()).data(),
+          static_cast<uint32_t>(stream.SerializeAsArray().size()));
     }
     return;
   }

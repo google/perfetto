@@ -16,6 +16,7 @@ import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists, reportError} from '../base/logging';
 import {EngineBase} from '../trace_processor/engine';
+import TPM = protos.TraceProcessorRpc.TraceProcessorMethod;
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
@@ -114,22 +115,25 @@ export class HttpRpcEngine extends EngineBase {
   private onWebsocketMessage(e: MessageEvent) {
     const blob = assertExists(e.data as Blob);
     if (this.isWaitingForid) {
-      // The very first message for a 'new' connection contains the instance ID.
-      blob.text().then((text) => {
-        try {
-          const data = JSON.parse(text);
+      blob.arrayBuffer().then((buffer) => {
+        const rpcMsgEncoded = new Uint8Array(buffer);
+        const rpc = protos.TraceProcessorRpc.decode(rpcMsgEncoded);
 
-          if (data.id !== undefined) {
-            this.trace_processor_id = parseInt(data.id, 10) >>> 0;
-            this.isWaitingForid = false;
-            this.onWebsocketConnected();
-          } else {
-            this.fail(`Initial message missing instance ID: ${text}`);
-          }
-        } catch (error) {
-          this.fail(
-            `Failed to parse instance ID message from server: ${error}`,
-          );
+        if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
+          this.fail(`${rpc.fatalError}`);
+        }
+        if (rpc.response !== TPM.TPM_GET_STATUS) {
+          this.fail(`Initial message missing instance ID: ${rpc}`);
+        } else if (
+          rpc.status === undefined ||
+          rpc.status === null ||
+          rpc.status.instanceId === undefined
+        ) {
+          this.fail(`Initial message missing instance ID: ${rpc}`);
+        } else {
+          this.trace_processor_id = rpc.status?.instanceId ?? 0;
+          this.isWaitingForid = false;
+          this.onWebsocketConnected();
         }
       });
       return;
