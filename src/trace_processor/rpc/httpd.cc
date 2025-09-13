@@ -333,7 +333,9 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
           tp_status->set_version_code(version_code);
         }
         tp_status->set_instance_id(instance_id);
-        tp_status->set_last_activity(tp_rpc->GetLastAccessedNs());
+        tp_status->set_inactivity_ns(
+            static_cast<uint64_t>(base::GetWallTimeNs().count()) -
+            tp_rpc->GetLastAccessedNs());
         tp_status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
       }
     }

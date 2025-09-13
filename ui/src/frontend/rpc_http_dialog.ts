@@ -18,7 +18,7 @@ import {assertExists} from '../base/logging';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {Callout} from '../widgets/callout';
-import {Card, CardStack} from '../widgets/card';
+import {CardStack} from '../widgets/card';
 import {Intent} from '../widgets/common';
 import {showModal, closeModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
@@ -256,6 +256,27 @@ enum IncompatibleRpcDialogResult {
   Dismissed = 'dismissed',
 }
 
+function formatInactivity(nanos: number): string {
+  // Convert nanoseconds → milliseconds
+  const ms = nanos / 1_000_000;
+
+  // Convert to seconds, minutes, hours, days
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  } else if (hours > 0) {
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  } else if (minutes > 0) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  } else {
+    return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+  }
+}
+
 async function showDialogIncompatibleRPC(
   tpStatus: protos.StatusResult,
 ): Promise<IncompatibleRpcDialogResult> {
@@ -312,15 +333,21 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
         return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
       });
 
+      // UI selection state: null means "New instance" (or nothing chosen).
+      // If set to a number, it refers to an existing instanceId.
+      let selectedInstanceId: number | null = null;
+
       showModal({
         title: 'Use trace processor native acceleration?',
         content: () => {
-          const elements: m.Child[] = [
+          const elements: m.Child[] = [];
+
+          elements.push(
             m(
               'p',
-              `Current active sessions on ${HttpRpcEngine.hostAndPort} (choose one or pick another option below):`,
+              `Current active sessions on ${HttpRpcEngine.hostAndPort} (select one or pick "New instance" below if you want to open another trace):`,
             ),
-          ];
+          );
 
           if (processorsWithTraces.length > 0) {
             const activeTabCount = sortedProcessors.filter(
@@ -335,66 +362,162 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                     intent: Intent.Warning,
                     icon: 'warning',
                   },
-                  'Each loaded trace can be opened in at most one tab at a time.',
+                  'Each loaded trace can be opened in at most one tab at a time. If you want to open a trace that is already open in another tab, please close the old tab first and refresh.',
                 ),
               );
             }
 
-            elements.push(
-              m(
-                CardStack,
-                sortedProcessors.map((tp, index) => {
-                  const status = tp;
-                  const hasActiveTab = status.hasExistingTab ?? false;
+            // numbered list semantics for rows
+            const rows = sortedProcessors.map((tp, index) => {
+              const status = tp;
+              const hasActiveTab = status.hasExistingTab ?? false;
+              const id = status.instanceId ?? null;
+              const isSelected = id !== null && selectedInstanceId === id;
 
-                  return m(
-                    Card,
-                    {
-                      key: tp.instanceId ?? `default-${index}`,
-                      interactive: true,
-                      onclick: () => {
-                        if (tp.instanceId != null) {
-                          AppImpl.instance.httpRpc.selectedTraceProcessorId =
-                            tp.instanceId;
-                        }
-                        closeModal();
-                        resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
-                      },
-                    },
+              // visual styles for selectable / disabled / selected
+              const baseStyle: m.Attributes['style'] = {
+                'display': 'flex',
+                'justify-content': 'space-between',
+                'align-items': 'center',
+                'padding': '12px',
+                'cursor': hasActiveTab ? 'not-allowed' : 'pointer',
+                'border-radius': '6px',
+                'margin': '6px 0',
+                'border': isSelected
+                  ? '2px solid var(--pf-global--primary-color--100)'
+                  : '1px solid var(--pf-global--BorderColor--100)',
+                'background': isSelected
+                  ? 'rgba(0, 114, 206, 0.06)'
+                  : 'var(--pf-global--BackgroundColor--100)',
+                'opacity': hasActiveTab ? 0.5 : 1,
+              };
+
+              return m(
+                'div',
+                {
+                  key: `row-${id ?? `default-${index}`}`,
+                  role: 'option',
+                  tabindex: hasActiveTab ? -1 : 0,
+                  onclick: () => {
+                    // do not allow selecting rows that already have an active tab
+                    if (hasActiveTab) return;
+                    selectedInstanceId = id ?? null;
+                    // redraw modal content to reflect selection
+                    redrawModal();
+                  },
+                  onkeypress: (e: KeyboardEvent) => {
+                    if (hasActiveTab) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      selectedInstanceId = id ?? null;
+                      redrawModal();
+                    }
+                  },
+                  style: baseStyle,
+                },
+                [
+                  // left side: number, loadedTraceName and small details
+                  m(
+                    'div',
+                    {style: {'display': 'flex', 'flex-direction': 'column'}},
                     [
-                      m('div', [
-                        m('strong', status.loadedTraceName),
-                        m('br'),
-                        m(
-                          'small',
-                          {style: {color: 'var(--pf-color-text-muted)'}},
-                          `ID: ${tp.instanceId ?? 'default'}`,
-                        ),
-                        m('br'),
-                        m(
-                          'small',
-                          {style: {color: 'var(--pf-color-text-muted)'}},
-                          `Version: ${status.humanReadableVersion || 'unknown'}`,
-                        ),
-                      ]),
-                      hasActiveTab &&
+                      m(
+                        'div',
+                        {
+                          style: {
+                            'font-family': 'monospace',
+                            'font-weight': 600,
+                          },
+                        },
+                        `#${status.instanceId ?? '0'}  ${status.loadedTraceName}  ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? '  [ATTACHED]' : ''}`,
+                      ),
+                      m('small', {
+                        style: {color: 'var(--pf-color-text-muted)'},
+                      }),
+                    ],
+                  ),
+
+                  // right side: status indicator (attached-warning)
+                  m(
+                    'div',
+                    {style: {'text-align': 'right', 'min-width': '220px'}},
+                    [
+                      isSelected &&
+                        !hasActiveTab &&
                         m(
                           'div',
                           {
                             style: {
-                              'color': 'var(--pf-color-danger)',
-                              'font-weight': 'bold',
-                              'font-size': '11px',
-                              'display': 'block',
-                              'margin-top': '4px',
+                              'color': 'var(--pf-global--primary-color--100)',
+                              'font-size': '12px',
+                              'font-weight': 600,
                             },
                           },
-                          '⚠️ Active tab exists - close the old tab first before loading to prevent crashing',
+                          'Selected',
                         ),
                     ],
-                  );
-                }),
-              ),
+                  ),
+                ],
+              );
+            });
+
+            // "New instance" row (selectable, represents creating/attaching a new instance)
+            const newInstanceSelected = selectedInstanceId === null;
+
+            const newRowStyle: m.Attributes['style'] = {
+              'display': 'flex',
+              'justify-content': 'space-between',
+              'align-items': 'center',
+              'padding': '12px',
+              'cursor': 'pointer',
+              'border-radius': '6px',
+              'margin': '6px 0',
+              'border': newInstanceSelected
+                ? '2px solid var(--pf-global--primary-color--100)'
+                : '1px solid var(--pf-global--BorderColor--100)',
+              'background': newInstanceSelected
+                ? 'rgba(0, 114, 206, 0.04)'
+                : 'var(--pf-global--BackgroundColor--100)',
+            };
+
+            elements.push(
+              m(CardStack, [
+                ...rows,
+                m(
+                  'div',
+                  {
+                    key: 'new-instance-row',
+                    role: 'option',
+                    tabindex: 0,
+                    onclick: () => {
+                      selectedInstanceId = null;
+                      redrawModal();
+                    },
+                    onkeypress: (e: KeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        selectedInstanceId = null;
+                        redrawModal();
+                      }
+                    },
+                    style: newRowStyle,
+                  },
+                  [
+                    m('div', m('strong', 'New instance …')),
+                    newInstanceSelected &&
+                      m(
+                        'div',
+                        {
+                          style: {
+                            'color': 'var(--pf-global--primary-color--100)',
+                            'font-weight': 600,
+                          },
+                        },
+                        'Selected',
+                      ),
+                  ],
+                ),
+              ]),
             );
           } else {
             elements.push(
@@ -402,74 +525,105 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 'p',
                 {
                   style: {
-                    'margin': '8px 0',
-                    'font-style': 'italic',
-                    'color': 'var(--pf-color-text-muted)',
+                    margin: '8px 0',
+                    fontStyle: 'italic',
+                    color: 'var(--pf-color-text-muted)',
                   },
                 },
                 `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
               ),
             );
+
+            // ensure default selection is "New instance" if nothing exists
+            selectedInstanceId = null;
+            // show the "New instance …" row so user can choose to create an instance
+            const newRowStyleFallback: m.Attributes['style'] = {
+              'display': 'flex',
+              'justify-content': 'space-between',
+              'align-items': 'center',
+              'padding': '12px',
+              'cursor': 'pointer',
+              'border-radius': '6px',
+              'margin': '6px 0',
+              'border': '1px dashed var(--pf-global--BorderColor--100)',
+              'background': 'var(--pf-global--BackgroundColor--100)',
+            };
+            elements.push(
+              m(
+                'div',
+                {
+                  role: 'option',
+                  tabindex: 0,
+                  onclick: () => {
+                    selectedInstanceId = null;
+                    redrawModal();
+                  },
+                  style: newRowStyleFallback,
+                },
+                [m('div', m('strong', 'New instance …'))],
+              ),
+            );
           }
 
-          elements.push(
-            m('div', {style: {'margin-top': '20px'}}, [
-              m('h4', 'Other Options:'),
-              m('strong', 'Yes, Attach to external RPC:'),
-              m(
-                'ul',
-                {style: {'margin-left': '20px', 'margin-top': '4px'}},
-                m(
-                  'li',
-                  m(
-                    'small',
-                    {style: {color: 'var(--pf-color-text-muted)'}},
-                    'Use this if you want to open another trace but still use the accelerator.',
-                  ),
-                ),
-              ),
-              m(
-                'strong',
-                {style: {'margin-top': '8px', 'display': 'block'}},
-                'Use built-in WASM:',
-              ),
-              m(
-                'ul',
-                {style: {'margin-left': '20px', 'margin-top': '4px'}},
-                m(
-                  'li',
-                  m(
-                    'small',
-                    {style: {color: 'var(--pf-color-text-muted)'}},
-                    'Will not use the accelerator in this tab.',
-                  ),
-                ),
-              ),
-              m(
-                'strong',
-                {style: {'margin-top': '16px', 'display': 'block'}},
-                'Using the native accelerator has some minor caveats:',
-              ),
-              m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}}, [
-                m(
-                  'li',
-                  m(
-                    'small',
-                    {style: {color: 'var(--pf-color-text-muted)'}},
-                    "Sharing, downloading and conversion-to-legacy aren't supported.",
-                  ),
-                ),
-                m(
-                  'li',
-                  m(
-                    'small',
-                    {style: {color: 'var(--pf-color-text-muted)'}},
-                    'Each trace file can be opened in at most one tab at a time.',
-                  ),
-                ),
-              ]),
-            ]),
-          );
+          // // Other Options explanatory block (unchanged content, only layout tweaks)
+          // elements.push(
+          //   m('div', {style: {'margin-top': '20px'}}, [
+          //     m('h4', 'Other Options:'),
+          //     m('strong', 'Yes, Attach to external RPC:'),
+          //     m(
+          //       'ul',
+          //       {style: {'margin-left': '20px', 'margin-top': '4px'}},
+          //       m(
+          //         'li',
+          //         m(
+          //           'small',
+          //           {style: {color: 'var(--pf-color-text-muted)'}},
+          //           'Use this if you want to open another trace but still use the accelerator.',
+          //         ),
+          //       ),
+          //     ),
+          //     m(
+          //       'strong',
+          //       {style: {'margin-top': '8px', 'display': 'block'}},
+          //       'Use built-in WASM:',
+          //     ),
+          //     m(
+          //       'ul',
+          //       {style: {'margin-left': '20px', 'margin-top': '4px'}},
+          //       m(
+          //         'li',
+          //         m(
+          //           'small',
+          //           {style: {color: 'var(--pf-color-text-muted)'}},
+          //           'Will not use the accelerator in this tab.',
+          //         ),
+          //       ),
+          //     ),
+          //     m(
+          //       'strong',
+          //       {style: {'margin-top': '16px', 'display': 'block'}},
+          //       'Using the native accelerator has some minor caveats:',
+          //     ),
+          //     m('ul', {style: {'margin-left': '20px', 'margin-top': '4px'}}, [
+          //       m(
+          //         'li',
+          //         m(
+          //           'small',
+          //           {style: {color: 'var(--pf-color-text-muted)'}},
+          //           "Sharing, downloading and conversion-to-legacy aren't supported.",
+          //         ),
+          //       ),
+          //       m(
+          //         'li',
+          //         m(
+          //           'small',
+          //           {style: {color: 'var(--pf-color-text-muted)'}},
+          //           'Each trace file can be opened in at most one tab at a time.',
+          //         ),
+          //       ),
+          //     ]),
+          //   ]),
+          // );
 
           return elements;
         },
@@ -477,7 +631,18 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           // Main action buttons moved to footer
           {
             text: 'Yes, Attach to external RPC',
+            primary: true,
             action: () => {
+              // If user selected an existing instance -> set the selectedTraceProcessorId and use that preloaded trace
+              if (selectedInstanceId !== null) {
+                AppImpl.instance.httpRpc.selectedTraceProcessorId =
+                  selectedInstanceId;
+                closeModal();
+                resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+                return;
+              }
+
+              // No existing instance selected -> treat as "new instance / attach" flow
               closeModal();
               resolve(PreloadedDialogResult.UseRpc);
             },
@@ -489,15 +654,18 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               resolve(PreloadedDialogResult.UseWasm);
             },
           },
-          {
-            text: 'Cancel',
-            action: () => {
-              closeModal();
-              resolve(PreloadedDialogResult.Dismissed);
-            },
-          },
         ],
       });
+
+      // helper to redraw the modal content when selection changes
+      function redrawModal() {
+        try {
+          const mWithRedraw = m as {redraw?: () => void};
+          if (typeof mWithRedraw.redraw === 'function') {
+            mWithRedraw.redraw();
+          }
+        } catch (e) {}
+      }
     } catch (error) {
       console.error('Error showing trace processor selection modal:', error);
       resolve(PreloadedDialogResult.UseWasm);
