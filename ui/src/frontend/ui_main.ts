@@ -40,6 +40,18 @@ import {Sidebar} from './sidebar';
 import {renderStatusBar} from './statusbar';
 import {taskTracker} from './task_tracker';
 import {Topbar} from './topbar';
+import {OverlayContainer} from '../widgets/overlay_container';
+import {classNames} from '../base/classnames';
+
+function dragEventHasFiles(event: DragEvent): boolean {
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+  if (event.dataTransfer && event.dataTransfer.types) {
+    for (const type of event.dataTransfer.types) {
+      if (type === 'Files') return true;
+    }
+  }
+  return false;
+}
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -71,6 +83,8 @@ export class UiMainPerTrace implements m.ClassComponent {
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: string[] = [];
   private trace?: TraceImpl;
+  private lastDragTarget: EventTarget | null = null;
+  private isDragging = false;
 
   // This function is invoked once per trace.
   constructor() {
@@ -373,27 +387,72 @@ export class UiMainPerTrace implements m.ClassComponent {
       (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 
-    return m(
-      HotkeyContext,
-      {hotkeys},
-      m(
-        'main.pf-ui-main',
-        m(Sidebar, {trace: this.trace}),
-        m(Topbar, {
-          omnibox: this.renderOmnibox(),
-          trace: this.trace,
-        }),
-        m(LinearProgress, {
-          className: 'pf-ui-main__loading',
-          state: isSomethingLoading ? 'indeterminate' : 'none',
-        }),
-        m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
-        m(CookieConsent),
-        maybeRenderFullscreenModalDialog(),
-        showStatusBarFlag.get() && renderStatusBar(app.trace),
-        app.perfDebugging.renderPerfStats(),
-      ),
-    );
+    return m(HotkeyContext, {hotkeys}, [
+      m('main.pf-ui-main', [
+        m(OverlayContainer, {fillHeight: true}, [
+          m(
+            '.pf-ui-main__content',
+            {
+              className: classNames(
+                this.isDragging && 'pf-ui-main__content--dragging',
+              ),
+              // TODO: Only in !embedded mode (AppImpl.instance.embeddedMode)
+              ondragenter: (evt: DragEvent) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+                this.lastDragTarget = evt.target;
+                if (dragEventHasFiles(evt)) {
+                  this.isDragging = true;
+                }
+              },
+              ondragleave: (evt: DragEvent) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+                if (evt.target === this.lastDragTarget) {
+                  this.isDragging = false;
+                }
+              },
+              ondrop: (evt: DragEvent) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+                this.isDragging = false;
+                if (evt.dataTransfer && dragEventHasFiles(evt)) {
+                  const file = evt.dataTransfer.files[0];
+                  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+                  if (file) {
+                    AppImpl.instance.openTraceFromFile(file);
+                  }
+                }
+                evt.preventDefault();
+              },
+              ondragover: (evt: DragEvent) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+              },
+            },
+            [
+              m(Sidebar, {trace: this.trace}),
+              m(Topbar, {
+                omnibox: this.renderOmnibox(),
+                trace: this.trace,
+              }),
+              m(LinearProgress, {
+                className: 'pf-ui-main__loading',
+                state: isSomethingLoading ? 'indeterminate' : 'none',
+              }),
+              m(
+                '.pf-ui-main__page-container',
+                app.pages.renderPageForCurrentRoute(),
+              ),
+              m(CookieConsent),
+              maybeRenderFullscreenModalDialog(),
+              showStatusBarFlag.get() && renderStatusBar(app.trace),
+              app.perfDebugging.renderPerfStats(),
+            ],
+          ),
+        ]),
+      ]),
+    ]);
   }
 
   onupdate({dom}: m.VnodeDOM) {

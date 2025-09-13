@@ -28,7 +28,6 @@ import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
-import {installFileDropHandler} from './file_drop_handler';
 import {tryLoadIsInternalUserScript} from './is_internal_user_script_loader';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
@@ -58,7 +57,6 @@ import {LocalStorage} from '../core/local_storage';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
 import {ThemeProvider} from './theme_provider';
-import {OverlayContainer} from '../widgets/overlay_container';
 import {JsonSettingsEditor} from '../components/json_settings_editor';
 import {
   CommandInvocation,
@@ -349,9 +347,7 @@ function onCssLoaded() {
   raf.mount(document.body, {
     view: () =>
       m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillParent: true}, [
-          m(UiMain, {key: themeSetting.get()}),
-        ]),
+        m(UiMain, {key: themeSetting.get()}),
       ]),
   });
 
@@ -373,9 +369,6 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   checkHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    if (!AppImpl.instance.embeddedMode) {
-      installFileDropHandler();
-    }
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
