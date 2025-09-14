@@ -22,7 +22,6 @@ import {CardStack} from '../widgets/card';
 import {Intent} from '../widgets/common';
 import {showModal, closeModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
-import '../assets/preloaded_trace_dialog.scss';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
