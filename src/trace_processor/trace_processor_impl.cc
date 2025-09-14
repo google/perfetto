@@ -81,6 +81,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
@@ -1258,6 +1259,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
                                  -1);
   RegisterFunction<ExportJson>(engine.get(), "EXPORT_JSON", 1, storage, false);
   RegisterSqliteFunction<ExtractArg>(engine.get(), storage);
+  RegisterSqliteFunction<PrintArgs>(engine.get(), storage);
   RegisterFunction<AbsTimeStr>(engine.get(), "ABS_TIME_STR", 1,
                                context->clock_converter.get());
   RegisterFunction<Reverse>(engine.get(), "REVERSE", 1);
