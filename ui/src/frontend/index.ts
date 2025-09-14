@@ -92,6 +92,8 @@ function setupContentSecurityPolicy() {
     'http://127.0.0.1:9001', // For trace_processor_shell --httpd.
     'ws://127.0.0.1:9001', // Ditto, for the websocket RPC.
     'ws://127.0.0.1:9167', // For Web Device Proxy.
+    `ws://${window.location.hostname}:9001`,
+    `http://${window.location.hostname}:9001`,
   ];
   if (CSP_WS_PERMISSIVE_PORT.get()) {
     const route = Router.parseUrl(window.location.href);
@@ -124,8 +126,6 @@ function setupContentSecurityPolicy() {
       'ws://127.0.0.1:8037', // For the adb websocket server.
       'https://*.google-analytics.com',
       'https://*.googleapis.com', // For Google Cloud Storage fetches.
-      `ws://${window.location.hostname}:9001`,
-      `http://${window.location.hostname}:9001`,
       'blob:',
       'data:',
     ].concat(rpcPolicy),
