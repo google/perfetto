@@ -495,22 +495,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
             // ensure default selection is "New instance" if nothing exists
             selectedInstanceId = null;
-
-            elements.push(
-              m(
-                'div',
-                {
-                  role: 'option',
-                  tabindex: 0,
-                  onclick: () => {
-                    selectedInstanceId = null;
-                    redrawModal();
-                  },
-                  class: 'pf-new-row-fallback',
-                },
-                [m('div', m('strong', 'New instance …'))],
-              ),
-            );
           }
 
           return elements;
