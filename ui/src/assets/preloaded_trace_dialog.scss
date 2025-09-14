@@ -1,0 +1,107 @@
+/* showDialogToUsePreloadedTrace.scss */
+
+/* Intro paragraph */
+.pf-modal-intro {
+  /* from inline: default text, no extra spacing beyond what was inline in original */
+}
+
+/* Row base styles (replicates baseStyle object) */
+.pf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 6px 0;
+  border: 1px solid var(--pf-global--BorderColor--100);
+  background: var(--pf-global--BackgroundColor--100);
+  opacity: 1;
+}
+
+/* Disabled (hasActiveTab) */
+.pf-row--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Selected row border and background */
+.pf-row--selected {
+  border: 2px solid var(--pf-global--primary-color--100);
+  background: rgba(0, 114, 206, 0.06);
+}
+
+/* Left column inside a row */
+.pf-row-left {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Monospace title/details */
+.pf-row-mono {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* muted small text */
+.pf-row-muted {
+  color: var(--pf-color-text-muted);
+}
+
+/* Right column inside a row */
+.pf-row-right {
+  text-align: right;
+  min-width: 220px;
+}
+
+/* Selected label on right */
+.pf-selected-label {
+  color: var(--pf-global--primary-color--100);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* New instance row (non-selected) */
+.pf-new-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 6px 0;
+  border: 1px solid var(--pf-global--BorderColor--100);
+  background: var(--pf-global--BackgroundColor--100);
+}
+
+/* New instance selected styling */
+.pf-new-row--selected {
+  border: 2px solid var(--pf-global--primary-color--100);
+  background: rgba(0, 114, 206, 0.04);
+}
+
+/* Inline selected text for new row */
+.pf-selected-inline {
+  color: var(--pf-global--primary-color--100);
+  font-weight: 600;
+}
+
+/* No sessions paragraph (replicates italic muted paragraph) */
+.pf-no-sessions {
+  margin: 8px 0;
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+}
+
+/* Fallback new instance (dashed) */
+.pf-new-row-fallback {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 6px 0;
+  border: 1px dashed var(--pf-global--BorderColor--100);
+  background: var(--pf-global--BackgroundColor--100);
+}
