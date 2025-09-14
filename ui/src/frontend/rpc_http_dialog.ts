@@ -345,7 +345,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           elements.push(
             m(
               'p',
-              { class: 'pf-modal-intro' },
+              {class: 'pf-modal-intro'},
               `Current active sessions on ${HttpRpcEngine.hostAndPort} (select one or pick "New instance" below if you want to open another trace):`,
             ),
           );
@@ -406,37 +406,29 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 },
                 [
                   // left side: number, loadedTraceName and small details
-                  m(
-                    'div',
-                    { class: 'pf-row-left' },
-                    [
+                  m('div', {class: 'pf-row-left'}, [
+                    m(
+                      'div',
+                      {
+                        class: 'pf-row-mono',
+                      },
+                      `#${status.instanceId ?? '0'}  ${status.loadedTraceName}  ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? '  [ATTACHED]' : ''}`,
+                    ),
+                    m('small', {class: 'pf-row-muted'}),
+                  ]),
+
+                  // right side: status indicator (attached-warning)
+                  m('div', {class: 'pf-row-right'}, [
+                    isSelected &&
+                      !hasActiveTab &&
                       m(
                         'div',
                         {
-                          class: 'pf-row-mono',
+                          class: 'pf-selected-label',
                         },
-                        `#${status.instanceId ?? '0'}  ${status.loadedTraceName}  ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? '  [ATTACHED]' : ''}`,
+                        'Selected',
                       ),
-                      m('small', { class: 'pf-row-muted' }),
-                    ],
-                  ),
-
-                  // right side: status indicator (attached-warning)
-                  m(
-                    'div',
-                    { class: 'pf-row-right' },
-                    [
-                      isSelected &&
-                        !hasActiveTab &&
-                        m(
-                          'div',
-                          {
-                            class: 'pf-selected-label',
-                          },
-                          'Selected',
-                        ),
-                    ],
-                  ),
+                  ]),
                 ],
               );
             });
@@ -488,7 +480,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             elements.push(
               m(
                 'p',
-                { class: 'pf-no-sessions' },
+                {class: 'pf-no-sessions'},
                 `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
               ),
             );
