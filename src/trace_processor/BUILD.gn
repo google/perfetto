@@ -69,6 +69,7 @@ source_set("export_json") {
     "storage",
     "tables",
     "types",
+    "util:args_utils",
     "util:json_parser",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]

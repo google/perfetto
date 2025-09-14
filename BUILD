@@ -406,6 +406,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
@@ -2771,6 +2772,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_functions_functions",
     srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/args.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/args.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h",
@@ -3666,6 +3669,15 @@ perfetto_filegroup(
         "src/trace_processor/util/elf/binary_info.cc",
         "src/trace_processor/util/elf/binary_info.h",
         "src/trace_processor/util/elf/elf.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:args_utils
+perfetto_filegroup(
+    name = "src_trace_processor_util_args_utils",
+    srcs = [
+        "src/trace_processor/util/args_utils.cc",
+        "src/trace_processor/util/args_utils.h",
     ],
 )
 
@@ -7513,6 +7525,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
@@ -7723,6 +7736,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
@@ -7919,6 +7933,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
