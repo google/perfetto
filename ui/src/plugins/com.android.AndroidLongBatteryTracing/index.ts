@@ -1047,7 +1047,23 @@ export default class implements PerfettoPlugin {
     );
 
     query('Foreground apps', 'battery_stats.fg');
-    query('Jobs', 'battery_stats.job');
+
+    if (
+      features.has('atom.scheduled_job_state_changed') &&
+      features.has('google3')
+    ) {
+      await e.query(`INCLUDE PERFETTO MODULE
+         google3.wireless.android.telemetry.trace_extractor.modules.power.jobs;`);
+      await this.addSliceTrack(
+        ctx,
+        'Jobs',
+        `SELECT ts, dur, tag AS name, uid FROM jobs`,
+        groupName,
+        ['uid'],
+      );
+    } else {
+      query('Jobs', 'battery_stats.job');
+    }
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
       await this.addSliceTrack(
