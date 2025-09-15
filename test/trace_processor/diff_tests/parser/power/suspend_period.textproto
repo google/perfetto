@@ -16,7 +16,7 @@ packet {
   ftrace_events {
     cpu: 0
     event {
-      timestamp: 29999
+      timestamp: 30001
       pid: 0
       suspend_resume {
         action: "syscore_suspend"
@@ -44,7 +44,7 @@ packet {
   ftrace_events {
     cpu: 0
     event {
-      timestamp: 40000
+      timestamp: 40001
       pid: 0
       suspend_resume {
         action: "syscore_resume"
@@ -63,7 +63,7 @@ packet {
       suspend_resume {
         action: "timekeeping_freeze"
         val: 4
-        start: 1
+        start: 0
       }
     }
   }
@@ -77,7 +77,7 @@ packet {
       suspend_resume {
         action: "timekeeping_freeze"
         val: 1
-        start: 0
+        start: 1
       }
     }
   }
