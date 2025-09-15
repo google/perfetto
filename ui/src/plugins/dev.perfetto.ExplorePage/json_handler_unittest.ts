@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
+import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
 import {ExplorePageState} from './explore_page';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
@@ -564,5 +565,46 @@ describe('JSON serialization/deserialization', () => {
     const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
     expect(deserializedNode.state.customTitle).toBe('My Custom Title');
     expect(deserializedNode.getTitle()).toBe('My Custom Title');
+  });
+
+  test('serializes and deserializes modify columns node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+      filters: [],
+    });
+
+    const modifyColumnsNode = new ModifyColumnsNode({
+      prevNodes: [tableNode],
+      newColumns: [{expression: '1', name: 'new_col'}],
+      selectedColumns: [],
+      filters: [
+        {
+          column: 'new_col',
+          op: '=',
+          value: '1',
+        },
+      ],
+    });
+    tableNode.nextNodes.push(modifyColumnsNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode
+      .nextNodes[0] as ModifyColumnsNode;
+    expect(deserializedNode.state.newColumns.length).toBe(1);
+    expect(deserializedNode.state.newColumns[0].name).toBe('new_col');
+    expect(deserializedNode.state.filters.length).toBe(1);
+    expect(deserializedNode.state.filters[0].column).toBe('new_col');
   });
 });
