@@ -315,7 +315,9 @@ Executes a PerfettoSQL query without displaying results.
 ```json
 {
   "id": "dev.perfetto.RunQuery",
-  "args": ["CREATE PERFETTO FUNCTION my_func(x INT) RETURNS INT AS SELECT $x * 2"]
+  "args": [
+    "CREATE PERFETTO FUNCTION my_func(x INT) RETURNS INT AS SELECT $x * 2"
+  ]
 }
 ```
 
@@ -341,10 +343,11 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 These stable automation commands can be used in several contexts:
 
 - **Startup Commands** - Automatically run when loading traces. See
-  [Startup Commands](/docs/visualization/perfetto-ui.md#startup-commands) in the
-  Perfetto UI guide.
+  [Startup Commands](/docs/visualization/ui-automation.md#commands-system-overview)
+  in the UI automation guide.
 - **Macros** - Named command sequences for on-demand execution. See
-  [Macros](/docs/visualization/perfetto-ui.md#macros) in the Perfetto UI guide.
+  [Macros](/docs/visualization/ui-automation.md#commands-system-overview) in the
+  UI automation guide.
 - **URL Deep Linking** - Embed commands in URLs or postMessage. See
   [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md#configuring-the-ui-with-startup-commands)
   for URL patterns and postMessage integration.
@@ -370,8 +373,8 @@ Commands are prioritized based on:
 
 ## See Also
 
-- [UI Automation guide](/docs/visualization/ui-automation.md) -
-  Practical recipes using these commands
+- [UI Automation guide](/docs/visualization/ui-automation.md) - Practical
+  recipes using these commands
 - [Perfetto UI Guide](/docs/visualization/perfetto-ui.md) - General UI
   documentation including commands
 - [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md) - Opening

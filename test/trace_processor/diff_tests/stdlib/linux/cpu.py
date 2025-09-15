@@ -297,6 +297,8 @@ class LinuxCpu(TestSuite):
               INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
 
               SELECT
+                upid,
+                utid,
                 thread_name,
                 awake_dur,
                 awake_utilization,
@@ -305,8 +307,8 @@ class LinuxCpu(TestSuite):
               WHERE thread_name LIKE 'kswapd%'
               """),
         out=Csv("""
-            "thread_name","awake_dur","awake_utilization","awake_unnormalized_utilization"
-            "kswapd0",125991305,0.360000,1.450000
+            "upid","utid","thread_name","awake_dur","awake_utilization","awake_unnormalized_utilization"
+            62,62,"kswapd0",125991305,0.362560,1.450240
               """))
 
   def test_cpu_cycles_per_process(self):
@@ -366,6 +368,7 @@ class LinuxCpu(TestSuite):
              INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
 
              SELECT
+              upid,
               process_name,
               awake_dur,
               awake_utilization,
@@ -374,8 +377,8 @@ class LinuxCpu(TestSuite):
              WHERE process_name LIKE 'kswapd%';
              """),
         out=Csv("""
-          "process_name","awake_dur","awake_utilization","awake_unnormalized_utilization"
-          "kswapd0",125991305,0.360000,1.450000
+          "upid","process_name","awake_dur","awake_utilization","awake_unnormalized_utilization"
+          62,"kswapd0",125991305,0.362560,1.450240
             """))
 
   def test_cpu_cycles_per_thread_slice(self):
