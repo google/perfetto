@@ -15189,6 +15189,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/slice.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/system.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/thread.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/thread_cpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/devfreq.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/irqs.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/general.sql",
