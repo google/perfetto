@@ -379,6 +379,21 @@ base::FlatSet<GroupAndName> GenerateCameraTracePoints(
   return events;
 }
 
+base::FlatSet<GroupAndName> GenerateWattsonTracePoints(
+    const ProtoTranslationTable* table) {
+  base::FlatSet<GroupAndName> events;
+  InsertEvent("cpuhp", "cpuhp_enter", &events);
+  InsertEvent("cpuhp", "cpuhp_exit", &events);
+  InsertEvent("cpuhp", "cpuhp_multi_enter", &events);
+  InsertEvent("devfreq", "devfreq_frequency", &events);
+  InsertEvent("ftrace", "print", &events);
+  InsertEvent("power", "cpu_frequency", &events);
+  InsertEvent("power", "cpu_idle", &events);
+  InsertEvent("power", "suspend_resume", &events);
+  InsertEvent("sched", "sched_switch", &events);
+  return events;
+}
+
 std::map<std::string, base::FlatSet<GroupAndName>>
 GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
                               Tracefs* ftrace) {
@@ -412,6 +427,7 @@ GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
   tracepoints["memory"] = GenerateMemoryTracePoints(ftrace);
   tracepoints["thermal"] = GenerateThermalTracePoints();
   tracepoints["camera"] = GenerateCameraTracePoints(table);
+  tracepoints["wattson"] = GenerateWattsonTracePoints(table);
   return tracepoints;
 }
 }  // namespace
