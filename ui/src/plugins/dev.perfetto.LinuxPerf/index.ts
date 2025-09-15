@@ -20,10 +20,7 @@ import {
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {
-  COUNTER_TRACK_KIND,
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../../public/track_kinds';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -35,6 +32,8 @@ import {
   createProcessPerfSamplesProfileTrack,
   createThreadPerfSamplesProfileTrack,
 } from './perf_samples_profile_track';
+
+const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 function makeUriForProc(upid: number) {
   return `/process_${upid}/perf_samples_profile`;
