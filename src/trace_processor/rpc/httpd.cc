@@ -82,8 +82,9 @@ class Httpd : public base::HttpRequestHandler {
 
   class RpcThread {
    public:
-    explicit RpcThread()
-        : last_accessed_ns_(
+    explicit RpcThread(Httpd* httpd)
+        : httpd_(httpd),
+          last_accessed_ns_(
               static_cast<uint64_t>(base::GetWallTimeNs().count())) {
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
@@ -103,9 +104,11 @@ class Httpd : public base::HttpRequestHandler {
         task_runner.Run();
       });
     }
-    explicit RpcThread(std::unique_ptr<TraceProcessor> preloaded_instance,
+    explicit RpcThread(Httpd* httpd,
+                       std::unique_ptr<TraceProcessor> preloaded_instance,
                        bool is_preloaded_eof)
-        : last_accessed_ns_(
+        : httpd_(httpd),
+          last_accessed_ns_(
               static_cast<uint64_t>(base::GetWallTimeNs().count())) {
       rpc_thread_ =
           std::thread([this, preloaded_instance = std::move(preloaded_instance),
@@ -160,9 +163,15 @@ class Httpd : public base::HttpRequestHandler {
         task_runner_->PostTask([this, msg,
                                 data = std::vector<uint8_t>(msg.data.begin(),
                                                             msg.data.end())]() {
-          rpc_->SetRpcResponseFunction([msg](const void* data, uint32_t len) {
-            SendRpcChunk(msg.conn, data, len);
-          });
+          rpc_->SetRpcResponseFunction(
+              [this, conn = msg.conn](const void* data, uint32_t len) {
+                std::lock_guard<std::mutex> lock(httpd_->websocket_rpc_mutex_);
+                if (httpd_->conn_to_id_map.count(conn)) {
+                  // only send the chunk if the connection is still registered
+                  // by the httpd.
+                  SendRpcChunk(conn, data, len);
+                }
+              });
           rpc_->OnRpcRequest(data.data(), static_cast<uint32_t>(data.size()));
           rpc_->SetRpcResponseFunction(nullptr);
         });
@@ -175,6 +184,7 @@ class Httpd : public base::HttpRequestHandler {
     uint64_t GetLastAccessedNs() const { return last_accessed_ns_.load(); }
 
    private:
+    Httpd* const httpd_;
     std::thread rpc_thread_;  // Dedicated thread
 
     // These are valid only in the worker thread context
@@ -235,8 +245,8 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
       tp_timeout_mins_(timeout_mins) {
   // If we have a preloaded instance, create a ID for it and store in map
   if (!preloaded_instance->GetCurrentTraceName().empty()) {
-    auto new_thread = std::make_unique<RpcThread>(std::move(preloaded_instance),
-                                                  is_preloaded_eof);
+    auto new_thread = std::make_unique<RpcThread>(
+        this, std::move(preloaded_instance), is_preloaded_eof);
     uint32_t instance_id = generateInstanceId();
     id_to_tp_map.emplace(instance_id, std::move(new_thread));
     PERFETTO_ILOG("Preloaded trace processor assigned ID: %" PRIu32,
@@ -398,7 +408,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
           send_id_back = true;
           uint32_t new_id = generateInstanceId();
           instance_id = new_id;
-          auto new_thread = std::make_unique<RpcThread>();
+          auto new_thread = std::make_unique<RpcThread>(this);
           id_to_tp_map.emplace(instance_id, std::move(new_thread));
           PERFETTO_ILOG("Legacy /websocket: creating new TP instance %" PRIu32,
                         instance_id);
@@ -414,7 +424,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         send_id_back = true;
         uint32_t new_id = generateInstanceId();
         instance_id = new_id;
-        auto new_thread = std::make_unique<RpcThread>();
+        auto new_thread = std::make_unique<RpcThread>(this);
         id_to_tp_map.emplace(instance_id, std::move(new_thread));
         PERFETTO_ILOG("New TP instance %" PRIu32 " created via /websocket/new",
                       instance_id);
