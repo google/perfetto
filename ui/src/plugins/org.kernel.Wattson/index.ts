@@ -229,16 +229,16 @@ async function addWattsonCpuElements(
   }
 
   const warningDesc =
-    missingEvents.length > 0 ?
-      m(
-        '.pf-wattson-warning',
-        'Perfetto trace configuration is missing below trace_events for Wattson to work:',
-        m(
-          '.pf-wattson-warning__list',
-          missingEvents.map((event) => m('li', event)),
-        ),
-      ) :
-      undefined;
+    missingEvents.length > 0
+      ? m(
+          '.pf-wattson-warning',
+          'Perfetto trace configuration is missing below trace_events for Wattson to work:',
+          m(
+            '.pf-wattson-warning__list',
+            missingEvents.map((event) => m('li', event)),
+          ),
+        )
+      : undefined;
 
   // CPUs estimate as part of CPU subsystem
   const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
