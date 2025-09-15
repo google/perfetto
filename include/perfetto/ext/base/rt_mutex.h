@@ -34,13 +34,24 @@
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/public/compiler.h"
 
+// We enable this only on Android because it relies on gettid() being fast.
+// On Android, gettid() is a cheap TLS access provided by Bionic. On Linux with
+// glibc, it's a full syscall, which makes the pthread-based implementation
+// faster.
+//
+// The pthread-based RT mutex, however, is not a viable option for Android as it
+// was introduced only in API level 28. Backporting it to older versions via
+// dlsym is not a safe alternative, as it can lead to deadlocks if tracing is
+// initialized from a static initializer. This is due to a conflict between the
+// dlsym call and the loader lock (see b/443178555).
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define PERFETTO_HAS_RT_FUTEX() true
 #else
 #define PERFETTO_HAS_RT_FUTEX() false
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_HAS_POSIX_RT_MUTEX() true
 #else
@@ -55,7 +66,7 @@
 #include <pthread.h>
 #endif
 
-#if PERFETTO_HAS_RT_FUTEX()
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>  // For gettid().
 #endif
 
@@ -181,7 +192,7 @@ using RtFutex = RtMutex;
 #endif
 
 using MaybeRtMutex = std::conditional_t<
-    base::flags::use_rt_futex_for_android,
+    base::flags::use_rt_futex,
     RtFutex,
     std::conditional_t<base::flags::use_rt_mutex, RtMutex, std::mutex> >;
 
