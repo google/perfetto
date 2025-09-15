@@ -28,6 +28,7 @@ import {Trace} from '../../public/trace';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 import {NodeBoxLayout} from './query_builder/node_box';
 import {exportStateAsJson, importStateFromJson} from './json_handler';
+import {showImportWithStatementModal} from './sql_json_handler';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -244,6 +245,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
+  private handleImportWithStatement(attrs: ExplorePageAttrs) {
+    const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    showImportWithStatementModal(trace, sqlModules, onStateUpdate);
+  }
+
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
     const {trace, state} = attrs;
 
@@ -319,6 +328,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           }
         },
         onImport: () => this.handleImport(attrs),
+        onImportWithStatement: () => this.handleImportWithStatement(attrs),
         onExport: () => this.handleExport(state, trace),
         onRemoveFilter: (node, filter) => {
           const filterIndex = node.state.filters.indexOf(filter);
