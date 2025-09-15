@@ -22,7 +22,7 @@
 /* Disabled (hasActiveTab) */
 .pf-row--disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  color: var(--pf-color-text-muted);
 }
 
 /* Selected row border and background */
@@ -50,7 +50,10 @@
 
 /* Right column inside a row */
 .pf-row-right {
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   min-width: 220px;
 }
 
@@ -59,6 +62,13 @@
   color: var(--pf-global--primary-color--100);
   font-size: 12px;
   font-weight: 600;
+}
+
+.pf-kill-instance {
+  color: red;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
 }
 
 /* New instance row (non-selected) */

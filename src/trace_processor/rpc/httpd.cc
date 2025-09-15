@@ -480,6 +480,33 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return;
   }
 
+  if (req.uri == "/close") {
+    const uint32_t instance_id =
+        static_cast<uint32_t>(base::StringViewToInt32(req.body).value_or(0));
+    if (instance_id == 0) {
+      return conn.SendResponseAndClose("400 Bad Request", default_headers);
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+      auto id_to_tp_it = id_to_tp_map.find(instance_id);
+      if (id_to_tp_it == id_to_tp_map.end()) {
+        return conn.SendResponseAndClose("404 Not Found", default_headers);
+      }
+      id_to_tp_map.erase(id_to_tp_it);
+      for (auto conn_to_id_it = conn_to_id_map.begin();
+           conn_to_id_it != conn_to_id_map.end();) {
+        if (conn_to_id_it->second == instance_id) {
+          conn_to_id_it = conn_to_id_map.erase(conn_to_id_it);
+        } else {
+          ++conn_to_id_it;
+        }
+      }
+    }
+    PERFETTO_ILOG("Closed and removed TP instance %" PRIu32, instance_id);
+    return conn.SendResponseAndClose("200 OK", default_headers);
+  }
+
   // --- Everything below this line is a legacy endpoint not used by the UI.
   // There are two generations of pre-websocket legacy-ness:
   // 1. The /rpc based endpoint. This is based on a chunked transfer, doing one

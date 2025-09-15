@@ -321,18 +321,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
         traceProcessors = httpRpcState.status.instances ?? [];
       }
 
-      // Filter to only show trace processors that have a loaded trace
-      const processorsWithTraces = traceProcessors.filter(
-        (tp) => (tp.loadedTraceName ?? '') !== '',
-      );
-
-      // Sort processors: those without active tabs first, then those with active tabs
-      const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
-        const aHasTab = a.hasExistingTab ?? false;
-        const bHasTab = b.hasExistingTab ?? false;
-        return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
-      });
-
       // UI selection state: null means "New instance" (or nothing chosen).
       // If set to a number, it refers to an existing instanceId.
       let selectedInstanceId: number | null = null;
@@ -349,6 +337,18 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               `Current active sessions on ${HttpRpcEngine.hostAndPort} (select one or pick "New instance" below if you want to open another trace):`,
             ),
           );
+
+          // Filter to only show trace processors that have a loaded trace
+          const processorsWithTraces = traceProcessors.filter(
+            (tp) => (tp.loadedTraceName ?? '') !== '',
+          );
+
+          // Sort processors: those without active tabs first, then those with active tabs
+          const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
+            const aHasTab = a.hasExistingTab ?? false;
+            const bHasTab = b.hasExistingTab ?? false;
+            return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
+          });
 
           if (processorsWithTraces.length > 0) {
             const activeTabCount = sortedProcessors.filter(
@@ -428,6 +428,29 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                         },
                         'Selected',
                       ),
+                    m(
+                      'div',
+                      {
+                        class: 'pf-kill-instance',
+                        title: 'Close this trace processor instance',
+                        onclick: async (e: MouseEvent) => {
+                          e.stopPropagation();
+                          if (id === null) return;
+                          await fetch(
+                            `http://${HttpRpcEngine.hostAndPort}/close`,
+                            {
+                              method: 'POST',
+                              body: String(id),
+                            },
+                          );
+                          traceProcessors = traceProcessors.filter(
+                            (p) => p.instanceId !== id,
+                          );
+                          redrawModal();
+                        },
+                      },
+                      '⨯',
+                    ),
                   ]),
                 ],
               );
