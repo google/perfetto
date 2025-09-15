@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
   BaseCounterTrack,
@@ -232,24 +233,11 @@ async function addWattsonCpuElements(
     const eventItems = missingEvents.map((event) => m('li', event));
     warningMsg.push(
       m(
-        'div',
-        {style: 'color: red'},
+        '.wattson-warning',
         'Perfetto trace configuration is missing below trace_events for Wattson to work:',
-        m(
-          'ul',
-          {style: 'margin-top: 4px; margin-bottom: 4px; padding-left: 20px;'},
-          eventItems,
-        ),
+        m('.wattson-warning-list', eventItems),
       ),
     );
-  } else {
-    warningMsg.push(
-      m(
-        'span',
-        'Perfetto trace configuration has satisified minimum requirements for Wattson to work',
-      ),
-    );
-    warningMsg.push(m('br'));
   }
   const warningDesc = m('', warningMsg);
 
