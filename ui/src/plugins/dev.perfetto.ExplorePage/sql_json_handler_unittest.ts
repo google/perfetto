@@ -494,4 +494,86 @@ describe('createGraphFromSql', () => {
 
     expect(nodeOutput!.prevNodes).toEqual(['d']);
   });
+
+  it('should handle multiple WITH statements', () => {
+    const sql = `
+      WITH a AS (SELECT 1)
+      SELECT * FROM a;
+
+      WITH b AS (SELECT 2)
+      SELECT * FROM b;
+    `;
+    const graphJson = createGraphFromSql(sql);
+    const graph: SerializedGraph = JSON.parse(graphJson);
+
+    expect(graph.nodes.length).toBe(4);
+    expect(graph.rootNodeIds).toEqual(['a', 'b']);
+
+    const nodeA = graph.nodes.find((n) => n.nodeId === 'a');
+    const nodeB = graph.nodes.find((n) => n.nodeId === 'b');
+    const outputA = graph.nodes.find((n) => n.nodeId === 'output');
+    const outputB = graph.nodes.find((n) => n.nodeId === 'output_1');
+
+    expect(nodeA).toBeDefined();
+    expect(nodeB).toBeDefined();
+    expect(outputA).toBeDefined();
+    expect(outputB).toBeDefined();
+  });
+
+  it('should handle includes not at the start of the query', () => {
+    const sql = `
+      WITH a AS (SELECT 1)
+      SELECT * FROM a;
+
+      INCLUDE PERFETTO MODULE android.slices;
+
+      WITH b AS (SELECT 2)
+      SELECT * FROM b;
+    `;
+    const graphJson = createGraphFromSql(sql);
+    const graph: SerializedGraph = JSON.parse(graphJson);
+
+    expect(graph.nodes.length).toBe(4);
+    expect(graph.rootNodeIds).toEqual(['a', 'b']);
+
+    const nodeA = graph.nodes.find((n) => n.nodeId === 'a');
+    const nodeB = graph.nodes.find((n) => n.nodeId === 'b');
+
+    expect(nodeA).toBeDefined();
+    expect(nodeB).toBeDefined();
+
+    const stateB = nodeB!.state as SqlSourceSerializedState;
+    expect(stateB.sql).toContain('INCLUDE PERFETTO MODULE android.slices');
+  });
+
+  it('should handle duplicated node names in multiple WITH statements', () => {
+    const sql = `
+      WITH a AS (SELECT 1)
+      SELECT * FROM a;
+
+      WITH a AS (SELECT 2)
+      SELECT * FROM a;
+    `;
+    const graphJson = createGraphFromSql(sql);
+    const graph: SerializedGraph = JSON.parse(graphJson);
+
+    expect(graph.nodes.length).toBe(4);
+
+    const nodeA1 = graph.nodes.find((n) => n.nodeId === 'a');
+    const nodeA2 = graph.nodes.find((n) => n.nodeId === 'a_1');
+    const output1 = graph.nodes.find((n) => n.nodeId === 'output');
+    const output2 = graph.nodes.find((n) => n.nodeId === 'output_1');
+
+    expect(nodeA1).toBeDefined();
+    expect(nodeA2).toBeDefined();
+    expect(output1).toBeDefined();
+    expect(output2).toBeDefined();
+
+    expect(nodeA1!.nextNodes).toEqual(['output']);
+    expect(nodeA2!.nextNodes).toEqual(['output_1']);
+
+    expect(output2!.prevNodes).toEqual(['a_1']);
+    const state = output2!.state as SqlSourceSerializedState;
+    expect(state.sql).toBe('SELECT * FROM $a_1');
+  });
 });
