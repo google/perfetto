@@ -118,19 +118,15 @@ function renderFilters(attrs: NodeBoxAttrs): m.Child {
   return m(
     '.pf-node-box__filters',
     node.state.filters.map((filter) => {
-      if ('value' in filter) {
-        return m(Chip, {
-          label: `${filter.column} ${filter.op} ${filter.value}`,
-          removable: true,
-          onRemove: () => onRemoveFilter(node, filter),
-        });
-      } else {
-        return m(Chip, {
-          label: `${filter.column} ${filter.op}`,
-          removable: true,
-          onRemove: () => onRemoveFilter(node, filter),
-        });
-      }
+      const label =
+        'value' in filter
+          ? `${filter.column} ${filter.op} ${filter.value}`
+          : `${filter.column} ${filter.op}`;
+      return m(Chip, {
+        label,
+        removable: true,
+        onRemove: () => onRemoveFilter(node, filter),
+      });
     }),
   );
 }
@@ -177,6 +173,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
       m(
         '.pf-node-box__content',
         m('span.pf-node-box__title', node.getTitle()),
+        m('.pf-node-box__details', node.nodeDetails?.()),
         renderFilters(attrs),
       ),
       renderContextMenu(attrs),
