@@ -451,11 +451,19 @@ struct CounterPerTrackAgg
     if (!new_rows_track) {
       new_rows_track = tracks.partitions_map.Insert(track_id, {}).first;
     } else {
-      std::vector<double> prev_vals = new_rows_track->val;
-      // This algorithm is focused on "leading" counters - if the
-      // counter before had the same value we can safely remove the new one as
-      // it adds no value. 
-      if (prev_vals.back() == val && prev_vals.size() > 1 && prev_vals[prev_vals.size() - 2] == val) {
+      // This algorithm is focused on "leading" counters - if the two counters
+      // before had the same value we can safely remove the new one as it adds
+      // no value.
+      //
+      // We check against two previous counters here because in the common case
+      // where deltas are being displayed as a counter track in the UI, we want
+      // to "reset" the counter to zero when it returns to zero (so we don't
+      // keep showing a non-zero value), but don't then need a long stream of
+      // zeroes after that.
+      const std::vector<double>& prev_vals = new_rows_track->val;
+      auto size = prev_vals.size();
+      if (std::equal_to<double>()(prev_vals[size - 1], val) && size > 1 &&
+          std::equal_to<double>()(prev_vals[size - 2], val)) {
         // TODO(mayzner): In the future we should also support "lagging" - if
         // the next one has the same value as the previous, we should remove the
         // previous.
