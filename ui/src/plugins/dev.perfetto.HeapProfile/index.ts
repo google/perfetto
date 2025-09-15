@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';
@@ -86,7 +85,6 @@ export default class implements PerfettoPlugin {
       const track: Track = {
         uri,
         tags: {
-          kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
         renderer: createHeapProfileTrack(
