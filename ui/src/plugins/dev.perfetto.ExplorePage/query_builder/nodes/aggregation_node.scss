@@ -12,27 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../../assets/theme";
+@import "../../../../assets/theme";
 
-.pf-slice-source-label {
-  display: flex;
-  align-items: center;
-  font-family: var(--pf-font-compact);
-
-  span {
-    display: inline-block;
-    margin-right: 0.625rem;
-    min-width: 6.25rem;
-  }
-}
-
-.pf-slice-source-box {
-  padding: 0.625rem;
-  margin-bottom: 0.625rem;
-  border: 1px solid var(--pf-color-border);
-}
-
-.pf-slice-source-details {
+.pf-aggregation-node-details {
   padding-top: 5px;
   font-size: 0.8em;
   color: var(--pf-color-text-lighter);

@@ -76,6 +76,7 @@ export interface QueryNode {
   validate(): boolean;
   getTitle(): string;
   nodeSpecificModify(onExecute?: () => void): m.Child;
+  nodeDetails?(): m.Child | undefined;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   isMaterialised(): boolean;
