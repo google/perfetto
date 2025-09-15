@@ -1396,16 +1396,16 @@ class AndroidStdlib(TestSuite):
       """,
         out=Csv("""
         "ts","dur","score","bucket","process_name","oom_adj_ts","oom_adj_dur","oom_adj_thread_name","oom_adj_reason","oom_adj_trigger"
-1737065264829,701108081,925,"cached","com.android.providers.calendar",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737066678827,3470211742,935,"cached","com.android.imsserviceentitlement",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737066873002,3470017567,945,"cached","com.android.carrierconfig",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737067058812,3469831757,955,"cached","com.android.messaging",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737067246975,699224817,955,"cached","android.process.acore",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737068421919,3468468650,965,"cached","com.android.shell",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737068599673,697908135,965,"cached","android.process.media",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737068933602,3467956967,975,"cached","com.android.gallery3d",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737069091010,3467799559,975,"cached","com.android.packageinstaller",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737069240534,3467650035,985,"cached","com.android.managedprovisioning",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737065264829,701108081,925,"cached","com.android.providers.calendar",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737066678827,2934486383,935,"cached","com.android.imsserviceentitlement",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737066873002,2934292208,945,"cached","com.android.carrierconfig",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737067058812,2934106398,955,"cached","com.android.messaging",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737067246975,699224817,955,"cached","android.process.acore",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737068421919,2932743291,965,"cached","com.android.shell",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737068599673,697908135,965,"cached","android.process.media",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737068933602,2932231608,975,"cached","com.android.gallery3d",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737069091010,3467799559,975,"cached","com.android.packageinstaller",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737069240534,3467650035,985,"cached","com.android.managedprovisioning",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
       """))
 
   def test_broadcast_minsdk_u(self):
