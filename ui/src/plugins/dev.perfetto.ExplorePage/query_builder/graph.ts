@@ -100,6 +100,7 @@ export interface GraphAttrs {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onImport: () => void;
+  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -308,6 +309,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         onclick: attrs.onImport,
         variant: ButtonVariant.Filled,
         icon: 'file_upload',
+      }),
+      m(Button, {
+        label: 'Import from WITH statement',
+        onclick: attrs.onImportWithStatement,
+        variant: ButtonVariant.Filled,
+        icon: 'code',
+        style: {marginLeft: '8px'},
       }),
     );
   }
