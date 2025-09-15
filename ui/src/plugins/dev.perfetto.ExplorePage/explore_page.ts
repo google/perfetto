@@ -320,6 +320,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onImport: () => this.handleImport(attrs),
         onExport: () => this.handleExport(state, trace),
+        onRemoveFilter: (node, filter) => {
+          const filterIndex = node.state.filters.indexOf(filter);
+          if (filterIndex > -1) {
+            node.state.filters.splice(filterIndex, 1);
+          }
+          attrs.onStateUpdate({...state});
+        },
       }),
     );
   }
