@@ -19,6 +19,8 @@ import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
+import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
@@ -48,6 +50,7 @@ export interface NodeBoxAttrs {
   readonly onAddAggregation: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
 function renderWarningIcon(node: QueryNode): m.Child {
@@ -80,7 +83,7 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
     {
       trigger: m(Button, {
         iconFilled: true,
-        icon: Icons.ContextMenuAlt,
+        icon: Icons.ContextMenu,
       }),
     },
     ...menuItems,
@@ -104,6 +107,30 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     m(MenuItem, {
       label: 'Interval Intersect',
       onclick: () => onAddIntervalIntersect(node),
+    }),
+  );
+}
+
+function renderFilters(attrs: NodeBoxAttrs): m.Child {
+  const {node, onRemoveFilter} = attrs;
+  if (node.state.filters.length === 0) return null;
+
+  return m(
+    '.pf-node-box__filters',
+    node.state.filters.map((filter) => {
+      if ('value' in filter) {
+        return m(Chip, {
+          label: `${filter.column} ${filter.op} ${filter.value}`,
+          removable: true,
+          onRemove: () => onRemoveFilter(node, filter),
+        });
+      } else {
+        return m(Chip, {
+          label: `${filter.column} ${filter.op}`,
+          removable: true,
+          onRemove: () => onRemoveFilter(node, filter),
+        });
+      }
     }),
   );
 }
@@ -147,7 +174,11 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         });
       }),
       renderWarningIcon(node),
-      m('span.pf-node-box__title', node.getTitle()),
+      m(
+        '.pf-node-box__content',
+        m('span.pf-node-box__title', node.getTitle()),
+        renderFilters(attrs),
+      ),
       renderContextMenu(attrs),
       node.nextNodes.map((_, i) => {
         const portCount = node.nextNodes.length;
