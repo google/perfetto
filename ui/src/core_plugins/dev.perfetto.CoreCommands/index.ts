@@ -213,17 +213,17 @@ export default class CoreCommands implements PerfettoPlugin {
         icon: 'filter_none',
       });
     }
+  }
 
+  async onTraceLoad(ctx: TraceImpl): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CloseTrace',
       name: 'Close trace',
       callback: () => {
-        ctx.closeCurrentTrace();
+        ctx.closeTrace(ctx);
       },
     });
-  }
 
-  async onTraceLoad(ctx: TraceImpl): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
