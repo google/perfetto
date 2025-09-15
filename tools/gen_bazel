@@ -1024,7 +1024,7 @@ package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
 
 licenses(["notice"])
 
-exports_files(["LICENSE", "CHANGELOG"])
+exports_files(["NOTICE"])
 
 '''.format(tool_name).lstrip()
 
@@ -1197,4 +1197,3 @@ def main():
 
 if __name__ == '__main__':
   sys.exit(main())
-
