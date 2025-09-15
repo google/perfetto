@@ -63,7 +63,6 @@ export default class implements PerfettoPlugin {
       FROM perf_sample
       JOIN thread USING (utid)
       WHERE
---        callsite_id IS NOT NULL AND
         upid IS NOT NULL
     `);
 
@@ -117,7 +116,6 @@ export default class implements PerfettoPlugin {
         upid
       from perf_sample
       join thread using (utid)
-   --   where callsite_id is not null
     `);
     for (
       const it = tResult.iter({
