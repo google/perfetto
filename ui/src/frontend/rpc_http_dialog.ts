@@ -343,11 +343,18 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             (tp) => (tp.loadedTraceName ?? '') !== '',
           );
 
-          // Sort processors: those without active tabs first, then those with active tabs
+          // Sort processors: those without active tabs first, then by instance ID.
           const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
             const aHasTab = a.hasExistingTab ?? false;
             const bHasTab = b.hasExistingTab ?? false;
-            return aHasTab === bHasTab ? 0 : aHasTab ? 1 : -1;
+
+            if (aHasTab !== bHasTab) {
+              return aHasTab ? 1 : -1;
+            }
+
+            const aId = a.instanceId ?? 0;
+            const bId = b.instanceId ?? 0;
+            return aId - bId;
           });
 
           if (processorsWithTraces.length > 0) {
