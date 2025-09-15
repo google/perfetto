@@ -131,6 +131,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'slice_name_glob',
             type: 'string',
+            value: this.state.slice_name ?? '',
             placeholder: 'MySlice*',
             oninput: (e: Event) => {
               if (!e.target) return;
@@ -146,6 +147,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'thread_name_glob',
             type: 'string',
+            value: this.state.thread_name ?? '',
             placeholder: 'RenderThread',
             oninput: (e: Event) => {
               if (!e.target) return;
@@ -161,6 +163,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'process_name_glob',
             type: 'string',
+            value: this.state.process_name ?? '',
             placeholder: '*chrome*',
             oninput: (e: Event) => {
               if (!e.target) return;
@@ -176,6 +179,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'track_name_glob',
             type: 'string',
+            value: this.state.track_name ?? '',
             placeholder: 'SurfaceFlinger',
             oninput: (e: Event) => {
               if (!e.target) return;
