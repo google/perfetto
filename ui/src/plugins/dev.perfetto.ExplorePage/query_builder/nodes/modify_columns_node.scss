@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file contains a list of well known (to the core) track kinds.
-// This file exists purely to keep legacy systems in place without introducing a
-// ton of circular imports.
-export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
-export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
-export const SLICE_TRACK_KIND = 'SliceTrack';
-export const COUNTER_TRACK_KIND = 'CounterTrack';
-export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
+.pf-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-column {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &[draggable="true"] {
+    cursor: grab;
+  }
+
+  .pf-text-input {
+    width: 100px;
+  }
+}
+
+.pf-add-column-button {
+  margin-top: 8px;
+}

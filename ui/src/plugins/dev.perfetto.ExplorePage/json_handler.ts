@@ -31,6 +31,10 @@ import {
   AggregationSerializedState,
 } from './query_builder/nodes/aggregation_node';
 import {
+  ModifyColumnsNode,
+  ModifyColumnsSerializedState,
+} from './query_builder/nodes/modify_columns_node';
+import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
   IntervalIntersectSerializedState,
@@ -44,6 +48,7 @@ type SerializedNodeState =
   | SlicesSourceSerializedState
   | SqlSourceSerializedState
   | AggregationSerializedState
+  | ModifyColumnsSerializedState
   | IntervalIntersectSerializedState;
 
 // Interfaces for the serialized JSON structure
@@ -150,6 +155,11 @@ function createNodeInstance(
       return new AggregationNode(
         AggregationNode.deserializeState(state as AggregationSerializedState),
       );
+    case NodeType.kModifyColumns:
+      return new ModifyColumnsNode({
+        ...(state as ModifyColumnsSerializedState),
+        prevNodes: [],
+      });
     case NodeType.kIntervalIntersect:
       const nodeState: IntervalIntersectNodeState = {
         ...(state as IntervalIntersectSerializedState),
@@ -230,7 +240,6 @@ export function deserializeState(
         nextNode.prevNodes.push(node);
       }
     }
-
     if (serializedNode.type === NodeType.kIntervalIntersect) {
       (node as IntervalIntersectNode).state.intervalNodes =
         IntervalIntersectNode.deserializeState(

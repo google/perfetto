@@ -21,6 +21,8 @@
 @import "./operations/operation_component.scss";
 @import "./nodes/sources/slices_source.scss";
 @import "./nodes/sources/table_source.scss";
+@import "./nodes/aggregation_node.scss";
+@import "./nodes/modify_columns_node.scss";
 
 .pf-query-builder-layout {
   display: grid;

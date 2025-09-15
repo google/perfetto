@@ -48,6 +48,7 @@ export interface NodeBoxAttrs {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onModifyColumns: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
@@ -91,7 +92,8 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddAggregation, onAddIntervalIntersect} = attrs;
+  const {node, onAddAggregation, onModifyColumns, onAddIntervalIntersect} =
+    attrs;
   return m(
     PopupMenu,
     {
@@ -103,6 +105,10 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     m(MenuItem, {
       label: 'Aggregate',
       onclick: () => onAddAggregation(node),
+    }),
+    m(MenuItem, {
+      label: 'Modify Columns',
+      onclick: () => onModifyColumns(node),
     }),
     m(MenuItem, {
       label: 'Interval Intersect',
@@ -118,19 +124,15 @@ function renderFilters(attrs: NodeBoxAttrs): m.Child {
   return m(
     '.pf-node-box__filters',
     node.state.filters.map((filter) => {
-      if ('value' in filter) {
-        return m(Chip, {
-          label: `${filter.column} ${filter.op} ${filter.value}`,
-          removable: true,
-          onRemove: () => onRemoveFilter(node, filter),
-        });
-      } else {
-        return m(Chip, {
-          label: `${filter.column} ${filter.op}`,
-          removable: true,
-          onRemove: () => onRemoveFilter(node, filter),
-        });
-      }
+      const label =
+        'value' in filter
+          ? `${filter.column} ${filter.op} ${filter.value}`
+          : `${filter.column} ${filter.op}`;
+      return m(Chip, {
+        label,
+        removable: true,
+        onRemove: () => onRemoveFilter(node, filter),
+      });
     }),
   );
 }
@@ -177,6 +179,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
       m(
         '.pf-node-box__content',
         m('span.pf-node-box__title', node.getTitle()),
+        m('.pf-node-box__details', node.nodeDetails?.()),
         renderFilters(attrs),
       ),
       renderContextMenu(attrs),
