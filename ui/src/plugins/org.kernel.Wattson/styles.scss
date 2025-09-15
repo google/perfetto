@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.wattson-warning {
-  color: red;
-}
+@import '../../assets/theme';
 
-.wattson-warning-list {
-  margin-top: 4px;
-  margin-bottom: 4px;
-  padding-left: 20px;
+.pf-wattson-warning {
+  color: var(--pf-color-danger);
+
+  &__list {
+    padding-left: 20px;
+  }
 }
