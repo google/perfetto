@@ -56,12 +56,14 @@ export interface BuilderAttrs {
 
   // Add derived nodes.
   readonly onAddAggregationNode: (node: QueryNode) => void;
+  readonly onAddModifyColumnsNode: (node: QueryNode) => void;
   readonly onAddIntervalIntersectNode: (node: QueryNode) => void;
 
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onImport: () => void;
+  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -174,6 +176,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onAddAggregation: attrs.onAddAggregationNode,
+          onAddModifyColumns: attrs.onAddModifyColumnsNode,
           onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
           onDeleteNode: (node: QueryNode) => {
             if (node.isMaterialised()) {
@@ -182,6 +185,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             attrs.onDeleteNode(node);
           },
           onImport: attrs.onImport,
+          onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
           onRemoveFilter: attrs.onRemoveFilter,
         }),

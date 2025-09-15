@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
+import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
 import {ExplorePageState} from './explore_page';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
@@ -94,6 +95,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
     expect(deserializedNode.state.slice_name).toBe('test_slice');
+    expect(deserializedNode.prevNodes).toEqual([]);
   });
 
   test('handles multiple nodes and connections', () => {
@@ -108,6 +110,7 @@ describe('JSON serialization/deserialization', () => {
       filters: [],
     });
     tableNode.nextNodes.push(sliceNode);
+    sliceNode.prevNodes.push(tableNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -123,6 +126,12 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedTableNode = deserializedState.rootNodes[0];
     expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedSliceNode = deserializedTableNode.nextNodes[0];
+    expect(deserializedSliceNode.prevNodes).toBeDefined();
+    expect(deserializedSliceNode.prevNodes!.length).toBe(1);
+    expect(deserializedSliceNode.prevNodes![0].nodeId).toBe(
+      deserializedTableNode.nodeId,
+    );
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode.nodeId),
     ).toEqual({x: 10, y: 20});
@@ -176,6 +185,11 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedAggregationNode = deserializedTableNode
       .nextNodes[0] as AggregationNode;
+    expect(deserializedAggregationNode.prevNodes).toBeDefined();
+    expect(deserializedAggregationNode.prevNodes!.length).toBe(1);
+    expect(deserializedAggregationNode.prevNodes![0].nodeId).toBe(
+      deserializedTableNode.nodeId,
+    );
     expect(deserializedAggregationNode.state.groupByColumns[0].name).toBe(
       'name',
     );
@@ -204,6 +218,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0] as SqlSourceNode;
     expect(deserializedNode.state.sql).toBe('SELECT * FROM slice');
+    expect(deserializedNode.prevNodes).toEqual([]);
   });
 
   test('serializes and deserializes interval intersect node', () => {
@@ -228,6 +243,8 @@ describe('JSON serialization/deserialization', () => {
       filters: [],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
+    intervalIntersectNode.prevNodes.length = 0;
+    intervalIntersectNode.prevNodes.push(tableNode1);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
@@ -242,6 +259,11 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedIntervalIntersectNode = deserializedTableNode1
       .nextNodes[0] as IntervalIntersectNode;
+    expect(deserializedIntervalIntersectNode.prevNodes).toBeDefined();
+    expect(deserializedIntervalIntersectNode.prevNodes!.length).toBe(1);
+    expect(deserializedIntervalIntersectNode.prevNodes![0].nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
     expect(deserializedIntervalIntersectNode.state.intervalNodes.length).toBe(
       2,
     );
@@ -267,6 +289,7 @@ describe('JSON serialization/deserialization', () => {
       trace,
     });
     tableNode.nextNodes.push(sqlNode);
+    sqlNode.prevNodes.push(tableNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -281,6 +304,11 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedSqlNode = deserializedTableNode
       .nextNodes[0] as SqlSourceNode;
+    expect(deserializedSqlNode.prevNodes).toBeDefined();
+    expect(deserializedSqlNode.prevNodes!.length).toBe(1);
+    expect(deserializedSqlNode.prevNodes![0].nodeId).toBe(
+      deserializedTableNode.nodeId,
+    );
     expect(deserializedSqlNode.state.sql).toBe(
       `SELECT * FROM \${tableNode.nodeId}`,
     );
@@ -311,6 +339,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedTableNode = deserializedState
       .rootNodes[0] as TableSourceNode;
+    expect(deserializedTableNode.prevNodes).toEqual([]);
     expect(deserializedTableNode.state.filters?.length).toBe(1);
     const filter = deserializedTableNode.state.filters?.[0];
     expect(filter?.column).toBe('name');
@@ -350,6 +379,9 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode = deserializedState.rootNodes[0];
     const deserializedSliceNode = deserializedState.rootNodes[1];
 
+    expect(deserializedTableNode.prevNodes).toEqual([]);
+    expect(deserializedSliceNode.prevNodes).toEqual([]);
+
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode.nodeId),
     ).toEqual({x: 10, y: 20});
@@ -383,6 +415,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedTableNode = deserializedState
       .rootNodes[0] as TableSourceNode;
+    expect(deserializedTableNode.prevNodes).toEqual([]);
     expect(deserializedTableNode.state.filters?.length).toBe(1);
     const filter = deserializedTableNode.state.filters?.[0];
     expect(filter?.column).toBe('id');
@@ -429,6 +462,8 @@ describe('JSON serialization/deserialization', () => {
 
     nodeA.nextNodes.push(nodeB);
     nodeB.nextNodes.push(nodeA); // Cycle
+    nodeA.prevNodes.push(nodeB);
+    nodeB.prevNodes.push(nodeA);
 
     const initialState: ExplorePageState = {
       rootNodes: [nodeA],
@@ -446,5 +481,130 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNodeB.nextNodes[0].nodeId).toBe(
       deserializedNodeA.nodeId,
     );
+    expect(deserializedNodeA.prevNodes).toBeDefined();
+    expect(deserializedNodeA.prevNodes!.length).toBe(1);
+    expect(deserializedNodeA.prevNodes![0].nodeId).toBe(
+      deserializedNodeB.nodeId,
+    );
+    expect(deserializedNodeB.prevNodes).toBeDefined();
+    expect(deserializedNodeB.prevNodes!.length).toBe(1);
+    expect(deserializedNodeB.prevNodes![0].nodeId).toBe(
+      deserializedNodeA.nodeId,
+    );
+  });
+
+  test('deserializes graph with and without prevNodes', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+      filters: [],
+    });
+    const sliceNode = new SlicesSourceNode({
+      slice_name: 'test_slice',
+      filters: [],
+    });
+    tableNode.nextNodes.push(sliceNode);
+    sliceNode.prevNodes.push(tableNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    // Test with prevNodes
+    const jsonWithPrevNodes = serializeState(initialState);
+    const deserializedStateWithPrevNodes = deserializeState(
+      jsonWithPrevNodes,
+      trace,
+      sqlModules,
+    );
+    const deserializedTableNode1 = deserializedStateWithPrevNodes.rootNodes[0];
+    const deserializedSliceNode1 = deserializedTableNode1.nextNodes[0];
+    expect(deserializedSliceNode1.prevNodes).toBeDefined();
+    expect(deserializedSliceNode1.prevNodes!.length).toBe(1);
+    expect(deserializedSliceNode1.prevNodes![0].nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
+
+    // Test without prevNodes (for backward compatibility)
+    const jsonWithoutPrevNodes = JSON.parse(jsonWithPrevNodes);
+    for (const node of jsonWithoutPrevNodes.nodes) {
+      delete node.prevNodes;
+    }
+    const deserializedStateWithoutPrevNodes = deserializeState(
+      JSON.stringify(jsonWithoutPrevNodes),
+      trace,
+      sqlModules,
+    );
+    const deserializedTableNode2 =
+      deserializedStateWithoutPrevNodes.rootNodes[0];
+    const deserializedSliceNode2 = deserializedTableNode2.nextNodes[0];
+    expect(deserializedSliceNode2.prevNodes).toBeDefined();
+    expect(deserializedSliceNode2.prevNodes!.length).toBe(1);
+    expect(deserializedSliceNode2.prevNodes![0].nodeId).toBe(
+      deserializedTableNode2.nodeId,
+    );
+  });
+
+  test('serializes and deserializes custom title', () => {
+    const sliceNode = new SlicesSourceNode({
+      slice_name: 'test_slice',
+      filters: [],
+      customTitle: 'My Custom Title',
+    });
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
+    expect(deserializedNode.state.customTitle).toBe('My Custom Title');
+    expect(deserializedNode.getTitle()).toBe('My Custom Title');
+  });
+
+  test('serializes and deserializes modify columns node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+      filters: [],
+    });
+
+    const modifyColumnsNode = new ModifyColumnsNode({
+      prevNodes: [tableNode],
+      newColumns: [{expression: '1', name: 'new_col'}],
+      selectedColumns: [],
+      filters: [
+        {
+          column: 'new_col',
+          op: '=',
+          value: '1',
+        },
+      ],
+    });
+    tableNode.nextNodes.push(modifyColumnsNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode
+      .nextNodes[0] as ModifyColumnsNode;
+    expect(deserializedNode.state.newColumns.length).toBe(1);
+    expect(deserializedNode.state.newColumns[0].name).toBe('new_col');
+    expect(deserializedNode.state.filters.length).toBe(1);
+    expect(deserializedNode.state.filters[0].column).toBe('new_col');
   });
 });

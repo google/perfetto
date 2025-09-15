@@ -33,6 +33,9 @@ export enum NodeType {
   // Single node operations
   kSubQuery,
   kAggregation,
+  kModifyColumns,
+
+  // Multi node operations
   kIntervalIntersect,
 }
 
