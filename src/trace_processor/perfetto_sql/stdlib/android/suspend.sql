@@ -32,7 +32,7 @@ WITH
     SELECT
       ts,
       dur,
-      IIF(lead(ts) is NULL, TRACE_END()) OVER (ORDER BY ts) - ts - dur AS duration_gap
+      IFNULL(lead(ts) OVER (ORDER BY ts), TRACE_END()) - ts - dur AS duration_gap
     FROM track AS t
     JOIN slice AS s
       ON s.track_id = t.id
@@ -43,7 +43,7 @@ WITH
     SELECT
       ts,
       dur,
-      IIF(lead(ts) is NULL, TRACE_END()) OVER (ORDER BY ts) - ts - dur AS duration_gap
+      IFNULL(lead(ts) OVER (ORDER BY ts), TRACE_END()) - ts - dur AS duration_gap
     FROM slice
     JOIN track
       ON slice.track_id = track.id
