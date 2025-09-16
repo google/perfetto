@@ -27,6 +27,7 @@ load(
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_cc_tp_tables",
+    "perfetto_dart_proto_library",
     "perfetto_filegroup",
     "perfetto_genrule",
     "perfetto_go_proto_library",
@@ -840,6 +841,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
+        "include/perfetto/ext/base/lock_free_task_runner.h",
         "include/perfetto/ext/base/metatrace.h",
         "include/perfetto/ext/base/metatrace_events.h",
         "include/perfetto/ext/base/murmur_hash.h",
@@ -1297,6 +1299,7 @@ perfetto_cc_library(
         "src/base/intrusive_list.h",
         "src/base/intrusive_tree.cc",
         "src/base/intrusive_tree.h",
+        "src/base/lock_free_task_runner.cc",
         "src/base/log_ring_buffer.h",
         "src/base/logging.cc",
         "src/base/metatrace.cc",
@@ -2960,6 +2963,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",
     ],
 )
 
@@ -3191,6 +3195,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/slice.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/system.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/thread.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/thread_cpu.sql",
     ],
 )
 
@@ -4723,6 +4728,17 @@ perfetto_py_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/config:source_set]
+perfetto_dart_proto_library(
+    name = "config_dart_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":config_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_proto_library(
     name = "trace_proto",
@@ -4803,6 +4819,15 @@ perfetto_py_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+perfetto_dart_proto_library(
+    name = "trace_dart_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":trace_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_proto_library(
     name = "metrics_proto",
@@ -4860,6 +4885,17 @@ perfetto_py_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/metrics:source_set]
+perfetto_dart_proto_library(
+    name = "metrics_dart_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":metrics_proto",
+    ],
+)
+
 # GN target: [//protos/third_party/chromium:source_set]
 perfetto_proto_library(
     name = "chromium_proto",
@@ -4900,6 +4936,15 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/third_party/chromium:source_set]
 perfetto_py_proto_library(
     name = "chromium_py_pb2",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chromium_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/chromium:source_set]
+perfetto_dart_proto_library(
+    name = "chromium_dart_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":chromium_proto",
@@ -4955,6 +5000,15 @@ perfetto_py_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/metrics/chrome:source_set]
+perfetto_dart_proto_library(
+    name = "chrome_metrics_dart_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chrome_metrics_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_proto_library(
     name = "trace_processor_proto",
@@ -4993,6 +5047,14 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_py_proto_library(
     name = "trace_processor_py_pb2",
+    deps = [
+        ":trace_processor_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace_processor:source_set]
+perfetto_dart_proto_library(
+    name = "trace_processor_dart_proto",
     deps = [
         ":trace_processor_proto",
     ],
@@ -5054,6 +5116,17 @@ perfetto_py_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/trace_summary:source_set]
+perfetto_dart_proto_library(
+    name = "trace_summary_dart_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":trace_summary_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
 perfetto_proto_library(
     name = "trace_android_track_event_extension_proto",
@@ -5090,6 +5163,14 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
 perfetto_py_proto_library(
     name = "trace_android_track_event_extension_py_pb2",
+    deps = [
+        ":trace_android_track_event_extension_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
+perfetto_dart_proto_library(
+    name = "trace_android_track_event_extension_dart_proto",
     deps = [
         ":trace_android_track_event_extension_proto",
     ],

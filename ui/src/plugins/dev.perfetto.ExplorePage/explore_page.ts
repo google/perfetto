@@ -24,10 +24,12 @@ import {
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
+import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
 import {Trace} from '../../public/trace';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 import {NodeBoxLayout} from './query_builder/node_box';
 import {exportStateAsJson, importStateFromJson} from './json_handler';
+import {showImportWithStatementModal} from './sql_json_handler';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -91,6 +93,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       prevNodes: [node],
       groupByColumns: [],
       aggregations: [],
+      filters: [],
+    });
+    node.nextNodes.push(newNode);
+    onStateUpdate({
+      ...state,
+      selectedNode: newNode,
+    });
+  }
+
+  handleAddModifyColumns(attrs: ExplorePageAttrs, node: QueryNode) {
+    const {state, onStateUpdate} = attrs;
+    const newNode = new ModifyColumnsNode({
+      prevNodes: [node],
+      newColumns: [],
+      selectedColumns: [],
       filters: [],
     });
     node.nextNodes.push(newNode);
@@ -244,6 +261,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
+  private handleImportWithStatement(attrs: ExplorePageAttrs) {
+    const {trace, sqlModulesPlugin, onStateUpdate} = attrs;
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    showImportWithStatementModal(trace, sqlModules, onStateUpdate);
+  }
+
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
     const {trace, state} = attrs;
 
@@ -313,13 +338,26 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             this.handleAddAggregation(attrs, state.selectedNode);
           }
         },
+        onAddModifyColumnsNode: () => {
+          if (state.selectedNode) {
+            this.handleAddModifyColumns(attrs, state.selectedNode);
+          }
+        },
         onAddIntervalIntersectNode: () => {
           if (state.selectedNode) {
             this.handleAddIntervalIntersect(attrs, state.selectedNode);
           }
         },
         onImport: () => this.handleImport(attrs),
+        onImportWithStatement: () => this.handleImportWithStatement(attrs),
         onExport: () => this.handleExport(state, trace),
+        onRemoveFilter: (node, filter) => {
+          const filterIndex = node.state.filters.indexOf(filter);
+          if (filterIndex > -1) {
+            node.state.filters.splice(filterIndex, 1);
+          }
+          attrs.onStateUpdate({...state});
+        },
       }),
     );
   }

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {TrackData} from '../../components/tracks/track_data';
-import {INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -35,6 +34,8 @@ import {Flamegraph} from '../../widgets/flamegraph';
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }
+
+const INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND = 'InstrumentsSamplesProfileTrack';
 
 function makeUriForProc(upid: number) {
   return `/process_${upid}/instruments_samples_profile`;
