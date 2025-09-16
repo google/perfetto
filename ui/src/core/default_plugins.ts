@@ -32,6 +32,7 @@ export const defaultPlugins = [
   'com.android.AndroidStartup',
   'com.android.Bluetooth',
   'com.android.ContainedTraces',
+  'com.android.CpuPerUid',
   'com.android.DayExplorer',
   'com.android.GpuWorkPeriod',
   'com.android.LargeScreensPerf',
