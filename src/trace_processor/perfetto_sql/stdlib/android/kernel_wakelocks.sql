@@ -32,12 +32,13 @@ WITH
     SELECT
       *
     FROM counter_leading_intervals!((
-        select 
-          c.id,
-          c.ts,
-          c.track_id,
-          c.value
-        from counter c join _kernel_wakelock_track t on t.id = c.track_id
+        SELECT
+          id,
+          ts,
+          track_id,
+          value
+        FROM counter
+        WHERE track_id IN (SELECT id FROM _kernel_wakelock_track)
     ))
   )
 SELECT
