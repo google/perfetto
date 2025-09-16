@@ -50,8 +50,21 @@ CREATE PERFETTO MACRO counter_leading_intervals(
     -- to an id, timestamp, counter track_id and associated counter value.
     counter_table TableOrSubquery
 )
--- Table with the schema (id LONG, ts TIMESTAMP, dur DURATION, track_id JOINID(track.id),
--- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
+-- Table with the schema:
+-- id LONG,
+--     As passed in
+-- ts TIMESTAMP,
+--     As passed in
+-- dur DURATION,
+--     Difference to the timestamp for the leading row.
+-- track_id JOINID(track.id),
+--     As passed in
+-- value DOUBLE,
+--     As passed in
+-- next_value DOUBLE,
+--     Value for the leading row.
+-- delta_value DOUBLE
+--     Delta to the *lagging* row - note that this is not the same thing as (next_value - value).
 RETURNS TableOrSubquery AS
 (
   SELECT
