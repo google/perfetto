@@ -75,19 +75,53 @@ class PowerVoltageAndScaling(TestSuite):
   def test_suspend_period(self):
     return DiffTestBlueprint(
         trace=Path('suspend_period.textproto'),
-        query=Metric('android_batt'),
-        out=TextProto(r"""
-        android_batt {
-          battery_aggregates {
-            sleep_ns: 20000
-          }
-          suspend_period {
-            timestamp_ns: 30000
-            duration_ns: 10000
-          }
-          suspend_period {
-            timestamp_ns: 50000
-            duration_ns: 10000
-          }
-        }
+query = """
+WITH
+  suspend_slice_from_minimal AS (
+    SELECT
+      ts,
+      dur,
+      IIF(lead(ts) OVER (ORDER BY ts) is null,  TRACE_END()) - ts - dur AS duration_gap
+    FROM track AS t
+    JOIN slice AS s
+      ON s.track_id = t.id
+    WHERE
+      t.name = 'Suspend/Resume Minimal'
+  ),
+  suspend_slice_latency AS (
+    SELECT
+      ts,
+      dur,
+      IIF(lead(ts) OVER (ORDER BY ts) is null,  TRACE_END()) - ts - dur AS duration_gap
+    FROM slice
+    JOIN track
+      ON slice.track_id = track.id
+    WHERE
+      track.name = 'Suspend/Resume Latency'
+      AND (
+        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)'
+      )
+      AND dur != -1
+      AND NOT EXISTS(
+        SELECT
+          *
+        FROM suspend_slice_from_minimal
+      )
+  ),
+  suspend_slice_pre_filter AS (
+    SELECT
+      ts,
+      dur,
+      duration_gap
+    FROM suspend_slice_from_minimal
+    UNION ALL
+    SELECT
+      ts,
+      dur,
+      duration_gap
+    FROM suspend_slice_latency
+  ) select * from suspend_slice_pre_filter;
+""",
+        out=Csv("""
+      ts, dur, duration_gap
         """))

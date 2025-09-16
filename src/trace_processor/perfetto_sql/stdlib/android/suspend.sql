@@ -32,7 +32,7 @@ WITH
     SELECT
       ts,
       dur,
-      lead(ts) OVER (ORDER BY ts) - ts - dur AS duration_gap
+      IIF(lead(ts) is NULL, TRACE_END()) OVER (ORDER BY ts) - ts - dur AS duration_gap
     FROM track AS t
     JOIN slice AS s
       ON s.track_id = t.id
@@ -43,7 +43,7 @@ WITH
     SELECT
       ts,
       dur,
-      lead(ts) OVER (ORDER BY ts) - ts - dur AS duration_gap
+      IIF(lead(ts) is NULL, TRACE_END()) OVER (ORDER BY ts) - ts - dur AS duration_gap
     FROM slice
     JOIN track
       ON slice.track_id = track.id
@@ -80,7 +80,7 @@ WITH
       dur
     FROM suspend_slice_pre_filter
     WHERE
-      duration_gap > 0
+      duration_gap >= 0
   ),
   awake_slice AS (
     -- If we don't have any rows, use the trace bounds if bounds are defined.
