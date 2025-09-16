@@ -421,7 +421,7 @@ export default class implements PerfettoPlugin {
                 upid;
             `);
 
-        const slicesData = new Map<string, MinimapRow>();
+        const slicesData = new Map<number, MinimapRow>();
         const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
         for (; it.valid(); it.next()) {
           const bucket = it.bucket;
@@ -430,18 +430,47 @@ export default class implements PerfettoPlugin {
 
           const ts = Time.add(traceSpan.start, resolution * bucket);
 
-          const upidStr = upid.toString();
-          let loadArray = slicesData.get(upidStr);
+          let loadArray = slicesData.get(upid);
           if (loadArray === undefined) {
             loadArray = [];
-            slicesData.set(upidStr, loadArray);
+            slicesData.set(upid, loadArray);
           }
           loadArray.push({ts, dur: resolution, load});
         }
 
+        // Sort rows to match timeline ordering using actual workspace track order
+        const processGroupsPlugin = ctx.plugins.getPlugin(
+          ProcessThreadGroupsPlugin,
+        );
+        const topLevelTracks = ctx.workspace.children;
+        const upidOrderMap = new Map<number, number>();
+
+        // Get the position of each upid's process group in the top-level tracks
+        // Only include upids that have corresponding track groups
+        for (const upid of slicesData.keys()) {
+          const processGroup = processGroupsPlugin.getGroupForProcess(upid);
+          if (processGroup) {
+            const orderIndex = topLevelTracks.indexOf(processGroup);
+            if (orderIndex >= 0) {
+              upidOrderMap.set(upid, orderIndex);
+            }
+          }
+        }
+
+        // Create rows array and sort by workspace track order
+        // Only process upids that have valid track groups
         const rows: MinimapRow[] = [];
-        for (const row of slicesData.values()) {
-          rows.push(row);
+        const sortedUpids = Array.from(upidOrderMap.keys()).sort((a, b) => {
+          const orderA = assertExists(upidOrderMap.get(a));
+          const orderB = assertExists(upidOrderMap.get(b));
+          return orderA - orderB;
+        });
+
+        for (const upid of sortedUpids) {
+          const row = slicesData.get(upid);
+          if (row) {
+            rows.push(row);
+          }
         }
         return rows;
       },
