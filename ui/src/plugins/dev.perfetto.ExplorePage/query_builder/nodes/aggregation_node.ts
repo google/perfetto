@@ -160,6 +160,32 @@ export class AggregationNode implements QueryNode {
     return this.state.customTitle ?? 'Aggregation';
   }
 
+  nodeDetails?(): m.Child | undefined {
+    const details: m.Child[] = [];
+    const groupByCols = this.state.groupByColumns
+      .filter((c) => c.checked)
+      .map((c) => c.name);
+    if (groupByCols.length > 0) {
+      details.push(m('div', `Group by: ${groupByCols.join(', ')}`));
+    }
+
+    const aggs = this.state.aggregations
+      .filter((agg) => agg.isValid)
+      .map(
+        (agg) =>
+          `${agg.aggregationOp}(${agg.column?.name}) AS ${agg.newColumnName ?? placeholderNewColumnName(agg)}`,
+      );
+
+    if (aggs.length > 0) {
+      details.push(m('div', `${aggs.join(', ')}`));
+    }
+
+    if (details.length === 0) {
+      return;
+    }
+    return m('.pf-aggregation-node-details', details);
+  }
+
   nodeSpecificModify(): m.Child {
     return m(
       '.node-specific-modify',

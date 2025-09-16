@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
@@ -99,7 +98,6 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: CPU_FREQ_TRACK_KIND,
             cpu: cpu.ucpu,
           },
           renderer: new CpuFreqTrack(config, ctx),
