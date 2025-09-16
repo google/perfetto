@@ -138,77 +138,49 @@ SELECT
 
 -- Track all distinct frames that overlap with the CUJ slice.
 CREATE PERFETTO VIEW _android_frames_in_cuj AS
--- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
--- can be multiple rows with the same frame_id.
-WITH
-  all_frames_in_cuj AS (
-    SELECT
-      _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
-      cuj.upid,
-      cuj.process_name,
-      frame.layer_id,
-      frame.frame_id,
-      frame.do_frame_id,
-      frame.expected_frame_timeline_id,
-      cuj.cuj_id,
-      frame.ts AS frame_ts,
-      frame.dur AS dur,
+SELECT
+  row_number() OVER (PARTITION BY cuj.cuj_id ORDER BY frame.ts) AS frame_idx,
+  count(*) OVER (PARTITION BY cuj.cuj_id) AS frame_cnt,
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
+  cuj.upid,
+  cuj.process_name,
+  cie.layer_id AS cuj_layer_id,
+  frame.layer_id,
+  frame.layer_name,
+  frame.frame_id,
+  frame.do_frame_id,
+  frame.expected_frame_timeline_id,
+  cuj.cuj_id,
+  frame.ts AS frame_ts,
+  frame.dur AS dur,
+  (
+    frame.ts + frame.dur
+  ) AS ts_end,
+  ui_thread_utid
+FROM android_frames_layers AS frame
+JOIN _sysui_cuj_instant_events AS cie
+  ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
+JOIN _sysui_cujs_slices AS cuj
+  ON cie.cuj_id = cuj.cuj_id
+-- Check whether the frame_id falls within the begin and end vsync of the cuj.
+-- Also check if the frame start or end timestamp falls within the cuj boundary.
+WHERE
+  frame_id >= begin_vsync
+  AND frame_id <= end_vsync
+  AND (
+    -- frame start within cuj
+    (
+      frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
+    )
+    -- frame end within cuj
+    OR (
       (
         frame.ts + frame.dur
-      ) AS ts_end,
-      ui_thread_utid
-    FROM android_frames_layers AS frame
-    JOIN _sysui_cuj_instant_events AS cie
-      ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
-    JOIN _sysui_cujs_slices AS cuj
-      ON cie.cuj_id = cuj.cuj_id
-    -- Check whether the frame_id falls within the begin and end vsync of the cuj.
-    -- Also check if the frame start or end timestamp falls within the cuj boundary.
-    WHERE
-      frame_id >= begin_vsync
-      AND frame_id <= end_vsync
-      AND (
-        -- frame start within cuj
-        (
-          frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
-        )
-        -- frame end within cuj
-        OR (
-          (
-            frame.ts + frame.dur
-          ) >= cuj.ts AND (
-            frame.ts + frame.dur
-          ) <= cuj.ts_end
-        )
-      )
-  )
-SELECT
-  row_number() OVER (PARTITION BY cuj_id ORDER BY min(frame_ts)) AS frame_idx,
-  count(*) OVER (PARTITION BY cuj_id) AS frame_cnt,
-  -- Column values with no aggregation function will stay identical across rows. For eg.
-  -- a cuj_name, upid will be the same for a given cuj_id. do_frame_id or expected_frame_timeline_id
-  -- will be the same for a given frame_id. Hence it is ok to not have aggregation functions for
-  -- all selected columns.
-  cuj_name,
-  upid,
-  layer_id,
-  process_name,
-  frame_id,
-  do_frame_id,
-  expected_frame_timeline_id,
-  cuj_id,
-  ui_thread_utid,
-  -- In case of multiple frames for a frame_id, consider the min start timestamp.
-  min(frame_ts) AS frame_ts,
-  -- In case of multiple frames for a frame_id, consider the max end timestamp.
-  max(ts_end) AS ts_end,
-  (
-    max(ts_end) - min(frame_ts)
-  ) AS dur
-FROM all_frames_in_cuj
-GROUP BY
-  frame_id,
-  cuj_id;
+      ) >= cuj.ts AND (
+        frame.ts + frame.dur
+      ) <= cuj.ts_end
+    )
+  );
 
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_sysui_jank_cujs (
@@ -242,6 +214,8 @@ CREATE PERFETTO TABLE android_sysui_jank_cujs (
   ui_thread JOINID(thread.id),
   -- layer id associated with the actual frame.
   layer_id LONG,
+  -- layer name associated with the actual frame.
+  layer_name STRING,
   -- vysnc id of the first frame that falls within the CUJ boundary.
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
@@ -310,6 +284,7 @@ SELECT
   END AS state,
   cuj_events.ui_thread,
   cuj_events.layer_id,
+  boundary.layer_name,
   cuj_events.begin_vsync,
   cuj_events.end_vsync
 FROM _sysui_cujs_slices AS cuj
@@ -443,6 +418,8 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
   ui_thread JOINID(thread.id),
   -- layer id associated with the actual frame.
   layer_id LONG,
+  -- layer name associated with the actual frame.
+  layer_name STRING,
   -- vysnc id of the first frame that falls within the CUJ boundary.
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
@@ -461,6 +438,7 @@ SELECT
   -- upid is used as the ui_thread as it's the tid of the main thread.
   upid AS ui_thread,
   NULL AS layer_id,
+  NULL AS layer_name,
   NULL AS begin_vsync,
   NULL AS end_vsync,
   "latency" AS cuj_type,

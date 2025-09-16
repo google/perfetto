@@ -105,11 +105,21 @@ SELECT
   upid
 FROM _get_frame_table_with_id('DrawFrame*');
 
+--Extract layer_id from a given layer_name.
+CREATE PERFETTO FUNCTION android_get_layer_id_from_name(
+    -- Layer name for a given frame.
+    layer_name STRING
+)
+-- int_value for the layer_id.
+RETURNS LONG AS
+SELECT
+  CAST(str_split($layer_name, '#', 1) AS INTEGER);
+
 -- Fetch distinct actual frames per layer per process.
 CREATE PERFETTO TABLE _distinct_layer_actual_timeline_slice_per_process AS
 SELECT
   cast_int!(name) AS frame_id,
-  CAST(str_split(layer_name, '#', 1) AS INTEGER) AS layer_id,
+  android_get_layer_id_from_name(layer_name) AS layer_id,
   layer_name,
   id AS slice_id,
   ts,
