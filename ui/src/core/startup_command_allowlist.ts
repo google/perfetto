@@ -42,7 +42,7 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
   // Commands will be added here based on user suggestions
 ];
 
-// Create a set for faster lookups
+// Create a set for faster lookups of exact matches
 const STARTUP_COMMAND_ALLOWLIST_SET = new Set(STARTUP_COMMAND_ALLOWLIST);
 
 /**
@@ -51,5 +51,15 @@ const STARTUP_COMMAND_ALLOWLIST_SET = new Set(STARTUP_COMMAND_ALLOWLIST);
  * @returns true if the command ID is in the allowlist, false otherwise
  */
 export function isStartupCommandAllowed(commandId: string): boolean {
-  return STARTUP_COMMAND_ALLOWLIST_SET.has(commandId);
+  // First check for exact match (fastest)
+  if (STARTUP_COMMAND_ALLOWLIST_SET.has(commandId)) {
+    return true;
+  }
+
+  // Special case: allow all user-defined macros
+  if (commandId.startsWith('dev.perfetto.UserMacro.')) {
+    return true;
+  }
+
+  return false;
 }
