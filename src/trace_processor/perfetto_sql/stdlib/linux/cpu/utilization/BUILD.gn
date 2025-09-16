@@ -21,5 +21,6 @@ perfetto_sql_source_set("utilization") {
     "slice.sql",
     "system.sql",
     "thread.sql",
+    "thread_cpu.sql",
   ]
 }

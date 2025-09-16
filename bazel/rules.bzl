@@ -89,6 +89,11 @@ def perfetto_java_lite_proto_library(**kwargs):
 
 # Unlike the other rules, this is an noop by default because Bazel does not
 # support Go proto libraries.
+def perfetto_dart_proto_library(**kwargs):
+    _rule_override("dart_proto_library", **kwargs)
+
+# Unlike the other rules, this is an noop by default because Bazel does not
+# support Go proto libraries.
 def perfetto_go_proto_library(**kwargs):
     _rule_override("go_proto_library", **kwargs)
 

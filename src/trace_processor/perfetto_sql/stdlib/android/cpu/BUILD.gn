@@ -15,5 +15,8 @@
 import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("cpu") {
-  sources = [ "cluster_type.sql" ]
+  sources = [
+    "cluster_type.sql",
+    "cpu_per_uid.sql",
+  ]
 }

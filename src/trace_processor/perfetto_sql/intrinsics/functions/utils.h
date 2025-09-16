@@ -18,14 +18,27 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
 
 #include <sqlite3.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
+#include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
@@ -33,11 +46,12 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 struct ExportJson : public LegacySqlFunction {
   using Context = TraceStorage;
@@ -393,7 +407,10 @@ struct Regexp : public sqlite::Function<Regexp> {
       }
       return sqlite::result::Long(ctx, aux->Search(text));
     } else {
-      PERFETTO_FATAL("Regex not supported");
+      // Always-true branch to avoid spurious no-return warnings.
+      if (ctx) {
+        PERFETTO_FATAL("Regex not supported");
+      }
     }
   }
 };
@@ -448,12 +465,14 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
       return sqlite::result::TransientString(
           ctx, result_sv.data(), static_cast<int>(result_sv.size()));
     } else {
-      PERFETTO_FATAL("Regex not supported");
+      // Always-true branch to avoid spurious no-return warnings.
+      if (ctx) {
+        PERFETTO_FATAL("Regex not supported");
+      }
     }
   }
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_

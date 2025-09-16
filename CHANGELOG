@@ -1,9 +1,22 @@
 Unreleased:
   Tracing service and probes:
+    *
+  SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+v52.0 - 2025-09-16:
+  Tracing service and probes:
     * Added support for exclusive single-tenant features in ftrace data source.
       These features can only be used by a single tracing session.
     * Added support for tracing_cpumask, tracefs options and ftrace filtering
       by TID as exclusive features.
+    * Added support for polling Adreno GPU frequency in SysStatsDataSource.
     * Deprecated: "resolve_process_fds" option in "linux.process_stats" data
       source. Asynchronous scraping is too unreliable and there are no known
       maintainers or users.
@@ -14,12 +27,32 @@ Unreleased:
       (default on Android), the implementation now chooses a default for
       unwind_state_clear_period_ms.
   SQL Standard library:
+    * Added new power analysis capabilities with expanded Wattson device support
+      and IRQ power attribution for more accurate power profiling.
+    * Added suspend-aware CPU utilization metrics for better analysis of
+      power-managed systems.
+    * Added anr_type column to android_anrs table for improved ANR debugging.
     * Added `android.bitmaps` module with timeseries information about bitmap
       usage in Android.
+    * Added upid/utid parameters to cpu_process/thread_utilization functions.
+    * Improved CPU utilization calculations by excluding null frequencies when
+      computing average frequency.
   Trace Processor:
+    * Significantly improved performance with optimized data structures and
+      MurmurHash implementation, resulting in faster trace loading and query
+      execution.
+    * Improved handling of large traces with better memory management and
+      reduced crashes on traces larger than 2GB.
+    * Enhanced multi-trace support with proper per-machine context management.
+    * Added support for symbolizing kernel frames in Linux perf.data files.
+    * Added support for trace-cmd report -N output format.
+    * Added slice_self_dur table for more efficient self-duration calculations.
+    * Added regexp_extract function for improved string processing in queries.
     * Added support for `sibling_merge_behavior` and `sibling_merge_key` in
       `TrackDescriptor` for TrackEvent, allowing for finer-grained control over
       how tracks are merged. See UI section for more details.
+    * Added support for `y_axis_share_key` in `CounterDescriptor` for sharing
+      Y-axis ranges between multiple counter tracks with the same units.
     * Changed how track_event tracks are parsed in trace processor when tracks
       are merged together. Instead of merging happening only in the UI, the
       merging now happens in trace processor. This causes the number of tracks
@@ -30,7 +63,23 @@ Unreleased:
       `sibling_merge_behaviour: SIBLING_MERGE_BEHAVIOR_NONE`.
     * Internal changes to packet sorting that might change the parsing order of
       data with identical timestamps, relative to previous releases.
+    * Fixed flow tracker direction by comparing timestamps correctly.
   UI:
+    * Added comprehensive dark mode support with theme-aware colors throughout
+      the interface.
+    * Introduced bulk track settings management allowing users to configure
+      multiple tracks simultaneously.
+    * Added startup commands feature for automated trace analysis workflows.
+    * Improved recording page with Perfetto SDK section for configuring
+      track_event data source categories and wildcards.
+    * Improved data visualization with enhanced DataGrid implementation and
+      better aggregation performance.
+    * Fixed numerous crashes and performance issues, including flamegraph
+      crashes and selection performance problems.
+    * Added track help infrastructure and descriptive text support for better
+      user guidance.
+    * Enhanced plugin architecture with standardized command naming and
+      improved plugin isolation.
     * Added support for controlling TrackEvent track merging through the
       `TrackDescriptor` proto. This is especially useful for users converting
       external traces into Perfetto format or using the SDK. Tracks can now
@@ -44,11 +93,20 @@ Unreleased:
     * Added a convention for automatic track visualisations for Linux ftrace
       tracepoints that match a convention. See "Diving deep -> Linux -> Kernel
       track events" in the public docs for more details.
+    * Improved WebUSB error messages for chrome://inspect conflicts.
+    * Fixed crash when loading traces larger than ~2GB.
+    * Added ability to scale counter track height beyond 4x.
+    * Added percentage of total wall time to sched aggregation tables.
   SDK:
     * "slow" tag is no longer implicitly added to trace categories with
       "disabled-by-default-" prefix. Instead, clients should explicitly specify
       the tag. enabled_categories="disabled-by-default-*" also no longer has
       a special priority, and the same can be achieved with enable_tags="slow".
+    * Added support for thread time subsampling option in TrackEvent.
+    * Added NamedTrack::FromPointer for creating tracks from pointer values.
+    * Added NamedTrack::ThreadScoped functionality.
+    * Emit PHASE_MARK legacy events on the global track.
+    * Added support for optional user provided process UUID.
 
 v51.2 - 2025-07-03:
   Trace Processor:
