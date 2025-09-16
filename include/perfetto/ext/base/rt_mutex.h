@@ -50,6 +50,11 @@
 #define PERFETTO_HAS_RT_FUTEX() false
 #endif
 
+// Enabled on Android to cover the scenario on platform builds where the Android
+// flag `use_rt_futex` is disabled and `use_rt_mutex` is enabled.
+//
+// Android support can be safely removed once the `use_rt_futex` rollout is
+// complete and the flag is deprecated.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)

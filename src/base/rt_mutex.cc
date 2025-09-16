@@ -21,10 +21,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <dlfcn.h>
-#endif
-
 #if PERFETTO_HAS_RT_FUTEX()
 #include <linux/futex.h>
 #include <sys/syscall.h>
@@ -67,21 +63,17 @@ RtPosixMutex::RtPosixMutex() noexcept {
   pthread_mutexattr_t at{};
   PERFETTO_CHECK(pthread_mutexattr_init(&at) == 0);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __ANDROID_API__ < 28
-  // pthread_mutexattr_setprotocol is only available on API 28.
-  using SetprotocolFuncT = int (*)(pthread_mutexattr_t*, int);
-  static auto setprotocol_func = reinterpret_cast<SetprotocolFuncT>(
-      dlsym(RTLD_DEFAULT, "pthread_mutexattr_setprotocol"));
-  if (setprotocol_func) {
-    PERFETTO_CHECK(setprotocol_func(&at, PTHREAD_PRIO_INHERIT) == 0);
-  } else {
-    static uint64_t log_once = 0;
-    if (log_once++ == 0) {
-      PERFETTO_LOG(
-          "Priority-inheritance RtMutex is not available in this version of "
-          "Android.");
-    }
-  }
-#else  // Not Android (but POSIX RT)
+// pthread_mutexattr_setprotocol is only available on API 28.
+#if PERFETTO_BUILDFLAG(PERFETTO_RT_MUTEX_MODE) == 1
+// If gn var PERFETTO_RT_MUTEX_MODE set as RtPosixMutex (1), fail at compile.
+#error \
+    "Priority-inheritance RtMutex is not available in this version of Android."
+#else
+  PERFETTO_FATAL(
+      "Priority-inheritance RtMutex is not available in this version of "
+      "Android.");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_RT_MUTEX_MODE) == 1
+#else   // Not Android (but POSIX RT)
   PERFETTO_CHECK(pthread_mutexattr_setprotocol(&at, PTHREAD_PRIO_INHERIT) == 0);
 #endif
   PERFETTO_CHECK(pthread_mutex_init(&mutex_, &at) == 0);
