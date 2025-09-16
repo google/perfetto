@@ -15097,6 +15097,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/bitmaps.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cuj_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",

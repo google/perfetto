@@ -2963,6 +2963,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",
     ],
 )
 
