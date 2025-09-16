@@ -20,7 +20,7 @@ import {SqlPackage} from '../public/extra_sql_packages';
 // proceeding as if the user is not internal.
 const SCRIPT_LOAD_TIMEOUT_MS = 5000;
 const SCRIPT_URL =
-  'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
+  'https://storage.cloud.google.com/perfetto-ui-internal/is-internal-user/is_internal_user.js';
 
 // This interface describes the required interface that the script expect to
 // find on window.globals.
