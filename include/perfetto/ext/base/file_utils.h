@@ -63,6 +63,11 @@ ssize_t Read(int fd, void* dst, size_t dst_size);
 //   succeeds, and returns the number of bytes written.
 ssize_t WriteAll(int fd, const void* buf, size_t count);
 
+// Copies all data from |fd_in| to |fd_out|. Saves the offset of |fd_in|,
+// rewinds it to the beginning, copies the content, and restores the offset.
+// |fd_in| can't be a pipe, socket of FIFO.
+base::Status CopyFile(int fd_in, int fd_out);
+
 ssize_t WriteAllHandle(PlatformHandle, const void* buf, size_t count);
 
 ScopedFile OpenFile(const std::string& path,

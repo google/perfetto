@@ -36,6 +36,9 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "test/gtest_and_gmock.h"
+#include "test/status_matchers.h"
+
+using testing::StartsWith;
 
 namespace perfetto {
 namespace base {
@@ -213,6 +216,122 @@ TEST(UtilsTest, HexDump) {
       R"(00000000: 00 00 61 62 63 64 65 66 67 68 69 6A 6B 6C 6D 6E   ..abcdefghijklmn
 00000010: 6F 70                                             op
 )");
+}
+
+TEST(UtilsTest, CopyFile) {
+  auto assert_file_content_fn = [&](TempFile& file,
+                                    const std::string& expected) {
+    // Flush content of the original dst FD.
+    ASSERT_TRUE(FlushFile(*file));
+    std::string actual;
+    // Create new FD from the path with zero offset.
+    base::ScopedFile ro_fd = base::OpenFile(file.path(), O_RDONLY);
+    ASSERT_TRUE(ReadFileDescriptor(*ro_fd, &actual));
+    ASSERT_EQ(expected, actual);
+    ASSERT_EQ(GetFileSize(*ro_fd).value(), expected.size());
+  };
+
+  // Copy empty file.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    ASSERT_OK(CopyFile(*src, *dst));
+    assert_file_content_fn(dst, "");
+  }
+
+  // Copy small file.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    std::string payload = "payload\n\r123";
+    WriteAll(*src, payload.data(), payload.size());
+
+    ASSERT_OK(CopyFile(*src, *dst));
+    assert_file_content_fn(dst, payload);
+
+    // Append more data to the same file.
+    ASSERT_OK(CopyFile(*src, *dst));
+    assert_file_content_fn(dst, payload + payload);
+  }
+
+  // Copy large file.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    std::string payload(35678, 'A');
+    WriteAll(*src, payload.data(), payload.size());
+
+    ASSERT_OK(CopyFile(*src, *dst));
+    assert_file_content_fn(dst, payload);
+  }
+
+  // Test CopyFile doesn't change 'src' offset.
+  {
+    TempFile src = TempFile::Create();
+    TempFile dst = TempFile::Create();
+
+    std::string payload = "payload\n\r123";
+    WriteAll(*src, payload.data(), payload.size());
+
+    constexpr off_t kSrcOffset = 5;
+    // Change offset of 'src'.
+    ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
+
+    ASSERT_OK(CopyFile(*src, *dst));
+    assert_file_content_fn(dst, payload);
+
+    // Assert offset of 'src' doesn't change.
+    ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
+  }
+
+  // Test CopyFile doesn't change 'src' offset when failed.
+  {
+    TempFile src = TempFile::Create();
+    TempDir temp_dir = TempDir::Create();
+    // Not a '/dev/...' for test to work on Windows.
+    std::string dst_path = temp_dir.path() + "/dst.txt";
+    ScopedFile dst = OpenFile(dst_path, O_RDONLY);
+
+    std::string payload = "payload\n\r123";
+    WriteAll(*src, payload.data(), payload.size());
+
+    constexpr off_t kSrcOffset = 5;
+    // Change offset of 'src'.
+    ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
+
+    // Assert we can't write to read only file.
+    Status result = CopyFile(*src, *dst);
+    ASSERT_THAT(result.message(), StartsWith("Write failed:"));
+
+    // Assert offset of 'src' doesn't change.
+    ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Test CopyFile report human readable errors.
+  {
+    auto pipe = Pipe::Create();
+    TempFile dst = TempFile::Create();
+
+    {
+      Status result = CopyFile(*pipe.rd, *dst);
+      // CopyFile doesn't support pipes.
+      ASSERT_THAT(result.message(),
+                  StartsWith("Can't get offset in 'fd_in', lseek error:"));
+    }
+
+    ScopedFile src = OpenFile("/dev/zero", O_WRONLY);
+    {
+      Status result = CopyFile(*src, *dst);
+      // CopyFile can't read from write only fd.
+      ASSERT_THAT(result.message(), StartsWith("Read failed:"));
+    }
+  }
+#endif
 }
 
 }  // namespace
