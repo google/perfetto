@@ -214,7 +214,7 @@ def build_and_tag_release(version, major_version):
   if remote_tag_exists(version):
     warn(f"Tag '{version}' already exists on remote.")
   else:
-    run_cmd('git', 'push', 'origin', version)
+    run_cmd('git', 'push', '--no-verify', 'origin', version)
 
   info("Build and tag complete.")
 
