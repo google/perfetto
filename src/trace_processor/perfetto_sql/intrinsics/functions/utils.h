@@ -473,6 +473,54 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
   }
 };
 
+struct UnHex : public sqlite::Function<UnHex> {
+  static constexpr char kName[] = "UNHEX";
+  static constexpr int kArgCount = 1;
+
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+    sqlite::Type type = sqlite::value::Type(argv[0]);
+
+    if (type == sqlite::Type::kNull) {
+      return sqlite::result::Null(ctx);
+    }
+    if (type != sqlite::Type::kText) {
+      return sqlite::result::Error(ctx, "UNHEX: argument must be text");
+    }
+
+    std::string_view hex_str(sqlite::value::Text(argv[0]));
+
+    // Trim leading and trailing whitespace
+    size_t first = hex_str.find_first_not_of(" \t\n\r\f\v");
+    if (first == std::string_view::npos) {
+      return sqlite::result::Error(ctx,
+                                   "UNHEX: input is empty or only whitespace");
+    }
+    size_t last = hex_str.find_last_not_of(" \t\n\r\f\v");
+    hex_str = hex_str.substr(first, (last - first + 1));
+
+    // Handle optional "0x" or "0X" prefix
+    if (hex_str.length() >= 2 && hex_str[0] == '0' &&
+        (hex_str[1] == 'x' || hex_str[1] == 'X')) {
+      hex_str.remove_prefix(2);
+    }
+
+    if (hex_str.empty()) {
+      return sqlite::result::Error(ctx,
+                                   "UNHEX: hex string is empty after prefix");
+    }
+
+    std::optional<int64_t> result =
+        perfetto::base::StringViewToInt64(hex_str, 16);
+
+    if (!result.has_value()) {
+      return sqlite::result::Error(ctx,
+                                   "UNHEX: invalid or out of range hex string");
+    }
+
+    return sqlite::result::Long(ctx, *result);
+  }
+};
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
