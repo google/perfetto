@@ -78,7 +78,7 @@ class Httpd : public base::HttpRequestHandler {
   void OnHttpConnectionClosed(base::HttpServerConnection* conn) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
-  void cleanUpInactiveInstances();
+  void CleanUpInactiveInstances();
 
   class RpcThread {
    public:
@@ -280,7 +280,7 @@ void Httpd::Run(const std::string& listen_ip,
   // Create cleanup task using shared_ptr for proper capture
   auto cleanup_task = std::make_shared<std::function<void()>>();
   *cleanup_task = [this, cleanup_task]() {
-    cleanUpInactiveInstances();
+    CleanUpInactiveInstances();
     if (tp_timeout_mins_ > 0) {
       task_runner_.PostDelayedTask(
           *cleanup_task,
@@ -646,7 +646,7 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   }
 }
 
-void Httpd::cleanUpInactiveInstances() {
+void Httpd::CleanUpInactiveInstances() {
   std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
 
   if (tp_timeout_mins_ == 0) {
@@ -667,7 +667,7 @@ void Httpd::cleanUpInactiveInstances() {
           "Cleaning up inactive RPC instance: %" PRIu32
           " (inactive for %.1f minutes)",
           instance_id,
-          static_cast<double>(now - last_accessed) / (60.0 * 1000000000.0));
+          static_cast<double>(now - last_accessed) / (kNanosecondPerMinute));
       // Remove from conn_to_id_map as well
       for (auto conn_it = conn_to_id_map.begin();
            conn_it != conn_to_id_map.end();) {

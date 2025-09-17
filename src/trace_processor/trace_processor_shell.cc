@@ -739,7 +739,7 @@ struct CommandLineOptions {
   std::string metric_v1_names;
   std::string metric_v1_output;
   std::vector<std::string> raw_metric_v1_extensions;
-  size_t tp_timeout_mins = 120;
+  size_t tp_timeout_mins = 24 * 60;  // 24 hours
 };
 
 void PrintUsage(char** argv) {
