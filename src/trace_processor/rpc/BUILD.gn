@@ -96,7 +96,6 @@ if (enable_perfetto_trace_processor_httpd) {
       "../../base:version",
       "../../base/http",
       "../../protozero",
-      "../importers/json:minimal",
     ]
   }
 }
