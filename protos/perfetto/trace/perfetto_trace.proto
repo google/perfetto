@@ -1003,8 +1003,6 @@ message EtwConfig {
   enum KernelFlag {
     CSWITCH = 0;
     DISPATCHER = 1;
-    FILE_IO = 2;
-    FILE_IO_INIT = 3;
   }
 
   // The kernel_flags determines the flags that will be used by the etw tracing
@@ -7602,8 +7600,8 @@ message MemInfoEtwEvent {
 
 // Proto definition based on the `FileIo_Create` class definition.
 message FileIoCreateEtwEvent {
-  optional uint32 irp_ptr = 1;
-  optional uint32 file_object = 2;
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
   optional uint32 ttid = 3;
   optional uint32 create_options = 4;
   optional uint32 file_attributes = 5;
@@ -7613,9 +7611,9 @@ message FileIoCreateEtwEvent {
 
 // Proto definition based on the `FileIo_DirEnum` class definition.
 message FileIoDirEnumEtwEvent {
-  optional uint32 irp_ptr = 1;
-  optional uint32 file_object = 2;
-  optional uint32 file_key = 3;
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
   optional uint32 ttid = 4;
   optional uint32 length = 5;
   optional uint32 info_class = 6;
@@ -7625,10 +7623,10 @@ message FileIoDirEnumEtwEvent {
 
 // Proto definition based on the `FileIo_Info` class definition.
 message FileIoInfoEtwEvent {
-  optional uint32 irp_ptr = 1;
-  optional uint32 file_object = 2;
-  optional uint32 file_key = 3;
-  optional uint32 extra_info = 4;
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
   optional uint32 ttid = 5;
   optional uint32 info_class = 6;
 }
@@ -7636,9 +7634,9 @@ message FileIoInfoEtwEvent {
 // Proto definition based on the `FileIo_ReadWrite` class definition.
 message FileIoReadWriteEtwEvent {
   optional uint64 offset = 1;
-  optional uint32 irp_ptr = 2;
-  optional uint32 file_object = 3;
-  optional uint32 file_key = 4;
+  optional uint64 irp_ptr = 2;
+  optional uint64 file_object = 3;
+  optional uint64 file_key = 4;
   optional uint32 ttid = 5;
   optional uint32 io_size = 6;
   optional uint32 io_flags = 7;
@@ -7646,16 +7644,16 @@ message FileIoReadWriteEtwEvent {
 
 // Proto definition based on the `FileIo_SimpleOp` class definition.
 message FileIoSimpleOpEtwEvent {
-  optional uint32 irp_ptr = 1;
-  optional uint32 file_object = 2;
-  optional uint32 file_key = 3;
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
   optional uint32 ttid = 4;
 }
 
 // Proto definition based on the `FileIo_OpEnd` class definition.
 message FileIoOpEndEtwEvent {
-  optional uint32 irp_ptr = 1;
-  optional uint32 extra_info = 2;
+  optional uint64 irp_ptr = 1;
+  optional uint64 extra_info = 2;
   optional uint32 nt_status = 3;
 }
 

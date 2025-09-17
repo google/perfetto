@@ -27,8 +27,6 @@ message EtwConfig {
   enum KernelFlag {
     CSWITCH = 0;
     DISPATCHER = 1;
-    FILE_IO = 2;
-    FILE_IO_INIT = 3;
   }
 
   // The kernel_flags determines the flags that will be used by the etw tracing
