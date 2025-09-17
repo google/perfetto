@@ -28,6 +28,15 @@ import {createFiltersProto, FilterOperation} from '../../operations/filter';
 import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {SourceNode} from '../../source_node';
 
+export interface SlicesSourceSerializedState {
+  slice_name?: string;
+  thread_name?: string;
+  process_name?: string;
+  track_name?: string;
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
+
 export interface SlicesSourceState extends QueryNodeState {
   slice_name?: string;
   thread_name?: string;
@@ -73,6 +82,18 @@ export class SlicesSourceNode extends SourceNode {
   isMaterialised(): boolean {
     return this.state.isExecuted === true && this.meterialisedAs !== undefined;
   }
+
+  serializeState(): SlicesSourceSerializedState {
+    return {
+      slice_name: this.state.slice_name,
+      thread_name: this.state.thread_name,
+      process_name: this.state.process_name,
+      track_name: this.state.track_name,
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -99,6 +120,27 @@ export class SlicesSourceNode extends SourceNode {
     return sq;
   }
 
+  nodeDetails?(): m.Child | undefined {
+    const details: m.Child[] = [];
+    if (this.state.slice_name) {
+      details.push(m('div', `slice_name: ${this.state.slice_name}`));
+    }
+    if (this.state.thread_name) {
+      details.push(m('div', `thread_name: ${this.state.thread_name}`));
+    }
+    if (this.state.process_name) {
+      details.push(m('div', `process_name: ${this.state.process_name}`));
+    }
+    if (this.state.track_name) {
+      details.push(m('div', `track_name: ${this.state.track_name}`));
+    }
+
+    if (details.length === 0) {
+      return;
+    }
+    return m('.pf-slice-source-details', details);
+  }
+
   nodeSpecificModify(): m.Child {
     return m(
       '',
@@ -110,6 +152,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'slice_name_glob',
             type: 'string',
+            value: this.state.slice_name ?? '',
             placeholder: 'MySlice*',
             oninput: (e: Event) => {
               if (!e.target) return;
@@ -125,6 +168,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'thread_name_glob',
             type: 'string',
+            value: this.state.thread_name ?? '',
             placeholder: 'RenderThread',
             oninput: (e: Event) => {
               if (!e.target) return;
@@ -140,6 +184,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'process_name_glob',
             type: 'string',
+            value: this.state.process_name ?? '',
             placeholder: '*chrome*',
             oninput: (e: Event) => {
               if (!e.target) return;
@@ -155,6 +200,7 @@ export class SlicesSourceNode extends SourceNode {
           m(TextInput, {
             id: 'track_name_glob',
             type: 'string',
+            value: this.state.track_name ?? '',
             placeholder: 'SurfaceFlinger',
             oninput: (e: Event) => {
               if (!e.target) return;

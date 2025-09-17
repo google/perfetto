@@ -13,23 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {NodeBoxLayout} from './node_box';
+
+export interface Port {
+  x: number;
+  y: number;
+}
 
 export interface ArrowAttrs {
-  from: NodeBoxLayout;
-  to: NodeBoxLayout;
-  portIndex: number;
-  portCount: number;
+  from: Port;
+  to: Port;
 }
 
 export const Arrow: m.Component<ArrowAttrs> = {
   view({attrs}) {
-    const {from, to, portIndex, portCount} = attrs;
-    const fromWidth = from.width ?? 0;
-    const x1 = from.x + (fromWidth * (portIndex + 1)) / (portCount + 1);
-    const y1 = from.y + (from.height ?? 0);
-    const x2 = to.x + (to.width ?? 0) / 2;
-    const y2 = to.y;
+    const {from, to} = attrs;
     return m(
       'svg.pf-node-graph-arrow',
       {
@@ -43,10 +40,10 @@ export const Arrow: m.Component<ArrowAttrs> = {
         },
       },
       m('line', {
-        x1,
-        y1,
-        x2,
-        y2,
+        'x1': from.x,
+        'y1': from.y,
+        'x2': to.x,
+        'y2': to.y,
         'stroke': 'var(--pf-color-border)',
         'stroke-width': 2,
       }),

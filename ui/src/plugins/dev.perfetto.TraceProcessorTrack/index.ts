@@ -13,9 +13,13 @@
 // limitations under the License.
 
 import {removeFalsyValues} from '../../base/array_utils';
+import {AsyncLimiter} from '../../base/async_limiter';
 import {assertExists} from '../../base/logging';
 import {Time} from '../../base/time';
-import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  createAggregationTab,
+  createIITable,
+} from '../../components/aggregation_adapter';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
@@ -27,6 +31,7 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,
   NUM,
@@ -421,7 +426,7 @@ export default class implements PerfettoPlugin {
                 upid;
             `);
 
-        const slicesData = new Map<string, MinimapRow>();
+        const slicesData = new Map<number, MinimapRow>();
         const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
         for (; it.valid(); it.next()) {
           const bucket = it.bucket;
@@ -430,18 +435,47 @@ export default class implements PerfettoPlugin {
 
           const ts = Time.add(traceSpan.start, resolution * bucket);
 
-          const upidStr = upid.toString();
-          let loadArray = slicesData.get(upidStr);
+          let loadArray = slicesData.get(upid);
           if (loadArray === undefined) {
             loadArray = [];
-            slicesData.set(upidStr, loadArray);
+            slicesData.set(upid, loadArray);
           }
           loadArray.push({ts, dur: resolution, load});
         }
 
+        // Sort rows to match timeline ordering using actual workspace track order
+        const processGroupsPlugin = ctx.plugins.getPlugin(
+          ProcessThreadGroupsPlugin,
+        );
+        const topLevelTracks = ctx.workspace.children;
+        const upidOrderMap = new Map<number, number>();
+
+        // Get the position of each upid's process group in the top-level tracks
+        // Only include upids that have corresponding track groups
+        for (const upid of slicesData.keys()) {
+          const processGroup = processGroupsPlugin.getGroupForProcess(upid);
+          if (processGroup) {
+            const orderIndex = topLevelTracks.indexOf(processGroup);
+            if (orderIndex >= 0) {
+              upidOrderMap.set(upid, orderIndex);
+            }
+          }
+        }
+
+        // Create rows array and sort by workspace track order
+        // Only process upids that have valid track groups
         const rows: MinimapRow[] = [];
-        for (const row of slicesData.values()) {
-          rows.push(row);
+        const sortedUpids = Array.from(upidOrderMap.keys()).sort((a, b) => {
+          const orderA = assertExists(upidOrderMap.get(a));
+          const orderB = assertExists(upidOrderMap.get(b));
+          return orderA - orderB;
+        });
+
+        for (const upid of sortedUpids) {
+          const row = slicesData.get(upid);
+          if (row) {
+            rows.push(row);
+          }
         }
         return rows;
       },
@@ -513,7 +547,11 @@ export default class implements PerfettoPlugin {
 
 function createSliceFlameGraphPanel(trace: Trace) {
   let previousSelection: AreaSelection | undefined;
-  let sliceFlamegraph: QueryFlamegraph | undefined;
+  let currentFlamegraph:
+    | Awaited<ReturnType<typeof computeSliceFlamegraph>>
+    | undefined;
+  const limiter = new AsyncLimiter();
+
   return {
     id: 'slice_flamegraph_selection',
     name: 'Slice Flamegraph',
@@ -523,19 +561,36 @@ function createSliceFlameGraphPanel(trace: Trace) {
         !areaSelectionsEqual(previousSelection, selection);
       previousSelection = selection;
       if (selectionChanged) {
-        sliceFlamegraph = computeSliceFlamegraph(trace, selection);
+        limiter.schedule(async () => {
+          // Compute the new flamegraph
+          const flamegraph = await computeSliceFlamegraph(trace, selection);
+
+          // Swap the current flamegraph with the newly computed one, keeping
+          // track of the previous one so we can dispose of it.
+          const previousFlamegraph = currentFlamegraph;
+          currentFlamegraph = flamegraph;
+
+          // If we had a previous flamegraph, dispose of it now that the new
+          // one is ready.
+          if (previousFlamegraph) {
+            await previousFlamegraph[Symbol.asyncDispose]();
+          }
+        });
       }
 
-      if (sliceFlamegraph === undefined) {
+      if (currentFlamegraph === undefined) {
         return undefined;
       }
 
-      return {isLoading: false, content: sliceFlamegraph.render()};
+      return {isLoading: false, content: currentFlamegraph.flamegraph.render()};
     },
   };
 }
 
-function computeSliceFlamegraph(trace: Trace, currentSelection: AreaSelection) {
+async function computeSliceFlamegraph(
+  trace: Trace,
+  currentSelection: AreaSelection,
+): Promise<(AsyncDisposable & {flamegraph: QueryFlamegraph}) | undefined> {
   const trackIds = [];
   for (const trackInfo of currentSelection.tracks) {
     if (trackInfo?.tags?.kind !== SLICE_TRACK_KIND) {
@@ -549,21 +604,47 @@ function computeSliceFlamegraph(trace: Trace, currentSelection: AreaSelection) {
   if (trackIds.length === 0) {
     return undefined;
   }
-  const metrics = metricsFromTableOrSubquery(
-    `
-      (
-        select *
-        from _viz_slice_ancestor_agg!((
-          select s.id, s.dur
-          from slice s
-          left join slice t on t.parent_id = s.id
-          where s.ts >= ${currentSelection.start}
-            and s.ts <= ${currentSelection.end}
-            and s.track_id in (${trackIds.join(',')})
-            and t.id is null
-        ))
-      )
+
+  const dataset = new SourceDataset({
+    src: `
+      select
+        id,
+        dur,
+        ts,
+        parent_id,
+        name
+      from slice
+      where track_id in (${trackIds.join(',')})
     `,
+    schema: {
+      id: NUM,
+      ts: LONG,
+      dur: LONG,
+      parent_id: NUM_NULL,
+      name: STR_NULL,
+    },
+  });
+
+  const iiTable = await createIITable(
+    trace.engine,
+    dataset,
+    currentSelection.start,
+    currentSelection.end,
+  );
+
+  const metrics = metricsFromTableOrSubquery(
+    `(
+      select *
+      from _viz_slice_ancestor_agg!(
+        (
+          select s.id, s.dur
+          from ${iiTable.name} s
+          left join ${iiTable.name} t on t.parent_id = s.id
+          where t.id is null
+        ),
+        ${iiTable.name}
+      )
+    )`,
     [
       {
         name: 'Duration',
@@ -587,7 +668,10 @@ function computeSliceFlamegraph(trace: Trace, currentSelection: AreaSelection) {
       },
     ],
   );
-  return new QueryFlamegraph(trace, metrics, {
-    state: Flamegraph.createDefaultState(metrics),
-  });
+  return {
+    ...iiTable,
+    flamegraph: new QueryFlamegraph(trace, metrics, {
+      state: Flamegraph.createDefaultState(metrics),
+    }),
+  };
 }
