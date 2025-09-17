@@ -16,9 +16,15 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
+#include <cstdint>
+#include <memory>
 #include <optional>
 #include <random>
+#include <tuple>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -28,8 +34,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class ClockTrackerTest : public ::testing::Test {
  public:
@@ -209,16 +214,15 @@ TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  ClockTracker::ClockId c64_1 = ct_.SequenceToGlobalClock(1, 64);
-  ClockTracker::ClockId c65_1 = ct_.SequenceToGlobalClock(1, 65);
-  ClockTracker::ClockId c66_1 = ct_.SequenceToGlobalClock(1, 66);
-  ClockTracker::ClockId c66_2 = ct_.SequenceToGlobalClock(2, 64);
+  ClockTracker::ClockId c64_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  ClockTracker::ClockId c65_1 = ClockTracker::SequenceToGlobalClock(1, 65);
+  ClockTracker::ClockId c66_1 = ClockTracker::SequenceToGlobalClock(1, 66);
+  ClockTracker::ClockId c66_2 = ClockTracker::SequenceToGlobalClock(2, 64);
 
-  ct_.AddSnapshot(
-      {{MONOTONIC, 10000},
-       {c64_1, 100000},
-       {c65_1, 100, /*unit_multiplier_ns=*/1000, /*is_incremental=*/false},
-       {c66_1, 10, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
+  ct_.AddSnapshot({{MONOTONIC, 10000},
+                   {c64_1, 100000},
+                   {c65_1, 100, /*unit=*/1000, /*incremental=*/false},
+                   {c66_1, 10, /*unit=*/1000, /*incremental=*/true}});
 
   // c64_1 is non-incremental and in nanos.
   EXPECT_EQ(*Convert(c64_1, 150000, MONOTONIC), 60000);
@@ -237,11 +241,9 @@ TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 15 */), 114000);
 
   ct_.AddSnapshot(
-      {{MONOTONIC, 20000},
-       {c66_1, 20, /*unit_multiplier_ns=*/1000, /*incremental=*/true}});
+      {{MONOTONIC, 20000}, {c66_1, 20, /*unit=*/1000, /*incremental=*/true}});
   ct_.AddSnapshot(
-      {{MONOTONIC, 20000},
-       {c66_2, 20, /*unit_multiplier_ns=*/1000, /*incremental=*/true}});
+      {{MONOTONIC, 20000}, {c66_2, 20, /*unit=*/1000, /*incremental=*/true}});
 
   // c66_1 and c66_2 are both incremental and in micros, but shouldn't affect
   // each other.
@@ -345,15 +347,15 @@ TEST_F(ClockTrackerTest, ClockOffset) {
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   // Client-to-host BOOTTIME offset is -10000 ns.
-  ct_.SetClockOffset(BOOTTIME, -10000);
+  ct_.SetRemoteClockOffset(BOOTTIME, -10000);
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
   ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
-  auto seq_clock_2 = ct_.SequenceToGlobalClock(2, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
   ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -379,7 +381,7 @@ TEST_F(ClockTrackerTest, ClockOffset) {
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
   // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
-            100 * 10 + 100 + 1000 + 100000 + 10000);
+            (100 * 10) + 100 + 1000 + 100000 + 10000);
 }
 
 // Test conversion of remote machine timestamps without offset. This can happen
@@ -393,8 +395,8 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
-  auto seq_clock_2 = ct_.SequenceToGlobalClock(2, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
   ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -416,7 +418,7 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
   // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME.
   EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
-            100 * 10 + 100 + 1000 + 100000);
+            (100 * 10) + 100 + 1000 + 100000);
 }
 
 // Test clock offset of non-defualt trace time clock domain.
@@ -425,13 +427,13 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   ct_.SetTraceTimeClock(MONOTONIC);
-  ct_.SetClockOffset(MONOTONIC, -2000);
-  ct_.SetClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
+  ct_.SetRemoteClockOffset(MONOTONIC, -2000);
+  ct_.SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
   ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
 
   int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
@@ -547,5 +549,4 @@ TEST_F(ClockTrackerTest, ThreeHopConversion) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

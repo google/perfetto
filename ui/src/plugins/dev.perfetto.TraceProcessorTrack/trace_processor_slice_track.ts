@@ -88,7 +88,9 @@ export async function createTraceProcessorSliceTrack({
       : () => new ThreadSliceDetailsPanel(trace),
     colorizer: (row) => {
       if (row.correlation_id) {
-        return getColorForSlice(row.correlation_id);
+        return getColorForSlice(row.correlation_id, {
+          stripTrailingDigits: false,
+        });
       }
       if (row.name) {
         return getColorForSlice(row.name);

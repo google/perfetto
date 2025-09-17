@@ -277,6 +277,31 @@ TEST(StructuredQueryGeneratorTest, SqlSourceWithMultistatement) {
               UnorderedElementsAre("SELECT 1; SELECT 2;; "));
 }
 
+TEST(StructuredQueryGeneratorTest, SqlSourceWithMultistatementWithSemicolon) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "; ;SELECT 1; SELECT 2;; SELECT id, ts, dur FROM slice;"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT id, ts, dur FROM slice)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+  ASSERT_THAT(gen.ComputePreambles(),
+              UnorderedElementsAre("SELECT 1; SELECT 2;; "));
+}
+
 TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
@@ -444,6 +469,151 @@ TEST(StructuredQueryGeneratorTest, SelfCycleDetection) {
   ASSERT_FALSE(ret.ok());
   ASSERT_THAT(ret.status().message(),
               testing::HasSubstr("Cycle detected in structured query"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSourceWithDependencies) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT s.id, s.ts, s.dur, t.track_name FROM $slice_table s JOIN $track_table t ON s.track_id = t.id"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+      column_names: "track_name"
+      dependencies: {
+        alias: "slice_table"
+        query: {
+          table: {
+            table_name: "slice"
+          }
+        }
+      }
+      dependencies: {
+        alias: "track_table"
+        query: {
+          table: {
+            table_name: "track"
+          }
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur, track_name
+        FROM (SELECT s.id, s.ts, s.dur, t.track_name FROM sq_1 s JOIN sq_2 t ON s.track_id = t.id)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSourceWithNoDependencies) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT s.id, s.ts, s.dur FROM slice s"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT s.id, s.ts, s.dur FROM slice s)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSourceWithNoColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT s.id, s.ts, s.dur FROM slice s"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT *
+        FROM (SELECT s.id, s.ts, s.dur FROM slice s)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSourceWithUnusedDependencies) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT s.id, s.ts, s.dur FROM slice s"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+      dependencies: {
+        alias: "unused_table"
+        query: {
+          table: {
+            table_name: "slice"
+          }
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT s.id, s.ts, s.dur FROM slice s)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+}
+
+TEST(StructuredQueryGeneratorTest, SqlSourceWithNonExistentDependency) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "SELECT s.id, s.ts, s.dur FROM $non_existent_table s"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT s.id, s.ts, s.dur FROM $non_existent_table s)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
 }
 
 }  // namespace

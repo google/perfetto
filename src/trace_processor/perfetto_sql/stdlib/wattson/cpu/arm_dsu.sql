@@ -56,3 +56,9 @@ SELECT
   dur,
   access_rate AS l3_hit_rate
 FROM _get_rate("arm_dsu_0/l3d_cache/_cpu0");
+
+-- Combine L3 hit and miss rates into a single table.
+CREATE VIRTUAL TABLE _arm_l3_rates USING SPAN_OUTER_JOIN (
+  _arm_l3_miss_rate,
+  _arm_l3_hit_rate
+);

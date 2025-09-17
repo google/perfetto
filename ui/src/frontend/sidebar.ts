@@ -28,7 +28,6 @@ import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
 import {download, downloadUrl} from '../base/download_utils';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
 import {
@@ -48,11 +47,13 @@ import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
 import {assertExists} from '../base/logging';
+import {Icon} from '../widgets/icon';
+import {Button} from '../widgets/button';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
 function getBugReportUrl(): string {
-  if (globals.isInternalUser) {
+  if (AppImpl.instance.isInternalUser) {
     return 'https://goto.google.com/perfetto-ui-bug';
   } else {
     return 'https://github.com/google/perfetto/issues/new';
@@ -67,7 +68,7 @@ const HIRING_BANNER_FLAG = featureFlags.register({
 });
 
 function shouldShowHiringBanner(): boolean {
-  return globals.isInternalUser && HIRING_BANNER_FLAG.get();
+  return AppImpl.instance.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
 async function openCurrentTraceWithOldUI(trace: Trace): Promise<void> {
@@ -147,7 +148,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
 `;
     showModal({
       title: `Trace processor doesn't have high-precision timers`,
-      content: m('.modal-pre', PROMPT),
+      content: m('.pf-modal-pre', PROMPT),
       buttons: [
         {
           text: 'YES, record metatrace',
@@ -202,7 +203,7 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
     if (engine !== undefined) {
       mode = engine.mode;
       if (engine.failed !== undefined) {
-        cssClass += '.red';
+        cssClass += '.pf-sidebar__dbg-info-square--red';
         title = 'Query engine crashed\n' + engine.failed;
         failed = true;
       }
@@ -225,7 +226,7 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
     }
 
     if (mode === 'HTTP_RPC') {
-      cssClass += '.green';
+      cssClass += '.pf-sidebar__dbg-info-square--green';
       label = 'RPC';
       title += '\n(Query engine: native accelerator over HTTP+RPC)';
     } else {
@@ -235,7 +236,7 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
 
     const numReqs = attrs.trace?.engine.numRequestsPending ?? 0;
     return m(
-      `.dbg-info-square${cssClass}`,
+      `.pf-sidebar__dbg-info-square${cssClass}`,
       {title},
       m('div', label),
       m('div', `${failed ? 'FAIL' : numReqs}`),
@@ -254,18 +255,18 @@ const ServiceWorkerWidget: m.Component = {
       title += 'not supported by the browser (requires HTTPS)';
     } else if (ctl.bypassed) {
       label = 'OFF';
-      cssClass = '.red';
+      cssClass = '.pf-sidebar__dbg-info-square--red';
       title += 'Bypassed, using live network. Double-click to re-enable';
     } else if (ctl.installing) {
       label = 'UPD';
-      cssClass = '.amber';
+      cssClass = '.pf-sidebar__dbg-info-square--amber';
       title += 'Installing / updating ...';
     } else if (!navigator.serviceWorker.controller) {
       label = 'N/A';
       title += 'Not available, using network';
     } else {
       label = 'ON';
-      cssClass = '.green';
+      cssClass = '.pf-sidebar__dbg-info-square--green';
       title += 'Serving from cache. Ready for offline use';
     }
 
@@ -311,7 +312,7 @@ const ServiceWorkerWidget: m.Component = {
     };
 
     return m(
-      `.dbg-info-square${cssClass}`,
+      `.pf-sidebar__dbg-info-square${cssClass}`,
       {title, ondblclick: toggle},
       m('div', 'SW'),
       m('div', label),
@@ -322,11 +323,11 @@ const ServiceWorkerWidget: m.Component = {
 class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
   view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
     return m(
-      '.sidebar-footer',
+      '.pf-sidebar__footer',
       m(EngineRPCWidget, attrs),
       m(ServiceWorkerWidget),
       m(
-        '.version',
+        '.pf-sidebar__version',
         m(
           'a',
           {
@@ -344,7 +345,7 @@ class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
 class HiringBanner implements m.ClassComponent {
   view() {
     return m(
-      '.hiring-banner',
+      '.pf-hiring-banner',
       m(
         'a',
         {
@@ -370,9 +371,9 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     const sidebar = AppImpl.instance.sidebar;
     if (!sidebar.enabled) return null;
     return m(
-      'nav.sidebar',
+      'nav.pf-sidebar',
       {
-        class: sidebar.visible ? 'show-sidebar' : 'hide-sidebar',
+        class: sidebar.visible ? undefined : 'pf-sidebar--hidden',
         // 150 here matches --sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
         ontransitionstart: (e: TransitionEvent) => {
@@ -386,26 +387,18 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
       },
       shouldShowHiringBanner() ? m(HiringBanner) : null,
       m(
-        `header.${getCurrentChannel()}`,
-        m(`img[src=${assetSrc('assets/brand.png')}].brand`),
-        m(
-          'button.sidebar-button',
-          {
-            onclick: () => sidebar.toggleVisibility(),
-          },
-          m(
-            'i.material-icons',
-            {
-              title: sidebar.visible ? 'Hide menu' : 'Show menu',
-            },
-            'menu',
-          ),
-        ),
+        `header.pf-sidebar__channel--${getCurrentChannel()}`,
+        m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
+        m(Button, {
+          icon: 'menu',
+          className: 'pf-sidebar-button',
+          onclick: () => sidebar.toggleVisibility(),
+        }),
       ),
       m(
-        '.sidebar-scroll',
+        '.pf-sidebar__scroll',
         m(
-          '.sidebar-scroll-container',
+          '.pf-sidebar__scroll-container',
           ...(Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
             this.renderSection(s),
           ),
@@ -428,9 +421,9 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
 
     const expanded = getOrCreate(this._sectionExpanded, sectionId, () => true);
     return m(
-      `section${expanded ? '.expanded' : ''}`,
+      `section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
       m(
-        '.section-header',
+        '.pf-sidebar__section-header',
         {
           onclick: () => {
             this._sectionExpanded.set(sectionId, !expanded);
@@ -439,7 +432,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
         m('h1', {title: section.title}, section.title),
         m('h2', section.summary),
       ),
-      m('.section-content', m('ul', menuItems)),
+      m('.pf-sidebar__section-content', m('ul', menuItems)),
     );
   }
 
@@ -503,7 +496,11 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
           disabled,
           title: tooltip,
         },
-        exists(item.icon) && m('i.material-icons', valueOrCallback(item.icon)),
+        exists(item.icon) &&
+          m(Icon, {
+            className: 'pf-sidebar__button-icon',
+            icon: valueOrCallback(item.icon),
+          }),
         text,
       ),
     );
@@ -590,7 +587,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
       href: trace.traceInfo.traceUrl,
       action: () => copyToClipboard(trace.traceInfo.traceUrl),
       tooltip: 'Click to copy the URL',
-      cssClass: 'trace-file-name',
+      cssClass: 'pf-sidebar__trace-file-name',
     });
   trace.sidebar.addMenuItem({
     section: 'current_trace',
@@ -598,7 +595,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
     href: '#!/viewer',
     icon: 'line_style',
   });
-  globals.isInternalUser &&
+  AppImpl.instance.isInternalUser &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Share',

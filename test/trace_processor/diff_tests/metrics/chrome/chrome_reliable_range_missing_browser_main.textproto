@@ -22,7 +22,7 @@ packet {
         pid: 1
       }
       chrome_process {
-        process_type: PROCESS_BROWSER
+        process_type: 1
       }
     }
 }

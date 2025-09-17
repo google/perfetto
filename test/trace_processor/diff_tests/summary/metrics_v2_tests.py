@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -282,3 +282,47 @@ class SummaryMetricsV2(TestSuite):
             }
           }
         """))
+
+  def test_sql_no_columns_specified(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=MetricV2SpecTextproto('''
+          id: "memory_per_process"
+          dimensions: "id"
+          value: "ts"
+          query: {
+            id: "sql_source"
+            sql {
+              sql: "SELECT id, ts FROM slice limit 2"
+            }
+          }
+        '''),
+        out=Csv("""
+          row {
+            values {
+              double_value: 37351104642.0
+            }
+            dimension {
+              int64_value: 0
+            }
+          }
+          row {
+            values {
+              double_value: 37351520078.0
+            }
+            dimension {
+              int64_value: 1
+            }
+          }
+          specs {
+            id: "memory_per_process"
+            dimensions: "id"
+            value: "ts"
+            query {
+              id: "sql_source"
+              sql {
+                sql: "SELECT id, ts FROM slice limit 2"
+              }
+            }
+          }
+"""))

@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -175,24 +175,6 @@ class Simpleperf(TestSuite):
         289003,"trace_processor"
         '''))
 
-  # Counters are not updated for samples with no CPU (b/352257666)
-  def test_perf_with_no_cpu_in_sample_no_counters(self):
-    return DiffTestBlueprint(
-        trace=DataPath('simpleperf/perf_with_synthetic_events.data'),
-        query='''
-        SELECT
-          (
-            SELECT value AS sample_count
-            FROM stats
-            WHERE name = 'perf_counter_skipped_because_no_cpu'
-          ) AS counter_skipped,
-          (SELECT COUNT(*) FROM perf_sample) AS sample_count
-        ''',
-        out=Csv('''
-        "counter_skipped","sample_count"
-        9126,9126
-        '''))
-
   def test_perf_with_no_cpu_in_sample(self):
     return DiffTestBlueprint(
         trace=DataPath('simpleperf/perf_with_synthetic_events.data'),
@@ -244,6 +226,75 @@ class Simpleperf(TestSuite):
         "main,D"
         "main,D,E"
         "main,E"
+        '''))
+
+  def test_jit_symbolization(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_jit_and_apk.data'),
+        query='''
+        SELECT
+          frame.name as frame_name
+        FROM stack_profile_frame frame
+        JOIN stack_profile_mapping mapping ON frame.mapping = mapping.id
+        WHERE
+          mapping.name GLOB '*jit*'
+          AND frame.name IS NOT NULL
+        ORDER BY frame.name;
+        ''',
+        out=Csv('''
+        "frame_name"
+        "abh.a"
+        "android.support.v7.widget.GridLayoutManager.layoutChunk"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "androidx.constraintlayout.widget.ConstraintLayout.L"
+        "androidx.constraintlayout.widget.ConstraintLayout.L"
+        "androidx.constraintlayout.widget.ConstraintLayout.onMeasure"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "cht.B"
+        "cht.L"
+        "cht.L"
+        "frj.b"
+        "frj.draw"
+        "frj.draw"
+        "frj.draw"
+        "frj.draw"
+        "frj.i"
+        "frn.B"
+        "frr.b"
+        "frr.b"
+        "frr.b"
+        "frr.b"
+        "frr.c"
+        "frr.c"
+        "frz.c"
+        "hf.a"
+        "hvx.S"
+        "hvx.T"
+        "mt.k"
+        "pi.a"
+        "pi.a"
+        "rp.g"
+        "wg.k"
+        "xi.Y"
+        "xi.Y"
+        "xi.Y"
+        "xi.ae"
+        "xx.a"
+        "xx.b"
+        "xx.b"
+        "xx.b"
         '''))
 
   def test_spe_operation(self):
@@ -327,4 +378,70 @@ class Simpleperf(TestSuite):
           7,"[NULL]","","/elf","[NULL]","[NULL]",70,70
           8,"[NULL]","","/t1","[NULL]","[NULL]",87,87
           9,"[NULL]","","/elf","[NULL]","[NULL]",64,64
+        '''))
+
+  def test_global_counters(self):
+    return DiffTestBlueprint(
+        # Interesting side-note is that the "perf record" implementation still
+        # decided to open a separate counter on each CPU (and then mapped all of
+        # them into a single buffer with ioctls) [1]. It may have had something
+        # to do with inherit complexity.
+        trace=DataPath('perf_counter.data'),
+        query="""
+        SELECT
+          t.name AS track_name,
+          c.ts,
+          c.value
+        FROM counter c
+        JOIN perf_counter_track t
+          ON c.track_id = t.id
+        ORDER BY t.name, c.ts
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "track_name","ts","value"
+        "task-clock:ppp",1211974640655330,250000.000000
+        "task-clock:ppp",1211974640904003,500000.000000
+        "task-clock:ppp",1211974641154649,750000.000000
+        "task-clock:ppp",1211974641405037,1000000.000000
+        "task-clock:ppp",1211974641654472,1250000.000000
+        "task-clock:ppp",1211974641903904,1500000.000000
+        "task-clock:ppp",1211974642154097,1750000.000000
+        "task-clock:ppp",1211974642404623,2000000.000000
+        "task-clock:ppp",1211974642654928,2250000.000000
+        "task-clock:ppp",1211974642904128,2500000.000000
+        """))
+
+  def test_apk_symbolization(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_jit_and_apk.data'),
+        query='''
+        select spf.rel_pc, spf.name, spm.name, start, end
+        from stack_profile_frame spf
+        join stack_profile_mapping spm on spf.mapping = spm.id
+        where spm.name glob '*apk*'
+        limit 20
+        ''',
+        out=Csv('''
+        "rel_pc","name","name","start","end"
+        1223152,"ew.onStart","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152622,"bx.onStart","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2327862,"boa.P","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1170302,"co.ak","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152654,"bx.onStart","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1168868,"co.C","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1168962,"co.D","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1175796,"co.K","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1182724,"ct.d","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2536682,"bxq.m","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1935740,"ahh.h","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2412604,"com.android.deskclock.DeskClock.onResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152530,"bx.onResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1223096,"ew.onPostResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152424,"bx.onPostResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152460,"bx.onPostResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1168824,"co.B","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1182520,"ct.d","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2409280,"bri.ac","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2409764,"bri.x","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
         '''))

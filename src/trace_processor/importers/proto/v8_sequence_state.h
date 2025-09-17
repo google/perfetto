@@ -35,7 +35,7 @@ class V8Tracker;
 class V8SequenceState final
     : public PacketSequenceStateGeneration::CustomState {
  public:
-  explicit V8SequenceState(TraceProcessorContext* context);
+  explicit V8SequenceState(TraceProcessorContext*, V8Tracker*);
 
   ~V8SequenceState() override;
 
@@ -63,6 +63,11 @@ class V8SequenceState final
   base::FlatHashMap<InterningId, tables::V8WasmScriptTable::Id> wasm_scripts_;
   base::FlatHashMap<InterningId, tables::V8JsFunctionTable::Id> js_functions_;
   base::FlatHashMap<InterningId, StringId> js_function_names_;
+};
+
+template <>
+struct PacketSequenceStateGeneration::CustomStateTraits<V8SequenceState> {
+  using Tracker = V8Tracker;
 };
 
 }  // namespace trace_processor

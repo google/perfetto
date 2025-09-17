@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/etm/virtual_address_space.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -26,7 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/etm/file_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
@@ -34,6 +35,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::etm {
+
 void VirtualAddressSpace::Builder::AddMapping(
     tables::MmapRecordTable::ConstRowReference mmap) {
   const auto mapping =
@@ -47,17 +49,19 @@ void VirtualAddressSpace::Builder::AddMapping(
   AddressRange range(static_cast<uint64_t>(mapping.start()),
                      static_cast<uint64_t>(mapping.end()));
 
-  std::optional<TraceBlobView> content;
+  std::optional<TraceBlob> content;
   if (mmap.file_id()) {
-    content = FileTracker::GetOrCreate(context_)->GetContent(*mmap.file_id());
-    auto file_range = AddressRange::FromStartAndSize(0, content->size());
+    TraceBlob& blob =
+        context_->registered_file_tracker->GetContent(*mmap.file_id());
+    auto file_range = AddressRange::FromStartAndSize(0, blob.size());
     auto required_file_range = AddressRange::FromStartAndSize(
         static_cast<uint64_t>(mapping.exact_offset()), range.size());
 
     PERFETTO_CHECK(file_range.Contains(required_file_range));
-
-    content = content->slice_off(required_file_range.start(),
-                                 required_file_range.length());
+    // TODO(rasikanavarange): The following copy is not efficient and will need
+    // clean up later
+    content = TraceBlob::CopyFrom(blob.data() + required_file_range.start(),
+                                  required_file_range.length());
   }
 
   auto [it, success] = mappings_.insert(

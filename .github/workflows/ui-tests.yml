@@ -19,7 +19,7 @@ on:
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
-  # branch. This is populated by the "actions/cache/restore" step below.
+  # branch. This is populated by the "Restore cache" step below.
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
@@ -28,7 +28,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
-      PERFETTO_CI_JOB_NAME: ui
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
       CI: 1
     steps:
@@ -38,9 +38,11 @@ jobs:
       # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
         if: ${{ github.base_ref != '' }}
+        shell: bash
         run: git fetch origin ${{ github.base_ref }} --depth=1
 
       - name: Setup artifacts
+        shell: bash
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
@@ -50,28 +52,32 @@ jobs:
         with:
           install-flags: --ui
 
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
-
       - name: Restore cache
-        uses: actions/cache/restore@v4
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+      - name: Setup ccache
+        uses: ./.github/actions/setup-ccache
 
       - name: Build Perfetto UI
+        shell: bash
         run: |
           ui/build --out out/ui
           cp -a out/ui/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
 
       - name: Print ccache stats
+        shell: bash
         run: ccache --show-stats
 
 
       - name: UI unittests
+        shell: bash
         run: ui/run-unittests --out out/ui --no-build
 
       - name: Install Chrome
+        shell: bash
         run: |
           mkdir /tmp/chrome
           cd /tmp/chrome
@@ -80,6 +86,7 @@ jobs:
           dpkg-deb -x chrome.deb  .
 
       - name: UI integrationtests
+        shell: bash
         run: ui/run-integrationtests --out out/ui --no-build
 
         # UI code formatting checks must be done here, rather than repo-checks,
@@ -88,15 +95,29 @@ jobs:
         # base_ref is "" in post-submit, skip the presubmit check in postsubmit
         # as there is nothing do diff against.
         if: ${{ github.base_ref != '' }}
+        shell: bash
         run: ui/format-sources --check-only --upstream origin/${{ github.base_ref }}
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
+        shell: bash
         run: |
-          if [ -d out/ui/ui-test-artifacts ]; then
+          if [[ -d out/ui/ui-test-artifacts ]]; then
             cp -a out/ui/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
           fi
-          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          
+          if [[ ! -d "$PERFETTO_ARTIFACTS_DIR" || -n "$(find $PERFETTO_ARTIFACTS_DIR -maxdepth 0 -empty)" ]]; then
+            echo "Directory '$PERFETTO_ARTIFACTS_DIR' is empty. Did one of the previous steps fail?"
+            # Don't fail the step if there is nothing to upload.
+            exit 0
+          fi
+          
+          # '--no-user-output-enabled' prevents the `cp` from printing the names
+          # of all copied files to stdout.
+          gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
+          
           echo "UI integration test report with screnshots:"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui-test-artifacts/index.html"
           echo ""
@@ -108,7 +129,7 @@ jobs:
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}

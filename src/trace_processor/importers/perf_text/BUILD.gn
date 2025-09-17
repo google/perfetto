@@ -16,8 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("perf_text") {
   sources = [
-    "perf_text_trace_parser_impl.cc",
-    "perf_text_trace_parser_impl.h",
+    "perf_text_trace_parser.cc",
+    "perf_text_trace_parser.h",
     "perf_text_trace_tokenizer.cc",
     "perf_text_trace_tokenizer.h",
   ]
@@ -25,6 +25,7 @@ source_set("perf_text") {
     ":perf_text_event",
     ":perf_text_sample_line_parser",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace:minimal_zero",
     "../../sorter",
     "../../storage",
     "../../tables",

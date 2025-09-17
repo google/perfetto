@@ -24,7 +24,6 @@ import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Router} from '../../core/router';
-import {AppImpl} from '../../core/app_impl';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Icons} from '../../base/semantic_icons';
@@ -32,6 +31,7 @@ import {DataGrid, renderCell} from '../widgets/data_grid/data_grid';
 import {DataGridDataSource} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
+import {Box} from '../../widgets/box';
 
 type Numeric = bigint | number;
 
@@ -116,6 +116,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(
       DetailsShell,
       {
+        className: 'pf-query-table',
         title: this.renderTitle(resp),
         description: query,
         buttons: this.renderButtons(query, contextButtons, resp),
@@ -130,10 +131,6 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return 'Query - running';
     }
     const result = resp.error ? 'error' : `${resp.rows.length} rows`;
-    if (AppImpl.instance.testingMode) {
-      // Omit the duration in tests, they cause screenshot diff failures.
-      return `Query result (${result})`;
-    }
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
@@ -184,23 +181,20 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
-        m(
-          '.pf-query-warning',
-          m(
-            Callout,
-            {icon: 'warning'},
+        m(Box, [
+          m(Callout, {icon: 'warning'}, [
             `${resp.statementWithOutputCount} out of ${resp.statementCount} `,
             'statements returned a result. ',
             'Only the results for the last statement are displayed.',
-          ),
-        ),
+          ]),
+        ]),
       this.renderContent(resp, dataSource),
     );
   }
 
   private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
     if (resp.error) {
-      return m('.query-error', `SQL error: ${resp.error}`);
+      return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
     const onViewerPage =

@@ -22,7 +22,7 @@
 #include <sstream>
 #include <string>
 
-#include <Windows.h>
+#include <windows.h>
 
 #include "perfetto/base/logging.h"
 

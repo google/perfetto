@@ -14,11 +14,20 @@
  * limitations under the License.
  */
 
-#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/trace_summary/summary.h"
 
+#include <cctype>
+#include <cstdint>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
@@ -28,7 +37,7 @@ namespace {
 
 using ::testing::HasSubstr;
 
-MATCHER_P(EqualsIgnoringWhitespace, param, "") {
+MATCHER_P(EqualsIgnoringWhitespace, param, "equals ignoring whitespace") {
   auto RemoveAllWhitespace = [](const std::string& input) {
     std::string result;
     result.reserve(input.length());
@@ -39,7 +48,9 @@ MATCHER_P(EqualsIgnoringWhitespace, param, "") {
   return RemoveAllWhitespace(arg) == RemoveAllWhitespace(param);
 }
 
-MATCHER_P(HasSubstrIgnoringWhitespace, param, "") {
+MATCHER_P(HasSubstrIgnoringWhitespace,
+          param,
+          "has substring ignoring whitespace") {
   auto RemoveAllWhitespace = [](const std::string& input) {
     std::string result;
     result.reserve(input.length());
@@ -325,7 +336,6 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
           }
         }
         bundle_id: "my_metric"
-        dimension_uniqueness: DIMENSION_UNIQUENESS_UNSPECIFIED
       }
       specs {
         id: "my_metric_value_b"
@@ -338,7 +348,6 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
           }
         }
         bundle_id: "my_metric"
-        dimension_uniqueness: DIMENSION_UNIQUENESS_UNSPECIFIED
       }
       row {
         values { double_value: 1.000000 }
@@ -599,7 +608,6 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
             column_names: "value_b"
           }
         }
-        dimension_uniqueness: DIMENSION_UNIQUENESS_UNSPECIFIED
       }
       row {
         values { double_value: 1.000000 }
@@ -618,7 +626,6 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
             column_names: "value_b"
           }
         }
-        dimension_uniqueness: DIMENSION_UNIQUENESS_UNSPECIFIED
       }
       row {
         values { double_value: 2.000000 }
@@ -802,6 +809,90 @@ TEST_F(TraceSummaryTest, GroupedSingleNullValueIsSkipped) {
       }
     }
   )-"));
+}
+
+TEST_F(TraceSummaryTest, TemplateSpecWithUnitAndPolarity) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_column_specs: {
+        name: "value_a"
+        unit: BYTES
+        polarity: LOWER_IS_BETTER
+      }
+      value_column_specs: {
+        name: "value_b"
+        custom_unit: "widgets"
+        polarity: HIGHER_IS_BETTER
+      }
+      query {
+        sql {
+          sql: "SELECT 1.0 as value_a, 2.0 as value_b"
+          column_names: "value_a"
+          column_names: "value_b"
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      specs {
+        id: "my_metric_value_a"
+        value: "value_a"
+        unit: BYTES
+        polarity: LOWER_IS_BETTER
+        query {
+          sql {
+            sql: "SELECT 1.0 as value_a, 2.0 as value_b"
+            column_names: "value_a"
+            column_names: "value_b"
+          }
+        }
+        bundle_id: "my_metric"
+      }
+      specs {
+        id: "my_metric_value_b"
+        value: "value_b"
+        custom_unit: "widgets"
+        polarity: HIGHER_IS_BETTER
+        query {
+          sql {
+            sql: "SELECT 1.0 as value_a, 2.0 as value_b"
+            column_names: "value_a"
+            column_names: "value_b"
+          }
+        }
+        bundle_id: "my_metric"
+      }
+      row {
+        values { double_value: 1.000000 }
+        values { double_value: 2.000000 }
+      }
+    }
+  )-"));
+}
+
+TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "value_a"
+      value_column_specs: {
+        name: "value_b"
+      }
+      query {
+        sql {
+          sql: "SELECT 1.0 as value_a, 2.0 as value_b"
+          column_names: "value_a"
+          column_names: "value_b"
+        }
+      }
+    }
+  )");
+  ASSERT_FALSE(status_or_output.ok());
+  EXPECT_THAT(status_or_output.status().message(),
+              HasSubstr("Metric template has both value_columns and "
+                        "value_column_specs defined"));
 }
 
 }  // namespace

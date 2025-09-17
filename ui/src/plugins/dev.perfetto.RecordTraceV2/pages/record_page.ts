@@ -76,10 +76,10 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
     const cmdlineUrl =
       'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
     return m(
-      '.record-page',
+      '.pf-record-page',
       m(
         Stack,
-        {className: 'record-container'},
+        {className: 'pf-record-page__container'},
         this.recMgr.recordConfig.traceConfig.mode === 'LONG_TRACE' &&
           m(
             Callout,
@@ -94,7 +94,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
             ),
           ),
         m(
-          '.record-container-content',
+          '.pf-record-page__container-content',
           this.renderMenu(), //
           this.renderSubPage(), //
         ),
@@ -111,13 +111,13 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
     const page = this.recMgr.pages.get(this.subpage);
     if (page === undefined) {
       return m(
-        '.record-section.active',
+        '.pf-record-page__section.active',
         m('header', `Invalid subpage /record/${this.subpage}`),
       );
     }
     return [
       m(
-        '.record-section.active',
+        '.pf-record-page__section.active',
         {id: page.id, key: page.id},
         this.renderSubpage(page),
       ),
@@ -139,7 +139,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
   private renderMenu() {
     const pages = Array.from(this.recMgr.pages.values());
     return m(
-      '.record-menu',
+      '.pf-record-page__menu',
       m(RecordingCtl, {recMgr: this.recMgr}),
       m(
         'header',

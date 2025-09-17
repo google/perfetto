@@ -117,8 +117,14 @@ class GpuEventParser {
   base::FlatHashMap<uint32_t, GpuCounterState> gpu_counter_state_;
 
   // For GpuRenderStageEvent
+  struct HwQueueInfo {
+    StringId name;
+    StringId description;
+  };
   const StringId description_id_;
-  std::vector<std::optional<TrackId>> gpu_hw_queue_ids_;
+  const StringId correlation_id_;
+  std::vector<std::optional<HwQueueInfo>> gpu_hw_queue_ids_;
+  base::FlatHashMap<uint64_t, bool> gpu_hw_queue_ids_name_to_set_;
 
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;

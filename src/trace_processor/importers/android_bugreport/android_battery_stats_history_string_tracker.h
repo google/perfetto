@@ -24,15 +24,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
 
 // This class is used to track the history string pool (hsp) items emitted by
-// the battery stats checkin reader and consumed by AndroidDumpStateParserImpl
+// the battery stats checkin reader and consumed by AndroidDumpStateParser
 //
 // The history string pool items are stored in a vector and not internerned in
 // the trace processor storage, due to these strings needing further processing
@@ -42,19 +39,9 @@ namespace perfetto::trace_processor {
 // The string pool items are added to the vector using the SetStringPoolItem
 // method. The items are later retrieved using the GetUid and GetString
 // methods.
-class AndroidBatteryStatsHistoryStringTracker : public Destructible {
+class AndroidBatteryStatsHistoryStringTracker {
  public:
-  ~AndroidBatteryStatsHistoryStringTracker() override;
-
-  static AndroidBatteryStatsHistoryStringTracker* GetOrCreate(
-      TraceProcessorContext* context) {
-    if (!context->android_battery_stats_history_tracker) {
-      context->android_battery_stats_history_tracker.reset(
-          new AndroidBatteryStatsHistoryStringTracker());
-    }
-    return static_cast<AndroidBatteryStatsHistoryStringTracker*>(
-        context->android_battery_stats_history_tracker.get());
-  }
+  ~AndroidBatteryStatsHistoryStringTracker();
 
   // Returns the Uid (user ID) associated with the given HSP index.
   int32_t GetUid(int64_t index) {

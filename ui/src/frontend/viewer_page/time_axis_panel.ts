@@ -20,7 +20,12 @@ import {Time, time, formatDate} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
 import {Trace} from '../../public/trace';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {
+  FONT_COMPACT,
+  COLOR_TEXT_MUTED,
+  COLOR_BORDER,
+  TRACK_SHELL_WIDTH,
+} from '../css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -39,9 +44,8 @@ export class TimeAxisPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = '#999';
     ctx.textAlign = 'left';
-    ctx.font = '11px Roboto Condensed';
+    ctx.font = `11px ${FONT_COMPACT}`;
 
     this.renderOffsetTimestamp(ctx);
 
@@ -52,10 +56,12 @@ export class TimeAxisPanel {
     this.renderPanel(ctx, trackSize);
     ctx.restore();
 
+    ctx.fillStyle = COLOR_BORDER;
     ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
   }
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {
+    ctx.fillStyle = COLOR_TEXT_MUTED;
     const timeAxisOrigin = this.trace.timeline.getTimeAxisOrigin();
     const timestampFormat = this.trace.timeline.timestampFormat;
     switch (timestampFormat) {
@@ -134,8 +140,10 @@ export class TimeAxisPanel {
       for (const {type, time} of tickGen) {
         if (type === TickType.MAJOR) {
           const position = Math.floor(timescale.timeToPx(time));
+          ctx.fillStyle = COLOR_BORDER;
           ctx.fillRect(position, 0, 1, size.height);
           const domainTime = this.trace.timeline.toDomainTime(time);
+          ctx.fillStyle = COLOR_TEXT_MUTED;
           this.renderTimestamp(
             ctx,
             domainTime,
@@ -205,7 +213,7 @@ function renderRawTimestamp(
   y: number,
   minWidth: number,
 ) {
-  ctx.font = '11px Roboto Condensed';
+  ctx.font = `11px ${FONT_COMPACT}`;
   ctx.fillText(time, x, y, minWidth);
   return ctx.measureText(time).width;
 }
@@ -222,7 +230,7 @@ function renderTimecode(
   minWidth: number,
 ): number {
   const timecode = Time.toTimecode(time);
-  ctx.font = '11px Roboto Condensed';
+  ctx.font = `11px ${FONT_COMPACT}`;
 
   const {dhhmmss} = timecode;
   const thinSpace = '\u2009';
@@ -230,7 +238,7 @@ function renderTimecode(
   ctx.fillText(dhhmmss, x, y, minWidth);
   const {width: firstRowWidth} = ctx.measureText(subsec);
 
-  ctx.font = '10.5px Roboto Condensed';
+  ctx.font = `10.5px 10px ${FONT_COMPACT}`;
   ctx.fillText(subsec, x, y + 10, minWidth);
   const {width: secondRowWidth} = ctx.measureText(subsec);
 

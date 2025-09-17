@@ -251,9 +251,34 @@ message AttemptLoginAction {
   int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
 }
 
+// Scrolls the DOM element into viewport.
+// Next ID: 5
+message ScrollToAction {
+  ActionTarget target = 3 [features = { field_presence: EXPLICIT }];
+
+  int32 tab_id = 4 [features = { field_presence: EXPLICIT }];
+
+  reserved 1, 2;
+}
+
+// Executes a script tool.
+// Next ID: 5
+message ScriptToolAction {
+  // The Document which provides the associated Tool.
+  DocumentIdentifier document_identifier = 1 [features = { field_presence: EXPLICIT }];
+
+  int32 tab_id = 2 [features = { field_presence: EXPLICIT }];
+
+  // The name of the tool to execute.
+  string tool_name = 3 [features = { field_presence: EXPLICIT }];
+
+  // A serialized JSON string containing the arguments to pass to the tool.
+  string input_arguments = 4 [features = { field_presence: EXPLICIT }];
+}
+
 // All of the actions that can be taken.
 // Only one of these is allowed per action.
-// Next ID: 19
+// Next ID: 21
 message Action {
   oneof action {
     ClickAction click = 1;
@@ -291,6 +316,10 @@ message Action {
     YieldToUserAction yield_to_user = 17;
 
     AttemptLoginAction attempt_login = 18;
+
+    ScrollToAction scroll_to = 19;
+
+    ScriptToolAction script_tool = 20;
   }
 }
 
@@ -381,7 +410,7 @@ message TabObservation {
 
 // All relevant state in chrome after the actions are taken or an error has
 // occurred.
-// Next ID: 5
+// Next ID: 7
 message ActionsResult {
   // The result of the actions. See
   // https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/actor.mojom
@@ -399,6 +428,63 @@ message ActionsResult {
   // Observations after all actions are finished or an error has occurred. The
   // client will determine the relevant windows and tabs.
   repeated TabObservation tabs = 4;
+
+  // The results of executing script tools.
+  repeated ScriptToolResult script_tool_results = 5;
+
+  LatencyInformation latency_information = 6 [features = { field_presence: EXPLICIT }];
+
+  // Chrome reported information about the latency of steps while performing the
+  // actions.
+  // Next ID: 4
+  message LatencyInformation {
+    // All steps that Chrome reported latency for. These steps can overlap due
+    // to parallel execution.
+    repeated LatencyStep latency_steps = 1;
+
+    // Latency of a single step.
+    // Next ID: 7
+    message LatencyStep {
+      oneof step {
+        ActionLatency action = 3;
+
+        PageStabilizationLatency page_stabilization = 4;
+
+        AnnotatedPageContentLatency annotated_page_content = 5;
+
+        ScreenshotLatency screenshot = 6;
+      }
+
+      // The latency since the time that Chrome received the Actions request.
+      // Time from request to step start.
+      int32 latency_start_ms = 1 [features = { field_presence: EXPLICIT }];
+
+      // Time from request to step stop.
+      int32 latency_stop_ms = 2 [features = { field_presence: EXPLICIT }];
+
+      message ActionLatency {
+        // The index of the action that triggered the latency step.
+        int32 action_index = 1 [features = { field_presence: EXPLICIT }];
+      }
+
+      message PageStabilizationLatency {
+        // The index of the action that triggered the page stabilization.
+        int32 action_index = 1 [features = { field_presence: EXPLICIT }];
+      }
+
+      // The latency of the annotated page content step.
+      message AnnotatedPageContentLatency {
+        // The id of the tab that was observed.
+        int32 id = 1 [features = { field_presence: EXPLICIT }];
+      }
+
+      // The latency of the screenshot step.
+      message ScreenshotLatency {
+        // The id of the tab that was observed.
+        int32 id = 1 [features = { field_presence: EXPLICIT }];
+      }
+    }
+  }
 }
 
 // A request to start a task.

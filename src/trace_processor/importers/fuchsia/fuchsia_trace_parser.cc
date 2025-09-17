@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -228,7 +229,7 @@ FuchsiaTraceParser::ParseArgs(
   return {std::move(args)};
 }
 
-void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
+void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
   // The timestamp is also present in the record, so we'll ignore the one
   // passed as an argument.
   fuchsia_trace_utils::RecordCursor cursor(fr.record_view()->data(),

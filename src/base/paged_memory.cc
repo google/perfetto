@@ -21,7 +21,7 @@
 #include <cstddef>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/mman.h>
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

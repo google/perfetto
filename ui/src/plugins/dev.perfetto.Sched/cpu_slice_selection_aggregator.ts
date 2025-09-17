@@ -60,9 +60,9 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             sum(dur) AS total_dur,
             sum(dur) / count() as avg_dur,
             count() as occurrences
-          from process
-          join thread using (upid)
-          join (${iiTable.name}) as sched using (utid)
+          from (${iiTable.name}) as sched
+          join thread using (utid)
+          left join process using (upid)
           group by utid
         `);
 

@@ -12,63 +12,66 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-text-input {
-  display: inline-flex; // Align items inline
-  align-items: center; // Center items vertically
+  display: inline-flex;
+  align-items: baseline;
   line-height: 1;
-  font-family: $pf-font;
+  font-family: var(--pf-font-compact);
   font-size: inherit;
-  border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
+  border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
-  padding: 1px 2px;
+  padding: 2px 4px;
   transition:
-    border $pf-anim-timing,
-    box-shadow $pf-anim-timing,
-    background $pf-anim-timing;
+    border $anim-timing,
+    box-shadow $anim-timing,
+    background $anim-timing;
   gap: 4px;
 
   &__input {
-    font-family: $pf-font;
     font-size: inherit;
     line-height: inherit;
+    font-family: inherit;
     padding: 0;
     margin: 0;
     color: inherit;
+    flex: 1; // Allow input to grow and shrink to fill available space
 
-    outline: none; // Disable the default outline
-    border: none; // Disable the default border
+    // Disable default styles
+    outline: none;
+    border: none;
     background: none;
+    min-width: 0; // input elements have a default min-width, set to 0 to allow flexbox to work properly
   }
 
   &__left-icon {
+    align-self: center;
     line-height: inherit;
     margin-inline: 2px;
   }
 
   // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $pf-border-radius $pf-border-radius 0 0;
+  border-radius: $border-radius $border-radius 0 0;
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: $pf-minimal-background-hover;
+    background: color_hover(transparent);
   }
 
   &:has(.pf-text-input__input:focus) {
-    background: $pf-minimal-background-hover;
-    border-bottom: solid 1px $pf-primary-background;
+    background: color_hover(transparent);
+    border-bottom: solid 1px var(--pf-color-primary);
 
     // The box-shadow thickens the bottom border, without adding to the height.
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 $pf-primary-background;
+    box-shadow: 0 1px 0 var(--pf-color-primary);
   }
 
   &:has(.pf-text-input__input[disabled]) {
-    border-bottom-color: $pf-minimal-foreground-disabled;
-    color: $pf-minimal-foreground-disabled;
-    background: $pf-minimal-background-disabled;
+    opacity: 0.5;
+    pointer-events: none;
     cursor: not-allowed;
   }
 }

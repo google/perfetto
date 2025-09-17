@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -325,3 +325,111 @@ class AndroidMemory(TestSuite):
         4144792258492,10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
         4145263509021,-10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
          """))
+
+  def test_memory_dmabuf_cumulative(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          process_tree {
+            processes {
+              pid: 3000
+              ppid: 1
+              uid: 0
+              cmdline: "process1"
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1
+              pid: 3000
+              dma_heap_stat {
+                inode: 13583
+                len: 3000
+                total_allocated: 3000
+              }
+            }
+            event {
+              timestamp: 2
+              pid: 3000
+              dma_heap_stat {
+                inode: 13583
+                len: -3000
+                total_allocated: 0
+              }
+            }
+            event {
+              timestamp: 4144791776152
+              pid: 9403
+              binder_transaction {
+                debug_id: 3052940
+                target_node: 256
+                to_proc: 572
+                to_thread: 0
+                reply: 0
+                code: 1
+                flags: 16
+              }
+            }
+            event {
+              timestamp: 4144791793486
+              pid: 591
+              binder_transaction_received {
+                debug_id: 3052940
+              }
+            }
+            event {
+              timestamp: 4144792258492
+              pid: 591
+              dma_heap_stat {
+                inode: 13583
+                len: 10399744
+                total_allocated: 254873600
+              }
+            }
+            event {
+              timestamp: 4144792517566
+              pid: 591
+              binder_transaction {
+                debug_id: 3052950
+                target_node: 0
+                to_proc: 2051
+                to_thread: 9403
+                reply: 1
+                code: 0
+                flags: 0
+              }
+            }
+            event {
+              timestamp: 4144792572498
+              pid: 9403
+              binder_transaction_received {
+                debug_id: 3052950
+              }
+            }
+            event {
+              timestamp: 4145263509021
+              pid: 613
+              dma_heap_stat {
+                inode: 13583
+                len: -10399744
+                total_allocated: 390160384
+              }
+            }
+          }
+        }"""),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.dmabuf;
+        SELECT * FROM android_memory_cumulative_dmabuf;
+        """,
+        out=Csv("""
+        "upid","process_name","utid","thread_name","ts","value"
+        2,"process1",2,"[NULL]",1,3000
+        2,"process1",2,"[NULL]",2,0
+        "[NULL]","[NULL]",4,"[NULL]",4144792258492,10399744
+        "[NULL]","[NULL]",4,"[NULL]",4145263509021,0
+        """))
