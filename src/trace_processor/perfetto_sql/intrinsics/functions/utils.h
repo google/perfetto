@@ -473,6 +473,69 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
   }
 };
 
+struct HexToDec : public sqlite::Function<HexToDec> {
+  static constexpr char kName[] = "HEX_TO_DEC";
+  static constexpr int kArgCount = 1;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+};
+
+void HexToDec::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+  sqlite::Type type = sqlite::value::Type(argv[0]);
+
+  if (type == sqlite::Type::kNull) {
+    return sqlite::result::Null(ctx);
+  }
+  if (type != sqlite::Type::kText) {
+    return sqlite::result::Error(ctx, "HEX_TO_DEC: argument must be text");
+  }
+
+  std::string hex_str(sqlite::value::Text(argv[0]));
+
+  // Trim leading and trailing whitespace
+  size_t first = hex_str.find_first_not_of(" \t\n\r\f\v");
+  if (first == std::string::npos) {
+    return sqlite::result::Error(
+        ctx, "HEX_TO_DEC: input is empty or only whitespace");
+  }
+  size_t last = hex_str.find_last_not_of(" \t\n\r\f\v");
+  hex_str = hex_str.substr(first, (last - first + 1));
+
+  // Handle optional "0x" or "0X" prefix
+  size_t start_pos = 0;
+  if (hex_str.length() >= 2 && hex_str[0] == '0' &&
+      (hex_str[1] == 'x' || hex_str[1] == 'X')) {
+    start_pos = 2;
+  }
+
+  const char* num_start = hex_str.data() + start_pos;
+  const char* num_end = hex_str.data() + hex_str.length();
+
+  if (num_start == num_end) {
+    return sqlite::result::Error(
+        ctx, "HEX_TO_DEC: hex string is empty after prefix");
+  }
+
+  // Convert using std::from_chars, as it does not throw exceptions.
+  int64_t val = 0;
+  auto [ptr, ec] = std::from_chars(num_start, num_end, val, 16);
+
+  if (ec == std::errc::invalid_argument) {
+    return sqlite::result::Error(ctx, "HEX_TO_DEC: invalid hex string format");
+  }
+  if (ec == std::errc::result_out_of_range) {
+    return sqlite::result::Error(ctx,
+                                 "HEX_TO_DEC: value out of range for int64");
+  }
+  if (ptr != num_end) {
+    // Not all characters were consumed, indicating invalid characters.
+    return sqlite::result::Error(
+        ctx, "HEX_TO_DEC: hex string contains non-hex characters");
+  }
+
+  return sqlite::result::Long(ctx, val);
+};
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
