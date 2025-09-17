@@ -42,12 +42,14 @@ namespace perfetto::trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidKernelWakelocksModule::AndroidKernelWakelocksModule(
+    ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : context_(context),
+    : ProtoImporterModule(module_context),
+      context_(context),
       kernel_name_id_(context->storage->InternString("kernel")),
       native_name_id_(context->storage->InternString("native")),
       unknown_name_id_(context->storage->InternString("unknown")) {
-  RegisterForField(TracePacket::kKernelWakelockDataFieldNumber, context);
+  RegisterForField(TracePacket::kKernelWakelockDataFieldNumber);
 }
 
 AndroidKernelWakelocksModule::~AndroidKernelWakelocksModule() = default;

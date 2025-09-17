@@ -13,9 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.device_cpu;
+INCLUDE PERFETTO MODULE wattson.curves.device_cpu_1d;
+
+INCLUDE PERFETTO MODULE wattson.curves.device_cpu_2d;
 
 INCLUDE PERFETTO MODULE wattson.curves.device_gpu;
+
+INCLUDE PERFETTO MODULE wattson.curves.device_l3;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
@@ -33,6 +37,69 @@ JOIN _wattson_device AS device
   ON dc.device = device.name
 JOIN _dev_cpu_policy_map AS cp
   ON dc.policy = cp.policy;
+
+-- Gets the active curve value dependency of the minimum frequency/voltage vote
+CREATE PERFETTO TABLE _min_active_curve_value_for_dependency AS
+SELECT
+  active AS min_dependency
+FROM _filtered_curves_1d_raw
+ORDER BY
+  freq_khz ASC
+LIMIT 1;
+
+CREATE PERFETTO TABLE _cpus_with_no_dependency AS
+SELECT DISTINCT
+  cpu
+FROM _dev_cpu_policy_map
+JOIN _filtered_curves_1d_raw
+  USING (policy);
+
+CREATE PERFETTO TABLE _cpus_with_dependency AS
+WITH
+  base AS (
+    SELECT DISTINCT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      NOT cpu IN (
+        SELECT
+          cpu
+        FROM _cpus_with_no_dependency
+      )
+  )
+SELECT
+  cpu
+FROM base
+UNION ALL
+-- If no CPUs at all with 2D dependency, then the remaining CPUs (e.g. all CPUs
+-- with no dependency) need to accounted for in static power calculations
+SELECT
+  cpu
+FROM _cpus_with_no_dependency
+WHERE
+  NOT EXISTS(
+    SELECT
+      1
+    FROM base
+  );
+
+-- Find the exemplar CPU for the policy with no freq/voltage dependency. The CPU
+-- managing the policy is the first CPU that comes online for a given policy.
+-- This is usually the min(CPU #) since Linux initializes CPUs in ascending
+-- order (e.g. CPU4 for policy4).
+CREATE PERFETTO TABLE _cpu_for_1d_static AS
+SELECT
+  min(cpu) AS cpu
+FROM _cpus_with_no_dependency;
+
+-- Find the exemplar CPU for the policy with a freq/voltage dependency. The CPU
+-- managing the policy is the first CPU that comes online for a given policy.
+-- This is usually the min(CPU #) since Linux initializes CPUs in ascending
+-- order (e.g. CPU0 for policy0).
+CREATE PERFETTO TABLE _cpu_for_2d_static AS
+SELECT
+  min(cpu) AS cpu
+FROM _cpus_with_dependency;
 
 CREATE PERFETTO TABLE _filtered_curves_1d AS
 SELECT
@@ -61,93 +128,83 @@ SELECT
   freq_khz,
   255,
   static
-FROM _filtered_curves_1d_raw;
+FROM _filtered_curves_1d_raw AS c
+JOIN _cpu_for_1d_static AS s
+  ON s.cpu = c.policy;
 
 CREATE PERFETTO INDEX freq_1d ON _filtered_curves_1d(policy, freq_khz, idle);
 
 -- 2D LUT; with dependency on another CPU
 CREATE PERFETTO TABLE _filtered_curves_2d_raw AS
 SELECT
-  cp.policy AS other_policy,
   dc.freq_khz,
-  dc.other_freq_khz,
+  dc.dependency,
   dc.active,
   dc.idle0,
   dc.idle1,
   dc.static
 FROM _device_curves_2d AS dc
 JOIN _wattson_device AS device
-  ON dc.device = device.name
-JOIN _dev_cpu_policy_map AS cp
-  ON dc.other_policy = cp.policy;
+  ON dc.device = device.name;
 
 CREATE PERFETTO TABLE _filtered_curves_2d AS
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dependency,
   -1 AS idle,
   active AS curve_value
 FROM _filtered_curves_2d_raw
 UNION
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dependency,
   0,
   idle0
 FROM _filtered_curves_2d_raw
 UNION
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dependency,
   1,
   idle1
 FROM _filtered_curves_2d_raw
 UNION
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dependency,
   255,
   static
 FROM _filtered_curves_2d_raw;
 
-CREATE PERFETTO INDEX freq_2d ON _filtered_curves_2d(freq_khz, other_policy, other_freq_khz, idle);
+CREATE PERFETTO INDEX freq_2d ON _filtered_curves_2d(freq_khz, dependency, idle);
 
 -- L3 cache LUT
 CREATE PERFETTO TABLE _filtered_curves_l3_raw AS
 SELECT
-  cp.policy AS other_policy,
   dc.freq_khz,
-  dc.other_freq_khz,
+  dc.dependency,
   dc.l3_hit,
   dc.l3_miss
 FROM _device_curves_l3 AS dc
 JOIN _wattson_device AS device
-  ON dc.device = device.name
-JOIN _dev_cpu_policy_map AS cp
-  ON dc.other_policy = cp.policy;
+  ON dc.device = device.name;
 
 CREATE PERFETTO TABLE _filtered_curves_l3 AS
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dependency,
   'hit' AS action,
   l3_hit AS curve_value
 FROM _filtered_curves_l3_raw
 UNION
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dependency,
   'miss' AS action,
   l3_miss
 FROM _filtered_curves_l3_raw;
 
-CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, other_policy, other_freq_khz, action);
+CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, dependency, action);
 
 -- Device specific GPU curves
 CREATE PERFETTO TABLE _gpu_filtered_curves_raw AS

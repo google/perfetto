@@ -23,17 +23,16 @@
 #include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
 
-class AndroidProbesTracker : public Destructible {
+class AndroidProbesTracker {
  public:
   explicit AndroidProbesTracker(TraceStorage*);
-  ~AndroidProbesTracker() override;
+  ~AndroidProbesTracker();
 
   // For EnergyBreakdown Descriptor specifications
   struct EnergyConsumerSpecs {
@@ -48,15 +47,6 @@ class AndroidProbesTracker : public Destructible {
     StringId overall_name;
   };
 
-  static AndroidProbesTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->android_probes_tracker) {
-      context->android_probes_tracker.reset(
-          new AndroidProbesTracker(context->storage.get()));
-    }
-    return static_cast<AndroidProbesTracker*>(
-        context->android_probes_tracker.get());
-  }
-
   bool ShouldInsertPackage(const std::string& package_name) const {
     auto it = seen_packages_.find(package_name);
     return it == seen_packages_.end();
@@ -66,18 +56,26 @@ class AndroidProbesTracker : public Destructible {
     seen_packages_.emplace(std::move(package_name));
   }
 
-  std::optional<TrackId> GetPowerRailTrack(uint32_t index) {
-    if (index >= power_rail_tracks_.size())
-      return std::nullopt;
-    TrackId track_id = power_rail_tracks_[index];
-    return track_id == kInvalidTrackId ? std::nullopt
-                                       : std::make_optional(track_id);
+  std::optional<TrackId> GetPowerRailTrack(uint64_t session_uuid,
+                                           uint32_t index) {
+    auto it = power_rail_tracks_by_session_.find(session_uuid);
+    if (it != power_rail_tracks_by_session_.end() &&
+        index < it->second.size()) {
+      TrackId track_id = it->second[index];
+      return track_id == kInvalidTrackId ? std::nullopt
+                                         : std::make_optional(track_id);
+    }
+    return std::nullopt;
   }
 
-  void SetPowerRailTrack(uint32_t index, TrackId track_id) {
-    if (power_rail_tracks_.size() <= index)
-      power_rail_tracks_.resize(index + 1, kInvalidTrackId);
-    power_rail_tracks_[index] = track_id;
+  void SetPowerRailTrack(uint64_t session_uuid,
+                         uint32_t index,
+                         TrackId track_id) {
+    auto& tracks = power_rail_tracks_by_session_[session_uuid];
+    if (tracks.size() <= index) {
+      tracks.resize(index + 1, kInvalidTrackId);
+    }
+    tracks[index] = track_id;
   }
 
   std::optional<EnergyConsumerSpecs> GetEnergyBreakdownDescriptor(
@@ -141,7 +139,8 @@ class AndroidProbesTracker : public Destructible {
  private:
   TraceStorage* storage_;
   std::set<std::string> seen_packages_;
-  std::vector<TrackId> power_rail_tracks_;
+  std::unordered_map<uint64_t, std::vector<TrackId>>
+      power_rail_tracks_by_session_;
   std::unordered_map<int32_t, EnergyConsumerSpecs> energy_consumer_descriptors_;
   std::unordered_map<uint64_t, EntityStateDescriptor> entity_state_descriptors_;
 

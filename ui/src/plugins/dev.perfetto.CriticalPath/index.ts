@@ -189,7 +189,7 @@ export default class implements PerfettoPlugin {
                     trace_bounds.end_ts - trace_bounds.start_ts) cr,
                   trace_bounds
                 JOIN thread USING(utid)
-                JOIN process USING(upid)
+                LEFT JOIN process USING(upid)
               `,
                 columns: sliceLiteColumnNames,
               },
@@ -237,7 +237,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalPathLite_AreaSelection',
+      id: 'dev.perfetto.CriticalPathLite_AreaSelection',
       name: 'Critical path lite (over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
@@ -266,7 +266,7 @@ export default class implements PerfettoPlugin {
                       ${window.start},
                       ${window.end} - ${window.start}) cr
                 JOIN thread USING(utid)
-                JOIN process USING(upid)
+                LEFT JOIN process USING(upid)
                 `,
             columns: criticalPathsliceLiteColumnNames,
           },
@@ -280,7 +280,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalPath_AreaSelection',
+      id: 'dev.perfetto.CriticalPath_AreaSelection',
       name: 'Critical path  (over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
@@ -315,7 +315,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.CriticalPathPprof_AreaSelection',
+      id: 'dev.perfetto.CriticalPathPprof_AreaSelection',
       name: 'Critical path pprof (over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);

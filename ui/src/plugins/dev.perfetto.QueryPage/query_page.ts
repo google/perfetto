@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-TODO(stevegolton):
-- Add debug track button....
-*/
-
 import m from 'mithril';
 import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {download} from '../../base/download_utils';
@@ -43,32 +38,10 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {Icon} from '../../widgets/icon';
-
-class CopyHelper {
-  private _copied = false;
-  private timeoutId: ReturnType<typeof setTimeout> | undefined;
-  private readonly timeout: number;
-
-  constructor(timeout = 2000) {
-    this.timeout = timeout;
-  }
-
-  get copied(): boolean {
-    return this._copied;
-  }
-
-  async copy(text: string) {
-    await navigator.clipboard.writeText(text);
-    this._copied = true;
-    m.redraw();
-
-    clearTimeout(this.timeoutId);
-    this.timeoutId = setTimeout(() => {
-      this._copied = false;
-      m.redraw();
-    }, this.timeout);
-  }
-}
+import {
+  CopyHelper,
+  CopyToClipboardButton,
+} from '../../widgets/copy_to_clipboard_button';
 
 export interface QueryPageAttrs {
   readonly trace: Trace;
@@ -106,7 +79,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     return m(
-      '.pf-query-page.page',
+      '.pf-query-page',
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
@@ -181,23 +154,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {
-      return m('.query-error', `SQL error: ${queryResult.error}`);
+      return m(
+        '.pf-query-page__query-error',
+        `SQL error: ${queryResult.error}`,
+      );
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&
-          m(
-            '.pf-query-warning',
-            m(
-              Box,
-              m(
-                Callout,
-                {icon: 'warning', intent: Intent.None},
-                `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
-                'statements returned a result. ',
-                'Only the results for the last statement are displayed.',
-              ),
-            ),
-          ),
+          m(Box, [
+            m(Callout, {icon: 'warning', intent: Intent.None}, [
+              `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
+              'statements returned a result. ',
+              'Only the results for the last statement are displayed.',
+            ]),
+          ]),
         m(DataGrid, {
           className: 'pf-query-page__results',
           data: dataSource,
@@ -305,29 +275,4 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       ],
     );
   }
-}
-
-interface CopyToClipboardButtonAttrs {
-  readonly textToCopy: string;
-  readonly title?: string;
-  readonly label?: string;
-}
-
-function CopyToClipboardButton() {
-  const helper = new CopyHelper();
-
-  return {
-    view({attrs}: m.Vnode<CopyToClipboardButtonAttrs>): m.Children {
-      const label = helper.copied ? 'Copied' : attrs.label;
-      return m(Button, {
-        title: attrs.title ?? 'Copy to clipboard',
-        icon: helper.copied ? Icons.Check : Icons.Copy,
-        intent: helper.copied ? Intent.Success : Intent.None,
-        label,
-        onclick: async () => {
-          await helper.copy(attrs.textToCopy);
-        },
-      });
-    },
-  };
 }

@@ -94,7 +94,7 @@ A normal workflow using these tools might look like ths:
 
 ```
 # Create a branch for the feature.
-git new-branch my-feature
+git new-branch dev/${USER}/my-feature
 
 # .... hack away, make changes
 
@@ -102,7 +102,7 @@ git new-branch my-feature
 git commit -a -m 'My feature'
 
 # Create a new branch for adding something on top of the feature.
-git new-branch my-feature-2 --current-parent
+git new-branch dev/${USER}/my-feature-2 --current-parent
 
 # ... hack away, make changes
 

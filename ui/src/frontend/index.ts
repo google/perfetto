@@ -26,15 +26,14 @@ import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
-import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {globals} from './globals';
+import {tryLoadIsInternalUserScript} from './is_internal_user_script_loader';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
-import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {renderViewerPage} from './viewer_page/viewer_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -58,6 +57,13 @@ import {
 import {LocalStorage} from '../core/local_storage';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
+import {ThemeProvider} from './theme_provider';
+import {OverlayContainer} from '../widgets/overlay_container';
+import {JsonSettingsEditor} from '../components/json_settings_editor';
+import {
+  CommandInvocation,
+  commandInvocationArraySchema,
+} from '../core/command_manager';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -183,12 +189,76 @@ function main() {
     defaultValue: DurationPrecision.Full,
   });
 
+  const analyticsSetting = settingsManager.register({
+    id: 'analyticsEnable',
+    name: 'Enable UI telemetry',
+    description: `
+      This setting controls whether the Perfetto UI logs coarse-grained
+      information about your usage of the UI and any errors encountered. This
+      information helps us understand how the UI is being used and allows us to
+      better prioritise features and fix bugs. If this option is disabled,
+      no information will be logged.
+
+      Note: even if this option is enabled, information about the *contents* of
+      traces is *not* logged.
+
+      Note: this setting only has an effect on the ui.perfetto.dev and localhost
+      origins: all other origins do not log telemetry even if this option is
+      enabled.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+    requiresReload: true,
+  });
+
+  const startupCommandsEditor = new JsonSettingsEditor<CommandInvocation[]>({
+    schema: commandInvocationArraySchema,
+  });
+
+  const startupCommandsSetting = settingsManager.register({
+    id: 'startupCommands',
+    name: 'Startup Commands',
+    description: `
+      Commands to run automatically after a trace loads and any saved state is
+      restored. These commands execute as if a user manually invoked them after
+      the trace is fully ready, making them ideal for automating common
+      post-load actions like running queries, expanding tracks, or setting up
+      custom views.
+    `,
+    schema: commandInvocationArraySchema,
+    defaultValue: [],
+    render: (setting) => startupCommandsEditor.render(setting),
+  });
+
+  const enforceStartupCommandAllowlistSetting = settingsManager.register({
+    id: 'enforceStartupCommandAllowlist',
+    name: 'Enforce Startup Command Allowlist',
+    description: `
+      When enabled, only commands in the predefined allowlist can be executed
+      as startup commands. When disabled, all startup commands will be
+      executed without filtering.
+
+      The command allowlist encodes the set of commands which Perfetto UI
+      maintainers expect to maintain backwards compatibility for the forseeable\
+      future.
+
+      WARNING: if this setting is disabled, any command outside the allowlist
+      has *no* backwards compatibility guarantees and is can change without
+      warning at any time.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
     timezoneOverrideSetting,
+    analyticsSetting,
+    startupCommandsSetting,
+    enforceStartupCommandAllowlistSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -203,21 +273,14 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
+  document.head.append(css);
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
-  function initAnalyticsOnScriptLoad() {
-    AppImpl.instance.analytics.initialize(globals.isInternalUser);
-  }
-  const script = document.createElement('script');
-  script.src =
-    'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
-  script.async = true;
-  script.onerror = () => initAnalyticsOnScriptLoad();
-  script.onload = () => initAnalyticsOnScriptLoad();
-  setTimeout(() => initAnalyticsOnScriptLoad(), 5000);
-
-  document.head.append(script, css);
+  const app = AppImpl.instance;
+  tryLoadIsInternalUserScript(app).then(() => {
+    app.analytics.initialize(app.isInternalUser);
+  });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);
@@ -254,7 +317,6 @@ function main() {
 }
 
 function onCssLoaded() {
-  initCssConstants();
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
@@ -265,8 +327,33 @@ function onCssLoaded() {
   const router = new Router();
   router.onRouteChanged = routeChange;
 
+  const themeSetting = AppImpl.instance.settings.register({
+    id: 'theme',
+    name: '[Experimental] UI Theme',
+    description: 'Warning: Dark mode is not fully supported yet.',
+    schema: z.enum(['dark', 'light']),
+    defaultValue: 'light',
+  });
+
+  // Add command to toggle the theme.
+  AppImpl.instance.commands.registerCommand({
+    id: 'dev.perfetto.ToggleTheme',
+    name: '[Experimental] Toggle UI Theme',
+    callback: () => {
+      const currentTheme = themeSetting.get();
+      themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');
+    },
+  });
+
   // Mount the main mithril component. This also forces a sync render pass.
-  raf.mount(document.body, UiMain);
+  raf.mount(document.body, {
+    view: () =>
+      m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
+        m(OverlayContainer, {fillParent: true}, [
+          m(UiMain, {key: themeSetting.get()}),
+        ]),
+      ]),
+  });
 
   if (
     (location.origin.startsWith('http://localhost:') ||
@@ -284,7 +371,7 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   maybeChangeRpcPortFromFragment();
-  CheckHttpRpcConnection().then(() => {
+  checkHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
     if (!AppImpl.instance.embeddedMode) {
       installFileDropHandler();

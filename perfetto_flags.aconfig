@@ -21,3 +21,17 @@ flag {
   bug: "433766726"
   is_fixed_read_only: true
 }
+flag {
+  name: "ftrace_clear_offline_cpus_only"
+  namespace: "perfetto"
+  description: "Controls whether we will optimize the ClearTrace() function to only clear the buffers for offline CPUs instead of all."
+  bug: "435317463"
+  is_fixed_read_only: true
+}
+flag {
+  name: "use_rt_mutex"
+  namespace: "perfetto"
+  description: "Controls whether base::MaybeRtMutex will use base::RtMutex or a standard std::mutex, for reducing priority-inversion in annotated classes"
+  bug: "439758665"
+  is_fixed_read_only: true
+}

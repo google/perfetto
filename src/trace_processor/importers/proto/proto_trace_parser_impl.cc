@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -56,8 +57,11 @@
 
 namespace perfetto::trace_processor {
 
-ProtoTraceParserImpl::ProtoTraceParserImpl(TraceProcessorContext* context)
+ProtoTraceParserImpl::ProtoTraceParserImpl(
+    TraceProcessorContext* context,
+    ProtoImporterModuleContext* module_context)
     : context_(context),
+      module_context_(module_context),
       metatrace_id_(context->storage->InternString("metatrace")),
       data_name_id_(context->storage->InternString("data")),
       raw_chrome_metadata_event_id_(
@@ -75,13 +79,9 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   const TraceBlobView& blob = data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   // TODO(eseckler): Propagate statuses from modules.
-  auto& modules = context_->modules_by_field;
+  auto& modules = module_context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && packet.Get(field_id).valid()) {
-      for (ProtoImporterModule* global_module :
-           context_->modules_for_all_fields) {
-        global_module->ParseTracePacketData(packet, ts, data, field_id);
-      }
       for (ProtoImporterModule* module : modules[field_id])
         module->ParseTracePacketData(packet, ts, data, field_id);
       return;
@@ -99,7 +99,7 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   if (packet.has_trace_config()) {
     // TODO(eseckler): Propagate statuses from modules.
     protos::pbzero::TraceConfig::Decoder config(packet.trace_config());
-    for (auto& module : context_->modules) {
+    for (auto& module : module_context_->modules) {
       module->ParseTraceConfig(config);
     }
   }
@@ -108,56 +108,35 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
 void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts, TrackEventData data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
-  context_->track_module->ParseTrackEventData(packet, ts, data);
-  context_->args_tracker->Flush();
+  module_context_->track_module->ParseTrackEventData(packet, ts, data);
 }
 
 void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
                                          int64_t ts,
                                          TracePacketData data) {
-  PERFETTO_DCHECK(context_->etw_module);
-  context_->etw_module->ParseEtwEventData(cpu, ts, data);
-
-  // TODO(lalitm): maybe move this to the flush method in the trace processor
-  // once we have it. This may reduce performance in the ArgsTracker though so
-  // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  PERFETTO_DCHECK(module_context_->etw_module);
+  module_context_->etw_module->ParseEtwEventData(cpu, ts, data);
 }
 
 void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
                                             TracePacketData data) {
-  PERFETTO_DCHECK(context_->ftrace_module);
-  context_->ftrace_module->ParseFtraceEventData(cpu, ts, data);
-
-  // TODO(lalitm): maybe move this to the flush method in the trace processor
-  // once we have it. This may reduce performance in the ArgsTracker though so
-  // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  PERFETTO_DCHECK(module_context_->ftrace_module);
+  module_context_->ftrace_module->ParseFtraceEventData(cpu, ts, data);
 }
 
 void ProtoTraceParserImpl::ParseInlineSchedSwitch(uint32_t cpu,
                                                   int64_t ts,
                                                   InlineSchedSwitch data) {
-  PERFETTO_DCHECK(context_->ftrace_module);
-  context_->ftrace_module->ParseInlineSchedSwitch(cpu, ts, data);
-
-  // TODO(lalitm): maybe move this to the flush method in the trace processor
-  // once we have it. This may reduce performance in the ArgsTracker though so
-  // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  PERFETTO_DCHECK(module_context_->ftrace_module);
+  module_context_->ftrace_module->ParseInlineSchedSwitch(cpu, ts, data);
 }
 
 void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
                                                   int64_t ts,
                                                   InlineSchedWaking data) {
-  PERFETTO_DCHECK(context_->ftrace_module);
-  context_->ftrace_module->ParseInlineSchedWaking(cpu, ts, data);
-
-  // TODO(lalitm): maybe move this to the flush method in the trace processor
-  // once we have it. This may reduce performance in the ArgsTracker though so
-  // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  PERFETTO_DCHECK(module_context_->ftrace_module);
+  module_context_->ftrace_module->ParseInlineSchedWaking(cpu, ts, data);
 }
 
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
@@ -371,7 +350,8 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     auto opt_id =
         context_->event_tracker->PushCounter(ts, event.counter_value(), track);
     if (opt_id) {
-      auto inserter = context_->args_tracker->AddArgsTo(*opt_id);
+      ArgsTracker args_tracker(context_);
+      auto inserter = args_tracker.AddArgsTo(*opt_id);
       args_fn(&inserter);
     }
   }

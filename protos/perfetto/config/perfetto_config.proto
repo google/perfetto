@@ -719,6 +719,12 @@ message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
   // (exact match, no regex). Otherwise, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If present and non-zero, the data source will periodically poll for CPU
+  // use by packages and only emit results for those that it sees. If absent,
+  // the data source will emit results for all packages at startup. The package
+  // name filter applies either way.
+  optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
 // End of protos/perfetto/config/android/packages_list_config.proto
@@ -1003,6 +1009,14 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
@@ -1257,7 +1271,7 @@ message FtraceConfig {
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
   //
-  // The name "hyp" is reserved.
+  // Names "hyp" and "hypervisor" are reserved.
   //
   // The instance must already exist, the tracing daemon *will not* create it
   // for you as it typically doesn't have such permissions.
@@ -1335,6 +1349,8 @@ message VulkanMemoryConfig {
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
+// WARNING: unmaintained and deprecated. Likely won't work at all on modern
+// systems.
 message InodeFileConfig {
   message MountPointMappingEntry {
     optional string mountpoint = 1;
@@ -1455,6 +1471,10 @@ message PriorityBoostConfig {
 
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
+// Config for polling process-related information from /proc/pid/status and
+// related files on Linux.
+//
+// Data source name: "linux.process_stats".
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
@@ -1464,6 +1484,9 @@ message ProcessStatsConfig {
     // |scan_all_processes_on_start| arg.
     DISABLE_INITIAL_DUMP = 1 [deprecated = true];
 
+    // If set, disables the special interaction with "linux.ftrace" data source,
+    // where the process stats rescrapes any thread id seen in the ftrace
+    // stream.
     DISABLE_ON_DEMAND = 2;
   }
   repeated Quirks quirks = 1;
@@ -1477,28 +1500,21 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
-  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   optional uint32 proc_stats_poll_ms = 4;
 
   // id 5 never used
 
-  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
-  // (default: |proc_stats_poll_ms|). If = 0, will be set to
-  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
-  // multiple.
+  // Explicit caching period during which the polling won't re-emit identical
+  // counter values. This is required to be either = 0 or a multiple of
+  // |proc_stats_poll_ms| (default: |proc_stats_poll_ms|). Non-multiples will be
+  // rounded down to the nearest multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Niche feature: If true this will resolve file descriptors for each process
-  // so these can be mapped to their actual device or file.
-  // Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled or
-  // new fds opened after initially scanning a process will not be
-  // recognized.
-  optional bool resolve_process_fds = 9;
-
-  // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  // If true and |proc_stats_poll_ms| is set, sample memory stats from
+  // /proc/pid/smaps_rollup.
   //
-  // Does NOT work with the Android system daemon by default, as it requires
+  // Android: does NOT work with the system daemons by default, as it requires
   // running the recording process (traced_probes or tracebox) as root. It is
   // possible to avoid the root requirement, but the exact steps depend on the
   // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
@@ -1510,10 +1526,23 @@ message ProcessStatsConfig {
   // Introduced in: perfetto v44.
   optional bool record_process_age = 11;
 
-  // If true and |proc_stats_poll_ms| is true, process stats will include time
+  // If true and |proc_stats_poll_ms| is set, process stats will include time
   // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
+
+  // If true obtain per-process dmabuf resident set size from
+  // /proc/pid/dmabuf_rss.
+  // This feature is not in upstream linux, and is available only on some
+  // Android kernels.
+  optional bool record_process_dmabuf_rss = 13;
+
+  // WARNING: unmaintained and deprecated. If true this will resolve file
+  // descriptors for each process so these can be mapped to their actual device
+  // or file. Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled
+  // or new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 
   // record_thread_time_in_state
   reserved 7;
@@ -2025,7 +2054,7 @@ message PerfEventConfig {
   optional uint32 max_daemon_memory_kb = 13;
 
   //
-  // Uncommon options:
+  // Niche options:
   //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
@@ -2038,10 +2067,17 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the unwinder. This is a heavy
-  // operation that is only necessary for traces that target a wide set of
-  // processes, and require the memory footprint to be reset periodically.
-  // If unset, the cached state will not be cleared.
+  // Optional period for clearing state cached by the userspace unwinder. This
+  // is a heavy operation that is only necessary for traces that target a wide
+  // set of processes, and require the memory footprint to be reset
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
+  //
+  // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
+  //
+  // If zero or unset:
+  // * before perfetto v52: no cache clearing.
+  // * perfetto v52+: implementation chooses an infrequent default.
   optional uint32 unwind_state_clear_period_ms = 10;
 
   // If set, only profile target if it was installed by a package with one of
@@ -4054,7 +4090,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 41.
+// Next id: 42.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4776,6 +4812,20 @@ message TraceConfig {
   // Priority boost to be applied to the traced process, when the session is
   // running.
   optional PriorityBoostConfig priority_boost = 40;
+
+  // When set to a value > 0, this tracing session will be started in
+  // "exclusive mode". This has the following semantics:
+  // - It can only be set by shell or root users.
+  // - A new exclusive session will only be started if its priority is strictly
+  //   higher than any other active tracing session.
+  // - If a new exclusive session is started, all other existing tracing
+  //   sessions (exclusive or not) are aborted.
+  // - While an exclusive session is active, any new non-exclusive session (or
+  //   any exclusive session with a lower or equal priority) will be rejected.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional uint32 exclusive_prio = 41;
 }
 
 // End of protos/perfetto/config/trace_config.proto

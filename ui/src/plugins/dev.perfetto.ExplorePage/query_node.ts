@@ -14,46 +14,51 @@
 
 import protos from '../../protos';
 import m from 'mithril';
-import {
-  ColumnInfo,
-  columnInfoFromName,
-  newColumnInfoList,
-} from './query_builder/column_info';
-import {
-  Aggregation,
-  placeholderNewColumnName,
-} from './query_builder/operations/aggregations';
+import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
 import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
+import {NodeIssues} from './query_builder/node_issues';
+
+let nodeCounter = 0;
+export function nextNodeId(): string {
+  return (nodeCounter++).toString();
+}
 
 export enum NodeType {
   // Sources
-  kStdlibTable,
+  kTable,
   kSimpleSlices,
   kSqlSource,
+
+  // Single node operations
+  kSubQuery,
+  kAggregation,
+  kIntervalIntersect,
 }
 
 // All information required to create a new node.
 export interface QueryNodeState {
-  prevNode?: QueryNode;
-  sourceCols: ColumnInfo[];
+  prevNodes?: QueryNode[];
   customTitle?: string;
 
   // Operations
   filters: FilterDefinition[];
-  groupByColumns: ColumnInfo[];
-  aggregations: Aggregation[];
 
-  // Errors
-  queryError?: Error;
-  responseError?: Error;
-  dataError?: Error;
+  issues?: NodeIssues;
+
+  onchange?: () => void;
+
+  // Caching
+  isExecuted?: boolean;
+  hasOperationChanged?: boolean;
 }
 
 export interface QueryNode {
+  readonly nodeId: string;
+  meterialisedAs?: string;
   readonly type: NodeType;
-  readonly prevNode?: QueryNode;
-  readonly nextNode?: QueryNode;
+  readonly prevNodes?: QueryNode[];
+  nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
   readonly sourceCols: ColumnInfo[];
@@ -68,7 +73,7 @@ export interface QueryNode {
   validate(): boolean;
   getTitle(): string;
   nodeSpecificModify(): m.Child;
-  getStateCopy(): QueryNodeState;
+  clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 
@@ -77,6 +82,7 @@ export interface Query {
   textproto: string;
   modules: string[];
   preambles: string[];
+  columns: string[];
 }
 
 export function createSelectColumnsProto(
@@ -98,16 +104,6 @@ export function createSelectColumnsProto(
 }
 
 export function createFinalColumns(node: QueryNode) {
-  if (node.state.groupByColumns.find((c) => c.checked)) {
-    const selected = node.state.groupByColumns.filter((c) => c.checked);
-    for (const agg of node.state.aggregations) {
-      selected.push(
-        columnInfoFromName(agg.newColumnName ?? placeholderNewColumnName(agg)),
-      );
-    }
-    return newColumnInfoList(selected, true);
-  }
-
   return newColumnInfoList(node.sourceCols, true);
 }
 
@@ -125,10 +121,14 @@ function getStructuredQueries(
       return;
     }
     revStructuredQueries.push(curSq);
-    if (curNode.prevNode && !curNode.prevNode.validate()) {
-      return;
+    if (curNode.prevNodes?.[0]) {
+      if (!curNode.prevNodes[0].validate()) {
+        return;
+      }
+      curNode = curNode.prevNodes[0];
+    } else {
+      curNode = undefined;
     }
-    curNode = curNode.prevNode;
   }
   return revStructuredQueries.reverse();
 }
@@ -143,6 +143,21 @@ export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
 ): Promise<Query | undefined | Error> {
+  if (
+    node.state.isExecuted &&
+    !node.state.hasOperationChanged &&
+    node.type !== NodeType.kSqlSource
+  ) {
+    const sql: Query = {
+      sql: `SELECT * FROM ${node.meterialisedAs ?? ''}`,
+      textproto: '',
+      modules: [],
+      preambles: [],
+      columns: [],
+    };
+    return sql;
+  }
+
   const structuredQueries = getStructuredQueries(node);
   if (structuredQueries === undefined) return;
 
@@ -151,7 +166,9 @@ export async function analyzeNode(
   if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
     return Error(
-      `Wrong structured query results. Asked for ${structuredQueries.length}, received ${res.results.length}`,
+      `Wrong structured query results. Asked for ${
+        structuredQueries.length
+      }, received ${res.results.length}`,
     );
   }
 
@@ -163,13 +180,42 @@ export async function analyzeNode(
     return Error('No textproto in structured query results');
   }
 
+  let finalSql = lastRes.sql;
+  if (materialise(node)) {
+    if (!node.meterialisedAs) {
+      node.meterialisedAs = `exp_${node.nodeId}`;
+    }
+    const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
+      node.meterialisedAs ?? `exp_${node.nodeId}`
+    } AS \n${lastRes.sql}`;
+    const selectSql = `SELECT * FROM ${node.meterialisedAs ?? `exp_${node.nodeId}`}`;
+    finalSql = `${createTableSql};\n${selectSql}`;
+  }
+
   const sql: Query = {
-    sql: lastRes.sql,
+    sql: finalSql,
     textproto: lastRes.textproto ?? '',
     modules: lastRes.modules ?? [],
     preambles: lastRes.preambles ?? [],
+    columns: lastRes.columns ?? [],
   };
   return sql;
+}
+
+export function setOperationChanged(node: QueryNode) {
+  let curr: QueryNode | undefined = node;
+  while (curr) {
+    if (curr.state.hasOperationChanged) {
+      // Already marked as changed, and so are the children.
+      break;
+    }
+    curr.state.hasOperationChanged = true;
+    const queue: QueryNode[] = [];
+    curr.nextNodes.forEach((child) => {
+      queue.push(child);
+    });
+    curr = queue.shift();
+  }
 }
 
 export function isAQuery(
@@ -179,5 +225,12 @@ export function isAQuery(
     maybeQuery !== undefined &&
     !(maybeQuery instanceof Error) &&
     maybeQuery.sql !== undefined
+  );
+}
+
+function materialise(node: QueryNode): boolean {
+  return (
+    node.type !== NodeType.kSqlSource &&
+    node.type != NodeType.kIntervalIntersect
   );
 }

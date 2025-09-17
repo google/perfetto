@@ -36,7 +36,7 @@
 #include "test/integrationtest_initializer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>  // For CreateFile().
+#include <windows.h>  // For CreateFile().
 #else
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -2298,6 +2298,66 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
               " main_thread=0",
           "SliceEnd track_uuid=" + std::to_string(track.uuid) +
               " main_thread=0"}));
+}
+
+TEST_P(PerfettoApiTest, TrackEventPtrNamedTrack) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto track = perfetto::NamedTrack::FromPointer("MyCustomTrack", this);
+  TRACE_EVENT_INSTANT("bar", "Event", track);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_descriptor = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        !packet.track_descriptor().has_process() &&
+        !packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor();
+      EXPECT_EQ("MyCustomTrack", td.static_name());
+      EXPECT_EQ(track.uuid, td.uuid());
+      EXPECT_EQ(perfetto::ProcessTrack::Current().uuid, td.parent_uuid());
+      found_descriptor = true;
+      continue;
+    }
+  }
+  EXPECT_TRUE(found_descriptor);
+}
+
+TEST_P(PerfettoApiTest, SiblingMergeBehavior) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // Declare a custom track and give it a name.
+  uint64_t async_id = 123;
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto track_with_key = perfetto::NamedTrack("TrackWithSiblingKey", async_id)
+                            .set_sibling_merge_key("key");
+  TRACE_EVENT_INSTANT("bar", "Event", track_with_key);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_descriptor = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        !packet.track_descriptor().has_process() &&
+        !packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor();
+      EXPECT_EQ("TrackWithSiblingKey", td.static_name());
+      EXPECT_EQ(perfetto::protos::gen::TrackDescriptor::
+                    SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                td.sibling_merge_behavior());
+      EXPECT_EQ("key", td.sibling_merge_key());
+      found_descriptor = true;
+      continue;
+    }
+  }
+  EXPECT_TRUE(found_descriptor);
 }
 
 TEST_P(PerfettoApiTest, CustomTrackDescriptorForParent) {

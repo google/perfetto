@@ -56,8 +56,10 @@ constexpr auto kTriggerTrackBlueprint =
 
 }  // namespace
 
-MetadataModule::MetadataModule(TraceProcessorContext* context)
-    : context_(context),
+MetadataModule::MetadataModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
       producer_name_key_id_(context_->storage->InternString("producer_name")),
       trusted_producer_uid_key_id_(
           context_->storage->InternString("trusted_producer_uid")),
@@ -65,11 +67,11 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
           context_->storage->InternString("chrome_trigger.name")),
       chrome_trigger_hash_id_(
           context_->storage->InternString("chrome_trigger.name_hash")) {
-  RegisterForField(TracePacket::kUiStateFieldNumber, context);
-  RegisterForField(TracePacket::kTriggerFieldNumber, context);
-  RegisterForField(TracePacket::kChromeTriggerFieldNumber, context);
-  RegisterForField(TracePacket::kCloneSnapshotTriggerFieldNumber, context);
-  RegisterForField(TracePacket::kTraceUuidFieldNumber, context);
+  RegisterForField(TracePacket::kUiStateFieldNumber);
+  RegisterForField(TracePacket::kTriggerFieldNumber);
+  RegisterForField(TracePacket::kChromeTriggerFieldNumber);
+  RegisterForField(TracePacket::kCloneSnapshotTriggerFieldNumber);
+  RegisterForField(TracePacket::kTraceUuidFieldNumber);
 }
 
 ModuleResult MetadataModule::TokenizePacket(
@@ -101,7 +103,7 @@ ModuleResult MetadataModule::TokenizePacket(
         StringId id = context_->storage->InternString(base::StringView(str));
         context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
                                                 Variadic::String(id));
-        context_->uuid_found_in_trace = true;
+        context_->uuid_state->uuid_found_in_trace = true;
       }
       return ModuleResult::Handled();
     }
@@ -213,7 +215,7 @@ void MetadataModule::ParseTraceUuid(ConstBytes blob) {
     StringId id = context_->storage->InternString(base::StringView(str));
     context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
                                             Variadic::String(id));
-    context_->uuid_found_in_trace = true;
+    context_->uuid_state->uuid_found_in_trace = true;
   }
 }
 
@@ -221,13 +223,14 @@ void MetadataModule::ParseTraceConfig(
     const protos::pbzero::TraceConfig_Decoder& trace_config) {
   int64_t uuid_msb = trace_config.trace_uuid_msb();
   int64_t uuid_lsb = trace_config.trace_uuid_lsb();
-  if (!context_->uuid_found_in_trace && (uuid_msb != 0 || uuid_lsb != 0)) {
+  if (!context_->uuid_state->uuid_found_in_trace &&
+      (uuid_msb != 0 || uuid_lsb != 0)) {
     base::Uuid uuid(uuid_lsb, uuid_msb);
     std::string str = uuid.ToPrettyString();
     StringId id = context_->storage->InternString(base::StringView(str));
     context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
                                             Variadic::String(id));
-    context_->uuid_found_in_trace = true;
+    context_->uuid_state->uuid_found_in_trace = true;
   }
 
   if (trace_config.has_unique_session_name()) {

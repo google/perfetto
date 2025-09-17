@@ -17,6 +17,7 @@ including:
 - Enabling the Perfetto tracing services on older Android versions.
 - Using the on-device `/system/bin/perfetto` binary directly.
 - Writing and using a full trace config for advanced customization.
+- Using exclusive mode for tracing sessions to prevent interference from other traces.
 
 ## Prerequisites: Enabling Tracing Services
 
@@ -169,3 +170,56 @@ around.
 
 The full reference for the `perfetto` cmdline interface can be found
 [here](/docs/reference/perfetto-cli.md).
+
+## Exclusive Tracing Sessions
+
+Perfetto is designed to support [multiple concurrent tracing sessions](/docs/concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed, and sensitive performance measurements require minimizing interference from other traces. In these situations, Perfetto requires a guarantee that no other tracing session is active.
+
+To address this, Perfetto offers an "exclusive" mode. When a session is started in exclusive mode, it ensures no other sessions are running, providing a clean tracing environment. This is controlled by the `exclusive_prio` field in the `TraceConfig`.
+
+### When to use exclusive mode
+
+You should use an exclusive session in the following scenarios:
+
+* For sensitive performance measurements where you need to minimize interference from other concurrent tracing activities.
+* When using data sources with high overhead, such as `function_graph` in ftrace, to ensure their behavior is not affected by other sessions.
+* When configuring parameters that apply globally and are not multiplexed, like the ftrace buffer size (`buffer_size_kb`), which is only configured by the first active session.
+
+### Behavior
+
+An exclusive session has the following behavior:
+
+*   **Priority System**: The `exclusive_prio` is an unsigned integer where a higher number indicates a higher priority. A session is only considered "exclusive" if its priority is greater than 0.
+*   **Preemption**: If a new exclusive session is requested with a priority strictly higher than any other active session, it will be started, and all other existing sessions (both exclusive and non-exclusive) will be aborted. Consumers of aborted sessions will receive an error message (e.g., `Aborted due to user requested higher-priority (#priority) exclusive session.`).
+*   **Blocking**: While an exclusive session is active, any attempt to start a new non-exclusive session, or an exclusive session with a lower or equal priority, will be rejected.
+*   **Privileged Access**: On Android, requesting an exclusive session is a privileged operation and can only be done by `root` or `shell` users.
+
+### How to enable
+
+To start an exclusive session, add the `exclusive_prio` field to your trace config file.
+
+This feature is available from Perfetto v52 and on Android from 25Q3+.
+
+```protobuf
+duration_ms: 10000
+
+buffers: {
+    size_kb: 8192
+}
+
+# Request an exclusive session with priority 10.
+# This will abort any running sessions (provided they have a lower priority) and
+# block new sessions with a lower or equal priority.
+exclusive_prio: 10
+
+data_sources: {
+    config {
+        name: "linux.ftrace"
+        ftrace_config {
+            # Advanced features like funcgraph can now be used more reliably.
+            function_graph: true
+            ftrace_events: "sched/sched_switch"
+        }
+    }
+}
+```

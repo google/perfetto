@@ -21,6 +21,7 @@ import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
 import {TraceInfoImpl} from './trace_info_impl';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {commandInvocationArraySchema} from './command_manager';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -59,6 +60,27 @@ export function initializeAppImplForTesting(): AppImpl {
         description: 'What timezone to use for displaying timestamps.',
         schema: z.enum(['dummy']),
         defaultValue: 'dummy',
+      }),
+      analyticsSetting: settingsManager.register({
+        id: 'analyticsEnable',
+        name: 'Enable UI Telemetry',
+        description: '',
+        schema: z.boolean(),
+        defaultValue: true,
+      }),
+      startupCommandsSetting: settingsManager.register({
+        id: 'startupCommands',
+        name: 'Startup Commands',
+        description: '',
+        schema: commandInvocationArraySchema,
+        defaultValue: [],
+      }),
+      enforceStartupCommandAllowlistSetting: settingsManager.register({
+        id: 'enforceStartupCommandAllowlist',
+        name: 'Enforce Startup Command Allowlist',
+        description: '',
+        schema: z.boolean(),
+        defaultValue: true,
       }),
     });
   }

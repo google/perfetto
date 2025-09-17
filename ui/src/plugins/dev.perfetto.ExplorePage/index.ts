@@ -16,7 +16,7 @@ import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {ExplorePage, ExplorePageModes, ExplorePageState} from './explore_page';
+import {ExplorePage, ExplorePageState} from './explore_page';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -26,7 +26,6 @@ export default class implements PerfettoPlugin {
   // state/charts for the lifecycle of a single
   // trace.
   private readonly state: ExplorePageState = {
-    mode: ExplorePageModes.QUERY_BUILDER,
     rootNodes: [],
   };
 

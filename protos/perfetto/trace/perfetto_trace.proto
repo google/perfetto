@@ -719,6 +719,12 @@ message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
   // (exact match, no regex). Otherwise, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If present and non-zero, the data source will periodically poll for CPU
+  // use by packages and only emit results for those that it sees. If absent,
+  // the data source will emit results for all packages at startup. The package
+  // name filter applies either way.
+  optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
 // End of protos/perfetto/config/android/packages_list_config.proto
@@ -1003,6 +1009,14 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
@@ -1257,7 +1271,7 @@ message FtraceConfig {
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
   //
-  // The name "hyp" is reserved.
+  // Names "hyp" and "hypervisor" are reserved.
   //
   // The instance must already exist, the tracing daemon *will not* create it
   // for you as it typically doesn't have such permissions.
@@ -1335,6 +1349,8 @@ message VulkanMemoryConfig {
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
+// WARNING: unmaintained and deprecated. Likely won't work at all on modern
+// systems.
 message InodeFileConfig {
   message MountPointMappingEntry {
     optional string mountpoint = 1;
@@ -1455,6 +1471,10 @@ message PriorityBoostConfig {
 
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
+// Config for polling process-related information from /proc/pid/status and
+// related files on Linux.
+//
+// Data source name: "linux.process_stats".
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
@@ -1464,6 +1484,9 @@ message ProcessStatsConfig {
     // |scan_all_processes_on_start| arg.
     DISABLE_INITIAL_DUMP = 1 [deprecated = true];
 
+    // If set, disables the special interaction with "linux.ftrace" data source,
+    // where the process stats rescrapes any thread id seen in the ftrace
+    // stream.
     DISABLE_ON_DEMAND = 2;
   }
   repeated Quirks quirks = 1;
@@ -1477,28 +1500,21 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
-  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   optional uint32 proc_stats_poll_ms = 4;
 
   // id 5 never used
 
-  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
-  // (default: |proc_stats_poll_ms|). If = 0, will be set to
-  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
-  // multiple.
+  // Explicit caching period during which the polling won't re-emit identical
+  // counter values. This is required to be either = 0 or a multiple of
+  // |proc_stats_poll_ms| (default: |proc_stats_poll_ms|). Non-multiples will be
+  // rounded down to the nearest multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Niche feature: If true this will resolve file descriptors for each process
-  // so these can be mapped to their actual device or file.
-  // Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled or
-  // new fds opened after initially scanning a process will not be
-  // recognized.
-  optional bool resolve_process_fds = 9;
-
-  // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  // If true and |proc_stats_poll_ms| is set, sample memory stats from
+  // /proc/pid/smaps_rollup.
   //
-  // Does NOT work with the Android system daemon by default, as it requires
+  // Android: does NOT work with the system daemons by default, as it requires
   // running the recording process (traced_probes or tracebox) as root. It is
   // possible to avoid the root requirement, but the exact steps depend on the
   // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
@@ -1510,10 +1526,23 @@ message ProcessStatsConfig {
   // Introduced in: perfetto v44.
   optional bool record_process_age = 11;
 
-  // If true and |proc_stats_poll_ms| is true, process stats will include time
+  // If true and |proc_stats_poll_ms| is set, process stats will include time
   // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
+
+  // If true obtain per-process dmabuf resident set size from
+  // /proc/pid/dmabuf_rss.
+  // This feature is not in upstream linux, and is available only on some
+  // Android kernels.
+  optional bool record_process_dmabuf_rss = 13;
+
+  // WARNING: unmaintained and deprecated. If true this will resolve file
+  // descriptors for each process so these can be mapped to their actual device
+  // or file. Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled
+  // or new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 
   // record_thread_time_in_state
   reserved 7;
@@ -2025,7 +2054,7 @@ message PerfEventConfig {
   optional uint32 max_daemon_memory_kb = 13;
 
   //
-  // Uncommon options:
+  // Niche options:
   //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
@@ -2038,10 +2067,17 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the unwinder. This is a heavy
-  // operation that is only necessary for traces that target a wide set of
-  // processes, and require the memory footprint to be reset periodically.
-  // If unset, the cached state will not be cleared.
+  // Optional period for clearing state cached by the userspace unwinder. This
+  // is a heavy operation that is only necessary for traces that target a wide
+  // set of processes, and require the memory footprint to be reset
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
+  //
+  // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
+  //
+  // If zero or unset:
+  // * before perfetto v52: no cache clearing.
+  // * perfetto v52+: implementation chooses an infrequent default.
   optional uint32 unwind_state_clear_period_ms = 10;
 
   // If set, only profile target if it was installed by a package with one of
@@ -4054,7 +4090,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 41.
+// Next id: 42.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4776,6 +4812,20 @@ message TraceConfig {
   // Priority boost to be applied to the traced process, when the session is
   // running.
   optional PriorityBoostConfig priority_boost = 40;
+
+  // When set to a value > 0, this tracing session will be started in
+  // "exclusive mode". This has the following semantics:
+  // - It can only be set by shell or root users.
+  // - A new exclusive session will only be started if its priority is strictly
+  //   higher than any other active tracing session.
+  // - If a new exclusive session is started, all other existing tracing
+  //   sessions (exclusive or not) are aborted.
+  // - While an exclusive session is active, any new non-exclusive session (or
+  //   any exclusive session with a lower or equal priority) will be rejected.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional uint32 exclusive_prio = 41;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5718,8 +5768,8 @@ message NetworkPacketEvent {
   // The direction traffic is flowing for this event.
   optional TrafficDirection direction = 1;
 
-  // The name of the interface if available (e.g. 'rmnet0').
-  optional string interface = 2;
+  // The name of the network interface if available (e.g. 'rmnet0').
+  optional string network_interface = 2;
 
   // The length of the packet in bytes (wire_size - L2_header_size). Ignored
   // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or
@@ -6059,6 +6109,21 @@ enum TrustedOverlay {
   DISABLED = 1;
   ENABLED = 2;
 };
+message BoxShadowSettings {
+  message BoxShadowParams {
+    optional float blur_radius = 1;
+    optional float spread_radius = 2;
+    optional int32 color = 3;
+    optional float offset_x = 4;
+    optional float offset_y = 5;
+  }
+  repeated BoxShadowParams box_shadows = 1;
+}
+
+message BorderSettings {
+  optional float stroke_width = 1;
+  optional int32 color = 2;
+}
 // End of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -6289,6 +6354,15 @@ message LayerProto {
 
   // Corner radius explicity set as drawn by client
   optional CornerRadiiProto client_drawn_corner_radii = 63;
+
+  // Priority value of the layer set by the system.
+  optional int32 system_content_priority = 64;
+
+  // Settings which specify how shadows should be drawn for a layer.
+  optional BoxShadowSettings box_shadow_settings = 65;
+
+  // Settings which specify how an outline should be drawn for a layer.
+  optional BorderSettings border_settings = 66;
 }
 
 message PositionProto {
@@ -6487,6 +6561,9 @@ message LayerState {
     eTrustedOverlayChanged = 0x4000;
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
+    eSystemContentPriorityChanged = 0x00020000;
+    eBoxShadowSettingsChanged = 0x00040000;
+    eBorderSettingsChanged = 0x00080000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -6627,6 +6704,12 @@ message LayerState {
   optional CornerRadii corner_radii = 45;
 
   optional CornerRadii client_drawn_corner_radii = 46;
+
+  optional int32 system_content_priority = 47;
+
+  optional BoxShadowSettings box_shadow_settings = 48;
+
+  optional BorderSettings border_settings = 49;
 }
 
 message DisplayState {
@@ -7386,6 +7469,48 @@ message ReadyThreadEtwEvent {
     int32 flag_int = 6;
   }
 }
+
+// Proto definition based on the type of MemInfoArgs_V1, found here and observed
+// on local traces using tracerpt:
+// https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-Kernel-Memory.xml
+message MemInfoEtwEvent {
+  // Number of memory priorities on the system.
+  optional uint32 priority_levels = 1;
+
+  // Number of pages in the zero list.
+  optional uint64 zero_page_count = 2;
+
+  // Number of pages in the free list.
+  optional uint64 free_page_count = 3;
+
+  // Number of pages in the modified list.
+  optional uint64 modified_page_count = 4;
+
+  // Number of modified non-paged pool pages.
+  optional uint64 modified_no_write_page_count = 5;
+
+  // Number of bad pages.
+  optional uint64 bad_page_count = 6;
+
+  // Number of standby pages by memory priority.
+  repeated uint64 standby_page_counts = 7;
+
+  // Number of repurposed pages by memory priority.
+  repeated uint64 repurposed_page_counts = 8;
+
+  // Modified paged pages.
+  optional uint64 modified_page_count_page_file = 9;
+  // Pool page counts.
+  optional uint64 paged_pool_page_count = 10;
+  optional uint64 non_paged_pool_page_count = 11;
+
+  // Memory Descriptor List page count.
+  optional uint64 mdl_page_count = 12;
+
+  // Commit weight.
+  optional uint64 commit_page_count = 13;
+}
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -7398,8 +7523,10 @@ message EtwTraceEvent {
   oneof event {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
+    MemInfoEtwEvent mem_info = 6;
   }
 }
+
 // End of protos/perfetto/trace/etw/etw_event.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event_bundle.proto
@@ -12529,6 +12656,16 @@ message FtraceStats {
 
   // Kprobe profile stats for functions hits and misses
   optional FtraceKprobeStats kprobe_stats = 10;
+
+  // Per-cpu buffer size as returned by buffer_size_kb in pages (rounded up).
+  // Added in: perfetto v52.
+  optional uint32 cpu_buffer_size_pages = 11;
+
+  // Per-cpu buffer size as cached by our implementation (ftrace muxer), based
+  // on the value we're writing into the tracefs control file. Might not be
+  // exactly equal to |cpu_buffer_size_pages| due to the kernel allocating extra
+  // scratch pages (and/or other factors). Added in: perfetto v52.
+  optional uint32 cached_cpu_buffer_size_pages = 12;
 }
 
 enum FtraceParseStatus {
@@ -12870,6 +13007,11 @@ message GpuRenderStageEvent {
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
 
+  // optional. An ID for the render pass instance. This is used to correlate
+  // different events on different queues produced by the same Vulkan render
+  // pass instance.
+  optional uint64 render_pass_instance_id = 16;
+
   // optional. A bit mask representing which render subpasses contributed to
   // this render stage event.  Subpass index 0 is represented by setting the
   // LSB of the mask.  Additional mask can be added for subpass index greater
@@ -13161,6 +13303,18 @@ message Mapping {
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
+
+  // Libunwindstack-specific concept, not to be confused with bionic linker's
+  // notion of load_bias. Needed to correct relative pc addresses (as produced
+  // by libunwindstack) when doing offline resymbolisation.
+  //
+  // For an executable ELF PT_LOAD segment, this is:
+  //   p_vaddr - p_offset
+  //
+  // Where p_offset means that the code is at that offset into the ELF file on
+  // disk. While p_vaddr is the offset at which the code gets *mapped*, relative
+  // to where the linker loads the ELF into the address space. For most ELFs,
+  // the two values are identical and therefore load_bias is zero.
   optional uint64 load_bias = 6;
 
   // E.g. ["system", "lib64", "libc.so"]
@@ -15066,6 +15220,12 @@ message PowerRails {
   }
 
   repeated EnergyData energy_data = 2;
+
+  // A unique session id that can be used to match energy data to sets of
+  // descriptors. The indices used by rail descriptors and energy data packets
+  // are meant to be unique to a given session uuid. When multiple data sources
+  // are running in parallel, each data source should use a unique id.
+  optional uint64 session_uuid = 3;
 }
 
 // End of protos/perfetto/trace/power/power_rails.proto
@@ -15704,6 +15864,9 @@ message ProcessStats {
     // /proc/pid/stat. Recorded if record_process_runtime config option is set.
     // Resolution of "clock ticks", usually 10ms.
     optional uint64 runtime_kernel_mode = 22;
+
+    // The total size of all dmabufs referenced by a process via FDs or VMAs.
+    optional uint64 dmabuf_rss_kb = 24;
   }
   repeated Process processes = 1;
 
@@ -16265,52 +16428,11 @@ message ThreadDescriptor {
 //
 // Next id: 6.
 message ChromeProcessDescriptor {
-  // See chromium's content::ProcessType.
-  enum ProcessType {
-    PROCESS_UNSPECIFIED = 0;
-    PROCESS_BROWSER = 1;
-    PROCESS_RENDERER = 2;
-    PROCESS_UTILITY = 3;
-    PROCESS_ZYGOTE = 4;
-    PROCESS_SANDBOX_HELPER = 5;
-    PROCESS_GPU = 6;
-    PROCESS_PPAPI_PLUGIN = 7;
-    PROCESS_PPAPI_BROKER = 8;
-    PROCESS_SERVICE_NETWORK = 9;
-    PROCESS_SERVICE_TRACING = 10;
-    PROCESS_SERVICE_STORAGE = 11;
-    PROCESS_SERVICE_AUDIO = 12;
-    PROCESS_SERVICE_DATA_DECODER = 13;
-    PROCESS_SERVICE_UTIL_WIN = 14;
-    PROCESS_SERVICE_PROXY_RESOLVER = 15;
-    PROCESS_SERVICE_CDM = 16;
-    PROCESS_SERVICE_VIDEO_CAPTURE = 17;
-    PROCESS_SERVICE_UNZIPPER = 18;
-    PROCESS_SERVICE_MIRRORING = 19;
-    PROCESS_SERVICE_FILEPATCHER = 20;
-    PROCESS_SERVICE_TTS = 21;
-    PROCESS_SERVICE_PRINTING = 22;
-    PROCESS_SERVICE_QUARANTINE = 23;
-    PROCESS_SERVICE_CROS_LOCALSEARCH = 24;
-    PROCESS_SERVICE_CROS_ASSISTANT_AUDIO_DECODER = 25;
-    PROCESS_SERVICE_FILEUTIL = 26;
-    PROCESS_SERVICE_PRINTCOMPOSITOR = 27;
-    PROCESS_SERVICE_PAINTPREVIEW = 28;
-    PROCESS_SERVICE_SPEECHRECOGNITION = 29;
-    PROCESS_SERVICE_XRDEVICE = 30;
-    PROCESS_SERVICE_READICON = 31;
-    PROCESS_SERVICE_LANGUAGEDETECTION = 32;
-    PROCESS_SERVICE_SHARING = 33;
-    PROCESS_SERVICE_MEDIAPARSER = 34;
-    PROCESS_SERVICE_QRCODEGENERATOR = 35;
-    PROCESS_SERVICE_PROFILEIMPORT = 36;
-    PROCESS_SERVICE_IME = 37;
-    PROCESS_SERVICE_RECORDING = 38;
-    PROCESS_SERVICE_SHAPEDETECTION = 39;
-    PROCESS_RENDERER_EXTENSION = 40;
-    PROCESS_SERVICE_MEDIA_FOUNDATION = 41;
-  }
-  optional ProcessType process_type = 1;
+  // This is a chrome_enums::ProcessType from
+  // //protos/third_party/chromium/chrome_enums.proto. The enum definition can't
+  // be imported here because of a dependency loop.
+  optional int32 process_type = 1;
+
   optional int32 process_priority = 2;
 
   // To support old UI. New UI should determine default sorting by process_type.
@@ -16344,64 +16466,10 @@ message ChromeProcessDescriptor {
 //
 // Next id: 3.
 message ChromeThreadDescriptor {
-  enum ThreadType {
-    THREAD_UNSPECIFIED = 0;
-
-    THREAD_MAIN = 1;
-    THREAD_IO = 2;
-
-    THREAD_POOL_BG_WORKER = 3;
-    THREAD_POOL_FG_WORKER = 4;
-    THREAD_POOL_FG_BLOCKING = 5;
-    THREAD_POOL_BG_BLOCKING = 6;
-    THREAD_POOL_SERVICE = 7;
-
-    THREAD_COMPOSITOR = 8;
-    THREAD_VIZ_COMPOSITOR = 9;
-    THREAD_COMPOSITOR_WORKER = 10;
-
-    THREAD_SERVICE_WORKER = 11;
-    THREAD_NETWORK_SERVICE = 12;
-
-    THREAD_CHILD_IO = 13;
-    THREAD_BROWSER_IO = 14;
-
-    THREAD_BROWSER_MAIN = 15;
-    THREAD_RENDERER_MAIN = 16;
-    THREAD_UTILITY_MAIN = 17;
-    THREAD_GPU_MAIN = 18;
-
-    THREAD_CACHE_BLOCKFILE = 19;
-    THREAD_MEDIA = 20;
-    THREAD_AUDIO_OUTPUTDEVICE = 21;
-    THREAD_AUDIO_INPUTDEVICE = 22;
-    THREAD_GPU_MEMORY = 23;
-    THREAD_GPU_VSYNC = 24;
-    THREAD_DXA_VIDEODECODER = 25;
-    THREAD_BROWSER_WATCHDOG = 26;
-    THREAD_WEBRTC_NETWORK = 27;
-    THREAD_WINDOW_OWNER = 28;
-    THREAD_WEBRTC_SIGNALING = 29;
-    THREAD_WEBRTC_WORKER = 30;
-    THREAD_PPAPI_MAIN = 31;
-    THREAD_GPU_WATCHDOG = 32;
-    THREAD_SWAPPER = 33;
-    THREAD_GAMEPAD_POLLING = 34;
-    THREAD_WEBCRYPTO = 35;
-    THREAD_DATABASE = 36;
-    THREAD_PROXYRESOLVER = 37;
-    THREAD_DEVTOOLSADB = 38;
-    THREAD_NETWORKCONFIGWATCHER = 39;
-    THREAD_WASAPI_RENDER = 40;
-    THREAD_LOADER_LOCK_SAMPLER = 41;
-
-    THREAD_MEMORY_INFRA = 50;
-    THREAD_SAMPLING_PROFILER = 51;
-
-    THREAD_COMPOSITOR_GPU = 52;
-  };
-
-  optional ThreadType thread_type = 1;
+  // This is a chrome_enums::ThreadType from
+  // //protos/third_party/chromium/chrome_enums.proto. The enum definition can't
+  // be imported here because of a dependency loop.
+  optional int32 thread_type = 1;
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;
@@ -16489,6 +16557,15 @@ message CounterDescriptor {
 
   // TODO(eseckler): Support arguments describing the counter (?).
   // repeated DebugAnnotation debug_annotations;
+
+  // When visualizing multiple counter tracks, it is often useful to have them
+  // share the same Y-axis range. This allows for easy comparison of their
+  // values.
+  //
+  // All counter tracks with the same |y_axis_share_key| and the same parent
+  // track (e.g. grouped under the same process track) will share their y-axis
+  // range in the UI.
+  optional string y_axis_share_key = 7;
 }
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
@@ -16508,7 +16585,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 17.
+// Next id: 18.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -16806,7 +16883,10 @@ message TrackDescriptor {
   //
   // Only meaningful when `sibling_merge_behavior` is set to
   // `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`.
-  optional string sibling_merge_key = 16;
+  oneof sibling_merge_key_field {
+    string sibling_merge_key = 16;
+    uint64 sibling_merge_key_int = 17;
+  }
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

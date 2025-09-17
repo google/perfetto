@@ -13,89 +13,59 @@
 // limitations under the License.
 
 .pf-query-history {
-  header.overview {
+  &__header {
     position: sticky;
     top: 0;
     display: flex;
     align-content: baseline;
-    background-color: hsl(213, 22%, 82%);
-    color: hsl(213, 22%, 20%);
-    font-family: "Roboto Condensed", sans-serif;
+    background-color: var(--pf-color-background-secondary);
     font-size: 15px;
     font-weight: 400;
     padding: 4px 10px;
     vertical-align: middle;
-    border-color: hsl(213, 22%, 75%);
-    border-style: solid;
-    border-width: 1px 0;
+    border-bottom: 1px solid var(--pf-color-border);
     z-index: 1;
-    .code {
-      font-family: var(--monospace-font);
-      font-size: 12px;
-      margin-left: 10px;
-      color: hsl(213, 22%, 40%);
-    }
-    span {
-      white-space: nowrap;
-    }
-    span.code {
-      text-overflow: ellipsis;
-      max-width: 50vw;
-      overflow: hidden;
-    }
-    span.spacer {
-      flex-grow: 1;
-    }
   }
-}
 
-.pf-history-item {
-  border-bottom: 1px solid hsl(213, 22%, 75%);
-  padding: 0.25em 0.5em;
-  max-height: 150px;
-  overflow-y: auto;
-  position: relative;
-
-  pre {
-    font-size: 10pt;
-    margin: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: pre-wrap;
+  &__item {
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+    padding: 0.25em 0.5em;
+    max-height: 150px;
+    overflow-y: auto;
     position: relative;
-    cursor: pointer;
 
-    &:hover::after {
-      content: "Doubleclick to re-run";
-      font-size: 12px;
-      color: rgba(0, 0, 0, 20%);
-      position: absolute;
-      top: 0;
-      margin: auto;
-      right: 0;
+    pre {
+      font-size: 10pt;
+      margin: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: pre-wrap;
+      position: relative;
+      cursor: pointer;
+
+      &:hover::after {
+        content: "Doubleclick to re-run";
+        font-size: 12px;
+        color: var(--pf-color-text-hint);
+        position: absolute;
+        top: 0;
+        margin: auto;
+        right: 0;
+      }
+    }
+
+    &:hover {
+      background-color: color_hover(transparent);
+      .pf-query-history__item-buttons {
+        visibility: visible;
+      }
     }
   }
 
-  &:hover {
-    background-color: hsl(213, 22%, 94%);
-    .pf-history-item-buttons {
-      visibility: visible;
-    }
-  }
-}
-
-.pf-history-item-buttons {
-  position: sticky;
-  float: right;
-  top: 0;
-  visibility: hidden;
-
-  button {
-    margin: 0 0.5rem;
-
-    i.material-icons,
-    i.material-icons-filled {
-      font-size: 18px;
-    }
+  &__item-buttons {
+    position: sticky;
+    top: 0;
+    float: right;
+    visibility: hidden;
   }
 }

@@ -51,7 +51,8 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *context_->storage);
   base::Status status = args_parser_.ParseMessage(
       blob,
@@ -86,7 +87,7 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
     ParseDisplayState(
         timestamp, *it, snapshot_id,
         context_->storage->mutable_string_pool()->InternString("DISPLAY_ADDED"),
-        std::nullopt, std::nullopt, std::nullopt);
+        std::nullopt, std::nullopt, std::nullopt, std::nullopt);
   }
 
   for (auto it = snapshot_decoder.removed_displays(); it; ++it) {
@@ -114,9 +115,9 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
 
 void SurfaceFlingerTransactionsParser::ParseTransaction(
     int64_t timestamp,
-    protozero::ConstBytes blob,
+    protozero::ConstBytes transaction,
     tables::SurfaceFlingerTransactionsTable::Id snapshot_id) {
-  protos::pbzero::TransactionState::Decoder transaction_decoder(blob);
+  protos::pbzero::TransactionState::Decoder transaction_decoder(transaction);
 
   auto transaction_id = transaction_decoder.transaction_id();
   auto pid = transaction_decoder.pid();
@@ -134,7 +135,8 @@ void SurfaceFlingerTransactionsParser::ParseTransaction(
 
   if (has_layer_changes) {
     for (auto it = transaction_decoder.layer_changes(); it; ++it) {
-      AddLayerChangedRow(timestamp, *it, snapshot_id, transaction_id, pid, uid);
+      AddLayerChangedRow(timestamp, *it, snapshot_id, transaction_id, pid, uid,
+                         transaction);
     }
   }
 
@@ -143,16 +145,16 @@ void SurfaceFlingerTransactionsParser::ParseTransaction(
       ParseDisplayState(timestamp, *it, snapshot_id,
                         context_->storage->mutable_string_pool()->InternString(
                             "DISPLAY_CHANGED"),
-                        transaction_id, pid, uid);
+                        transaction_id, pid, uid, transaction);
     }
   }
 }
 
 void SurfaceFlingerTransactionsParser::ParseAddedLayer(
     int64_t timestamp,
-    protozero::ConstBytes blob,
+    protozero::ConstBytes layer_creation_args,
     tables::SurfaceFlingerTransactionsTable::Id snapshot_id) {
-  protos::pbzero::LayerCreationArgs::Decoder decoder(blob);
+  protos::pbzero::LayerCreationArgs::Decoder decoder(layer_creation_args);
 
   tables::SurfaceFlingerTransactionTable::Row transaction;
   transaction.snapshot_id = snapshot_id;
@@ -162,14 +164,15 @@ void SurfaceFlingerTransactionsParser::ParseAddedLayer(
 
   transaction.base64_proto_id =
       context_->storage->mutable_string_pool()
-          ->InternString(
-              base::StringView(base::Base64Encode(blob.data, blob.size)))
+          ->InternString(base::StringView(base::Base64Encode(
+              layer_creation_args.data, layer_creation_args.size)))
           .raw_id();
   auto row_id = context_->storage->mutable_surfaceflinger_transaction_table()
                     ->Insert(transaction)
                     .id;
 
-  AddArgs(timestamp, blob, row_id, ".perfetto.protos.LayerCreationArgs");
+  AddArgs(timestamp, layer_creation_args, row_id,
+          ".perfetto.protos.LayerCreationArgs", std::nullopt);
 }
 
 void SurfaceFlingerTransactionsParser::AddNoopRow(
@@ -190,37 +193,37 @@ void SurfaceFlingerTransactionsParser::AddNoopRow(
 
 void SurfaceFlingerTransactionsParser::AddLayerChangedRow(
     int64_t timestamp,
-    protozero::ConstBytes blob,
+    protozero::ConstBytes layer_state,
     tables::SurfaceFlingerTransactionsTable::Id snapshot_id,
     uint64_t transaction_id,
     int32_t pid,
-    int32_t uid) {
-  tables::SurfaceFlingerTransactionTable::Row transaction;
-  transaction.snapshot_id = snapshot_id;
-  transaction.transaction_id = static_cast<int64_t>(transaction_id);
-  transaction.pid = pid;
-  transaction.uid = uid;
+    int32_t uid,
+    protozero::ConstBytes transaction) {
+  tables::SurfaceFlingerTransactionTable::Row row;
+  row.snapshot_id = snapshot_id;
+  row.transaction_id = static_cast<int64_t>(transaction_id);
+  row.pid = pid;
+  row.uid = uid;
 
-  protos::pbzero::LayerState::Decoder state_decoder(blob);
-  transaction.layer_id = state_decoder.layer_id();
-  transaction.transaction_type =
+  protos::pbzero::LayerState::Decoder state_decoder(layer_state);
+  row.layer_id = state_decoder.layer_id();
+  row.transaction_type =
       context_->storage->mutable_string_pool()->InternString("LAYER_CHANGED");
 
-  transaction.base64_proto_id =
-      context_->storage->mutable_string_pool()
-          ->InternString(
-              base::StringView(base::Base64Encode(blob.data, blob.size)))
-          .raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(base::Base64Encode(
+                                layer_state.data, layer_state.size)))
+                            .raw_id();
 
   if (state_decoder.has_what()) {
     auto what = state_decoder.what();
     auto flags_id = layer_flag_ids_.find(what);
     if (flags_id != layer_flag_ids_.end()) {
-      transaction.flags_id = flags_id->second;
+      row.flags_id = flags_id->second;
     } else {
       auto curr_size = static_cast<uint32_t>(layer_flag_ids_.size()) +
                        static_cast<uint32_t>(display_flag_ids_.size());
-      transaction.flags_id = curr_size;
+      row.flags_id = curr_size;
       layer_flag_ids_[what] = curr_size;
 
       auto all_flags_low = std::vector<int32_t>{
@@ -259,7 +262,7 @@ void SurfaceFlingerTransactionsParser::AddLayerChangedRow(
         low_translated.push_back(protos::pbzero::LayerState_ChangesLsb_Name(
             static_cast<protos::pbzero::LayerState_ChangesLsb>(flag)));
       }
-      AddFlags(low_translated, transaction.flags_id.value());
+      AddFlags(low_translated, row.flags_id.value());
 
       auto all_flags_high = std::vector<int32_t>{
           protos::pbzero::LayerState::eDestinationFrameChanged,
@@ -285,55 +288,56 @@ void SurfaceFlingerTransactionsParser::AddLayerChangedRow(
         high_translated.push_back(protos::pbzero::LayerState_ChangesMsb_Name(
             static_cast<protos::pbzero::LayerState_ChangesMsb>(flag)));
       }
-      AddFlags(high_translated, transaction.flags_id.value());
+      AddFlags(high_translated, row.flags_id.value());
     }
   }
 
   auto row_id = context_->storage->mutable_surfaceflinger_transaction_table()
-                    ->Insert(transaction)
+                    ->Insert(row)
                     .id;
-  AddArgs(timestamp, blob, row_id, ".perfetto.protos.LayerState");
+  AddArgs(timestamp, layer_state, row_id, ".perfetto.protos.LayerState",
+          transaction);
 }
 
 void SurfaceFlingerTransactionsParser::ParseDisplayState(
     int64_t timestamp,
-    protozero::ConstBytes blob,
+    protozero::ConstBytes display_state,
     tables::SurfaceFlingerTransactionsTable::Id snapshot_id,
     StringPool::Id transaction_type,
     std::optional<uint64_t> transaction_id,
     std::optional<int32_t> pid,
-    std::optional<int32_t> uid) {
-  tables::SurfaceFlingerTransactionTable::Row transaction;
-  transaction.snapshot_id = snapshot_id;
-  transaction.transaction_type = transaction_type;
+    std::optional<int32_t> uid,
+    std::optional<protozero::ConstBytes> transaction) {
+  tables::SurfaceFlingerTransactionTable::Row row;
+  row.snapshot_id = snapshot_id;
+  row.transaction_type = transaction_type;
   if (transaction_id.has_value()) {
-    transaction.transaction_id = static_cast<int64_t>(transaction_id.value());
+    row.transaction_id = static_cast<int64_t>(transaction_id.value());
   }
   if (pid.has_value()) {
-    transaction.pid = pid.value();
+    row.pid = pid.value();
   }
   if (uid.has_value()) {
-    transaction.uid = uid.value();
+    row.uid = uid.value();
   }
 
-  protos::pbzero::DisplayState::Decoder state_decoder(blob);
-  transaction.display_id = state_decoder.id();
+  protos::pbzero::DisplayState::Decoder state_decoder(display_state);
+  row.display_id = state_decoder.id();
 
-  transaction.base64_proto_id =
-      context_->storage->mutable_string_pool()
-          ->InternString(
-              base::StringView(base::Base64Encode(blob.data, blob.size)))
-          .raw_id();
+  row.base64_proto_id = context_->storage->mutable_string_pool()
+                            ->InternString(base::StringView(base::Base64Encode(
+                                display_state.data, display_state.size)))
+                            .raw_id();
 
   if (state_decoder.has_what()) {
     auto what = state_decoder.what();
     auto flags_id = display_flag_ids_.find(what);
     if (flags_id != display_flag_ids_.end()) {
-      transaction.flags_id = flags_id->second;
+      row.flags_id = flags_id->second;
     } else {
       auto curr_size = static_cast<uint32_t>(layer_flag_ids_.size()) +
                        static_cast<uint32_t>(display_flag_ids_.size());
-      transaction.flags_id = curr_size;
+      row.flags_id = curr_size;
       display_flag_ids_[what] = curr_size;
 
       auto all_flags = std::vector<int32_t>{
@@ -349,22 +353,24 @@ void SurfaceFlingerTransactionsParser::ParseDisplayState(
         translated.push_back(protos::pbzero::DisplayState_Changes_Name(
             static_cast<protos::pbzero::DisplayState_Changes>(flag)));
       }
-      AddFlags(translated, transaction.flags_id.value());
+      AddFlags(translated, row.flags_id.value());
     }
   }
 
   auto row_id = context_->storage->mutable_surfaceflinger_transaction_table()
-                    ->Insert(transaction)
+                    ->Insert(row)
                     .id;
 
-  AddArgs(timestamp, blob, row_id, ".perfetto.protos.DisplayState");
+  AddArgs(timestamp, display_state, row_id, ".perfetto.protos.DisplayState",
+          transaction);
 }
 
 void SurfaceFlingerTransactionsParser::AddArgs(
     int64_t timestamp,
     protozero::ConstBytes blob,
     tables::SurfaceFlingerTransactionTable::Id row_id,
-    std::string message_type) {
+    std::string message_type,
+    std::optional<protozero::ConstBytes> transaction) {
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter, *context_->storage);
@@ -373,6 +379,13 @@ void SurfaceFlingerTransactionsParser::AddArgs(
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_sf_transactions_parse_errors);
+  }
+  if (transaction.has_value()) {
+    // add apply token and transaction barriers to same arg set
+    std::vector<uint32_t> allowed_fields = {10, 11};
+    args_parser_.ParseMessage(transaction.value(),
+                              ".perfetto.protos.TransactionState",
+                              &allowed_fields, writer);
   }
 }
 

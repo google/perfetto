@@ -25,9 +25,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -60,6 +62,10 @@ void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
   row.set_trace_type(
       context_->storage->InternString(TraceTypeToString(trace_type)));
   row.set_processing_order(static_cast<int64_t>(processing_order_++));
+  if (id.value == 0) {
+    context_->metadata_tracker->SetMetadata(metadata::trace_type,
+                                            Variadic::String(row.trace_type()));
+  }
 }
 
 void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
@@ -72,8 +78,6 @@ void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
   if (id.value == 0) {
     context_->metadata_tracker->SetMetadata(metadata::trace_size_bytes,
                                             Variadic::Integer(row.size()));
-    context_->metadata_tracker->SetMetadata(metadata::trace_type,
-                                            Variadic::String(row.trace_type()));
   }
 }
 

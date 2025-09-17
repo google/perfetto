@@ -87,6 +87,11 @@ uint32_t NumberOfCpus() {
 bool IsCpuOnline(uint32_t cpu) {
   base::StackString<128> path("/sys/devices/system/cpu/cpu%" PRIu32 "/online",
                               cpu);
+  // Always-on CPUs do not have an "online" attribute so treat an absent |path|
+  // as online.
+  if (!base::FileExists(path.c_str())) {
+    return true;
+  }
   std::string res;
   if (!base::ReadFile(path.c_str(), &res)) {
     return false;

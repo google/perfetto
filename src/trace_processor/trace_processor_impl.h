@@ -104,7 +104,7 @@ class TraceProcessorImpl : public TraceProcessor,
   void SetCurrentTraceName(const std::string&) override;
 
   base::Status RegisterFileContent(const std::string& path,
-                                   TraceBlobView content) override;
+                                   TraceBlob content) override;
 
   void InterruptQuery() override;
 

@@ -1,0 +1,38 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Save cache in Google Cloud Storage
+description: Save a 'directory' in Google Cloud Storage using the 'cache_key'.
+inputs:
+  directory:
+    required: true
+    description: A directory to upload.
+  cache_key:
+    required: true
+    description: A unique identifier for the cache entry. If an entry with this key already exists, it will be overwritten.
+  exclude_files:
+    required: false
+    description: A file containing a list of files or directories to be excluded from the cache.
+runs:
+  using: "composite"
+  steps:
+    - name: Invoke action script
+      env:
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+        INPUT_CACHE_KEY: ${{ inputs.cache_key }}
+        INPUT_EXCLUDE_FILES_PATH: ${{ inputs.exclude_files }}
+        INPUT_ACTION: "save"
+        ACTION_PATH: ${{ github.action_path }}
+      shell: bash
+      run: bash $ACTION_PATH/../cache_on_google_storage_action.sh

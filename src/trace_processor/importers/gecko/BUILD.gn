@@ -26,8 +26,8 @@ source_set("gecko_event") {
 if (enable_perfetto_trace_processor_json) {
   source_set("gecko") {
     sources = [
-      "gecko_trace_parser_impl.cc",
-      "gecko_trace_parser_impl.h",
+      "gecko_trace_parser.cc",
+      "gecko_trace_parser.h",
       "gecko_trace_tokenizer.cc",
       "gecko_trace_tokenizer.h",
     ]
@@ -43,7 +43,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../storage",
       "../../tables",
       "../../types",
-      "../json:minimal",
+      "../../util:json_parser",
     ]
   }
 }

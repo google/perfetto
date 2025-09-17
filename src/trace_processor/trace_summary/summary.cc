@@ -16,22 +16,28 @@
 
 #include "src/trace_processor/trace_summary/summary.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
@@ -66,12 +72,60 @@ base::Status ExpandMetricTemplates(
         return base::ErrStatus(
             "Metric template with empty id_prefix field: this is not allowed");
       }
-      for (auto vc_it = tmpl.value_columns(); vc_it; ++vc_it) {
-        expanded.Reset();
+      if (tmpl.has_value_columns() && tmpl.has_value_column_specs()) {
+        return base::ErrStatus(
+            "Metric template has both value_columns and value_column_specs "
+            "defined: this is not allowed");
+      }
 
-        protozero::ConstChars value_column = *vc_it;
-        expanded->set_id(id_prefix + "_" + value_column.ToStdString());
-        expanded->set_value(value_column);
+      struct ValueColumnInfo {
+        std::string name;
+        std::optional<protos::pbzero::TraceMetricV2Spec::MetricUnit> unit;
+        std::string custom_unit;
+        std::optional<protos::pbzero::TraceMetricV2Spec::MetricPolarity>
+            polarity;
+      };
+      std::vector<ValueColumnInfo> value_column_infos;
+      if (tmpl.has_value_columns()) {
+        for (auto vc_it = tmpl.value_columns(); vc_it; ++vc_it) {
+          value_column_infos.push_back(
+              {vc_it->as_std_string(), std::nullopt, "", std::nullopt});
+        }
+      } else {
+        for (auto vcs_it = tmpl.value_column_specs(); vcs_it; ++vcs_it) {
+          protos::pbzero::TraceMetricV2TemplateSpec::ValueColumnSpec::Decoder
+              value_spec(*vcs_it);
+          std::optional<protos::pbzero::TraceMetricV2Spec::MetricUnit> unit;
+          if (value_spec.has_unit()) {
+            unit = static_cast<protos::pbzero::TraceMetricV2Spec::MetricUnit>(
+                value_spec.unit());
+          }
+          std::optional<protos::pbzero::TraceMetricV2Spec::MetricPolarity>
+              polarity;
+          if (value_spec.has_polarity()) {
+            polarity =
+                static_cast<protos::pbzero::TraceMetricV2Spec::MetricPolarity>(
+                    value_spec.polarity());
+          }
+          value_column_infos.push_back({value_spec.name().ToStdString(), unit,
+                                        value_spec.custom_unit().ToStdString(),
+                                        polarity});
+        }
+      }
+
+      for (const auto& info : value_column_infos) {
+        expanded.Reset();
+        expanded->set_id(id_prefix + "_" + info.name);
+        expanded->set_value(info.name);
+        if (info.unit) {
+          expanded->set_unit(*info.unit);
+        }
+        if (!info.custom_unit.empty()) {
+          expanded->set_custom_unit(info.custom_unit);
+        }
+        if (info.polarity) {
+          expanded->set_polarity(*info.polarity);
+        }
         for (auto dim = tmpl.dimensions(); dim; ++dim) {
           protozero::ConstChars dim_str = *dim;
           expanded->add_dimensions(dim_str.data, dim_str.size);
@@ -88,9 +142,12 @@ base::Status ExpandMetricTemplates(
         if (!tmpl.disable_auto_bundling()) {
           expanded->set_bundle_id(id_prefix);
         }
-        expanded->set_dimension_uniqueness(
-            static_cast<protos::pbzero::TraceMetricV2Spec::DimensionUniqueness>(
-                tmpl.dimension_uniqueness()));
+        if (tmpl.has_dimension_uniqueness()) {
+          expanded->set_dimension_uniqueness(
+              static_cast<
+                  protos::pbzero::TraceMetricV2Spec::DimensionUniqueness>(
+                  tmpl.dimension_uniqueness()));
+        }
         synthetic_protos.push_back(expanded.SerializeAsArray());
       }
     }
@@ -373,6 +430,35 @@ base::Status CreateQueriesAndComputeMetrics(
           bundle_id.c_str(), query_it.Status().c_message());
     }
 
+    protos::pbzero::PerfettoSqlStructuredQuery::Decoder query(
+        first_spec.query());
+    if (query.has_sql()) {
+      protos::pbzero::PerfettoSqlStructuredQuery::Sql::Decoder sql_query(
+          query.sql());
+      if (sql_query.has_column_names()) {
+        std::set<std::string> actual_column_names;
+        for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
+          actual_column_names.insert(query_it.GetColumnName(i));
+        }
+        std::set<std::string> expected_column_names;
+        for (auto col_it = sql_query.column_names(); col_it; ++col_it) {
+          expected_column_names.insert(col_it->as_std_string());
+        }
+        if (!std::includes(
+                actual_column_names.begin(), actual_column_names.end(),
+                expected_column_names.begin(), expected_column_names.end())) {
+          std::vector<std::string> expected_vec(expected_column_names.begin(),
+                                                expected_column_names.end());
+          std::vector<std::string> actual_vec(actual_column_names.begin(),
+                                              actual_column_names.end());
+          return base::ErrStatus(
+              "Not all columns expected in metrics bundle '%s' were found. "
+              "Expected: [%s], Actual: [%s]",
+              bundle_id.c_str(), base::Join(expected_vec, ", ").c_str(),
+              base::Join(actual_vec, ", ").c_str());
+        }
+      }
+    }
     ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
                      GetDimensionsWithIndex(first_spec, query_it));
 

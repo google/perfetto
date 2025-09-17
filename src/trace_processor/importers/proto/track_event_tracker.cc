@@ -149,6 +149,7 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
       description_key_(context->storage->InternString("description")),
+      y_axis_share_key_(context->storage->InternString("y_axis_share_key")),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -616,6 +617,11 @@ void TrackEventTracker::AddTrackArgs(
       args.AddArg(
           builtin_counter_type_key_,
           Variadic::String(reservation.counter_details->builtin_type_str));
+    }
+    if (!reservation.counter_details->y_axis_share_key.is_null()) {
+      args.AddArg(
+          y_axis_share_key_,
+          Variadic::String(reservation.counter_details->y_axis_share_key));
     }
   }
   if (packet_sequence_id &&

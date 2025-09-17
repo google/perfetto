@@ -55,6 +55,26 @@
 
 #include "perfetto/base/build_config.h"
 
+#ifdef THREAD_SANITIZER
+#include <sanitizer/tsan_interface.h>
+
+#define PERFETTO_TSAN_MUTEX_CREATE __tsan_mutex_create
+#define PERFETTO_TSAN_MUTEX_DESTROY __tsan_mutex_destroy
+#define PERFETTO_TSAN_MUTEX_PRE_LOCK __tsan_mutex_pre_lock
+#define PERFETTO_TSAN_MUTEX_POST_LOCK __tsan_mutex_post_lock
+#define PERFETTO_TSAN_MUTEX_PRE_UNLOCK __tsan_mutex_pre_unlock
+#define PERFETTO_TSAN_MUTEX_POST_UNLOCK __tsan_mutex_post_unlock
+#else
+
+#define PERFETTO_TSAN_MUTEX_CREATE(...)
+#define PERFETTO_TSAN_MUTEX_DESTROY(...)
+#define PERFETTO_TSAN_MUTEX_PRE_LOCK(...)
+#define PERFETTO_TSAN_MUTEX_POST_LOCK(...)
+#define PERFETTO_TSAN_MUTEX_PRE_UNLOCK(...)
+#define PERFETTO_TSAN_MUTEX_POST_UNLOCK(...)
+
+#endif
+
 #if defined(__clang__) && PERFETTO_BUILDFLAG(PERFETTO_THREAD_SAFETY_ANNOTATIONS)
 #define PERFETTO_THREAD_ANNOTATION_ATTRIBUTE__(x) __attribute__((x))
 #else

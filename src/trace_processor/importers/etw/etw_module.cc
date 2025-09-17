@@ -16,14 +16,18 @@
 
 #include "src/trace_processor/importers/etw/etw_module.h"
 
-#include "src/trace_processor/importers/common/parser_types.h"
+#include <cstdint>
 
-namespace perfetto {
-namespace trace_processor {
+#include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+
+namespace perfetto::trace_processor {
+
+EtwModule::EtwModule(ProtoImporterModuleContext* module_context)
+    : ProtoImporterModule(module_context) {}
 
 void EtwModule::ParseEtwEventData(uint32_t /*cpu*/,
                                   int64_t /*ts*/,
                                   const TracePacketData&) {}
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
