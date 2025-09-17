@@ -42,7 +42,6 @@ import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
 import {SidebarMenuItemInternal} from '../core/sidebar_manager';
 import {exists, getOrCreate} from '../base/utils';
-import {copyToClipboard} from '../base/clipboard';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
@@ -584,8 +583,9 @@ function registerTraceMenuItems(trace: TraceImpl) {
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: traceTitle,
-      href: trace.traceInfo.traceUrl,
-      action: () => copyToClipboard(trace.traceInfo.traceUrl),
+      action: () => {
+        // Do nothing (we need to supply an action to override the href).
+      },
       tooltip: 'Click to copy the URL',
       cssClass: 'pf-sidebar__trace-file-name',
     });
