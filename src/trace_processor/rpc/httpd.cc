@@ -118,7 +118,8 @@ class Httpd : public base::HttpRequestHandler {
 
             // Initialize RPC with preloaded instance if provided
             if (preloaded_instance) {
-              rpc = std::make_unique<Rpc>(std::move(preloaded_instance), is_preloaded_eof);
+              rpc = std::make_unique<Rpc>(std::move(preloaded_instance),
+                                          is_preloaded_eof);
             } else {
               rpc = std::make_unique<Rpc>();
             }
@@ -276,7 +277,10 @@ void Httpd::Run(const std::string& listen_ip,
     PERFETTO_ILOG("RPC timeout disabled (timeout_mins = 0)");
   }
 
-  // Create cleanup task using shared_ptr for proper capture
+  // Create a self-repeating cleanup task every tp_timeout_mins to clean up
+  // inactive instances. repeatedly check for any instances that have been
+  // inactive for more than tp_timeout_mins_ and clean them up. If
+  // tp_timeout_mins_ is 0, auto cleanup is disabled.
   auto cleanup_task = std::make_shared<std::function<void()>>();
   *cleanup_task = [this, cleanup_task]() {
     CleanUpInactiveInstances();
