@@ -199,7 +199,7 @@ class Httpd : public base::HttpRequestHandler {
 
   uint32_t nextInstanceId = 1;
 
-  uint32_t generateInstanceId() { return nextInstanceId++; }
+  uint32_t GenerateInstanceId() { return nextInstanceId++; }
 
   // global rpc for older uis that don't have the rpc map and for opening files
   // via trace_processor_shell
@@ -247,7 +247,7 @@ Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
   if (!preloaded_instance->GetCurrentTraceName().empty()) {
     auto new_thread = std::make_unique<RpcThread>(
         this, std::move(preloaded_instance), is_preloaded_eof);
-    uint32_t instance_id = generateInstanceId();
+    uint32_t instance_id = GenerateInstanceId();
     id_to_tp_map.emplace(instance_id, std::move(new_thread));
     PERFETTO_ILOG("Preloaded trace processor assigned ID: %" PRIu32,
                   instance_id);
@@ -406,7 +406,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         if (id_to_tp_map.empty()) {
           // Case 1: No instances exist, so behave like /new.
           send_id_back = true;
-          uint32_t new_id = generateInstanceId();
+          uint32_t new_id = GenerateInstanceId();
           instance_id = new_id;
           auto new_thread = std::make_unique<RpcThread>(this);
           id_to_tp_map.emplace(instance_id, std::move(new_thread));
@@ -422,7 +422,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       } else if (path == "/new") {
         // Case 3: Explicit request for a new instance.
         send_id_back = true;
-        uint32_t new_id = generateInstanceId();
+        uint32_t new_id = GenerateInstanceId();
         instance_id = new_id;
         auto new_thread = std::make_unique<RpcThread>(this);
         id_to_tp_map.emplace(instance_id, std::move(new_thread));
