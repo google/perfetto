@@ -46,7 +46,7 @@ namespace {
 constexpr int kBindPort = 9001;
 constexpr int kMilliSecondPerMinute = 60 * 1000;
 constexpr uint64_t kNanosecondPerMinute = 60 * 1000000000ULL;
-constexpr uint32_t DEFAULT_TP_ID = 0;
+constexpr uint32_t kDefaultTpId = 0;
 
 // Sets by default the Access-Control-Allow-Origin: $origin on the following
 // origins. This affects only browser clients that use CORS. Other HTTP clients
@@ -197,9 +197,9 @@ class Httpd : public base::HttpRequestHandler {
     std::atomic<uint64_t> last_accessed_ns_;
   };
 
-  uint32_t nextInstanceId = 1;
+  uint32_t next_instance_id_ = 1;
 
-  uint32_t GenerateInstanceId() { return nextInstanceId++; }
+  uint32_t GenerateInstanceId() { return next_instance_id_++; }
 
   // global rpc for older uis that don't have the rpc map and for opening files
   // via trace_processor_shell
@@ -362,7 +362,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       }
       tp_status->set_api_version(
           protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
-      tp_status->set_instance_id(DEFAULT_TP_ID);
+      tp_status->set_instance_id(kDefaultTpId);
     }
 
     // adding legacy support for older uis
