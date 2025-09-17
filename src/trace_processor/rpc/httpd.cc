@@ -157,8 +157,8 @@ class Httpd : public base::HttpRequestHandler {
       init_cv_.wait(lock, [this] { return initialized_; });
 
       if (task_runner_ && rpc_) {
-        if (!rpc_->has_existing_tab) {
-          rpc_->has_existing_tab = true;
+        if (!rpc_->IsAttached()) {
+          rpc_->SetAttachedState(true);
         }
         task_runner_->PostTask([this, msg,
                                 data = std::vector<uint8_t>(msg.data.begin(),
@@ -349,7 +349,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         tp_status->set_inactivity_ns(
             static_cast<uint64_t>(base::GetWallTimeNs().count()) -
             tp_rpc->GetLastAccessedNs());
-        tp_status->set_has_existing_tab(tp_rpc->rpc_->has_existing_tab);
+        tp_status->set_is_attached(tp_rpc->rpc_->IsAttached());
       }
     }
 
@@ -642,7 +642,7 @@ void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
       if (id_to_tp_it->second->rpc_->GetCurrentTraceName().empty()) {
         id_to_tp_map.erase(id_to_tp_it);
       } else {
-        id_to_tp_it->second->rpc_->has_existing_tab = false;
+        id_to_tp_it->second->rpc_->SetAttachedState(false);
       }
     }
     conn_to_id_map.erase(conn_to_id_it);

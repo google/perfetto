@@ -130,7 +130,8 @@ class Rpc {
   using QueryResultBatchCallback = std::function<
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
-  bool has_existing_tab = false;
+  bool IsAttached();
+  void SetAttachedState(bool);
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
@@ -158,6 +159,7 @@ class Rpc {
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
+  bool is_attached_ = false;
 };
 
 }  // namespace trace_processor

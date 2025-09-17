@@ -345,8 +345,8 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
           // Sort processors: those without active tabs first, then by instance ID.
           const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
-            const aHasTab = a.hasExistingTab ?? false;
-            const bHasTab = b.hasExistingTab ?? false;
+            const aHasTab = a.isAttached ?? false;
+            const bHasTab = b.isAttached ?? false;
 
             if (aHasTab !== bHasTab) {
               return aHasTab ? 1 : -1;
@@ -359,7 +359,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
 
           if (processorsWithTraces.length > 0) {
             const activeTabCount = sortedProcessors.filter(
-              (tp) => tp.hasExistingTab ?? false,
+              (tp) => tp.isAttached ?? false,
             ).length;
 
             if (activeTabCount > 0) {
@@ -378,7 +378,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             // numbered list semantics for rows
             const rows = sortedProcessors.map((tp, index) => {
               const status = tp;
-              const hasActiveTab = status.hasExistingTab ?? false;
+              const hasActiveTab = status.isAttached ?? false;
               const id = status.instanceId ?? null;
               const isSelected = id !== null && selectedInstanceId === id;
 

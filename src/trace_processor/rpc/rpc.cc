@@ -746,4 +746,8 @@ void Rpc::SetTraceTitle(const uint8_t* data, size_t len) {
   trace_processor_->SetCurrentTraceName(args.title().ToStdString());
 }
 
+bool Rpc::IsAttached() {return is_attached_;}
+
+void Rpc::SetAttachedState(bool state) {is_attached_ = state;}
+
 }  // namespace perfetto::trace_processor
