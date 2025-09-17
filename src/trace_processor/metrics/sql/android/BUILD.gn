@@ -82,6 +82,7 @@ perfetto_sql_source_set("android") {
     "g2d_duration.sql",
     "global_counter_span_view.sql",
     "gpu_counter_span_view.sql",
+    "jank/android_jank_cuj_init.sql",
     "jank/cujs.sql",
     "jank/cujs_boundaries.sql",
     "jank/frames.sql",
