@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <deque>
 #include <optional>
 #include <string>
@@ -209,7 +210,10 @@ base::Status CopyFile(int fd_in, int fd_out) {
         strerror(errno), errno);
   }
 
-  char buf[kBufSize];
+  // Use bigger buffer when copy files.
+  constexpr size_t kCopyFileBufSize = 32 * 1024;  // 32KB.
+  static_assert(kCopyFileBufSize > kBufSize);
+  char buf[kCopyFileBufSize];
   for (;;) {
     ssize_t bytes_read = Read(fd_in, buf, sizeof(buf));
     if (bytes_read == 0)
