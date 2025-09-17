@@ -89,13 +89,13 @@ class Httpd : public base::HttpRequestHandler {
       rpc_thread_ = std::thread([this]() {
         // Create task runner and RPC instance in worker thread context
         base::UnixTaskRunner task_runner;
-        Rpc* rpc = new Rpc();
+        std::unique_ptr<Rpc> rpc = std::make_unique<Rpc>();
 
         // Signal that initialization is complete
         {
           std::lock_guard<std::mutex> lock(init_mutex_);
           task_runner_ = &task_runner;
-          rpc_ = rpc;
+          rpc_ = std::move(rpc);
           initialized_ = true;
           init_cv_.notify_one();
         }
@@ -115,20 +115,20 @@ class Httpd : public base::HttpRequestHandler {
                        is_preloaded_eof]() mutable {
             // Create task runner and RPC instance in worker thread context
             base::UnixTaskRunner task_runner;
-            Rpc* rpc;
+            std::unique_ptr<Rpc> rpc;
 
             // Initialize RPC with preloaded instance if provided
             if (preloaded_instance) {
-              rpc = new Rpc(std::move(preloaded_instance), is_preloaded_eof);
+              rpc = std::make_unique<Rpc>(std::move(preloaded_instance), is_preloaded_eof);
             } else {
-              rpc = new Rpc();
+              rpc = std::make_unique<Rpc>();
             }
 
             // Signal that initialization is complete
             {
               std::lock_guard<std::mutex> lock(init_mutex_);
               task_runner_ = &task_runner;
-              rpc_ = rpc;
+              rpc_ = std::move(rpc);
               initialized_ = true;
               init_cv_.notify_one();
             }
@@ -178,7 +178,7 @@ class Httpd : public base::HttpRequestHandler {
       }
     }
 
-    Rpc* rpc_ = nullptr;
+    std::unique_ptr<Rpc> rpc_;
 
     // Get the last accessed time in nanoseconds
     uint64_t GetLastAccessedNs() const { return last_accessed_ns_.load(); }
