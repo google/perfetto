@@ -534,7 +534,7 @@ void HexToDec::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   }
 
   return sqlite::result::Long(ctx, val);
-};
+}
 
 }  // namespace perfetto::trace_processor
 
