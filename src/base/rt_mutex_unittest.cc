@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/ext/base/rt_mutex.h"
+#include "perfetto/ext/base/flags.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -31,7 +32,9 @@ class RtMutexTest : public testing::Test {
 };
 
 using RtMutexTestTypes = testing::Types<std::mutex
-#if PERFETTO_HAS_POSIX_RT_MUTEX()
+// RtPosixMutex test is disabled on Android as it needs API Version >= 28 which
+// is much higher than the current supported version (21) on CI.
+#if PERFETTO_HAS_POSIX_RT_MUTEX() && !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
                                         ,
                                         internal::RtPosixMutex
 #endif
