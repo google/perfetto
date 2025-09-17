@@ -123,7 +123,7 @@ from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
 from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
-from diff_tests.stdlib.prelude.hex_to_dec import HexToDec
+from diff_tests.stdlib.prelude.unhex import UnHex
 from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.network_packets import AndroidNetworkPackets
 from diff_tests.stdlib.android.startups_tests import Startups
@@ -302,7 +302,7 @@ def fetch_all_diff_tests(
       Memory,
       PreludeMathFunctions,
       HeapGraph,
-      HexToDec,
+      UnHex,
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,

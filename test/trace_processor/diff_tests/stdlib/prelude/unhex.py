@@ -15,24 +15,24 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, RawText
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class HexToDec(TestSuite):
+class UnHex(TestSuite):
 
-  def test_hex_to_dec(self):
+  def test_unhex(self):
     return DiffTestBlueprint(
         trace=TextProto(''),
         query="""
         SELECT
-          hex_to_dec('0xF') AS with_prefix,
-          hex_to_dec('F') AS without_prefix,
-          hex_to_dec('\t  0Xf    \n\r\f\v') AS with_space,
-          hex_to_dec('0') AS zero,
-          hex_to_dec(NULL) AS null_param,
-          hex_to_dec('0x58646cfa') AS big
+          unhex('0xF') AS with_prefix,
+          unhex('F') AS without_prefix,
+          unhex('\t  0Xf    \n\r\f\v') AS with_space,
+          unhex('0') AS zero,
+          unhex(NULL) AS null_param,
+          unhex('0x58646cfa') AS big
         """,
         out=Csv("""
         "with_prefix","without_prefix","with_space","zero","null_param","big"
