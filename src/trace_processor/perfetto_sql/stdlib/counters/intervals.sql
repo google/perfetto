@@ -17,8 +17,8 @@
 -- For a given counter timeline (e.g. a single counter track), returns
 -- intervals of time where the counter has the same value. For every run
 -- of identical values, this macro will return a row for the first one,
--- and a row merging all subsequent ones. This to to facilitate construction
--- of counters from delta_values.
+-- the last one, and a row merging all other ones. This to to facilitate
+-- construction of counters from delta_values.
 --
 -- Intervals are computed in a "forward-looking" way. That is, if a counter
 -- changes value at some timestamp, it's assumed it *just* reached that
