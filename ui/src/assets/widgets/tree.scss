@@ -58,14 +58,15 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       cursor: pointer;
 
       &::after {
-        content: $chevron-svg;
+        @include material-icon("chevron_right");
+        font-size: inherit;
       }
     }
     &.pf-expanded > .pf-tree-left > .pf-tree-gutter {
       cursor: pointer;
       &::after {
-        content: $chevron-svg;
-        rotate: 90deg;
+        @include material-icon("expand_more");
+        font-size: inherit;
       }
     }
 
@@ -95,7 +96,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     grid-column: 1 / span 2;
     grid-template-columns: subgrid;
     row-gap: 5px;
-    border-left: solid rgba(0, 0, 0, 0.2) 1px;
+    border-left: solid var(--pf-color-border) 1px;
     margin-left: 6px;
     padding-left: 6px;
   }

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -28,6 +27,8 @@ import {
 } from '../../components/query_flamegraph';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {assertExists} from '../../base/logging';
+
+const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';

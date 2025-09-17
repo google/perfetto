@@ -67,6 +67,7 @@ export interface CommandWithMatchInfo extends Command {
 
 export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
+  private allowlistCheckFn: (id: string) => boolean = () => true;
 
   getCommand(commandId: string): Command {
     return this.registry.get(commandId);
@@ -84,7 +85,15 @@ export class CommandManagerImpl implements CommandManager {
     return this.registry.register(cmd);
   }
 
+  setAllowlistCheck(checkFn: (id: string) => boolean): void {
+    this.allowlistCheckFn = checkFn;
+  }
+
   runCommand(id: string, ...args: unknown[]): unknown {
+    if (!this.allowlistCheckFn(id)) {
+      console.warn(`Command ${id} is not allowed in current execution context`);
+      return;
+    }
     const cmd = this.registry.get(id);
     const res = cmd.callback(...args);
     Promise.resolve(res).finally(() => raf.scheduleFullRedraw());

@@ -125,6 +125,7 @@
     - [Android](#)
 
       - [Boot Tracing](case-studies/android-boot-tracing.md)
+      - [OutOfMemoryError](case-studies/android-outofmemoryerror.md)
       - [Android Version Notes](reference/android-version-notes.md)
 
     - [Linux](#)
@@ -187,3 +188,5 @@
       - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
       - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
       - [Perfetto CI](design-docs/continuous-integration.md)
+      - [LockFreeTaskRunner](design-docs/lock-free-task-runner.md)
+

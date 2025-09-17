@@ -39,6 +39,7 @@ import {
   FlamegraphOptionalAction,
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
+import {sqliteString} from '../base/string_utils';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -220,7 +221,8 @@ async function computeFlamegraphTree(
   const matchingColumns = ['name', ...unaggCols];
   const matchExpr = (x: string) =>
     matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') like '${makeSqlFilter(x)}' escape '\\')`,
+      (c) =>
+        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
     );
 
   const showStackFilter =
