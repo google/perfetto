@@ -66,11 +66,6 @@ export class PerfettoTestHelper {
     await this.page.evaluate(() =>
       localStorage.setItem('dismissedPanningHint', 'true'),
     );
-    const tracePath = this.getTestTracePath(traceName);
-    assertExists(file).setInputFiles(tracePath);
-    await this.waitForPerfettoIdle();
-    await this.page.mouse.move(0, 0);
-
     // Apply some CSS to make fonts more stable in screenshot tests.
     await this.page.addStyleTag({
       content: `
@@ -80,6 +75,10 @@ export class PerfettoTestHelper {
         }
       `,
     });
+    const tracePath = this.getTestTracePath(traceName);
+    assertExists(file).setInputFiles(tracePath);
+    await this.waitForPerfettoIdle();
+    await this.page.mouse.move(0, 0);
   }
 
   waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
