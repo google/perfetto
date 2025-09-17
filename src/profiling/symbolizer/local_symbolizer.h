@@ -54,7 +54,8 @@ class BinaryFinder {
 
 class LocalBinaryIndexer : public BinaryFinder {
  public:
-  explicit LocalBinaryIndexer(std::vector<std::string> roots);
+  LocalBinaryIndexer(std::vector<std::string> directories,
+                     std::vector<std::string> individual_files);
 
   std::optional<FoundBinary> FindBinary(const std::string& abspath,
                                         const std::string& build_id) override;
@@ -111,7 +112,8 @@ class LocalSymbolizer : public Symbolizer {
 };
 
 std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
-    std::vector<std::string> binary_path,
+    std::vector<std::string> directories,
+    std::vector<std::string> individual_files,
     const char* mode);
 
 }  // namespace perfetto::profiling

@@ -20,10 +20,7 @@ import {
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {
-  COUNTER_TRACK_KIND,
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../../public/track_kinds';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -35,6 +32,8 @@ import {
   createProcessPerfSamplesProfileTrack,
   createThreadPerfSamplesProfileTrack,
 } from './perf_samples_profile_track';
+
+const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 function makeUriForProc(upid: number) {
   return `/process_${upid}/perf_samples_profile`;
@@ -303,8 +302,7 @@ function computePerfSampleFlamegraph(
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
@@ -330,14 +328,9 @@ function computePerfSampleFlamegraph(
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
-        name: 'source_file',
-        displayName: 'Source File',
-        mergeAggregation: 'ONE_OR_NULL',
-      },
-      {
-        name: 'line_number',
-        displayName: 'Line Number',
-        mergeAggregation: 'ONE_OR_NULL',
+        name: 'source_location',
+        displayName: 'Source Location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
       },
     ],
   );

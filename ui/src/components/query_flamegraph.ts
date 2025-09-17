@@ -39,6 +39,7 @@ import {
   FlamegraphOptionalAction,
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
+import {sqliteString} from '../base/string_utils';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -53,9 +54,7 @@ export interface QueryFlamegraphColumn {
 
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
   // The aggregation to be run when nodes are merged together in the flamegraph.
-  //
-  // TODO(lalitm): consider adding extra functions here (e.g. a top 5 or similar).
-  readonly mergeAggregation: 'ONE_OR_NULL' | 'SUM' | 'CONCAT_WITH_COMMA';
+  readonly mergeAggregation: 'ONE_OR_SUMMARY' | 'SUM' | 'CONCAT_WITH_COMMA';
 }
 
 export interface QueryFlamegraphMetric {
@@ -222,7 +221,8 @@ async function computeFlamegraphTree(
   const matchingColumns = ['name', ...unaggCols];
   const matchExpr = (x: string) =>
     matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') like '${makeSqlFilter(x)}' escape '\\')`,
+      (c) =>
+        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
     );
 
   const showStackFilter =
@@ -518,8 +518,14 @@ function getPivotFilter(
 function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
   const aggFor = (x: AggQueryFlamegraphColumn) => {
     switch (x.mergeAggregation) {
-      case 'ONE_OR_NULL':
-        return `IIF(COUNT() = 1, ${x.name}, NULL) AS ${x.name}`;
+      case 'ONE_OR_SUMMARY':
+        return `
+          ${x.name} || IIF(
+            COUNT() = 1,
+            '',
+            ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
+          ) AS ${x.name}
+        `;
       case 'SUM':
         return `SUM(${x.name}) AS ${x.name}`;
       case 'CONCAT_WITH_COMMA':

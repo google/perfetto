@@ -55,6 +55,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
+import {isStartupCommandAllowed} from './startup_command_allowlist';
 
 /**
  * Handles the per-trace state of the UI
@@ -240,7 +241,11 @@ export class TraceImpl implements Trace {
     const urlCommands =
       parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
     const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
+
+    // Combine URL and settings commands - runtime allowlist checking will handle filtering
     const allStartupCommands = [...urlCommands, ...settingsCommands];
+    const enforceAllowlist =
+      ctx.appCtx.enforceStartupCommandAllowlistSetting.get();
 
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
@@ -265,18 +270,32 @@ export class TraceImpl implements Trace {
         // - Trace data is fully accessible
         // - UI state has been restored from any saved workspace
         // - Commands can safely query trace data and modify UI state
-        for (const command of allStartupCommands) {
-          try {
-            // Execute through proxy to access both global and trace-specific
-            // commands.
-            await ctx.appCtx.commandMgr.runCommand(command.id, ...command.args);
-          } catch (error) {
-            // TODO(stevegolton): Add a mechanism to notify users of startup
-            // command errors. This will involve creating a notification UX
-            // similar to VSCode where there are popups on the bottom right
-            // of the UI.
-            console.warn(`Startup command ${command.id} failed:`, error);
+
+        // Set allowlist checking during startup if enforcement enabled
+        if (enforceAllowlist) {
+          ctx.appCtx.commandMgr.setAllowlistCheck(isStartupCommandAllowed);
+        }
+
+        try {
+          for (const command of allStartupCommands) {
+            try {
+              // Execute through proxy to access both global and trace-specific
+              // commands.
+              await ctx.appCtx.commandMgr.runCommand(
+                command.id,
+                ...command.args,
+              );
+            } catch (error) {
+              // TODO(stevegolton): Add a mechanism to notify users of startup
+              // command errors. This will involve creating a notification UX
+              // similar to VSCode where there are popups on the bottom right
+              // of the UI.
+              console.warn(`Startup command ${command.id} failed:`, error);
+            }
           }
+        } finally {
+          // Always restore default (allow all) behavior when done
+          ctx.appCtx.commandMgr.setAllowlistCheck(() => true);
         }
       },
     });
@@ -520,6 +539,10 @@ export class TraceImpl implements Trace {
 
   get settings(): SettingsManager {
     return this.settingsProxy;
+  }
+
+  get isInternalUser(): boolean {
+    return this.appImpl.isInternalUser;
   }
 }
 

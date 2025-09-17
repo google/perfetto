@@ -12,11 +12,11 @@ The process stats data source allows to poll `/proc/<pid>/status` and
 
 See [`man 5 proc`][man-proc] for their semantic.
 
-### UI
+### UI {#per-process-ui}
 
 ![](/docs/images/proc_stat.png "UI showing trace data collected by process stats pollers")
 
-### SQL
+### SQL {#per-process-sql}
 
 ```sql
 select c.ts, c.value, t.name as counter_name, p.name as proc_name, p.pid
@@ -34,7 +34,7 @@ ts | counter_name | value_kb | proc_name | pid
 261187015027350 | mem.rss.watermark | 102856 | com.android.vending | 28815
 261187090251420 | mem.virt | 1326464 | com.android.vending | 28815
 
-### TraceConfig
+### TraceConfig {#per-process-traceconfig}
 
 To collect process stat counters every X ms set `proc_stats_poll_ms = X` in
 your process stats config. X must be greater than 100ms to avoid excessive CPU
@@ -102,11 +102,11 @@ For each event type, the event records:
   the previous event.
 * max_lat: the highest latency recorded since the previous event.
 
-### UI
+### UI {#ftrace-ui}
 
 ![rss_stat and mm_event](/docs/images/rss_stat_and_mm_event.png)
 
-### SQL
+### SQL {#ftrace-sql}
 
 At the SQL level, these events are imported and exposed in the same way as
 the corresponding polled events. This allows to collect both types of events
@@ -127,7 +127,7 @@ ts | value | counter_name | proc_name | pid
 777227865995315 | 4 | mem.mm.min_flt.avg_lat | com.google.android.apps.safetyhub | 31386
 777227865998023 | 3 | mem.mm.swp_flt.count | com.google.android.apps.safetyhub | 31386
 
-### TraceConfig
+### TraceConfig {#ftrace-traceconfig}
 
 ```protobuf
 data_sources: {
@@ -158,14 +158,14 @@ This data source allows periodic polling of system data from:
 
 See [`man 5 proc`][man-proc] for their semantic.
 
-### UI
+### UI {#system-wide-ui}
 
 ![System Memory Counters](/docs/images/sys_stat_counters.png
 "Example of system memory counters in the UI")
 
 The polling period and specific counters to include in the trace can be set in the trace config.
 
-### SQL
+### SQL {#system-wide-sql}
 
 ```sql
 select c.ts, t.name, c.value / 1024 as value_kb from counters as c left join counter_track as t on c.track_id = t.id
@@ -180,7 +180,7 @@ ts | name | value_kb
 775177736769834 | Active | 1021108
 775177736769834 | Inactive(file) | 351496
 
-### TraceConfig
+### TraceConfig {#system-wide-traceconfig}
 
 The set of supported counters is available in the
 [TraceConfig reference](/docs/reference/trace-config-proto.autogen#SysStatsConfig)
@@ -270,7 +270,7 @@ Linux OOMKiller events are still theoretically possible on Android but extremely
 unlikely to happen. If they happen, they are more likely the symptom of a
 mis-configured BSP.
 
-### UI
+### UI {#lmk-ui}
 
 Newer userspace LMKs are available in the UI under the `lmkd` track
 in the form of a counter. The counter value is the PID of the killed process
@@ -278,7 +278,7 @@ in the form of a counter. The counter value is the PID of the killed process
 
 ![Userspace lmkd](/docs/images/lmk_lmkd.png "Example of a LMK caused by lmkd")
 
-### SQL
+### SQL {#lmk-sql}
 
 Both newer lmkd and legacy kernel-driven lowmemorykiller events are normalized
 at import time and available under the `mem.lmk` key in the `instants` table.
@@ -297,7 +297,7 @@ WHERE instant.name = 'mem.lmk'
 | 442206446142234 | android.process.acore | 27683 |
 | 442206462090204 | com.google.process.gapps | 28198 |
 
-### TraceConfig
+### TraceConfig {#lmk-traceconfig}
 
 To enable tracing of low memory kills add the following options to trace config:
 

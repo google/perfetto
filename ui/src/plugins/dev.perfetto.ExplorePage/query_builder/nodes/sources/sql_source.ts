@@ -31,16 +31,23 @@ import {Trace} from '../../../../../public/trace';
 import {SourceNode} from '../../source_node';
 
 import {ColumnInfo} from '../../column_info';
+import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+
+export interface SqlSourceSerializedState {
+  sql?: string;
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
 
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
-  onExecute?: (sql: string) => void;
   trace: Trace;
   sourceCols?: ColumnInfo[];
 }
 
 export class SqlSourceNode extends SourceNode {
   readonly state: SqlSourceState;
+  prevNodes: QueryNode[] = [];
 
   constructor(attrs: SqlSourceState) {
     super(attrs);
@@ -70,11 +77,10 @@ export class SqlSourceNode extends SourceNode {
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      onExecute: this.state.onExecute,
       filters: [],
       customTitle: this.state.customTitle,
-      trace: this.state.trace,
       issues: this.state.issues,
+      trace: this.state.trace,
     };
     return new SqlSourceNode(stateCopy);
   }
@@ -87,6 +93,18 @@ export class SqlSourceNode extends SourceNode {
     return this.state.customTitle ?? 'Sql source';
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
+
+  serializeState(): SqlSourceSerializedState {
+    return {
+      sql: this.state.sql,
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = this.nodeId;
@@ -94,6 +112,14 @@ export class SqlSourceNode extends SourceNode {
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
     sqlProto.columnNames = this.sourceCols.map((c) => c.column.name);
+
+    for (const prevNode of this.prevNodes) {
+      const dependency = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();
+      dependency.alias = prevNode.nodeId;
+      dependency.query = prevNode.getStructuredQuery();
+      sqlProto.dependencies.push(dependency);
+    }
+
     sq.sql = sqlProto;
 
     const selectedColumns = createSelectColumnsProto(this);
@@ -101,12 +127,9 @@ export class SqlSourceNode extends SourceNode {
     return sq;
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(onExecute: () => void): m.Child {
     const runQuery = (sql: string) => {
       this.state.sql = sql.trim();
-      if (this.state.onExecute) {
-        this.state.onExecute(this.state.sql);
-      }
       m.redraw();
     };
 
@@ -125,10 +148,13 @@ export class SqlSourceNode extends SourceNode {
           text: this.state.sql ?? '',
           onUpdate: (text: string) => {
             this.state.sql = text;
+            m.redraw();
           },
           onExecute: (text: string) => {
             queryHistoryStorage.saveQuery(text);
-            runQuery(text);
+            this.state.sql = text.trim();
+            onExecute();
+            m.redraw();
           },
           autofocus: true,
         }),
@@ -143,5 +169,18 @@ export class SqlSourceNode extends SourceNode {
         },
       }),
     );
+  }
+
+  findDependencies(): string[] {
+    const regex = /\$([A-Za-z0-9_]*)/g;
+    let match: RegExpExecArray | null;
+    const dependencies: string[] = [];
+    const node = this;
+    if (node.state.sql) {
+      while ((match = regex.exec(node.state.sql)) !== null) {
+        dependencies.push(match[1]);
+      }
+    }
+    return dependencies;
   }
 }

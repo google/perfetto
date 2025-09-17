@@ -29,7 +29,7 @@ import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {globals} from './globals';
+import {tryLoadIsInternalUserScript} from './is_internal_user_script_loader';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
@@ -230,6 +230,26 @@ function main() {
     render: (setting) => startupCommandsEditor.render(setting),
   });
 
+  const enforceStartupCommandAllowlistSetting = settingsManager.register({
+    id: 'enforceStartupCommandAllowlist',
+    name: 'Enforce Startup Command Allowlist',
+    description: `
+      When enabled, only commands in the predefined allowlist can be executed
+      as startup commands. When disabled, all startup commands will be
+      executed without filtering.
+
+      The command allowlist encodes the set of commands which Perfetto UI
+      maintainers expect to maintain backwards compatibility for the forseeable\
+      future.
+
+      WARNING: if this setting is disabled, any command outside the allowlist
+      has *no* backwards compatibility guarantees and is can change without
+      warning at any time.
+    `,
+    schema: z.boolean(),
+    defaultValue: true,
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
@@ -238,6 +258,7 @@ function main() {
     timezoneOverrideSetting,
     analyticsSetting,
     startupCommandsSetting,
+    enforceStartupCommandAllowlistSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -252,21 +273,14 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
+  document.head.append(css);
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
-  function initAnalyticsOnScriptLoad() {
-    AppImpl.instance.analytics.initialize(globals.isInternalUser);
-  }
-  const script = document.createElement('script');
-  script.src =
-    'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
-  script.async = true;
-  script.onerror = () => initAnalyticsOnScriptLoad();
-  script.onload = () => initAnalyticsOnScriptLoad();
-  setTimeout(() => initAnalyticsOnScriptLoad(), 5000);
-
-  document.head.append(script, css);
+  const app = AppImpl.instance;
+  tryLoadIsInternalUserScript(app).then(() => {
+    app.analytics.initialize(app.isInternalUser);
+  });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);

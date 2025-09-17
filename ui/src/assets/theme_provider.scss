@@ -50,6 +50,14 @@
     --pf-color-text-on-success: white;
     --pf-color-warning: rgb(232, 158, 0);
     --pf-color-text-on-warning: var(--pf-color-text);
+
+    // In light mode, the sidebar has a custom distinct blue color scheme.
+    --pf-sidebar-surface: #262f3c;
+    --pf-sidebar-surface-secondary: #19212b;
+    --pf-sidebar-on-surface: white;
+    --pf-sidebar-on-surface-muted: #b4b7ba;
+    --pf-sidebar-border: #4d5765;
+    --pf-sidebar-border-secondary: #404854;
   }
 
   &--dark {
@@ -78,5 +86,13 @@
     --pf-color-text-on-success: #333;
     --pf-color-warning: rgb(244, 188, 67);
     --pf-color-text-on-warning: #333;
+
+    // In dark mode, the sidebar uses the same styles as the rest of the app
+    --pf-sidebar-surface: var(--pf-color-background-secondary);
+    --pf-sidebar-surface-secondary: var(--pf-color-background);
+    --pf-sidebar-on-surface: var(--pf-color-text);
+    --pf-sidebar-on-surface-muted: var(--pf-color-text-muted);
+    --pf-sidebar-border: var(--pf-color-border);
+    --pf-sidebar-border-secondary: var(--pf-color-border-secondary);
   }
 }

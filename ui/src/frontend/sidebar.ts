@@ -28,7 +28,6 @@ import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
 import {download, downloadUrl} from '../base/download_utils';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
 import {
@@ -54,7 +53,7 @@ import {Button} from '../widgets/button';
 const GITILES_URL = 'https://github.com/google/perfetto';
 
 function getBugReportUrl(): string {
-  if (globals.isInternalUser) {
+  if (AppImpl.instance.isInternalUser) {
     return 'https://goto.google.com/perfetto-ui-bug';
   } else {
     return 'https://github.com/google/perfetto/issues/new';
@@ -69,7 +68,7 @@ const HIRING_BANNER_FLAG = featureFlags.register({
 });
 
 function shouldShowHiringBanner(): boolean {
-  return globals.isInternalUser && HIRING_BANNER_FLAG.get();
+  return AppImpl.instance.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
 async function openCurrentTraceWithOldUI(trace: Trace): Promise<void> {
@@ -596,7 +595,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
     href: '#!/viewer',
     icon: 'line_style',
   });
-  globals.isInternalUser &&
+  AppImpl.instance.isInternalUser &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Share',

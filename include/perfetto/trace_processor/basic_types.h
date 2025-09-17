@@ -334,7 +334,14 @@ struct TraceSummaryOutputSpec {
     // Indicates that the ouput is `TraceSummary` encoded as a text protobuf.
     kTextProto,
   };
+  enum class Compression : uint8_t {
+    // Indicates that the output is not compressed.
+    kNone,
+    // Indicates that the output is compressed using zlib.
+    kZlib,
+  };
   Format format;
+  Compression compression = Compression::kNone;
 };
 
 // A struct wrapping the bytes of a `TraceSummarySpec` instance.
@@ -387,6 +394,8 @@ struct AnalyzedStructuredQuery {
   std::vector<std::string> modules;
   // Preambles referenced by sql
   std::vector<std::string> preambles;
+  // Columns output by sql
+  std::vector<std::string> columns;
 };
 
 // Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.

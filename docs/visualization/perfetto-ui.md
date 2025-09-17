@@ -84,121 +84,9 @@ command and Enter to run it.
   <source src="https://storage.googleapis.com/perfetto-misc/commands.webm" type="video/webm">
 </video>
 
-### Startup Commands
-
-Startup commands run automatically every time you open a trace. Configure them
-in **Settings > Startup Commands**. See the
-[UI Automation Cookbook](/docs/visualization/ui-automation-cookbook.md) for
-practical examples.
-
-#### JSON Schema
-
-Startup commands must be a JSON array of command objects:
-
-```typescript
-// Schema
-[
-  {
-    "id": string,      // Command identifier
-    "args": unknown[]  // Array of arguments (types depend on the commands)
-  },
-  ...
-]
-```
-
-#### Example
-
-```json
-[
-  {
-    "id": "dev.perfetto.PinTracksByRegex",
-    "args": [".*CPU [0-3].*"]
-  },
-  {
-    "id": "dev.perfetto.AddDebugSliceTrack",
-    "args": [
-      "SELECT ts, dur as value FROM thread_state WHERE state = 'R' AND dur > 10000000",
-      "Long Running Tasks (>10ms)"
-    ]
-  }
-]
-```
-
-Notes:
-
-- Commands execute in the order specified
-- Invalid JSON or unknown command IDs will cause errors
-- These commands affect only the UI display - the trace file is unchanged
-
-### Macros
-
-Macros are named sequences of commands you trigger manually. Configure them in
-**Settings > Macros**.
-
-#### JSON Schema
-
-Macros must be a JSON object with macro names as keys and command arrays as
-values:
-
-```typescript
-// Schema
-{
-  "macro_name": [
-    {
-      "id": string,      // Command identifier
-      "args": unknown[]  // Array of arguments (types depend on the command)
-    },
-    ...
-  ],
-  ...
-}
-```
-
-#### Example
-
-```json
-{
-  "CPU Analysis": [
-    {
-      "id": "dev.perfetto.CreateWorkspace",
-      "args": ["CPU Analysis"]
-    },
-    {
-      "id": "dev.perfetto.CopyTracksToWorkspaceByRegex",
-      "args": [".*CPU.*|.*freq.*", "CPU Analysis"]
-    },
-    {
-      "id": "dev.perfetto.SwitchWorkspace",
-      "args": ["CPU Analysis"]
-    }
-  ],
-  "Memory Debug": [
-    {
-      "id": "dev.perfetto.RunQuery",
-      "args": ["SELECT * FROM memory_snapshot"]
-    }
-  ]
-}
-```
-
-Notes:
-
-- Macro names must be valid JSON string keys. Simple names without special
-  characters are recommended for easier use in the command palette.
-- Run macros by typing `>macro name` in the command palette (e.g.,
-  `>CPU Analysis`)
-- Commands in a macro execute sequentially
-
-### Common Issues
-
-- **JSON syntax errors**: Missing commas, trailing commas, or unescaped quotes
-- **Invalid command IDs**: Use autocomplete in the command palette to find valid
-  IDs
-- **Wrong argument types**: All arguments must be strings, even numbers
-- **Wrong argument count**: Each command expects a specific number of arguments
-
-For practical examples and recipes, see the
-[UI Automation Cookbook](/docs/visualization/ui-automation-cookbook.md).
+For comprehensive documentation on automating the UI with commands, startup
+commands, and macros, see the
+[UI Automation guide](/docs/visualization/ui-automation.md).
 
 ## Showing/hiding the tab drawer
 
@@ -228,3 +116,14 @@ the main timeline.
 
 Hotkey bindings are displayed to the right of the commands in the command
 palette, or press the '?' hotkey to display all configured hotkeys.
+
+## Next Steps
+
+Once you're comfortable with the basic UI interactions, you can significantly
+speed up your analysis workflow through automation:
+
+- **Automate repetitive tasks:** Use
+  [UI Automation](/docs/visualization/ui-automation.md) to configure startup
+  commands that automatically pin tracks or create debug tracks every time you
+  open a trace, and create macros for specific analysis workflows you run
+  occasionally.

@@ -20,6 +20,8 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <poll.h>
+#else
+#include <windows.h>
 #endif
 
 #include <thread>

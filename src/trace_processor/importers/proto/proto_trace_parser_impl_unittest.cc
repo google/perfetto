@@ -117,7 +117,6 @@ using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IgnoreResult;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::InvokeArgument;
 using ::testing::NiceMock;
 using ::testing::Pointwise;
@@ -184,6 +183,15 @@ class MockProcessTracker : public ProcessTracker {
  public:
   explicit MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
+
+  MOCK_METHOD(UniquePid,
+              StartNewProcess,
+              (std::optional<int64_t> timestamp,
+               std::optional<UniquePid> parent_upid,
+               int64_t pid,
+               StringId process_name,
+               ThreadNamePriority priority),
+              (override));
 
   MOCK_METHOD(UniquePid,
               UpdateProcessWithParent,
@@ -387,7 +395,10 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
   static const char buf_value[] = "This is a print event";
   print->set_buf(buf_value);
 
-  EXPECT_CALL(*process_, GetOrCreateProcess(123));
+  EXPECT_CALL(
+      *process_,
+      StartNewProcess(std::optional<int64_t>{1000}, std::optional<UniquePid>{},
+                      123L, testing::_, ThreadNamePriority::kFtrace));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();

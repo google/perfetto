@@ -21,6 +21,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
@@ -81,6 +82,28 @@ bool IsProcessDumpLongHeader(const std::vector<base::StringView>& tokens) {
          tokens[2] == "PPID" && tokens[3] == "VSZ";
 }
 
+bool IsCpusHeaderLine(const std::deque<uint8_t>& buf,
+                      int64_t start,
+                      int64_t end) {
+  const std::array<uint8_t, 5> kCpusPrefix = {'c', 'p', 'u', 's', '='};
+  const auto prefix_len = static_cast<int64_t>(kCpusPrefix.size());
+  if (end - start < prefix_len) {
+    return false;
+  }
+  // Check if line starts with "cpus="
+  if (!std::equal(buf.begin() + start, buf.begin() + start + prefix_len,
+                  kCpusPrefix.begin(), kCpusPrefix.end())) {
+    return false;
+  }
+  // Check that everything after "cpus=" is digits
+  for (int64_t i = start + prefix_len; i < end; ++i) {
+    if (!std::isdigit(buf[static_cast<size_t>(i)])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
@@ -107,6 +130,17 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
                           kAtraceMarker.begin(), kAtraceMarker.end());
     if (it != search_end)
       partial_buf_.erase(partial_buf_.begin(), it + kAtraceMarker.size());
+
+    // Also remove cpus=<number> header line from trace-cmd text output.
+    auto first_newline =
+        std::find(partial_buf_.begin(), partial_buf_.end(), '\n');
+    if (first_newline != partial_buf_.end()) {
+      int64_t line_len =
+          static_cast<int64_t>(first_newline - partial_buf_.begin());
+      if (IsCpusHeaderLine(partial_buf_, 0, line_len)) {
+        partial_buf_.erase(partial_buf_.begin(), first_newline + 1);
+      }
+    }
 
     // Deal with HTML traces.
     state_ = partial_buf_[0] == '<' ? ParseState::kHtmlBeforeSystrace

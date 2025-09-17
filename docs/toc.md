@@ -26,7 +26,6 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md)
-    - [UI Automation](visualization/ui-automation-cookbook.md)
 
   - [Case Studies](#)
 
@@ -74,6 +73,7 @@
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
+    - [UI Automation](visualization/ui-automation.md)
 
   - [Contributing](#)
 
@@ -125,6 +125,7 @@
     - [Android](#)
 
       - [Boot Tracing](case-studies/android-boot-tracing.md)
+      - [OutOfMemoryError](case-studies/android-outofmemoryerror.md)
       - [Android Version Notes](reference/android-version-notes.md)
 
     - [Linux](#)
@@ -159,6 +160,10 @@
 
     - [Interceptors](instrumentation/interceptors.md)
 
+  - [Advanced Trace Visualization](#)
+
+    - [Commands Automation Reference](visualization/commands-automation-reference.md)
+
   - [Contributor Reference](#)
 
     - [Building](contributing/build-instructions.md)
@@ -183,3 +188,5 @@
       - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
       - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
       - [Perfetto CI](design-docs/continuous-integration.md)
+      - [LockFreeTaskRunner](design-docs/lock-free-task-runner.md)
+
