@@ -6,8 +6,8 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 34.415909
       estimated_mw: 3.961489
-      idle_transitions_mws: -20.194141
-      total_mws: 14.221770
+      idle_transitions_mws: -20.19533
+      total_mws: 14.220581
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -566,8 +566,8 @@ wattson_trace_threads {
     task_info {
       estimated_mws: 0.969983
       estimated_mw: 0.111651
-      idle_transitions_mws: 0.486833
-      total_mws: 1.456816
+      idle_transitions_mws: 0.488022
+      total_mws: 1.458005
       thread_name: "rcuog/0"
       process_name: "rcuog/0"
       thread_id: 15
