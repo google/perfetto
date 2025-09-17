@@ -497,7 +497,9 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       for (auto conn_to_id_it = conn_to_id_map.begin();
            conn_to_id_it != conn_to_id_map.end();) {
         if (conn_to_id_it->second == instance_id) {
+          auto conn_to_close = conn_to_id_it->first;
           conn_to_id_it = conn_to_id_map.erase(conn_to_id_it);
+          conn_to_close->Close();
         } else {
           ++conn_to_id_it;
         }
