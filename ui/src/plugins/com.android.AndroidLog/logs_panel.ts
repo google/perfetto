@@ -20,7 +20,10 @@ import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
-import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
+import {
+  escapeQuery,
+  escapeSearchQuery,
+} from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {
   MultiSelectDiff,
@@ -528,8 +531,8 @@ function serializeTags(tags: string[]) {
 function composeGlobMatch(isCollaped: boolean, textEntry: string) {
   if (isCollaped) {
     // If the entries are collapsed, we won't highlight any lines.
-    return `msg glob ${escapeGlob(textEntry)} as is_msg_chosen,
-      (process.name is not null and process.name glob ${escapeGlob(
+    return `msg glob ${escapeSearchQuery(textEntry)} as is_msg_chosen,
+      (process.name is not null and process.name glob ${escapeSearchQuery(
         textEntry,
       )}) as is_process_chosen,
       0 as is_msg_highlighted,
@@ -544,8 +547,8 @@ function composeGlobMatch(isCollaped: boolean, textEntry: string) {
   } else {
     return `1 as is_msg_chosen,
       1 as is_process_chosen,
-      msg glob ${escapeGlob(textEntry)} as is_msg_highlighted,
-      (process.name is not null and process.name glob ${escapeGlob(
+      msg glob ${escapeSearchQuery(textEntry)} as is_msg_highlighted,
+      (process.name is not null and process.name glob ${escapeSearchQuery(
         textEntry,
       )}) as is_process_highlighted`;
   }
