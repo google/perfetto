@@ -12,6 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_cpu_1d;
 
 -- Device specific device curves with 1D dependency (i.e. curve characteristics
 -- are dependent only on one CPU policy). See go/wattson for more info.
@@ -111,4 +112,8 @@ WITH
   )
 SELECT
   *
-FROM data;
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_1d_lut;

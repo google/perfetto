@@ -65,8 +65,8 @@ TEST(StructuredQueryGeneratorTest, Operations) {
   auto proto = ToProto(R"(
     table: {
       table_name: "thread_slice_cpu_time"
-      module_name: "linux.memory.process"
     }
+    referenced_modules: "linux.memory.process"
     filters: {
       column_name: "thread_name"
       op: EQUAL
@@ -135,8 +135,8 @@ TEST(StructuredQueryGeneratorTest, TableSource) {
   auto proto = ToProto(R"(
     table: {
       table_name: "memory_rss_and_swap_per_process"
-      module_name: "linux.memory.process"
     }
+    referenced_modules: "linux.memory.process"
     group_by: {
       column_names: "process_name"
       aggregates: {
@@ -169,8 +169,8 @@ TEST(StructuredQueryGeneratorTest, GroupBySelectColumns) {
   auto proto = ToProto(R"(
     table: {
       table_name: "memory_rss_and_swap_per_process"
-      module_name: "linux.memory.process"
     }
+    referenced_modules: "linux.memory.process"
     group_by: {
       column_names: "process_name"
       aggregates: {
@@ -309,8 +309,8 @@ TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
       base: {
         table: {
           table_name: "thread_slice_cpu_time"
-          module_name: "linux.memory.process"
         }
+        referenced_modules: "linux.memory.process"
         filters: {
           column_name: "thread_name"
           op: EQUAL
@@ -380,11 +380,11 @@ TEST(StructuredQueryGeneratorTest, ColumnSelection) {
     id: "table_source_thread_slice"
     table: {
       table_name: "thread_slice"
-      module_name: "slices.with_context"
       column_names: "id"
       column_names: "ts"
       column_names: "dur"
     }
+    referenced_modules: "slices.with_context"
     select_columns: {column_name: "id"}
     select_columns: {
       column_name: "dur"
@@ -411,10 +411,10 @@ TEST(StructuredQueryGeneratorTest, Median) {
     id: "table_source_thread_slice"
     table: {
       table_name: "thread_slice"
-      module_name: "slices.with_context"
       column_names: "name"
       column_names: "dur"
     }
+    referenced_modules: "slices.with_context"
     group_by: {
       column_names: "name"
       aggregates: {
@@ -617,4 +617,92 @@ TEST(StructuredQueryGeneratorTest, SqlSourceWithNonExistentDependency) {
 }
 
 }  // namespace
+
+TEST(StructuredQueryGeneratorTest, ColumnTransformation) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "table_source_thread_slice"
+    table: {
+      table_name: "thread_slice"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+    referenced_modules: "slices.with_context"
+    select_columns: {column_name_or_expression: "id"}
+    select_columns: {
+      alias: "ts_ms"
+      column_name_or_expression: "ts / 1000"
+    }
+    select_columns: {
+      alias: "ts_plus_dur"
+      column_name_or_expression: "ts + dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH sq_table_source_thread_slice AS
+      (SELECT
+        id,
+        ts / 1000 AS ts_ms,
+        ts + dur AS ts_plus_dur
+      FROM thread_slice)
+    SELECT * FROM sq_table_source_thread_slice
+  )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("slices.with_context"));
+}
+
+TEST(StructuredQueryGeneratorTest, ReferencedModulesInQuery) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    referenced_modules: "slices.with_context"
+    referenced_modules: "module1"
+    referenced_modules: "module2"
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK(ret);
+  ASSERT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("slices.with_context", "module1", "module2"));
+}
+
+TEST(StructuredQueryGeneratorTest, TableSourceWithDeprecatedModuleName) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      module_name: "linux.memory.process"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss_and_swap"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+                WITH sq_0 AS (
+                  SELECT
+                    process_name,
+                    SUM(
+                      cast_double!(rss_and_swap * dur)) / cast_double!(SUM(dur))
+                      AS avg_rss_and_swap
+                  FROM memory_rss_and_swap_per_process
+                  GROUP BY process_name
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("linux.memory.process"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

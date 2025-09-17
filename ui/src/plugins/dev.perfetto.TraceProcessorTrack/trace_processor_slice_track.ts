@@ -53,6 +53,7 @@ const schema = {
   category: STR_NULL,
   correlation_id: STR_NULL,
   arg_set_id: NUM_NULL,
+  parent_id: NUM_NULL,
 };
 
 export async function createTraceProcessorSliceTrack({
@@ -117,7 +118,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           track_id,
           category,
           extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id
+          arg_set_id,
+          parent_id
         from slice
       `,
       filter: {
@@ -154,7 +156,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           track_id,
           category,
           extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id
+          arg_set_id,
+          parent_id
         from slice
         join ${tableName} d using (id)
       `,

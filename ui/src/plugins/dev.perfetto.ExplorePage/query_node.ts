@@ -33,6 +33,9 @@ export enum NodeType {
   // Single node operations
   kSubQuery,
   kAggregation,
+  kModifyColumns,
+
+  // Multi node operations
   kIntervalIntersect,
 }
 
@@ -57,7 +60,7 @@ export interface QueryNode {
   readonly nodeId: string;
   meterialisedAs?: string;
   readonly type: NodeType;
-  readonly prevNodes?: QueryNode[];
+  prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
 
   // Columns that are available in the source data.
@@ -72,9 +75,12 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(): m.Child;
+  nodeSpecificModify(onExecute?: () => void): m.Child;
+  nodeDetails?(): m.Child | undefined;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
+  isMaterialised(): boolean;
+  serializeState(): object;
 }
 
 export interface Query {

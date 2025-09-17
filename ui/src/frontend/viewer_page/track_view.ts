@@ -54,9 +54,9 @@ import {calculateResolution} from './resolution';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
-import {copyToClipboard} from '../../base/clipboard';
 import {Popup} from '../../widgets/popup';
 import {Theme} from '../../public/theme';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 
@@ -723,13 +723,7 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
               onclick: () => {
                 showModal({
                   title: 'Query for track',
-                  content: m('pre', query),
-                  buttons: [
-                    {
-                      text: 'Copy to clipboard',
-                      action: () => copyToClipboard(query),
-                    },
-                  ],
+                  content: () => m(CodeSnippet, {text: query, language: 'SQL'}),
                 });
               },
             },

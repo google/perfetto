@@ -42,13 +42,18 @@ import {
   CopyHelper,
   CopyToClipboardButton,
 } from '../../widgets/copy_to_clipboard_button';
+import {Anchor} from '../../widgets/anchor';
+
+const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
 export interface QueryPageAttrs {
   readonly trace: Trace;
   readonly editorText: string;
   readonly executedQuery?: string;
   readonly queryResult?: QueryResponse;
+
   onEditorContentUpdate?(content: string): void;
+
   onExecute?(query: string): void;
 }
 
@@ -93,11 +98,24 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
           m(
             Stack,
-            {orientation: 'horizontal', className: 'pf-query-page__hotkeys'},
+            {
+              orientation: 'horizontal',
+              className: 'pf-query-page__hotkeys',
+            },
             'or press',
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
+          attrs.trace.isInternalUser &&
+            m(Button, {
+              icon: 'wand_stars',
+              title:
+                'Generate SQL queries with the Perfetto SQL Agent! Give feedback: go/perfetto-llm-bug',
+              label: 'Generate SQL Queries with AI',
+              onclick: () => {
+                window.open('http://go/perfetto-sql-agent', '_blank');
+              },
+            }),
           m(CopyToClipboardButton, {
             textToCopy: attrs.editorText,
             title: 'Copy query to clipboard',
@@ -105,6 +123,43 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           }),
         ]),
       ]),
+      this.shouldDisplayPerfettoSqlAgentBanner(attrs) &&
+        m(
+          Box,
+          m(
+            Callout,
+            {
+              icon: 'wand_stars',
+              dismissable: true,
+              onDismiss: () => {
+                this.hidePerfettoSqlAgentBanner();
+              },
+            },
+            [
+              'Try out the ',
+              m(
+                Anchor,
+                {
+                  href: 'http://go/perfetto-sql-agent',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'Perfetto SQL Agent',
+              ),
+              ' to generate SQL queries and ',
+              m(
+                Anchor,
+                {
+                  href: 'http://go/perfetto-llm-user-guide#report-issues',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'give feedback',
+              ),
+              '!',
+            ],
+          ),
+        ),
       attrs.editorText.includes('"') &&
         m(
           Box,
@@ -274,5 +329,16 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         }),
       ],
     );
+  }
+
+  private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {
+    return (
+      attrs.trace.isInternalUser &&
+      localStorage.getItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY) !== 'true'
+    );
+  }
+
+  private hidePerfettoSqlAgentBanner() {
+    localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
   }
 }
