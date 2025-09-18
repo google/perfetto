@@ -29,12 +29,13 @@ import {
   PROCESS_SUMMARY_TRACK,
   ProcessSummaryTrack,
 } from './process_summary_track';
+import CpuPlugin from '../dev.perfetto.Cpus';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessSummary';
-  static readonly dependencies = [ThreadPlugin];
+  static readonly dependencies = [ThreadPlugin, CpuPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
@@ -43,7 +44,8 @@ export default class implements PerfettoPlugin {
 
   private getCpuCountByMachine(ctx: Trace): number[] {
     const cpuCountByMachine: number[] = [];
-    for (const c of ctx.traceInfo.cpus) {
+    const cpuPlugin = ctx.plugins.getPlugin(CpuPlugin);
+    for (const c of cpuPlugin.cpus) {
       cpuCountByMachine[c.machine] = (cpuCountByMachine[c.machine] ?? 0) + 1;
     }
     return cpuCountByMachine;

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {maybeMachineLabel} from '../../public/utils';
+
 export class Cpu {
   constructor(
     readonly ucpu: number,
@@ -20,15 +22,10 @@ export class Cpu {
   ) {}
 
   public maybeMachineLabel(): string {
-    return this.machine > 0 ? ` (machine ${this.machine})` : '';
+    return maybeMachineLabel(this.machine);
   }
 
   public toString(): string {
     return `${this.cpu}${this.maybeMachineLabel()}`;
   }
-}
-
-export function maybeMachineLabel(machine?: number): string {
-  const m = machine ?? 0;
-  return m > 0 ? ` (machine ${m})` : '';
 }

@@ -35,7 +35,7 @@ import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {Cpu} from '../../base/multi_machine_trace';
+import {Cpu} from '../dev.perfetto.Cpus/cpus';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.

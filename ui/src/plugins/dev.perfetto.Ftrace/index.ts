@@ -14,11 +14,12 @@
 
 import m from 'mithril';
 
-import {Cpu} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
+import CpuPlugin from '../dev.perfetto.Cpus';
+import {Cpu} from '../dev.perfetto.Cpus/cpus';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
@@ -34,6 +35,8 @@ const DEFAULT_STATE: FtracePluginState = {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
+  static readonly dependencies = [CpuPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
       if (
@@ -71,7 +74,7 @@ export default class implements PerfettoPlugin {
         tags: {
           cpu: cpu.cpu,
         },
-        renderer: createFtraceTrack(ctx, uri, cpu, filterStore),
+        renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filterStore),
       });
 
       const track = new TrackNode({
@@ -129,7 +132,8 @@ export default class implements PerfettoPlugin {
       ucpus.add(it.ucpu);
     }
 
-    const cpuCores = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
+    const cpus = ctx.plugins.getPlugin(CpuPlugin).cpus;
+    const cpuCores = cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     return cpuCores;
   }
 }

@@ -20,9 +20,12 @@ import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
+import CpuPlugin from '../dev.perfetto.Cpus';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuFreq';
+  static readonly dependencies = [CpuPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
@@ -40,7 +43,9 @@ export default class implements PerfettoPlugin {
     ) {
       cpuAndMachine.add([it.cpu, it.machine].toString());
     }
-    const cpus = ctx.traceInfo.cpus.filter((cpu) =>
+
+    const cpuPlugin = ctx.plugins.getPlugin(CpuPlugin);
+    const cpus = cpuPlugin.cpus.filter((cpu) =>
       cpuAndMachine.has([cpu.cpu, cpu.machine].toString()),
     );
 

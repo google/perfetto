@@ -50,6 +50,7 @@ import {
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
+import CpuPlugin from '../dev.perfetto.Cpus';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -66,7 +67,11 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
-  static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
+  static readonly dependencies = [
+    ProcessThreadGroupsPlugin,
+    ThreadPlugin,
+    CpuPlugin,
+  ];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const hasSched = await this.hasSched(ctx.engine);
@@ -143,7 +148,8 @@ export default class implements PerfettoPlugin {
     for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
       ucpus.add(it.ucpu);
     }
-    const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
+    const cpuPlugin = ctx.plugins.getPlugin(CpuPlugin);
+    const cpus = cpuPlugin.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
     const group = new TrackNode({
