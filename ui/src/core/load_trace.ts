@@ -203,10 +203,7 @@ async function loadTraceIntoEngine(
     await engine.notifyEof();
   } else {
     assertTrue(engine instanceof HttpRpcEngine);
-    if (engine instanceof HttpRpcEngine) {
-      await engine.restoreInitialTables();
-      await sendTraceTitle(engine, traceSource);
-    }
+    await engine.restoreInitialTables();
   }
   for (const p of app.extraSqlPackages) {
     await engine.registerSqlPackages(p);
@@ -222,6 +219,10 @@ async function loadTraceIntoEngine(
     trace.traceInfo.traceType === 'json',
     engine,
   );
+
+  if (engine instanceof HttpRpcEngine) {
+    await sendTraceTitle(engine, traceSource);
+  }
 
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
