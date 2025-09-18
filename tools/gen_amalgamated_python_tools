@@ -89,7 +89,8 @@ def amalgamate(src, dst, check_only=False):
 '''
   lines.insert(lines.index('\n'), banner % os.path.relpath(__file__, ROOT_DIR))
   new_content = ''.join(lines)
-  yapf = os.path.join(ROOT_DIR, '.venv', 'bin', 'yapf')
+  yapf = os.path.join(ROOT_DIR, '.venv',
+                      'bin' if sys.platform != 'win32' else 'Scripts', 'yapf')
   new_content = subprocess.check_output([yapf], text=True, input=new_content)
 
   if check_only:

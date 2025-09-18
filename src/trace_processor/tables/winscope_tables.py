@@ -451,6 +451,16 @@ VIEWCAPTURE_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'package_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'window_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture',
@@ -459,6 +469,8 @@ VIEWCAPTURE_TABLE = Table(
             'ts': 'The timestamp the views were captured',
             'arg_set_id': 'Extra args parsed from the proto message',
             'base64_proto_id': 'String id for raw proto message',
+            'package_name': 'Package name',
+            'window_name': 'Window name',
         }))
 
 VIEWCAPTURE_VIEW_TABLE = Table(
@@ -478,14 +490,46 @@ VIEWCAPTURE_VIEW_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('node_id', CppUint32()),
+        C('hashcode', CppUint32()),
+        C('is_visible', CppInt64()),
+        C('parent_id', CppUint32()),
+        C(
+            'view_id',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'class_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('trace_rect_id', CppTableId(WINSCOPE_TRACE_RECT_TABLE)),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture view',
         group='Winscope',
         columns={
-            'snapshot_id': 'The snapshot that generated this view',
-            'arg_set_id': 'Extra args parsed from the proto message',
-            '': 'String id for raw proto message',
+            'snapshot_id':
+                'The snapshot that generated this view',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'node_id':
+                'View id from proto message',
+            'hashcode':
+                'View hashcode from proto message',
+            'is_visible':
+                'Is visible view',
+            'parent_id':
+                'View parentId from proto message',
+            'view_id':
+                'View viewId from proto message',
+            'class_name':
+                'View className from proto message',
+            'trace_rect_id':
+                'Used to associate with row in __intrinsic_winscope_trace_rect',
         }))
 
 VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
