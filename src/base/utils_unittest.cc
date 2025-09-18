@@ -266,7 +266,7 @@ TEST(UtilsTest, CopyFileContents) {
     assert_file_content_fn(dst, payload);
   }
 
-  // Test CopyFile doesn't change 'src' offset.
+  // Test CopyFileContents doesn't change 'src' offset.
   {
     TempFile src = TempFile::Create();
     TempFile dst = TempFile::Create();
@@ -285,7 +285,7 @@ TEST(UtilsTest, CopyFileContents) {
     ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
   }
 
-  // Test CopyFile doesn't change 'src' offset when failed.
+  // Test CopyFileContents doesn't change 'src' offset when failed.
   {
     TempFile src = TempFile::Create();
     TempDir temp_dir = TempDir::Create();
@@ -307,6 +307,31 @@ TEST(UtilsTest, CopyFileContents) {
     // Assert offset of 'src' doesn't change.
     ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Test CopyFileContents can read special files with zero length that might
+  // actually have contents (such as a seq_file).
+  // This test is important, because 'sendfile' can't read from such files, and
+  // we want to make sure that if/when we implement the platform specific
+  // optimization we won't forget about this special case.
+  {
+    for (auto* const file : {"/proc/meminfo", "/proc/self/cmdline",
+                             "/proc/self/environ", "/proc/self/auxv"}) {
+      ScopedFile src = OpenFile(file, O_RDONLY);
+      if (!src) {
+        // Ignore files that we can't open.
+        continue;
+      }
+      std::string src_content;
+      ASSERT_TRUE(ReadFileDescriptor(*src, &src_content));
+
+      TempFile dst = TempFile::Create();
+      ASSERT_OK(CopyFileContents(*src, *dst));
+      assert_file_content_fn(dst, src_content);
+    }
+  }
+#endif
 }
 
 }  // namespace
