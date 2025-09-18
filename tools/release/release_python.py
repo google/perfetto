@@ -32,7 +32,8 @@ NC = '\033[0m'  # No Color
 SETUP_PY_PATH = os.path.join('python', 'setup.py')
 VENV_PYTHON = os.path.join(
     '.venv', 'bin', 'python') if sys.platform != 'win32' else os.path.join(
-    '.venv', 'Scripts', 'python.exe')
+        '.venv', 'Scripts', 'python.exe')
+
 
 def info(msg: str) -> None:
   print(f"{GREEN}INFO:{NC} {msg}")
