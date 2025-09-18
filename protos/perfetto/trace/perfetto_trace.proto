@@ -9940,6 +9940,40 @@ message DrmRunJobFtraceEvent {
 message DrmSchedProcessJobFtraceEvent {
   optional uint64 fence = 1;
 }
+message DrmSchedJobAddDepFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+  optional uint64 ctx = 3;
+  optional uint64 seqno = 4;
+}
+message DrmSchedJobDoneFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+}
+message DrmSchedJobQueueFtraceEvent {
+  optional string name = 1;
+  optional uint32 job_count = 2;
+  optional int32 hw_job_count = 3;
+  optional string dev = 4;
+  optional uint64 fence_context = 5;
+  optional uint64 fence_seqno = 6;
+  optional uint64 client_id = 7;
+}
+message DrmSchedJobRunFtraceEvent {
+  optional string name = 1;
+  optional uint32 job_count = 2;
+  optional int32 hw_job_count = 3;
+  optional string dev = 4;
+  optional uint64 fence_context = 5;
+  optional uint64 fence_seqno = 6;
+  optional uint64 client_id = 7;
+}
+message DrmSchedJobUnschedulableFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+  optional uint64 ctx = 3;
+  optional uint64 seqno = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
 
@@ -12625,6 +12659,11 @@ message FtraceEvent {
     HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
         589;
     HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
+    DrmSchedJobAddDepFtraceEvent drm_sched_job_add_dep = 591;
+    DrmSchedJobDoneFtraceEvent drm_sched_job_done = 592;
+    DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
+    DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
+    DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
   }
 }
 

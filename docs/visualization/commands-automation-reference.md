@@ -338,6 +338,40 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 }
 ```
 
+### Macro Commands
+
+Macros are user-defined sequences of commands that execute in order. They provide a way to automate complex, multi-step analysis workflows.
+
+#### User-defined Macros
+
+Macros can be defined through the UI settings and automatically get stable command IDs.
+
+**Command Pattern:**
+
+- `dev.perfetto.UserMacro.{macroName}` - Executes a user-defined macro
+
+**Arguments:**
+
+None (macro commands and arguments are pre-configured)
+
+**Example:**
+
+```json
+{
+  "id": "dev.perfetto.UserMacro.MyAnalysisWorkflow",
+  "args": []
+}
+```
+
+**Notes:**
+
+- Each macro contains a sequence of commands that execute in order
+- When used as startup commands, all commands within the macro must also be allowlisted
+- Macros can include any stable automation command from this reference
+- Failed commands within a macro are logged but don't stop execution of remaining commands
+
+---
+
 ## Using Commands for Automation
 
 These stable automation commands can be used in several contexts:

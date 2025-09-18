@@ -584,3 +584,8 @@ hypervisor/host_mem_abort
 hypervisor/hyp_enter
 hypervisor/iommu_idmap_complete
 hypervisor/vcpu_illegal_trap
+gpu_scheduler/drm_sched_job_add_dep
+gpu_scheduler/drm_sched_job_done
+gpu_scheduler/drm_sched_job_queue
+gpu_scheduler/drm_sched_job_run
+gpu_scheduler/drm_sched_job_unschedulable

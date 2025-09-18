@@ -1282,6 +1282,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     RegisterSqliteFunction<Regexp>(engine.get());
     RegisterSqliteFunction<RegexpExtract>(engine.get());
   }
+
+  RegisterSqliteFunction<UnHex>(engine.get());
+
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.

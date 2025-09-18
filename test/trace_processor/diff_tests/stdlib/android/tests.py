@@ -142,6 +142,20 @@ class AndroidStdlib(TestSuite):
         "com.android.chrome",22768,"[NULL]","05122f25-2f5b-4650-aeeb-cf59a9d6295a",19000,"required notification not provided","JOB_SERVICE_NOTIFICATION_NOT_PROVIDED"
       """))
 
+  def test_anr_with_timer(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_anr.pftrace.gz'),
+        query="""
+        INCLUDE PERFETTO MODULE android.anrs;
+        SELECT process_name, pid, upid, error_id, ts, subject, timer_delay, anr_type, anr_dur_ms
+        FROM android_anrs;
+      """,
+        out=Csv("""
+        "process_name","pid","upid","error_id","ts","subject","timer_delay","anr_type","anr_dur_ms"
+        "com.google.android.videos",4464,1765,"d55b1536-9c53-422a-af00-33daaf992b0d",184660962756627,"Process ProcessRecord{c098c64 4464:com.google.android.videos/u0a224} failed to complete startup","[NULL]","BIND_APPLICATION","[NULL]"
+        "com.google.android.gms.persistent",30647,112,"45210ec5-1525-49c3-816c-75afb1973d0b",184707199069963,"Broadcast of Intent { act=com.google.android.gms.tron.ALARM flg=0x10 xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/.tron.AlarmReceiver (has extras) }",22247029,"BROADCAST_OF_INTENT",60006
+      """))
+
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
