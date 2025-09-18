@@ -38,7 +38,11 @@ namespace perfetto::base::flags {
   X(ftrace_clear_offline_cpus_only, NonAndroidPlatformDefault_TRUE)    \
   X(use_rt_mutex, PERFETTO_BUILDFLAG(PERFETTO_ENABLE_RT_MUTEX)         \
                       ? NonAndroidPlatformDefault_TRUE                 \
-                      : NonAndroidPlatformDefault_FALSE)
+                      : NonAndroidPlatformDefault_FALSE)               \
+  X(use_lockfree_taskrunner,                                           \
+    PERFETTO_BUILDFLAG(PERFETTO_ENABLE_LOCKFREE_TASKRUNNER)            \
+        ? NonAndroidPlatformDefault_TRUE                               \
+        : NonAndroidPlatformDefault_FALSE)
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
