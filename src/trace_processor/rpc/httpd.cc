@@ -675,7 +675,9 @@ void Httpd::CleanUpInactiveInstances() {
       for (auto conn_it = conn_to_id_map.begin();
            conn_it != conn_to_id_map.end();) {
         if (conn_it->second == instance_id) {
+          auto conn_to_close = conn_it->first;
           conn_it = conn_to_id_map.erase(conn_it);
+          conn_to_close->Close();
         } else {
           ++conn_it;
         }
