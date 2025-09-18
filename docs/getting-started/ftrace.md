@@ -504,6 +504,9 @@ and do not need to be specified.
 
 Tracepoint declaration example, named `trk_example/tid_track_example`:
 
+_Note: on kernels older than v6.10, \_\_assign_str requires two arguments, see
+[this patch](https://lore.kernel.org/linux-trace-kernel/20240516133454.681ba6a0@rorschach.local.home/)._
+
 ```h
 // trace/events/trk_example.h
 #undef TRACE_SYSTEM
@@ -522,20 +525,12 @@ TRACE_EVENT(tid_track_example,
     TP_ARGS(track_event_type, slice_name),
     TP_STRUCT__entry(
         __field(char, track_event_type)
-        // The below is the correct syntax for modern kernels (6.10+ since [1]).
-        //
-        // For older kernels, the correct syntax is:
-        //
-        // ```
-        // __string(slice_name, slice_name)
-        // ```
-        //
-        // [1] https://lore.kernel.org/linux-trace-kernel/20240516133454.681ba6a0@rorschach.local.home/
-        __string(slice_name)
+        __string(slice_name, slice_name)
     ),
     TP_fast_assign(
         __entry->track_event_type = track_event_type;
-        __assign_str(slice_name, slice_name);
+        /* kernels before v6.10: __assign_str(slice_name, slice_name) */
+        __assign_str(slice_name);
     ),
     TP_printk(
         "type=%c slice_name=%s",
