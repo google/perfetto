@@ -522,7 +522,16 @@ TRACE_EVENT(tid_track_example,
     TP_ARGS(track_event_type, slice_name),
     TP_STRUCT__entry(
         __field(char, track_event_type)
-        __string(slice_name, slice_name)
+        // The below is the correct syntax for modern kernels (6.10+ since [1]).
+        //
+        // For older kernels, the correct syntax is:
+        //
+        // ```
+        // __string(slice_name, slice_name)
+        // ```
+        //
+        // [1] https://lore.kernel.org/linux-trace-kernel/20240516133454.681ba6a0@rorschach.local.home/
+        __string(slice_name)
     ),
     TP_fast_assign(
         __entry->track_event_type = track_event_type;
