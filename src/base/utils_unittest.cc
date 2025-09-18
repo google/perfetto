@@ -218,7 +218,7 @@ TEST(UtilsTest, HexDump) {
 )");
 }
 
-TEST(UtilsTest, CopyFile) {
+TEST(UtilsTest, CopyFileContents) {
   auto assert_file_content_fn = [&](TempFile& file,
                                     const std::string& expected) {
     // Flush content of the original dst FD.
@@ -236,7 +236,7 @@ TEST(UtilsTest, CopyFile) {
     TempFile src = TempFile::Create();
     TempFile dst = TempFile::Create();
 
-    ASSERT_OK(CopyFile(*src, *dst));
+    ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, "");
   }
 
@@ -248,11 +248,11 @@ TEST(UtilsTest, CopyFile) {
     std::string payload = "payload\n\r123";
     WriteAll(*src, payload.data(), payload.size());
 
-    ASSERT_OK(CopyFile(*src, *dst));
+    ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, payload);
 
     // Append more data to the same file.
-    ASSERT_OK(CopyFile(*src, *dst));
+    ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, payload + payload);
   }
 
@@ -264,7 +264,7 @@ TEST(UtilsTest, CopyFile) {
     std::string payload(35678, 'A');
     WriteAll(*src, payload.data(), payload.size());
 
-    ASSERT_OK(CopyFile(*src, *dst));
+    ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, payload);
   }
 
@@ -280,7 +280,7 @@ TEST(UtilsTest, CopyFile) {
     // Change offset of 'src'.
     ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
 
-    ASSERT_OK(CopyFile(*src, *dst));
+    ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, payload);
 
     // Assert offset of 'src' doesn't change.
@@ -303,7 +303,7 @@ TEST(UtilsTest, CopyFile) {
     ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
 
     // Assert we can't write to read only file.
-    Status result = CopyFile(*src, *dst);
+    Status result = CopyFileContents(*src, *dst);
     ASSERT_THAT(result.message(), StartsWith("Write failed:"));
 
     // Assert offset of 'src' doesn't change.
@@ -318,7 +318,7 @@ TEST(UtilsTest, CopyFile) {
     TempFile dst = TempFile::Create();
 
     {
-      Status result = CopyFile(*pipe.rd, *dst);
+      Status result = CopyFileContents(*pipe.rd, *dst);
       // CopyFile doesn't support pipes.
       ASSERT_THAT(result.message(),
                   StartsWith("Can't get offset in 'fd_in', lseek error:"));
@@ -326,7 +326,7 @@ TEST(UtilsTest, CopyFile) {
 
     ScopedFile src = OpenFile("/dev/zero", O_WRONLY);
     {
-      Status result = CopyFile(*src, *dst);
+      Status result = CopyFileContents(*src, *dst);
       // CopyFile can't read from write only fd.
       ASSERT_THAT(result.message(), StartsWith("Read failed:"));
     }

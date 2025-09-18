@@ -189,7 +189,7 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
   return static_cast<ssize_t>(written);
 }
 
-base::Status CopyFile(int fd_in, int fd_out) {
+base::Status CopyFileContents(int fd_in, int fd_out) {
   off_t original_offset = lseek(fd_in, 0, SEEK_CUR);
   if (original_offset == -1) {
     return base::ErrStatus(
