@@ -261,11 +261,14 @@ export default class FocusMode implements PerfettoPlugin {
         const trackNode = item.children[j];
         // NativeModule track special handling
         if (trackNode.uri === LYNX_NATIVE_MODULE_ID) {
+          const nativeModuleInvokeListStr = NATIVEMODULE_INVOKE_LIST.map(
+            (item) => `'${item}'`,
+          ).join(',');
           const queryRes = await trace.engine.query(
             `select 
                 slice.id as id
               from slice 
-              where slice.name in (${NATIVEMODULE_INVOKE_LIST.join(',')})`,
+              where slice.name in (${nativeModuleInvokeListStr})`,
           );
           const it = queryRes.iter({
             id: NUM,

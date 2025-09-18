@@ -107,8 +107,12 @@ export default class LynxNativeModule implements PerfettoPlugin {
    */
   private async containValidNativeModule(ctx: Trace) {
     // Check if slice table contains all three specific NativeModule trace events
+    const nativeModuleEventsWithFlowIdStr =
+      NATIVEMODULE_EVENTS_WITH_FLOW_ID_LIST.map((item) => `'${item}'`).join(
+        ',',
+      );
     const checkEventsQuery = await ctx.engine.query(
-      `select count(distinct slice.name) as count from slice where slice.name in (${NATIVEMODULE_EVENTS_WITH_FLOW_ID_LIST.join(',')})`,
+      `select count(distinct slice.name) as count from slice where slice.name in (${nativeModuleEventsWithFlowIdStr})`,
     );
     const IMPORTANT_EVENT_COUNT = 3;
     const checkIt = checkEventsQuery.iter({count: NUM});
