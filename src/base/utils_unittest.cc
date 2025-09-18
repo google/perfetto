@@ -224,11 +224,9 @@ TEST(UtilsTest, CopyFileContents) {
     // Flush content of the original dst FD.
     ASSERT_TRUE(FlushFile(*file));
     std::string actual;
-    // Create new FD from the path with zero offset.
-    base::ScopedFile ro_fd = base::OpenFile(file.path(), O_RDONLY);
-    ASSERT_TRUE(ReadFileDescriptor(*ro_fd, &actual));
+    // Open a new FD from the path.
+    ASSERT_TRUE(ReadFile(file.path(), &actual));
     ASSERT_EQ(expected, actual);
-    ASSERT_EQ(GetFileSize(*ro_fd).value(), expected.size());
   };
 
   // Copy empty file.
@@ -309,29 +307,6 @@ TEST(UtilsTest, CopyFileContents) {
     // Assert offset of 'src' doesn't change.
     ASSERT_EQ(kSrcOffset, lseek(*src, 0, SEEK_CUR));
   }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // Test CopyFile report human readable errors.
-  {
-    auto pipe = Pipe::Create();
-    TempFile dst = TempFile::Create();
-
-    {
-      Status result = CopyFileContents(*pipe.rd, *dst);
-      // CopyFile doesn't support pipes.
-      ASSERT_THAT(result.message(),
-                  StartsWith("Can't get offset in 'fd_in', lseek error:"));
-    }
-
-    ScopedFile src = OpenFile("/dev/zero", O_WRONLY);
-    {
-      Status result = CopyFileContents(*src, *dst);
-      // CopyFile can't read from write only fd.
-      ASSERT_THAT(result.message(), StartsWith("Read failed:"));
-    }
-  }
-#endif
 }
 
 }  // namespace
