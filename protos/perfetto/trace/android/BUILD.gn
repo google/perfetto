@@ -112,6 +112,17 @@ perfetto_proto_library("winscope_extensions_@TYPE@") {
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }
 
+# Winscope messages added to TracePacket directly
+perfetto_proto_library("winscope_unittest_@TYPE@") {
+  proto_generators = [ "cpp" ]
+  deps = [
+    ":winscope_common_@TYPE@",
+    ":winscope_regular_@TYPE@",
+    "../../common:@TYPE@",
+  ]
+  sources = [ "viewcapture.proto" ]
+}
+
 static_library("perfetto_winscope_extensions_zero") {
   complete_static_lib = true
   deps = [ ":winscope_extensions_zero" ]

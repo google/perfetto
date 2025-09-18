@@ -7433,6 +7433,56 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/android:winscope_unittest_cpp
+filegroup {
+    name: "perfetto_protos_perfetto_trace_android_winscope_unittest_cpp",
+    srcs: [
+        "protos/perfetto/trace/android/viewcapture.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/android:winscope_unittest_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_android_winscope_unittest_cpp_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_common_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_common_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_unittest_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_unittest_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/android/viewcapture.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/android:winscope_unittest_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_android_winscope_unittest_cpp_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_common_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_common_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_unittest_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_winscope_unittest_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/android/viewcapture.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/trace/android:zero
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_zero",
@@ -17252,6 +17302,7 @@ cc_test {
         ":perfetto_protos_perfetto_trace_android_winscope_regular_cpp_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_regular_lite_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen",
+        ":perfetto_protos_perfetto_trace_android_winscope_unittest_cpp_gen",
         ":perfetto_protos_perfetto_trace_android_zero_gen",
         ":perfetto_protos_perfetto_trace_chrome_cpp_gen",
         ":perfetto_protos_perfetto_trace_chrome_lite_gen",
@@ -17677,6 +17728,7 @@ cc_test {
         "perfetto_protos_perfetto_trace_android_winscope_regular_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_regular_lite_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_android_winscope_unittest_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_android_zero_gen_headers",
         "perfetto_protos_perfetto_trace_chrome_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
