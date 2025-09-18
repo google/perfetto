@@ -451,7 +451,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                           traceProcessors = traceProcessors.filter(
                             (p) => p.instanceId !== id,
                           );
-                          m.redraw();
                         },
                       },
                       '⨯',
