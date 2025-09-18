@@ -60,16 +60,14 @@ void RtFutex::UnlockSlowpath() {
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
 
 RtPosixMutex::RtPosixMutex() noexcept {
-  pthread_mutexattr_t at{};
-  PERFETTO_CHECK(pthread_mutexattr_init(&at) == 0);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __ANDROID_API__ < 28
   // pthread_mutexattr_setprotocol is only available on API 28.
-  PERFETTO_FATAL(
-      "Priority-inheritance RtMutex is not available in this version of "
-      "Android.");
-#else  // Not Android (but POSIX RT)
-  PERFETTO_CHECK(pthread_mutexattr_setprotocol(&at, PTHREAD_PRIO_INHERIT) == 0);
+#error \
+    "Priority-inheritance RtMutex is not available in this version of Android."
 #endif
+  pthread_mutexattr_t at{};
+  PERFETTO_CHECK(pthread_mutexattr_init(&at) == 0);
+  PERFETTO_CHECK(pthread_mutexattr_setprotocol(&at, PTHREAD_PRIO_INHERIT) == 0);
   PERFETTO_CHECK(pthread_mutex_init(&mutex_, &at) == 0);
 }
 

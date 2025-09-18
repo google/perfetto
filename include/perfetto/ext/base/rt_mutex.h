@@ -23,8 +23,8 @@
 // In the contended case RtMutex is generally slower than a std::mutex (or any
 // non-RT implementation).
 // Under the hoods this class does the following:
-// - Linux/Android: it uses PI futexes.
-// - MacOS/iOS: it uses pthread_mutex with PTHREAD_PRIO_INHERIT.
+// - Android: it uses PI futexes.
+// - Linux/MacOS/iOS: it uses pthread_mutex with PTHREAD_PRIO_INHERIT.
 // - Other platforms: falls back on a standard std::mutex. On Windows 11+
 //   std::mutex has effectively PI semantics due to AutoBoost
 //   https://github.com/MicrosoftDocs/win32/commit/a43cb3b5039c5cfc53642bfcea174003a2f1168f
@@ -34,34 +34,49 @@
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/public/compiler.h"
 
-// We enable this only on Android because it relies on gettid() being fast.
-// On Android, gettid() is a cheap TLS access provided by Bionic. On Linux with
-// glibc, it's a full syscall, which makes the pthread-based implementation
-// faster.
+#define _PERFETTO_MUTEX_MODE_STD 0
+#define _PERFETTO_MUTEX_MODE_RT_FUTEX 1
+#define _PERFETTO_MUTEX_MODE_RT_MUTEX 2
+
+// The logic below determines which mutex implementation to use.
+// For Android platform builds, the choice is controlled by aconfig flags.
+// For other builds, it's determined by OS support and GN build arguments.
 //
-// The pthread-based RT mutex, however, is not a viable option for Android as it
-// was introduced only in API level 28. Backporting it to older versions via
-// dlsym is not a safe alternative, as it can lead to deadlocks if tracing is
-// initialized from a static initializer. This is due to a conflict between the
-// dlsym call and the loader lock (see b/443178555).
+// Rationale for platform-specific choices:
+// 1. `RtFutex` is enabled only on Android because it relies on `gettid()` being
+//    a cheap thread-local storage access provided by Bionic. On Linux with
+//    glibc, `gettid()` is a full syscall, making the pthread-based
+//    implementation faster.
+// 2. The pthread-based `RtPosixMutex` is not viable on all Android versions, as
+//    `pthread_mutexattr_setprotocol` was introduced in API level 28. Using
+//    `dlsym` to backport it can lead to deadlocks with the loader lock if
+//    tracing is initialized from a static constructor (see b/443178555).
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_FLAGS_USE_RT_FUTEX
+#define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_FUTEX
+#elif PERFETTO_FLAGS_USE_RT_MUTEX
+#define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_MUTEX
+#endif
+#elif PERFETTO_BUILDFLAG(PERFETTO_ENABLE_RT_MUTEX)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_HAS_RT_FUTEX() true
-#else
-#define PERFETTO_HAS_RT_FUTEX() false
+#define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_FUTEX
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_MUTEX
+#endif
 #endif
 
-// Enabled on Android to cover the scenario on platform builds where the Android
-// flag `use_rt_futex` is disabled and `use_rt_mutex` is enabled.
-//
-// Android support can be safely removed once the `use_rt_futex` rollout is
-// complete and the flag is deprecated.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#define PERFETTO_HAS_POSIX_RT_MUTEX() true
-#else
-#define PERFETTO_HAS_POSIX_RT_MUTEX() false
+// If no RT implementation was selected, default to std::mutex.
+#ifndef _PERFETTO_MUTEX_MODE
+#define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_STD
 #endif
+
+// Public macros for conditional compilation based on the selected mutex type.
+#define PERFETTO_HAS_POSIX_RT_MUTEX() \
+  (_PERFETTO_MUTEX_MODE == _PERFETTO_MUTEX_MODE_RT_MUTEX)
+#define PERFETTO_HAS_RT_FUTEX() \
+  (_PERFETTO_MUTEX_MODE == _PERFETTO_MUTEX_MODE_RT_FUTEX)
 
 #include <atomic>
 #include <mutex>
@@ -182,24 +197,15 @@ class PERFETTO_LOCKABLE RtPosixMutex {
 #endif  // PERFETTO_HAS_POSIX_RT_MUTEX
 }  // namespace internal
 
-// Pick the best implementation for the target platform.
-// See comments in the top of the doc.
-#if PERFETTO_HAS_POSIX_RT_MUTEX()
-using RtMutex = internal::RtPosixMutex;
-#else
-using RtMutex = std::mutex;
-#endif
-
+// Select the best real-time mutex implementation for the target platform, or
+// fall back to std::mutex if none is available.
 #if PERFETTO_HAS_RT_FUTEX()
-using RtFutex = internal::RtFutex;
+using MaybeRtMutex = internal::RtFutex;
+#elif PERFETTO_HAS_POSIX_RT_MUTEX()
+using MaybeRtMutex = internal::RtPosixMutex;
 #else
-using RtFutex = RtMutex;
+using MaybeRtMutex = std::mutex;
 #endif
-
-using MaybeRtMutex = std::conditional_t<
-    base::flags::use_rt_futex,
-    RtFutex,
-    std::conditional_t<base::flags::use_rt_mutex, RtMutex, std::mutex> >;
 
 }  // namespace perfetto::base
 
