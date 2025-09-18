@@ -14468,6 +14468,7 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_parser.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",

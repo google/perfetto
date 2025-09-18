@@ -2205,6 +2205,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.h",
         "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h",
+        "src/trace_processor/importers/proto/winscope/windowmanager_parser.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_parser.h",
         "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h",
         "src/trace_processor/importers/proto/winscope/winscope_context.h",

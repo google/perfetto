@@ -53,6 +53,8 @@ source_set("full") {
     "viewcapture_visibility_computation.h",
     "windowmanager_hierarchy_walker.cc",
     "windowmanager_hierarchy_walker.h",
+    "windowmanager_parser.cc",
+    "windowmanager_parser.h",
     "windowmanager_proto_clone.cc",
     "windowmanager_proto_clone.h",
     "winscope_context.h",
