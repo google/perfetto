@@ -2197,6 +2197,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.h",
+        "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.h",
         "src/trace_processor/importers/proto/winscope/winscope_context.h",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.h",
