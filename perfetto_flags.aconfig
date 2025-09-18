@@ -42,3 +42,10 @@ flag {
   bug: "441118768"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_rt_futex"
+  namespace: "perfetto"
+  description: "Controls whether base::MaybeRtMutex will use base::RtFutex or resolved type of base::MaybeRtMutex for android."
+  bug: "443948543"
+  is_fixed_read_only: true
+}
