@@ -766,7 +766,7 @@ Behavioural:
                                       executing some other commands (-q, -Q,
                                       --run-metrics, --summary).
  --trace-processor-timeout-mins MINS  Specifies the timeout in minutes before the
-                                      trace processor thread to expire. Default is 120.
+                                      trace processor thread to expire. Default is 1 day.
 
 Parsing:
  --full-sort                          Forces the trace processor into performing
