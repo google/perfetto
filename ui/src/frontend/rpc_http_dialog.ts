@@ -17,11 +17,14 @@ import protos from '../protos';
 import {assertExists} from '../base/logging';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
-import {Callout} from '../widgets/callout';
-import {CardStack} from '../widgets/card';
-import {Intent} from '../widgets/common';
-import {showModal, closeModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
+import {Button} from '../widgets/button';
+import {Callout} from '../widgets/callout';
+import {Card, CardStack} from '../widgets/card';
+import {Intent} from '../widgets/common';
+import {EmptyState} from '../widgets/empty_state';
+import {closeModal, showModal} from '../widgets/modal';
+import {Stack, StackAuto} from '../widgets/stack';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
@@ -333,7 +336,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           elements.push(
             m(
               'p',
-              {class: 'pf-modal-intro'},
               `Current active sessions on ${HttpRpcEngine.hostAndPort} (select one or pick "New instance" below if you want to open another trace):`,
             ),
           );
@@ -389,16 +391,17 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               ].join(' ');
 
               return m(
-                'div',
+                Card as unknown as string,
                 {
                   key: `row-${id ?? `default-${index}`}`,
                   role: 'option',
                   tabindex: hasActiveTab ? -1 : 0,
+                  className: classes,
+                  interactive: !hasActiveTab,
                   onclick: () => {
                     // do not allow selecting rows that already have an active tab
                     if (hasActiveTab) return;
                     selectedInstanceId = id ?? null;
-                    // redraw modal content to reflect selection
                   },
                   onkeypress: (e: KeyboardEvent) => {
                     if (hasActiveTab) return;
@@ -407,107 +410,84 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                       selectedInstanceId = id ?? null;
                     }
                   },
-                  class: classes,
                 },
-                [
-                  // left side: number, loadedTraceName and small details
-                  m('div', {class: 'pf-row-left'}, [
+                m(
+                  Stack,
+                  {orientation: 'horizontal', spacing: 'small'},
+                  // left side: text grows to fill available space
+                  m(
+                    StackAuto,
                     m(
-                      'div',
-                      {
-                        class: 'pf-row-mono',
-                      },
-                      `#${status.instanceId ?? '0'}  ${status.loadedTraceName}  ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? '  [ATTACHED]' : ''}`,
+                      'strong',
+                      `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
                     ),
-                    m('small', {class: 'pf-row-muted'}),
-                  ]),
-
-                  // right side: status indicator (attached-warning)
-                  m('div', {class: 'pf-row-right'}, [
-                    isSelected &&
-                      !hasActiveTab &&
-                      m(
-                        'div',
-                        {
-                          class: 'pf-selected-label',
-                        },
-                        'Selected',
-                      ),
-                    m(
-                      'div',
-                      {
-                        class: 'pf-kill-instance',
-                        title: 'Close this trace processor instance',
-                        onclick: async (e: MouseEvent) => {
-                          e.stopPropagation();
-                          if (id === null) return;
-                          await fetch(
-                            `http://${HttpRpcEngine.hostAndPort}/close`,
-                            {
-                              method: 'POST',
-                              body: String(id),
-                            },
-                          );
-                          traceProcessors = traceProcessors.filter(
-                            (p) => p.instanceId !== id,
-                          );
-                        },
-                      },
-                      '⨯',
-                    ),
-                  ]),
-                ],
+                  ),
+                ),
+                // right side: fixed button
+                m(Button, {
+                  icon: 'close',
+                  title: 'Close this trace processor instance',
+                  compact: true,
+                  onclick: async (e: MouseEvent) => {
+                    e.stopPropagation();
+                    if (id === null) return;
+                    await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
+                      method: 'POST',
+                      body: String(id),
+                    });
+                    traceProcessors = traceProcessors.filter(
+                      (p) => p.instanceId !== id,
+                    );
+                    m.redraw();
+                  },
+                }),
               );
             });
 
             const newInstanceSelected = selectedInstanceId === null;
 
             const newClasses = [
-              'pf-new-row',
-              newInstanceSelected ? 'pf-new-row--selected' : '',
+              'pf-row',
+              newInstanceSelected ? 'pf-row--selected' : '',
             ].join(' ');
 
             elements.push(
+              // TODO
               m(CardStack, [
                 ...rows,
                 m(
-                  'div',
+                  Card as unknown as string,
                   {
                     key: 'new-instance-row',
                     role: 'option',
                     tabindex: 0,
+                    className: newClasses,
+                    interactive: true,
                     onclick: () => {
                       selectedInstanceId = null;
+                      m.redraw(); // force UI update
                     },
                     onkeypress: (e: KeyboardEvent) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         selectedInstanceId = null;
+                        m.redraw(); // force UI update
                       }
                     },
-                    class: newClasses,
                   },
-                  [
-                    m('div', m('strong', 'New instance …')),
-                    newInstanceSelected &&
-                      m(
-                        'div',
-                        {
-                          class: 'pf-selected-inline',
-                        },
-                        'Selected',
-                      ),
-                  ],
+                  m(
+                    Stack,
+                    {orientation: 'horizontal'},
+                    m(StackAuto, m('strong', 'New instance …')),
+                  ),
                 ),
               ]),
             );
           } else {
             elements.push(
-              m(
-                'p',
-                {class: 'pf-no-sessions'},
-                `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
-              ),
+              m(EmptyState, {
+                title: `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
+              }),
             );
 
             // ensure default selection is "New instance" if nothing exists
