@@ -60,7 +60,7 @@ def create_sandbox_token(token_path):
   ]).decode().strip()
   with open(token_path + '.tmp', 'w') as f:
     f.write(sandbox_svc_token)
-  os.rename(token_path + '.tmp', token_path)
+  os.replace(token_path + '.tmp', token_path)
 
 
 def main():
