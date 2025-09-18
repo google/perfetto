@@ -526,7 +526,7 @@ TRACE_EVENT(tid_track_example,
     ),
     TP_fast_assign(
         __entry->track_event_type = track_event_type;
-        __assign_str(slice_name);
+        __assign_str(slice_name, slice_name);
     ),
     TP_printk(
         "type=%c slice_name=%s",
