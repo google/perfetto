@@ -187,7 +187,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   static get hostAndPort() {
-    return `${window.location.hostname}:${HttpRpcEngine.rpcPort}`;
+    return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
   }
 
   [Symbol.dispose]() {
