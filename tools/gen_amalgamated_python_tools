@@ -103,7 +103,7 @@ def amalgamate(src, dst, check_only=False):
   with open(dst + '.tmp', 'w', encoding='utf-8') as f:
     f.write(new_content)
   os.chmod(dst + '.tmp', 0o755)
-  os.rename(dst + '.tmp', dst)
+  os.replace(dst + '.tmp', dst)
   return True
 
 
