@@ -13,11 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Creates a table that matches CUJ counters with the correct CUJs.
--- After the CUJ ends FrameTracker emits counters with the number of total
--- frames, missed frames, longest frame duration, etc.
--- The same numbers are also reported by FrameTracker to statsd.
-
 SELECT RUN_METRIC('android/process_metadata.sql');
 INCLUDE PERFETTO MODULE android.surfaceflinger;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;

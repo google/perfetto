@@ -107,6 +107,7 @@ action("gen_buildflags") {
     "PERFETTO_THREAD_SAFETY_ANNOTATIONS=$perfetto_thread_safety_annotations",
     "PERFETTO_ENABLE_WINSCOPE=$enable_perfetto_winscope",
     "PERFETTO_ENABLE_RT_MUTEX=$enable_perfetto_rt_mutex",
+    "PERFETTO_ENABLE_LOCKFREE_TASKRUNNER=$enable_perfetto_lockfree_taskrunner",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")

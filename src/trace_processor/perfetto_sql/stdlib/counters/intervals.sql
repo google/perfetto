@@ -17,8 +17,8 @@
 -- For a given counter timeline (e.g. a single counter track), returns
 -- intervals of time where the counter has the same value. For every run
 -- of identical values, this macro will return a row for the first one,
--- and a row merging all subsequent ones. This to to facilitate construction
--- of counters from delta_values.
+-- the last one, and a row merging all other ones. This to to facilitate
+-- construction of counters from delta_values.
 --
 -- Intervals are computed in a "forward-looking" way. That is, if a counter
 -- changes value at some timestamp, it's assumed it *just* reached that
@@ -50,8 +50,21 @@ CREATE PERFETTO MACRO counter_leading_intervals(
     -- to an id, timestamp, counter track_id and associated counter value.
     counter_table TableOrSubquery
 )
--- Table with the schema (id LONG, ts TIMESTAMP, dur DURATION, track_id JOINID(track.id),
--- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
+-- Table with the schema:
+-- id LONG,
+--     As passed in
+-- ts TIMESTAMP,
+--     As passed in
+-- dur DURATION,
+--     Difference to the timestamp for the leading row.
+-- track_id JOINID(track.id),
+--     As passed in
+-- value DOUBLE,
+--     As passed in
+-- next_value DOUBLE,
+--     Value for the leading row.
+-- delta_value DOUBLE
+--     Delta to the *lagging* row - note that this is not the same thing as (next_value - value).
 RETURNS TableOrSubquery AS
 (
   SELECT

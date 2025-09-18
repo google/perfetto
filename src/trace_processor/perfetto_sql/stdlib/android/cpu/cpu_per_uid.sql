@@ -89,8 +89,10 @@ SELECT
   ts,
   dur,
   track_id,
-  delta_value AS diff_ms,
-  delta_value * 1e6 / dur AS cpu_ratio
+  next_value - value AS diff_ms,
+  (
+    next_value - value
+  ) * 1e6 / dur AS cpu_ratio
 FROM deltas
 WHERE
-  delta_value IS NOT NULL;
+  next_value IS NOT NULL;

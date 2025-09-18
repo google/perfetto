@@ -94,6 +94,10 @@ export class AppContext {
   // via is_internal_user.js
   extraSqlPackages: SqlPackage[] = [];
 
+  // This is normally empty and is injected with extra google-internal macros
+  // via is_internal_user.js
+  extraMacros: Record<string, CommandInvocation[]>[] = [];
+
   // The currently open trace.
   currentTrace?: TraceContext;
 
@@ -399,6 +403,10 @@ export class AppImpl implements App {
 
   get extraSqlPackages(): SqlPackage[] {
     return this.appCtx.extraSqlPackages;
+  }
+
+  get extraMacros(): Record<string, CommandInvocation[]>[] {
+    return this.appCtx.extraMacros;
   }
 
   get perfDebugging(): PerfManager {

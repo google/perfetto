@@ -135,7 +135,7 @@ AndroidLogReader::AndroidLogReader(
     bool wait_for_tz)
     : context_(context),
       stream_(std::move(stream)),
-      year_(year),
+      default_year_(year),
       wait_for_tz_(wait_for_tz) {}
 
 AndroidLogReader::~AndroidLogReader() = default;
@@ -145,7 +145,8 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
       (line.at(0) == '-' && line.at(1) == '-' && line.at(2) == '-')) {
     // These are markers like "--------- switch to radio" which we ignore.
     // The smallest valid logcat line has around 30 chars, as follows:
-    // "06-24 23:10:00.123  1 1 D : ..."
+    // "06-24 23:10:00.123  1 1 D : ..." or "2023-06-24 23:10:00.123  1 1 D :
+    // ..."
     return base::OkStatus();
   }
 
@@ -160,11 +161,29 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
   }
 
   base::StringView it = line;
-  // 06-24 16:24:23.441532 23153 23153 I wm_on_stop_called: message ...
-  // 07-28 14:25:13.506  root     0     0 I x86/fpu : Supporting XSAVE feature
-  // 0x002: 'SSE registers'
-  std::optional<int> month = ReadNumAndAdvance(&it, '-');
-  std::optional<int> day = ReadNumAndAdvance(&it, ' ');
+  // Try to parse YYYY-MM-DD format first, then fall back to MM-DD format
+  // YYYY-MM-DD: 2023-06-24 16:24:23.441532 23153 23153 I wm_on_stop_called:
+  // message ... MM-DD:      06-24 16:24:23.441532 23153 23153 I
+  // wm_on_stop_called: message ... MM-DD:      07-28 14:25:13.506  root     0
+  // 0 I x86/fpu : Supporting XSAVE feature
+
+  std::optional<int> year;
+  std::optional<int> month;
+  std::optional<int> day;
+
+  // Read first number - could be year (YYYY-MM-DD) or month (MM-DD)
+  std::optional<int> year_or_month = ReadNumAndAdvance(&it, '-');
+  if (year_or_month && *year_or_month >= 1969) {
+    // Treat as year in YYYY-MM-DD format
+    year = year_or_month;
+    month = ReadNumAndAdvance(&it, '-');
+    day = ReadNumAndAdvance(&it, ' ');
+  } else {
+    // Treat as month in MM-DD format
+    month = year_or_month;
+    day = ReadNumAndAdvance(&it, ' ');
+  }
+
   std::optional<int> hour = ReadNumAndAdvance(&it, ':');
   std::optional<int> minute = ReadNumAndAdvance(&it, ':');
   std::optional<int> sec = ReadNumAndAdvance(&it, '.');
@@ -220,7 +239,9 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
 
   base::StringView msg = it;  // The rest is the log message.
 
-  int64_t secs = base::MkTime(year_, *month, *day, *hour, *minute, *sec);
+  // Use parsed year if available, otherwise fall back to guessed year
+  int final_year = year.has_value() ? *year : default_year_;
+  int64_t secs = base::MkTime(final_year, *month, *day, *hour, *minute, *sec);
   std::chrono::nanoseconds event_ts((secs * 1000000000ll) + *ns);
 
   AndroidLogEvent event;
