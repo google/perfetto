@@ -399,14 +399,12 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                     if (hasActiveTab) return;
                     selectedInstanceId = id ?? null;
                     // redraw modal content to reflect selection
-                    redrawModal();
                   },
                   onkeypress: (e: KeyboardEvent) => {
                     if (hasActiveTab) return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       selectedInstanceId = id ?? null;
-                      redrawModal();
                     }
                   },
                   class: classes,
@@ -453,7 +451,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                           traceProcessors = traceProcessors.filter(
                             (p) => p.instanceId !== id,
                           );
-                          redrawModal();
+                          m.redraw();
                         },
                       },
                       '⨯',
@@ -481,13 +479,11 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                     tabindex: 0,
                     onclick: () => {
                       selectedInstanceId = null;
-                      redrawModal();
                     },
                     onkeypress: (e: KeyboardEvent) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         selectedInstanceId = null;
-                        redrawModal();
                       }
                     },
                     class: newClasses,
@@ -547,15 +543,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           },
         ],
       });
-
-      function redrawModal() {
-        try {
-          const mWithRedraw = m as {redraw?: () => void};
-          if (typeof mWithRedraw.redraw === 'function') {
-            mWithRedraw.redraw();
-          }
-        } catch (e) {}
-      }
     } catch (error) {
       console.error('Error showing trace processor selection modal:', error);
       resolve(PreloadedDialogResult.UseWasm);
