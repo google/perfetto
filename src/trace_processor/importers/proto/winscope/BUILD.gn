@@ -47,6 +47,8 @@ source_set("full") {
     "viewcapture_parser.h",
     "viewcapture_views_extractor.cc",
     "viewcapture_views_extractor.h",
+    "viewcapture_visibility_computation.cc",
+    "viewcapture_visibility_computation.h",
     "winscope_context.h",
     "winscope_geometry.cc",
     "winscope_geometry.h",
@@ -105,6 +107,7 @@ perfetto_unittest_source_set("unittests") {
     "surfaceflinger_layers_visibility_computation_unittest.cc",
     "viewcapture_test_utils.h",
     "viewcapture_views_extractor_unittest.cc",
+    "viewcapture_visibility_computation_unittest.cc",
     "winscope_geometry_test_utils.h",
     "winscope_geometry_unittest.cc",
   ]
