@@ -29,8 +29,11 @@ YELLOW = '\033[0;33m'
 NC = '\033[0m'  # No Color
 
 # Constants for paths. Assumes the script is run from the repository root.
-SETUP_PY_PATH = 'python/setup.py'
-VENV_PYTHON = os.path.abspath('.venv/bin/python')
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SETUP_PY_PATH = os.path.join(ROOT_DIR, 'python', 'setup.py')
+VENV_PYTHON = os.path.join(ROOT_DIR, '.venv',
+                           'bin' if sys.platform != 'win32' else 'Scripts',
+                           'python')
 
 
 def info(msg: str) -> None:
