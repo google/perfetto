@@ -20,7 +20,6 @@
 #include <sys/types.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <deque>
 #include <optional>
 #include <string>
