@@ -32,6 +32,9 @@ namespace perfetto::base::flags {
 // in `perfetto_flags.aconfig`.
 // The second argument is the default value of the flag in non-Android platform
 // contexts.
+//
+// Note: For rt_mutex and rt_futex, the source of truth for non android platform
+// is in rt_mutex.h
 #define PERFETTO_READ_ONLY_FLAGS(X)                                    \
   X(test_read_only_flag, NonAndroidPlatformDefault_FALSE)              \
   X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_TRUE) \
