@@ -21,6 +21,7 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/android/viewcapture.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::viewcapture::test {
@@ -65,7 +66,7 @@ class SnapshotProtoBuilder {
 
     int32_t i = 0;
     for (const auto& view : views_) {
-      auto* view_proto = snapshot_proto.add_views();
+      auto* view_proto = snapshot_proto->add_views();
 
       view_proto->set_id(view.id_.has_value() ? view.id_.value() : i);
       i++;

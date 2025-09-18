@@ -5035,34 +5035,48 @@ class EnumValueDescriptorProto(_message.Message):
     def __init__(self, name: _Optional[str] = ..., number: _Optional[int] = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ["kernel_flags", "memory_provider_events", "scheduler_provider_events"]
+    __slots__ = ["file_provider_events", "kernel_flags", "memory_provider_events", "scheduler_provider_events"]
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     CSWITCH: EtwConfig.KernelFlag
     DISPATCHER: EtwConfig.KernelFlag
+    FILE_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     KERNEL_FLAGS_FIELD_NUMBER: _ClassVar[int]
     MEMORY_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     SCHEDULER_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    file_provider_events: _containers.RepeatedScalarFieldContainer[str]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
     memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
     scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
-    __slots__ = ["c_switch", "cpu", "mem_info", "ready_thread", "thread_id", "timestamp"]
+    __slots__ = ["c_switch", "cpu", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_op_end", "file_io_read_write", "file_io_simple_op", "mem_info", "ready_thread", "thread_id", "timestamp"]
     CPU_FIELD_NUMBER: _ClassVar[int]
     C_SWITCH_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_CREATE_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_DIR_ENUM_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_INFO_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_OP_END_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_READ_WRITE_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_SIMPLE_OP_FIELD_NUMBER: _ClassVar[int]
     MEM_INFO_FIELD_NUMBER: _ClassVar[int]
     READY_THREAD_FIELD_NUMBER: _ClassVar[int]
     THREAD_ID_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     c_switch: CSwitchEtwEvent
     cpu: int
+    file_io_create: FileIoCreateEtwEvent
+    file_io_dir_enum: FileIoDirEnumEtwEvent
+    file_io_info: FileIoInfoEtwEvent
+    file_io_op_end: FileIoOpEndEtwEvent
+    file_io_read_write: FileIoReadWriteEtwEvent
+    file_io_simple_op: FileIoSimpleOpEtwEvent
     mem_info: MemInfoEtwEvent
     ready_thread: ReadyThreadEtwEvent
     thread_id: int
     timestamp: int
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ["cpu", "event"]
@@ -7311,6 +7325,100 @@ class FileDescriptorSet(_message.Message):
     FILE_FIELD_NUMBER: _ClassVar[int]
     file: _containers.RepeatedCompositeFieldContainer[FileDescriptorProto]
     def __init__(self, file: _Optional[_Iterable[_Union[FileDescriptorProto, _Mapping]]] = ...) -> None: ...
+
+class FileIoCreateEtwEvent(_message.Message):
+    __slots__ = ["create_options", "file_attributes", "file_object", "irp_ptr", "open_path", "share_access", "ttid"]
+    CREATE_OPTIONS_FIELD_NUMBER: _ClassVar[int]
+    FILE_ATTRIBUTES_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    OPEN_PATH_FIELD_NUMBER: _ClassVar[int]
+    SHARE_ACCESS_FIELD_NUMBER: _ClassVar[int]
+    TTID_FIELD_NUMBER: _ClassVar[int]
+    create_options: int
+    file_attributes: int
+    file_object: int
+    irp_ptr: int
+    open_path: str
+    share_access: int
+    ttid: int
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., ttid: _Optional[int] = ..., create_options: _Optional[int] = ..., file_attributes: _Optional[int] = ..., share_access: _Optional[int] = ..., open_path: _Optional[str] = ...) -> None: ...
+
+class FileIoDirEnumEtwEvent(_message.Message):
+    __slots__ = ["file_index", "file_key", "file_name", "file_object", "info_class", "irp_ptr", "length", "ttid"]
+    FILE_INDEX_FIELD_NUMBER: _ClassVar[int]
+    FILE_KEY_FIELD_NUMBER: _ClassVar[int]
+    FILE_NAME_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    INFO_CLASS_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    LENGTH_FIELD_NUMBER: _ClassVar[int]
+    TTID_FIELD_NUMBER: _ClassVar[int]
+    file_index: int
+    file_key: int
+    file_name: str
+    file_object: int
+    info_class: int
+    irp_ptr: int
+    length: int
+    ttid: int
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., length: _Optional[int] = ..., info_class: _Optional[int] = ..., file_index: _Optional[int] = ..., file_name: _Optional[str] = ...) -> None: ...
+
+class FileIoInfoEtwEvent(_message.Message):
+    __slots__ = ["extra_info", "file_key", "file_object", "info_class", "irp_ptr", "ttid"]
+    EXTRA_INFO_FIELD_NUMBER: _ClassVar[int]
+    FILE_KEY_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    INFO_CLASS_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    TTID_FIELD_NUMBER: _ClassVar[int]
+    extra_info: int
+    file_key: int
+    file_object: int
+    info_class: int
+    irp_ptr: int
+    ttid: int
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., extra_info: _Optional[int] = ..., ttid: _Optional[int] = ..., info_class: _Optional[int] = ...) -> None: ...
+
+class FileIoOpEndEtwEvent(_message.Message):
+    __slots__ = ["extra_info", "irp_ptr", "nt_status"]
+    EXTRA_INFO_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    NT_STATUS_FIELD_NUMBER: _ClassVar[int]
+    extra_info: int
+    irp_ptr: int
+    nt_status: int
+    def __init__(self, irp_ptr: _Optional[int] = ..., extra_info: _Optional[int] = ..., nt_status: _Optional[int] = ...) -> None: ...
+
+class FileIoReadWriteEtwEvent(_message.Message):
+    __slots__ = ["file_key", "file_object", "io_flags", "io_size", "irp_ptr", "offset", "ttid"]
+    FILE_KEY_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    IO_FLAGS_FIELD_NUMBER: _ClassVar[int]
+    IO_SIZE_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    OFFSET_FIELD_NUMBER: _ClassVar[int]
+    TTID_FIELD_NUMBER: _ClassVar[int]
+    file_key: int
+    file_object: int
+    io_flags: int
+    io_size: int
+    irp_ptr: int
+    offset: int
+    ttid: int
+    def __init__(self, offset: _Optional[int] = ..., irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ..., io_size: _Optional[int] = ..., io_flags: _Optional[int] = ...) -> None: ...
+
+class FileIoSimpleOpEtwEvent(_message.Message):
+    __slots__ = ["file_key", "file_object", "irp_ptr", "ttid"]
+    FILE_KEY_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    TTID_FIELD_NUMBER: _ClassVar[int]
+    file_key: int
+    file_object: int
+    irp_ptr: int
+    ttid: int
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., ttid: _Optional[int] = ...) -> None: ...
 
 class FloatRectProto(_message.Message):
     __slots__ = ["bottom", "left", "right", "top"]

@@ -41,4 +41,6 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }

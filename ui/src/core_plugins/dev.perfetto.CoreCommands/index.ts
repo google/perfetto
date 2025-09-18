@@ -173,8 +173,7 @@ export default class CoreCommands implements PerfettoPlugin {
         callback: async () => {
           // Macros could run multiple commands, some of which might prompt the
           // user in an optional way. But macros should be self-contained
-          // so we disable prompts during their execution. As such, disable
-          // prompts for the entire duration of the macro execution.
+          // so we disable prompts during their execution.
           using _ = ctx.omnibox.disablePrompts();
           for (const command of commands) {
             await ctx.commands.runCommand(command.id, ...command.args);
