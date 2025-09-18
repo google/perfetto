@@ -117,11 +117,11 @@ class AndroidStdlib(TestSuite):
         trace=Path('../../metrics/android/android_anr_metric.py'),
         query="""
         INCLUDE PERFETTO MODULE android.anrs;
-        SELECT process_name, pid, upid, error_id, ts, subject, anr_type, anr_dur_ms
+        SELECT process_name, pid, upid, error_id, ts, subject, anr_type, default_anr_dur_ms
         FROM android_anrs;
       """,
         out=Csv("""
-        "process_name","pid","upid","error_id","ts","subject","anr_type","anr_dur_ms"
+        "process_name","pid","upid","error_id","ts","subject","anr_type","default_anr_dur_ms"
         "com.google.android.app1",11167,"[NULL]","da24554c-452a-4ae1-b74a-fb898f6e0982",1000,"Test ANR subject 1","UNKNOWN_ANR_TYPE","[NULL]"
         "com.google.android.app2","[NULL]","[NULL]","8612fece-c2f1-4aeb-9d45-8e6d9d0201cf",2000,"Test ANR subject 2","UNKNOWN_ANR_TYPE","[NULL]"
         "com.google.android.app3","[NULL]","[NULL]","c25916a0-a8f0-41f3-87df-319e06471a0f",3000,"[NULL]","[NULL]","[NULL]"
@@ -147,13 +147,13 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('android_anr.pftrace.gz'),
         query="""
         INCLUDE PERFETTO MODULE android.anrs;
-        SELECT process_name, pid, upid, error_id, ts, subject, timer_delay, anr_type, anr_dur_ms
+        SELECT process_name, pid, upid, error_id, ts, subject, timer_delay, anr_type, anr_dur_ms, default_anr_dur_ms
         FROM android_anrs;
       """,
         out=Csv("""
-        "process_name","pid","upid","error_id","ts","subject","timer_delay","anr_type","anr_dur_ms"
-        "com.google.android.videos",4464,1765,"d55b1536-9c53-422a-af00-33daaf992b0d",184660962756627,"Process ProcessRecord{c098c64 4464:com.google.android.videos/u0a224} failed to complete startup","[NULL]","BIND_APPLICATION",15000
-        "com.google.android.gms.persistent",30647,112,"45210ec5-1525-49c3-816c-75afb1973d0b",184707199069963,"Broadcast of Intent { act=com.google.android.gms.tron.ALARM flg=0x10 xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/.tron.AlarmReceiver (has extras) }",22247029,"BROADCAST_OF_INTENT",60006
+        "process_name","pid","upid","error_id","ts","subject","timer_delay","anr_type","anr_dur_ms","default_anr_dur_ms"
+        "com.google.android.videos",4464,1765,"d55b1536-9c53-422a-af00-33daaf992b0d",184660962756627,"Process ProcessRecord{c098c64 4464:com.google.android.videos/u0a224} failed to complete startup","[NULL]","BIND_APPLICATION","[NULL]",15000
+        "com.google.android.gms.persistent",30647,112,"45210ec5-1525-49c3-816c-75afb1973d0b",184707199069963,"Broadcast of Intent { act=com.google.android.gms.tron.ALARM flg=0x10 xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/.tron.AlarmReceiver (has extras) }",22247029,"BROADCAST_OF_INTENT",60006,60000
       """))
 
   def test_binder_sync_binder_metrics(self):

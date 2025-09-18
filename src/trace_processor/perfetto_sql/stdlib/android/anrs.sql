@@ -81,13 +81,13 @@ SELECT
     THEN NULL
     WHEN $anr_type = 'BROADCAST_OF_INTENT'
     AND (
-      _get_broadcast_flag($subject) & x'10000000'
+      _get_broadcast_flag($subject) & unhex('0x10000000')
     ) = 0
     THEN 60000
     WHEN $anr_type = 'BROADCAST_OF_INTENT'
     AND (
       _get_broadcast_flag($subject) IS NULL OR (
-        _get_broadcast_flag($subject) & x'10000000'
+        _get_broadcast_flag($subject) & unhex('0x10000000')
       ) != 0
     )
     THEN 10000
@@ -162,7 +162,9 @@ CREATE PERFETTO VIEW android_anrs (
   -- The standard type of ANR.
   anr_type STRING,
   -- Duration of the ANR, computed from the timer expiration event.
-  anr_dur_ms LONG
+  anr_dur_ms LONG,
+  -- Default duration of the ANR, based on the anr_type (default means in AOSP/Pixel).
+  default_anr_dur_ms LONG
 ) AS
 -- Process and PID that ANRed.
 WITH
@@ -260,7 +262,8 @@ SELECT
     anr.ts - abt.timer_ts
   ) AS timer_delay,
   coalesce(_platform_to_standard_anr_type(abt.anr_type), _extract_anr_type(s.subject)) AS anr_type,
-  coalesce(abt.anr_dur_ms, _default_anr_dur(_extract_anr_type(s.subject), s.subject)) AS anr_dur_ms
+  abt.anr_dur_ms,
+  _default_anr_dur(_extract_anr_type(s.subject), s.subject) AS default_anr_dur_ms
 FROM anr
 LEFT JOIN subject AS s
   USING (error_id)
