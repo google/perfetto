@@ -45,6 +45,8 @@ source_set("full") {
     "viewcapture_args_parser.h",
     "viewcapture_parser.cc",
     "viewcapture_parser.h",
+    "viewcapture_rect_computation.cc",
+    "viewcapture_rect_computation.h",
     "viewcapture_views_extractor.cc",
     "viewcapture_views_extractor.h",
     "viewcapture_visibility_computation.cc",
