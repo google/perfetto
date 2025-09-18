@@ -164,6 +164,8 @@ CREATE PERFETTO VIEW android_anrs (
   -- Duration of the ANR, computed from the timer expiration event.
   anr_dur_ms LONG,
   -- Default duration of the ANR, based on the anr_type (default means in AOSP/Pixel).
+  -- Note: Other OEMs may have customized these timeout values, so the defaults
+  -- provided here might not be accurate for all devices.
   default_anr_dur_ms LONG
 ) AS
 -- Process and PID that ANRed.
