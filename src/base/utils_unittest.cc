@@ -326,7 +326,14 @@ TEST(UtilsTest, CopyFileContents) {
 
       TempFile dst = TempFile::Create();
       ASSERT_OK(CopyFileContents(*src, *dst));
-      assert_file_content_fn(dst, src_content);
+      ASSERT_TRUE(FlushFile(*dst));
+
+      std::string dst_content;
+      ASSERT_TRUE(ReadFile(dst.path(), &dst_content));
+      // File content may change between reading and copying,
+      // so don't check equality, just make sure they are both simultaneously
+      // empty or not.
+      ASSERT_EQ(src_content.empty(), dst_content.empty());
     }
   }
 #endif
