@@ -26,9 +26,9 @@ namespace {
 static std::mutex g_mutex;
 
 // These variables are guarded by the above mutex.
-static perfetto::base::TaskRunner* g_activity_tr = nullptr;
-static perfetto::base::TaskRunner* g_service_tr = nullptr;
-static perfetto::base::TaskRunner* g_isolated_service_tr = nullptr;
+static perfetto::base::MaybeLockFreeTaskRunner* g_activity_tr = nullptr;
+static perfetto::base::MaybeLockFreeTaskRunner* g_service_tr = nullptr;
+static perfetto::base::MaybeLockFreeTaskRunner* g_isolated_service_tr = nullptr;
 
 }  // namespace
 
