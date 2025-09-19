@@ -280,6 +280,7 @@ function main() {
   const app = AppImpl.instance;
   tryLoadIsInternalUserScript(app).then(() => {
     app.analytics.initialize(app.isInternalUser);
+    app.notifyOnExtrasLoadingCompleted();
   });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
