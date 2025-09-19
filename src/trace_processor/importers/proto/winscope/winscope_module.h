@@ -74,7 +74,7 @@ class WinscopeModule : public ProtoImporterModule {
   ShellTransitionsParser shell_transitions_parser_;
   ProtoLogParser protolog_parser_;
   AndroidInputEventParser android_input_event_parser_;
-  ViewCaptureParser viewcapture_parser_;
+  winscope::ViewCaptureParser viewcapture_parser_;
 };
 
 }  // namespace perfetto::trace_processor
