@@ -50,6 +50,7 @@ import {
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
+import {Cpu} from '../../components/cpu';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -64,17 +65,26 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
   }
 }
 
-export default class implements PerfettoPlugin {
+export default class SchedPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
 
+  private _schedCpus: Cpu[] = [];
+
+  get schedCpus() {
+    return this._schedCpus;
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const cpus = await getSchedCpus(ctx);
+    this._schedCpus = cpus;
+
     const hasSched = await this.hasSched(ctx.engine);
     if (!hasSched) {
       return;
     }
 
-    await this.addCpuSliceTracks(ctx);
+    await this.addCpuSliceTracks(ctx, cpus);
     await this.addThreadStateTracks(ctx);
     await this.addMinimapProvider(ctx);
     this.addSchedulingSummaryTracks(ctx);
@@ -126,7 +136,7 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  async addCpuSliceTracks(ctx: Trace): Promise<void> {
+  async addCpuSliceTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new CpuSliceSelectionAggregator()),
     );
@@ -134,16 +144,6 @@ export default class implements PerfettoPlugin {
       createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator()),
     );
 
-    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
-    // if it's seen in sched slices.
-    const queryRes = await ctx.engine.query(
-      `select distinct ucpu from sched order by ucpu;`,
-    );
-    const ucpus = new Set<number>();
-    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
-      ucpus.add(it.ucpu);
-    }
-    const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
     const group = new TrackNode({
@@ -180,7 +180,7 @@ export default class implements PerfettoPlugin {
           kind: CPU_SLICE_TRACK_KIND,
           cpu: cpu.ucpu,
         },
-        renderer: new CpuSliceTrack(ctx, uri, cpu, threads),
+        renderer: new CpuSliceTrack(ctx, uri, cpu.ucpu, threads),
       });
       group.addChildInOrder(new TrackNode({name, uri}));
     }
@@ -484,4 +484,30 @@ export default class implements PerfettoPlugin {
       });
     }
   }
+}
+
+/**
+ * Get the list of unique cpus in the sched table.
+ */
+async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
+  const queryRes = await ctx.engine.query(`
+    SELECT DISTINCT
+      ucpu,
+      IFNULL(cpu.machine_id, 0) AS machine_id,
+      cpu.cpu AS cpu
+    FROM sched
+    JOIN cpu USING (ucpu)
+    ORDER BY ucpu
+  `);
+
+  const ucpus: Cpu[] = [];
+  for (
+    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    it.valid();
+    it.next()
+  ) {
+    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
+  }
+
+  return ucpus;
 }

@@ -34,9 +34,11 @@ import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
+import SchedPlugin from '../dev.perfetto.Sched';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
+  static readonly dependencies = [SchedPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
@@ -214,20 +216,6 @@ async function addWattsonCpuElements(
   group: TrackNode,
   missingEvents: string[],
 ) {
-  // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
-  // if it's seen in sched slices.
-  const queryRes = await ctx.engine.query(
-    `select distinct ucpu from sched order by ucpu;`,
-  );
-  const ucpus = new Set<number>();
-  for (
-    const it = queryRes.iter({ucpu: NUM});
-    it.valid() as boolean;
-    it.next()
-  ) {
-    ucpus.add(it.ucpu);
-  }
-
   const warningDesc =
     missingEvents.length > 0
       ? m(
@@ -241,8 +229,9 @@ async function addWattsonCpuElements(
       : undefined;
 
   // CPUs estimate as part of CPU subsystem
-  const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
-  for (const cpu of cpus) {
+  const schedPlugin = ctx.plugins.getPlugin(SchedPlugin);
+  const schedCpus = schedPlugin.schedCpus;
+  for (const cpu of schedCpus) {
     const queryKey = `cpu${cpu.ucpu}_mw`;
     const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
     ctx.tracks.registerTrack({

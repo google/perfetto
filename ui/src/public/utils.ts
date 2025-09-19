@@ -14,7 +14,6 @@
 
 import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {maybeMachineLabel} from '../base/multi_machine_trace';
 import {Trace} from './trace';
 
 export function getTrackName(
@@ -131,4 +130,9 @@ export async function getTimeSpanOfSelectionOrVisibleWindow(
   } else {
     return trace.timeline.visibleWindow.toTimeSpan();
   }
+}
+
+export function maybeMachineLabel(machine?: number): string {
+  const m = machine ?? 0;
+  return m > 0 ? ` (machine ${m})` : '';
 }
