@@ -314,27 +314,15 @@ TEST(UtilsTest, CopyFileContents) {
   // we want to make sure that if/when we implement the platform specific
   // optimization we won't forget about this special case.
   {
-    for (auto* const file : {"/proc/meminfo", "/proc/self/cmdline",
-                             "/proc/self/environ", "/proc/self/auxv"}) {
-      ScopedFile src = OpenFile(file, O_RDONLY);
-      if (!src) {
-        // Ignore files that we can't open.
-        continue;
-      }
-      std::string src_content;
-      ASSERT_TRUE(ReadFileDescriptor(*src, &src_content));
+    ScopedFile proc_self_src = OpenFile("/proc/self/cmdline", O_RDONLY);
+    ASSERT_TRUE(proc_self_src);
 
-      TempFile dst = TempFile::Create();
-      ASSERT_OK(CopyFileContents(*src, *dst));
-      ASSERT_TRUE(FlushFile(*dst));
+    std::string src_content;
+    ASSERT_TRUE(ReadFileDescriptor(*proc_self_src, &src_content));
 
-      std::string dst_content;
-      ASSERT_TRUE(ReadFile(dst.path(), &dst_content));
-      // File content may change between reading and copying,
-      // so don't check equality, just make sure they are both simultaneously
-      // empty or not.
-      ASSERT_EQ(src_content.empty(), dst_content.empty());
-    }
+    TempFile dst = TempFile::Create();
+    ASSERT_OK(CopyFileContents(*proc_self_src, *dst));
+    assert_file_content_fn(dst, src_content);
   }
 #endif
 }
