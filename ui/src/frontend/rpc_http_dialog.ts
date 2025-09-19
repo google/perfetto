@@ -452,7 +452,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             ].join(' ');
 
             elements.push(
-              // TODO
               m(CardStack, [
                 ...rows,
                 m(
