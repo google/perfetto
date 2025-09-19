@@ -1017,7 +1017,10 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }
+
 // End of protos/perfetto/config/etw/etw_config.proto
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
@@ -7595,6 +7598,65 @@ message MemInfoEtwEvent {
   optional uint64 commit_page_count = 13;
 }
 
+// Proto definition based on the `FileIo_Create` class definition.
+message FileIoCreateEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint32 ttid = 3;
+  optional uint32 create_options = 4;
+  optional uint32 file_attributes = 5;
+  optional uint32 share_access = 6;
+  optional string open_path = 7;
+}
+
+// Proto definition based on the `FileIo_DirEnum` class definition.
+message FileIoDirEnumEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint32 ttid = 4;
+  optional uint32 length = 5;
+  optional uint32 info_class = 6;
+  optional uint32 file_index = 7;
+  optional string file_name = 8;
+}
+
+// Proto definition based on the `FileIo_Info` class definition.
+message FileIoInfoEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+}
+
+// Proto definition based on the `FileIo_ReadWrite` class definition.
+message FileIoReadWriteEtwEvent {
+  optional uint64 offset = 1;
+  optional uint64 irp_ptr = 2;
+  optional uint64 file_object = 3;
+  optional uint64 file_key = 4;
+  optional uint32 ttid = 5;
+  optional uint32 io_size = 6;
+  optional uint32 io_flags = 7;
+}
+
+// Proto definition based on the `FileIo_SimpleOp` class definition.
+message FileIoSimpleOpEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint32 ttid = 4;
+}
+
+// Proto definition based on the `FileIo_OpEnd` class definition.
+message FileIoOpEndEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 extra_info = 2;
+  optional uint32 nt_status = 3;
+}
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -7608,6 +7670,12 @@ message EtwTraceEvent {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
     MemInfoEtwEvent mem_info = 6;
+    FileIoCreateEtwEvent file_io_create = 7;
+    FileIoDirEnumEtwEvent file_io_dir_enum = 8;
+    FileIoInfoEtwEvent file_io_info = 9;
+    FileIoReadWriteEtwEvent file_io_read_write = 10;
+    FileIoSimpleOpEtwEvent file_io_simple_op = 11;
+    FileIoOpEndEtwEvent file_io_op_end = 12;
   }
 }
 
