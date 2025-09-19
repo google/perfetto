@@ -18,8 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
-import CpuPlugin from '../dev.perfetto.Cpus';
-import {Cpu} from '../dev.perfetto.Cpus/cpus';
+import {Cpu} from '../../components/cpus';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
@@ -35,7 +34,6 @@ const DEFAULT_STATE: FtracePluginState = {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
-  static readonly dependencies = [CpuPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
@@ -58,7 +56,7 @@ export default class implements PerfettoPlugin {
     );
     ctx.trash.use(filterStore);
 
-    const cpus = await this.lookupCpuCores(ctx);
+    const cpus = await getFtraceCpus(ctx);
     const group = new TrackNode({
       name: 'Ftrace Events',
       sortOrder: -5,
@@ -117,23 +115,30 @@ export default class implements PerfettoPlugin {
       },
     });
   }
+}
 
-  private async lookupCpuCores(ctx: Trace): Promise<Cpu[]> {
-    // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
-    // if it's seen in ftrace_event.
-    const queryRes = await ctx.engine.query(`
-      SELECT DISTINCT
-        ucpu
-      FROM ftrace_event
-      ORDER BY ucpu
-    `);
-    const ucpus = new Set<number>();
-    for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
-      ucpus.add(it.ucpu);
-    }
+/**
+ * Get the list of unique cpus in the ftrace_event table.
+ */
+async function getFtraceCpus(ctx: Trace): Promise<Cpu[]> {
+  const queryRes = await ctx.engine.query(`
+    SELECT DISTINCT
+      ucpu,
+      IFNULL(cpu.machine_id, 0) AS machine_id,
+      cpu.cpu AS cpu
+    FROM ftrace_event
+    JOIN cpu USING (ucpu)
+    ORDER BY ucpu
+  `);
 
-    const cpus = ctx.plugins.getPlugin(CpuPlugin).cpus;
-    const cpuCores = cpus.filter((cpu) => ucpus.has(cpu.ucpu));
-    return cpuCores;
+  const ucpus: Cpu[] = [];
+  for (
+    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    it.valid();
+    it.next()
+  ) {
+    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
   }
+
+  return ucpus;
 }

@@ -29,26 +29,16 @@ import {
   PROCESS_SUMMARY_TRACK,
   ProcessSummaryTrack,
 } from './process_summary_track';
-import CpuPlugin from '../dev.perfetto.Cpus';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessSummary';
-  static readonly dependencies = [ThreadPlugin, CpuPlugin];
+  static readonly dependencies = [ThreadPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
     await this.addKernelThreadSummary(ctx);
-  }
-
-  private getCpuCountByMachine(ctx: Trace): number[] {
-    const cpuCountByMachine: number[] = [];
-    const cpuPlugin = ctx.plugins.getPlugin(CpuPlugin);
-    for (const c of cpuPlugin.cpus) {
-      cpuCountByMachine[c.machine] = (cpuCountByMachine[c.machine] ?? 0) + 1;
-    }
-    return cpuCountByMachine;
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
@@ -70,7 +60,6 @@ export default class implements PerfettoPlugin {
     });
 
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
-    const cpuCountByMachine = this.getCpuCountByMachine(ctx);
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
 
@@ -100,7 +89,8 @@ export default class implements PerfettoPlugin {
               arg_set_id = process.arg_set_id and
               flat_key = 'chrome.process_label'
           ), '') as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine
+          ifnull(machine_id, 0) as machine,
+          (select count() from cpu where IFNULL(cpu.machine_id, 0) = IFNULL(machine_id, 0)) as cpuCountPerMachine
         from _process_available_info_summary
         join process using(upid)
         left join android_process_metadata using(upid)
@@ -119,7 +109,8 @@ export default class implements PerfettoPlugin {
           0 as isDebuggable,
           0 as isBootImageProfiling,
           '' as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine
+          ifnull(machine_id, 0) as machine,
+          (select count() from cpu where IFNULL(cpu.machine_id, 0) = IFNULL(machine_id, 0)) as cpuCountPerMachine
         from _thread_available_info_summary
         join thread using (utid)
         where upid is null
@@ -135,6 +126,7 @@ export default class implements PerfettoPlugin {
       isBootImageProfiling: NUM_NULL,
       chromeProcessLabels: STR,
       machine: NUM,
+      cpuCountPerMachine: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -145,7 +137,7 @@ export default class implements PerfettoPlugin {
       const isDebuggable = Boolean(it.isDebuggable);
       const isBootImageProfiling = Boolean(it.isBootImageProfiling);
       const subtitle = it.chromeProcessLabels;
-      const machine = it.machine;
+      const cpuCountPerMachine = it.cpuCountPerMachine;
 
       // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
@@ -169,14 +161,18 @@ export default class implements PerfettoPlugin {
           utid,
         };
 
-        const cpuCount = cpuCountByMachine[machine] ?? 0;
         ctx.tracks.registerTrack({
           uri,
           tags: {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
+          renderer: new ProcessSchedulingTrack(
+            ctx,
+            config,
+            cpuCountPerMachine,
+            threads,
+          ),
           subtitle,
         });
       } else {

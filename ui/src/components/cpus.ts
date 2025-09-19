@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {maybeMachineLabel} from '../../public/utils';
+import {maybeMachineLabel} from '../public/utils';
 
 export class Cpu {
   constructor(
