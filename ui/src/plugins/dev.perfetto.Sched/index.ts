@@ -50,7 +50,7 @@ import {
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
-import {Cpu} from '../../components/cpus';
+import {Cpu} from '../../components/cpu';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;

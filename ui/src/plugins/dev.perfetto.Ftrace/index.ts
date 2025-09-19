@@ -18,7 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
-import {Cpu} from '../../components/cpus';
+import {Cpu} from '../../components/cpu';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';

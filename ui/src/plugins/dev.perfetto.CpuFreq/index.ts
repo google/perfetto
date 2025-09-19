@@ -20,7 +20,7 @@ import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {Cpu} from '../../components/cpus';
+import {Cpu} from '../../components/cpu';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuFreq';
