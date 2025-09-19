@@ -111,7 +111,7 @@ This startup command creates a debug track showing thread scheduling latency:
   {
     "id": "dev.perfetto.AddDebugSliceTrack",
     "args": [
-      "SELECT ts, thread.name as thread_name, dur as value FROM thread_state JOIN thread USING(utid) WHERE state = 'R' AND dur > 1000000",
+      "SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = 'R' AND dur > 1000000",
       "Long Scheduling Delays (>1ms)"
     ]
   }
@@ -152,7 +152,7 @@ This comprehensive startup configuration prepares the UI for system analysis:
   {
     "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
     "args": [
-      "SELECT ts, blocked_function as name, dur as value FROM thread_state WHERE state = 'D' AND blocked_function IS NOT NULL",
+      "SELECT ts, blocked_function as name, dur FROM thread_state WHERE state = 'D' AND blocked_function IS NOT NULL",
       "name",
       "Blocking Functions"
     ]
@@ -217,7 +217,7 @@ This macro helps identify performance bottlenecks:
     {
       "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
       "args": [
-        "SELECT ts, thread.name as thread_name, dur as value FROM thread_state JOIN thread USING (utid) WHERE state IN ('R', 'D+') AND dur > 5000000",
+        "SELECT ts, 'blocked' as name, thread.name as thread_name, dur FROM thread_state JOIN thread USING (utid) WHERE state IN ('R', 'D+') AND dur > 5000000",
         "thread_name",
         "Long Waits (>5ms)"
       ]
@@ -237,7 +237,7 @@ the trace opens in the UI:
   --app com.example.app \
   --ui-startup-commands '[
     {"id":"dev.perfetto.PinTracksByRegex","args":[".*CPU.*"]},
-    {"id":"dev.perfetto.AddDebugSliceTrackWithPivot","args":["SELECT ts, thread.name as thread, dur as value FROM thread_state JOIN thread USING(utid) WHERE state = \"R\"","thread","Runnable Time"]}
+    {"id":"dev.perfetto.AddDebugSliceTrackWithPivot","args":["SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = \"R\"","thread","Runnable Time"]}
   ]'
 ```
 

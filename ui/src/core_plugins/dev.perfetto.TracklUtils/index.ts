@@ -121,7 +121,13 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.PinTracksByRegex',
       name: 'Pin tracks by regex',
-      callback: async (regexArg: unknown) => {
+      callback: async (regexArg: unknown, nameOrPathArg: unknown) => {
+        const nameOrPath = await getNameOrPathFromArgOrPrompt(
+          ctx,
+          nameOrPathArg,
+        );
+        if (!nameOrPath) return;
+
         const regex = await getRegexFromArgOrPrompt(
           ctx,
           regexArg,
@@ -130,7 +136,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         if (!regex) return;
 
         const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
-          regex.test(track.name),
+          testTrackWithRegex(track, regex, nameOrPath),
         );
         matchingTracks.forEach((track) => track.pin());
       },
@@ -139,7 +145,13 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.ExpandTracksByRegex',
       name: 'Expand tracks by regex',
-      callback: async (regexArg: unknown) => {
+      callback: async (regexArg: unknown, nameOrPathArg: unknown) => {
+        const nameOrPath = await getNameOrPathFromArgOrPrompt(
+          ctx,
+          nameOrPathArg,
+        );
+        if (!nameOrPath) return;
+
         const regex = await getRegexFromArgOrPrompt(
           ctx,
           regexArg,
@@ -148,7 +160,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         if (!regex) return;
 
         const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
-          regex.test(track.name),
+          testTrackWithRegex(track, regex, nameOrPath),
         );
         matchingTracks.forEach((track) => track.expand());
       },
@@ -157,7 +169,13 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CollapseTracksByRegex',
       name: 'Collapse tracks by regex',
-      callback: async (regexArg: unknown) => {
+      callback: async (regexArg: unknown, nameOrPathArg: unknown) => {
+        const nameOrPath = await getNameOrPathFromArgOrPrompt(
+          ctx,
+          nameOrPathArg,
+        );
+        if (!nameOrPath) return;
+
         const regex = await getRegexFromArgOrPrompt(
           ctx,
           regexArg,
@@ -166,7 +184,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         if (!regex) return;
 
         const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
-          regex.test(track.name),
+          testTrackWithRegex(track, regex, nameOrPath),
         );
         matchingTracks.forEach((track) => track.collapse());
       },
@@ -175,7 +193,17 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CopyTracksToWorkspaceByRegex',
       name: 'Copy tracks to workspace by regex',
-      callback: async (regexArg: unknown, workspaceNameArg: unknown) => {
+      callback: async (
+        regexArg: unknown,
+        workspaceNameArg: unknown,
+        nameOrPathArg: unknown,
+      ) => {
+        const nameOrPath = await getNameOrPathFromArgOrPrompt(
+          ctx,
+          nameOrPathArg,
+        );
+        if (!nameOrPath) return;
+
         const regex = await getRegexFromArgOrPrompt(
           ctx,
           regexArg,
@@ -196,7 +224,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
         // Find matching tracks from current workspace
         const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
-          regex.test(track.name),
+          testTrackWithRegex(track, regex, nameOrPath),
         );
 
         // Copy matching tracks to target workspace
@@ -209,7 +237,17 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors',
       name: 'Copy tracks to workspace by regex (with ancestors)',
-      callback: async (regexArg: unknown, workspaceNameArg: unknown) => {
+      callback: async (
+        regexArg: unknown,
+        workspaceNameArg: unknown,
+        nameOrPathArg: unknown,
+      ) => {
+        const nameOrPath = await getNameOrPathFromArgOrPrompt(
+          ctx,
+          nameOrPathArg,
+        );
+        if (!nameOrPath) return;
+
         const regex = await getRegexFromArgOrPrompt(
           ctx,
           regexArg,
@@ -230,7 +268,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
         // Find matching tracks from current workspace
         const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
-          regex.test(track.name),
+          testTrackWithRegex(track, regex, nameOrPath),
         );
 
         // Copy matching tracks with their ancestors to target workspace
@@ -353,6 +391,47 @@ async function getRegexFromArgOrPrompt(
     console.error(`Invalid regex pattern: ${regexStr}`, e);
     return null;
   }
+}
+
+// Gets the name or path filtering option from command argument or user prompt.
+// Returns 'name' to match against track names, 'path' to match against full
+// track paths, or undefined if the argument is invalid.
+async function getNameOrPathFromArgOrPrompt(
+  ctx: Trace,
+  rawNameOrPath: unknown,
+): Promise<'name' | 'path' | undefined> {
+  if (rawNameOrPath === undefined) {
+    const prompt = await ctx.omnibox.prompt(
+      'Use track name or track path (default: track name)',
+      {
+        values: ['name', 'path'],
+        getName: (x) => (x === ' name' ? 'Track Name' : 'Track Path'),
+      },
+    );
+    // Always default to 'name' if prompt did not return anything.
+    if (prompt === 'name' || prompt === 'path') {
+      return prompt;
+    }
+    return 'name';
+  }
+  if (rawNameOrPath === 'name' || rawNameOrPath === 'path') {
+    return rawNameOrPath;
+  }
+  console.error('Unknown argument type for command, expected "name" or "path"');
+  return undefined;
+}
+
+// Tests if a track matches the given regex pattern based on nameOrPath setting.
+// Returns true if the track name (when nameOrPath is 'name') or full path
+// (when nameOrPath is 'path') matches the regex pattern.
+function testTrackWithRegex(
+  track: TrackNode,
+  regex: RegExp,
+  nameOrPath: 'name' | 'path',
+): boolean {
+  const testString =
+    nameOrPath === 'path' ? track.fullPath.join(' > ') : track.name;
+  return regex.test(testString);
 }
 
 // Copy tracks with their ancestor hierarchy preserved

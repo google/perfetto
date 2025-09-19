@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertUnreachable} from '../../base/logging';
 import {Time} from '../../base/time';
 import {renderArguments} from '../../components/details/args';
-import {Arg, ArgValue, ArgValueType} from '../../components/sql_utils/args';
+import {Arg} from '../../components/sql_utils/args';
 import {asArgId} from '../../components/sql_utils/core_types';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -129,41 +128,13 @@ export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
 
     const args: Arg[] = [];
     for (; it.valid(); it.next()) {
-      const value = parseArgValue(it);
       args.push({
         id: asArgId(it.id),
         flatKey: it.flatKey,
         key: it.key,
-        value,
         displayValue: it.displayValue ?? 'NULL',
       });
     }
     this.args = args;
-  }
-}
-
-function parseArgValue(it: {
-  valueType: string;
-  intValue: bigint | null;
-  stringValue: string | null;
-  realValue: number | null;
-}): ArgValue {
-  const valueType = it.valueType as ArgValueType;
-  switch (valueType) {
-    case 'int':
-    case 'uint':
-      return it.intValue;
-    case 'pointer':
-      return it.intValue === null ? null : `0x${it.intValue.toString(16)}`;
-    case 'string':
-      return it.stringValue;
-    case 'bool':
-      return Boolean(it.intValue);
-    case 'real':
-      return it.realValue;
-    case 'null':
-      return null;
-    default:
-      assertUnreachable(valueType);
   }
 }

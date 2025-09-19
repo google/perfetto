@@ -57,6 +57,71 @@ SELECT
     ELSE 'UNKNOWN_ANR_TYPE'
   END;
 
+CREATE PERFETTO FUNCTION _get_broadcast_flag(
+    subject STRING
+)
+RETURNS LONG AS
+SELECT
+  CASE
+    WHEN $subject IS NULL OR NOT $subject GLOB 'Broadcast of Intent *flg=*'
+    THEN NULL
+    ELSE unhex(str_split(substr($subject, instr($subject, ' flg=') + 5), ' ', 0))
+  END AS flag;
+
+-- Function to get the default ANR duration in milliseconds based on ANR type.
+-- Note: These are common defaults. Actual timeouts can vary by OEM, Android version, and FG/BG status.
+CREATE PERFETTO FUNCTION _default_anr_dur(
+    anr_type STRING,
+    subject STRING
+)
+RETURNS LONG AS
+SELECT
+  CASE
+    WHEN $anr_type IS NULL
+    THEN NULL
+    WHEN $anr_type = 'BROADCAST_OF_INTENT'
+    AND (
+      _get_broadcast_flag($subject) & unhex('0x10000000')
+    ) = 0
+    THEN 60000
+    WHEN $anr_type = 'BROADCAST_OF_INTENT'
+    AND (
+      _get_broadcast_flag($subject) IS NULL OR (
+        _get_broadcast_flag($subject) & unhex('0x10000000')
+      ) != 0
+    )
+    THEN 10000
+    WHEN $anr_type = 'INPUT_DISPATCHING_TIMEOUT'
+    THEN 5000
+    WHEN $anr_type = 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW'
+    THEN 5000
+    WHEN $anr_type = 'START_FOREGROUND_SERVICE'
+    THEN 30000
+    WHEN $anr_type = 'EXECUTING_SERVICE'
+    THEN 20000
+    WHEN $anr_type = 'JOB_SERVICE_START'
+    THEN 8000
+    WHEN $anr_type = 'JOB_SERVICE_STOP'
+    THEN 8000
+    WHEN $anr_type = 'JOB_SERVICE_BIND'
+    THEN 8000
+    WHEN $anr_type = 'JOB_SERVICE_NOTIFICATION_NOT_PROVIDED'
+    THEN 8000
+    WHEN $anr_type = 'BIND_APPLICATION'
+    THEN 15000
+    WHEN $anr_type = 'CONTENT_PROVIDER_NOT_RESPONDING'
+    THEN NULL
+    WHEN $anr_type = 'GPU_HANG'
+    THEN NULL
+    WHEN $anr_type = 'APP_TRIGGERED'
+    THEN NULL
+    WHEN $anr_type = 'FOREGROUND_SHORT_SERVICE_TIMEOUT'
+    THEN 180000
+    WHEN $anr_type = 'FOREGROUND_SERVICE_TIMEOUT'
+    THEN 30000
+    ELSE NULL
+  END;
+
 -- Some of the anr timer events don't use the standard anr types and we have to convert them (temporal solution).
 -- For 'JobScheduler' there's not a 1:1 mapping to a standard type.
 CREATE PERFETTO FUNCTION _platform_to_standard_anr_type(
@@ -97,7 +162,11 @@ CREATE PERFETTO VIEW android_anrs (
   -- The standard type of ANR.
   anr_type STRING,
   -- Duration of the ANR, computed from the timer expiration event.
-  anr_dur_ms LONG
+  anr_dur_ms LONG,
+  -- Default duration of the ANR, based on the anr_type (default means in AOSP/Pixel).
+  -- Note: Other OEMs may have customized these timeout values, so the defaults
+  -- provided here might not be accurate for all devices.
+  default_anr_dur_ms LONG
 ) AS
 -- Process and PID that ANRed.
 WITH
@@ -195,7 +264,8 @@ SELECT
     anr.ts - abt.timer_ts
   ) AS timer_delay,
   coalesce(_platform_to_standard_anr_type(abt.anr_type), _extract_anr_type(s.subject)) AS anr_type,
-  abt.anr_dur_ms
+  abt.anr_dur_ms,
+  _default_anr_dur(_extract_anr_type(s.subject), s.subject) AS default_anr_dur_ms
 FROM anr
 LEFT JOIN subject AS s
   USING (error_id)

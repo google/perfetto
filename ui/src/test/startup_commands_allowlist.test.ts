@@ -26,6 +26,7 @@ interface CommandTestCase {
   before?: () => Promise<void>;
   after?: () => Promise<void>;
   maskQueryDetails?: boolean;
+  testName?: string; // Optional custom test name for unique identification
 }
 
 // Test cases for each startup command
@@ -37,14 +38,50 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with surfaceflinger tracks
   },
   {
+    id: 'dev.perfetto.PinTracksByRegex',
+    args: ['.*surfaceflinger.*', 'name'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with surfaceflinger tracks - explicit name filtering
+    testName: 'dev.perfetto.PinTracksByRegex with explicit name filtering',
+  },
+  {
+    id: 'dev.perfetto.PinTracksByRegex',
+    args: ['.*surfaceflinger.*', 'path'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with surfaceflinger tracks - path filtering
+    testName: 'dev.perfetto.PinTracksByRegex with path filtering',
+  },
+  {
     id: 'dev.perfetto.ExpandTracksByRegex',
     args: ['.*system_server.*'],
     traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks
   },
   {
+    id: 'dev.perfetto.ExpandTracksByRegex',
+    args: ['.*system_server.*', 'name'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks - explicit name filtering
+    testName: 'dev.perfetto.ExpandTracksByRegex with explicit name filtering',
+  },
+  {
+    id: 'dev.perfetto.ExpandTracksByRegex',
+    args: ['.*system_server.*', 'path'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks - path filtering
+    testName: 'dev.perfetto.ExpandTracksByRegex with path filtering',
+  },
+  {
     id: 'dev.perfetto.CollapseTracksByRegex',
     args: ['CPU Scheduling'],
     traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks
+  },
+  {
+    id: 'dev.perfetto.CollapseTracksByRegex',
+    args: ['CPU Scheduling', 'name'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks - explicit name filtering
+    testName: 'dev.perfetto.CollapseTracksByRegex with explicit name filtering',
+  },
+  {
+    id: 'dev.perfetto.CollapseTracksByRegex',
+    args: ['.*CPU.*', 'path'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks - path filtering
+    testName: 'dev.perfetto.CollapseTracksByRegex with path filtering',
   },
 
   // Debug track commands
@@ -132,6 +169,26 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     },
   },
   {
+    id: 'dev.perfetto.CopyTracksToWorkspaceByRegex',
+    args: ['.*surfaceflinger.*', 'Test Workspace Path', 'path'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with surfaceflinger tracks - path filtering
+    testName: 'dev.perfetto.CopyTracksToWorkspaceByRegex with path filtering',
+    before: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      trace.workspaces.createEmptyWorkspace('Test Workspace Path');
+    },
+    after: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      const workspace = trace.workspaces.all.find(
+        (w) => w.title === 'Test Workspace Path',
+      );
+      if (!workspace) throw new Error('Test Workspace Path not found');
+      trace.workspaces.switchWorkspace(workspace);
+    },
+  },
+  {
     id: 'dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors',
     args: ['(Expected|Actual) Timeline', 'Test Workspace'],
     traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks
@@ -147,6 +204,29 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
         (w) => w.title === 'Test Workspace',
       );
       if (!workspace) throw new Error('Test Workspace not found');
+      trace.workspaces.switchWorkspace(workspace);
+    },
+  },
+  {
+    id: 'dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors',
+    args: ['.*surfaceflinger.*', 'Test Workspace Ancestors Path', 'path'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks - path filtering
+    testName:
+      'dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors with path filtering',
+    before: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      trace.workspaces.createEmptyWorkspace('Test Workspace Ancestors Path');
+    },
+    after: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      const workspace = trace.workspaces.all.find(
+        (w) => w.title === 'Test Workspace Ancestors Path',
+      );
+      if (!workspace) {
+        throw new Error('Test Workspace Ancestors Path not found');
+      }
       trace.workspaces.switchWorkspace(workspace);
     },
   },
@@ -236,7 +316,8 @@ test('all allowlisted commands have corresponding test cases', async () => {
 
 // Generate screenshot tests for each command
 for (const testCase of COMMAND_TEST_CASES) {
-  test(`${testCase.id} command test`, async ({browser}) => {
+  const testTitle = testCase.testName || `${testCase.id} command test`;
+  test(testTitle, async ({browser}) => {
     const page = await browser.newPage();
     const pth = new PerfettoTestHelper(page);
 
@@ -244,6 +325,10 @@ for (const testCase of COMMAND_TEST_CASES) {
     if (testCase.traceFile) {
       await pth.openTraceFile(testCase.traceFile);
     }
+
+    // Disable omnibox prompts to evaluate similar to a startup command
+    // environment.
+    pth.disableOmniboxPrompt();
 
     // Run before if provided
     if (testCase.before) {

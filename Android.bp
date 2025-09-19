@@ -14464,6 +14464,9 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",
@@ -14492,6 +14495,8 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation_unittest.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor_unittest.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation_unittest.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry_unittest.cc",
     ],
 }
@@ -14683,6 +14688,7 @@ genrule {
         "src/trace_processor/metrics/sql/android/g2d_duration.sql",
         "src/trace_processor/metrics/sql/android/global_counter_span_view.sql",
         "src/trace_processor/metrics/sql/android/gpu_counter_span_view.sql",
+        "src/trace_processor/metrics/sql/android/jank/android_jank_cuj_init.sql",
         "src/trace_processor/metrics/sql/android/jank/cujs.sql",
         "src/trace_processor/metrics/sql/android/jank/cujs_boundaries.sql",
         "src/trace_processor/metrics/sql/android/jank/frames.sql",

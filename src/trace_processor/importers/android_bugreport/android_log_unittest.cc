@@ -126,6 +126,93 @@ TEST_F(AndroidLogReaderTest, PersistentLogFormat) {
   context()->sorter->ExtractEventsForced();
 }
 
+TEST_F(AndroidLogReaderTest, PersistentLogFormatWithYear) {
+  constexpr char kInput[] =
+      "2023-01-02 03:04:05.678901 1000 2000 D Tag: message\n"
+      "2024-12-31 23:59:00.123456 1 2 I [tag:with:colon]: moar long message\n"
+      "2025-06-15 12:30:45.987654 3 4 W SomeTag: warning message\n"
+      "2023-03-14 09:26:53.500000 5 6 E ErrorTag: error occurred\n"
+      "2024-07-04 16:20:30.250000 7 8 F FatalTag: fatal error\n";
+
+  auto mock_parser = std::make_unique<EventParserMock>();
+  auto* mock_parser_ptr = mock_parser.get();
+  AndroidLogReader reader(
+      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
+
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2023, 1, 2, 3, 4, 5) * kStoNs + 678901000,
+                    AndroidLogEvent{1000, 2000, P::PRIO_DEBUG, S("Tag"),
+                                    S("message")}));
+
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2024, 12, 31, 23, 59, 0) * kStoNs + 123456000,
+                    AndroidLogEvent{1, 2, P::PRIO_INFO, S("[tag:with:colon]"),
+                                    S("moar long message")}));
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2025, 6, 15, 12, 30, 45) * kStoNs + 987654000,
+                    AndroidLogEvent{3, 4, P::PRIO_WARN, S("SomeTag"),
+                                    S("warning message")}));
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2023, 3, 14, 9, 26, 53) * kStoNs + 500000000,
+                    AndroidLogEvent{5, 6, P::PRIO_ERROR, S("ErrorTag"),
+                                    S("error occurred")}));
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2024, 7, 4, 16, 20, 30) * kStoNs + 250000000,
+                    AndroidLogEvent{7, 8, P::PRIO_FATAL, S("FatalTag"),
+                                    S("fatal error")}));
+
+  EXPECT_TRUE(
+      reader.Parse(TraceBlobView(TraceBlob::CopyFrom(kInput, sizeof(kInput))))
+          .ok());
+  EXPECT_EQ(context()->storage->stats()[stats::android_log_num_failed].value,
+            0);
+
+  context()->sorter->ExtractEventsForced();
+}
+
+TEST_F(AndroidLogReaderTest, MixedDateFormats) {
+  constexpr char kInput[] =
+      "2023-01-02 03:04:05.678901 1000 2000 D Tag: with year\n"
+      "01-15 12:30:45.987654 3 4 W SomeTag: without year\n"
+      "2024-12-31 23:59:00.123456 1 2 I [tag:with:colon]: with year again\n"
+      "06-15 09:26:53.500000 5 6 E ErrorTag: without year again\n";
+
+  auto mock_parser = std::make_unique<EventParserMock>();
+  auto* mock_parser_ptr = mock_parser.get();
+  AndroidLogReader reader(
+      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
+
+  // Lines with year should use the parsed year (2023, 2024)
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2023, 1, 2, 3, 4, 5) * kStoNs + 678901000,
+                    AndroidLogEvent{1000, 2000, P::PRIO_DEBUG, S("Tag"),
+                                    S("with year")}));
+
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2024, 12, 31, 23, 59, 0) * kStoNs + 123456000,
+                    AndroidLogEvent{1, 2, P::PRIO_INFO, S("[tag:with:colon]"),
+                                    S("with year again")}));
+
+  // Lines without year should use the fallback year (2020)
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2020, 1, 15, 12, 30, 45) * kStoNs + 987654000,
+                    AndroidLogEvent{3, 4, P::PRIO_WARN, S("SomeTag"),
+                                    S("without year")}));
+
+  EXPECT_CALL(*mock_parser_ptr,
+              Parse(base::MkTime(2020, 6, 15, 9, 26, 53) * kStoNs + 500000000,
+                    AndroidLogEvent{5, 6, P::PRIO_ERROR, S("ErrorTag"),
+                                    S("without year again")}));
+
+  EXPECT_TRUE(
+      reader.Parse(TraceBlobView(TraceBlob::CopyFrom(kInput, sizeof(kInput))))
+          .ok());
+  EXPECT_EQ(context()->storage->stats()[stats::android_log_num_failed].value,
+            0);
+
+  context()->sorter->ExtractEventsForced();
+}
+
 TEST_F(AndroidLogReaderTest, BugreportFormat) {
   constexpr char kInput[] =
       "07-28 14:25:20.355  0     1     2 I init   : Loaded kernel module\n"

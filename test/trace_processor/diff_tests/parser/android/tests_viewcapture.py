@@ -27,14 +27,15 @@ class ViewCapture(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
-          id, ts
+          id, ts, package_name, window_name
         FROM
           android_viewcapture;
         """,
         out=Csv("""
-        "id","ts"
-        0,448881087865
-        1,448883575576
+        "id","ts","package_name","window_name"
+        0,448881087865,"com.google.android.apps.nexuslauncher","[NULL]"
+        1,448883575576,"com.google.android.apps.nexuslauncher","[NULL]"
+        2,448883575876,"[NULL]","PhoneWindow"
         """))
 
   def test_snapshot_args(self):
@@ -62,16 +63,17 @@ class ViewCapture(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
-          id, snapshot_id
+          id, snapshot_id, node_id, hashcode, is_visible, parent_id, view_id, class_name
         FROM
-          android_viewcapture_view;
+          android_viewcapture_view
+        LIMIT 4;
         """,
         out=Csv("""
-        "id","snapshot_id"
-        0,0
-        1,0
-        2,1
-        3,1
+        "id","snapshot_id","node_id","hashcode","is_visible","parent_id","view_id","class_name"
+        0,0,0,182652084,1,4294967295,"NO_ID","com.android.internal.policy.PhoneWindow@6cec234"
+        1,0,1,130248925,0,0,"[NULL]","com.android.internal.policy.DecorView"
+        2,1,0,182652084,1,4294967295,"NO_ID","com.android.internal.policy.PhoneWindow@6cec234"
+        3,1,1,130248925,1,0,"TEST_VIEW_ID","[NULL]"
         """))
 
   def test_view_args(self):
@@ -133,6 +135,44 @@ class ViewCapture(TestSuite):
         """,
         out=Csv("""
         "COUNT(*)"
-        2
-        4
+        3
+        13
+        """))
+
+  def test_view_rects(self):
+    #             0             0: no shift/scroll/scale/translation
+    #           /   \           1: change in width and height
+    #          1     3          2: scale > 0, different alpha
+    #        /         \        3: scroll > 0, no shift from parent
+    #       2           4       4: inherits scroll and shift from parent
+    #     /            / \      5: no scale, inherits scale from parent
+    #    5            7   8     6: scale > 0. inherits scale from parent
+    #   /                       7: translation_x > 0
+    #  6                        8: translation_y > 0
+    return DiffTestBlueprint(
+        trace=Path('viewcapture.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
+        INCLUDE PERFETTO MODULE android.winscope.rect;
+
+        SELECT
+          vcv.node_id, wtr.group_id, wtr.depth, wtr.is_visible, wtr.opacity, rect.x, rect.y, rect.w, rect.h
+        FROM android_viewcapture_view AS vcv
+        INNER JOIN android_winscope_trace_rect AS wtr
+          ON vcv.trace_rect_id = wtr.id
+        INNER JOIN android_winscope_rect AS rect
+          ON rect.id = wtr.rect_id
+        WHERE vcv.snapshot_id = 2
+        """,
+        out=Csv("""
+        "node_id","group_id","depth","is_visible","opacity","x","y","w","h"
+        0,0,0,1,1.000000,0.000000,0.000000,1.000000,1.000000
+        1,0,4,0,1.000000,0.000000,0.000000,1.000000,2.000000
+        2,0,8,0,0.500000,-1.500000,-4.500000,6.000000,12.000000
+        3,0,4,1,1.000000,0.000000,0.000000,3.000000,3.000000
+        4,0,8,1,1.000000,-1.000000,-2.000000,3.000000,3.000000
+        5,0,12,0,1.000000,-1.500000,-4.500000,6.000000,12.000000
+        6,0,16,0,1.000000,-3.000000,-13.500000,9.000000,30.000000
+        7,0,12,1,1.000000,3.000000,-2.000000,3.000000,3.000000
+        8,0,12,1,1.000000,-1.000000,2.000000,3.000000,3.000000
         """))
