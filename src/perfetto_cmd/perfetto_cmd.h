@@ -27,10 +27,10 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -147,7 +147,7 @@ class PerfettoCmd : public Consumer {
   void LogTriggerEvents(PerfettoTriggerAtom atom,
                         const std::vector<std::string>& trigger_names);
 
-  base::UnixTaskRunner task_runner_;
+  base::MaybeLockFreeTaskRunner task_runner_;
 
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;

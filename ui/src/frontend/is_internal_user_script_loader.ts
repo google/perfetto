@@ -44,7 +44,7 @@ interface Globals {
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
-  readonly extraMacros: Record<string, CommandInvocation[]>;
+  readonly extraMacros: Record<string, CommandInvocation[]>[];
 
   // TODO(stevegolton): Check if we actually need to use these.
   // Used when switching to the legacy TraceViewer UI.
@@ -71,7 +71,7 @@ function setupGlobalsProxy(app: AppImpl) {
     get extraSqlPackages(): SqlPackage[] {
       return app.extraSqlPackages;
     },
-    get extraMacros(): Record<string, CommandInvocation[]> {
+    get extraMacros(): Record<string, CommandInvocation[]>[] {
       return app.extraMacros;
     },
     shutdown() {

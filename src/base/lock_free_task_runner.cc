@@ -18,10 +18,14 @@
 
 #include "perfetto/base/build_config.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <poll.h>
-#else
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <windows.h>
+
+// Keep the \n before to prevent clang-format reordering.
+#include <synchapi.h>
+#else
+#include <unistd.h>
+#include <poll.h>
 #endif
 
 #include <thread>

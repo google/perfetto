@@ -793,8 +793,7 @@ class TrackEventEventImporter {
 
     tables::SliceTable::RowReference slice_ref = *opt_thread_slice_ref;
     std::optional<int64_t> tts = slice_ref.thread_ts();
-    if (tts) {
-      PERFETTO_DCHECK(thread_timestamp_);
+    if (tts && thread_timestamp_) {
       int64_t delta = *thread_timestamp_ - *tts;
       if (delta != 0) {
         slice_ref.set_thread_dur(delta);
