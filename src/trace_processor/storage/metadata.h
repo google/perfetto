@@ -81,6 +81,7 @@ namespace metadata {
   F(android_serial_console,            KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(android_soc_model,                 KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(android_storage_model,             KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
+  F(linux_device,                      KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(system_machine,                    KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(system_name,                       KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(system_ram_bytes,                  KeyType::kSingle,  Variadic::kInt,    Scope::kMachine),         \
