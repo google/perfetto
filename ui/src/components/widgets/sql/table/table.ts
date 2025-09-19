@@ -50,10 +50,7 @@ import {SelectColumnMenu} from './select_column_menu';
 export interface SqlTableConfig {
   readonly state: SqlTableState;
   // For additional menu items to add to the column header menus
-  readonly addColumnMenuItems?: (
-    column: TableColumn,
-    columnAlias: string,
-  ) => m.Children;
+  readonly addColumnMenuItems?: (column: TableColumn) => m.Children;
   // For additional filter actions
   readonly extraAddFilterActions?: (
     op: string,
