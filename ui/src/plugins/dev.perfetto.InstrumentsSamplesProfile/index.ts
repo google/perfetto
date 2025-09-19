@@ -58,7 +58,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         tags: {
-          kind: INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
+          kinds: [INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND],
           upid,
         },
         renderer: createProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
@@ -102,7 +102,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         tags: {
-          kind: INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
+          kinds: [INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND],
           utid,
           upid: upid ?? undefined,
         },
@@ -216,7 +216,9 @@ function getUpidsFromInstrumentsSampleAreaSelection(
   const upids = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
-      trackInfo?.tags?.kind === INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(
+        INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
+      ) &&
       trackInfo.tags?.utid === undefined
     ) {
       upids.push(assertExists(trackInfo.tags?.upid));
@@ -231,7 +233,9 @@ function getUtidsFromInstrumentsSampleAreaSelection(
   const utids = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
-      trackInfo?.tags?.kind === INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(
+        INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
+      ) &&
       trackInfo.tags?.utid !== undefined
     ) {
       utids.push(trackInfo.tags?.utid);
