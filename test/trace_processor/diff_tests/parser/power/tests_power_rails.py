@@ -34,7 +34,7 @@ class PowerPowerRails(TestSuite):
       """,
         out=Csv("""
         "power_rail_name","AVG(value)","COUNT(*)"
-        "power.PPVAR_VPH_PWR_ABH_uws",7380269.414634,41
+        "power.PPVAR_VPH_PWR_ABH_uws",7388261.216667,60
         "power.PPVAR_VPH_PWR_OLED_uws",202362991.655738,61
         """))
 

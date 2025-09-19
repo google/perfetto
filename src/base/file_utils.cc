@@ -188,6 +188,49 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
   return static_cast<ssize_t>(written);
 }
 
+base::Status CopyFileContents(int fd_in, int fd_out) {
+  off_t original_offset = lseek(fd_in, 0, SEEK_CUR);
+  if (original_offset == -1) {
+    return base::ErrStatus(
+        "Can't get offset in 'fd_in', lseek error: %s (errno: %d)",
+        strerror(errno), errno);
+  }
+
+  if (lseek(fd_in, 0, SEEK_SET) == -1) {
+    return base::ErrStatus(
+        "Can't change the offset in 'fd_in', lseek error: %s (errno: %d)",
+        strerror(errno), errno);
+  }
+
+  auto restore_offset_on_exit = OnScopeExit([fd_in, original_offset] {
+    // 'lseek' should never fail here, but if it fails, we crash, to prevent
+    // possible data loss/overwrite in the 'fd_in'.
+    PERFETTO_CHECK(lseek(fd_in, original_offset, SEEK_SET) >= 0);
+  });
+
+  // Use bigger buffer when copy files.
+  constexpr size_t kCopyFileBufSize = 32 * 1024;  // 32KB.
+  static_assert(kCopyFileBufSize > kBufSize);
+  // Don't allocate that much memory on stack.
+  std::vector<char> buffer(kCopyFileBufSize);
+  for (;;) {
+    ssize_t bytes_read = Read(fd_in, buffer.data(), buffer.size());
+    if (bytes_read == 0)
+      break;
+    if (bytes_read < 0) {
+      return base::ErrStatus("Read failed: %s (errno: %d)", strerror(errno),
+                             errno);
+    }
+    ssize_t written =
+        WriteAll(fd_out, buffer.data(), static_cast<size_t>(bytes_read));
+    if (written != bytes_read) {
+      return base::ErrStatus("Write failed: %s (errno: %d)", strerror(errno),
+                             errno);
+    }
+  }
+  return base::OkStatus();
+}
+
 ssize_t WriteAllHandle(PlatformHandle h, const void* buf, size_t count) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   DWORD wsize = 0;

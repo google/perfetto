@@ -19,6 +19,7 @@ import {AdbWebusbTargetProvider} from './adb/webusb/adb_webusb_target_provider';
 import {ChromeExtensionTargetProvider} from './chrome/chrome_extension_target_provider';
 import {advancedRecordSection} from './pages/advanced';
 import {androidRecordSection} from './pages/android';
+import {perfettoSDKRecordSection} from './pages/perfetto_sdk';
 import {bufferConfigPage} from './pages/buffer_config_page';
 import {chromeRecordSection} from './pages/chrome';
 import {instructionsPage} from './pages/instructions_page';
@@ -94,6 +95,7 @@ export default class implements PerfettoPlugin {
         powerRecordSection(),
         memoryRecordSection(),
         androidRecordSection(),
+        perfettoSDKRecordSection(),
         stackSamplingRecordSection(),
         advancedRecordSection(),
       );

@@ -25,6 +25,7 @@ import {DataExplorer} from './data_explorer';
 import {
   DataGridDataSource,
   DataGridModel,
+  FilterDefinition,
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -33,6 +34,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
+import {NodeBoxLayout} from './node_box';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -40,10 +42,12 @@ export interface BuilderAttrs {
   readonly sqlModules: SqlModules;
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
+  readonly nodeLayouts: Map<string, NodeBoxLayout>;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
+  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
 
   // Add source nodes.
   readonly onAddStdlibTableSource: () => void;
@@ -52,11 +56,16 @@ export interface BuilderAttrs {
 
   // Add derived nodes.
   readonly onAddAggregationNode: (node: QueryNode) => void;
+  readonly onAddModifyColumnsNode: (node: QueryNode) => void;
   readonly onAddIntervalIntersectNode: (node: QueryNode) => void;
 
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onImport: () => void;
+  readonly onImportWithStatement: () => void;
+  readonly onExport: () => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -126,7 +135,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
           },
           onExecute: () => {
-            console.log('Executing');
             this.queryExecuted = false;
             this.runQuery(selectedNode);
             m.redraw();
@@ -159,6 +167,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           rootNodes,
           selectedNode,
           onNodeSelected,
+          nodeLayouts: attrs.nodeLayouts,
+          onNodeLayoutChange: attrs.onNodeLayoutChange,
           onDeselect: attrs.onDeselect,
           onAddStdlibTableSource,
           onAddSlicesSource,
@@ -166,6 +176,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onAddAggregation: attrs.onAddAggregationNode,
+          onAddModifyColumns: attrs.onAddModifyColumnsNode,
           onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
           onDeleteNode: (node: QueryNode) => {
             if (node.isMaterialised()) {
@@ -173,6 +184,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
             attrs.onDeleteNode(node);
           },
+          onImport: attrs.onImport,
+          onImportWithStatement: attrs.onImportWithStatement,
+          onExport: attrs.onExport,
+          onRemoveFilter: attrs.onRemoveFilter,
         }),
       ),
       m('.pf-qb-explorer', explorer),

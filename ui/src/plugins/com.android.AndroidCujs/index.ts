@@ -42,7 +42,7 @@ export async function addJankCUJDebugTrack(
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
-  SELECT RUN_METRIC('android/android_jank_cuj.sql');
+  SELECT RUN_METRIC('android/jank/android_jank_cuj_init.sql');
   INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
 

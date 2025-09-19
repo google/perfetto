@@ -412,6 +412,8 @@ ORDER BY
 CREATE PERFETTO TABLE android_jank_latency_cujs (
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
+  -- An alias for cuj_id for compatibility purposes.
+  id LONG,
   -- process id.
   upid JOINID(process.id),
   -- process name.
@@ -450,7 +452,8 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
 ) AS
 SELECT
   *,
-  "jank" AS cuj_type
+  "jank" AS cuj_type,
+  cuj_id AS id
 FROM android_sysui_jank_cujs
 UNION ALL
 SELECT
@@ -460,7 +463,8 @@ SELECT
   NULL AS layer_id,
   NULL AS begin_vsync,
   NULL AS end_vsync,
-  "latency" AS cuj_type
+  "latency" AS cuj_type,
+  cuj_id AS id
 FROM android_sysui_latency_cujs;
 
 -- Table captures all Choreographer#doFrame within a CUJ boundary.

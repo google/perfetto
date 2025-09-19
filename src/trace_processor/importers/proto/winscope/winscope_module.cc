@@ -53,7 +53,7 @@ WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
       shell_transitions_parser_(&context_),
       protolog_parser_(&context_),
       android_input_event_parser_(context),
-      viewcapture_parser_(context) {
+      viewcapture_parser_(&context_) {
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber);

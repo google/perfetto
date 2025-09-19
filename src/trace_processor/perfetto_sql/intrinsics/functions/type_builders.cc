@@ -450,13 +450,42 @@ struct CounterPerTrackAgg
     auto* new_rows_track = tracks.partitions_map.Find(track_id);
     if (!new_rows_track) {
       new_rows_track = tracks.partitions_map.Insert(track_id, {}).first;
-    } else if (std::equal_to<double>()(new_rows_track->val.back(), val)) {
-      // TODO(mayzner): This algorithm is focused on "leading" counters - if the
-      // counter before had the same value we can safely remove the new one as
-      // it adds no value. In the future we should also support "lagging" - if
-      // the next one has the same value as the previous, we should remove the
-      // previous.
-      return;
+    } else {
+      // This algorithm is focused on "leading" counters - if the two counters
+      // before had the same value we can safely remove the new one as it adds
+      // no value.
+      //
+      // We check against two previous counters here because in the common case
+      // where deltas are being displayed as a counter track in the UI, we want
+      // to "reset" the counter to zero when it returns to zero (so we don't
+      // keep showing a non-zero value), but don't then need a long stream of
+      // zeroes after that.
+      //
+      // For the same reason we also keep track of the final no-change row in a
+      // run and add that, so that delta-based transitions from zero work
+      // correctly too.
+      const std::vector<double>& prev_vals = new_rows_track->val;
+      auto size = prev_vals.size();
+      if (std::equal_to<double>()(prev_vals[size - 1], val) && size > 1 &&
+          std::equal_to<double>()(prev_vals[size - 2], val)) {
+        new_rows_track->last_equal_id = id;
+        new_rows_track->last_equal_ts = ts;
+        new_rows_track->last_equal_val = val;
+        // TODO(mayzner): In the future we should also support "lagging" - if
+        // the next one has the same value as the previous, we should remove the
+        // previous.
+        return;
+      } else {
+        if (new_rows_track->last_equal_ts != 0) {
+          new_rows_track->id.push_back(new_rows_track->last_equal_id);
+          new_rows_track->ts.push_back(new_rows_track->last_equal_ts);
+          new_rows_track->val.push_back(new_rows_track->last_equal_val);
+        }
+
+        new_rows_track->last_equal_id = 0;
+        new_rows_track->last_equal_ts = 0;
+        new_rows_track->last_equal_val = 0;
+      }
     }
 
     new_rows_track->id.push_back(id);
