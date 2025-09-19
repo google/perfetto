@@ -63,6 +63,14 @@ export default class implements PerfettoPlugin {
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
 
+      WITH machine_cpu_counts AS (
+        SELECT
+          IFNULL(machine_id, 0) AS machine,
+          COUNT(*) AS cpu_count
+        FROM cpu
+        GROUP BY machine
+      )
+
       select *
       from (
         select
@@ -90,10 +98,12 @@ export default class implements PerfettoPlugin {
               flat_key = 'chrome.process_label'
           ), '') as chromeProcessLabels,
           ifnull(machine_id, 0) as machine,
-          (select count() from cpu where IFNULL(cpu.machine_id, 0) = IFNULL(machine_id, 0)) as cpuCountPerMachine
+          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _process_available_info_summary
         join process using(upid)
         left join android_process_metadata using(upid)
+        LEFT JOIN machine_cpu_counts
+          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
       )
       union all
       select *
@@ -110,9 +120,11 @@ export default class implements PerfettoPlugin {
           0 as isBootImageProfiling,
           '' as chromeProcessLabels,
           ifnull(machine_id, 0) as machine,
-          (select count() from cpu where IFNULL(cpu.machine_id, 0) = IFNULL(machine_id, 0)) as cpuCountPerMachine
+          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _thread_available_info_summary
         join thread using (utid)
+        LEFT JOIN machine_cpu_counts
+          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
         where upid is null
       )
     `);
@@ -126,7 +138,7 @@ export default class implements PerfettoPlugin {
       isBootImageProfiling: NUM_NULL,
       chromeProcessLabels: STR,
       machine: NUM,
-      cpuCountPerMachine: NUM,
+      cpuCount: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -137,7 +149,7 @@ export default class implements PerfettoPlugin {
       const isDebuggable = Boolean(it.isDebuggable);
       const isBootImageProfiling = Boolean(it.isBootImageProfiling);
       const subtitle = it.chromeProcessLabels;
-      const cpuCountPerMachine = it.cpuCountPerMachine;
+      const cpuCount = it.cpuCount;
 
       // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
@@ -167,12 +179,7 @@ export default class implements PerfettoPlugin {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          renderer: new ProcessSchedulingTrack(
-            ctx,
-            config,
-            cpuCountPerMachine,
-            threads,
-          ),
+          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
           subtitle,
         });
       } else {
