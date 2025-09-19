@@ -253,8 +253,9 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   };
 
   auto it = etw_states_map.find(state);
-  return it != etw_states_map.end() ? context_->storage->InternString(it->second)
-                                   : kNullStringId;
+  return it != etw_states_map.end()
+             ? context_->storage->InternString(it->second)
+             : kNullStringId;
 }
 
 }  // namespace trace_processor
