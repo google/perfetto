@@ -252,9 +252,9 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
       {0x07, "Deferred Ready"},  // DEFERRED_READY
   };
 
-  auto it = kEtwStatesMap.find(state);
-  return it != kEtwStatesMap.end() ? context_->storage->InternString(it->second)
-                                   : kNullStringId
+  auto it = etw_states_map.find(state);
+  return it != etw_states_map.end() ? context_->storage->InternString(it->second)
+                                   : kNullStringId;
 }
 
 }  // namespace trace_processor
