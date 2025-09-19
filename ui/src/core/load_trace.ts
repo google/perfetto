@@ -178,11 +178,11 @@ async function loadTraceIntoEngine(
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
   }
 
-  if (app.extraParsingDescriptorsBase64) {
-    updateStatus(app, 'Registering extra descriptors');
-    const base64String = app.extraParsingDescriptorsBase64.match(/'(.*)'/)?.[1];
-    if (base64String) {
-      await engine.registerExtraDescriptors(base64String);
+  if (app.extraParsingDescriptors && app.extraParsingDescriptors.length > 0) {
+    updateStatus(app, `Registering ${app.extraParsingDescriptors.length} extra descriptors...`);
+    for (const descriptorString of app.extraParsingDescriptors) {
+      // Await each call so they are registered sequentially
+      await engine.registerExtraDescriptors(descriptorString);
     }
   }
 

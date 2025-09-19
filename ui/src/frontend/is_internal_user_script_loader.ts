@@ -16,8 +16,8 @@ import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
 import {SqlPackage} from '../public/extra_sql_packages';
 
-const HARDCODED_DESCRIPTOR_BASE64 =
-  'CvADCmBsb2dzL3Byb3RvL3dpcmVsZXNzL2FuZHJvaWQvc3RhdHMvcGxhdGZvcm0vd2VzdHdvcmxkL2F0b21zL2JhdHRlcnkvYmF0dGVyeV9leHRlbnNpb25fYXRvbXMucHJvdG8SPGxvZ3MucHJvdG8ud2lyZWxlc3MuYW5kcm9pZC5zdGF0cy5wbGF0Zm9ybS53ZXN0d29ybGQuYmF0dGVyeSJxChxSYXdCYXR0ZXJ5R2F1Z2VTdGF0c1JlcG9ydGVkEh8KF3N5c3RlbV9jbG9ja190aW1lX25hbm9zGAEgAygDEhUKDXZvbHRhZ2Vfdm9sdHMYAiADKAISGQoRY3VycmVudF9taWxsaWFtcHMYAyADKAI6ngEKIHJhd19iYXR0ZXJ5X2dhdWdlX3N0YXRzX3JlcG9ydGVkEhcuYW5kcm9pZC5vcy5zdGF0c2QuQXRvbRi9CCABKAsyWi5sb2dzLnByb3RvLndpcmVsZXNzLmFuZHJvaWQuc3RhdHMucGxhdGZvcm0ud2VzdHdvcmxkLmJhdHRlcnkuUmF3QmF0dGVyeUdhdWdlU3RhdHNSZXBvcnRlZEItChZjb20uYW5kcm9pZC5vcy5iYXR0ZXJ5UAGSAwQQAiAD0u+AkAIGbGF0ZXN0YghlZGl0aW9uc3DoBwpVCiZzeW50aGV0aWMvYW5kcm9pZC9vcy9zdGF0c2QvYXRvbS5wcm90bxIRYW5kcm9pZC5vcy5zdGF0c2QiEAoEQXRvbSoICAEQgICAgAJiBnByb3RvMg==';
+//const HARDCODED_DESCRIPTOR_BASE64 =
+  //'CvADCmBsb2dzL3Byb3RvL3dpcmVsZXNzL2FuZHJvaWQvc3RhdHMvcGxhdGZvcm0vd2VzdHdvcmxkL2F0b21zL2JhdHRlcnkvYmF0dGVyeV9leHRlbnNpb25fYXRvbXMucHJvdG8SPGxvZ3MucHJvdG8ud2lyZWxlc3MuYW5kcm9pZC5zdGF0cy5wbGF0Zm9ybS53ZXN0d29ybGQuYmF0dGVyeSJxChxSYXdCYXR0ZXJ5R2F1Z2VTdGF0c1JlcG9ydGVkEh8KF3N5c3RlbV9jbG9ja190aW1lX25hbm9zGAEgAygDEhUKDXZvbHRhZ2Vfdm9sdHMYAiADKAISGQoRY3VycmVudF9taWxsaWFtcHMYAyADKAI6ngEKIHJhd19iYXR0ZXJ5X2dhdWdlX3N0YXRzX3JlcG9ydGVkEhcuYW5kcm9pZC5vcy5zdGF0c2QuQXRvbRi9CCABKAsyWi5sb2dzLnByb3RvLndpcmVsZXNzLmFuZHJvaWQuc3RhdHMucGxhdGZvcm0ud2VzdHdvcmxkLmJhdHRlcnkuUmF3QmF0dGVyeUdhdWdlU3RhdHNSZXBvcnRlZEItChZjb20uYW5kcm9pZC5vcy5iYXR0ZXJ5UAGSAwQQAiAD0u+AkAIGbGF0ZXN0YghlZGl0aW9uc3DoBwpVCiZzeW50aGV0aWMvYW5kcm9pZC9vcy9zdGF0c2QvYXRvbS5wcm90bxIRYW5kcm9pZC5vcy5zdGF0c2QiEAoEQXRvbSoICAEQgICAgAJiBnByb3RvMg==';
 
 // This controls how long we wait for the script to load before giving up and
 // proceeding as if the user is not internal.
@@ -43,7 +43,7 @@ interface Globals {
   // internal_user script.
   readonly extraSqlPackages: SqlPackage[];
 
-  extraParsingDescriptorsBase64: string;
+  extraParsingDescriptors: string[];
 
   // TODO(stevegolton): Check if we actually need to use these.
   // Used when switching to the legacy TraceViewer UI.
@@ -70,11 +70,11 @@ function setupGlobalsProxy(app: AppImpl) {
     get extraSqlPackages(): SqlPackage[] {
       return app.extraSqlPackages;
     },
-    get extraParsingDescriptorsBase64(): string {
-      return app.extraParsingDescriptorsBase64;
+    get extraParsingDescriptors(): string[] {
+      return app.extraParsingDescriptors;
     },
-    set extraParsingDescriptorsBase64(value: string) {
-      app.extraParsingDescriptorsBase64 = value;
+    set extraParsingDescriptors(value: string[]) {
+      app.extraParsingDescriptors = value;
     },
     shutdown() {
       raf.shutdown();
@@ -95,10 +95,6 @@ export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
   // Set up the global object and attach it to `window` before loading the
   // script.
   setupGlobalsProxy(app);
-
-  console.log('PROTOTYPE: Using hardcoded descriptors for testing.');
-
-  app.extraParsingDescriptorsBase64 = `if (globals.extraParsingDescriptorsBase64) { globals.extraParsingDescriptorsBase64 = '${HARDCODED_DESCRIPTOR_BASE64}'; }`;
 
   await new Promise<void>((resolve) => {
     const script = document.createElement('script');

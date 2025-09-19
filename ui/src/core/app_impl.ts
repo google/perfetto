@@ -94,7 +94,7 @@ export class AppContext {
   // via is_internal_user.js
   extraSqlPackages: SqlPackage[] = [];
 
-  extraParsingDescriptorsBase64 = '';
+  extraParsingDescriptors: string[] = [];
 
   // The currently open trace.
   currentTrace?: TraceContext;
@@ -403,12 +403,12 @@ export class AppImpl implements App {
     return this.appCtx.extraSqlPackages;
   }
 
-  get extraParsingDescriptorsBase64(): string {
-    return this.appCtx.extraParsingDescriptorsBase64;
+  get extraParsingDescriptors(): string[] {
+    return this.appCtx.extraParsingDescriptors;
   }
 
-  set extraParsingDescriptorsBase64(value: string) {
-    this.appCtx.extraParsingDescriptorsBase64 = value;
+  set extraParsingDescriptors(value: string[]) {
+    this.appCtx.extraParsingDescriptors = value;
   }
 
   get perfDebugging(): PerfManager {
