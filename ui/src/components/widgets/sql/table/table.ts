@@ -13,14 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {sqliteString} from '../../../../base/string_utils';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {Anchor} from '../../../../widgets/anchor';
-import {BasicTable} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
+import {
+  Grid,
+  GridBody,
+  GridDataCell,
+  GridHeader,
+  GridHeaderCell,
+  GridRow,
+  renderSortMenuItems,
+  SortDirection,
+} from '../../../../widgets/grid';
 
 import {
   LegacySqlTableFilterOptions,
@@ -30,18 +38,19 @@ import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
-import {TableColumn, TableManager, tableColumnId} from './table_column';
+import {
+  RenderedCell,
+  TableColumn,
+  TableManager,
+  tableColumnId,
+} from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './select_column_menu';
-import {renderColumnIcon, renderSortMenuItems} from './table_header';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
   // For additional menu items to add to the column header menus
-  readonly addColumnMenuItems?: (
-    column: TableColumn,
-    columnAlias: string,
-  ) => m.Children;
+  readonly addColumnMenuItems?: (column: TableColumn) => m.Children;
   // For additional filter actions
   readonly extraAddFilterActions?: (
     op: string,
@@ -57,7 +66,7 @@ function renderCell(
   column: TableColumn,
   row: Row,
   state: SqlTableState,
-): m.Children {
+): RenderedCell {
   const {columns} = state.getCurrentRequest();
   const sqlValue = row[columns[sqlColumnId(column.column)]];
 
@@ -68,7 +77,13 @@ function renderCell(
     additionalValues[key] = row[columns[sqlColumnId(col)]];
   }
 
-  return column.renderCell(sqlValue, getTableManager(state), additionalValues);
+  const result = column.renderCell(
+    sqlValue,
+    getTableManager(state),
+    additionalValues,
+  );
+
+  return result;
 }
 
 export function columnTitle(column: TableColumn): string {
@@ -240,44 +255,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     );
   }
 
-  renderColumnHeader(
-    column: TableColumn,
-    index: number,
-    additionalColumnHeaderMenuItems?: m.Children,
-  ) {
-    const sorted = this.state.isSortedBy(column);
-
-    return m(
-      PopupMenu,
-      {
-        trigger: m(
-          Anchor,
-          {icon: renderColumnIcon(sorted)},
-          columnTitle(column),
-        ),
-      },
-      renderSortMenuItems(sorted, (direction) =>
-        this.state.sortBy({column, direction}),
-      ),
-      this.state.getSelectedColumns().length > 1 &&
-        m(MenuItem, {
-          label: 'Hide',
-          icon: Icons.Hide,
-          onclick: () => this.state.hideColumnAtIndex(index),
-        }),
-      m(
-        MenuItem,
-        {label: 'Add filter', icon: Icons.Filter},
-        this.renderColumnFilterOptions(column),
-      ),
-      additionalColumnHeaderMenuItems,
-      // Menu items before divider apply to selected column
-      m(MenuDivider),
-      // Menu items after divider apply to entire table
-      m(AddColumnMenuItem, {table: this, state: this.state, index}),
-    );
-  }
-
   getAdditionalColumnMenuItems(
     addColumnMenuItems?: (
       column: TableColumn,
@@ -307,33 +284,104 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     );
 
     const columns = this.state.getSelectedColumns();
-    const columnDescriptors = columns.map((column, i) => {
-      return {
-        title: this.renderColumnHeader(
-          column,
-          i,
-          additionalColumnMenuItems &&
-            additionalColumnMenuItems[
-              this.state.getCurrentRequest().columns[sqlColumnId(column.column)]
-            ],
-        ),
-        render: (row: Row) => renderCell(column, row, this.state),
-      };
-    });
 
     return [
       m(
-        BasicTable<Row>,
+        Grid,
         {
-          data: rows,
-          columns: columnDescriptors,
-          onreorder: (from: number, to: number) =>
-            this.state.moveColumn(from, to),
+          className: 'sql-table',
+          fillHeight: true,
         },
-        this.state.isLoading() && m(Spinner),
-        this.state.getQueryError() !== undefined &&
-          m('.query-error', this.state.getQueryError()),
+        [
+          m(
+            GridHeader,
+            m(
+              GridRow,
+              columns.map((column, i) => {
+                const sorted = this.state.isSortedBy(column);
+                const menuItems: m.Children = [
+                  renderSortMenuItems(sorted, (direction) =>
+                    this.state.sortBy({column, direction}),
+                  ),
+                  m(MenuDivider),
+                  this.state.getSelectedColumns().length > 1 &&
+                    m(MenuItem, {
+                      label: 'Hide',
+                      icon: Icons.Hide,
+                      onclick: () => this.state.hideColumnAtIndex(i),
+                    }),
+                  m(
+                    MenuItem,
+                    {label: 'Add filter', icon: Icons.Filter},
+                    this.renderColumnFilterOptions(column),
+                  ),
+                  additionalColumnMenuItems &&
+                    additionalColumnMenuItems[
+                      this.state.getCurrentRequest().columns[
+                        sqlColumnId(column.column)
+                      ]
+                    ],
+                  // Menu items before divider apply to selected column
+                  m(MenuDivider),
+                  // Menu items after divider apply to entire table
+                  m(AddColumnMenuItem, {
+                    table: this,
+                    state: this.state,
+                    index: i,
+                  }),
+                ];
+
+                return m(
+                  GridHeaderCell,
+                  {
+                    key: i,
+                    sort: sorted,
+                    onSort: (direction: SortDirection) => {
+                      this.state.sortBy({column, direction});
+                    },
+                    menuItems,
+                    reorderable: {handle: 'column'},
+                    onReorder: (from, to, position) => {
+                      if (typeof from === 'number' && typeof to === 'number') {
+                        const toIndex = position === 'before' ? to : to + 1;
+                        this.state.moveColumn(from, toIndex);
+                      }
+                    },
+                  },
+                  columnTitle(column),
+                );
+              }),
+            ),
+          ),
+          m(
+            GridBody,
+            rows.map((row) => {
+              return m(
+                GridRow,
+                columns.map((col) => {
+                  const {content, menu, isNumerical, isNull} = renderCell(
+                    col,
+                    row,
+                    this.state,
+                  );
+                  return m(
+                    GridDataCell,
+                    {
+                      menuItems: menu,
+                      align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+                      isMissing: isNull,
+                    },
+                    content,
+                  );
+                }),
+              );
+            }),
+          ),
+        ],
       ),
+      this.state.isLoading() && m(Spinner),
+      this.state.getQueryError() !== undefined &&
+        m('.query-error', this.state.getQueryError()),
     ];
   }
 }

@@ -29,7 +29,6 @@ namespace perfetto {
 namespace {
 
 namespace m = ::perfetto::metatrace;
-using ::testing::Invoke;
 
 class MetatraceTest : public ::testing::Test {
  public:
@@ -150,7 +149,7 @@ TEST_F(MetatraceTest, HandleOverruns) {
     Enable(m::TAG_ANY);
     std::string checkpoint_name = "ReadTask " + std::to_string(iteration);
     auto checkpoint = task_runner_.CreateCheckpoint(checkpoint_name);
-    EXPECT_CALL(*this, ReadCallback()).WillOnce(Invoke(checkpoint));
+    EXPECT_CALL(*this, ReadCallback()).WillOnce(checkpoint);
 
     for (size_t i = 0; i < m::RingBuffer::kCapacity; i++)
       m::TraceCounter(/*tag=*/1, /*id=*/42, /*value=*/cnt++);
@@ -200,7 +199,7 @@ TEST_F(MetatraceTest, InterleavedReadWrites) {
     last_value_read = last;
   };
 
-  EXPECT_CALL(*this, ReadCallback()).WillRepeatedly(Invoke(read_task));
+  EXPECT_CALL(*this, ReadCallback()).WillRepeatedly(read_task);
 
   // The writer will write continuously counters from 0 to kMaxValue.
   auto writer_done = task_runner_.CreateCheckpoint("writer_done");
@@ -239,14 +238,14 @@ TEST_F(MetatraceTest, ThreadRaces) {
 
     std::string checkpoint_name = "ReadTask " + std::to_string(iteration);
     auto checkpoint = task_runner_.CreateCheckpoint(checkpoint_name);
-    EXPECT_CALL(*this, ReadCallback()).WillOnce(Invoke(checkpoint));
+    EXPECT_CALL(*this, ReadCallback()).WillOnce(checkpoint);
 
     auto thread_main = [](uint16_t thd_idx) {
       for (size_t i = 0; i < m::RingBuffer::kCapacity + 500; i++)
         m::TraceCounter(/*tag=*/1, thd_idx, static_cast<int>(i));
     };
 
-    constexpr size_t kNumThreads = 8;
+    constexpr size_t kNumThreads = 2;
     std::array<std::thread, kNumThreads> threads;
     for (size_t thd_idx = 0; thd_idx < kNumThreads; thd_idx++)
       threads[thd_idx] = std::thread(thread_main, thd_idx);

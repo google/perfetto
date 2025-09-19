@@ -70,7 +70,6 @@ export default class implements PerfettoPlugin {
         description: `Ftrace events for CPU ${cpu.toString()}`,
         tags: {
           cpu: cpu.cpu,
-          groupName: 'Ftrace Events',
         },
         renderer: createFtraceTrack(ctx, uri, cpu, filterStore),
       });
@@ -108,7 +107,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'perfetto.FtraceRaw#ShowFtraceTab',
+      id: 'dev.perfetto.ShowFtraceTab',
       name: 'Show ftrace tab',
       callback: () => {
         ctx.tabs.showTab(ftraceTabUri);

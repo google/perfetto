@@ -14,17 +14,16 @@
 
 .pf-query-page {
   height: 100%;
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font-compact);
   overflow: hidden auto;
 
   &__elapsed-time {
     font-size: 0.9em;
-    color: rgb(83, 83, 83);
-    margin-left: 0.2rem;
+    margin-left: 0.2em;
   }
 
   &__toolbar {
-    border-bottom: 1px solid lightgray;
+    border-bottom: 1px solid var(--pf-color-border);
   }
 
   .pf-editor {
@@ -42,8 +41,8 @@
 
   &__query-error {
     padding: 20px 10px;
-    color: hsl(-10, 50%, 50%);
-    font-family: "Roboto Mono", sans-serif;
+    color: var(--pf-color-danger);
+    font-family: var(--pf-font-monospace);
     font-size: 12px;
     font-weight: 300;
     white-space: pre;

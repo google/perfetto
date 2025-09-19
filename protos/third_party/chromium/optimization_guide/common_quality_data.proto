@@ -196,7 +196,7 @@ message PageContext {
 
 // The page content represented as a tree of semantic chunks and (in the
 // future) annotated with additional information about the page.
-// Next ID: 7
+// Next ID: 8
 message AnnotatedPageContent {
   // The version of the proto. Each time a backwards incompatible change is made
   // to the proto, the version should be incremented.
@@ -222,6 +222,10 @@ message AnnotatedPageContent {
   // The rect of the viewport for the tab. i.e., screenshot dimensions.
   // Dimensions are in captured pixels.
   BoundingRect viewport_geometry = 5 [features = { field_presence: EXPLICIT }];
+
+  // The id of the tab that the page content was extracted from. Guaranteed to
+  // be unique within the browsing session.
+  int32 tab_id = 7 [features = { field_presence: EXPLICIT }];
 }
 
 // The ContentNode tree is a sparse representation of the DOM tree for a web
@@ -361,7 +365,10 @@ message Geometry {
 
   // Whether the content node is fixed or sticky position. This may suggest
   // that the node is a header, footer, or sidebar.
-  bool is_fixed_or_sticky_position = 3 [features = { field_presence: EXPLICIT }];
+  bool is_fixed_or_sticky_position = 3 [
+    deprecated = true,
+    features = { field_presence: EXPLICIT }
+  ];
 
   reserved 4, 5;
 }
@@ -565,7 +572,7 @@ message FormInfo {
   string form_name = 1 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 8
+// Next ID: 9
 message FormControlData {
   // The name for the field.
   string field_name = 1 [features = { field_presence: EXPLICIT }];
@@ -588,6 +595,9 @@ message FormControlData {
 
   // Whether the field is required.
   bool is_required = 7 [features = { field_presence: EXPLICIT }];
+
+  // Redaction decision for form fields.
+  RedactionDecision redaction_decision = 8 [features = { field_presence: EXPLICIT }];
 }
 
 // Represents an option in a select field. See below for example.
@@ -622,11 +632,31 @@ message TableData {
 }
 
 message IframeData {
-  FrameData frame_data = 3 [features = { field_presence: EXPLICIT }];
+  oneof data {
+    FrameData frame_data = 3;
+
+    RedactedFrameMetadata redacted_frame_metadata = 4;
+  }
 
   // Indicates whether the iframe is likely to be an ad frame. This is set for
   // both the root ad frame and its descendants.
   bool likely_ad_frame = 2 [features = { field_presence: EXPLICIT }];
+
+  message RedactedFrameMetadata {
+    Reason reason = 1 [features = { field_presence: EXPLICIT }];
+
+    enum Reason {
+      REASON_UNSPECIFIED = 0;
+
+      // This iframe was redacted because it is not on the same eTLD+1 site as
+      // the top-level frame.
+      REASON_CROSS_SITE = 1;
+
+      // This iframe was redacted because it is not on the same origin as the
+      // top-level frame.
+      REASON_CROSS_ORIGIN = 2;
+    }
+  }
 
   reserved 1;
 }
@@ -704,8 +734,10 @@ message Selection {
 // Directs the action to a specific Document in a frame in Chrome.
 // Next ID: 3
 message DocumentIdentifier {
-  // A unique identifier for the frame that is not stable across APC
-  // calls/pages. Caller can map these to a client side frame id.
+  // A unique identifier for a Document loaded in the browser. This ID is
+  // guaranteed to be unique across all Documents for the browser's lifetime.
+  // The ID is also stable for the Document's lifetime. It can be used to
+  // identify the Document across APC calls.
   string serialized_token = 1 [features = { field_presence: EXPLICIT }];
 }
 
@@ -717,7 +749,10 @@ message PaidContentMetadata {
 }
 
 // The media data for a frame in the web page. If the frame has multiple media
-// elements, only one of them is controlled by the media session.
+// elements, only one of them is controlled by the media session. The
+// transcripts are always attached if any have been generated for past media or
+// current media in this frame, while other fields are only populated if there
+// is an active media session in the frame.
 // Next ID: 9
 message MediaData {
   // Type of the media in the frame.
@@ -841,9 +876,13 @@ message FormData {
   // changes dynamically.
   // Only set during data collection, not in prediction requests.
   uint64 form_signature = 4 [features = { field_presence: EXPLICIT }];
+
+  // The action URL of the form, if present. This is the resolved value
+  // including the final origin.
+  string action_url = 5 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 14
+// Next ID: 15
 message FormFieldData {
   // The name for the field.
   string field_name = 1 [features = { field_presence: EXPLICIT }];
@@ -893,10 +932,12 @@ message FormFieldData {
   // The text of the elements denoted by the aria-labelledby attribute of field
   // or the value of its aria-label attribute, with priority given to the
   // aria-labelledby attribute.
-  // TODO(crbug.com/389631485): The client doesn't set this for model requests at the
-  // moment. But it can and should be used for inference since it is contained
-  // in the metadata pipeline.
   string aria_label = 13 [features = { field_presence: EXPLICIT }];
+
+  // The text of the elements denoted by the aria-describedby attribute of field
+  // or the value of its aria-description attribute, with priority given to the
+  // aria-describedby attribute.
+  string aria_description = 14 [features = { field_presence: EXPLICIT }];
 }
 
 message TableRow {
@@ -963,6 +1004,33 @@ message Coordinate {
   int32 y = 2 [features = { field_presence: EXPLICIT }];
 }
 
+// A meta tag (https://developer.mozilla.org/en-US/docs/Wecrbug.com/HTML/Element/meta).
+// Next ID: 3
+message MetaTag {
+  // The name attribute of the meta tag.
+  string name = 1 [features = { field_presence: EXPLICIT }];
+
+  // The content attribute of the meta tag.
+  string content = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Metadata about a frame.
+// Next ID: 3
+message FrameMetadata {
+  // The URL of the frame.
+  string url = 1 [features = { field_presence: EXPLICIT }];
+
+  repeated MetaTag meta_tags = 2;
+}
+
+// Metadata (URL and meta tags) from page content. Includes data from meta tags
+// for all frames on this page.
+// Next ID: 2
+message PageMetadata {
+  // The main frame is the first entry in the array.
+  repeated FrameMetadata frame_metadata = 1;
+}
+
 // Selection text affinity, part of the a11y snapshot.
 // Next ID: 3
 enum AXTextAffinity {
@@ -974,7 +1042,7 @@ enum AXTextAffinity {
 }
 
 // AX Role.
-// Next ID: 213
+// Next ID: 214
 enum AXRole {
   AX_ROLE_NONE = 0;
 
@@ -1229,6 +1297,8 @@ enum AXRole {
   AX_ROLE_MENUITEMCHECKBOX = 125;
 
   AX_ROLE_MENUITEMRADIO = 126;
+
+  AX_ROLE_MENUITEMSEPARATOR = 213;
 
   AX_ROLE_MENULISTOPTION = 127;
 
@@ -1494,7 +1564,7 @@ enum AXStringAttribute {
 }
 
 // AX Int attribute enum.
-// Next ID: 68
+// Next ID: 69
 enum AXIntAttribute {
   AX_IA_NONE = 0;
 
@@ -2011,6 +2081,17 @@ enum FormControlType {
   FORM_CONTROL_TYPE_INPUT_WEEK = 32;
 
   FORM_CONTROL_TYPE_OUTPUT = 33;
+}
+
+enum RedactionDecision {
+  // No redaction necessary for this node type.
+  REDACTION_DECISION_NO_REDACTION_NECESSARY = 0;
+
+  // Empty password inputs are not redacted.
+  REDACTION_DECISION_UNREDACTED_EMPTY_PASSWORD = 1;
+
+  // Is a password input or was in the past.
+  REDACTION_DECISION_REDACTED_HAS_BEEN_PASSWORD = 2;
 }
 
 // Indicates the type of media in the media data.

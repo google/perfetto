@@ -32,7 +32,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       grid-column: left;
       background: inherit;
       min-width: max-content;
-      border-radius: $pf-border-radius 0 0 $pf-border-radius;
+      border-radius: $border-radius 0 0 $border-radius;
       font-weight: bolder;
     }
 
@@ -40,7 +40,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       grid-column: right;
       background: inherit;
       padding: 0 0 0 15px;
-      border-radius: 0 $pf-border-radius $pf-border-radius 0;
+      border-radius: 0 $border-radius $border-radius 0;
       overflow-wrap: break-word; // Break words if overflowing
       white-space: pre-wrap;
       min-width: 0; // Allow column to shrink past content if container is thin
@@ -58,22 +58,23 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       cursor: pointer;
 
       &::after {
-        content: $chevron-svg;
+        @include material-icon("chevron_right");
+        font-size: inherit;
       }
     }
     &.pf-expanded > .pf-tree-left > .pf-tree-gutter {
       cursor: pointer;
       &::after {
-        content: $chevron-svg;
-        rotate: 90deg;
+        @include material-icon("expand_more");
+        font-size: inherit;
       }
     }
 
     &.pf-loading > .pf-tree-left > .pf-tree-gutter {
       &::after {
         content: "";
-        border: solid 1px lightgray;
-        border-top: solid 1px $pf-primary-background;
+        border: solid 1px var(--pf-color-border);
+        border-top: solid 1px var(--pf-color-primary);
         animation: pf-spinner-rotation 1s infinite linear;
         width: 8px;
         height: 8px;
@@ -95,7 +96,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     grid-column: 1 / span 2;
     grid-template-columns: subgrid;
     row-gap: 5px;
-    border-left: solid rgba(0, 0, 0, 0.2) 1px;
+    border-left: solid var(--pf-color-border) 1px;
     margin-left: 6px;
     padding-left: 6px;
   }

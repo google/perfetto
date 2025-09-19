@@ -17,17 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_TOKENIZER_H_
 
-#include <stdint.h>
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/circular_queue.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -38,14 +35,11 @@
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
-namespace perfetto {
-namespace trace_processor {
-class TraceProcessorContext;
-
-namespace perf_importer {
+namespace perfetto::trace_processor::perf_importer {
 
 class AuxDataTokenizer;
 class AuxDataTokenizerFactory;
@@ -65,7 +59,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::Status NotifyEndOfFile() override;
 
  private:
-  enum class ParsingState {
+  enum class ParsingState : uint8_t {
     kParseHeader,
     kParseAttrs,
     kSeekRecords,
@@ -75,7 +69,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
     kParseFeatures,
     kDone,
   };
-  enum class ParsingResult { kMoreDataNeeded = 0, kSuccess = 1 };
+  enum class ParsingResult : uint8_t { kMoreDataNeeded = 0, kSuccess = 1 };
 
   base::StatusOr<ParsingResult> ParseHeader();
   base::StatusOr<ParsingResult> ParseAttrs();
@@ -98,6 +92,8 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::StatusOr<int64_t> ExtractTraceTimestamp(const Record& record);
 
   TraceProcessorContext* context_;
+  PerfTracker perf_tracker_;
+
   std::unique_ptr<TraceSorter::Stream<Record>> stream_;
 
   ParsingState parsing_state_ = ParsingState::kParseHeader;
@@ -120,8 +116,6 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   AuxStreamManager aux_manager_;
 };
 
-}  // namespace perf_importer
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::perf_importer
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_TOKENIZER_H_

@@ -31,17 +31,17 @@ RETURNS _ProjectionFragment AS result.$x as $y;
 -- details of what a scan means.
 CREATE PERFETTO MACRO _graph_scan(
   -- The table containing the edges of the graph. Needs to have the columns
-  -- `source_node_id` and `dest_node_id`.
+  -- `source_node_id` and `dest_node_id`. Should not contain nulls.
   graph_table TableOrSubquery,
   -- The table of nodes to start the scan from. Needs to have the column `id`
-  -- and all columns specified by `scan_columns`.
+  -- and all columns specified by `scan_columns`. Should not contain nulls.
   init_table TableOrSubquery,
   -- A parenthesised and comma separated list of columns which will be returned
   -- by the scan. Should match exactly both the names and order of the columns
   -- in both `init_table` and `step_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
-  scan_columns _ColumnNameList,
+  scan_columns ColumnNameList,
   -- A subquery which is reads all the data (from a variable table called $table)
   -- for a single step of the scan and performs some computation for each node in
   -- the step.
@@ -102,7 +102,7 @@ CREATE PERFETTO MACRO _graph_aggregating_scan(
   -- in both `init_table` and `agg_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
-  agg_columns _ColumnNameList,
+  agg_columns ColumnNameList,
   -- A subquery which aggregates the data for one step of the scan. Should contain
   -- the column `id` and all columns specified by `agg_columns`. Should read from
   -- a variable table labelled `$table`.

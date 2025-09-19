@@ -18,6 +18,7 @@ source_set("base") {
   sources = [
     "android_utils.h",
     "base64.h",
+    "bits.h",
     "circular_queue.h",
     "clock_snapshots.h",
     "container_annotations.h",
@@ -32,6 +33,7 @@ source_set("base") {
     "getopt.h",
     "getopt_compat.h",
     "hash.h",
+    "lock_free_task_runner.h",
     "metatrace.h",
     "metatrace_events.h",
     "murmur_hash.h",
@@ -40,6 +42,7 @@ source_set("base") {
     "periodic_task.h",
     "pipe.h",
     "platform.h",
+    "rt_mutex.h",
     "scoped_file.h",
     "scoped_mmap.h",
     "scoped_sched_boost.h",

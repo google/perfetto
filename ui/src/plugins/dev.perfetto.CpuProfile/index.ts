@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -27,6 +26,9 @@ import {
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
 import {Flamegraph} from '../../widgets/flamegraph';
+import {assertExists} from '../../base/logging';
+
+const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
@@ -80,6 +82,10 @@ export default class implements PerfettoPlugin {
     }
 
     ctx.selection.registerAreaSelectionTab(createAreaSelectionTab(ctx));
+
+    ctx.onTraceReady.addListener(async () => {
+      await selectCpuProfileCallsite(ctx);
+    });
   }
 }
 
@@ -127,8 +133,7 @@ function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
@@ -150,18 +155,33 @@ function computeCpuProfileFlamegraph(trace: Trace, selection: AreaSelection) {
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
-        name: 'source_file',
-        displayName: 'Source File',
-        mergeAggregation: 'ONE_OR_NULL',
-      },
-      {
-        name: 'line_number',
-        displayName: 'Line Number',
-        mergeAggregation: 'ONE_OR_NULL',
+        name: 'source_location',
+        displayName: 'Source Location',
+        mergeAggregation: 'ONE_OR_SUMMARY',
       },
     ],
   );
   return new QueryFlamegraph(trace, metrics, {
     state: Flamegraph.createDefaultState(metrics),
+  });
+}
+
+async function selectCpuProfileCallsite(trace: Trace) {
+  const profile = await assertExists(trace.engine).query(`
+    select utid, upid
+    from cpu_profile_stack_sample
+    join thread using(utid)
+    where callsite_id is not null and not is_idle
+    order by ts desc
+    limit 1
+  `);
+  if (profile.numRows() !== 1) return;
+  const {utid, upid} = profile.firstRow({utid: NUM, upid: NUM_NULL});
+
+  // Create an area selection over the first process with a perf samples track
+  trace.selection.selectArea({
+    start: trace.traceInfo.start,
+    end: trace.traceInfo.end,
+    trackUris: [`${getThreadUriPrefix(upid, utid)}_cpu_samples`],
   });
 }

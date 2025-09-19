@@ -42,7 +42,6 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -52,6 +51,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/json_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -181,6 +181,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         if (track.has_sibling_merge_key()) {
           reservation.sibling_merge_key =
               context_->storage->InternString(track.sibling_merge_key());
+        } else if (track.has_sibling_merge_key_int()) {
+          reservation.sibling_merge_key = context_->storage->InternString(
+              "sibling_merge_key_int:" +
+              std::to_string(track.sibling_merge_key_int()));
         }
         break;
     }
@@ -300,6 +304,11 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     counter_details.category = category_id;
     counter_details.is_incremental = counter.is_incremental();
     counter_details.unit_multiplier = counter.unit_multiplier();
+
+    if (counter.has_y_axis_share_key()) {
+      counter_details.y_axis_share_key =
+          context_->storage->InternString(counter.y_axis_share_key());
+    }
 
     auto unit = static_cast<uint32_t>(counter.unit());
     if (counter.type() == CounterDescriptor::COUNTER_THREAD_TIME_NS) {

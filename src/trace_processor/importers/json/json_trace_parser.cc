@@ -41,14 +41,14 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
-#include "src/trace_processor/importers/json/json_parser.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor {
 
@@ -109,9 +109,10 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   FlowTracker* flow_tracker = context_->flow_tracker.get();
 
   if (event.pid_is_string_id) {
+    UniquePid upid = procs->GetOrCreateProcess(event.pid);
     procs->SetProcessMetadata(
-        event.pid, std::nullopt,
-        storage->GetString(StringPool::Id::Raw(event.pid)), base::StringView());
+        upid, storage->GetString(StringPool::Id::Raw(event.pid)),
+        base::StringView());
   }
   if (event.tid_is_string_id) {
     UniqueTid event_utid = procs->GetOrCreateThread(event.tid);
@@ -424,9 +425,9 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           procs->UpdateThreadName(utid, thread_name_id,
                                   ThreadNamePriority::kOther);
         } else if (name == "process_name") {
+          UniquePid upid = procs->GetOrCreateProcess(event.pid);
           procs->SetProcessMetadata(
-              event.pid, std::nullopt,
-              base::StringView(args_name.data(), args_name.size()),
+              upid, base::StringView(args_name.data(), args_name.size()),
               base::StringView());
         }
       }

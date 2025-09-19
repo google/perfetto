@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 #define SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 
+#include <cstddef>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -115,8 +116,9 @@ class Regex {
       }
     }
 #else
-    base::ignore_result(s);
-    PERFETTO_FATAL("Windows regex is not supported.");
+    base::ignore_result(out);
+    if (s)
+      PERFETTO_FATAL("Windows regex is not supported.");
 #endif
   }
 

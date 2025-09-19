@@ -19,8 +19,10 @@
 @import "./node_box.scss";
 @import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
-@import "./sources/slices_source.scss";
-@import "./sources/table_source.scss";
+@import "./nodes/sources/slices_source.scss";
+@import "./nodes/sources/table_source.scss";
+@import "./nodes/aggregation_node.scss";
+@import "./nodes/modify_columns_node.scss";
 
 .pf-query-builder-layout {
   display: grid;

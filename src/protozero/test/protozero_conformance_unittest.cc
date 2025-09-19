@@ -16,6 +16,7 @@
 
 #include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "perfetto/protozero/message_handle.h"
@@ -157,6 +158,44 @@ TEST(ProtoZeroConformanceTest, Extensions) {
       gold_msg_a.GetExtension(pbgold::BrowserExtension::extension_b);
   EXPECT_EQ(gold_msg_c.int_b(), 10u);
   EXPECT_EQ(gold_msg_c.string_b(), "string b");
+}
+
+TEST(ProtoZeroConformanceTest, ExtensionsWireCompatibility) {
+  HeapBuffered<pbtest::LegacyFakeEvent> msg_a{kChunkSize, kChunkSize};
+
+  msg_a->set_base_int(4);
+
+  pbtest::SystemA* msg_b = msg_a->set_extension_a();
+  msg_b->set_int_a(3);
+  msg_b->set_string_a("string a");
+
+  pbtest::SystemB* msg_c = msg_a->set_extension_b();
+  msg_c->set_int_b(10);
+  msg_c->set_string_b("string b");
+
+  msg_a->set_base_string("base string");
+
+  std::string serialized = msg_a.SerializeAsString();
+
+  // RealFakeEvent + BrowserExtension should have the same wire format as
+  // LegacyFakeEvent.
+  pbtest::RealFakeEvent::Decoder real_event(serialized);
+  EXPECT_EQ(real_event.base_int(), 4u);
+  EXPECT_EQ(real_event.base_string().ToStdString(), "base string");
+
+  Field extension_field_a =
+      real_event.FindField(pbtest::BrowserExtension::kExtensionAFieldNumber);
+  ASSERT_TRUE(extension_field_a.valid());
+  pbtest::SystemA::Decoder extension_a(extension_field_a.as_bytes());
+  EXPECT_EQ(extension_a.int_a(), 3u);
+  EXPECT_EQ(extension_a.string_a().ToStdString(), "string a");
+
+  Field extension_field_b =
+      real_event.FindField(pbtest::BrowserExtension::kExtensionBFieldNumber);
+  ASSERT_TRUE(extension_field_b.valid());
+  pbtest::SystemB::Decoder extension_b(extension_field_b.as_bytes());
+  EXPECT_EQ(extension_b.int_b(), 10u);
+  EXPECT_EQ(extension_b.string_b().ToStdString(), "string b");
 }
 
 TEST(ProtoZeroConformanceTest, Import) {

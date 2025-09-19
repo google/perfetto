@@ -48,8 +48,8 @@ import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
-  SELECTION_STROKE_COLOR,
-  TRACK_BORDER_COLOR,
+  COLOR_ACCENT,
+  COLOR_BORDER_SECONDARY,
   TRACK_SHELL_WIDTH,
 } from '../css_constants';
 import {renderFlows} from './flow_events_renderer';
@@ -162,58 +162,61 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) return undefined;
 
+      if (node.headless) {
+        // Headless nodes are invisible, just render children.
+        return node.children.map((track) => {
+          return renderTrack(track, depth, stickyTop);
+        });
+      }
+
       const trackView = new TrackView(trace, node, top);
       renderedTracks.push(trackView);
 
-      let childDepth = depth;
-      let childStickyTop = stickyTop;
-      if (!node.headless) {
-        top += trackView.height;
-        ++childDepth;
-        childStickyTop += trackView.height;
-      }
+      // Advance the global top position.
+      top += trackView.height;
+
+      // Advance the sticky top position for our children, if we are sticky.
+      const childStickyTop = node.isSummary
+        ? stickyTop + trackView.height
+        : stickyTop;
 
       const children =
-        (node.headless || node.expanded || filtersApplied) &&
+        (node.expanded || filtersApplied) &&
         node.hasChildren &&
         node.children.map((track) =>
-          renderTrack(track, childDepth, childStickyTop),
+          renderTrack(track, depth + 1, childStickyTop),
         );
 
-      if (node.headless) {
-        return children;
-      } else {
-        const isTrackOnScreen = () => {
-          if (VIRTUAL_TRACK_SCROLLING.get()) {
-            return this.canvasRect?.overlaps({
-              left: 0,
-              right: 1,
-              ...trackView.verticalBounds,
-            });
-          } else {
-            return true;
-          }
-        };
+      const isTrackOnScreen = (() => {
+        if (VIRTUAL_TRACK_SCROLLING.get()) {
+          return this.canvasRect?.overlaps({
+            left: 0,
+            right: 1,
+            ...trackView.verticalBounds,
+          });
+        } else {
+          return true;
+        }
+      })();
 
-        return trackView.renderDOM(
-          {
-            lite: !Boolean(isTrackOnScreen()),
-            scrollToOnCreate: scrollToNewTracks,
-            reorderable: canReorderNodes,
-            removable: canRemoveNodes,
-            stickyTop,
-            depth,
-            collapsible: !filtersApplied,
-            onTrackMouseOver: () => {
-              this.hoveredTrackNode = node;
-            },
-            onTrackMouseOut: () => {
-              this.hoveredTrackNode = undefined;
-            },
+      return trackView.renderDOM(
+        {
+          lite: !Boolean(isTrackOnScreen),
+          scrollToOnCreate: scrollToNewTracks,
+          reorderable: canReorderNodes,
+          removable: canRemoveNodes,
+          stickyTop,
+          depth,
+          collapsible: !filtersApplied,
+          onTrackMouseOver: () => {
+            this.hoveredTrackNode = node;
           },
-          children,
-        );
-      }
+          onTrackMouseOut: () => {
+            this.hoveredTrackNode = undefined;
+          },
+        },
+        children,
+      );
     };
 
     const trackVnodes = rootNode.children.map((track) => renderTrack(track));
@@ -399,7 +402,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timescale: TimeScale,
     size: Size2D,
   ): void {
-    ctx.strokeStyle = TRACK_BORDER_COLOR;
+    ctx.strokeStyle = COLOR_BORDER_SECONDARY;
     ctx.lineWidth = 1;
 
     if (size.width > 0 && timescale.timeSpan.duration > 0n) {
@@ -609,7 +612,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     size: Size2D,
   ) {
     if (this.areaDrag) {
-      ctx.strokeStyle = SELECTION_STROKE_COLOR;
+      ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 1;
       const rect = this.areaDrag.rect(timescale);
       ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
@@ -618,7 +621,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     if (this.handleDrag) {
       const rect = this.handleDrag.hBounds(timescale);
 
-      ctx.strokeStyle = SELECTION_STROKE_COLOR;
+      ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 1;
 
       ctx.beginPath();
@@ -639,7 +642,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const startPx = timescale.timeToPx(selection.start);
       const endPx = timescale.timeToPx(selection.end);
 
-      ctx.strokeStyle = '#8398e6';
+      ctx.strokeStyle = COLOR_ACCENT;
       ctx.lineWidth = 2;
 
       ctx.beginPath();

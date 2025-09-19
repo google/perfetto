@@ -1009,7 +1009,18 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }
+
 // End of protos/perfetto/config/etw/etw_config.proto
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
@@ -1023,7 +1034,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 38
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1277,6 +1288,83 @@ message FtraceConfig {
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
 
+  // =================================================
+  // Exclusive single-tenant features: HERE BE DRAGONS
+  // =================================================
+  // The features below are considered "advanced" and require an exclusive
+  // tracing session (as of Android 25Q3+ and Perfetto v52).
+  //
+  // These features directly manipulate the kernel's global ftrace state and
+  // are incompatible with concurrent ftrace sessions. They are only enabled
+  // if included in the *first* ftrace data source configured. Subsequent
+  // ftrace data sources (even those not using advanced features) will be
+  // rejected while a session with these features is active.
+  //
+  // To run the session in exclusive mode, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+
+  // Filter ftrace events by Thread ID (TID).
+  // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  repeated uint32 tids_to_trace = 35;
+
+  // Tracefs options to set directly in the tracefs instance. This is a very
+  // niche feature since almost all of the options deal with formatting textual
+  // output (the /trace file), which perfetto doesn't use.
+  //
+  // The options with a known use-case:
+  // * event-fork: when using `tids_to_trace` above, the kernel will
+  //   automatically add newly spawned descendant threads to the set of TIDs.
+  //
+  // Full list of options is available at
+  // https://docs.kernel.org/trace/ftrace.html#trace-options.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  message TracefsOption {
+    enum State {
+      STATE_UNKNOWN = 0;
+      STATE_ENABLED = 1;
+      STATE_DISABLED = 2;
+    }
+    // The name of the tracefs option as found in tracefs/trace_options (without
+    // the "no" prefix).
+    optional string name = 1;
+    optional State state = 2;
+  }
+  repeated TracefsOption tracefs_options = 36;
+
+  // This mask restricts tracing to a specific set of CPUs using a
+  // comma-separated hex mask. Each hex number (up to 8 digits) represents a
+  // 32-bit chunk of the CPU mask.
+  //
+  // The chunks are ordered from high CPUs to low CPUs (left to right):
+  //    - Rightmost chunk: CPUs 0-31
+  //    - 2nd chunk from right: CPUs 32-63
+  //    - ...and so on.
+  //
+  // Example (assuming NR_CPUS=128, requiring 4 chunks):
+  // The full mask would be in the format: "chunk3,chunk2,chunk1,chunk0"
+  // where chunk3 maps to CPUs 96-127, chunk2 to 64-95, chunk1 to 32-63, and
+  // chunk0 to 0-31.
+  //    - "ffffffff,0,0,0": Enables CPUs 96-127 only.
+  //    - "f,ff": Enables CPUs 0-7 (from "ff") and CPUs 32-35 (from "f").
+  //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional string tracing_cpumask = 37;
+
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
   optional bool initialize_ksyms_synchronously_for_testing = 14
@@ -1341,6 +1429,8 @@ message VulkanMemoryConfig {
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
+// WARNING: unmaintained and deprecated. Likely won't work at all on modern
+// systems.
 message InodeFileConfig {
   message MountPointMappingEntry {
     optional string mountpoint = 1;
@@ -1461,6 +1551,10 @@ message PriorityBoostConfig {
 
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
+// Config for polling process-related information from /proc/pid/status and
+// related files on Linux.
+//
+// Data source name: "linux.process_stats".
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
@@ -1470,6 +1564,9 @@ message ProcessStatsConfig {
     // |scan_all_processes_on_start| arg.
     DISABLE_INITIAL_DUMP = 1 [deprecated = true];
 
+    // If set, disables the special interaction with "linux.ftrace" data source,
+    // where the process stats rescrapes any thread id seen in the ftrace
+    // stream.
     DISABLE_ON_DEMAND = 2;
   }
   repeated Quirks quirks = 1;
@@ -1483,28 +1580,21 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
-  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   optional uint32 proc_stats_poll_ms = 4;
 
   // id 5 never used
 
-  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
-  // (default: |proc_stats_poll_ms|). If = 0, will be set to
-  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
-  // multiple.
+  // Explicit caching period during which the polling won't re-emit identical
+  // counter values. This is required to be either = 0 or a multiple of
+  // |proc_stats_poll_ms| (default: |proc_stats_poll_ms|). Non-multiples will be
+  // rounded down to the nearest multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Niche feature: If true this will resolve file descriptors for each process
-  // so these can be mapped to their actual device or file.
-  // Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled or
-  // new fds opened after initially scanning a process will not be
-  // recognized.
-  optional bool resolve_process_fds = 9;
-
-  // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  // If true and |proc_stats_poll_ms| is set, sample memory stats from
+  // /proc/pid/smaps_rollup.
   //
-  // Does NOT work with the Android system daemon by default, as it requires
+  // Android: does NOT work with the system daemons by default, as it requires
   // running the recording process (traced_probes or tracebox) as root. It is
   // possible to avoid the root requirement, but the exact steps depend on the
   // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
@@ -1516,10 +1606,23 @@ message ProcessStatsConfig {
   // Introduced in: perfetto v44.
   optional bool record_process_age = 11;
 
-  // If true and |proc_stats_poll_ms| is true, process stats will include time
+  // If true and |proc_stats_poll_ms| is set, process stats will include time
   // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
+
+  // If true obtain per-process dmabuf resident set size from
+  // /proc/pid/dmabuf_rss.
+  // This feature is not in upstream linux, and is available only on some
+  // Android kernels.
+  optional bool record_process_dmabuf_rss = 13;
+
+  // WARNING: unmaintained and deprecated. If true this will resolve file
+  // descriptors for each process so these can be mapped to their actual device
+  // or file. Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled
+  // or new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 
   // record_thread_time_in_state
   reserved 7;
@@ -2031,7 +2134,7 @@ message PerfEventConfig {
   optional uint32 max_daemon_memory_kb = 13;
 
   //
-  // Uncommon options:
+  // Niche options:
   //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
@@ -2044,10 +2147,17 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the unwinder. This is a heavy
-  // operation that is only necessary for traces that target a wide set of
-  // processes, and require the memory footprint to be reset periodically.
-  // If unset, the cached state will not be cleared.
+  // Optional period for clearing state cached by the userspace unwinder. This
+  // is a heavy operation that is only necessary for traces that target a wide
+  // set of processes, and require the memory footprint to be reset
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
+  //
+  // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
+  //
+  // If zero or unset:
+  // * before perfetto v52: no cache clearing.
+  // * perfetto v52+: implementation chooses an infrequent default.
   optional uint32 unwind_state_clear_period_ms = 10;
 
   // If set, only profile target if it was installed by a package with one of
@@ -3823,6 +3933,13 @@ message TrackEventConfig {
   // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
   // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
+
+  // When enable_thread_time_sampling is true, and this is specified, thread
+  // time is sampled only if the elapsed wall time >
+  // `thread_time_subsampling_ns`. Otherwise, thread time is considered nil.
+  // Effectively, this means thread time will have a leeway of
+  // `thread_time_subsampling_ns` and won't be emitted for shorter events.
+  optional uint64 thread_time_subsampling_ns = 10;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
   // When true, event_names wrapped in perfetto::DynamicString will be filtered

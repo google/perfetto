@@ -209,7 +209,7 @@ async function loadTraceIntoEngine(
     await engine.registerSqlPackages(p);
   }
 
-  const traceDetails = await getTraceInfo(engine, traceSource);
+  const traceDetails = await getTraceInfo(engine, app, traceSource);
   const trace = TraceImpl.createInstanceForCore(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
@@ -268,6 +268,20 @@ async function loadTraceIntoEngine(
     // TODO(primiano): this can probably be removed once we refactor tracks
     // to be URI based and can deal with non-existing URIs.
     deserializeAppStatePhase2(serializedAppState, trace);
+  }
+
+  // Execute startup commands as the final step - simulates user actions
+  // after the trace is fully loaded and any saved state has been restored.
+  // This ensures startup commands see the complete, final state of the trace.
+  if (trace.commands.hasStartupCommands()) {
+    updateStatus(app, 'Running startup commands');
+    // Disable prompts during startup commands to prevent blocking
+    app.omnibox.disablePrompts();
+    try {
+      await trace.commands.runStartupCommands();
+    } finally {
+      app.omnibox.enablePrompts();
+    }
   }
 
   return trace;
@@ -355,6 +369,7 @@ async function computeVisibleTime(
 
 async function getTraceInfo(
   engine: Engine,
+  app: AppImpl,
   traceSource: TraceSource,
 ): Promise<TraceInfoImpl> {
   const traceTime = await getTraceTimeBounds(engine);
@@ -450,6 +465,7 @@ async function getTraceInfo(
   // trace_uuid can be missing from the TP tables if the trace is empty or in
   // other similar edge cases.
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
+  updateStatus(app, 'Caching trace...');
   const cached = await cacheTrace(traceSource, uuid);
 
   const downloadable =

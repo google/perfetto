@@ -341,8 +341,11 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
     .join('|');
 
   // A regex to capture the column, operator and value.
-  // The value is optional to support operators like "IS NULL".
-  const regex = new RegExp(`^(\\S+)\\s+(${opRegex})(?:\\s+(.*))?$`, 'i');
+  // The value can be a quoted string or a single word.
+  const regex = new RegExp(
+    `^(\\S+)\\s+(${opRegex})(?:\\s+(".*?"|'.*?'|\\S+))?$`,
+    'i',
+  );
   const match = text.trim().match(regex);
 
   if (!match) {
@@ -433,6 +436,14 @@ function parseFilterValue(text: string): SqlValue | undefined {
   const value = text.trim();
   if (value === '') return undefined;
 
+  // If the value is quoted, remove the quotes.
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+
   if (value !== '' && !isNaN(Number(value))) {
     return Number(value);
   } else {
@@ -482,3 +493,43 @@ export const ALL_FILTER_OPS: FilterOp[] = [
   ),
   op('GLOB', 'glob', protos.PerfettoSqlStructuredQuery.Filter.Operator.GLOB),
 ];
+
+export function createFiltersProto(
+  filters: FilterDefinition[],
+  sourceCols: ColumnInfo[],
+): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
+  if (filters.length === 0) {
+    return undefined;
+  }
+
+  const protoFilters: protos.PerfettoSqlStructuredQuery.Filter[] = filters.map(
+    (f: FilterDefinition): protos.PerfettoSqlStructuredQuery.Filter => {
+      const result = new protos.PerfettoSqlStructuredQuery.Filter();
+      result.columnName = f.column;
+
+      const op = ALL_FILTER_OPS.find((o) => o.displayName === f.op);
+      if (op === undefined) {
+        // Should be handled by validation before this.
+        throw new Error(`Unknown filter operator: ${f.op}`);
+      }
+      result.op = op.proto;
+
+      if ('value' in f) {
+        const value = f.value;
+        const col = sourceCols.find((c) => c.name === f.column);
+        if (typeof value === 'string') {
+          result.stringRhs = [value];
+        } else if (typeof value === 'number' || typeof value === 'bigint') {
+          if (col && (col.type === 'long' || col.type === 'int')) {
+            result.int64Rhs = [Number(value)];
+          } else {
+            result.doubleRhs = [Number(value)];
+          }
+        }
+        // Not handling Uint8Array here. The original FilterToProto also didn't seem to.
+      }
+      return result;
+    },
+  );
+  return protoFilters;
+}

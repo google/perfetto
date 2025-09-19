@@ -19,62 +19,14 @@
   // Legacy variables - to be removed
   --sidebar-width: 230px;
   --topbar-height: 44px;
-  --monospace-font: "Roboto Mono", monospace;
   --track-shell-width: 250px;
-  --track-border-color: #00000025;
   --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --selection-stroke-color: #00344596;
-  --selection-fill-color: #8398e64d;
-  --overview-timeline-non-visible-color: #c8c8c8cc;
   --details-content-height: 308px;
 
   // Fonts
   --pf-font: "Roboto", sans-serif;
   --pf-font-compact: "Roboto Condensed", sans-serif;
   --pf-font-monospace: "Roboto Mono", monospace;
-
-  // Light mode colors
-  --pf-color-background: white;
-  --pf-color-background-secondary: #f2f5f6;
-  --pf-color-interactive-base: black;
-  --pf-color-text: #333;
-  --pf-color-text-muted: #75797c;
-  --pf-color-text-disabled: gray;
-  --pf-color-text-inverse: white;
-  --pf-color-border: #ccc;
-  --pf-color-border-secondary: #e0e0e0;
-  --pf-color-text-hint: #808080;
-  --pf-color-accent: #3d5688;
-  --pf-color-track-summary-collapsed: #f4fafb;
-  --pf-color-track-summary-expanded: #262f3b;
-  --pf-color-track-summary-expanded-text: #e8eaed;
-  --pf-color-box-shadow: rgba(0, 0, 0, 0.2);
-  --pf-color-danger: rgb(202, 38, 38);
-  --pf-color-success: rgb(0, 128, 0);
-  --pf-color-warning: rgb(226, 159, 14);
-  --pf-color-neutral: gray;
-
-  // Dark mode colors
-  // Useful for testing whether components have been themed correctly,
-  // --pf-color-background: #232426;
-  // --pf-color-background-secondary: #383a3e;
-  // --pf-color-interactive-base: white;
-  // --pf-color-text: #dce0e2;
-  // --pf-color-text-muted: #a0a2a5;
-  // --pf-color-text-disabled: #8d8d8e;
-  // --pf-color-text-inverse: #333;
-  // --pf-color-border: #626568;
-  // --pf-color-border-secondary: #404042;
-  // --pf-color-text-hint: #9aa0a6;
-  // --pf-color-accent: #5587ed;
-  // --pf-color-track-summary-collapsed: #2f3437;
-  // --pf-color-track-summary-expanded: #454d55;
-  // --pf-color-track-summary-expanded-text: #e8eaed;
-  // --pf-color-box-shadow: rgba(0, 0, 0, 0.4);
-  // --pf-color-danger: rgb(230, 90, 90);
-  // --pf-color-success: rgb(18, 225, 18);
-  // --pf-color-warning: rgb(244, 188, 67);
-  // --pf-color-neutral: gray;
 }
 
 @mixin transition($time: 0.1s) {
@@ -105,9 +57,7 @@
 }
 
 html {
-  color: var(--pf-color-text);
   font-size: 16px;
-  background-color: var(--pf-color-background);
   font-family: var(--pf-font);
   height: 100%;
   width: 100%;

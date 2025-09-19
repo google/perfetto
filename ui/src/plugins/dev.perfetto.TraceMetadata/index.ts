@@ -98,7 +98,7 @@ export default class implements PerfettoPlugin {
                       }),
                       m(TreeNode, {
                         left: 'Timestamp',
-                        right: m(Timestamp, {ts: Time.fromRaw(row.ts)}),
+                        right: m(Timestamp, {trace, ts: Time.fromRaw(row.ts)}),
                       }),
                       m(TreeNode, {
                         left: 'clock_id',

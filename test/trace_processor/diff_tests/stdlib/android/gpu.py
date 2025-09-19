@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -53,6 +53,7 @@ class AndroidGpu(TestSuite):
         200001000000,2000000,0,585000
         200003000000,1000000,0,0
         200004000000,2000000,0,603000
+        200006000000,0,0,603000
         200002000000,3000000,1,400000
         200005000000,1000000,1,758000
       """))

@@ -58,7 +58,7 @@
         border-color: var(--pf-color-track-summary-expanded);
 
         &--highlight {
-          border-color: #ffe263;
+          border-color: var(--pf-color-highlight);
         }
       }
 
@@ -75,20 +75,20 @@
     border-color: var(--pf-color-border-secondary);
 
     &--highlight {
-      background-color: #ffe263;
+      background-color: var(--pf-color-highlight);
       color: var(--pf-color-text);
     }
 
     &--drag-after {
-      box-shadow: inset 0 -6px 3px -3px var(--pf-color-accent);
+      box-shadow: inset 0 -6px 3px -3px var(--pf-color-primary);
     }
 
     &--drag-inside {
-      box-shadow: inset -6px 0 3px -3px var(--pf-color-accent);
+      box-shadow: inset -6px 0 3px -3px var(--pf-color-primary);
     }
 
     &--drag-before {
-      box-shadow: inset 0 6px 3px -3px var(--pf-color-accent);
+      box-shadow: inset 0 6px 3px -3px var(--pf-color-primary);
     }
 
     &--clickable {
@@ -143,7 +143,8 @@
     grid-template-areas:
       "icon title chips buttons"
       "none subtitle subtitle subtitle";
-    padding: 1px;
+    padding-inline: 1px;
+    padding-top: 1px;
     position: sticky;
     top: calc(var(--sticky-top) * 1px);
   }

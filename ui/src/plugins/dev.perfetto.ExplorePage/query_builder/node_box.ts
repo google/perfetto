@@ -19,6 +19,8 @@ import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
+import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
@@ -38,36 +40,35 @@ export interface NodeBoxAttrs {
   readonly isSelected: boolean;
   readonly isDragging: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
-  readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
+  readonly onNodeDragStart: (
+    node: QueryNode,
+    event: DragEvent,
+    layout: NodeBoxLayout,
+  ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onModifyColumns: (node: QueryNode) => void;
+  readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
 function renderWarningIcon(node: QueryNode): m.Child {
-  const error =
-    node.state.queryError || node.state.responseError || node.state.dataError;
-  if (!error) return null;
+  if (!node.state.issues || !node.state.issues.hasIssues()) return null;
 
   const iconClasses = classNames('pf-node-box__warning-icon');
 
   return m(Icon, {
     className: iconClasses,
     icon: 'warning',
-    title: error.message,
+    title: node.state.issues.getTitle(),
   });
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
-  return m(
-    PopupMenu,
-    {
-      trigger: m(Button, {
-        iconFilled: true,
-        icon: Icons.ContextMenuAlt,
-      }),
-    },
+  const menuItems: m.Child[] = [
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => onDuplicateNode(node),
@@ -75,6 +76,63 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
     m(MenuItem, {
       label: 'Delete',
       onclick: () => onDeleteNode(node),
+    }),
+  ];
+
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Button, {
+        iconFilled: true,
+        icon: Icons.ContextMenu,
+      }),
+    },
+    ...menuItems,
+  );
+}
+
+function renderAddButton(attrs: NodeBoxAttrs): m.Child {
+  const {node, onAddAggregation, onModifyColumns, onAddIntervalIntersect} =
+    attrs;
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Icon, {
+        className: 'pf-node-box-add-button',
+        icon: 'add',
+      }),
+    },
+    m(MenuItem, {
+      label: 'Aggregate',
+      onclick: () => onAddAggregation(node),
+    }),
+    m(MenuItem, {
+      label: 'Modify Columns',
+      onclick: () => onModifyColumns(node),
+    }),
+    m(MenuItem, {
+      label: 'Interval Intersect',
+      onclick: () => onAddIntervalIntersect(node),
+    }),
+  );
+}
+
+function renderFilters(attrs: NodeBoxAttrs): m.Child {
+  const {node, onRemoveFilter} = attrs;
+  if (node.state.filters.length === 0) return null;
+
+  return m(
+    '.pf-node-box__filters',
+    node.state.filters.map((filter) => {
+      const label =
+        'value' in filter
+          ? `${filter.column} ${filter.op} ${filter.value}`
+          : `${filter.column} ${filter.op}`;
+      return m(Chip, {
+        label,
+        removable: true,
+        onRemove: () => onRemoveFilter(node, filter),
+      });
     }),
   );
 }
@@ -87,27 +145,18 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     attrs.onNodeRendered(attrs.node, dom as HTMLElement);
   },
   view({attrs}) {
-    const {
-      node,
-      layout,
-      isSelected,
-      isDragging,
-      onNodeSelected,
-      onNodeDragStart,
-    } = attrs;
+    const {node, layout, isSelected, onNodeSelected, onNodeDragStart} = attrs;
 
     const conditionalClasses = classNames(
       isSelected && 'pf-node-box__selected',
       !node.validate() && 'pf-node-box__invalid',
-      node.state.queryError && 'pf-node-box__invalid-query',
-      node.state.responseError && 'pf-node-box__invalid-response',
+      node.state.issues?.queryError && 'pf-node-box__invalid-query',
+      node.state.issues?.responseError && 'pf-node-box__invalid-response',
     );
 
     const boxStyle = {
-      position: 'absolute',
       left: `${layout.x}px`,
       top: `${layout.y}px`,
-      opacity: isDragging ? '0' : '1',
     };
 
     return m(
@@ -117,11 +166,31 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         style: boxStyle,
         onclick: () => onNodeSelected(node),
         draggable: true,
-        ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
+        ondragstart: (event: DragEvent) => onNodeDragStart(node, event, layout),
       },
+      node.prevNodes?.map((_, i) => {
+        const portCount = node.prevNodes ? node.prevNodes.length : 0;
+        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+        return m('.pf-node-box-port.pf-node-box-port-top', {
+          style: {left},
+        });
+      }),
       renderWarningIcon(node),
-      m('span.pf-node-box__title', node.getTitle()),
+      m(
+        '.pf-node-box__content',
+        m('span.pf-node-box__title', node.getTitle()),
+        m('.pf-node-box__details', node.nodeDetails?.()),
+        renderFilters(attrs),
+      ),
       renderContextMenu(attrs),
+      node.nextNodes.map((_, i) => {
+        const portCount = node.nextNodes.length;
+        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+        return m('.pf-node-box-port.pf-node-box-port-bottom', {
+          style: {left},
+        });
+      }),
+      renderAddButton(attrs),
     );
   },
 };

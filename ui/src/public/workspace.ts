@@ -92,7 +92,7 @@ export class TrackNode {
   public uri?: string;
 
   // Optional sort order, which workspaces may or may not take advantage of for
-  // sorting when displaying the workspace. Higher numbers appear first.
+  // sorting when displaying the workspace. Lower numbers appear first.
   public sortOrder?: number;
 
   // Don't show the header at all for this track, just show its un-nested
@@ -214,6 +214,20 @@ export class TrackNode {
       parent.expand();
       parent = parent.parent;
     }
+  }
+
+  /**
+   * Get all ancestors of this node from root to immediate parent.
+   * Returns an empty array if this node has no parent.
+   */
+  getAncestors(): TrackNode[] {
+    const ancestors: TrackNode[] = [];
+    let current = this.parent;
+    while (current && current.name !== '') {
+      ancestors.push(current);
+      current = current.parent;
+    }
+    return ancestors.reverse(); // Return from root to immediate parent
   }
 
   /**

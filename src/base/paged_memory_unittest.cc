@@ -171,6 +171,9 @@ TEST(PagedMemoryTest, AccessUncommittedMemoryTriggersASAN) {
 }
 #endif  // ADDRESS_SANITIZER
 
+#if !defined(ADDRESS_SANITIZER) && !defined(LEAK_SANITIZER) && \
+    !defined(THREAD_SANITIZER) && !defined(MEMORY_SANITIZER)
+// This test seems to hang on some sanitizers.
 TEST(PagedMemoryTest, GuardRegions) {
   const size_t kSize = GetSysPageSize();
   PagedMemory mem = PagedMemory::Allocate(kSize);
@@ -179,6 +182,7 @@ TEST(PagedMemoryTest, GuardRegions) {
   EXPECT_DEATH_IF_SUPPORTED({ raw[-1] = 'x'; }, ".*");
   EXPECT_DEATH_IF_SUPPORTED({ raw[kSize] = 'x'; }, ".*");
 }
+#endif
 
 // Disable this on:
 // MacOS: because it doesn't seem to have an equivalent rlimit to bound mmap().

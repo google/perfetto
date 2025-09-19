@@ -97,11 +97,7 @@ class HeapGraphTracker : public Destructible {
 
   explicit HeapGraphTracker(TraceStorage* storage);
 
-  static HeapGraphTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->heap_graph_tracker) {
-      context->heap_graph_tracker.reset(
-          new HeapGraphTracker(context->storage.get()));
-    }
+  static HeapGraphTracker* Get(TraceProcessorContext* context) {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
   }
 

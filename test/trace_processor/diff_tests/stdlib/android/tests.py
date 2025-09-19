@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -117,14 +117,43 @@ class AndroidStdlib(TestSuite):
         trace=Path('../../metrics/android/android_anr_metric.py'),
         query="""
         INCLUDE PERFETTO MODULE android.anrs;
-        SELECT *
+        SELECT process_name, pid, upid, error_id, ts, subject, anr_type, default_anr_dur_ms
         FROM android_anrs;
       """,
         out=Csv("""
-        "process_name","pid","upid","error_id","ts","subject"
-        "com.google.android.app1",11167,"[NULL]","da24554c-452a-4ae1-b74a-fb898f6e0982",1000,"Test ANR subject 1"
-        "com.google.android.app2","[NULL]","[NULL]","8612fece-c2f1-4aeb-9d45-8e6d9d0201cf",2000,"Test ANR subject 2"
-        "com.google.android.app3","[NULL]","[NULL]","c25916a0-a8f0-41f3-87df-319e06471a0f",3000,"[NULL]"
+        "process_name","pid","upid","error_id","ts","subject","anr_type","default_anr_dur_ms"
+        "com.google.android.app1",11167,"[NULL]","da24554c-452a-4ae1-b74a-fb898f6e0982",1000,"Test ANR subject 1","UNKNOWN_ANR_TYPE","[NULL]"
+        "com.google.android.app2","[NULL]","[NULL]","8612fece-c2f1-4aeb-9d45-8e6d9d0201cf",2000,"Test ANR subject 2","UNKNOWN_ANR_TYPE","[NULL]"
+        "com.google.android.app3","[NULL]","[NULL]","c25916a0-a8f0-41f3-87df-319e06471a0f",3000,"[NULL]","[NULL]","[NULL]"
+        "com.disney.disneyplus",23215,"[NULL]","1eb3813d-45d3-4a9a-ab80-0ebeb88ea25a",4000,"Broadcast of Intent { act=android.os.action.DEVICE_IDLE_MODE_CHANGED flg=0x50000010 cmp=com.disney.disneyplus/Di.a }","BROADCAST_OF_INTENT",10000
+        "com.disney.disneyplus",27195,"[NULL]","50756b89-eadc-40c9-aef2-8886adb7d936",5000,"Broadcast of Intent { act=android.intent.action.DATE_CHANGED flg=0x20200010 cmp=com.disney.disneyplus/Di.a }","BROADCAST_OF_INTENT",60000
+        "com.android.chrome",17874,"[NULL]","60b9d4b6-6487-4800-bd12-3f9d547482e3",6000,"Input dispatching timed out (88f6a9 com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity is not responding. Waited 5000ms for FocusEvent(hasFocus=false)).","INPUT_DISPATCHING_TIMEOUT",5000
+        "com.microsoft.teams",10645,"[NULL]","2d1dff06-54a3-450b-8123-0d21e67715c4",7000,"Input dispatching timed out (Application does not have a focused window).","INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW",5000
+        "com.google.android.apps.internal.betterbug",26587,"[NULL]","1c733cef-dee3-42a1-bff5-6ac2bb3167ae",8000,"Context.startForegroundService() did not then call Service.startForeground(): ServiceRecord{76a32df u10 com.google.android.apps.internal.betterbug/.ramdumpuploader.RamdumpUploadService c:com.google.android.apps.internal.betterbug}","START_FOREGROUND_SERVICE",30000
+        "com.android.systemui",2342,"[NULL]","f2eb9ced-2327-402c-bf7c-dc498fafa5cd",9000,"executing service com.android.systemui/.doze.DozeService, waited 156441ms","EXECUTING_SERVICE",20000
+        "com.android.settings",15028,"[NULL]","9361cad8-c888-4f03-bff9-9ed8c69d583b",11000,"ContentProvider not responding","CONTENT_PROVIDER_NOT_RESPONDING","[NULL]"
+        "com.google.android.youtube.tv",16563,"[NULL]","600c4866-02c0-4d46-a69c-21d9ac377ad0",12000,"App requested: Buffer processing hung up due to stuck fence. Indicates GPU hang","GPU_HANG","[NULL]"
+        "com.android.chrome",18090,"[NULL]","fd96eb0a-ccba-474b-8044-b7cd27e812c2",13000,"No response to onStartJob","JOB_SERVICE_START",8000
+        "com.android.chrome",13534,"[NULL]","4e1f9f12-d9bf-4d6b-9e2b-1dfeaf774859",14000,"No response to onStopJob","JOB_SERVICE_STOP",8000
+        "com.android.vending",18264,"[NULL]","8a83c04e-fd35-4945-9fcc-7736f4242cae",15000,"Timed out while trying to bind","JOB_SERVICE_BIND",8000
+        "com.android.phone",3538,"[NULL]","df199866-4a6a-4388-b79f-2c76b6d5bb00",16000,"Process ProcessRecord{1a270e8 3538:com.android.phone/1001} failed to complete startup","BIND_APPLICATION",15000
+        "com.google.netops.pager",28509,"[NULL]","62abad99-bd09-44ef-bbbb-40db5c4d5539",17000,"A foreground service of FOREGROUND_SERVICE_TYPE_SHORT_SERVICE did not stop within a timeout: ComponentInfo{com.google.netops.pager/com.google.netops.pager.NotifierService}","FOREGROUND_SHORT_SERVICE_TIMEOUT",180000
+        "com.whatsapp",11456,"[NULL]","975b36a1-8b4a-4d69-875e-2c33e140bd1c",18000,"A foreground service of type dataSync did not stop within a timeout: ComponentInfo{com.whatsapp/com.whatsapp.service.GcmFGService}","FOREGROUND_SERVICE_TIMEOUT",30000
+        "com.android.chrome",22768,"[NULL]","05122f25-2f5b-4650-aeeb-cf59a9d6295a",19000,"required notification not provided","JOB_SERVICE_NOTIFICATION_NOT_PROVIDED",8000
+      """))
+
+  def test_anr_with_timer(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_anr.pftrace.gz'),
+        query="""
+        INCLUDE PERFETTO MODULE android.anrs;
+        SELECT process_name, pid, upid, error_id, ts, subject, timer_delay, anr_type, anr_dur_ms, default_anr_dur_ms
+        FROM android_anrs;
+      """,
+        out=Csv("""
+        "process_name","pid","upid","error_id","ts","subject","timer_delay","anr_type","anr_dur_ms","default_anr_dur_ms"
+        "com.google.android.videos",4464,1765,"d55b1536-9c53-422a-af00-33daaf992b0d",184660962756627,"Process ProcessRecord{c098c64 4464:com.google.android.videos/u0a224} failed to complete startup","[NULL]","BIND_APPLICATION","[NULL]",15000
+        "com.google.android.gms.persistent",30647,112,"45210ec5-1525-49c3-816c-75afb1973d0b",184707199069963,"Broadcast of Intent { act=com.google.android.gms.tron.ALARM flg=0x10 xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/.tron.AlarmReceiver (has extras) }",22247029,"BROADCAST_OF_INTENT",60006,60000
       """))
 
   def test_binder_sync_binder_metrics(self):
@@ -1381,16 +1410,16 @@ class AndroidStdlib(TestSuite):
       """,
         out=Csv("""
         "ts","dur","score","bucket","process_name","oom_adj_ts","oom_adj_dur","oom_adj_thread_name","oom_adj_reason","oom_adj_trigger"
-1737065264829,701108081,925,"cached","com.android.providers.calendar",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737066678827,3470211742,935,"cached","com.android.imsserviceentitlement",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737066873002,3470017567,945,"cached","com.android.carrierconfig",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737067058812,3469831757,955,"cached","com.android.messaging",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737067246975,699224817,955,"cached","android.process.acore",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737068421919,3468468650,965,"cached","com.android.shell",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737068599673,697908135,965,"cached","android.process.media",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737068933602,3467956967,975,"cached","com.android.gallery3d",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737069091010,3467799559,975,"cached","com.android.packageinstaller",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
-1737069240534,3467650035,985,"cached","com.android.managedprovisioning",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737065264829,701108081,925,"cached","com.android.providers.calendar",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737066678827,2934486383,935,"cached","com.android.imsserviceentitlement",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737066873002,2934292208,945,"cached","com.android.carrierconfig",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737067058812,2934106398,955,"cached","com.android.messaging",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737067246975,699224817,955,"cached","android.process.acore",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737068421919,2932743291,965,"cached","com.android.shell",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737068599673,697908135,965,"cached","android.process.media",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737068933602,2932231608,975,"cached","com.android.gallery3d",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737069091010,3467799559,975,"cached","com.android.packageinstaller",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+ 1737069240534,3467650035,985,"cached","com.android.managedprovisioning",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
       """))
 
   def test_broadcast_minsdk_u(self):

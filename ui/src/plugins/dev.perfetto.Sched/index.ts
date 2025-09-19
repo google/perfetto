@@ -80,7 +80,7 @@ export default class implements PerfettoPlugin {
     this.addSchedulingSummaryTracks(ctx);
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.Sched#SelectAllThreadStateTracks',
+      id: 'dev.perfetto.SelectAllThreadStateTracks',
       name: 'Select all thread state tracks',
       callback: () => {
         const tracks = ctx.tracks
@@ -146,14 +146,19 @@ export default class implements PerfettoPlugin {
     const cpus = ctx.traceInfo.cpus.filter((cpu) => ucpus.has(cpu.ucpu));
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
+    const group = new TrackNode({
+      name: 'CPU Scheduling',
+      sortOrder: -50,
+      isSummary: true,
+      collapsed: false,
+    });
     for (const cpu of cpus) {
       const uri = uriForSchedTrack(cpu.ucpu);
       const size = cpuToClusterType.get(cpu.cpu);
       const sizeStr = size === undefined ? `` : ` (${size})`;
-      const name = `Cpu ${cpu.cpu}${sizeStr}${cpu.maybeMachineLabel()}`;
+      const name = `CPU ${cpu.cpu} Scheduling${sizeStr}${cpu.maybeMachineLabel()}`;
 
       const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
-
       ctx.tracks.registerTrack({
         description: () => {
           return m('', [
@@ -177,8 +182,10 @@ export default class implements PerfettoPlugin {
         },
         renderer: new CpuSliceTrack(ctx, uri, cpu, threads),
       });
-      const trackNode = new TrackNode({uri, name, sortOrder: -50});
-      ctx.workspace.addChildInOrder(trackNode);
+      group.addChildInOrder(new TrackNode({name, uri}));
+    }
+    if (group.children.length > 0) {
+      ctx.workspace.addChildInOrder(group);
     }
 
     ctx.tracks.registerOverlay(new WakerOverlay(ctx));

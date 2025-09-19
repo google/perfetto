@@ -16,15 +16,19 @@
 
 #include "src/trace_processor/trace_summary/summary.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -45,6 +49,10 @@
 
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
 
 namespace perfetto::trace_processor::summary {
 
@@ -428,6 +436,35 @@ base::Status CreateQueriesAndComputeMetrics(
           bundle_id.c_str(), query_it.Status().c_message());
     }
 
+    protos::pbzero::PerfettoSqlStructuredQuery::Decoder query(
+        first_spec.query());
+    if (query.has_sql()) {
+      protos::pbzero::PerfettoSqlStructuredQuery::Sql::Decoder sql_query(
+          query.sql());
+      if (sql_query.has_column_names()) {
+        std::set<std::string> actual_column_names;
+        for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
+          actual_column_names.insert(query_it.GetColumnName(i));
+        }
+        std::set<std::string> expected_column_names;
+        for (auto col_it = sql_query.column_names(); col_it; ++col_it) {
+          expected_column_names.insert(col_it->as_std_string());
+        }
+        if (!std::includes(
+                actual_column_names.begin(), actual_column_names.end(),
+                expected_column_names.begin(), expected_column_names.end())) {
+          std::vector<std::string> expected_vec(expected_column_names.begin(),
+                                                expected_column_names.end());
+          std::vector<std::string> actual_vec(actual_column_names.begin(),
+                                              actual_column_names.end());
+          return base::ErrStatus(
+              "Not all columns expected in metrics bundle '%s' were found. "
+              "Expected: [%s], Actual: [%s]",
+              bundle_id.c_str(), base::Join(expected_vec, ", ").c_str(),
+              base::Join(actual_vec, ", ").c_str());
+        }
+      }
+    }
     ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
                      GetDimensionsWithIndex(first_spec, query_it));
 
@@ -546,6 +583,28 @@ base::Status CreateQueriesAndComputeMetrics(
       *output = std::vector<uint8_t>(out.begin(), out.end());
       break;
   }
+
+  // Compress the output if requested. If Zlib compression is requested but
+  // not supported, return an error.
+  if (output_spec.compression == TraceSummaryOutputSpec::Compression::kZlib &&
+      !output->empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+    auto compressed_size = compressBound(static_cast<uint32_t>(output->size()));
+    auto compressed_buffer = std::make_unique<uint8_t[]>(compressed_size);
+    int res = compress(compressed_buffer.get(), &compressed_size,
+                       output->data(), static_cast<uint32_t>(output->size()));
+    if (res != Z_OK) {
+      return base::ErrStatus("Failed to compress trace summary output");
+    }
+    output->assign(
+        compressed_buffer.get(),
+        compressed_buffer.get() + static_cast<uint32_t>(compressed_size));
+#else
+    return base::ErrStatus(
+        "Zlib compression requested but is not supported on this platform.");
+#endif
+  }
+
   return base::OkStatus();
 }
 

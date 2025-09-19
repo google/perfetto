@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -49,6 +49,7 @@ from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
 from diff_tests.parser.android.tests_android_input_event import AndroidInputEvent
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
+from diff_tests.parser.android.tests_cpu_per_uid import AndroidCpuPerUid
 from diff_tests.parser.android.tests_dumpstate import AndroidDumpstate
 from diff_tests.parser.android.tests_games import AndroidGames
 from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClients
@@ -68,11 +69,13 @@ from diff_tests.parser.chrome.tests import ChromeParser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
 from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
+from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
 from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
+from diff_tests.parser.ftrace.kernel_trackevent_tests import KernelTrackevent
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
 from diff_tests.parser.generic_kernel.tests import GenericKernelParser
@@ -120,7 +123,9 @@ from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
 from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
+from diff_tests.stdlib.prelude.unhex import UnHex
 from diff_tests.stdlib.android.memory import AndroidMemory
+from diff_tests.stdlib.android.network_packets import AndroidNetworkPackets
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
@@ -152,6 +157,7 @@ from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
@@ -176,6 +182,7 @@ def fetch_all_diff_tests(
     index_path: str) -> List[Tuple[str, 'testing.DiffTestBlueprint']]:
   parser_tests = [
       AndroidBugreport,
+      AndroidCpuPerUid,
       AndroidDumpstate,
       AndroidFs,
       AndroidGames,
@@ -187,6 +194,7 @@ def fetch_all_diff_tests(
       ChromeV8Parser,
       Cros,
       Deobfuscation,
+      Etm,
       Fs,
       Fuchsia,
       GenericFtrace,
@@ -195,6 +203,7 @@ def fetch_all_diff_tests(
       GraphicsGpuTrace,
       GraphicsParser,
       JsonParser,
+      KernelTrackevent,
       MemoryParser,
       NetworkParser,
       BatteryStats,
@@ -215,6 +224,7 @@ def fetch_all_diff_tests(
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      Symbolize,
       InputMethodClients,
       InputMethodManagerService,
       InputMethodService,
@@ -271,6 +281,7 @@ def fetch_all_diff_tests(
 
   stdlib_tests = [
       AndroidMemory,
+      AndroidNetworkPackets,
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
@@ -291,6 +302,7 @@ def fetch_all_diff_tests(
       Memory,
       PreludeMathFunctions,
       HeapGraph,
+      UnHex,
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,

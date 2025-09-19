@@ -38,7 +38,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
         await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
         const cpusCsv = `(` + selectedCpus.join() + `)`;
-        engine.query(`
+        await engine.query(`
           INCLUDE PERFETTO MODULE wattson.tasks.attribution;
           INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
           INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
@@ -110,9 +110,9 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
             GROUP BY utid
           ),
           secondary AS (
-            SELECT utid,
-              ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
-                AS percent_of_total_energy
+            SELECT
+              utid,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
             FROM base
             GROUP BY utid
           )

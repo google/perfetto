@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -1083,4 +1083,104 @@ class GenericKernelParser(TestSuite):
         "utid","tid","name","start_ts","end_ts"
         0,0,"swapper","[NULL]","[NULL]"
         1,101,"newtask1","[NULL]","[NULL]"
+        """))
+
+  def test_process_process_tree(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_process_tree {
+            processes: [
+              {
+                pid: 1
+                cmdline: "init"
+              },
+              {
+                pid: 10
+                ppid: 1
+                cmdline: "proc1 --hello"
+              }
+            ]
+            threads: [
+              {
+                tid: 1234
+                pid: 10
+                comm: "task1"
+                is_main_thread: true
+              },
+              {
+                tid: 5678
+                pid: 22
+                comm: "task2"
+              }
+            ]
+          }
+        }
+        """),
+        query="""
+        select
+          upid,
+          pid,
+          name,
+          parent_upid as ppid,
+          cmdline
+        from process
+        """,
+        out=Csv("""
+        "upid","pid","name","ppid","cmdline"
+        0,0,"[NULL]","[NULL]","[NULL]"
+        1,1,"init",0,"init"
+        2,10,"proc1",1,"proc1 --hello"
+        3,22,"[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_thread_process_tree(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_process_tree {
+            processes: [
+              {
+                pid: 1
+                cmdline: "init"
+              },
+              {
+                pid: 10
+                ppid: 1
+                cmdline: "proc1 --hello"
+              }
+            ]
+            threads: [
+              {
+                tid: 1234
+                pid: 10
+                comm: "task1"
+                is_main_thread: true
+              },
+              {
+                tid: 5678
+                pid: 22
+                comm: "task2"
+              }
+            ]
+          }
+        }
+        """),
+        query="""
+        select
+          utid,
+          tid,
+          name,
+          upid,
+          is_main_thread,
+          is_idle
+        from thread
+        """,
+        out=Csv("""
+        "utid","tid","name","upid","is_main_thread","is_idle"
+        0,0,"swapper",0,1,1
+        1,1234,"task1",2,1,0
+        2,5678,"task2",3,0,0
         """))

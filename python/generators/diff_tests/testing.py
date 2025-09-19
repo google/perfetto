@@ -3,7 +3,6 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
@@ -56,6 +55,12 @@ class Json:
 @dataclass
 class Csv:
   """Represents a CSV string."""
+  contents: str
+
+
+@dataclass
+class RawText:
+  """Represents a raw text string."""
   contents: str
 
 
@@ -123,17 +128,19 @@ class TraceInjector:
 @dataclass
 class DiffTestBlueprint:
   """Blueprint for running the diff test.
-  
+
   'query' is being run over data from the 'trace 'and result will be compared
   to the 'out. Each test (function in class inheriting from TestSuite) returns
   a DiffTestBlueprint.
   """
 
-  trace: Union[Path, DataPath, Json, Systrace, TextProto]
+  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
   query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
+  # If set, this test will only be run if all of these module_dependencies are enabled.
+  module_dependencies: Optional[List[str]] = None
   index_dir: str = ''
   test_data_dir: str = ''
 
@@ -148,6 +155,9 @@ class DiffTestBlueprint:
 
   def is_trace_systrace(self):
     return isinstance(self.trace, Systrace)
+
+  def is_trace_rawtext(self):
+    return isinstance(self.trace, RawText)
 
   def is_query_file(self):
     return isinstance(self.query, Path)
@@ -184,7 +194,7 @@ def removeprefix(s: str, prefix: str):
 
 class TestSuite:
   """Virtual class responsible for fetching diff tests.
-  
+
   All functions with name starting with `test_` have to return
   DiffTestBlueprint and function name is a test name. All DiffTestModules have
   to be included in `test/diff_tests/trace_processor/include_index.py`. `fetch`

@@ -32,6 +32,10 @@
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
+
 namespace perfetto::trace_processor::summary {
 namespace {
 
@@ -91,6 +95,23 @@ class TraceSummaryTest : public ::testing::Test {
 
   std::unique_ptr<TraceProcessor> tp_;
   DescriptorPool pool_;
+
+  base::StatusOr<std::vector<uint8_t>> RunSummarizeBinary(
+      const std::string& spec_str,
+      const TraceSummaryOutputSpec& output_spec) {
+    TraceSummarySpecBytes spec;
+    spec.ptr = reinterpret_cast<const uint8_t*>(spec_str.data());
+    spec.size = spec_str.size();
+    spec.format = TraceSummarySpecBytes::Format::kTextProto;
+
+    std::vector<uint8_t> output;
+    base::Status status =
+        Summarize(tp_.get(), pool_, {}, {spec}, &output, output_spec);
+    if (!status.ok()) {
+      return status;
+    }
+    return output;
+  }
 };
 
 TEST_F(TraceSummaryTest, DuplicateDimensionsErrorIfUnique) {
@@ -894,6 +915,78 @@ TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
               HasSubstr("Metric template has both value_columns and "
                         "value_column_specs defined"));
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+TEST_F(TraceSummaryTest, OutputIsCompressed) {
+  TraceSummaryOutputSpec uncompressed_spec;
+  uncompressed_spec.format = TraceSummaryOutputSpec::Format::kBinaryProto;
+  uncompressed_spec.compression = TraceSummaryOutputSpec::Compression::kNone;
+
+  const char* kSpec = R"(
+    metric_spec {
+      id: "my_metric"
+      value: "value"
+      query {
+        sql {
+          sql: "SELECT 1.0 as value"
+          column_names: "value"
+        }
+      }
+    }
+  )";
+  ASSERT_OK_AND_ASSIGN(auto uncompressed_output,
+                       RunSummarizeBinary(kSpec, uncompressed_spec));
+
+  TraceSummaryOutputSpec compressed_spec;
+  compressed_spec.format = TraceSummaryOutputSpec::Format::kBinaryProto;
+  compressed_spec.compression = TraceSummaryOutputSpec::Compression::kZlib;
+  ASSERT_OK_AND_ASSIGN(auto compressed_output,
+                       RunSummarizeBinary(kSpec, compressed_spec));
+
+  ASSERT_GT(uncompressed_output.size(), 0u);
+  ASSERT_GT(compressed_output.size(), 0u);
+  ASSERT_LT(compressed_output.size(), uncompressed_output.size());
+
+  std::vector<uint8_t> decompressed_output(uncompressed_output.size());
+  uLongf decompressed_size = static_cast<uLongf>(decompressed_output.size());
+  int res = uncompress(decompressed_output.data(), &decompressed_size,
+                       compressed_output.data(),
+                       static_cast<uLongf>(compressed_output.size()));
+  ASSERT_EQ(res, Z_OK);
+  decompressed_output.resize(decompressed_size);
+
+  ASSERT_EQ(decompressed_output, uncompressed_output);
+}
+#else
+TEST_F(TraceSummaryTest, OutputCompressionFailsWhenZlibDisabled) {
+  TraceSummaryOutputSpec compressed_spec;
+  compressed_spec.format = TraceSummaryOutputSpec::Format::kBinaryProto;
+  compressed_spec.compression = TraceSummaryOutputSpec::Compression::kZlib;
+
+  const char* kSpec = R"(
+    metric_spec {
+      id: "my_metric"
+      value: "value"
+      query {
+        sql {
+          sql: "SELECT 1.0 as value"
+          column_names: "value"
+        }
+      }
+    }
+  )";
+  base::StatusOr<std::vector<uint8_t>> status_or_output =
+      RunSummarizeBinary(kSpec, compressed_spec);
+
+  // Zlib compression is not supported on this platform, but was requested, so
+  // the function should fail.
+  ASSERT_FALSE(status_or_output.ok());
+  EXPECT_THAT(
+      status_or_output.status().message(),
+      HasSubstr(
+          "Zlib compression requested but is not supported on this platform."));
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto::trace_processor::summary
