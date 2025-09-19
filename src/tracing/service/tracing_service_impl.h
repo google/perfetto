@@ -230,7 +230,7 @@ class TracingServiceImpl : public TracingService {
                            QueryServiceStateCallback) override;
     void QueryCapabilities(QueryCapabilitiesCallback) override;
     void SaveTraceForBugreport(SaveTraceForBugreportCallback) override;
-    void CloneSession(CloneSessionArgs, base::ScopedFile) override;
+    void CloneSession(CloneSessionArgs) override;
 
     // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
@@ -368,8 +368,7 @@ class TracingServiceImpl : public TracingService {
              FlushFlags);
   void FlushAndDisableTracing(TracingSessionID);
   base::Status FlushAndCloneSession(ConsumerEndpointImpl*,
-                                    ConsumerEndpoint::CloneSessionArgs,
-                                    base::ScopedFile);
+                                    ConsumerEndpoint::CloneSessionArgs);
 
   // Starts reading the internal tracing buffers from the tracing session `tsid`
   // and sends them to `*consumer` (which must be != nullptr).

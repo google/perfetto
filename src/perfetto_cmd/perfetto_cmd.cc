@@ -1048,13 +1048,12 @@ void PerfettoCmd::OnConnect() {
       args.clone_trigger_delay_ms = snapshot_trigger_info_->trigger_delay_ms;
     }
 
-    base::ScopedFile optional_fd;
     if (trace_out_stream_) {
-      optional_fd.reset(dup(fileno(*trace_out_stream_)));
+      args.output_file_fd = base::ScopedFile(dup(fileno(*trace_out_stream_)));
     }
 
     PERFETTO_LOG("PerfettoCmd::OnConnect, consumer_endpoint_->CloneSession");
-    consumer_endpoint_->CloneSession(std::move(args), std::move(optional_fd));
+    consumer_endpoint_->CloneSession(std::move(args));
     return;
   }
 

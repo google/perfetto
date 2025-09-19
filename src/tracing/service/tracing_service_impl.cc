@@ -277,39 +277,6 @@ base::ScopedFile CreateTraceFile(const std::string& path, bool overwrite) {
   return fd;
 }
 
-// TODO(ktimofeev): implement for other OSes
-// TODO(ktimofeev): add fallback to read/write loop if sendfile doesn't work
-// See chromium implementation for details:
-// https://source.chromium.org/chromium/chromium/src/+/main:base/files/file_util.cc;l=190;drc=134eb3609e728c12c60a92656f8bca1c888947c1
-base::Status CopyFile(base::PlatformHandle from_fd,
-                      base::PlatformHandle to_fd) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
-  auto maybe_file_size = base::GetFileSize(from_fd);
-  if (!maybe_file_size)
-    return base::ErrStatus("Can't get size of 'from_fd' file.");
-  uint64_t file_size = maybe_file_size.value();
-
-  size_t copied = 0;
-  ssize_t res = 0;
-  do {
-    // Don't specify an offset and the kernel will begin reading/writing to the
-    // current file offsets.
-    res = PERFETTO_EINTR(
-        sendfile(to_fd, from_fd, /*offset=*/nullptr,
-                 /*count=*/static_cast<size_t>(file_size) - copied));
-    if (res <= 0) {
-      break;
-    }
-
-    copied += static_cast<size_t>(res);
-  } while (copied < file_size);
-  return base::OkStatus();
-#else
-  return base::ErrStatus("CopyFile is not implemented for this OS.");
-#endif
-}
-
 bool ShouldLogEvent(const TraceConfig& cfg) {
   switch (cfg.statsd_logging()) {
     case TraceConfig::STATSD_LOGGING_ENABLED:
@@ -4142,8 +4109,7 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
 
 base::Status TracingServiceImpl::FlushAndCloneSession(
     ConsumerEndpointImpl* consumer,
-    ConsumerEndpoint::CloneSessionArgs args,
-    base::ScopedFile fd) {
+    ConsumerEndpoint::CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
@@ -4186,7 +4152,7 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   }
 
   if (session->write_into_file) {
-    if (!fd) {
+    if (!args.output_file_fd) {
       // TODO(ktimofeev): return better error message.
       return PERFETTO_SVC_ERR(
           "Can't clone write_into_file session: no file descriptor to copy "
@@ -4194,7 +4160,8 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     }
     ReadBuffersIntoFile(session->id);
     base::FlushFile(*session->write_into_file);
-    base::Status status = CopyFile(*session->write_into_file, *fd);
+    base::Status status =
+        base::CopyFileContents(*session->write_into_file, *args.output_file_fd);
     if (!status.ok()) {
       return base::ErrStatus(
           "Can't copy '*session->write_into_file' file to the cloned session "
@@ -4254,10 +4221,10 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
         args.clone_trigger_producer_name,
         args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
   }
-  if (fd) {
+  if (args.output_file_fd) {
     PERFETTO_DLOG(
         "TracingServiceImpl::FlushAndCloneSession, add output_file_fd");
-    clone_op.output_file_fd = std::move(fd);
+    clone_op.output_file_fd = std::move(args.output_file_fd);
   }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
@@ -4901,12 +4868,10 @@ void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
-    CloneSessionArgs args,
-    base::ScopedFile fd) {
+    CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // FlushAndCloneSession will call OnSessionCloned after the async flush.
-  base::Status result =
-      service_->FlushAndCloneSession(this, std::move(args), std::move(fd));
+  base::Status result = service_->FlushAndCloneSession(this, std::move(args));
 
   if (!result.ok()) {
     consumer_->OnSessionCloned({false, result.message(), {}});

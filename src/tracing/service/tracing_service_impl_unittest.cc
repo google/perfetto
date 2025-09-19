@@ -2295,8 +2295,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSession) {
       });
   ConsumerEndpoint::CloneSessionArgs clone_args;
   clone_args.tsid = GetLastTracingSessionId(consumer.get());
-  clone_consumer->endpoint()->CloneSession(
-      clone_args, base::ScopedFile(dup(cloned_session_file.fd())));
+  clone_args.output_file_fd = base::ScopedFile(dup(cloned_session_file.fd()));
+  clone_consumer->endpoint()->CloneSession(std::move(clone_args));
   producer->ExpectFlush(writer.get());
   task_runner.RunUntilCheckpoint("clone_done");
 
@@ -2413,7 +2413,8 @@ TEST_F(TracingServiceImplTest, CloneSessionPreamblePackets_DEBUG) {
         });
     ConsumerEndpoint::CloneSessionArgs clone_args;
     clone_args.tsid = GetLastTracingSessionId(consumer.get());
-    clone_consumer->endpoint()->CloneSession(clone_args, std::move(clone_fd));
+    clone_args.output_file_fd = std::move(clone_fd);
+    clone_consumer->endpoint()->CloneSession(std::move(clone_args));
     producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint(checkpoint_name);
   };
@@ -5935,7 +5936,7 @@ TEST_F(TracingServiceImplTest, CloneSessionByName) {
         });
     ConsumerEndpoint::CloneSessionArgs args;
     args.unique_session_name = "my_unique_session_name";
-    consumer2->endpoint()->CloneSession(args);
+    consumer2->endpoint()->CloneSession(std::move(args));
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint("clone_done");
@@ -5980,7 +5981,7 @@ TEST_F(TracingServiceImplTest, CloneSessionByName) {
         });
     ConsumerEndpoint::CloneSessionArgs args_f;
     args_f.unique_session_name = "my_unique_session_name";
-    consumer3->endpoint()->CloneSession(args_f);
+    consumer3->endpoint()->CloneSession(std::move(args_f));
     task_runner.RunUntilCheckpoint("clone_failed");
 
     // But it should be possible to clone that by id.
@@ -5992,7 +5993,7 @@ TEST_F(TracingServiceImplTest, CloneSessionByName) {
         });
     ConsumerEndpoint::CloneSessionArgs args_s;
     args_s.tsid = GetLastTracingSessionId(consumer3.get());
-    consumer3->endpoint()->CloneSession(args_s);
+    consumer3->endpoint()->CloneSession(std::move(args_s));
     task_runner.RunUntilCheckpoint("clone_success");
   }
 }
@@ -6091,7 +6092,7 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
     args.clone_trigger_trusted_producer_uid = kCloneTriggerProducerUid;
     args.clone_trigger_boot_time_ns = kCloneTriggerTimestamp;
     args.clone_trigger_delay_ms = kCloneTriggerDelayMs;
-    consumer2->endpoint()->CloneSession(args);
+    consumer2->endpoint()->CloneSession(std::move(args));
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint("clone_done");

@@ -226,9 +226,13 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // If not zero, this is stored in the trace as the configured delay (in
     // milliseconds) of the trigger that caused the clone.
     uint64_t clone_trigger_delay_ms = 0;
+
+    // TODO(ktimofeev): add a doc aboout this field
+    // TODO(ktimofeev): add doc to 'message CloneSessionRequest' in
+    // perfetto/ipc/consumer_port.proto
+    base::ScopedFile output_file_fd;
   };
-  virtual void CloneSession(CloneSessionArgs,
-                            base::ScopedFile = base::ScopedFile()) = 0;
+  virtual void CloneSession(CloneSessionArgs) = 0;
 
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case

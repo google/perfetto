@@ -355,9 +355,8 @@ void ConsumerIPCService::CloneSession(
   if (req.has_clone_trigger_delay_ms()) {
     args.clone_trigger_delay_ms = req.clone_trigger_delay_ms();
   }
-  base::ScopedFile fd = ipc::Service::TakeReceivedFD();
-  remote_consumer->service_endpoint->CloneSession(std::move(args),
-                                                  std::move(fd));
+  args.output_file_fd = ipc::Service::TakeReceivedFD();
+  remote_consumer->service_endpoint->CloneSession(std::move(args));
 }
 
 // Called by the service in response to
