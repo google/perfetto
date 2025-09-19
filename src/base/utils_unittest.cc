@@ -288,10 +288,8 @@ TEST(UtilsTest, CopyFileContents) {
   // Test CopyFileContents doesn't change 'src' offset when failed.
   {
     TempFile src = TempFile::Create();
-    TempDir temp_dir = TempDir::Create();
-    // Not a '/dev/...' for test to work on Windows.
-    std::string dst_path = temp_dir.path() + "/dst.txt";
-    ScopedFile dst = OpenFile(dst_path, O_RDONLY);
+    TempFile dst_normal_file = TempFile::Create();
+    ScopedFile dst_read_only = OpenFile(dst_normal_file.path(), O_RDONLY);
 
     std::string payload = "payload\n\r123";
     WriteAll(*src, payload.data(), payload.size());
@@ -301,7 +299,7 @@ TEST(UtilsTest, CopyFileContents) {
     ASSERT_EQ(kSrcOffset, lseek(*src, kSrcOffset, SEEK_SET));
 
     // Assert we can't write to read only file.
-    Status result = CopyFileContents(*src, *dst);
+    Status result = CopyFileContents(*src, *dst_read_only);
     ASSERT_THAT(result.message(), StartsWith("Write failed:"));
 
     // Assert offset of 'src' doesn't change.
