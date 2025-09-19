@@ -114,6 +114,51 @@ WITH
   )
 SELECT * FROM data;
 
+CREATE PERFETTO TABLE _linux_soc_compatible_map AS
+WITH
+  data(soc_compatible, wattson_device) AS (
+    SELECT *
+    FROM (
+      VALUES
+        ("google,gs101", "Tensor"),
+        ("google,zuma-pro", "Tensor G4"),
+        ("google,lga", "Tensor G5"),
+        ("google,malibu", "Tensor G6"),
+        ("qcom,sm8750", "SM8750")
+    ) AS _values
+  )
+SELECT * FROM data;
+
+CREATE PERFETTO TABLE _linux_board_compatible_map AS
+WITH
+  data(board_compatible, wattson_device) AS (
+    SELECT *
+    FROM (
+      VALUES
+        ("google,gs101-oriole", "Tensor"),
+        ("google,gs101-raven", "Tensor"),
+        ("google,GS101 Oriole", "Tensor"),
+        ("google,GS101 Raven", "Tensor"),
+        ("google,GS101 BLUEJAY", "Tensor"),
+        ("google,ZUMA PRO CAIMAN", "Tensor G4"),
+        ("google,ZUMA PRO KOMODO", "Tensor G4"),
+        ("google,ZUMA PRO TOKAY", "Tensor G4"),
+        ("google,ZUMA PRO TEGU", "Tensor G4"),
+        ("google,ZUMA PRO COMET", "Tensor G4"),
+        ("google,ZUMA PRO STALLION", "Tensor G4"),
+        ("google,lga-frankel", "Tensor G5"),
+        ("google,lga-blazer", "Tensor G5"),
+        ("google,lga-mustang", "Tensor G5"),
+        ("google,lga-rango", "Tensor G5"),
+        ("google,malibu-cubs", "Tensor G6"),
+        ("google,malibu-grizzly", "Tensor G6"),
+        ("google,malibu-kodiak", "Tensor G6"),
+        ("qcom,sm8750-mtp", "SM8750"),
+        ("qcom,sm8750-qrd", "SM8750")
+    ) AS _values
+  )
+SELECT * FROM data;
+
 CREATE PERFETTO TABLE _wattson_device_map AS
 WITH
   data(device, wattson_device) AS (
@@ -139,6 +184,15 @@ SELECT * FROM data;
 
 CREATE PERFETTO TABLE _wattson_device AS
 WITH
+  dt_compatibles AS (
+    SELECT id, str_value AS compatible
+    FROM metadata
+    WHERE
+      name = 'device_tree_compatible'
+      AND (machine_id = 0 OR machine_id IS NULL)
+    ORDER BY
+      id DESC
+  ),
   soc_model AS (
     SELECT
       coalesce(
@@ -168,6 +222,26 @@ WITH
           FROM _wattson_device_map AS map
           JOIN android_device_name AS ad
             ON ad.name = map.device
+        ),
+        -- First check the Linux device tree SoC compatibles
+        (
+          SELECT map.wattson_device
+          FROM dt_compatibles AS dt
+          JOIN _linux_soc_compatible_map AS map
+            ON dt.compatible = map.soc_compatible
+          ORDER BY
+            dt.id DESC
+          LIMIT 1
+        ),
+        -- Then check the Linux device tree board compatibles
+        (
+          SELECT map.wattson_device
+          FROM dt_compatibles AS dt
+          JOIN _linux_board_compatible_map AS map
+            ON dt.compatible = map.board_compatible
+          ORDER BY
+            dt.id DESC
+          LIMIT 1
         )
       ) AS name
   )

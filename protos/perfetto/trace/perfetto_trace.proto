@@ -6103,7 +6103,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 18
+// Next id: 19
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -6116,6 +6116,12 @@ message SystemInfo {
 
   // The SoC model from which trace is collected
   optional string android_soc_model = 9;
+
+  // Device tree compatible strings for Linux devices. This field is populated
+  // from the firmware file /sys/firmware/devicetree/base/compatible on the
+  // target device. The ordering matches the ordering in the device tree.
+  // Introduced after 26Q3 in Sept 2026 and is not supported on older versions.
+  repeated string device_tree_compatibles = 18;
 
   // The guest SoC model from which trace is collected in case of VMs
   optional string android_guest_soc_model = 13;
