@@ -323,11 +323,10 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
 };
 
 interface WellKnownTrackTags {
-  // The track "kind", used by various subsystems e.g. aggregation controllers.
-  // This is where "XXX_TRACK_KIND" values should be placed.
-  // TODO(stevegolton): This will be deprecated once we handle group selections
-  // in a more generic way - i.e. EventSet.
-  kind: string;
+  // The track "kinds", are by various subsystems e.g. aggregation controllers
+  // in order to select tracks to operate on. A good analogy is how CSS
+  // selectors can match elements using their class list.
+  kinds: ReadonlyArray<string>;
 
   // Optional: list of track IDs represented by this trace.
   // This list is used for participation in track indexing by track ID.
