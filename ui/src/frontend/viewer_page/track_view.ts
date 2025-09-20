@@ -137,16 +137,16 @@ export class TrackView {
     const buttons = attrs.lite
       ? []
       : [
+          this.renderTrackMenuButton(),
           renderer?.track.getTrackShellButtons?.(),
           description !== undefined &&
             this.renderHelpButton(
               typeof description === 'function' ? description() : description,
             ),
           (removable || node.removable) && this.renderCloseButton(),
-          // We don't want summary tracks to be pinned as they rarely have
-          // useful information.
+
+          // These two can be permanently visible so they must go at the end.
           !node.isSummary && this.renderPinButton(),
-          this.renderTrackMenuButton(),
           this.renderAreaSelectionCheckbox(),
         ];
 
@@ -348,6 +348,7 @@ export class TrackView {
       icon: Icons.Close,
       title: 'Remove track',
       compact: true,
+      className: 'pf-visible-on-hover',
     });
   }
 
