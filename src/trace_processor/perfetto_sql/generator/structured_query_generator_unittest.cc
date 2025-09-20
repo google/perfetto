@@ -705,4 +705,111 @@ TEST(StructuredQueryGeneratorTest, TableSourceWithDeprecatedModuleName) {
               UnorderedElementsAre("linux.memory.process"));
 }
 
+TEST(StructuredQueryGeneratorTest, JoinInnerJoin) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      left_column: "track_id"
+      right_column: "id"
+      type: INNER
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 INNER JOIN sq_2 ON sq_1.track_id = sq_2.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinLeftJoin) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      left_column: "track_id"
+      right_column: "id"
+      type: LEFT
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 LEFT JOIN sq_2 ON sq_1.track_id = sq_2.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinComplex) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      left_column: "track_id"
+      right_column: "id"
+      type: INNER
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 INNER JOIN sq_2 ON sq_1.track_id = sq_2.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
