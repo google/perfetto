@@ -41,6 +41,7 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceContext, TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {CpuInfoManagerImpl} from './cpu_info_manager';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -77,6 +78,7 @@ export class AppContext {
   readonly sidebarMgr: SidebarManagerImpl;
   readonly pluginMgr: PluginManagerImpl;
   readonly perfMgr = new PerfManager();
+  readonly cpuInfoMgr = new CpuInfoManagerImpl();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController: ServiceWorkerController;
   httpRpc = {
@@ -287,6 +289,10 @@ export class AppImpl implements App {
 
   get trace(): TraceImpl | undefined {
     return this.appCtx.currentTrace?.forPlugin(this.pluginId);
+  }
+
+  get cpuInfos(): CpuInfoManagerImpl {
+    return this.appCtx.cpuInfoMgr;
   }
 
   get raf(): Raf {

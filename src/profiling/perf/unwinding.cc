@@ -46,20 +46,24 @@ Unwinder::Unwinder(Delegate* delegate,
 
 void Unwinder::PostStartDataSource(DataSourceInstanceID ds_id,
                                    bool kernel_frames,
-                                   UnwindMode unwind_mode) {
+                                   UnwindMode unwind_mode,
+                                   bool resolve_names) {
   // No need for a weak pointer as the associated task runner quits (stops
   // running tasks) strictly before the Unwinder's destruction.
-  task_runner_->PostTask([this, ds_id, kernel_frames, unwind_mode] {
-    StartDataSource(ds_id, kernel_frames, unwind_mode);
-  });
+  task_runner_->PostTask(
+      [this, ds_id, kernel_frames, unwind_mode, resolve_names] {
+        StartDataSource(ds_id, kernel_frames, unwind_mode, resolve_names);
+      });
 }
 
 void Unwinder::StartDataSource(DataSourceInstanceID ds_id,
                                bool kernel_frames,
-                               UnwindMode unwind_mode) {
+                               UnwindMode unwind_mode,
+                               bool resolve_names) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Unwinder::StartDataSource(%zu)", static_cast<size_t>(ds_id));
 
+  resolve_names_ = resolve_names;
   auto it_and_inserted =
       data_sources_.emplace(ds_id, DataSourceState{unwind_mode});
   PERFETTO_DCHECK(it_and_inserted.second);
@@ -351,13 +355,11 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   CompletedSample ret;
   ret.common = sample.common;
 
-  // Symbolize kernel-unwound kernel frames, if appropriate.
-  std::vector<unwindstack::FrameData> kernel_frames =
-      SymbolizeKernelCallchain(sample);
-
-  size_t kernel_frames_size = kernel_frames.size();
-  ret.frames = std::move(kernel_frames);
-  ret.build_ids.resize(kernel_frames_size, "");
+  // Symbolize kernel-unwound frames, if appropriate.
+  SymbolizeKernelCallchain(sample, opt_user_state, unwind_mode, ret);
+  if (unwind_mode == UnwindMode::kUnwindKernel) {
+    return ret;
+  }
 
   // Perform userspace unwinding using libunwindstack, if appropriate.
   if (!opt_user_state)
@@ -385,8 +387,10 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     UnwindResult(UnwindResult&&) __attribute__((unused)) = default;
     UnwindResult& operator=(UnwindResult&&) = default;
   };
+  bool resolve_names = resolve_names_;
   auto attempt_unwind = [&sample, unwind_state, pid_unwound_before,
-                         &overlay_memory, unwind_mode]() -> UnwindResult {
+                         &overlay_memory, unwind_mode,
+                         resolve_names]() -> UnwindResult {
     metatrace::ScopedEvent m(metatrace::TAG_PRODUCER,
                              pid_unwound_before
                                  ? metatrace::PROFILER_UNWIND_ATTEMPT
@@ -400,6 +404,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
         FramePointerUnwinder unwinder(kUnwindingMaxFrames,
                                       &unwind_state->fd_maps, regs_copy.get(),
                                       overlay_memory, sample.stack.size());
+        unwinder.SetResolveNames(resolve_names);
         unwinder.Unwind();
         return {unwinder.LastErrorCode(), unwinder.warnings(),
                 unwinder.ConsumeFrames()};
@@ -408,6 +413,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
         unwindstack::Unwinder unwinder(kUnwindingMaxFrames,
                                        &unwind_state->fd_maps, regs_copy.get(),
                                        overlay_memory);
+        unwinder.SetResolveNames(resolve_names);
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
         unwinder.SetJitDebug(unwind_state->GetJitDebug(regs_copy->Arch()));
         unwinder.SetDexFiles(unwind_state->GetDexFiles(regs_copy->Arch()));
@@ -416,6 +422,9 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
                         /*map_suffixes_to_ignore=*/nullptr);
         return {unwinder.LastErrorCode(), unwinder.warnings(),
                 unwinder.ConsumeFrames()};
+      }
+      case UnwindMode::kUnwindKernel: {
+        return {unwindstack::ERROR_NONE, unwindstack::WARNING_NONE, {}};
       }
     }
   };
@@ -449,6 +458,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     unwind = attempt_unwind();
   }
 
+  size_t kernel_frames_size = ret.frames.size();
   ret.build_ids.reserve(kernel_frames_size + unwind.frames.size());
   ret.frames.reserve(kernel_frames_size + unwind.frames.size());
   for (unwindstack::FrameData& frame : unwind.frames) {
@@ -473,28 +483,37 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   return ret;
 }
 
-std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
-    const ParsedSample& sample) {
+void Unwinder::SymbolizeKernelCallchain(const ParsedSample& sample,
+                                        UnwindingMetadata* opt_unwind_state,
+                                        UnwindMode unwind_mode,
+                                        CompletedSample& ret) {
   static base::NoDestructor<std::shared_ptr<unwindstack::MapInfo>>
       kernel_map_info(unwindstack::MapInfo::Create(0, 0, 0, 0, "kernel"));
-  std::vector<unwindstack::FrameData> ret;
   if (sample.kernel_ips.empty())
-    return ret;
+    return;
 
   // The list of addresses contains special context marker values (inserted by
   // the kernel's unwinding) to indicate which section of the callchain belongs
   // to the kernel/user mode (if the kernel can successfully unwind user
-  // stacks). In our case, we request only the kernel frames.
-  if (sample.kernel_ips[0] != PERF_CONTEXT_KERNEL) {
+  // stacks). We request only kernel frames if the unwind_mode is not
+  // kUnwindKernel.
+  if (sample.kernel_ips[0] != PERF_CONTEXT_KERNEL &&
+      unwind_mode != UnwindMode::kUnwindKernel) {
     PERFETTO_DFATAL_OR_ELOG(
         "Unexpected: 0th frame of callchain is not PERF_CONTEXT_KERNEL.");
-    return ret;
+    return;
   }
 
   auto* kernel_map = kernel_symbolizer_.GetOrCreateKernelSymbolMap();
   PERFETTO_DCHECK(kernel_map);
-  ret.reserve(sample.kernel_ips.size());
-  for (size_t i = 1; i < sample.kernel_ips.size(); i++) {
+  ret.frames.reserve(sample.kernel_ips.size());
+  ret.build_ids.reserve(sample.kernel_ips.size());
+  size_t i;
+  for (i = 0; i < sample.kernel_ips.size(); i++) {
+    if (sample.kernel_ips[i] != PERF_CONTEXT_KERNEL) {
+      break;
+    }
+
     std::string function_name = kernel_map->Lookup(sample.kernel_ips[i]);
 
     // Synthesise a partially-valid libunwindstack frame struct for the kernel
@@ -503,9 +522,39 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
     unwindstack::FrameData frame{};
     frame.function_name = std::move(function_name);
     frame.map_info = kernel_map_info.ref();
-    ret.emplace_back(std::move(frame));
+    ret.frames.emplace_back(std::move(frame));
+    ret.build_ids.emplace_back("");
   }
-  return ret;
+
+  // Symbolize user frames if appropriate.
+  if (i == sample.kernel_ips.size() ||
+      unwind_mode != UnwindMode::kUnwindKernel) {
+    return;
+  }
+
+  if (!opt_unwind_state) {
+    return;
+  }
+
+  if (sample.kernel_ips[i] != PERF_CONTEXT_USER) {
+    PERFETTO_DFATAL_OR_ELOG(
+        "Unexpected: callchain frame is not PERF_CONTEXT_USER.");
+    return;
+  }
+
+  std::shared_ptr<unwindstack::Memory> overlay_memory =
+      std::make_shared<StackOverlayMemory>(
+          opt_unwind_state->fd_mem, sample.regs->sp(),
+          reinterpret_cast<const uint8_t*>(sample.stack.data()),
+          sample.stack.size());
+
+  for (; i < sample.kernel_ips.size(); ++i) {
+    unwindstack::FrameData frame = unwindstack::Unwinder::BuildFrameFromPcOnly(
+        sample.kernel_ips[i], sample.regs->Arch(), &opt_unwind_state->fd_maps,
+        nullptr, overlay_memory, resolve_names_);
+    ret.frames.emplace_back(std::move(frame));
+    ret.build_ids.emplace_back(opt_unwind_state->GetBuildId(frame));
+  }
 }
 
 void Unwinder::PostInitiateDataSourceStop(DataSourceInstanceID ds_id) {

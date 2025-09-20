@@ -71,7 +71,6 @@ message GenericKernelTaskRenameEvent {
   // New command name for the thread.
   optional string comm = 2;
 }
-
 // Metadata about the processes and threads in the trace.
 // The main goal of this proto is to provide a generic kernel
 // implementation a mechanism to outline its process structure.

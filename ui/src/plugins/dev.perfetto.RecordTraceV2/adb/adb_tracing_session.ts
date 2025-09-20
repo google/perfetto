@@ -18,15 +18,37 @@ import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
 import {errResult, okResult, Result} from '../../../base/result';
 import {exists} from '../../../base/utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
+import {LOCAL_ABSTRACT_SOCKET_FLAG} from '../local_flag';
 
-export const CONSUMER_SOCKET = '/dev/socket/traced_consumer';
+function useCustomSocket(): boolean {
+  if (LOCAL_ABSTRACT_SOCKET_FLAG.flag === undefined) {
+    return false;
+  }
+  return LOCAL_ABSTRACT_SOCKET_FLAG.flag.get();
+}
+
+function getConsumerSocketType() {
+  if (useCustomSocket()) {
+    return 'localabstract';
+  } else {
+    return 'localfilesystem';
+  }
+}
+
+function getConsumerSocket() {
+  if (useCustomSocket()) {
+    return 'tracebox_traced_consumer';
+  } else {
+    return '/dev/socket/traced_consumer';
+  }
+}
 
 export async function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
 ): Promise<Result<ConsumerIpcTracingSession>> {
   const streamStatus = await adbDevice.createStream(
-    `localfilesystem:${CONSUMER_SOCKET}`,
+    `${getConsumerSocketType()}:${getConsumerSocket()}`,
   );
   if (!streamStatus.ok) return streamStatus;
   const stream = streamStatus.value;
@@ -38,8 +60,10 @@ export async function createAdbTracingSession(
 export async function getAdbTracingServiceState(
   adbDevice: AdbDevice,
 ): Promise<Result<protos.ITracingServiceState>> {
-  const sock = CONSUMER_SOCKET;
-  const status = await adbDevice.createStream(`localfilesystem:${sock}`);
+  const sock = getConsumerSocket();
+  const status = await adbDevice.createStream(
+    `${getConsumerSocketType()}:${sock}`,
+  );
   if (!status.ok) {
     return errResult(`Failed to connect to ${sock}: ${status.error}`);
   }
