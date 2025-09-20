@@ -131,8 +131,8 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
   // All logs in Android bugreports use wall time (which creates problems
   // in case of early boot events before NTP kicks in, which get emitted as
   // 1970), but that is the state of affairs.
-  context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::BUILTIN_CLOCK_REALTIME);
+  RETURN_IF_ERROR(context_->clock_tracker->SetTraceTimeClock(
+      protos::pbzero::BUILTIN_CLOCK_REALTIME));
 
   ASSIGN_OR_RETURN(std::vector<TimestampedAndroidLogEvent> logcat_events,
                    ParseDumpstateTxt(bug_report));

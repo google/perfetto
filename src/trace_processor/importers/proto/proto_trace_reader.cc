@@ -513,8 +513,8 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   if (evt.primary_trace_clock()) {
-    context_->clock_tracker->SetTraceTimeClock(
-        static_cast<ClockTracker::ClockId>(evt.primary_trace_clock()));
+    RETURN_IF_ERROR(context_->clock_tracker->SetTraceTimeClock(
+        static_cast<ClockTracker::ClockId>(evt.primary_trace_clock())));
   }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);

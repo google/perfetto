@@ -70,8 +70,8 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
         "Syntactic error while Gecko trace; please use an external JSON tool "
         "(e.g. jq) to understand the source of the error.");
   }
-  context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+  RETURN_IF_ERROR(context_->clock_tracker->SetTraceTimeClock(
+      protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
 
   DummyMemoryMapping* dummy_mapping = nullptr;
   base::FlatHashMap<std::string, DummyMemoryMapping*> mappings;

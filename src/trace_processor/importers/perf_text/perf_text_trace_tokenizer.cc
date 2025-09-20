@@ -74,8 +74,8 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
   // equivalent to sched_clock), the latter doesn't have a representation in
   // perfetto at the time of writing.
   // Therefore, approximate all clocks as MONOTONIC.
-  context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+  RETURN_IF_ERROR(context_->clock_tracker->SetTraceTimeClock(
+      protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
 
   reader_.PushBack(std::move(blob));
   std::vector<FrameId> frames;
