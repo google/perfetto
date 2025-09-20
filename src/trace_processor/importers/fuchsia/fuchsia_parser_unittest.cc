@@ -190,7 +190,10 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
+    std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_);
+    context_.clock_tracker =
+        std::make_unique<ClockTracker>(std::move(clock_tracker_listener));
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(

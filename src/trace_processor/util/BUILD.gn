@@ -64,6 +64,15 @@ source_set("build_id") {
   ]
 }
 
+source_set("clock") {
+  sources = [ "clock_synchronizer.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+    "../../../protos/perfetto/common:zero",
+  ]
+}
+
 source_set("profiler_util") {
   sources = [
     "profiler_util.cc",
