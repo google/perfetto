@@ -96,15 +96,21 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
   artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
   source_path = exe_dir.joinpath(artifact_ext)
 
-  # Upload to GCS bucket.
-  gcs_target_path = '{}/{}/{}'.format(gcs_upload_dir, platform, artifact_ext)
-  api.gsutil.upload(source_path, 'perfetto-luci-artifacts', gcs_target_path)
+  # Upload to GCS bucket - build all target paths first
+  gcs_paths = ['{}/{}/{}'.format(gcs_upload_dir, platform, artifact_ext)]
+  gcs_paths.append('latest/{}/{}'.format(platform, artifact_ext))
+  if ctx.maybe_git_tag:
+    gcs_paths.append('latest-tagged/{}/{}'.format(platform, artifact_ext))
 
-  # Uploads also the .pdb (debug symbols) to GCS.
-  pdb_path = exe_dir.joinpath(artifact_ext + '.pdb')
+  # Upload binary to all target paths
+  for gcs_path in gcs_paths:
+    api.gsutil.upload(source_path, 'perfetto-luci-artifacts', gcs_path)
+
+  # Upload .pdb files (Windows only) to all target paths
   if api.platform.is_win:
-    api.gsutil.upload(pdb_path, 'perfetto-luci-artifacts',
-                      gcs_target_path + '.pdb')
+    pdb_path = exe_dir.joinpath(artifact_ext + '.pdb')
+    for gcs_path in gcs_paths:
+      api.gsutil.upload(pdb_path, 'perfetto-luci-artifacts', gcs_path + '.pdb')
 
   # Create the CIPD package definition from the artifact path.
   cipd_pkg_name = 'perfetto/{}/{}'.format(artifact['name'], platform)
@@ -127,11 +133,15 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
   if ctx.maybe_git_tag:
     tags['git_tag'] = ctx.maybe_git_tag
 
-  # Upload the package and regisiter with the 'latest' tag.
+  # Upload the package and register with refs
+  refs = ['latest']
+  if ctx.maybe_git_tag:
+    refs.append('latest-tagged')
+
   api.cipd.register(
       package_name=cipd_pkg_name,
       package_path=cipd_pkg_file,
-      refs=['latest'],
+      refs=refs,
       tags=tags,
   )
 
