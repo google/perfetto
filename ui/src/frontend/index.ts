@@ -308,10 +308,6 @@ function main() {
 
   cssLoadPromise.then(() => onCssLoaded());
 
-  if (AppImpl.instance.testingMode) {
-    document.body.classList.add('testing');
-  }
-
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
   };
