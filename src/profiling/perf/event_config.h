@@ -83,8 +83,14 @@ struct PerfCounter {
   // sycall-level description of the event (perf_event_attr):
   uint32_t attr_type = 0;
   uint64_t attr_config = 0;
-  uint64_t attr_config1 = 0;  // optional extension
-  uint64_t attr_config2 = 0;  // optional extension
+  uint64_t attr_config1 = 0;   // optional extension
+  uint64_t attr_config2 = 0;   // optional extension
+  bool attr_exclude_user = 0;  // If this bit is set, the count excludes events
+                               // that happen in user space.
+  bool attr_exclude_kernel = 0;  // If this bit is set, the count excludes
+                                 // events that happen in kernel space.
+  bool attr_exclude_hv = 0;  // If this bit is set, the count excludes events
+                             // that happen in the hypervisor.
 
   Type event_type() const { return type; }
 
@@ -102,7 +108,10 @@ struct PerfCounter {
                               uint32_t type,
                               uint64_t config,
                               uint64_t config1,
-                              uint64_t config2);
+                              uint64_t config2,
+                              bool exclude_user,
+                              bool exclude_kernel,
+                              bool exclude_hv);
 };
 
 // Describes a single profiling configuration. Bridges the gap between the data
