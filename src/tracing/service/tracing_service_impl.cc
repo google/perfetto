@@ -29,6 +29,7 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#include <sys/sendfile.h>
 #include <sys/uio.h>
 #include <sys/utsname.h>
 #include <unistd.h>
@@ -2450,22 +2451,13 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
   if (IsWaitingForTrigger(tracing_session))
     return false;
 
-  // ReadBuffers() can allocate memory internally, for filtering. By limiting
-  // the data that ReadBuffers() reads to kWriteIntoChunksSize per iteration,
-  // we limit the amount of memory used on each iteration.
-  //
-  // It would be tempting to split this into multiple tasks like in
-  // ReadBuffersIntoConsumer, but that's not currently possible.
-  // ReadBuffersIntoFile has to read the whole available data before returning,
-  // to support the disable_immediately=true code paths.
-  bool has_more = true;
-  bool stop_writing_into_file = false;
-  do {
-    std::vector<TracePacket> packets =
-        ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
+  const uint64_t max_size = tracing_session->max_file_size_bytes
+                                ? tracing_session->max_file_size_bytes
+                                : std::numeric_limits<size_t>::max();
 
-    stop_writing_into_file = WriteIntoFile(tracing_session, std::move(packets));
-  } while (has_more && !stop_writing_into_file);
+  const bool stop_writing_into_file = DoReadBuffersIntoFile(
+      tracing_session, tracing_session->write_into_file,
+      &tracing_session->bytes_written_into_file, max_size);
 
   if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
     // Ensure all data was written to the file before we close it.
@@ -2515,6 +2507,32 @@ bool TracingServiceImpl::IsWaitingForTrigger(TracingSession* tracing_session) {
   }
 
   return false;
+}
+
+bool TracingServiceImpl::DoReadBuffersIntoFile(
+    TracingSession* tracing_session,
+    base::ScopedFile& file,
+    uint64_t* bytes_written_into_file,
+    const uint64_t max_size) {
+  // ReadBuffers() can allocate memory internally, for filtering. By limiting
+  // the data that ReadBuffers() reads to kWriteIntoChunksSize per iteration,
+  // we limit the amount of memory used on each iteration.
+  //
+  // It would be tempting to split this into multiple tasks like in
+  // ReadBuffersIntoConsumer, but that's not currently possible.
+  // ReadBuffersIntoFile has to read the whole available data before returning,
+  // to support the disable_immediately=true code paths.
+  bool has_more = true;
+  bool stop_writing_into_file = false;
+  do {
+    std::vector<TracePacket> packets =
+        ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
+
+    stop_writing_into_file = WriteIntoFile(file, bytes_written_into_file,
+                                           max_size, std::move(packets));
+  } while (has_more && !stop_writing_into_file);
+
+  return stop_writing_into_file;
 }
 
 std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
@@ -2765,15 +2783,10 @@ void TracingServiceImpl::MaybeCompressPackets(
   init_opts_.compressor_fn(packets);
 }
 
-bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
+bool TracingServiceImpl::WriteIntoFile(base::ScopedFile& file,
+                                       uint64_t* bytes_written_into_file,
+                                       const uint64_t max_size,
                                        std::vector<TracePacket> packets) {
-  if (!tracing_session->write_into_file) {
-    return false;
-  }
-  const uint64_t max_size = tracing_session->max_file_size_bytes
-                                ? tracing_session->max_file_size_bytes
-                                : std::numeric_limits<size_t>::max();
-
   size_t total_slices = 0;
   for (const TracePacket& packet : packets) {
     total_slices += packet.slices().size();
@@ -2802,8 +2815,7 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
       iovecs[num_iovecs++] = {start, slice.size};
     }
 
-    if (tracing_session->bytes_written_into_file + bytes_about_to_be_written >=
-        max_size) {
+    if (*bytes_written_into_file + bytes_about_to_be_written >= max_size) {
       stop_writing_into_file = true;
       num_iovecs = num_iovecs_at_last_packet;
       break;
@@ -2812,7 +2824,7 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
     num_iovecs_at_last_packet = num_iovecs;
   }
   PERFETTO_DCHECK(num_iovecs <= max_iovecs);
-  int fd = *tracing_session->write_into_file;
+  int fd = *file;
 
   uint64_t total_wr_size = 0;
 
@@ -2829,7 +2841,7 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
     total_wr_size += static_cast<size_t>(wr_size);
   }
 
-  tracing_session->bytes_written_into_file += total_wr_size;
+  *bytes_written_into_file += total_wr_size;
 
   PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
                 (total_wr_size + 1023) / 1024, stop_writing_into_file);
@@ -4139,6 +4151,24 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
+  if (session->write_into_file) {
+    if (!args.output_file_fd) {
+      // TODO(ktimofeev): return better error message.
+      return PERFETTO_SVC_ERR(
+          "Can't clone write_into_file session: no file descriptor to copy "
+          "already written data.");
+    }
+    ReadBuffersIntoFile(session->id);
+    base::FlushFile(*session->write_into_file);
+    base::Status status =
+        base::CopyFileContents(*session->write_into_file, *args.output_file_fd);
+    if (!status.ok()) {
+      return base::ErrStatus(
+          "Can't copy '*session->write_into_file' file to the cloned session "
+          "file.");
+    }
+  }
+
   // If any of the buffers are marked as clear_before_clone, reset them before
   // issuing the Flush(kCloneReason).
   size_t buf_idx = 0;
@@ -4190,6 +4220,11 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
         args.clone_trigger_boot_time_ns, args.clone_trigger_name,
         args.clone_trigger_producer_name,
         args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
+  }
+  if (args.output_file_fd) {
+    PERFETTO_DLOG(
+        "TracingServiceImpl::FlushAndCloneSession, add output_file_fd");
+    clone_op.output_file_fd = std::move(args.output_file_fd);
   }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
@@ -4293,7 +4328,8 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
           &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
           std::move(clone_op.buffer_cloned_timestamps),
           clone_op.skip_trace_filter, !clone_op.flush_failed,
-          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns);
+          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns,
+          std::move(clone_op.output_file_fd));
     }
   }  // if (result.ok())
 
@@ -4354,7 +4390,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
     bool final_flush_outcome,
     std::optional<TriggerInfo> clone_trigger,
     base::Uuid* new_uuid,
-    int64_t clone_started_timestamp_ns) {
+    int64_t clone_started_timestamp_ns,
+    base::ScopedFile output_file_fd) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
                 ", skip_trace_filter=%d) started, consumer uid: %d",
                 src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
@@ -4461,6 +4498,17 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->final_flush_outcome = final_flush_outcome
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
+
+  if (output_file_fd) {
+    uint64_t bytes_written_into_file = 0;
+    DoReadBuffersIntoFile(cloned_session, output_file_fd,
+                          &bytes_written_into_file,
+                          std::numeric_limits<size_t>::max());
+    base::FlushFile(*output_file_fd);
+    // TODO(ktimofeev): report to the consumer that there is nothing more to
+    // read.
+  }
+
   return base::OkStatus();
 }
 

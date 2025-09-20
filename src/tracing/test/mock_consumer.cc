@@ -80,7 +80,7 @@ void MockConsumer::FreeBuffers() {
 void MockConsumer::CloneSession(TracingSessionID tsid) {
   ConsumerEndpoint::CloneSessionArgs args;
   args.tsid = tsid;
-  service_endpoint_->CloneSession(args);
+  service_endpoint_->CloneSession(std::move(args));
 }
 
 void MockConsumer::WaitForTracingDisabledWithError(
