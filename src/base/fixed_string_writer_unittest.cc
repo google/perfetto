@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/string_writer.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -22,111 +22,111 @@ namespace perfetto {
 namespace base {
 namespace {
 
-TEST(StringWriterTest, BasicCases) {
+TEST(FixedStringWriterTest, BasicCases) {
   char buffer[128];
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendChar('0');
     ASSERT_EQ(writer.GetStringView().ToStdString(), "0");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(132545);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "132545");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendUnsignedInt(523);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "523");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 3>(0);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "000");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 1>(1);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "1");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 3>(1);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "001");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<'0', 0>(1);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "1");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedInt<' ', 5>(123);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "  123");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendPaddedUnsignedInt<' ', 5>(123);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "  123");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendDouble(123.25);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "123.250000");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(std::numeric_limits<int64_t>::min());
     ASSERT_EQ(writer.GetStringView().ToStdString(), "-9223372036854775808");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(std::numeric_limits<int64_t>::max());
     ASSERT_EQ(writer.GetStringView().ToStdString(), "9223372036854775807");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendUnsignedInt(std::numeric_limits<uint64_t>::max());
     ASSERT_EQ(writer.GetStringView().ToStdString(), "18446744073709551615");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendBool(true);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "true");
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendBool(false);
     ASSERT_EQ(writer.GetStringView().ToStdString(), "false");
   }
 
   constexpr char kTestStr[] = "test";
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendLiteral(kTestStr);
     ASSERT_EQ(writer.GetStringView().ToStdString(), kTestStr);
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendString(kTestStr, sizeof(kTestStr) - 1);
     ASSERT_EQ(writer.GetStringView().ToStdString(), kTestStr);
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendString(kTestStr);
     ASSERT_EQ(writer.GetStringView().ToStdString(), kTestStr);
   }
   {
-    base::StringWriter writer(buffer, sizeof(buffer));
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendChar('x', sizeof(buffer));
     ASSERT_EQ(writer.GetStringView().ToStdString(),
               std::string(sizeof(buffer), 'x').c_str());
   }
 }
 
-TEST(StringWriterTest, WriteAllTypes) {
+TEST(FixedStringWriterTest, WriteAllTypes) {
   char buffer[128];
-  base::StringWriter writer(buffer, sizeof(buffer));
+  base::FixedStringWriter writer(buffer, sizeof(buffer));
   writer.AppendChar('0');
   writer.AppendInt(132545);
   writer.AppendUnsignedInt(523);
