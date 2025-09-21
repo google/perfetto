@@ -36,7 +36,7 @@ import {
   Upid,
   Utid,
 } from './core_types';
-import {Arg, getArgs} from './args';
+import {ArgsDict, getArgs} from './args';
 import {getThreadInfo, ThreadInfo} from './thread';
 import {getProcessInfo, ProcessInfo} from './process';
 
@@ -55,7 +55,7 @@ export interface SliceDetails {
   threadTs?: time;
   threadDur?: duration;
   category?: string;
-  args?: Arg[];
+  args?: ArgsDict;
 }
 
 async function getUtidAndUpid(
