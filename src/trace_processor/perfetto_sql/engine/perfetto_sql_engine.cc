@@ -1075,6 +1075,11 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
                       record->AddArg("prototype", cf.prototype.ToString());
                     });
 
+  // Handle delegating function creation
+  if (cf.target_function.has_value()) {
+    return RegisterDelegatingFunction(cf);
+  }
+
   if (!cf.returns.is_table) {
     return RegisterLegacyRuntimeFunction(cf.replace, cf.prototype,
                                          cf.returns.scalar_type, cf.sql);
@@ -1191,6 +1196,70 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
     runtime_table_fn_context_->temporary_create_state.reset();
   }
   return status;
+}
+
+base::Status PerfettoSqlEngine::RegisterDelegatingFunction(
+    const PerfettoSqlParser::CreateFunction& cf) {
+  PERFETTO_DCHECK(cf.target_function.has_value());
+
+  const std::string& target_function_name = *cf.target_function;
+  const std::string& new_name = cf.prototype.function_name;
+
+  // Look up the target function in our registry
+  IntrinsicFunctionInfo* info_ptr =
+      intrinsic_function_registry_.Find(target_function_name);
+  if (info_ptr == nullptr) {
+    return base::ErrStatus(
+        "Target function '%s' not found in registry. "
+        "Make sure it has been registered as an available function for delegation.",
+        target_function_name.c_str());
+  }
+
+  const IntrinsicFunctionInfo& info = *info_ptr;
+
+  // Check if function already exists and handle replace logic
+  int argc = static_cast<int>(cf.prototype.arguments.size());
+  auto* existing_ctx = sqlite_engine()->GetFunctionContext(new_name, argc);
+  if (existing_ctx) {
+    if (!cf.replace) {
+      return base::ErrStatus(
+          "CREATE PERFETTO FUNCTION[prototype=%s]: function already exists. "
+          "Use CREATE OR REPLACE to overwrite.",
+          cf.prototype.ToString().c_str());
+    }
+    // SQLite will overwrite the existing function when we register with the
+    // same name - no explicit deletion needed
+  }
+
+  // Register the function with SQLite using the new alias name
+  RETURN_IF_ERROR(RegisterFunctionAndAddToRegistry(
+      new_name.c_str(), info.argc, info.func, info.ctx,
+      nullptr,  // no destructor needed for aliased functions
+      info.deterministic));
+
+  return base::OkStatus();
+}
+
+base::Status PerfettoSqlEngine::RegisterFunctionAndAddToRegistry(
+    const char* name,
+    int argc,
+    SqliteEngine::Fn* func,
+    void* ctx,
+    SqliteEngine::FnCtxDestructor* ctx_destructor,
+    bool deterministic) {
+  // Register with SQLite
+  RETURN_IF_ERROR(engine_->RegisterFunction(name, argc, func, ctx,
+                                            ctx_destructor, deterministic));
+
+  // Also add to intrinsic registry for potential aliasing
+  IntrinsicFunctionInfo info;
+  info.func = func;
+  info.argc = argc;
+  info.ctx = ctx;
+  info.deterministic = deterministic;
+  intrinsic_function_registry_[name] = info;
+
+  return base::OkStatus();
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateMacro(

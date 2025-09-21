@@ -322,6 +322,17 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
 
+  base::Status RegisterDelegatingFunction(
+      const PerfettoSqlParser::CreateFunction&);
+
+  base::Status RegisterFunctionAndAddToRegistry(
+      const char* name,
+      int argc,
+      SqliteEngine::Fn* func,
+      void* ctx,
+      SqliteEngine::FnCtxDestructor* ctx_destructor,
+      bool deterministic);
+
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
                               const PerfettoSqlParser& parser);
 
@@ -417,6 +428,18 @@ class PerfettoSqlEngine {
   DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
+
+  // Registry of intrinsic functions that can be aliased
+  // Maps intrinsic_name -> (function_ptr, argc, ctx, deterministic)
+  struct IntrinsicFunctionInfo {
+    SqliteEngine::Fn* func;
+    int argc;
+    void* ctx;
+    bool deterministic;
+  };
+  base::FlatHashMap<std::string, IntrinsicFunctionInfo>
+      intrinsic_function_registry_;
+
   std::unique_ptr<SqliteEngine> engine_;
 };
 
@@ -505,7 +528,8 @@ base::Status PerfettoSqlEngine::RegisterLegacyFunction(
   if (!engine_->GetFunctionContext(name, argc)) {
     static_function_count_++;
   }
-  return engine_->RegisterFunction(
+
+  return RegisterFunctionAndAddToRegistry(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>, ctx,
       nullptr, deterministic);
 }
@@ -579,7 +603,8 @@ base::Status PerfettoSqlEngine::RegisterFunctionWithSqlite(
   auto ctx_destructor = [](void* ptr) {
     delete static_cast<typename Function::Context*>(ptr);
   };
-  return engine_->RegisterFunction(
+
+  return RegisterFunctionAndAddToRegistry(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>,
       ctx.release(), ctx_destructor, deterministic);
 }

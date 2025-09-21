@@ -109,6 +109,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                                },
                                FindSubstr(res, "select 1"),
                                "",
+                               std::nullopt,
                            }));
 
   res = SqlSource::FromExecuteQuery(
@@ -130,6 +131,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                                },
                                FindSubstr(res, "select 'foo'"),
                                "",
+                               std::nullopt,
                            }));
 
   res = SqlSource::FromExecuteQuery(
@@ -151,6 +153,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                                },
                                FindSubstr(res, "select 'foo'"),
                                "",
+                               std::nullopt,
                            }));
 }
 
@@ -167,6 +170,7 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoFunctionScalar) {
                                },
                                FindSubstr(res, "select 1"),
                                "",
+                               std::nullopt,
                            }));
 }
 
@@ -199,6 +203,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
       },
       FindSubstr(res, "select 1"),
       "",
+      std::nullopt,
   };
   ASSERT_EQ(parser.statement(), Statement{fn});
   ASSERT_EQ(
@@ -209,6 +214,48 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
             FindSubstr(res, "select foo()").sql());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionIntrinsic) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function my_func() returns INT delegates to "
+      "my_intrinsic");
+  auto parsed = Parse(res);
+  ASSERT_TRUE(parsed.status().ok()) << parsed.status().message();
+  ASSERT_EQ(parsed->size(), 1u);
+  auto& stmt = (*parsed)[0];
+  ASSERT_TRUE(std::holds_alternative<CreateFn>(stmt));
+  auto& create_fn = std::get<CreateFn>(stmt);
+  EXPECT_FALSE(create_fn.replace);
+  EXPECT_EQ(create_fn.prototype.function_name, "my_func");
+  EXPECT_TRUE(create_fn.target_function.has_value());
+  EXPECT_EQ(create_fn.target_function.value(), "my_intrinsic");
+}
+
+TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoFunctionIntrinsic) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create or replace perfetto function test() returns INT delegates to "
+      "test_intrinsic");
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(CreateFn{
+                  true,
+                  FunctionPrototype{"test", {}},
+                  CreateFn::Returns{
+                      false,
+                      sql_argument::Type::kLong,
+                      {},
+                  },
+                  SqlSource::FromTraceProcessorImplementation(""),
+                  "",
+                  std::make_optional(std::string("test_intrinsic")),
+              }));
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionIntrinsicError) {
+  // Test missing intrinsic name
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo() returns INT delegates to");
+  ASSERT_FALSE(Parse(res).status().ok());
 }
 
 TEST_F(PerfettoSqlParserTest, IncludePerfettoTrivial) {
