@@ -398,7 +398,7 @@ bool PerfettoSqlParser::Next() {
       statement_sql_ = parser_state_->preprocessor.statement();
       return true;
     }
-    if (token.token_type == TK_SPACE) {
+    if (token.token_type == TK_SPACE || token.token_type == TK_COMMENT) {
       continue;
     }
     PerfettoSqlParse(parser, token.token_type, TokenToPerfettoSqlToken(token));
