@@ -274,16 +274,14 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             key: tableColumnId(column),
             column,
           })),
-          manager: {
-            filters: state.filters,
-            trace: state.trace,
-            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-              buildSqlQuery({
-                table: state.table.name,
-                columns,
-                filters: state.filters.get(),
-              }),
-          },
+          filters: state.filters,
+          trace: state.trace,
+          getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+            buildSqlQuery({
+              table: state.table.name,
+              columns,
+              filters: state.filters.get(),
+            }),
           existingColumnIds: new Set(state.getPivots().map(pivotId)),
           onColumnSelected: (column) => state.addPivot(column, index),
         }),
@@ -370,16 +368,14 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             key: tableColumnId(column),
             column,
           })),
-          manager: {
-            filters: state.filters,
-            trace: state.trace,
-            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-              buildSqlQuery({
-                table: state.table.name,
-                columns,
-                filters: state.filters.get(),
-              }),
-          },
+          filters: state.filters,
+          trace: state.trace,
+          getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+            buildSqlQuery({
+              table: state.table.name,
+              columns,
+              filters: state.filters.get(),
+            }),
           columnMenu: (column) => ({
             rightIcon: Icons.ContextMenuAlt,
             children: AGGREGATIONS.map((agg) =>

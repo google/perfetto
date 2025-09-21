@@ -13,13 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TableColumn, TableManager, tableColumnId} from '../table_column';
+import {TableColumn, ListColumnsContext, tableColumnId} from '../table_column';
 import {MenuDivider, MenuItem} from '../../../../../widgets/menu';
 import {raf} from '../../../../../core/raf_scheduler';
 import {uuidv4} from '../../../../../base/uuid';
 import {hasModKey, modKey} from '../../../../../base/hotkeys';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Spinner} from '../../../../../widgets/spinner';
+import {Filters} from '../filters';
+import {Trace} from '../../../../../public/trace';
+import {SqlColumn} from '../sql_column';
 
 export type SelectColumnMenuAttrs = {
   columns:
@@ -27,7 +30,9 @@ export type SelectColumnMenuAttrs = {
     | (() => Promise<{key: string; column: TableColumn}[]>);
   primaryColumn?: {key: string; column: TableColumn};
   filterable?: 'on' | 'off';
-  manager: TableManager;
+  filters: Filters;
+  trace: Trace;
+  getSqlQuery(data: {[key: string]: SqlColumn}): string;
   existingColumnIds?: Set<string>;
   // Possible actions when a column is selected.
   // - Run a callback.
@@ -41,7 +46,9 @@ export type SelectColumnMenuAttrs = {
 
 type SelectColumnMenuImplAttrs = {
   columns: {key: string; column: TableColumn}[];
-  manager: TableManager;
+  filters: Filters;
+  trace: Trace;
+  getSqlQuery(data: {[key: string]: SqlColumn}): string;
   existingColumnIds?: Set<string>;
   firstButtonUuid: string;
   onColumnSelected?: (column: TableColumn) => void;
@@ -84,6 +91,12 @@ class SelectColumnMenuImpl
   }
 
   view({attrs}: m.CVnode<SelectColumnMenuImplAttrs>) {
+    const context: ListColumnsContext = {
+      filters: attrs.filters,
+      trace: attrs.trace,
+      getSqlQuery: attrs.getSqlQuery,
+    };
+
     return m(
       '.pf-sql-table__select-column-menu',
       {
@@ -93,7 +106,7 @@ class SelectColumnMenuImpl
         },
       },
       attrs.columns.map(({key, column}, index) => {
-        const derivedColumns = column.listDerivedColumns?.(attrs.manager);
+        const derivedColumns = column.listDerivedColumns?.(context);
         const columnMenu =
           derivedColumns === undefined ? attrs.columnMenu?.(column) : undefined;
         return m(
@@ -113,7 +126,9 @@ class SelectColumnMenuImpl
               existingColumnIds: attrs.existingColumnIds,
               onColumnSelected: attrs.onColumnSelected,
               columnMenu: attrs.columnMenu,
-              manager: attrs.manager,
+              filters: attrs.filters,
+              trace: attrs.trace,
+              getSqlQuery: attrs.getSqlQuery,
               columns: async () => {
                 const cols = await derivedColumns();
                 return [...cols.entries()].map(([key, column]) => ({
@@ -150,11 +165,17 @@ export class SelectColumnMenu
     const columns = this.columns || [];
     const {attrs} = vnode;
 
+    const context: ListColumnsContext = {
+      filters: attrs.filters,
+      trace: attrs.trace,
+      getSqlQuery: attrs.getSqlQuery,
+    };
+
     // Candidates are the columns which have not been selected yet.
     const candidates = [...columns].filter(
       ({column}) =>
         !attrs.existingColumnIds?.has(tableColumnId(column)) ||
-        column.listDerivedColumns?.(attrs.manager) !== undefined,
+        column.listDerivedColumns?.(context) !== undefined,
     );
 
     const filterable =
@@ -223,7 +244,9 @@ export class SelectColumnMenu
       this.columns !== undefined &&
         m(SelectColumnMenuImpl, {
           columns: filtered,
-          manager: attrs.manager,
+          filters: attrs.filters,
+          trace: attrs.trace,
+          getSqlQuery: attrs.getSqlQuery,
           existingColumnIds: attrs.existingColumnIds,
           onColumnSelected: attrs.onColumnSelected,
           columnMenu: attrs.columnMenu,
