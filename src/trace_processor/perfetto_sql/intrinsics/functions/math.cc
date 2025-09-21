@@ -101,9 +101,9 @@ struct Sqrt : public LegacySqlFunction {
 }  // namespace
 
 base::Status RegisterMathFunctions(PerfettoSqlEngine& engine) {
-  RETURN_IF_ERROR(engine.RegisterStaticFunction<Ln>("ln", 1, nullptr, true));
-  RETURN_IF_ERROR(engine.RegisterStaticFunction<Exp>("exp", 1, nullptr, true));
-  return engine.RegisterStaticFunction<Sqrt>("sqrt", 1, nullptr, true);
+  RETURN_IF_ERROR(engine.RegisterLegacyFunction<Ln>("ln", 1, nullptr, true));
+  RETURN_IF_ERROR(engine.RegisterLegacyFunction<Exp>("exp", 1, nullptr, true));
+  return engine.RegisterLegacyFunction<Sqrt>("sqrt", 1, nullptr, true);
 }
 
 }  // namespace perfetto::trace_processor
