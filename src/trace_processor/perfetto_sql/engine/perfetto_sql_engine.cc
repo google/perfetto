@@ -1211,7 +1211,8 @@ base::Status PerfettoSqlEngine::RegisterDelegatingFunction(
   if (info_ptr == nullptr) {
     return base::ErrStatus(
         "Target function '%s' not found in registry. "
-        "Make sure it has been registered as an available function for delegation.",
+        "Make sure it has been registered as an available function for "
+        "delegation.",
         target_function_name.c_str());
   }
 

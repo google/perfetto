@@ -326,11 +326,13 @@ TEST_F(PerfettoSqlEngineTest, Include_Module) {
 
 TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_TargetNotFound) {
   // Test error when target function doesn't exist in registry
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION my_alias() RETURNS INT DELEGATES TO nonexistent_func"));
+  auto res = engine_.Execute(
+      SqlSource::FromExecuteQuery("CREATE PERFETTO FUNCTION my_alias() RETURNS "
+                                  "INT DELEGATES TO nonexistent_func"));
   ASSERT_FALSE(res.ok());
   EXPECT_THAT(res.status().c_message(),
-              testing::HasSubstr("Target function 'nonexistent_func' not found in registry"));
+              testing::HasSubstr(
+                  "Target function 'nonexistent_func' not found in registry"));
 }
 
 TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_ReplaceRequired) {
@@ -349,8 +351,9 @@ TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_ReplaceRequired) {
               testing::HasSubstr("function already exists"));
 
   // Try with OR REPLACE - should succeed
-  auto res3 = engine_.Execute(SqlSource::FromExecuteQuery(
-      "CREATE OR REPLACE PERFETTO FUNCTION test_func() RETURNS INT AS SELECT 44"));
+  auto res3 = engine_.Execute(
+      SqlSource::FromExecuteQuery("CREATE OR REPLACE PERFETTO FUNCTION "
+                                  "test_func() RETURNS INT AS SELECT 44"));
   ASSERT_TRUE(res3.ok()) << res3.status().c_message();
 }
 
