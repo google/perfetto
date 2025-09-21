@@ -308,7 +308,8 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
   *it = false;
 
   auto factory = context_->track_compressor->CreateTrackFactory(
-      kRenderStageBlueprint, tracks::Dimensions("id", hw_queue_id, kNullStringId),
+      kRenderStageBlueprint,
+      tracks::Dimensions("id", hw_queue_id, kNullStringId),
       tracks::DynamicName(name),
       [&, this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(description));
@@ -439,9 +440,12 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         dimension_name = track_name;
       } else {
         // If the event has a hw_queue_id that does not have a Specification,
-        // create a new track for it. Use kNullStringId as dimension to keep it stable.
-        base::StackString<64> placeholder_name("Unknown GPU Queue %" PRIu64, hw_queue_id);
-        track_name = context_->storage->InternString(placeholder_name.string_view());
+        // create a new track for it. Use kNullStringId as dimension to keep it
+        // stable.
+        base::StackString<64> placeholder_name("Unknown GPU Queue %" PRIu64,
+                                               hw_queue_id);
+        track_name =
+            context_->storage->InternString(placeholder_name.string_view());
         dimension_name = kNullStringId;
         gpu_hw_queue_ids_name_to_set_.Insert(hw_queue_id, true);
       }
@@ -469,8 +473,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     TrackId track_id = context_->track_compressor->InternScoped(
         kRenderStageBlueprint,
         tracks::Dimensions(base::StringView(source),
-                           static_cast<uint32_t>(hw_queue_id),
-                           dimension_name),
+                           static_cast<uint32_t>(hw_queue_id), dimension_name),
         ts, static_cast<int64_t>(event.duration()),
         tracks::DynamicName(track_name),
         [&](ArgsTracker::BoundInserter& inserter) {
