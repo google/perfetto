@@ -19,8 +19,7 @@ const fs = require("fs-extra");
 const path = require("path");
 const hljs = require("highlight.js");
 
-const CS_BASE_URL =
-  "https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/";
+const CS_BASE_URL = "https://github.com/google/perfetto/tree/main";
 
 const ROOT_DIR = path.dirname(path.dirname(path.dirname(__dirname)));
 
