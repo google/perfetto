@@ -24,6 +24,7 @@ source_set("base") {
     "container_annotations.h",
     "crash_keys.h",
     "ctrl_c_handler.h",
+    "dynamic_string_writer.h",
     "endian.h",
     "event_fd.h",
     "file_utils.h",
