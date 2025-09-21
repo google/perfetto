@@ -832,6 +832,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/container_annotations.h",
         "include/perfetto/ext/base/crash_keys.h",
         "include/perfetto/ext/base/ctrl_c_handler.h",
+        "include/perfetto/ext/base/dynamic_string_writer.h",
         "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
