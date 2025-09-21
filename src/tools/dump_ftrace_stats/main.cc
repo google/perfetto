@@ -17,10 +17,10 @@
 #include <signal.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -78,7 +78,7 @@ void DumpAllCpuStats() {
     char buffer[1024];
     base::StringSplitter splitter(std::move(text), '\n');
     while (splitter.Next()) {
-      base::StringWriter writer(buffer, base::ArraySize(buffer));
+      base::FixedStringWriter writer(buffer, base::ArraySize(buffer));
       writer.AppendLiteral("C|");
       writer.AppendInt(getpid());
       writer.AppendLiteral("|");

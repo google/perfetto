@@ -134,7 +134,7 @@ export default class implements PerfettoPlugin {
           uri,
           description: description ?? undefined,
           tags: {
-            kind,
+            kinds: [kind],
             trackIds: [trackIds[0]],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
@@ -160,7 +160,7 @@ export default class implements PerfettoPlugin {
           uri,
           description: description ?? undefined,
           tags: {
-            kind,
+            kinds: [kind],
             trackIds: trackIds,
             upid: upid ?? undefined,
             utid: utid ?? undefined,

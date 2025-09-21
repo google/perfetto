@@ -45,7 +45,7 @@ export class PivotTableTab implements AreaSelectionTab {
     ) {
       this.previousSelection = selection;
       this.trackIds = selection.tracks
-        .filter((track) => track.tags?.kind == SLICE_TRACK_KIND)
+        .filter((track) => track.tags?.kinds?.includes(SLICE_TRACK_KIND))
         .flatMap((track) => track.tags?.trackIds ?? []);
       this.getOrCreateState().filters.setFilters([
         {
