@@ -15,7 +15,12 @@
 import m from 'mithril';
 import {Icons} from '../../../../../base/semantic_icons';
 import {MenuItem} from '../../../../../widgets/menu';
-import {TableColumn, RenderedCell, TableManager} from '../table_column';
+import {
+  TableColumn,
+  RenderedCell,
+  RenderCellContext,
+  ListColumnsContext,
+} from '../table_column';
 import {SqlTableState} from '../state';
 import {
   PerfettoSqlType,
@@ -94,14 +99,14 @@ export class CastColumn implements TableColumn {
     return this.wrappedColumn.getTitle?.();
   }
 
-  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
+  renderCell(value: SqlValue, context?: RenderCellContext): RenderedCell {
     // Delegate rendering to the appropriate column type based on the cast type
     // This allows proper formatting for timestamps, durations, etc.
-    return this.wrappedColumn.renderCell(value, tableManager);
+    return this.wrappedColumn.renderCell(value, context);
   }
 
-  listDerivedColumns(manager: TableManager) {
-    return this.wrappedColumn.listDerivedColumns?.(manager);
+  listDerivedColumns(context: ListColumnsContext) {
+    return this.wrappedColumn.listDerivedColumns?.(context);
   }
 
   getColumnSpecificMenuItems(args: {

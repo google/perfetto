@@ -33,7 +33,7 @@ import {fromSqlBool, renderSliceRef, renderSqlRef} from './utils';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {
   TableColumn,
-  TableManager,
+  RenderCellContext,
 } from '../../components/widgets/sql/table/table_column';
 import {renderStandardCell} from '../../components/widgets/sql/table/render_cell_utils';
 import {ScrollTimelineModel} from './scroll_timeline_model';
@@ -50,9 +50,9 @@ function createPluginSliceIdColumn(
   name: string,
 ): TableColumn {
   const col = new StandardColumn(name, undefined);
-  col.renderCell = (value: SqlValue, tableManager: TableManager) => {
+  col.renderCell = (value: SqlValue, context?: RenderCellContext) => {
     if (value === null || typeof value !== 'bigint') {
-      return renderStandardCell(value, name, tableManager);
+      return renderStandardCell(value, name, context);
     }
     return {
       content: renderSliceRef({
