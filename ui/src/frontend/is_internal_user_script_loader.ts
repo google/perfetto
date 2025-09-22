@@ -41,7 +41,7 @@ interface Globals {
   // internal_user script.
   readonly extraSqlPackages: SqlPackage[];
 
-  extraParsingDescriptors: string[]
+  extraParsingDescriptors: string[];
 
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
