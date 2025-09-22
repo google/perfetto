@@ -20,7 +20,6 @@
 #include <limits>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/status.h"
@@ -241,23 +240,23 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
 
 StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   const auto state = static_cast<uint8_t>(task_state_int);
-  // Mapping for the different Etw states with their string description.
-  static base::NoDestructor<std::map<uint8_t, base::StringView>> etw_states_map(
-      std::map<uint8_t, base::StringView>{
-          {0x00, "Initialized"},     // INITIALIZED
-          {0x01, "R"},               // READY
-          {0x02, "Running"},         // RUNNING
-          {0x03, "Stand By"},        // STANDBY
-          {0x04, "T"},               // TERMINATED
-          {0x05, "Waiting"},         // WAITING
-          {0x06, "Transition"},      // TRANSITION
-          {0x07, "Deferred Ready"},  // DEFERRED_READY
-      });
 
-  auto it = etw_states_map.ref().find(state);
-  return it != etw_states_map.ref().end()
-             ? context_->storage->InternString(it->second)
-             : kNullStringId;
+  // Mapping for the different Etw states with their string description.
+  static const base::StringView kEtwStates[] = {
+      "Initialized",    // 0x00
+      "R",              // 0x01
+      "Running",        // 0x02
+      "S",              // 0x03
+      "W",              // 0x04
+      "T",              // 0x05
+      "P",              // 0x06
+      "Deferred Ready", // 0x07
+  };
+
+  if (state >= std::size(kEtwStates)) {
+    return kNullStringId;
+  }
+  return context_->storage->InternString(kEtwStates[state]);
 }
 
 }  // namespace trace_processor
