@@ -267,6 +267,73 @@ uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
   return period_ms - ((now_ms - ds_period_offset) % period_ms);
 }
 
+std::vector<std::string> GetCpuID() {
+  // Parse /proc/cpuinfo which contains groups of "key\t: value" lines separated
+  // by an empty line. Each group represents a CPU. See the full example in the
+  // unittest.
+  std::string proc_cpu_info;
+  if (!base::ReadFile("/proc/cpuinfo", &proc_cpu_info))
+    return std::vector<std::string>{};
+
+  std::string::iterator line_start = proc_cpu_info.begin();
+  std::string::iterator line_end = proc_cpu_info.end();
+  std::string cpu_index = "";
+  std::optional<uint32_t> implementer = UINT32_MAX;
+  std::optional<uint32_t> part = UINT32_MAX;
+  std::optional<uint32_t> variant = UINT32_MAX;
+  std::optional<uint32_t> revision = UINT32_MAX;
+  std::vector<std::string> result;
+
+  while (line_start != proc_cpu_info.end()) {
+    line_end = find(line_start, proc_cpu_info.end(), '\n');
+    if (line_end == proc_cpu_info.end())
+      break;
+    std::string line = std::string(line_start, line_end);
+    line_start = line_end + 1;
+    if (line.empty() && !cpu_index.empty()) {
+      PERFETTO_DCHECK(cpu_index == std::to_string(result.size()));
+      if (implementer && part) {
+        std::string cpuid =
+            base::Uint64ToHexStringNoPrefix(implementer.value()) +
+            base::Uint64ToHexStringNoPrefix(part.value());
+        if (variant) {
+          cpuid += base::Uint64ToHexStringNoPrefix(variant.value());
+          if (revision) {
+            cpuid += base::Uint64ToHexStringNoPrefix(revision.value());
+          }
+        }
+        result.push_back(cpuid);
+      }
+
+      cpu_index = "";
+      implementer.reset();
+      variant.reset();
+      part.reset();
+      revision.reset();
+      continue;
+    }
+    auto splits = base::SplitString(line, ":");
+    if (splits.size() != 2)
+      continue;
+    std::string key =
+        base::StripSuffix(base::StripChars(splits[0], "\t", ' '), " ");
+    std::string value = base::StripPrefix(splits[1], " ");
+    if (key == "processor")
+      cpu_index = value;
+    else if (key == "CPU implementer") {
+      implementer = static_cast<uint32_t>(strtoul(value.data(), nullptr, 0));
+    } else if (key == "CPU variant") {
+      variant = static_cast<uint32_t>(strtol(value.data(), nullptr, 0));
+    } else if (key == "CPU part") {
+      part = static_cast<uint32_t>(strtol(value.data(), nullptr, 0));
+    } else if (key == "CPU revision") {
+      revision = static_cast<uint32_t>(strtol(value.data(), nullptr, 0));
+    }
+  }
+
+  return result;
+}
+
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
   using Profiling = protos::pbzero::Profiling;
   switch (perf_cpu_mode) {
@@ -482,13 +549,35 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   }
 
   std::vector<EventReader> per_cpu_readers;
+  auto cpuids = GetCpuID();
+
   for (uint32_t cpu : target_cpus) {
+    using std::begin;
+    using std::end;
+    // Filter using the CPUID
+    if (!event_config_pb.cpuid().empty()) {
+      const auto& config_ids = event_config_pb.cpuid();
+      const auto& cpuid = cpuids[cpu];
+      bool allowed = std::find_if(begin(config_ids), end(config_ids),
+                                  [&](const auto& config_id) {
+                                    return base::StartsWith(cpuid, config_id);
+                                  }) != end(config_ids);
+      if (!allowed) {
+        continue;
+      }
+    }
+
     std::optional<EventReader> event_reader =
         EventReader::ConfigureEvents(cpu, event_config.value());
     if (!event_reader.has_value()) {
       PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
                     ", discarding data source.",
                     cpu);
+      if (event_config_pb.has_ignore_open_failure() &&
+          event_config_pb.ignore_open_failure()) {
+        continue;
+      }
+
       return;
     }
     per_cpu_readers.emplace_back(std::move(event_reader.value()));
@@ -518,6 +607,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   // Enqueue the periodic read task.
   auto tick_period_ms = ds.event_config.read_tick_period_ms();
   auto weak_this = weak_factory_.GetWeakPtr();
+
   task_runner_->PostDelayedTask(
       [weak_this, ds_id] {
         if (weak_this)
@@ -541,9 +631,13 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   auto unwind_mode = (ds.event_config.unwind_mode() ==
                       protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
                          ? Unwinder::UnwindMode::kFramePointer
+                     : (ds.event_config.unwind_mode() ==
+                        protos::gen::PerfEventConfig::UNWIND_KERNEL)
+                         ? Unwinder::UnwindMode::kUnwindKernel
                          : Unwinder::UnwindMode::kUnwindStack;
   unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
-                                         unwind_mode);
+                                         unwind_mode,
+                                         !ds.event_config.skip_symbolization());
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());

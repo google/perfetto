@@ -797,6 +797,139 @@
       background-color: var(--pf-color-background-secondary);
     }
   }
+
+  .selector {
+    @include transition(0.3s);
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    grid-template-rows: 30px 1fr;
+    grid-template-areas:
+      "hdr hdr"
+      "descr dropdown-select";
+    margin-top: var(--record-section-padding);
+
+    &.greyed-out {
+      opacity: 0.5;
+    }
+
+    > * {
+      height: 40px;
+      line-height: 40px;
+    }
+
+    > .textarea-holder {
+      height: 100%;
+    }
+
+    textarea.record-apps-list {
+      margin-top: 0px;
+    }
+
+    > header {
+      @include transition(0.3s);
+      opacity: 1;
+      color: var(--record-text-color);
+      grid-area: hdr;
+      font-size: 14px;
+      border-bottom: unset;
+    }
+
+    > header.descr {
+      grid-area: descr;
+      font-size: 12px;
+      color: #666;
+      height: auto;
+      line-height: 20px;
+      text-align: justify;
+      margin-right: 2em;
+    }
+
+    &:hover > header {
+      opacity: 1;
+      transition-duration: 0.15s;
+    }
+
+    > i {
+      grid-area: icon;
+      font-size: 32px;
+      color: #333;
+    }
+
+    > select {
+      grid-area: dropdown-select;
+      height: fit-content;
+    }
+
+    > button {
+      grid-area: dropdown-select;
+      height: fit-content;
+      line-height: 20px;
+    }
+  }
+
+  h1 {
+    font-size: larger;
+    font-weight: bolder;
+    margin-top: 40px;
+  }
+
+  .tab-content {
+    padding-left: var(--record-section-padding);
+    padding-right: var(--record-section-padding);
+  }
+} // record-section
+
+.inline-chip {
+  @include transition();
+  &:hover,
+  &:active {
+    box-shadow: 0 0 2px 0 #ccc;
+    background-color: #fafafa;
+  }
+
+  > i.material-icons {
+    color: rgb(60, 60, 60);
+    font-size: 14px;
+  }
+
+  display: inline-block;
+  font-size: smaller;
+  padding: 2px 4px;
+  border: 1px solid #eee;
+  margin: 2px;
+  border-radius: 9px;
+}
+
+a.inline-chip,
+a.inline-chip:link,
+a.inline-chip:visited {
+  text-decoration: none;
+  color: var(--record-text-color);
+}
+
+.code-snippet {
+  display: grid;
+  position: relative;
+  padding: 0;
+  margin: 0 var(--record-section-padding);
+  background-color: #111;
+  border-radius: 4px;
+  box-shadow: 0 0 12px #999;
+
+  @keyframes ripple {
+    0% {
+      transform: scale(1);
+    }
+    30% {
+      transform: scale(1.2);
+    }
+    60% {
+      transform: scale(1);
+    }
+    80% {
+      transform: scale(1.3);
+    }
+  }
 } // pf-record-page__section
 
 // For RecordingV2
@@ -953,4 +1086,13 @@
       font-size: 12px;
     }
   }
+}
+
+// Patch pf-tree to render correctly a tree in a popup
+.pf-popup-content > .pf-tree {
+  width: max-content;
+}
+
+.pf-tree-right > .pf-checkbox {
+  display: inline;
 }

@@ -34,12 +34,21 @@ import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {savedConfigsPage} from './pages/saved_configs';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
+import {pmuRecordSection} from './pages/pmu';
 import m from 'mithril';
-export default class implements PerfettoPlugin {
+import {LOCAL_ABSTRACT_SOCKET_FLAG} from './local_flag';
+export default class RecordTraceV2 implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
+    LOCAL_ABSTRACT_SOCKET_FLAG.flag = app.featureFlags.register({
+      id: 'connectToLocalAbstractTraceboxSocket',
+      name: 'Connect to a local abstract socket',
+      description: `Connect perfetto to @tracebox_traced_consumer. This allows user to connect the UI to a custom version of tracebox running on the target system.`,
+      defaultValue: false,
+    });
+
     app.sidebar.addMenuItem({
       section: 'navigation',
       text: 'Record new trace',
@@ -97,6 +106,7 @@ export default class implements PerfettoPlugin {
         androidRecordSection(),
         perfettoSDKRecordSection(),
         stackSamplingRecordSection(),
+        pmuRecordSection(recMgr, app),
         advancedRecordSection(),
       );
       recMgr.restorePluginStateFromLocalstorage();

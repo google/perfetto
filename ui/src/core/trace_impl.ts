@@ -55,6 +55,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
+import {CpuInfoManagerImpl} from './cpu_info_manager';
 import {isStartupCommandAllowed} from './startup_command_allowlist';
 
 /**
@@ -473,6 +474,10 @@ export class TraceImpl implements Trace {
 
   get plugins(): PluginManagerImpl {
     return this.appImpl.plugins;
+  }
+
+  get cpuInfos(): CpuInfoManagerImpl {
+    return this.appImpl.cpuInfos;
   }
 
   get analytics(): Analytics {

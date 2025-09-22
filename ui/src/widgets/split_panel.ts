@@ -82,6 +82,9 @@ export interface TabbedSplitPanelAttrs {
   // What height should the drawer be initially?
   readonly startingHeight?: number;
 
+  // Whether the drawer height should not be fixed.
+  readonly notFixedHeight?: boolean;
+
   // Called when the active tab is changed.
   onTabChange?(key: string): void;
 
@@ -124,7 +127,7 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
 
   // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
   // 0 if COLLAPSED, fullscreenHeight if FULLSCREEN.
-  private height = 0;
+  private height: number | undefined = 0;
 
   // The height when the panel is 'VISIBLE'.
   private resizableHeight: number;
@@ -135,8 +138,11 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
   // Current visibility state (if not controlled).
   private visibility = SplitPanelDrawerVisibility.VISIBLE;
 
+  private fixedHeight: boolean;
+
   constructor({attrs}: m.CVnode<TabbedSplitPanelAttrs>) {
     this.resizableHeight = attrs.startingHeight ?? 100;
+    this.fixedHeight = !attrs.notFixedHeight;
   }
 
   view({attrs, children}: m.CVnode<TabbedSplitPanelAttrs>) {
@@ -151,10 +157,14 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
 
     switch (visibility) {
       case SplitPanelDrawerVisibility.VISIBLE:
-        this.height = Math.min(
-          Math.max(this.resizableHeight, 0),
-          this.fullscreenHeight,
-        );
+        if (this.fixedHeight) {
+          this.height = Math.min(
+            Math.max(this.resizableHeight, 0),
+            this.fullscreenHeight,
+          );
+        } else {
+          this.height = undefined;
+        }
         break;
       case SplitPanelDrawerVisibility.FULLSCREEN:
         this.height = this.fullscreenHeight;
@@ -178,7 +188,9 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
       m(
         '.pf-split-panel__drawer',
         {
-          style: {height: `${this.height}px`},
+          style: {
+            height: this.height !== undefined ? `${this.height}px` : undefined,
+          },
         },
         drawerContent,
       ),
@@ -193,26 +205,28 @@ export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
       assertExists(vnode.dom.querySelector('.pf-split-panel__handle')),
     );
 
-    this.trash.use(
-      new DragGestureHandler(
-        handle,
-        /* onDrag */ (_x, y) => {
-          const deltaYSinceDragStart = dragStartY - y;
-          this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
-          m.redraw();
-        },
-        /* onDragStarted */ (_x, y) => {
-          this.resizableHeight = this.height;
-          heightWhenDragStarted = this.height;
-          dragStartY = y;
-          this.updatePanelVisibility(
-            SplitPanelDrawerVisibility.VISIBLE,
-            vnode.attrs.onVisibilityChange,
-          );
-        },
-        /* onDragFinished */ () => {},
-      ),
-    );
+    if (!this.fixedHeight) {
+      this.trash.use(
+        new DragGestureHandler(
+          handle,
+          /* onDrag */ (_x, y) => {
+            const deltaYSinceDragStart = dragStartY - y;
+            this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
+            m.redraw();
+          },
+          /* onDragStarted */ (_x, y) => {
+            this.resizableHeight = this.height!;
+            heightWhenDragStarted = this.height!;
+            dragStartY = y;
+            this.updatePanelVisibility(
+              SplitPanelDrawerVisibility.VISIBLE,
+              vnode.attrs.onVisibilityChange,
+            );
+          },
+          /* onDragFinished */ () => {},
+        ),
+      );
+    }
 
     const parent = assertExists(vnode.dom.parentElement);
     this.fullscreenHeight = parent.clientHeight;

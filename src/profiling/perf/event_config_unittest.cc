@@ -494,6 +494,57 @@ TEST(EventConfigTest, GroupMultipleType) {
   EXPECT_TRUE(tracepoint.sample_type & PERF_SAMPLE_READ);
 }
 
+TEST(EventConfigTest, GroupFollowerEventPeriod) {
+  protos::gen::PerfEventConfig cfg;
+  {
+    // leader:
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_name("leader");
+    mutable_timebase->set_period(1);
+    protos::gen::PerfEvents::Tracepoint* mutable_tracepoint =
+        mutable_timebase->mutable_tracepoint();
+    mutable_tracepoint->set_name("sched:sched_switch");
+
+    // associate with period:
+    auto* counter_associate_1 = cfg.add_followers();
+    counter_associate_1->set_name("counter");
+    counter_associate_1->set_counter(protos::gen::PerfEvents::SW_CPU_CLOCK);
+    counter_associate_1->set_period(1000000);
+
+    // associate with frequency:
+    auto* counter_associate_2 = cfg.add_followers();
+    counter_associate_2->set_name("counter");
+    counter_associate_2->set_counter(
+        protos::gen::PerfEvents::HW_BRANCH_INSTRUCTIONS);
+    counter_associate_2->set_frequency(4000);
+  }
+
+  auto id_lookup = [](const std::string& group, const std::string& name) {
+    return (group == "sched" && name == "sched_switch") ? 42 : 0;
+  };
+  std::optional<EventConfig> event_config = CreateEventConfig(cfg, id_lookup);
+  ASSERT_TRUE(event_config.has_value());
+
+  {
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->read_format & PERF_FORMAT_GROUP);
+
+    ASSERT_EQ(event_config->perf_attr_followers().size(), 2u);
+
+    const auto& counter_associate_1 = event_config->perf_attr_followers().at(0);
+    EXPECT_TRUE(counter_associate_1.sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(counter_associate_1.read_format & PERF_FORMAT_GROUP);
+    EXPECT_EQ(counter_associate_1.sample_period, 1000000u);
+    EXPECT_EQ(counter_associate_1.freq, 0u);
+
+    const auto& counter_associate_2 = event_config->perf_attr_followers().at(1);
+    EXPECT_TRUE(counter_associate_2.sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(counter_associate_2.read_format & PERF_FORMAT_GROUP);
+    EXPECT_EQ(counter_associate_2.sample_period, 4000u);
+    EXPECT_EQ(counter_associate_2.freq, 1u);
+  }
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
