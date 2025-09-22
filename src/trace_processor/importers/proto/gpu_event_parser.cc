@@ -155,11 +155,12 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                              "UNKNOWN_SEVERITY") /* must be last */}},
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
-void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
+void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
   GpuCounterEvent::Decoder event(blob);
-
+  if (!event.has_counter_descriptor()) {
+    return;
+  }
   GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
-  // Add counter spec to ID map.
   for (auto it = descriptor.specs(); it; ++it) {
     GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
     if (!spec.has_counter_id()) {
@@ -229,7 +230,10 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
     }
   }
+}
 
+void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
+  GpuCounterEvent::Decoder event(blob);
   for (auto it = event.counters(); it; ++it) {
     GpuCounterEvent::GpuCounter::Decoder counter(*it);
     if (counter.has_counter_id() &&
