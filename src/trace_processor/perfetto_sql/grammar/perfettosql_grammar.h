@@ -169,6 +169,8 @@
 #define TK_WINDOW 169
 #define TK_OVER 170
 #define TK_FILTER 171
-#define TK_TRANSACTION 172
-#define TK_SPACE 173
-#define TK_ILLEGAL 174
+#define TK_QNUMBER 172
+#define TK_TRANSACTION 173
+#define TK_SPACE 174
+#define TK_COMMENT 175
+#define TK_ILLEGAL 176

@@ -176,6 +176,7 @@
     - [Python release process](contributing/python-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
+    - [SQLite upgrade guide](contributing/sqlite-upgrade-guide.md)
 
     - [Design documents](#)
       - [API and ABI surface](design-docs/api-and-abi.md)
