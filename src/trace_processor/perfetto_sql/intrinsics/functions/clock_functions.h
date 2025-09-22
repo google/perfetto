@@ -17,22 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CLOCK_FUNCTIONS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CLOCK_FUNCTIONS_H_
 
-#include <sqlite3.h>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
 #include <string>
 
-#include "perfetto/base/status.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
