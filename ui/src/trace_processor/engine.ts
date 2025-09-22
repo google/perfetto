@@ -504,7 +504,7 @@ export abstract class EngineBase implements Engine, Disposable {
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
   // NOTE: the only reason why this is public is so that Winscope (which uses a
-  // fork of our codebase) can invoke this directly.
+  // fork of our codebase) can invoke this directly. See commit msg of #3051.
   streamingQuery(result: WritableQueryResult, sqlQuery: string, tag?: string) {
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
