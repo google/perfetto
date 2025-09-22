@@ -2743,6 +2743,7 @@ cc_test {
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_args_utils",
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -14867,6 +14868,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
     srcs: [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/args.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
@@ -15535,6 +15537,14 @@ filegroup {
 // GN: //src/trace_processor:unittests
 filegroup {
     name: "perfetto_src_trace_processor_unittests",
+}
+
+// GN: //src/trace_processor/util:args_utils
+filegroup {
+    name: "perfetto_src_trace_processor_util_args_utils",
+    srcs: [
+        "src/trace_processor/util/args_utils.cc",
+    ],
 }
 
 // GN: //src/trace_processor/util:build_id
@@ -17508,6 +17518,7 @@ cc_test {
         ":perfetto_src_trace_processor_types_types",
         ":perfetto_src_trace_processor_types_unittests",
         ":perfetto_src_trace_processor_unittests",
+        ":perfetto_src_trace_processor_util_args_utils",
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -18327,6 +18338,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_args_utils",
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -18660,6 +18672,7 @@ cc_binary {
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_args_utils",
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -19104,6 +19117,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_args_utils",
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
