@@ -503,10 +503,9 @@ export abstract class EngineBase implements Engine, Disposable {
   //
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
-  private streamingQuery(
-    sqlQuery: string,
-    tag?: string,
-  ): Promise<QueryResult> & QueryResult {
+  // NOTE: the only reason why this is public is so that Winscope (which uses a
+  // fork of our codebase) can invoke this directly.
+  streamingQuery(result: WritableQueryResult, sqlQuery: string, tag?: string) {
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new protos.QueryArgs();
@@ -514,12 +513,8 @@ export abstract class EngineBase implements Engine, Disposable {
     if (tag) {
       rpc.queryArgs.tag = tag;
     }
-    const result = createQueryResult({
-      query: sqlQuery,
-    });
     this.pendingQueries.push(result);
     this.rpcSendRequest(rpc);
-    return result;
   }
 
   private logQueryStart(
@@ -545,7 +540,9 @@ export abstract class EngineBase implements Engine, Disposable {
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
     const queryLog = this.logQueryStart(sqlQuery);
     try {
-      const result = await this.streamingQuery(sqlQuery, tag);
+      const result = createQueryResult({query: sqlQuery});
+      this.streamingQuery(result, sqlQuery, tag);
+      await result;
       queryLog.success = true;
       return result;
     } catch (e) {
