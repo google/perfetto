@@ -24,10 +24,10 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -176,7 +176,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       args.AddArgsTo(id).AddArg(name_id, value);
 
       char buffer[2048];
-      base::StringWriter writer(buffer, sizeof(buffer));
+      base::FixedStringWriter writer(buffer, sizeof(buffer));
       writer.AppendString("cr-");
       // If we have data from multiple Chrome instances, append a suffix
       // to differentiate them.

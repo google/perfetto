@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
-#define INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_FIXED_STRING_WRITER_H_
+#define INCLUDE_PERFETTO_EXT_BASE_FIXED_STRING_WRITER_H_
 
 #include <string.h>
 
@@ -34,10 +34,10 @@ namespace base {
 // A helper class which writes formatted data to a string buffer.
 // This is used in the trace processor where we write O(GBs) of strings and
 // sprintf is too slow.
-class StringWriter {
+class FixedStringWriter {
  public:
   // Creates a string buffer from a char buffer and length.
-  StringWriter(char* buffer, size_t size) : buffer_(buffer), size_(size) {}
+  FixedStringWriter(char* buffer, size_t size) : buffer_(buffer), size_(size) {}
 
   // Appends n instances of a char to the buffer.
   void AppendChar(char in, size_t n = 1) {
@@ -180,4 +180,4 @@ class StringWriter {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_FIXED_STRING_WRITER_H_

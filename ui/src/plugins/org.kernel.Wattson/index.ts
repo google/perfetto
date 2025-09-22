@@ -204,7 +204,7 @@ async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     tags: {
-      kind: SLICE_TRACK_KIND,
+      kinds: [SLICE_TRACK_KIND],
     },
     renderer: track,
   });
@@ -244,7 +244,7 @@ async function addWattsonCpuElements(
         `CpuSubsystem`,
       ),
       tags: {
-        kind: CPUSS_ESTIMATE_TRACK_KIND,
+        kinds: [CPUSS_ESTIMATE_TRACK_KIND],
         wattson: `CPU${cpu.ucpu}`,
       },
     });
@@ -267,7 +267,7 @@ async function addWattsonCpuElements(
       `CpuSubsystem`,
     ),
     tags: {
-      kind: CPUSS_ESTIMATE_TRACK_KIND,
+      kinds: [CPUSS_ESTIMATE_TRACK_KIND],
       wattson: 'Dsu_Scu',
     },
   });
@@ -313,7 +313,7 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
       `GpuSubsystem`,
     ),
     tags: {
-      kind: GPUSS_ESTIMATE_TRACK_KIND,
+      kinds: [GPUSS_ESTIMATE_TRACK_KIND],
       wattson: 'Gpu',
     },
   });

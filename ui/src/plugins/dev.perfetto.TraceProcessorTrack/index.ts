@@ -155,7 +155,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         tags: {
-          kind: COUNTER_TRACK_KIND,
+          kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
           type: type,
           upid: upid ?? undefined,
@@ -281,7 +281,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         tags: {
-          kind: SLICE_TRACK_KIND,
+          kinds: [SLICE_TRACK_KIND],
           trackIds: trackIds,
           type: type,
           upid: upid ?? undefined,
@@ -487,7 +487,7 @@ export default class implements PerfettoPlugin {
       name: 'Slices by name',
       selectTracks(tracks) {
         return tracks
-          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK_KIND))
           .filter((t) =>
             t.renderer.getDataset?.()?.implements({name: STR_NULL}),
           );
@@ -503,7 +503,7 @@ export default class implements PerfettoPlugin {
       name: 'Slices by id',
       selectTracks(tracks) {
         return tracks
-          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK_KIND))
           .filter((t) => t.renderer.getDataset?.()?.implements({id: NUM_NULL}));
       },
       async getSearchFilter(searchTerm) {
@@ -525,7 +525,7 @@ export default class implements PerfettoPlugin {
       name: 'Slice arguments',
       selectTracks(tracks) {
         return tracks
-          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK_KIND))
           .filter((t) =>
             t.renderer.getDataset?.()?.implements({arg_set_id: NUM_NULL}),
           );
@@ -593,7 +593,7 @@ async function computeSliceFlamegraph(
 ): Promise<(AsyncDisposable & {flamegraph: QueryFlamegraph}) | undefined> {
   const trackIds = [];
   for (const trackInfo of currentSelection.tracks) {
-    if (trackInfo?.tags?.kind !== SLICE_TRACK_KIND) {
+    if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
       continue;
     }
     if (trackInfo.tags?.trackIds === undefined) {

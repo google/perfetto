@@ -70,7 +70,7 @@ export default class implements PerfettoPlugin {
           trackIds: [trackId],
         }),
         tags: {
-          kind: SLICE_TRACK_KIND,
+          kinds: [SLICE_TRACK_KIND],
           trackIds: [trackId],
         },
       });

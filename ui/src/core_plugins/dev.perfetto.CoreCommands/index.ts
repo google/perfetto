@@ -42,6 +42,8 @@ import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
+import {assertExists} from '../../base/logging';
+import {Setting} from '../../public/settings';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -129,8 +131,13 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   return promptForTimestamp('Enter a timestamp');
 }
 
+const macroSchema = z.record(z.array(commandInvocationSchema));
+type MacroConfig = z.infer<typeof macroSchema>;
+
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
+
+  static macrosSetting: Setting<MacroConfig> | undefined = undefined;
 
   static onActivate(ctx: AppImpl) {
     if (ctx.sidebar.enabled) {
@@ -144,13 +151,10 @@ export default class CoreCommands implements PerfettoPlugin {
       });
     }
 
-    // Use shared commandInvocationSchema where 'id' is the command's unique identifier
-    const macroSchema = z.record(z.array(commandInvocationSchema));
-    type MacroConfig = z.infer<typeof macroSchema>;
     const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
       schema: macroSchema,
     });
-    const setting = ctx.settings.register({
+    CoreCommands.macrosSetting = ctx.settings.register({
       id: 'perfetto.CoreCommands#UserDefinedMacros',
       name: 'Macros',
       description:
@@ -160,23 +164,6 @@ export default class CoreCommands implements PerfettoPlugin {
       requiresReload: true,
       render: (setting) => macroSettingsEditor.render(setting),
     });
-
-    // Register both user-defined macros from settings and extra macros from google3
-    const allMacros = {
-      ...setting.get(),
-      ...ctx.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
-    } as MacroConfig;
-    for (const [macroName, commands] of Object.entries(allMacros)) {
-      ctx.commands.registerCommand({
-        id: `dev.perfetto.UserMacro.${macroName}`,
-        name: macroName,
-        callback: async () => {
-          for (const command of commands) {
-            await ctx.commands.runCommand(command.id, ...command.args);
-          }
-        },
-      });
-    }
 
     const input = document.createElement('input');
     input.classList.add('trace_file');
@@ -228,6 +215,23 @@ export default class CoreCommands implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: TraceImpl): Promise<void> {
+    const app = AppImpl.instance;
+
+    // Rgister macros from settings first.
+    registerMacros(ctx, assertExists(CoreCommands.macrosSetting).get());
+
+    // Register the macros from extras at onTraceReady (the latest time
+    // possible).
+    ctx.onTraceReady.addListener(async (_) => {
+      // Await the promise: we've tried to be async as long as possible but
+      // now we need the extras to be loaded.
+      await app.extraLoadingPromise;
+      registerMacros(
+        ctx,
+        app.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
+      );
+    });
+
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
@@ -861,4 +865,22 @@ async function openWithLegacyUi(file: File) {
     return await openFileWithLegacyTraceViewer(file);
   }
   return await openInOldUIWithSizeCheck(file);
+}
+
+function registerMacros(trace: TraceImpl, config: MacroConfig) {
+  for (const [macroName, commands] of Object.entries(config)) {
+    trace.commands.registerCommand({
+      id: `dev.perfetto.UserMacro.${macroName}`,
+      name: macroName,
+      callback: async () => {
+        // Macros could run multiple commands, some of which might prompt the
+        // user in an optional way. But macros should be self-contained
+        // so we disable prompts during their execution.
+        using _ = trace.omnibox.disablePrompts();
+        for (const command of commands) {
+          await trace.commands.runCommand(command.id, ...command.args);
+        }
+      },
+    });
+  }
 }

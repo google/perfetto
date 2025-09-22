@@ -26,7 +26,7 @@ import {
 } from './process_scheduling_track';
 import {
   Config as ProcessSummaryTrackConfig,
-  PROCESS_SUMMARY_TRACK,
+  PROCESS_SUMMARY_TRACK_KIND,
   ProcessSummaryTrack,
 } from './process_summary_track';
 
@@ -176,7 +176,7 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: PROCESS_SCHEDULING_TRACK_KIND,
+            kinds: [PROCESS_SCHEDULING_TRACK_KIND],
           },
           chips,
           renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
@@ -192,7 +192,7 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: PROCESS_SUMMARY_TRACK,
+            kinds: [PROCESS_SUMMARY_TRACK_KIND],
           },
           chips,
           renderer: new ProcessSummaryTrack(ctx.engine, config),
@@ -250,7 +250,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri: '/kernel',
       tags: {
-        kind: PROCESS_SUMMARY_TRACK,
+        kinds: [PROCESS_SUMMARY_TRACK_KIND],
       },
       renderer: new ProcessSummaryTrack(ctx.engine, config),
     });
