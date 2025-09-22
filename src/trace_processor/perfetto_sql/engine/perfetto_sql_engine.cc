@@ -712,7 +712,7 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
     sql_argument::Type return_type,
     SqlSource sql) {
   int created_argc = static_cast<int>(prototype.arguments.size());
-  auto* ctx = static_cast<CreatedFunction::Context*>(
+  auto* ctx = static_cast<CreatedFunction::UserData*>(
       sqlite_engine()->GetFunctionContext(prototype.function_name,
                                           created_argc));
   if (ctx) {
@@ -726,13 +726,13 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
     // We register the function with SQLite before we prepare the statement so
     // the statement can reference the function itself, enabling recursive
     // calls.
-    std::unique_ptr<CreatedFunction::Context> created_fn_ctx =
+    std::unique_ptr<CreatedFunction::UserData> created_fn_ctx =
         CreatedFunction::MakeContext(this);
     ctx = created_fn_ctx.get();
-    RETURN_IF_ERROR(RegisterFunctionWithSqlite<CreatedFunction>(
-        prototype.function_name.c_str(), created_argc,
-        std::move(created_fn_ctx)));
-    runtime_function_count_++;
+    RETURN_IF_ERROR(RegisterFunction<CreatedFunction>(
+        std::move(created_fn_ctx),
+        RegisterFunctionArgs(prototype.function_name.c_str(), true,
+                             static_cast<int>(prototype.arguments.size()))));
   }
   return CreatedFunction::Prepare(ctx, prototype, return_type, std::move(sql));
 }
@@ -870,7 +870,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
 base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
     const std::string& name) {
   constexpr size_t kSupportedArgCount = 1;
-  auto* ctx = static_cast<CreatedFunction::Context*>(
+  auto* ctx = static_cast<CreatedFunction::UserData*>(
       sqlite_engine()->GetFunctionContext(name, kSupportedArgCount));
   if (!ctx) {
     return base::ErrStatus(
