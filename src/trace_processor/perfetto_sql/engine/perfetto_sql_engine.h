@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -36,7 +37,6 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
@@ -172,10 +172,13 @@ class PerfettoSqlEngine {
   // Arguments for RegisterFunction with custom function names.
   struct RegisterFunctionArgs {
     RegisterFunctionArgs(const char* _name = nullptr,
-                         bool _deterministic = true)
-        : name(_name), deterministic(_deterministic) {}
+                         bool _deterministic = true,
+                         std::optional<int> _argc = std::nullopt)
+        : name(_name), deterministic(_deterministic), argc(_argc) {}
     const char* name = nullptr;  // If nullptr, uses Function::kName
     bool deterministic = true;
+    std::optional<int> argc =
+        std::nullopt;  // If nullopt, uses Function::kArgCount
   };
 
   template <typename Function>
@@ -329,12 +332,6 @@ class PerfettoSqlEngine {
     // views.
     kValidateOnly
   };
-  template <typename Function>
-  base::Status RegisterFunctionWithSqlite(
-      const char* name,
-      int argc,
-      std::unique_ptr<typename Function::Context> ctx,
-      bool deterministic = true);
 
   // Given a package and a key, include the correct file(s) from the package.
   // The key can contain a wildcard to include all files in the module with the
@@ -413,84 +410,15 @@ class PerfettoSqlEngine {
 // in the header file because it is templated code. We separate it out
 // like this to keep the API people actually care about easy to read.
 
-namespace perfetto_sql_internal {
-
-// RAII type to call Function::Cleanup when destroyed.
-template <typename Function>
-struct ScopedCleanup {
-  typename Function::Context* ctx;
-  ~ScopedCleanup() { Function::Cleanup(ctx); }
-};
-
-template <typename Function>
-void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  using Context = typename Function::Context;
-  auto* ud = static_cast<Context*>(sqlite3_user_data(ctx));
-
-  ScopedCleanup<Function> scoped_cleanup{ud};
-  SqlValue value{};
-  LegacySqlFunction::Destructors destructors{};
-  base::Status status =
-      Function::Run(ud, static_cast<size_t>(argc), argv, value, destructors);
-  if (!status.ok()) {
-    sqlite::result::Error(ctx, status.c_message());
-    return;
-  }
-
-  if (Function::kVoidReturn) {
-    if (!value.is_null()) {
-      sqlite::result::Error(ctx, "void SQL function returned value");
-      return;
-    }
-
-    // If the function doesn't want to return anything, set the "VOID"
-    // pointer type to a non-null value. Note that because of the weird
-    // way |sqlite3_value_pointer| works, we need to set some value even
-    // if we don't actually read it - just set it to a pointer to an empty
-    // string for this reason.
-    static char kVoidValue[] = "";
-    sqlite::result::StaticPointer(ctx, kVoidValue, "VOID");
-  } else {
-    switch (value.type) {
-      case SqlValue::Type::kLong:
-        sqlite::result::Long(ctx, value.long_value);
-        break;
-      case SqlValue::Type::kDouble:
-        sqlite::result::Double(ctx, value.double_value);
-        break;
-      case SqlValue::Type::kString: {
-        sqlite::result::RawString(ctx, value.string_value, -1,
-                                  destructors.string_destructor);
-        break;
-      }
-      case SqlValue::Type::kBytes:
-        sqlite::result::RawBytes(ctx, value.bytes_value,
-                                 static_cast<int>(value.bytes_count),
-                                 destructors.bytes_destructor);
-        break;
-      case SqlValue::Type::kNull:
-        sqlite::result::Null(ctx);
-        break;
-    }
-  }
-
-  status = Function::VerifyPostConditions(ud);
-  if (!status.ok()) {
-    sqlite::result::Error(ctx, status.c_message());
-    return;
-  }
-}
-
-}  // namespace perfetto_sql_internal
-
 template <typename Function>
 base::Status PerfettoSqlEngine::RegisterFunction(
     typename Function::UserData* ctx,
     const RegisterFunctionArgs& args) {
   static_function_count_++;
   const char* name = args.name ? args.name : Function::kName;
-  return engine_->RegisterFunction(name, Function::kArgCount, Function::Step,
-                                   ctx, nullptr, args.deterministic);
+  int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
+  return engine_->RegisterFunction(name, argc, Function::Step, ctx, nullptr,
+                                   args.deterministic);
 }
 
 template <typename Function>
@@ -499,8 +427,9 @@ base::Status PerfettoSqlEngine::RegisterFunction(
     const RegisterFunctionArgs& args) {
   static_function_count_++;
   const char* name = args.name ? args.name : Function::kName;
+  int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
   return engine_->RegisterFunction(
-      name, Function::kArgCount, Function::Step, ctx.release(),
+      name, argc, Function::Step, ctx.release(),
       [](void* ptr) {
         std::unique_ptr<typename Function::UserData>(
             static_cast<typename Function::UserData*>(ptr));
@@ -528,21 +457,6 @@ base::Status PerfettoSqlEngine::RegisterWindowFunction(
   return engine_->RegisterWindowFunction(
       name, argc, Function::Step, Function::Inverse, Function::Value,
       Function::Final, ctx, nullptr, deterministic);
-}
-
-template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunctionWithSqlite(
-    const char* name,
-    int argc,
-    std::unique_ptr<typename Function::Context> ctx,
-    bool deterministic) {
-  auto ctx_destructor = [](void* ptr) {
-    delete static_cast<typename Function::Context*>(ptr);
-  };
-
-  return RegisterFunctionAndAddToRegistry(
-      name, argc, perfetto_sql_internal::WrapSqlFunction<Function>,
-      ctx.release(), ctx_destructor, deterministic);
 }
 
 }  // namespace perfetto::trace_processor
