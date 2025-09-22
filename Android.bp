@@ -14468,6 +14468,9 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_parser.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",
@@ -14496,6 +14499,7 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation_unittest.cc",
+        "src/trace_processor/importers/proto/winscope/test/windowmanager_hierarchy_walker_unittest.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation_unittest.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry_unittest.cc",
