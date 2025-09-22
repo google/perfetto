@@ -31,12 +31,15 @@ export enum NodeType {
   kSqlSource,
 
   // Single node operations
-  kSubQuery,
   kAggregation,
   kModifyColumns,
 
   // Multi node operations
   kIntervalIntersect,
+}
+
+export function singleNodeOperation(type: NodeType): boolean {
+  return type === NodeType.kAggregation || type === NodeType.kModifyColumns;
 }
 
 // All information required to create a new node.

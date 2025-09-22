@@ -14,14 +14,16 @@
 
 import m from 'mithril';
 
-import {classNames} from '../../../base/classnames';
-import {Icons} from '../../../base/semantic_icons';
-import {Button} from '../../../widgets/button';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {QueryNode} from '../query_node';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
-import {Chip} from '../../../widgets/chip';
-import {Icon} from '../../../widgets/icon';
+import {classNames} from '../../../../base/classnames';
+import {Icons} from '../../../../base/semantic_icons';
+import {Button} from '../../../../widgets/button';
+import {MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {QueryNode} from '../../query_node';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {Chip} from '../../../../widgets/chip';
+import {Icon} from '../../../../widgets/icon';
+
+import {NodeContainer} from './node_container';
 
 export const PADDING = 20;
 export const NODE_HEIGHT = 50;
@@ -54,7 +56,7 @@ export interface NodeBoxAttrs {
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
-function renderWarningIcon(node: QueryNode): m.Child {
+export function renderWarningIcon(node: QueryNode): m.Child {
   if (!node.state.issues || !node.state.issues.hasIssues()) return null;
 
   const iconClasses = classNames('pf-node-box__warning-icon');
@@ -66,7 +68,7 @@ function renderWarningIcon(node: QueryNode): m.Child {
   });
 }
 
-function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
+export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
   const menuItems: m.Child[] = [
     m(MenuItem, {
@@ -91,7 +93,7 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
-function renderAddButton(attrs: NodeBoxAttrs): m.Child {
+export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const {node, onAddAggregation, onModifyColumns, onAddIntervalIntersect} =
     attrs;
   return m(
@@ -117,7 +119,7 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
-function renderFilters(attrs: NodeBoxAttrs): m.Child {
+export function renderFilters(attrs: NodeBoxAttrs): m.Child {
   const {node, onRemoveFilter} = attrs;
   if (!node.state.filters || node.state.filters.length === 0) return null;
 
@@ -137,60 +139,69 @@ function renderFilters(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
-export const NodeBox: m.Component<NodeBoxAttrs> = {
-  oncreate({attrs, dom}) {
-    attrs.onNodeRendered(attrs.node, dom as HTMLElement);
-  },
-  onupdate({attrs, dom}) {
-    attrs.onNodeRendered(attrs.node, dom as HTMLElement);
-  },
+export const NodeBoxContent: m.Component<{node: QueryNode}> = {
   view({attrs}) {
-    const {node, layout, isSelected, onNodeSelected, onNodeDragStart} = attrs;
+    const {node} = attrs;
+    return m(
+      '.pf-node-box__content',
+      m('span.pf-node-box__title', node.getTitle()),
+      m('.pf-node-box__details', node.nodeDetails?.()),
+    );
+  },
+};
+
+export const NodeBox: m.Component<NodeBoxAttrs> = {
+  view({attrs}) {
+    const {
+      node,
+      layout,
+      isSelected,
+      onNodeSelected,
+      onNodeDragStart,
+      onNodeRendered,
+    } = attrs;
 
     const conditionalClasses = classNames(
-      isSelected && 'pf-node-box__selected',
       !node.validate() && 'pf-node-box__invalid',
       node.state.issues?.queryError && 'pf-node-box__invalid-query',
       node.state.issues?.responseError && 'pf-node-box__invalid-response',
     );
 
-    const boxStyle = {
-      left: `${layout.x}px`,
-      top: `${layout.y}px`,
-    };
-
     return m(
-      '.pf-node-box',
+      NodeContainer,
       {
-        class: conditionalClasses,
-        style: boxStyle,
-        onclick: () => onNodeSelected(node),
-        draggable: true,
-        ondragstart: (event: DragEvent) => onNodeDragStart(node, event, layout),
+        node,
+        layout,
+        isSelected,
+        onNodeDragStart,
+        onNodeRendered,
       },
-      node.prevNodes?.map((_, i) => {
-        const portCount = node.prevNodes ? node.prevNodes.length : 0;
-        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
-        return m('.pf-node-box-port.pf-node-box-port-top', {
-          style: {left},
-        });
-      }),
-      renderWarningIcon(node),
       m(
-        '.pf-node-box__content',
-        m('span.pf-node-box__title', node.getTitle()),
-        m('.pf-node-box__details', node.nodeDetails?.()),
+        '.pf-node-box',
+        {
+          class: conditionalClasses,
+          onclick: () => onNodeSelected(node),
+        },
+        node.prevNodes?.map((_, i) => {
+          const portCount = node.prevNodes ? node.prevNodes.length : 0;
+          const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+          return m('.pf-node-box-port.pf-node-box-port-top', {
+            style: {left},
+          });
+        }),
+        renderWarningIcon(node),
+        m(NodeBoxContent, {node}),
         renderFilters(attrs),
+        renderContextMenu(attrs),
+        node.nextNodes.map((_, i) => {
+          const portCount = node.nextNodes.length;
+          const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
+          return m('.pf-node-box-port.pf-node-box-port-bottom', {
+            style: {left},
+          });
+        }),
+        renderAddButton(attrs),
       ),
-      renderContextMenu(attrs),
-      node.nextNodes.map((_, i) => {
-        const portCount = node.nextNodes.length;
-        const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
-        return m('.pf-node-box-port.pf-node-box-port-bottom', {
-          style: {left},
-        });
-      }),
-      renderAddButton(attrs),
     );
   },
 };
