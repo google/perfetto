@@ -242,7 +242,7 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   const auto state = static_cast<uint8_t>(task_state_int);
 
   // Mapping for the different Etw states with their string description.
-  static const base::StringView etw_states[] = {
+  static constexpr std::string_view etw_states[] = {
       "Initialized",    // 0x00
       "Ready",          // 0x01
       "Running",        // 0x02
