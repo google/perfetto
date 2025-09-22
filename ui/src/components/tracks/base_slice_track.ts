@@ -733,6 +733,7 @@ export abstract class BaseSliceTrack<
         ${resolution}
       ) z
       CROSS JOIN (${this.getSqlSource()}) s using (id)
+      ORDER BY tsQ
     `);
 
     const it = queryRes.iter(this.rowSpec);
