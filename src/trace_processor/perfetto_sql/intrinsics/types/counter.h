@@ -29,6 +29,10 @@ struct CounterTrackPartition {
   std::vector<int64_t> id;
   std::vector<int64_t> ts;
   std::vector<double> val;
+
+  int64_t last_equal_id;
+  int64_t last_equal_ts;
+  double last_equal_val;
 };
 
 struct PartitionedCounter {

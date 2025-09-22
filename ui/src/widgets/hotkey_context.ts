@@ -14,34 +14,66 @@
 
 import m from 'mithril';
 import {checkHotkey, Hotkey} from '../base/hotkeys';
+import {toHTMLElement} from '../base/dom_utils';
+import {classNames} from '../base/classnames';
 
 export interface HotkeyConfig {
-  hotkey: Hotkey;
-  callback: () => void;
+  readonly hotkey: Hotkey;
+  readonly callback: () => void;
 }
 
 export interface HotkeyContextAttrs {
-  hotkeys: HotkeyConfig[];
+  // An array of hotkeys to listen for.
+  readonly hotkeys: HotkeyConfig[];
+
+  // If true, the context will fill the height of its parent container.
+  // This is useful for contexts that are used as a full-screen overlay.
+  readonly fillHeight?: boolean;
+
+  // If true, the context will be focused on creation.
+  // Defaults to false.
+  readonly autoFocus?: boolean;
+
+  // If true, a focus ring will be shown when the context is focused.
+  // Defaults to false.
+  readonly showFocusRing?: boolean;
 }
 
 export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
   private hotkeys?: HotkeyConfig[];
 
   view(vnode: m.Vnode<HotkeyContextAttrs>): m.Children {
-    return vnode.children;
+    return m(
+      '.pf-hotkey-context',
+      {
+        // The tabindex is necessary to make the context focusable.
+        // This is needed to capture key events.
+        // The -1 value means it won't be focusable by tabbing, but can be
+        // focused programmatically.
+        tabindex: -1,
+        className: classNames(
+          vnode.attrs.fillHeight && 'pf-hotkey-context--fill-height',
+          vnode.attrs.showFocusRing && 'pf-hotkey-context--show-focus-ring',
+        ),
+      },
+      vnode.children,
+    );
   }
 
   oncreate(vnode: m.VnodeDOM<HotkeyContextAttrs>) {
-    document.addEventListener('keydown', this.onKeyDown);
+    vnode.dom.addEventListener('keydown', this.onKeyDown);
     this.hotkeys = vnode.attrs.hotkeys;
+    if (vnode.attrs.autoFocus) {
+      toHTMLElement(vnode.dom).focus();
+    }
   }
 
   onupdate(vnode: m.VnodeDOM<HotkeyContextAttrs>) {
     this.hotkeys = vnode.attrs.hotkeys;
   }
 
-  onremove(_vnode: m.VnodeDOM<HotkeyContextAttrs>) {
-    document.removeEventListener('keydown', this.onKeyDown);
+  onremove(vnode: m.VnodeDOM<HotkeyContextAttrs>) {
+    vnode.dom.removeEventListener('keydown', this.onKeyDown);
     this.hotkeys = undefined;
   }
 

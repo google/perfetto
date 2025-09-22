@@ -235,6 +235,50 @@ void OnPerfettoSqlCreateFunction(PerfettoSqlParserState* state,
                               PerfettoSqlTokenToToken(*body_end),
                               SqliteTokenizer::EndToken::kInclusive),
       "",
+      std::nullopt,  // No target function for SQL functions
+  };
+}
+
+void OnPerfettoSqlCreateDelegatingFunction(PerfettoSqlParserState* state,
+                                           int replace,
+                                           PerfettoSqlToken* name,
+                                           PerfettoSqlArgumentList* args,
+                                           PerfettoSqlFnReturnType* returns,
+                                           PerfettoSqlToken* target_function,
+                                           PerfettoSqlToken* /*stmt_end*/) {
+  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
+  std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(returns);
+
+  // Validate the target function name is not empty
+  if (target_function->n == 0) {
+    state->ErrorAtToken("Target function name cannot be empty",
+                        *target_function);
+    return;
+  }
+
+  // Convert the return type
+  PerfettoSqlParser::CreateFunction::Returns returns_res;
+  returns_res.is_table = returns->is_table;
+  if (returns->is_table) {
+    returns_res.table_columns = std::move(returns->table_columns);
+  } else {
+    returns_res.scalar_type = returns->scalar_type;
+  }
+
+  // Create a new CreateFunction statement with intrinsic name
+  state->current_statement = PerfettoSqlParser::CreateFunction{
+      replace != 0,
+      FunctionPrototype{
+          std::string(name->ptr, name->n),
+          args ? std::move(args->inner)
+               : std::vector<sql_argument::ArgumentDefinition>{},
+      },
+      std::move(returns_res),
+      SqlSource::FromTraceProcessorImplementation(
+          ""),  // Empty SQL source for delegating functions
+      "",       // Empty description for now
+      std::string(target_function->ptr,
+                  target_function->n),  // Set target function name
   };
 }
 
@@ -398,7 +442,7 @@ bool PerfettoSqlParser::Next() {
       statement_sql_ = parser_state_->preprocessor.statement();
       return true;
     }
-    if (token.token_type == TK_SPACE) {
+    if (token.token_type == TK_SPACE || token.token_type == TK_COMMENT) {
       continue;
     }
     PerfettoSqlParse(parser, token.token_type, TokenToPerfettoSqlToken(token));

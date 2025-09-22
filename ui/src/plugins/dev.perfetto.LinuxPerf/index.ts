@@ -20,10 +20,7 @@ import {
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {
-  COUNTER_TRACK_KIND,
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../../public/track_kinds';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -35,6 +32,8 @@ import {
   createProcessPerfSamplesProfileTrack,
   createThreadPerfSamplesProfileTrack,
 } from './perf_samples_profile_track';
+
+const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 function makeUriForProc(upid: number) {
   return `/process_${upid}/perf_samples_profile`;
@@ -77,7 +76,7 @@ export default class implements PerfettoPlugin {
       trace.tracks.registerTrack({
         uri,
         tags: {
-          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
           upid,
         },
         renderer: createProcessPerfSamplesProfileTrack(trace, uri, upid),
@@ -138,7 +137,7 @@ export default class implements PerfettoPlugin {
       trace.tracks.registerTrack({
         uri,
         tags: {
-          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
           utid,
           upid: upid ?? undefined,
         },
@@ -183,7 +182,7 @@ export default class implements PerfettoPlugin {
       trace.tracks.registerTrack({
         uri,
         tags: {
-          kind: COUNTER_TRACK_KIND,
+          kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
           cpu: cpu ?? undefined,
         },
@@ -264,7 +263,7 @@ function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const upids = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
-      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(PERF_SAMPLES_PROFILE_TRACK_KIND) &&
       trackInfo.tags?.utid === undefined
     ) {
       upids.push(assertExists(trackInfo.tags?.upid));
@@ -277,7 +276,7 @@ function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const utids = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
-      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(PERF_SAMPLES_PROFILE_TRACK_KIND) &&
       trackInfo.tags?.utid !== undefined
     ) {
       utids.push(trackInfo.tags?.utid);

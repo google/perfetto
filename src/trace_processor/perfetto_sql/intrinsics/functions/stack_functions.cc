@@ -28,12 +28,17 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -44,70 +49,49 @@ namespace {
 
 using protos::pbzero::Stack;
 
-base::Status SetBytesOutputValue(const std::vector<uint8_t>& src,
-                                 SqlValue& out,
-                                 LegacySqlFunction::Destructors& destructors) {
-  void* dest = malloc(src.size());
-  if (dest == nullptr) {
-    return base::ErrStatus("Out of memory");
-  }
-  memcpy(dest, src.data(), src.size());
-  out = SqlValue::Bytes(dest, src.size());
-  destructors.bytes_destructor = free;
-  return base::OkStatus();
+void SetBytesResult(sqlite3_context* ctx, const std::vector<uint8_t>& src) {
+  return sqlite::result::TransientBytes(ctx, src.data(),
+                                        static_cast<int>(src.size()));
 }
 
 // CAT_STACKS(root BLOB/STRING, level_1 BLOB/STRING, …, leaf BLOB/STRING)
 // Creates a Stack by concatenating other Stacks. Also accepts strings for which
 // it generates a fake Frame
-struct CatStacksFunction : public LegacySqlFunction {
-  static constexpr char kFunctionName[] = "CAT_STACKS";
-  using Context = void;
+struct CatStacksFunction : public sqlite::Function<CatStacksFunction> {
+  static constexpr char kName[] = "CAT_STACKS";
+  static constexpr int kArgCount = -1;
 
-  static base::Status Run(void* cxt,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors) {
-    base::Status status = RunImpl(cxt, argc, argv, out, destructors);
-    if (!status.ok()) {
-      return base::ErrStatus("%s: %s", kFunctionName, status.message().c_str());
-    }
-    return status;
-  }
-
-  static base::Status RunImpl(void*,
-                              size_t argc,
-                              sqlite3_value** argv,
-                              SqlValue& out,
-                              Destructors& destructors) {
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc >= 0);
     protozero::HeapBuffered<Stack> stack;
 
     // Note, this SQL function expects the root frame to be the first argument.
     // Stack expects the opposite, thus iterates the args in reverse order.
-    for (size_t i = argc; i > 0; --i) {
-      size_t arg_index = i - 1;
-      SqlValue value = sqlite::utils::SqliteValueToSqlValue(argv[arg_index]);
-      switch (value.type) {
-        case SqlValue::kBytes: {
-          stack->AppendRawProtoBytes(value.bytes_value, value.bytes_count);
+    for (int i = argc; i > 0; --i) {
+      int arg_index = i - 1;
+      switch (sqlite::value::Type(argv[arg_index])) {
+        case sqlite::Type::kBlob: {
+          const void* blob = sqlite::value::Blob(argv[arg_index]);
+          int size = sqlite::value::Bytes(argv[arg_index]);
+          stack->AppendRawProtoBytes(blob, static_cast<size_t>(size));
           break;
         }
-        case SqlValue::kString: {
-          stack->add_entries()->set_name(value.AsString());
+        case sqlite::Type::kText: {
+          stack->add_entries()->set_name(sqlite::value::Text(argv[arg_index]));
           break;
         }
-        case SqlValue::kNull:
+        case sqlite::Type::kNull:
           break;
-        case SqlValue::kLong:
-        case SqlValue::kDouble:
-          return sqlite::utils::InvalidArgumentTypeError(
-              "entry", arg_index, value.type, SqlValue::kBytes,
-              SqlValue::kString, SqlValue::kNull);
+        case sqlite::Type::kInteger:
+        case sqlite::Type::kFloat:
+          return sqlite::utils::SetError(
+              ctx, base::ErrStatus(
+                       "CAT_STACKS: entry %d must be BLOB, STRING, or NULL",
+                       arg_index));
       }
     }
 
-    return SetBytesOutputValue(stack.SerializeAsArray(), out, destructors);
+    return SetBytesResult(ctx, stack.SerializeAsArray());
   }
 };
 
@@ -121,64 +105,62 @@ struct CatStacksFunction : public LegacySqlFunction {
 // will could have a frame that is annotated with different annotations. That
 // will lead to multiple functions being generated (same name, line etc, but
 // different annotation).
-struct StackFromStackProfileCallsiteFunction : public LegacySqlFunction {
-  static constexpr char kFunctionName[] = "STACK_FROM_STACK_PROFILE_CALLSITE";
-  using Context = TraceStorage;
+struct StackFromStackProfileCallsiteFunction
+    : public sqlite::Function<StackFromStackProfileCallsiteFunction> {
+  static constexpr char kName[] = "STACK_FROM_STACK_PROFILE_CALLSITE";
+  static constexpr int kArgCount = -1;
 
-  static base::Status Run(TraceStorage* storage,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors) {
-    base::Status status = RunImpl(storage, argc, argv, out, destructors);
-    if (!status.ok()) {
-      return base::ErrStatus("%s: %s", kFunctionName, status.message().c_str());
-    }
-    return status;
-  }
+  using UserData = TraceStorage;
 
-  static base::Status RunImpl(TraceStorage* storage,
-                              size_t argc,
-                              sqlite3_value** argv,
-                              SqlValue& out,
-                              Destructors& destructors) {
-    if (argc != 1 && argc != 2) {
-      return base::ErrStatus(
-          "%s; Invalid number of arguments: expected 1 or 2, actual %zu",
-          kFunctionName, argc);
-    }
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    TraceStorage* storage = GetUserData(ctx);
+    PERFETTO_DCHECK(argc == 1 || argc == 2);
 
-    base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
-        argc, argv, "callsite_id", 0, SqlValue::kNull, SqlValue::kLong);
-    if (!value.ok()) {
-      return value.status();
-    }
-    if (value->is_null()) {
-      return base::OkStatus();
+    int64_t callsite_id_long = 0;
+    switch (sqlite::value::Type(argv[0])) {
+      case sqlite::Type::kInteger:
+        callsite_id_long = sqlite::value::Int64(argv[0]);
+        break;
+      case sqlite::Type::kNull:
+        return sqlite::utils::ReturnNullFromFunction(ctx);
+      case sqlite::Type::kFloat:
+      case sqlite::Type::kText:
+      case sqlite::Type::kBlob:
+        return sqlite::utils::SetError(
+            ctx,
+            "STACK_FROM_STACK_PROFILE_CALLSITE: callsite_id must be integer");
     }
 
-    if (value->AsLong() > std::numeric_limits<uint32_t>::max() ||
+    if (callsite_id_long > std::numeric_limits<uint32_t>::max() ||
+        callsite_id_long < 0 ||
         !storage->stack_profile_callsite_table()
              .FindById(tables::StackProfileCallsiteTable::Id(
-                 static_cast<uint32_t>(value->AsLong())))
+                 static_cast<uint32_t>(callsite_id_long)))
              .has_value()) {
-      return sqlite::utils::ToInvalidArgumentError(
-          "callsite_id", 0,
-          base::ErrStatus("callsite_id does not exist: %" PRId64,
-                          value->AsLong()));
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("STACK_FROM_STACK_PROFILE_CALLSITE: callsite_id "
+                               "does not exist: %" PRId64,
+                               callsite_id_long));
     }
 
-    uint32_t callsite_id = static_cast<uint32_t>(value->AsLong());
+    uint32_t callsite_id = static_cast<uint32_t>(callsite_id_long);
 
     bool annotate = false;
     if (argc == 2) {
-      value = sqlite::utils::ExtractArgument(argc, argv, "annotate", 1,
-                                             SqlValue::Type::kLong);
-      if (!value.ok()) {
-        return value.status();
+      switch (sqlite::value::Type(argv[1])) {
+        case sqlite::Type::kInteger:
+          // true = 1 and false = 0 in SQL
+          annotate = (sqlite::value::Int64(argv[1]) != 0);
+          break;
+        case sqlite::Type::kNull:
+          return sqlite::utils::ReturnNullFromFunction(ctx);
+        case sqlite::Type::kFloat:
+        case sqlite::Type::kText:
+        case sqlite::Type::kBlob:
+          return sqlite::utils::SetError(
+              ctx,
+              "STACK_FROM_STACK_PROFILE_CALLSITE: annotate must be integer");
       }
-      // true = 1 and false = 0 in SQL
-      annotate = (value->AsLong() != 0);
     }
 
     protozero::HeapBuffered<Stack> stack;
@@ -187,58 +169,54 @@ struct StackFromStackProfileCallsiteFunction : public LegacySqlFunction {
     } else {
       stack->add_entries()->set_callsite_id(callsite_id);
     }
-    return SetBytesOutputValue(stack.SerializeAsArray(), out, destructors);
+    return SetBytesResult(ctx, stack.SerializeAsArray());
   }
 };
 
 // STACK_FROM_STACK_PROFILE_FRAME(frame_id LONG)
 // Creates a stack with just the frame referenced by frame_id (reference to the
 // stack_profile_frame table)
-struct StackFromStackProfileFrameFunction : public LegacySqlFunction {
-  static constexpr char kFunctionName[] = "STACK_FROM_STACK_PROFILE_FRAME";
-  using Context = TraceStorage;
+struct StackFromStackProfileFrameFunction
+    : public sqlite::Function<StackFromStackProfileFrameFunction> {
+  static constexpr char kName[] = "STACK_FROM_STACK_PROFILE_FRAME";
+  static constexpr int kArgCount = 1;
 
-  static base::Status Run(TraceStorage* storage,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors) {
-    base::Status status = RunImpl(storage, argc, argv, out, destructors);
-    if (!status.ok()) {
-      return base::ErrStatus("%s: %s", kFunctionName, status.message().c_str());
-    }
-    return status;
-  }
+  using UserData = TraceStorage;
 
-  static base::Status RunImpl(TraceStorage* storage,
-                              size_t argc,
-                              sqlite3_value** argv,
-                              SqlValue& out,
-                              Destructors& destructors) {
-    base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
-        argc, argv, "frame_id", 0, SqlValue::kNull, SqlValue::kLong);
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    TraceStorage* storage = GetUserData(ctx);
+    PERFETTO_DCHECK(argc == 1);
 
-    if (!value.ok()) {
-      return value.status();
+    int64_t frame_id_long = 0;
+    switch (sqlite::value::Type(argv[0])) {
+      case sqlite::Type::kInteger:
+        frame_id_long = sqlite::value::Int64(argv[0]);
+        break;
+      case sqlite::Type::kNull:
+        return sqlite::utils::ReturnNullFromFunction(ctx);
+      case sqlite::Type::kFloat:
+      case sqlite::Type::kText:
+      case sqlite::Type::kBlob:
+        return sqlite::utils::SetError(
+            ctx, "STACK_FROM_STACK_PROFILE_FRAME: frame_id must be integer");
     }
 
-    if (value->is_null()) {
-      return base::OkStatus();
-    }
-
-    if (value->AsLong() > std::numeric_limits<uint32_t>::max() ||
+    if (frame_id_long > std::numeric_limits<uint32_t>::max() ||
+        frame_id_long < 0 ||
         !storage->stack_profile_frame_table()
              .FindById(tables::StackProfileFrameTable::Id(
-                 static_cast<uint32_t>(value->AsLong())))
+                 static_cast<uint32_t>(frame_id_long)))
              .has_value()) {
-      return base::ErrStatus("%s; frame_id does not exist: %" PRId64,
-                             kFunctionName, value->AsLong());
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("STACK_FROM_STACK_PROFILE_FRAME: frame_id does "
+                               "not exist: %" PRId64,
+                               frame_id_long));
     }
 
-    uint32_t frame_id = static_cast<uint32_t>(value->AsLong());
+    uint32_t frame_id = static_cast<uint32_t>(frame_id_long);
     protozero::HeapBuffered<Stack> stack;
     stack->add_entries()->set_frame_id(frame_id);
-    return SetBytesOutputValue(stack.SerializeAsArray(), out, destructors);
+    return SetBytesResult(ctx, stack.SerializeAsArray());
   }
 };
 
@@ -246,14 +224,10 @@ struct StackFromStackProfileFrameFunction : public LegacySqlFunction {
 
 base::Status RegisterStackFunctions(PerfettoSqlEngine* engine,
                                     TraceProcessorContext* context) {
-  RETURN_IF_ERROR(engine->RegisterStaticFunction<CatStacksFunction>(
-      CatStacksFunction::kFunctionName, -1, context->storage.get()));
-  RETURN_IF_ERROR(
-      engine->RegisterStaticFunction<StackFromStackProfileFrameFunction>(
-          StackFromStackProfileFrameFunction::kFunctionName, 1,
-          context->storage.get()));
-  return engine->RegisterStaticFunction<StackFromStackProfileCallsiteFunction>(
-      StackFromStackProfileCallsiteFunction::kFunctionName, -1,
+  RETURN_IF_ERROR(engine->RegisterFunction<CatStacksFunction>(nullptr));
+  RETURN_IF_ERROR(engine->RegisterFunction<StackFromStackProfileFrameFunction>(
+      context->storage.get()));
+  return engine->RegisterFunction<StackFromStackProfileCallsiteFunction>(
       context->storage.get());
 }
 
