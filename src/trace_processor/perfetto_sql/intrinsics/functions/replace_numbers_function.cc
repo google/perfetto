@@ -141,7 +141,7 @@ struct StripHexFunction : public LegacySqlFunction {
 
 base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
                                       TraceProcessorContext* context) {
-  return engine->RegisterStaticFunction<StripHexFunction>(
+  return engine->RegisterLegacyFunction<StripHexFunction>(
       StripHexFunction::kFunctionName, 2, context->storage.get());
 }
 

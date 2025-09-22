@@ -136,8 +136,8 @@ class LastNonNull : public sqlite::WindowFunction {
 };
 
 inline base::Status RegisterLastNonNullFunction(PerfettoSqlEngine& engine) {
-  return engine.RegisterSqliteWindowFunction<LastNonNull>("LAST_NON_NULL", 1,
-                                                          nullptr);
+  return engine.RegisterWindowFunction<LastNonNull>("LAST_NON_NULL", 1,
+                                                    nullptr);
 }
 
 }  // namespace perfetto::trace_processor

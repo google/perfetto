@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -48,6 +49,7 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
+#include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
@@ -704,7 +706,7 @@ const dataframe::Dataframe* PerfettoSqlEngine::GetDataframeOrNull(
   return state ? state->dataframe : nullptr;
 }
 
-base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
+base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
     bool replace,
     const FunctionPrototype& prototype,
     sql_argument::Type return_type,
@@ -1074,8 +1076,8 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
                     });
 
   if (!cf.returns.is_table) {
-    return RegisterRuntimeFunction(cf.replace, cf.prototype,
-                                   cf.returns.scalar_type, cf.sql);
+    return RegisterLegacyRuntimeFunction(cf.replace, cf.prototype,
+                                         cf.returns.scalar_type, cf.sql);
   }
 
   auto state = std::make_unique<RuntimeTableFunctionModule::State>(
