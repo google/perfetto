@@ -119,7 +119,7 @@ constexpr bool IsPowerOfTwo(size_t v) {
 // returns |std::nullopt| if the input is invalid.
 std::optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
   if (!config_value) {
-    static_assert(IsPowerOfTwo(kDefaultDataPagesPerRingBuffer), "");
+    static_assert(IsPowerOfTwo(kDefaultDataPagesPerRingBuffer));
     return std::make_optional(kDefaultDataPagesPerRingBuffer);
   }
 
@@ -254,8 +254,7 @@ PerfCounter WithEventModifiers(
   bool has_counting_scope = false;
 
   for (const auto& m : modifiers) {
-    using protos::gen::PerfEvents;
-    switch (static_cast<int>(m)) {
+    switch (static_cast<int>(m)) {  // cast to pacify -Wswitch-enum
       case PerfEvents::EVENT_MODIFIER_COUNT_USERSPACE:
         include_user = true;
         has_counting_scope = true;
