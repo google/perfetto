@@ -15742,6 +15742,7 @@ filegroup {
     srcs: [
         "src/trace_redaction/add_synth_threads_to_process_trees.cc",
         "src/trace_redaction/broadphase_packet_filter.cc",
+        "src/trace_redaction/collect_clocks.cc",
         "src/trace_redaction/collect_frame_cookies.cc",
         "src/trace_redaction/collect_system_info.cc",
         "src/trace_redaction/collect_timeline_events.cc",
@@ -15757,6 +15758,7 @@ filegroup {
         "src/trace_redaction/redact_ftrace_events.cc",
         "src/trace_redaction/redact_process_events.cc",
         "src/trace_redaction/redact_sched_events.cc",
+        "src/trace_redaction/redactor_clock_converter.cc",
         "src/trace_redaction/reduce_threads_in_process_trees.cc",
         "src/trace_redaction/scrub_process_stats.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
@@ -15770,6 +15772,7 @@ filegroup {
     name: "perfetto_src_trace_redaction_unittests",
     srcs: [
         "src/trace_redaction/broadphase_packet_filter_unittest.cc",
+        "src/trace_redaction/collect_clocks_unittest.cc",
         "src/trace_redaction/collect_frame_cookies_unittest.cc",
         "src/trace_redaction/collect_system_info_unittest.cc",
         "src/trace_redaction/collect_timeline_events_unittest.cc",
