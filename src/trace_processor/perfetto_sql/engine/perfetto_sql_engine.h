@@ -169,13 +169,22 @@ class PerfettoSqlEngine {
   //                  scoped to the lifetime of TraceProcessor.
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
+  // Arguments for RegisterFunction with custom function names.
+  struct RegisterFunctionArgs {
+    RegisterFunctionArgs(const char* _name = nullptr,
+                         bool _deterministic = true)
+        : name(_name), deterministic(_deterministic) {}
+    const char* name = nullptr;  // If nullptr, uses Function::kName
+    bool deterministic = true;
+  };
+
   template <typename Function>
   base::Status RegisterFunction(typename Function::UserData* ctx,
-                                bool deterministic = true);
+                                const RegisterFunctionArgs& args = {});
   template <typename Function>
   base::Status RegisterFunction(
       std::unique_ptr<typename Function::UserData> ctx,
-      bool deterministic = true);
+      const RegisterFunctionArgs& args = {});
 
   // Registers a trace processor C++ aggregate function to be runnable from SQL.
   //
@@ -258,49 +267,6 @@ class PerfettoSqlEngine {
 
   // Find dataframe registered with engine with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
-
-  // =========================================================================
-  // Legacy interfaces (deprecated, kept for backward compatibility)
-  // =========================================================================
-
-  // Registers a trace processor C++ function to be runnable from SQL.
-  //
-  // LEGACY: This function uses the old trace processor function interface.
-  // For new code, prefer RegisterFunction() which uses the direct SQLite API.
-  //
-  // The format of the function is given by the |SqlFunction|.
-  //
-  // |name|:          name of the function in SQL.
-  // |argc|:          number of arguments for this function. This can be -1 if
-  //                  the number of arguments is variable.
-  // |ctx|:           context object for the function (see
-  //                  LegacySqlFunction::Run);
-  //                  this object *must* outlive the function so should likely
-  //                  be either static or scoped to the lifetime of
-  //                  TraceProcessor.
-  // |deterministic|: whether this function has deterministic output given the
-  //                  same set of arguments.
-  template <typename Function = LegacySqlFunction>
-  base::Status RegisterLegacyFunction(const char* name,
-                                      int argc,
-                                      typename Function::Context* ctx,
-                                      bool deterministic = true);
-
-  // Registers a trace processor C++ function to be runnable from SQL.
-  //
-  // LEGACY: This function uses the old trace processor function interface.
-  // For new code, prefer RegisterFunction() which uses the direct SQLite API.
-  //
-  // This function is the same as the above except allows a unique_ptr to be
-  // passed for the context; this allows for SQLite to manage the lifetime of
-  // this pointer instead of the essentially static requirement of the context
-  // pointer above.
-  template <typename Function>
-  base::Status RegisterLegacyFunction(
-      const char* name,
-      int argc,
-      std::unique_ptr<typename Function::Context> ctx,
-      bool deterministic = true);
 
   // Registers a function with the prototype |prototype| which returns a value
   // of |return_type| and is implemented by executing the SQL statement |sql|.
@@ -518,43 +484,28 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }  // namespace perfetto_sql_internal
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterLegacyFunction(
-    const char* name,
-    int argc,
-    typename Function::Context* ctx,
-    bool deterministic) {
-  // Metric proto builder functions can be reregistered: don't double count when
-  // this happens.
-  if (!engine_->GetFunctionContext(name, argc)) {
-    static_function_count_++;
-  }
-
-  return RegisterFunctionAndAddToRegistry(
-      name, argc, perfetto_sql_internal::WrapSqlFunction<Function>, ctx,
-      nullptr, deterministic);
-}
-
-template <typename Function>
 base::Status PerfettoSqlEngine::RegisterFunction(
     typename Function::UserData* ctx,
-    bool deterministic) {
+    const RegisterFunctionArgs& args) {
   static_function_count_++;
-  return engine_->RegisterFunction(Function::kName, Function::kArgCount,
-                                   Function::Step, ctx, nullptr, deterministic);
+  const char* name = args.name ? args.name : Function::kName;
+  return engine_->RegisterFunction(name, Function::kArgCount, Function::Step,
+                                   ctx, nullptr, args.deterministic);
 }
 
 template <typename Function>
 base::Status PerfettoSqlEngine::RegisterFunction(
     std::unique_ptr<typename Function::UserData> ctx,
-    bool deterministic) {
+    const RegisterFunctionArgs& args) {
   static_function_count_++;
+  const char* name = args.name ? args.name : Function::kName;
   return engine_->RegisterFunction(
-      Function::kName, Function::kArgCount, Function::Step, ctx.release(),
+      name, Function::kArgCount, Function::Step, ctx.release(),
       [](void* ptr) {
         std::unique_ptr<typename Function::UserData>(
             static_cast<typename Function::UserData*>(ptr));
       },
-      deterministic);
+      args.deterministic);
 }
 
 template <typename Function>
@@ -577,21 +528,6 @@ base::Status PerfettoSqlEngine::RegisterWindowFunction(
   return engine_->RegisterWindowFunction(
       name, argc, Function::Step, Function::Inverse, Function::Value,
       Function::Final, ctx, nullptr, deterministic);
-}
-
-template <typename Function>
-base::Status PerfettoSqlEngine::RegisterLegacyFunction(
-    const char* name,
-    int argc,
-    std::unique_ptr<typename Function::Context> ctx,
-    bool deterministic) {
-  // Metric proto builder functions can be reregistered: don't double count when
-  // this happens.
-  if (!engine_->GetFunctionContext(name, argc)) {
-    static_function_count_++;
-  }
-  return RegisterFunctionWithSqlite<Function>(name, argc, std::move(ctx),
-                                              deterministic);
 }
 
 template <typename Function>
