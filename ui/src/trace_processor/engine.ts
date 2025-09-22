@@ -310,6 +310,19 @@ export abstract class EngineBase implements Engine, Disposable {
           res.resolve();
         }
         break;
+      case TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS: {
+        const registerResult = assertExists(
+          rpc.registerAdditionalDescriptorsResult,
+        );
+        const res = assertExists(this.pendingRegisterDescriptors);
+        if (exists(registerResult.error) && registerResult.error.length > 0) {
+          res.reject(registerResult.error);
+        } else {
+          res.resolve();
+        }
+        this.pendingRegisterDescriptors = undefined;
+        break;
+      } 
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
           rpc.traceSummaryResult,
@@ -622,6 +635,27 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
+  registerExtraDescriptors(base64: string): Promise<void> {
+    if (this.pendingRegisterDescriptors) {
+      return Promise.reject(new Error('Already registering descriptors'));
+    }
+
+    const result = defer<void>();
+
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS;
+
+    const decodedBytes = base64Decode(base64);
+
+    console.log('UI CHECK: Sending descriptors to backend...', decodedBytes);
+
+    rpc.registerAdditionalDescriptorArgs = decodedBytes;
+
+    this.pendingRegisterDescriptors = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
   analyzeStructuredQuery(
     structuredQueries: protos.PerfettoSqlStructuredQuery[],
   ): Promise<protos.AnalyzeStructuredQueryResult> {
@@ -730,6 +764,13 @@ export class EngineProxy implements Engine, Disposable {
       metadataId,
       format,
     );
+  }
+
+  async registerExtraDescriptors(base64: string): Promise<void> {
+    if (this.disposed) {
+      return Promise.reject(new Error('EngineProxy was disposed'));
+    }
+    return this.engine.registerExtraDescriptors(base64);
   }
 
   enableMetatrace(categories?: protos.MetatraceCategories): void {

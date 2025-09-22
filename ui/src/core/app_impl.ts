@@ -95,6 +95,8 @@ export class AppContext {
   // via is_internal_user.js
   extraSqlPackages: SqlPackage[] = [];
 
+  extraParsingDescriptors: string[] = [];
+
   // This is normally empty and is injected with extra google-internal macros
   // via is_internal_user.js
   extraMacros: Record<string, CommandInvocation[]>[] = [];
@@ -407,6 +409,14 @@ export class AppImpl implements App {
 
   get extraSqlPackages(): SqlPackage[] {
     return this.appCtx.extraSqlPackages;
+  }
+
+  get extraParsingDescriptors(): string[] {
+    return this.appCtx.extraParsingDescriptors;
+  }
+
+  set extraParsingDescriptors(value: string[]) {
+    this.appCtx.extraParsingDescriptors = value;
   }
 
   get extraMacros(): Record<string, CommandInvocation[]>[] {
