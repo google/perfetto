@@ -242,7 +242,7 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   const auto state = static_cast<uint8_t>(task_state_int);
 
   // Mapping for the different Etw states with their string description.
-  static const base::StringView kEtwStates[] = {
+  static const base::StringView etw_states[] = {
       "Initialized",     // 0x00
       "R",               // 0x01
       "Running",         // 0x02
@@ -253,10 +253,10 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
       "Deferred Ready",  // 0x07
   };
 
-  if (state >= std::size(kEtwStates)) {
+  if (state >= std::size(etw_states)) {
     return kNullStringId;
   }
-  return context_->storage->InternString(kEtwStates[state]);
+  return context_->storage->InternString(etw_states[state]);
 }
 
 }  // namespace trace_processor
