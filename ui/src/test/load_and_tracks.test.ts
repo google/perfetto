@@ -53,18 +53,15 @@ test('omnibox search', async () => {
 test('mark', async () => {
   await pth.searchSlice('doFrame');
   await pth.waitForPerfettoIdle();
+  await pth.resetFocus();
 
-  for (let i = 0; i < 4; i++) {
-    await page.keyboard.press('Enter');
-    await pth.waitForPerfettoIdle();
+  await page.keyboard.press('F');
+  await pth.waitForPerfettoIdle();
 
-    if (i == 2) {
-      await page.keyboard.press('Shift+M');
-    } else {
-      await page.keyboard.press('m');
-    }
-    await pth.waitForIdleAndScreenshot(`mark_${i}.png`);
-  }
+  await page.keyboard.press('M');
+  await pth.waitForPerfettoIdle();
+
+  await pth.waitForIdleAndScreenshot(`mark.png`);
 });
 
 test('track expand and collapse', async () => {
