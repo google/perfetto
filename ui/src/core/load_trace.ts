@@ -185,6 +185,17 @@ async function loadTraceIntoEngine(
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
   }
 
+  if (app.extraParsingDescriptors.length > 0) {
+    updateStatus(
+      app,
+      `Registering ${app.extraParsingDescriptors.length} extra descriptors...`,
+    );
+    for (const descriptorString of app.extraParsingDescriptors) {
+      // Await each call so they are registered sequentially
+      await engine.registerExtraDescriptors(descriptorString);
+    }
+  }
+
   // |traceStream| can be undefined in the case when we are using the external
   // HTTP+RPC endpoint and the trace processor instance has already loaded
   // a trace (because it was passed as a cmdline argument to

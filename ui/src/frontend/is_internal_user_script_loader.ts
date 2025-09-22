@@ -41,6 +41,8 @@ interface Globals {
   // internal_user script.
   readonly extraSqlPackages: SqlPackage[];
 
+  extraParsingDescriptors: string[]
+
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
@@ -70,6 +72,12 @@ function setupGlobalsProxy(app: AppImpl) {
     },
     get extraSqlPackages(): SqlPackage[] {
       return app.extraSqlPackages;
+    },
+    get extraParsingDescriptors(): string[] {
+      return app.extraParsingDescriptors;
+    },
+    set extraParsingDescriptors(value: string[]) {
+      app.extraParsingDescriptors = value;
     },
     get extraMacros(): Record<string, CommandInvocation[]>[] {
       return app.extraMacros;
