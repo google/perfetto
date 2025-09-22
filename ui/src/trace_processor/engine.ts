@@ -149,6 +149,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
+  private pendingRegisterDescriptors?: Deferred<void>;
   private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private pendingTraceSummary?: Deferred<protos.TraceSummaryResult>;
   private _numRequestsPending = 0;
@@ -323,7 +324,7 @@ export abstract class EngineBase implements Engine, Disposable {
         }
         this.pendingRegisterDescriptors = undefined;
         break;
-      } 
+      }
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
           rpc.traceSummaryResult,
