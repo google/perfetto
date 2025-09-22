@@ -116,7 +116,7 @@ struct Symbolize : public sqlite::Function<Symbolize> {
 
 base::Status RegisterSymbolizeFunction(PerfettoSqlEngine& engine,
                                        StringPool* pool) {
-  return engine.RegisterSqliteFunction<Symbolize>(
+  return engine.RegisterFunction<Symbolize>(
       std::make_unique<Symbolize::UserData>(
           Symbolize::UserData{&engine, pool}));
 }

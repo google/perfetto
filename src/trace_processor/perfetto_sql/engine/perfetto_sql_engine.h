@@ -47,7 +47,6 @@
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -160,38 +159,8 @@ class PerfettoSqlEngine {
 
   // Registers a trace processor C++ function to be runnable from SQL.
   //
-  // The format of the function is given by the |SqlFunction|.
-  //
-  // |name|:          name of the function in SQL.
-  // |argc|:          number of arguments for this function. This can be -1 if
-  //                  the number of arguments is variable.
-  // |ctx|:           context object for the function (see
-  //                  LegacySqlFunction::Run);
-  //                  this object *must* outlive the function so should likely
-  //                  be either static or scoped to the lifetime of
-  //                  TraceProcessor.
-  // |deterministic|: whether this function has deterministic output given the
-  //                  same set of arguments.
-  template <typename Function = LegacySqlFunction>
-  base::Status RegisterStaticFunction(const char* name,
-                                      int argc,
-                                      typename Function::Context* ctx,
-                                      bool deterministic = true);
-
-  // Registers a trace processor C++ function to be runnable from SQL.
-  //
-  // This function is the same as the above except allows a unique_ptr to be
-  // passed for the context; this allows for SQLite to manage the lifetime of
-  // this pointer instead of the essentially static requirement of the context
-  // pointer above.
-  template <typename Function>
-  base::Status RegisterStaticFunction(
-      const char* name,
-      int argc,
-      std::unique_ptr<typename Function::Context> ctx,
-      bool deterministic = true);
-
-  // Registers a trace processor C++ function to be runnable from SQL.
+  // Uses the direct SQLite function interface. This is the preferred method
+  // for registering new functions.
   //
   // The format of the function is given by the |sqlite::Function|.
   //
@@ -201,14 +170,17 @@ class PerfettoSqlEngine {
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
   template <typename Function>
-  base::Status RegisterSqliteFunction(typename Function::UserData* ctx,
-                                      bool deterministic = true);
+  base::Status RegisterFunction(typename Function::UserData* ctx,
+                                bool deterministic = true);
   template <typename Function>
-  base::Status RegisterSqliteFunction(
+  base::Status RegisterFunction(
       std::unique_ptr<typename Function::UserData> ctx,
       bool deterministic = true);
 
   // Registers a trace processor C++ aggregate function to be runnable from SQL.
+  //
+  // Uses the direct SQLite aggregate function interface. This is the preferred
+  // method for registering new aggregate functions.
   //
   // The format of the function is given by the |SqliteAggregateFunction|.
   //
@@ -218,10 +190,13 @@ class PerfettoSqlEngine {
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
   template <typename Function>
-  base::Status RegisterSqliteAggregateFunction(typename Function::UserData* ctx,
-                                               bool deterministic = true);
+  base::Status RegisterAggregateFunction(typename Function::UserData* ctx,
+                                         bool deterministic = true);
 
   // Registers a trace processor C++ window function to be runnable from SQL.
+  //
+  // Uses the direct SQLite window function interface. This is the preferred
+  // method for registering new window functions.
   //
   // The format of the function is given by the |SqliteWindowFunction|.
   //
@@ -234,17 +209,10 @@ class PerfettoSqlEngine {
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
   template <typename Function = sqlite::WindowFunction>
-  base::Status RegisterSqliteWindowFunction(const char* name,
-                                            int argc,
-                                            typename Function::Context* ctx,
-                                            bool deterministic = true);
-
-  // Registers a function with the prototype |prototype| which returns a value
-  // of |return_type| and is implemented by executing the SQL statement |sql|.
-  base::Status RegisterRuntimeFunction(bool replace,
-                                       const FunctionPrototype& prototype,
-                                       sql_argument::Type return_type,
-                                       SqlSource sql);
+  base::Status RegisterWindowFunction(const char* name,
+                                      int argc,
+                                      typename Function::Context* ctx,
+                                      bool deterministic = true);
 
   // Enables memoization for the given SQL function.
   base::Status EnableSqlFunctionMemoization(const std::string& name);
@@ -290,6 +258,59 @@ class PerfettoSqlEngine {
 
   // Find dataframe registered with engine with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
+
+  // =========================================================================
+  // Legacy interfaces (deprecated, kept for backward compatibility)
+  // =========================================================================
+
+  // Registers a trace processor C++ function to be runnable from SQL.
+  //
+  // LEGACY: This function uses the old trace processor function interface.
+  // For new code, prefer RegisterFunction() which uses the direct SQLite API.
+  //
+  // The format of the function is given by the |SqlFunction|.
+  //
+  // |name|:          name of the function in SQL.
+  // |argc|:          number of arguments for this function. This can be -1 if
+  //                  the number of arguments is variable.
+  // |ctx|:           context object for the function (see
+  //                  LegacySqlFunction::Run);
+  //                  this object *must* outlive the function so should likely
+  //                  be either static or scoped to the lifetime of
+  //                  TraceProcessor.
+  // |deterministic|: whether this function has deterministic output given the
+  //                  same set of arguments.
+  template <typename Function = LegacySqlFunction>
+  base::Status RegisterLegacyFunction(const char* name,
+                                      int argc,
+                                      typename Function::Context* ctx,
+                                      bool deterministic = true);
+
+  // Registers a trace processor C++ function to be runnable from SQL.
+  //
+  // LEGACY: This function uses the old trace processor function interface.
+  // For new code, prefer RegisterFunction() which uses the direct SQLite API.
+  //
+  // This function is the same as the above except allows a unique_ptr to be
+  // passed for the context; this allows for SQLite to manage the lifetime of
+  // this pointer instead of the essentially static requirement of the context
+  // pointer above.
+  template <typename Function>
+  base::Status RegisterLegacyFunction(
+      const char* name,
+      int argc,
+      std::unique_ptr<typename Function::Context> ctx,
+      bool deterministic = true);
+
+  // Registers a function with the prototype |prototype| which returns a value
+  // of |return_type| and is implemented by executing the SQL statement |sql|.
+  //
+  // LEGACY: This function uses SQL-based function definitions. For new code,
+  // prefer RegisterFunction() which uses C++ implementations.
+  base::Status RegisterLegacyRuntimeFunction(bool replace,
+                                             const FunctionPrototype& prototype,
+                                             sql_argument::Type return_type,
+                                             SqlSource sql);
 
  private:
   using UnfinalizedOrFinalizedStaticTable =
@@ -474,7 +495,7 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }  // namespace perfetto_sql_internal
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterStaticFunction(
+base::Status PerfettoSqlEngine::RegisterLegacyFunction(
     const char* name,
     int argc,
     typename Function::Context* ctx,
@@ -490,7 +511,7 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterSqliteFunction(
+base::Status PerfettoSqlEngine::RegisterFunction(
     typename Function::UserData* ctx,
     bool deterministic) {
   static_function_count_++;
@@ -499,7 +520,7 @@ base::Status PerfettoSqlEngine::RegisterSqliteFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterSqliteFunction(
+base::Status PerfettoSqlEngine::RegisterFunction(
     std::unique_ptr<typename Function::UserData> ctx,
     bool deterministic) {
   static_function_count_++;
@@ -513,7 +534,7 @@ base::Status PerfettoSqlEngine::RegisterSqliteFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterSqliteAggregateFunction(
+base::Status PerfettoSqlEngine::RegisterAggregateFunction(
     typename Function::UserData* ctx,
     bool deterministic) {
   static_aggregate_function_count_++;
@@ -523,7 +544,7 @@ base::Status PerfettoSqlEngine::RegisterSqliteAggregateFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterSqliteWindowFunction(
+base::Status PerfettoSqlEngine::RegisterWindowFunction(
     const char* name,
     int argc,
     typename Function::Context* ctx,
@@ -535,7 +556,7 @@ base::Status PerfettoSqlEngine::RegisterSqliteWindowFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterStaticFunction(
+base::Status PerfettoSqlEngine::RegisterLegacyFunction(
     const char* name,
     int argc,
     std::unique_ptr<typename Function::Context> ctx,
