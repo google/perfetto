@@ -244,13 +244,13 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   // Mapping for the different Etw states with their string description.
   static const base::StringView etw_states[] = {
       "Initialized",     // 0x00
-      "R",               // 0x01
+      "Ready",           // 0x01
       "Running",         // 0x02
-      "S",               // 0x03
-      "W",               // 0x04
-      "T",               // 0x05
-      "P",               // 0x06
-      "Deferred Ready",  // 0x07
+      "Standby",         // 0x03
+      "Terminated",      // 0x04
+      "Waiting",         // 0x05
+      "Transition",      // 0x06
+      "DeferredReady",   // 0x07
   };
 
   if (state >= std::size(etw_states)) {
