@@ -211,7 +211,7 @@ struct ProfileBuilder {
 
 base::Status PprofFunctions::Register(PerfettoSqlEngine& engine,
                                       TraceProcessorContext* context) {
-  return engine.RegisterSqliteAggregateFunction<ProfileBuilder>(context);
+  return engine.RegisterAggregateFunction<ProfileBuilder>(context);
 }
 
 }  // namespace perfetto::trace_processor

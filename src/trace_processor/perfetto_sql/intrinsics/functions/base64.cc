@@ -76,7 +76,7 @@ struct Base64Decode : public LegacySqlFunction {
 }  // namespace
 
 base::Status RegisterBase64Functions(PerfettoSqlEngine& engine) {
-  return engine.RegisterStaticFunction<Base64Decode>("base64_decode", 1,
+  return engine.RegisterLegacyFunction<Base64Decode>("base64_decode", 1,
                                                      nullptr, true);
 }
 

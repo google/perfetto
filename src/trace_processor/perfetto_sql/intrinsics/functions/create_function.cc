@@ -77,7 +77,7 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
     return base::ErrStatus("CREATE_FUNCTION: unknown return type %s",
                            return_type_str.c_str());
   }
-  return engine->RegisterRuntimeFunction(
+  return engine->RegisterLegacyRuntimeFunction(
       true /* replace */, prototype, *type,
       SqlSource::FromTraceProcessorImplementation(std::move(sql_defn_str)));
 }

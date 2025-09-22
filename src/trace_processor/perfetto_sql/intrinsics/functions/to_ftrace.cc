@@ -25,8 +25,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -80,7 +80,7 @@ class ArgsSerializer {
                  tables::ArgTable::ConstCursor*,
                  NullTermStringView event_name,
                  std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
-                 base::StringWriter*);
+                 base::FixedStringWriter*);
 
   void SerializeArgs();
 
@@ -155,7 +155,7 @@ class ArgsSerializer {
 
   uint32_t start_row_ = 0;
 
-  base::StringWriter* writer_ = nullptr;
+  base::FixedStringWriter* writer_ = nullptr;
 };
 
 ArgsSerializer::ArgsSerializer(
@@ -164,7 +164,7 @@ ArgsSerializer::ArgsSerializer(
     tables::ArgTable::ConstCursor* cursor,
     NullTermStringView event_name,
     std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
-    base::StringWriter* writer)
+    base::FixedStringWriter* writer)
     : storage_(context->storage.get()),
       context_(context),
       cursor_(cursor),
@@ -632,7 +632,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   const auto& raw = storage_->ftrace_event_table();
 
   char line[4096];
-  base::StringWriter writer(line, sizeof(line));
+  base::FixedStringWriter writer(line, sizeof(line));
 
   auto row = raw[raw_row];
   StringId event_name_id = row.name();
@@ -662,7 +662,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
 }
 
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
-                                         base::StringWriter* writer) {
+                                         base::FixedStringWriter* writer) {
   const auto& raw = storage_->ftrace_event_table();
   const auto& cpu_table = storage_->cpu_table();
 

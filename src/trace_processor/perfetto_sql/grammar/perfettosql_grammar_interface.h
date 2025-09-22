@@ -73,6 +73,14 @@ void OnPerfettoSqlCreateFunction(struct PerfettoSqlParserState*,
                                  struct PerfettoSqlFnReturnType* returns,
                                  struct PerfettoSqlToken* body_start,
                                  struct PerfettoSqlToken* body_end);
+void OnPerfettoSqlCreateDelegatingFunction(
+    struct PerfettoSqlParserState*,
+    int replace,
+    struct PerfettoSqlToken* name,
+    struct PerfettoSqlArgumentList* args,
+    struct PerfettoSqlFnReturnType* returns,
+    struct PerfettoSqlToken* target_function,
+    struct PerfettoSqlToken* stmt_end);
 void OnPerfettoSqlCreateTable(struct PerfettoSqlParserState*,
                               int replace,
                               struct PerfettoSqlToken* name,
