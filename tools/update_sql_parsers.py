@@ -70,6 +70,7 @@ KEYWORD_END_REPLACE = '''
   { "MODULE",           "TK_MODULE",       ALWAYS,           1      },
   { "RETURNS",          "TK_RETURNS",      ALWAYS,           1      },
   { "FUNCTION",         "TK_FUNCTION",     ALWAYS,           1      },
+  { "DELEGATES",        "TK_DELEGATES",    ALWAYS,           1      },
 };'''
 
 
