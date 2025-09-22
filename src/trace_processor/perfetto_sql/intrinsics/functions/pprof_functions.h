@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PPROF_FUNCTIONS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PPROF_FUNCTIONS_H_
 
-#include <sqlite3.h>
-
 #include "perfetto/base/status.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 

@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
 
-#include <sqlite3.h>
-#include <stdio.h>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -43,9 +41,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
 #include "perfetto/public/compiler.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/export_json.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"

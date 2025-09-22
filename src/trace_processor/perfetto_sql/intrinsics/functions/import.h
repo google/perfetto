@@ -17,23 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_IMPORT_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_IMPORT_H_
 
-#include <sqlite3.h>
-#include <string>
-#include <unordered_map>
-
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/sql_modules.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 struct Import : public sqlite::Function<Import> {
   static constexpr char kName[] = "import";
@@ -43,7 +33,6 @@ struct Import : public sqlite::Function<Import> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_IMPORT_H_
