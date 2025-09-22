@@ -195,18 +195,20 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
       });
 
   std::vector<TrackId> follower_track_ids;
-  for (auto it = perf_defaults->followers(); it; ++it) {
-    FollowerEvent::Decoder follower(*it);
-    StringId follower_name_id = InternCounterName(follower, context_);
-    base::StringView follower_name =
-        context_->storage->GetString(follower_name_id);
-    follower_track_ids.push_back(context_->track_tracker->InternTrack(
-        tracks::kPerfCpuCounterBlueprint,
-        tracks::Dimensions(cpu, session_id.value, follower_name),
-        tracks::DynamicName(follower_name_id),
-        [this](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(is_timebase_id_, Variadic::Boolean(false));
-        }));
+  if (perf_defaults.has_value()) {
+    for (auto it = perf_defaults->followers(); it; ++it) {
+      FollowerEvent::Decoder follower(*it);
+      StringId follower_name_id = InternCounterName(follower, context_);
+      base::StringView follower_name =
+          context_->storage->GetString(follower_name_id);
+      follower_track_ids.push_back(context_->track_tracker->InternTrack(
+          tracks::kPerfCpuCounterBlueprint,
+          tracks::Dimensions(cpu, session_id.value, follower_name),
+          tracks::DynamicName(follower_name_id),
+          [this](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(is_timebase_id_, Variadic::Boolean(false));
+          }));
+    }
   }
 
   seq_state->per_cpu.emplace(
