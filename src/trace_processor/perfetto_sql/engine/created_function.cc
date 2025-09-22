@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -171,22 +172,21 @@ struct StoredSqlValue {
   }
 
   SqlValue AsSqlValue() {
-    if (std::holds_alternative<std::nullptr_t>(data)) {
-      return {};
-    }
-    if (std::holds_alternative<int64_t>(data)) {
-      return SqlValue::Long(std::get<int64_t>(data));
-    }
-    if (std::holds_alternative<double>(data)) {
-      return SqlValue::Double(std::get<double>(data));
-    }
-    if (std::holds_alternative<OwnedString>(data)) {
-      const auto& str_ptr = std::get<OwnedString>(data);
-      return SqlValue::String(str_ptr->c_str());
-    }
-    if (std::holds_alternative<OwnedBytes>(data)) {
-      const auto& bytes_ptr = std::get<OwnedBytes>(data);
-      return SqlValue::Bytes(bytes_ptr->data(), bytes_ptr->size());
+    switch (data.index()) {
+      case base::variant_index<Data, std::nullptr_t>():
+        return {};
+      case base::variant_index<Data, int64_t>():
+        return SqlValue::Long(base::unchecked_get<int64_t>(data));
+      case base::variant_index<Data, double>():
+        return SqlValue::Double(base::unchecked_get<double>(data));
+      case base::variant_index<Data, OwnedString>(): {
+        const auto& str_ptr = base::unchecked_get<OwnedString>(data);
+        return SqlValue::String(str_ptr->c_str());
+      }
+      case base::variant_index<Data, OwnedBytes>(): {
+        const auto& bytes_ptr = base::unchecked_get<OwnedBytes>(data);
+        return SqlValue::Bytes(bytes_ptr->data(), bytes_ptr->size());
+      }
     }
     // GCC doesn't realize that the switch is exhaustive.
     PERFETTO_CHECK(false);
