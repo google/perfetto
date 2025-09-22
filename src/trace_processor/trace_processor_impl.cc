@@ -1114,6 +1114,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_view_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_windowmanager_table());
   AddUnfinalizedStaticTable(
+      tables, storage->mutable_windowmanager_windowcontainer_table());
+  AddUnfinalizedStaticTable(
       tables, storage->mutable_window_manager_shell_transition_protos_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_window_manager_shell_transitions_table());
