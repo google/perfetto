@@ -71,16 +71,22 @@ class FrameTimelineEventParser {
   base::FlatHashMap<int64_t, std::pair<UniquePid, TrackType>> cookie_map_;
 
   std::array<StringId, 6> present_type_ids_;
+  std::array<StringId, 6> present_type_experimental_ids_;
   std::array<StringId, 4> prediction_type_ids_;
   std::array<StringId, 4> jank_severity_type_ids_;
 
   const StringId surface_frame_token_id_;
   const StringId display_frame_token_id_;
+  const StringId present_delay_millis_id_;
+  const StringId vsync_resynced_jitter_millis_id_;
   const StringId present_type_id_;
+  const StringId present_type_experimental_id_;
   const StringId on_time_finish_id_;
   const StringId gpu_composition_id_;
   const StringId jank_type_id_;
+  const StringId jank_type_experimental_id_;
   const StringId jank_severity_type_id_;
+  const StringId jank_severity_score_id_;
   const StringId layer_name_id_;
   const StringId prediction_type_id_;
   const StringId jank_tag_id_;
@@ -92,6 +98,7 @@ class FrameTimelineEventParser {
   const StringId jank_tag_dropped_id_;
   const StringId jank_tag_buffer_stuffing_id_;
   const StringId jank_tag_sf_stuffing_id_;
+  const StringId jank_tag_none_animating_id_;
 
   // upid -> set of tokens map. The expected timeline is the same for a given
   // token no matter how many times its seen. We can safely ignore duplicates
