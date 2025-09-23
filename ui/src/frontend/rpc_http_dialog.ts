@@ -22,7 +22,6 @@ import {Button} from '../widgets/button';
 import {Callout} from '../widgets/callout';
 import {Card, CardStack} from '../widgets/card';
 import {Intent} from '../widgets/common';
-import {EmptyState} from '../widgets/empty_state';
 import {closeModal, showModal} from '../widgets/modal';
 import {Stack, StackAuto} from '../widgets/stack';
 import {classNames} from '../base/classnames';
@@ -360,139 +359,128 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             return aId - bId;
           });
 
-          if (processorsWithTraces.length > 0) {
-            const activeTabCount = sortedProcessors.filter(
-              (tp) => tp.isAttached ?? false,
-            ).length;
+          const activeTabCount = sortedProcessors.filter(
+            (tp) => tp.isAttached ?? false,
+          ).length;
 
-            if (activeTabCount > 0) {
-              elements.push(
+          if (activeTabCount > 0) {
+            elements.push(
+              m(
+                Callout,
+                {
+                  intent: Intent.Warning,
+                  icon: 'warning',
+                },
+                'Each loaded trace can be opened in at most one tab at a time. If you want to open a trace that is already open in another tab, please close the old tab first and refresh.',
+              ),
+            );
+          }
+
+          // numbered list semantics for rows
+          const rows = sortedProcessors.map((tp, index) => {
+            const status = tp;
+            const hasActiveTab = status.isAttached ?? false;
+            const id = status.instanceId ?? null;
+            const isSelected = id !== null && selectedInstanceId === id;
+
+            const classes = classNames(
+              'pf-rpc-http-dialog__row',
+              isSelected && 'pf-rpc-http-dialog__row--selected',
+              hasActiveTab && 'pf-rpc-http-dialog__row--disabled',
+            );
+
+            return m(
+              Card,
+              {
+                key: `row-${id ?? `default-${index}`}`,
+                role: 'option',
+                tabindex: hasActiveTab ? -1 : 0,
+                className: classes,
+                interactive: !hasActiveTab,
+                onclick: () => {
+                  // do not allow selecting rows that already have an active tab
+                  if (hasActiveTab) return;
+                  selectedInstanceId = id ?? null;
+                },
+                onkeypress: (e: KeyboardEvent) => {
+                  if (hasActiveTab) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectedInstanceId = id ?? null;
+                  }
+                },
+              },
+              m(
+                Stack,
+                {orientation: 'horizontal', spacing: 'small'},
+                // left side: text grows to fill available space
                 m(
-                  Callout,
-                  {
-                    intent: Intent.Warning,
-                    icon: 'warning',
-                  },
-                  'Each loaded trace can be opened in at most one tab at a time. If you want to open a trace that is already open in another tab, please close the old tab first and refresh.',
+                  StackAuto,
+                  m(
+                    'strong',
+                    `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
+                  ),
                 ),
-              );
-            }
+              ),
+              // right side: fixed button
+              m(Button, {
+                icon: 'close',
+                title: 'Close this trace processor instance',
+                compact: true,
+                onclick: async (e: MouseEvent) => {
+                  e.stopPropagation();
+                  if (id === null) return;
+                  await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
+                    method: 'POST',
+                    body: String(id),
+                  });
+                  traceProcessors = traceProcessors.filter(
+                    (p) => p.instanceId !== id,
+                  );
+                  m.redraw();
+                },
+              }),
+            );
+          });
 
-            // numbered list semantics for rows
-            const rows = sortedProcessors.map((tp, index) => {
-              const status = tp;
-              const hasActiveTab = status.isAttached ?? false;
-              const id = status.instanceId ?? null;
-              const isSelected = id !== null && selectedInstanceId === id;
+          const newInstanceSelected = selectedInstanceId === null;
 
-              const classes = classNames(
-                'pf-rpc-http-dialog__row',
-                isSelected && 'pf-rpc-http-dialog__row--selected',
-                hasActiveTab && 'pf-rpc-http-dialog__row--disabled',
-              );
+          const newClasses = [
+            'pf-rpc-http-dialog__row',
+            newInstanceSelected ? 'pf-rpc-http-dialog__row--selected' : '',
+          ].join(' ');
 
-              return m(
+          elements.push(
+            m(CardStack, [
+              ...rows,
+              m(
                 Card,
                 {
-                  key: `row-${id ?? `default-${index}`}`,
+                  key: 'new-instance-row',
                   role: 'option',
-                  tabindex: hasActiveTab ? -1 : 0,
-                  className: classes,
-                  interactive: !hasActiveTab,
+                  tabindex: 0,
+                  className: newClasses,
+                  interactive: true,
                   onclick: () => {
-                    // do not allow selecting rows that already have an active tab
-                    if (hasActiveTab) return;
-                    selectedInstanceId = id ?? null;
+                    selectedInstanceId = null;
+                    m.redraw(); // force UI update
                   },
                   onkeypress: (e: KeyboardEvent) => {
-                    if (hasActiveTab) return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      selectedInstanceId = id ?? null;
+                      selectedInstanceId = null;
+                      m.redraw(); // force UI update
                     }
                   },
                 },
                 m(
                   Stack,
-                  {orientation: 'horizontal', spacing: 'small'},
-                  // left side: text grows to fill available space
-                  m(
-                    StackAuto,
-                    m(
-                      'strong',
-                      `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
-                    ),
-                  ),
+                  {orientation: 'horizontal'},
+                  m(StackAuto, m('strong', 'New instance …')),
                 ),
-                // right side: fixed button
-                m(Button, {
-                  icon: 'close',
-                  title: 'Close this trace processor instance',
-                  compact: true,
-                  onclick: async (e: MouseEvent) => {
-                    e.stopPropagation();
-                    if (id === null) return;
-                    await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
-                      method: 'POST',
-                      body: String(id),
-                    });
-                    traceProcessors = traceProcessors.filter(
-                      (p) => p.instanceId !== id,
-                    );
-                    m.redraw();
-                  },
-                }),
-              );
-            });
-
-            const newInstanceSelected = selectedInstanceId === null;
-
-            const newClasses = [
-              'pf-rpc-http-dialog__row',
-              newInstanceSelected ? 'pf-rpc-http-dialog__row--selected' : '',
-            ].join(' ');
-
-            elements.push(
-              m(CardStack, [
-                ...rows,
-                m(
-                  Card,
-                  {
-                    key: 'new-instance-row',
-                    role: 'option',
-                    tabindex: 0,
-                    className: newClasses,
-                    interactive: true,
-                    onclick: () => {
-                      selectedInstanceId = null;
-                      m.redraw(); // force UI update
-                    },
-                    onkeypress: (e: KeyboardEvent) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        selectedInstanceId = null;
-                        m.redraw(); // force UI update
-                      }
-                    },
-                  },
-                  m(
-                    Stack,
-                    {orientation: 'horizontal'},
-                    m(StackAuto, m('strong', 'New instance …')),
-                  ),
-                ),
-              ]),
-            );
-          } else {
-            elements.push(
-              m(EmptyState, {
-                title: `There are no current active sessions on ${HttpRpcEngine.hostAndPort}.`,
-              }),
-            );
-
-            // ensure default selection is "New instance" if nothing exists
-            selectedInstanceId = null;
-          }
+              ),
+            ]),
+          );
 
           return elements;
         },
