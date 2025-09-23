@@ -153,7 +153,7 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
-      forceFullSort: FORCE_FULL_SORT_FLAG.get(),
+      extraParsingDescriptorsBase64: app.extraParsingDescriptors,
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
@@ -183,17 +183,6 @@ async function loadTraceIntoEngine(
     traceStream = new TraceMultipleFilesStream(traceSource.files);
   } else {
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
-  }
-
-  if (app.extraParsingDescriptors.length > 0) {
-    updateStatus(
-      app,
-      `Registering ${app.extraParsingDescriptors.length} extra descriptors...`,
-    );
-    for (const descriptorString of app.extraParsingDescriptors) {
-      // Await each call so they are registered sequentially
-      await engine.registerExtraDescriptors(descriptorString);
-    }
   }
 
   // |traceStream| can be undefined in the case when we are using the external
