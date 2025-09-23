@@ -401,13 +401,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 if (hasActiveTab) return;
                 selectedInstanceId = id ?? null;
               },
-              onkeypress: (e: KeyboardEvent) => {
-                if (hasActiveTab) return;
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  selectedInstanceId = id ?? null;
-                }
-              },
             },
             m(
               Stack,
@@ -463,13 +456,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 onclick: () => {
                   selectedInstanceId = null;
                   m.redraw(); // force UI update
-                },
-                onkeypress: (e: KeyboardEvent) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    selectedInstanceId = null;
-                    m.redraw(); // force UI update
-                  }
                 },
               },
               m(
