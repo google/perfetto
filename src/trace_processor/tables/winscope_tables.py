@@ -802,6 +802,10 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
             CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE)),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
+        C(
+            'container_type',
+            CppString(),
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager_windowcontainer'),
     tabledoc=TableDoc(
@@ -826,6 +830,8 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
                 "The window container visibility",
             'window_rect_id':
                 "The rect corresponding to this window container",
+            'container_type':
+                "The window container type e.g. DisplayContent, TaskFragment",
         }))
 
 PROTOLOG_TABLE = Table(
