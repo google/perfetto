@@ -35,7 +35,7 @@ export class HttpRpcEngine extends EngineBase {
   private disposed = false;
   private queue: Blob[] = [];
   private isProcessingQueue = false;
-  private trace_processor_id = 0;
+  private traceProcessorId = 0;
   private isWaitingForid = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
@@ -44,20 +44,20 @@ export class HttpRpcEngine extends EngineBase {
   constructor(id: string, traceProcessorId?: number) {
     super();
     this.id = id;
-    this.trace_processor_id = traceProcessorId ?? 0;
+    this.traceProcessorId = traceProcessorId ?? 0;
   }
 
   private connect() {
     if (this.websocket !== undefined || this.disposed) return;
 
     let wsUrl: string;
-    if (this.trace_processor_id === 0) {
+    if (this.traceProcessorId === 0) {
       // This is a new session. Ask the server for a new TP instance.
       wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/new`;
       this.isWaitingForid = true;
     } else {
       // We have an existing instance id, connect to that specific instance.
-      wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.trace_processor_id}`;
+      wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket/${this.traceProcessorId}`;
       this.isWaitingForid = false;
     }
 
@@ -131,7 +131,7 @@ export class HttpRpcEngine extends EngineBase {
         ) {
           this.fail(`Initial message missing instance ID: ${rpc}`);
         } else {
-          this.trace_processor_id = rpc.status?.instanceId ?? 0;
+          this.traceProcessorId = rpc.status?.instanceId ?? 0;
           this.isWaitingForid = false;
           this.onWebsocketConnected();
         }
