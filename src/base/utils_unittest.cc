@@ -331,7 +331,7 @@ TEST(UtilsTest, GetFileSize) {
   TempFile file = TempFile::Create();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
-  ASSERT_EQ(static_cast<int>(payload.size()), 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
   WriteAll(*file, payload.data(), payload.size());
   FlushFile(*file);
 
