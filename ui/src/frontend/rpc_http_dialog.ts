@@ -386,9 +386,9 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               const isSelected = id !== null && selectedInstanceId === id;
 
               const classes = classNames(
-                'pf-row',
-                isSelected && 'pf-row--selected',
-                hasActiveTab && 'pf-row--disabled',
+                'pf-rpc-http-dialog__row',
+                isSelected && 'pf-rpc-http-dialog__row--selected',
+                hasActiveTab && 'pf-rpc-http-dialog__row--disabled',
               );
 
               return m(
@@ -448,8 +448,8 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             const newInstanceSelected = selectedInstanceId === null;
 
             const newClasses = [
-              'pf-row',
-              newInstanceSelected ? 'pf-row--selected' : '',
+              'pf-rpc-http-dialog__row',
+              newInstanceSelected ? 'pf-rpc-http-dialog__row--selected' : '',
             ].join(' ');
 
             elements.push(

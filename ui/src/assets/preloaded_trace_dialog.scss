@@ -1,5 +1,5 @@
 /* Row base styles (replicates baseStyle object) */
-.pf-row {
+.pf-rpc-http-dialog__row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -13,13 +13,13 @@
 }
 
 /* Disabled (hasActiveTab) */
-.pf-row--disabled {
+.pf-rpc-http-dialog__row--disabled {
   cursor: not-allowed;
   color: var(--pf-color-text-muted);
 }
 
 /* Selected row border and background */
-.pf-row--selected {
+.pf-rpc-http-dialog__row--selected {
   border: 2px solid var(--pf-color-primary);
   background: var(--pf-color-track-summary-collapsed);
 }
