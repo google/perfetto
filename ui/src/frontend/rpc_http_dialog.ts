@@ -315,205 +315,200 @@ enum PreloadedDialogResult {
 
 async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
   return new Promise<PreloadedDialogResult>(async (resolve) => {
-    try {
-      // Fetch actual trace processor data for the comprehensive modal
-      const httpRpcState = await HttpRpcEngine.checkConnection();
+    // Fetch actual trace processor data for the comprehensive modal
+    const httpRpcState = await HttpRpcEngine.checkConnection();
 
-      let traceProcessors: Array<protos.IStatusResult> = [];
-      if (httpRpcState.connected && httpRpcState.status) {
-        traceProcessors = httpRpcState.status.instances ?? [];
-      }
+    let traceProcessors: Array<protos.IStatusResult> = [];
+    if (httpRpcState.connected && httpRpcState.status) {
+      traceProcessors = httpRpcState.status.instances ?? [];
+    }
 
-      // UI selection state: null means "New instance" (or nothing chosen).
-      // If set to a number, it refers to an existing instanceId.
-      let selectedInstanceId: number | null = null;
+    // UI selection state: null means "New instance" (or nothing chosen).
+    // If set to a number, it refers to an existing instanceId.
+    let selectedInstanceId: number | null = null;
 
-      showModal({
-        title: 'Use trace processor native acceleration?',
-        content: () => {
-          const elements: m.Child[] = [];
+    showModal({
+      title: 'Use trace processor native acceleration?',
+      content: () => {
+        const elements: m.Child[] = [];
 
-          elements.push(
-            m(
-              'p',
-              `Current active sessions on ${HttpRpcEngine.hostAndPort} (select one or pick "New instance" below if you want to open another trace):`,
-            ),
-          );
+        elements.push(
+          m(
+            'p',
+            `Current active sessions on ${HttpRpcEngine.hostAndPort} (select one or pick "New instance" below if you want to open another trace):`,
+          ),
+        );
 
-          // Filter to only show trace processors that have a loaded trace
-          const processorsWithTraces = traceProcessors.filter(
-            (tp) => (tp.loadedTraceName ?? '') !== '',
-          );
+        // Filter to only show trace processors that have a loaded trace
+        const processorsWithTraces = traceProcessors.filter(
+          (tp) => (tp.loadedTraceName ?? '') !== '',
+        );
 
-          // Sort processors: those without active tabs first, then by instance ID.
-          const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
-            const aHasTab = a.isAttached ?? false;
-            const bHasTab = b.isAttached ?? false;
+        // Sort processors: those without active tabs first, then by instance ID.
+        const sortedProcessors = [...processorsWithTraces].sort((a, b) => {
+          const aHasTab = a.isAttached ?? false;
+          const bHasTab = b.isAttached ?? false;
 
-            if (aHasTab !== bHasTab) {
-              return aHasTab ? 1 : -1;
-            }
-
-            const aId = a.instanceId ?? 0;
-            const bId = b.instanceId ?? 0;
-            return aId - bId;
-          });
-
-          const activeTabCount = sortedProcessors.filter(
-            (tp) => tp.isAttached ?? false,
-          ).length;
-
-          if (activeTabCount > 0) {
-            elements.push(
-              m(
-                Callout,
-                {
-                  intent: Intent.Warning,
-                  icon: 'warning',
-                },
-                'Each loaded trace can be opened in at most one tab at a time. If you want to open a trace that is already open in another tab, please close the old tab first and refresh.',
-              ),
-            );
+          if (aHasTab !== bHasTab) {
+            return aHasTab ? 1 : -1;
           }
 
-          // numbered list semantics for rows
-          const rows = sortedProcessors.map((tp, index) => {
-            const status = tp;
-            const hasActiveTab = status.isAttached ?? false;
-            const id = status.instanceId ?? null;
-            const isSelected = id !== null && selectedInstanceId === id;
+          const aId = a.instanceId ?? 0;
+          const bId = b.instanceId ?? 0;
+          return aId - bId;
+        });
 
-            const classes = classNames(
-              'pf-rpc-http-dialog__row',
-              isSelected && 'pf-rpc-http-dialog__row--selected',
-              hasActiveTab && 'pf-rpc-http-dialog__row--disabled',
-            );
+        const activeTabCount = sortedProcessors.filter(
+          (tp) => tp.isAttached ?? false,
+        ).length;
 
-            return m(
+        if (activeTabCount > 0) {
+          elements.push(
+            m(
+              Callout,
+              {
+                intent: Intent.Warning,
+                icon: 'warning',
+              },
+              'Each loaded trace can be opened in at most one tab at a time. If you want to open a trace that is already open in another tab, please close the old tab first and refresh.',
+            ),
+          );
+        }
+
+        // numbered list semantics for rows
+        const rows = sortedProcessors.map((tp, index) => {
+          const status = tp;
+          const hasActiveTab = status.isAttached ?? false;
+          const id = status.instanceId ?? null;
+          const isSelected = id !== null && selectedInstanceId === id;
+
+          const classes = classNames(
+            'pf-rpc-http-dialog__row',
+            isSelected && 'pf-rpc-http-dialog__row--selected',
+            hasActiveTab && 'pf-rpc-http-dialog__row--disabled',
+          );
+
+          return m(
+            Card,
+            {
+              key: `row-${id ?? `default-${index}`}`,
+              role: 'option',
+              tabindex: hasActiveTab ? -1 : 0,
+              className: classes,
+              interactive: !hasActiveTab,
+              onclick: () => {
+                // do not allow selecting rows that already have an active tab
+                if (hasActiveTab) return;
+                selectedInstanceId = id ?? null;
+              },
+              onkeypress: (e: KeyboardEvent) => {
+                if (hasActiveTab) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectedInstanceId = id ?? null;
+                }
+              },
+            },
+            m(
+              Stack,
+              {orientation: 'horizontal', spacing: 'small'},
+              // left side: text grows to fill available space
+              m(
+                StackAuto,
+                m(
+                  'strong',
+                  `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
+                ),
+              ),
+            ),
+            // right side: fixed button
+            m(Button, {
+              icon: 'close',
+              title: 'Close this trace processor instance',
+              compact: true,
+              onclick: async (e: MouseEvent) => {
+                e.stopPropagation();
+                if (id === null) return;
+                await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
+                  method: 'POST',
+                  body: String(id),
+                });
+                traceProcessors = traceProcessors.filter(
+                  (p) => p.instanceId !== id,
+                );
+                m.redraw();
+              },
+            }),
+          );
+        });
+
+        const newInstanceSelected = selectedInstanceId === null;
+
+        const newClasses = [
+          'pf-rpc-http-dialog__row',
+          newInstanceSelected ? 'pf-rpc-http-dialog__row--selected' : '',
+        ].join(' ');
+
+        elements.push(
+          m(CardStack, [
+            ...rows,
+            m(
               Card,
               {
-                key: `row-${id ?? `default-${index}`}`,
+                key: 'new-instance-row',
                 role: 'option',
-                tabindex: hasActiveTab ? -1 : 0,
-                className: classes,
-                interactive: !hasActiveTab,
+                tabindex: 0,
+                className: newClasses,
+                interactive: true,
                 onclick: () => {
-                  // do not allow selecting rows that already have an active tab
-                  if (hasActiveTab) return;
-                  selectedInstanceId = id ?? null;
+                  selectedInstanceId = null;
+                  m.redraw(); // force UI update
                 },
                 onkeypress: (e: KeyboardEvent) => {
-                  if (hasActiveTab) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    selectedInstanceId = id ?? null;
+                    selectedInstanceId = null;
+                    m.redraw(); // force UI update
                   }
                 },
               },
               m(
                 Stack,
-                {orientation: 'horizontal', spacing: 'small'},
-                // left side: text grows to fill available space
-                m(
-                  StackAuto,
-                  m(
-                    'strong',
-                    `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
-                  ),
-                ),
+                {orientation: 'horizontal'},
+                m(StackAuto, m('strong', 'New instance …')),
               ),
-              // right side: fixed button
-              m(Button, {
-                icon: 'close',
-                title: 'Close this trace processor instance',
-                compact: true,
-                onclick: async (e: MouseEvent) => {
-                  e.stopPropagation();
-                  if (id === null) return;
-                  await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
-                    method: 'POST',
-                    body: String(id),
-                  });
-                  traceProcessors = traceProcessors.filter(
-                    (p) => p.instanceId !== id,
-                  );
-                  m.redraw();
-                },
-              }),
-            );
-          });
+            ),
+          ]),
+        );
 
-          const newInstanceSelected = selectedInstanceId === null;
+        return elements;
+      },
+      buttons: [
+        {
+          text: 'Yes, Attach to external RPC',
+          primary: true,
+          action: () => {
+            if (selectedInstanceId !== null) {
+              AppImpl.instance.httpRpc.selectedTraceProcessorId =
+                selectedInstanceId;
+              closeModal();
+              resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+              return;
+            }
 
-          const newClasses = [
-            'pf-rpc-http-dialog__row',
-            newInstanceSelected ? 'pf-rpc-http-dialog__row--selected' : '',
-          ].join(' ');
-
-          elements.push(
-            m(CardStack, [
-              ...rows,
-              m(
-                Card,
-                {
-                  key: 'new-instance-row',
-                  role: 'option',
-                  tabindex: 0,
-                  className: newClasses,
-                  interactive: true,
-                  onclick: () => {
-                    selectedInstanceId = null;
-                    m.redraw(); // force UI update
-                  },
-                  onkeypress: (e: KeyboardEvent) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      selectedInstanceId = null;
-                      m.redraw(); // force UI update
-                    }
-                  },
-                },
-                m(
-                  Stack,
-                  {orientation: 'horizontal'},
-                  m(StackAuto, m('strong', 'New instance …')),
-                ),
-              ),
-            ]),
-          );
-
-          return elements;
+            closeModal();
+            resolve(PreloadedDialogResult.UseRpc);
+          },
         },
-        buttons: [
-          {
-            text: 'Yes, Attach to external RPC',
-            primary: true,
-            action: () => {
-              if (selectedInstanceId !== null) {
-                AppImpl.instance.httpRpc.selectedTraceProcessorId =
-                  selectedInstanceId;
-                closeModal();
-                resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
-                return;
-              }
-
-              closeModal();
-              resolve(PreloadedDialogResult.UseRpc);
-            },
+        {
+          text: 'Use built-in WASM',
+          action: () => {
+            closeModal();
+            resolve(PreloadedDialogResult.UseWasm);
           },
-          {
-            text: 'Use built-in WASM',
-            action: () => {
-              closeModal();
-              resolve(PreloadedDialogResult.UseWasm);
-            },
-          },
-        ],
-      });
-    } catch (error) {
-      console.error('Error showing trace processor selection modal:', error);
-      resolve(PreloadedDialogResult.UseWasm);
-    }
+        },
+      ],
+    });
   });
 }
 
