@@ -68,4 +68,26 @@ base::StatusOr<std::string> TraceRedactionIntegrationFixure::ReadRawTrace(
   return base::ErrStatus("Failed to read %s", path.c_str());
 }
 
+base::Status TraceRedactionIntegrationFixure::LoadTrace(
+    std::string trace_path,
+    trace_processor::TraceProcessor* trace_processor) const {
+  auto raw_trace = ReadRawTrace(trace_path);
+  if (!raw_trace.ok()) {
+    return raw_trace.status();
+  }
+
+  auto read_buffer = std::make_unique<uint8_t[]>(raw_trace->size());
+  memcpy(read_buffer.get(), raw_trace->data(), raw_trace->size());
+
+  RETURN_IF_ERROR(
+      trace_processor->Parse(std::move(read_buffer), raw_trace->size()));
+  RETURN_IF_ERROR(trace_processor->NotifyEndOfFile());
+
+  return base::OkStatus();
+}
+
+std::string TraceRedactionIntegrationFixure::GetSourceTrace() {
+  return src_trace_;
+}
+
 }  // namespace perfetto::trace_redaction
