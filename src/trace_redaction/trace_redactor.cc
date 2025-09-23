@@ -39,6 +39,7 @@
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
+#include "src/trace_redaction/prune_perf_events.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/reduce_threads_in_process_trees.h"
@@ -200,6 +201,12 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   }
 
   redactor->emplace_transform<PrunePackageList>();
+
+  {
+    // Remove callstacks that don't belong to target package.
+    auto* primitive = redactor->emplace_transform<PrunePerfEvents>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
 
   // Process stats includes per-process information, such as:
   //
