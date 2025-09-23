@@ -267,14 +267,26 @@ declare_args() {
       perfetto_build_standalone && !is_perfetto_build_generator &&
       defined(use_custom_libcxx) && use_custom_libcxx
 
-  # Enables the use of priority-inheritance mutexes via PTHREAD_PRIO_INHERIT.
+  # Enables the use of priority-inheritance mutexes via PTHREAD_PRIO_INHERIT
+  # or wrapper around PI Futexes (dependant on OS).
   # Note that on Android platform (non-standalone) builds this flag is ignored
-  # and the Android flag "use_rt_mutex" is used instead (perfetto_flags.aconfig)
+  # and Android flags "use_rt_mutex", "use_rt_futex" are used instead (perfetto_flags.aconfig)
   # This is disabled in chromium, because the BPF-sandbox allows PI-futex only
   # when a field-trial is enabled, which is incompatible with a build time flag.
   enable_perfetto_rt_mutex =
       !is_wasm && (perfetto_build_standalone || is_perfetto_build_generator) &&
       !build_with_chromium
+
+  # This flag is used for the migration of UnixTaskRunner -> LockFreeTaskRunner.
+  # It determines whether MaybeLockFreeTaskRunner is backed by UnixTaskRunner
+  # or the newer LockFreeTaskRunner.
+  # UnixTaskRunner is the battle-tested original TaskRunner implementaiton used
+  # from 2017 -> 2025. LockFreeTaskRunner is the new improved TaskRunner which
+  # is planning to sunset UnixTaskRunner.
+  # Note that on Android platform (non-standalone) builds this flag is ignored
+  # and the Android flag "use_lockfree_taskrunner" is used instead (see
+  # perfetto_flags.aconfig)
+  enable_perfetto_lockfree_taskrunner = false
 }
 
 declare_args() {

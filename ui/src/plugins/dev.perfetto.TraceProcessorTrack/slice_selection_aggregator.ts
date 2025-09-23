@@ -21,7 +21,13 @@ import {
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export class SliceSelectionAggregator implements Aggregator {
   readonly id = 'slice_aggregation';
@@ -32,6 +38,7 @@ export class SliceSelectionAggregator implements Aggregator {
       name: STR_NULL,
       ts: LONG,
       dur: LONG,
+      parent_id: NUM_NULL,
     });
 
     if (!dataset) return undefined;
@@ -44,14 +51,32 @@ export class SliceSelectionAggregator implements Aggregator {
           area.start,
           area.end,
         );
+
+        // Build a table containing the sums of all child slices for each parent
+        // slice. We can subtract this later from the parent's wall duration to
+        // calculate the parent's self time.
+        await using childSliceSelfTime = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              parent_id AS id,
+              SUM(dur) AS child_dur
+            FROM (${iiTable.name})
+            WHERE parent_id IS NOT NULL
+            GROUP BY parent_id
+          `,
+        });
+
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
             name,
             sum(dur) AS total_dur,
             sum(dur)/count() as avg_dur,
-            count() as occurrences
+            count() as occurrences,
+            SUM(dur - COALESCE(child_dur, 0)) AS total_self_dur
           from (${iiTable.name})
+          LEFT JOIN ${childSliceSelfTime.name} USING(id)
           group by name
         `);
 
@@ -80,6 +105,12 @@ export class SliceSelectionAggregator implements Aggregator {
         title: 'Wall duration',
         formatHint: 'DURATION_NS',
         columnId: 'total_dur',
+        sum: true,
+      },
+      {
+        title: 'Self duration',
+        formatHint: 'DURATION_NS',
+        columnId: 'total_self_dur',
         sum: true,
       },
       {

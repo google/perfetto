@@ -27,7 +27,7 @@
 #define YYPARSEFREENEVERNULL 1
 }
 
-%token CREATE REPLACE PERFETTO MACRO INCLUDE MODULE RETURNS FUNCTION.
+%token CREATE REPLACE PERFETTO MACRO INCLUDE MODULE RETURNS FUNCTION DELEGATES.
 
 %left OR.
 %left AND.
@@ -107,6 +107,11 @@ or_replace(A) ::= OR REPLACE.         { A = 1; }
 // CREATE PERFETTO FUNCTION
 cmd ::= CREATE or_replace(R) PERFETTO FUNCTION ID(N) LP sql_argument_list(A) RP RETURNS return_type(T) AS select(E) pscantok(S). {
   OnPerfettoSqlCreateFunction(state, R, &N, A, T, &E, &S);
+}
+
+// CREATE PERFETTO FUNCTION with delegating implementation
+cmd ::= CREATE or_replace(R) PERFETTO FUNCTION ID(N) LP sql_argument_list(A) RP RETURNS return_type(T) DELEGATES TO ID(I) pscantok(S). {
+  OnPerfettoSqlCreateDelegatingFunction(state, R, &N, A, T, &I, &S);
 }
 
 %type return_type { struct PerfettoSqlFnReturnType* }

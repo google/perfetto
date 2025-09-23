@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE time.conversion;
-
 INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
 INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
@@ -244,10 +242,7 @@ LEFT JOIN _stats_cpu5
 LEFT JOIN _stats_cpu6
   ON _stats_cpu6._auto_id = base.cpu6_id
 LEFT JOIN _stats_cpu7
-  ON _stats_cpu7._auto_id = base.cpu7_id
--- Needs to be at least 1us to reduce inconsequential rows.
-WHERE
-  base.dur > time_from_us(1);
+  ON _stats_cpu7._auto_id = base.cpu7_id;
 
 -- Slices based table with all independent and dependent CPU data
 CREATE PERFETTO TABLE _w_dependent_cpus_calc AS

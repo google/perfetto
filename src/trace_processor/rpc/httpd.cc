@@ -26,9 +26,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/http/http_server.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
@@ -66,7 +66,7 @@ class Httpd : public base::HttpRequestHandler {
   static void ServeHelpPage(const base::HttpRequest&);
 
   Rpc global_trace_processor_rpc_;
-  base::UnixTaskRunner task_runner_;
+  base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
 };
 

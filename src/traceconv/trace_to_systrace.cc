@@ -27,8 +27,8 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
@@ -85,7 +85,7 @@ const char kSystemTraceEventsFooter[] =
 inline void FormatProcess(uint32_t pid,
                           uint32_t ppid,
                           const base::StringView& name,
-                          base::StringWriter* writer) {
+                          base::FixedStringWriter* writer) {
   writer->AppendLiteral("root             ");
   writer->AppendInt(pid);
   writer->AppendLiteral("     ");
@@ -98,7 +98,7 @@ inline void FormatProcess(uint32_t pid,
 inline void FormatThread(uint32_t tid,
                          uint32_t tgid,
                          const base::StringView& name,
-                         base::StringWriter* writer) {
+                         base::FixedStringWriter* writer) {
   writer->AppendLiteral("root         ");
   writer->AppendInt(tgid);
   writer->AppendChar(' ');
@@ -124,7 +124,7 @@ class QueryWriter {
     char buffer[2048];
     auto iterator = tp_->ExecuteQuery(sql);
     for (uint32_t rows = 0; iterator.Next(); rows++) {
-      base::StringWriter line_writer(buffer, base::ArraySize(buffer));
+      base::FixedStringWriter line_writer(buffer, base::ArraySize(buffer));
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= global_writer_.size()) {
@@ -155,7 +155,7 @@ class QueryWriter {
 
   trace_processor::TraceProcessor* tp_ = nullptr;
   base::PagedMemory buffer_;
-  base::StringWriter global_writer_;
+  base::FixedStringWriter global_writer_;
   TraceWriter* trace_writer_;
 };
 
@@ -167,7 +167,7 @@ int ExtractRawEvents(TraceWriter* trace_writer,
 
   static const char kRawEventsCountSql[] = "select count(1) from ftrace_event";
   uint32_t raw_events = 0;
-  auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
+  auto e_callback = [&raw_events](Iterator* it, base::FixedStringWriter*) {
     raw_events = static_cast<uint32_t>(it->Get(0).long_value);
   };
   if (!q_writer.RunQuery(kRawEventsCountSql, e_callback))
@@ -186,7 +186,7 @@ int ExtractRawEvents(TraceWriter* trace_writer,
   fflush(stderr);
 
   auto raw_callback = [wrapped_in_json](Iterator* it,
-                                        base::StringWriter* writer) {
+                                        base::FixedStringWriter* writer) {
     const char* line = it->Get(0 /* col */).string_value;
     if (wrapped_in_json) {
       for (uint32_t i = 0; line[i] != '\0'; i++) {
@@ -310,7 +310,7 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
     // TODO(lalitm): change this query to actually use ppid when it is exposed
     // by the process table.
     static const char kPSql[] = "select pid, 0 as ppid, name from process";
-    auto p_callback = [](Iterator* it, base::StringWriter* writer) {
+    auto p_callback = [](Iterator* it, base::FixedStringWriter* writer) {
       uint32_t pid = static_cast<uint32_t>(it->Get(0 /* col */).long_value);
       uint32_t ppid = static_cast<uint32_t>(it->Get(1 /* col */).long_value);
       const auto& name_col = it->Get(2 /* col */);
@@ -328,7 +328,7 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
     static const char kTSql[] =
         "select tid, COALESCE(upid, 0), thread.name "
         "from thread left join process using (upid)";
-    auto t_callback = [](Iterator* it, base::StringWriter* writer) {
+    auto t_callback = [](Iterator* it, base::FixedStringWriter* writer) {
       uint32_t tid = static_cast<uint32_t>(it->Get(0 /* col */).long_value);
       uint32_t tgid = static_cast<uint32_t>(it->Get(1 /* col */).long_value);
       const auto& name_col = it->Get(2 /* col */);

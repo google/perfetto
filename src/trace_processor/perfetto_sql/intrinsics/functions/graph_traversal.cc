@@ -186,8 +186,8 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
 
 base::Status RegisterGraphTraversalFunctions(PerfettoSqlEngine& engine,
                                              StringPool& pool) {
-  RETURN_IF_ERROR(engine.RegisterSqliteFunction<Dfs>(&pool));
-  return engine.RegisterSqliteFunction<Bfs>(&pool);
+  RETURN_IF_ERROR(engine.RegisterFunction<Dfs>(&pool));
+  return engine.RegisterFunction<Bfs>(&pool);
 }
 
 }  // namespace perfetto::trace_processor

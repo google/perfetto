@@ -21,7 +21,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
-#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/tracing/default_socket.h"
 #include "src/profiling/perf/perf_producer.h"
@@ -81,7 +81,7 @@ int TracedPerfMain(int argc, char** argv) {
     base::Daemonize([] { return 0; });
   }
 
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
 
 // TODO(rsavitski): support standalone --root or similar on android.
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)

@@ -27,11 +27,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
@@ -261,7 +261,7 @@ class TrackEventEventImporter {
         category_id = storage_->InternString(decoder->name());
       } else {
         char buffer[32];
-        base::StringWriter writer(buffer, sizeof(buffer));
+        base::FixedStringWriter writer(buffer, sizeof(buffer));
         writer.AppendLiteral("unknown(");
         writer.AppendUnsignedInt(category_iids[0]);
         writer.AppendChar(')');
@@ -793,9 +793,11 @@ class TrackEventEventImporter {
 
     tables::SliceTable::RowReference slice_ref = *opt_thread_slice_ref;
     std::optional<int64_t> tts = slice_ref.thread_ts();
-    if (tts) {
-      PERFETTO_DCHECK(thread_timestamp_);
-      slice_ref.set_thread_dur(*thread_timestamp_ - *tts);
+    if (tts && thread_timestamp_) {
+      int64_t delta = *thread_timestamp_ - *tts;
+      if (delta != 0) {
+        slice_ref.set_thread_dur(delta);
+      }
     }
     std::optional<int64_t> tic = slice_ref.thread_instruction_count();
     if (tic) {

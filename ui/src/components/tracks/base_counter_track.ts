@@ -69,14 +69,7 @@ function toLabel(n: number): string {
 }
 
 class RangeSharer {
-  static singleton?: RangeSharer;
-
-  static get(): RangeSharer {
-    if (RangeSharer.singleton === undefined) {
-      RangeSharer.singleton = new RangeSharer();
-    }
-    return RangeSharer.singleton;
-  }
+  private static traceToRangeSharer = new WeakMap<Trace, RangeSharer>();
 
   private tagToRange: Map<string, [number, number]>;
   private keyToEnabled: Map<string, boolean>;
@@ -84,6 +77,15 @@ class RangeSharer {
   constructor() {
     this.tagToRange = new Map();
     this.keyToEnabled = new Map();
+  }
+
+  static getRangeSharer(trace: Trace): RangeSharer {
+    let sharer = RangeSharer.traceToRangeSharer.get(trace);
+    if (sharer === undefined) {
+      sharer = new RangeSharer();
+      RangeSharer.traceToRangeSharer.set(trace, sharer);
+    }
+    return sharer;
   }
 
   isEnabled(key: string): boolean {
@@ -399,6 +401,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   private hover?: CounterTooltipState;
   private options?: CounterOptions;
+  private readonly rangeSharer: RangeSharer;
 
   private readonly trash: AsyncDisposableStack;
 
@@ -472,6 +475,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     protected readonly defaultOptions: Partial<CounterOptions> = {},
   ) {
     this.trash = new AsyncDisposableStack();
+    this.rangeSharer = RangeSharer.getRangeSharer(trace);
   }
 
   getHeight() {
@@ -564,7 +568,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       options.yRangeSharingKey &&
         m(MenuItem, {
           label: `Share y-axis scale (group: ${options.yRangeSharingKey})`,
-          icon: RangeSharer.get().isEnabled(options.yRangeSharingKey)
+          icon: this.rangeSharer.isEnabled(options.yRangeSharingKey)
             ? 'check_box'
             : 'check_box_outline_blank',
           onclick: () => {
@@ -572,8 +576,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
             if (key === undefined) {
               return;
             }
-            const sharer = RangeSharer.get();
-            sharer.setEnabled(key, !sharer.isEnabled(key));
+            this.rangeSharer.setEnabled(key, !this.rangeSharer.isEnabled(key));
             this.invalidate();
           },
         }),
@@ -995,8 +998,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       }
     }
 
-    const sharer = RangeSharer.get();
-    [yMin, yMax] = sharer.share(options, [yMin, yMax]);
+    [yMin, yMax] = this.rangeSharer.share(options, [yMin, yMax]);
 
     let yLabel: string;
 

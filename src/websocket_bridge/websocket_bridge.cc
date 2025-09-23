@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "perfetto/ext/base/http/http_server.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/tracing/default_socket.h"
 
 namespace perfetto {
@@ -60,7 +60,7 @@ class WSBridge : public base::HttpRequestHandler,
  private:
   base::HttpServerConnection* GetWebsocket(base::UnixSocket*);
 
-  base::UnixTaskRunner task_runner_;
+  base::MaybeLockFreeTaskRunner task_runner_;
   std::vector<Endpoint> endpoints_;
   std::map<base::HttpServerConnection*, std::unique_ptr<base::UnixSocket>>
       conns_;

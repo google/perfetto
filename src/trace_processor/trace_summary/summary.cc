@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -27,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -587,15 +589,16 @@ base::Status CreateQueriesAndComputeMetrics(
   if (output_spec.compression == TraceSummaryOutputSpec::Compression::kZlib &&
       !output->empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-    uLongf compressed_size = compressBound(output->size());
+    auto compressed_size = compressBound(static_cast<uint32_t>(output->size()));
     auto compressed_buffer = std::make_unique<uint8_t[]>(compressed_size);
     int res = compress(compressed_buffer.get(), &compressed_size,
-                       output->data(), output->size());
+                       output->data(), static_cast<uint32_t>(output->size()));
     if (res != Z_OK) {
       return base::ErrStatus("Failed to compress trace summary output");
     }
-    output->assign(compressed_buffer.get(),
-                   compressed_buffer.get() + compressed_size);
+    output->assign(
+        compressed_buffer.get(),
+        compressed_buffer.get() + static_cast<uint32_t>(compressed_size));
 #else
     return base::ErrStatus(
         "Zlib compression requested but is not supported on this platform.");

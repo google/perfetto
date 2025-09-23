@@ -129,7 +129,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
   kind?: string,
 ): Dataset<T> | undefined {
   const datasets = tracks
-    .filter((t) => kind === undefined || t.tags?.kind === kind)
+    .filter((t) => kind === undefined || t.tags?.kinds?.includes(kind))
     .map((t) => t.renderer.getDataset?.())
     .filter(exists)
     .filter((d) => d.implements(spec));

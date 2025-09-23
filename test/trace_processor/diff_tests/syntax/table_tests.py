@@ -694,6 +694,7 @@ class PerfettoTable(TestSuite):
           OR flat_key GLOB '*_name'
           OR flat_key GLOB '*view_id'
         ORDER BY base64_proto_id, key
+        LIMIT 8
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value"
@@ -704,7 +705,7 @@ class PerfettoTable(TestSuite):
         "view_id_iid","view_id_iid",3,"[NULL]"
         "class_name","class_name","[NULL]","STRING DE-INTERNING ERROR"
         "class_name_iid","class_name_iid",3,"[NULL]"
-        "view_id","view_id","[NULL]","NO_ID"
+        "view_id","view_id","[NULL]","TEST_VIEW_ID"
         """))
 
   def test_winscope_surfaceflinger_hierarchy_paths(self):

@@ -250,6 +250,13 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Basic Timeline Slices](/docs/images/converting-basic-slices.png)
 
+You can query these slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, dur, name FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name = 'My Custom Data Timeline';
+```
+
 ## Nested Slices (Hierarchical Activities)
 
 Often, an activity or operation is made up of several sub-activities that must
@@ -344,6 +351,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Nested Slices](/docs/images/converting-nested.png)
 
+You can query these nested slices and see their hierarchy using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, dur, name, depth FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE track.name = 'My Nested Operations Timeline'
+ORDER BY ts;
+```
+
 ## Asynchronous Slices and Overlapping Events
 
 Many systems deal with asynchronous operations where multiple activities can be
@@ -436,6 +451,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Asynchronous Slices](/docs/images/converting-async-slices.png)
 
+You can query these overlapping slices across all HTTP connection tracks using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, dur, name FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE track.name = 'HTTP Connections'
+ORDER BY ts;
+```
+
 ## Counters (Values Changing Over Time)
 
 Counters are used to represent a numerical value that changes over time. They
@@ -514,6 +537,13 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Counters](/docs/images/converting-counters.png)
 
+You can query the counter values using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT ts, value FROM counter
+JOIN track ON counter.track_id = track.id
+WHERE track.name = 'Outstanding Network Requests';
+```
+
 ## Flows (Connecting Causally Related Events)
 
 Flows are used to visually connect slices that have an explicit causal or
@@ -544,6 +574,13 @@ In Perfetto's `TrackEvent` model, you establish a flow by:
 
 The Perfetto UI will draw arrows connecting the slices that share a common
 `flow_id`, making the dependency chain explicit.
+
+**Alternative: Correlation IDs** For events that are part of the same logical
+operation but not causally connected, consider using correlation IDs instead of
+or in addition to flows. Correlation IDs group related events visually (e.g.,
+with consistent colors) without implying causality. See the
+[Linking Related Events with Correlation IDs](/docs/reference/synthetic-track-event.md#linking-related-events-with-correlation-ids)
+section in the Advanced Guide for details.
 
 ### Python Example
 
@@ -622,6 +659,14 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 [Perfetto UI](https://ui.perfetto.dev) will display the following output:
 
 ![Flows](/docs/images/converting-flows.png)
+
+You can query flow connections between slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice_out.name AS source_slice, slice_in.name AS dest_slice
+FROM flow
+JOIN slice AS slice_out ON flow.slice_out = slice_out.id
+JOIN slice AS slice_in ON flow.slice_in = slice_in.id;
+```
 
 ## Grouping Tracks with Hierarchies
 
@@ -734,6 +779,15 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Grouping Tracks with Hierarchies](/docs/images/converting-track-groups.png)
 
+You can query slices across the track hierarchy using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.ts, slice.dur, slice.name, track.name AS track_name
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name IN ('Main System', 'Subsystem A', 'Subsystem B', 'Detail A.1')
+ORDER BY slice.ts;
+```
+
 ## Track Hierarchies for Waterfall / Trace Views
 
 Another powerful use of track hierarchies is to visualize the breakdown of a
@@ -844,12 +898,234 @@ After running the script, opening the generated `my_custom_trace.pftrace` in the
 
 ![Track Hierarchies for Waterfall / Trace Views](/docs/images/converting-waterfall.png)
 
+You can query this request breakdown to analyze timing using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.ts, slice.dur, slice.name, track.name AS service
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name LIKE '%Request%' OR track.name LIKE '%Service%'
+ORDER BY slice.ts;
+```
+
+## Adding Debug Annotations to Events
+
+Debug annotations allow you to attach arbitrary key-value data to any
+`TrackEvent`. They appear in the Perfetto UI when you inspect individual
+events, making them useful for providing additional context about what was
+happening during specific slices or instants.
+
+Debug annotations are useful for:
+
+- Adding object IDs, request IDs, or other identifiers
+- Including configuration values or state information
+- Attaching error messages or status codes
+- Providing structured data like arrays or nested objects
+- Any contextual data that enriches your trace events
+
+Debug annotations support various data types including basic values (strings,
+integers, booleans, doubles), nested dictionaries, and arrays. They use the
+`DebugAnnotation` protobuf message, which can represent complex nested
+structures.
+
+### Python Example: Basic Debug Annotations
+
+This example shows how to add simple key-value debug annotations to track
+events. This is useful for attaching additional information like object IDs,
+state values, or other contextual data.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    # Define a unique ID for this sequence of packets
+    TRUSTED_PACKET_SEQUENCE_ID = 6001
+
+    # Define a unique UUID for your custom track
+    DEBUG_TRACK_UUID = 87654321
+
+    # 1. Define the Custom Track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = DEBUG_TRACK_UUID
+    packet.track_descriptor.name = "Debug Annotations Example"
+
+    # Helper to add a slice event with debug annotations
+    def add_slice_with_debug_annotations(ts, event_type, name=None, debug_annotations=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = DEBUG_TRACK_UUID
+        if name:
+            packet.track_event.name = name
+
+        # Add debug annotations
+        if debug_annotations:
+            for key, value in debug_annotations.items():
+                annotation = packet.track_event.debug_annotations.add()
+                annotation.name = key
+
+                # Set the appropriate value field based on type
+                if isinstance(value, bool):
+                    annotation.bool_value = value
+                elif isinstance(value, int):
+                    annotation.int_value = value
+                elif isinstance(value, float):
+                    annotation.double_value = value
+                elif isinstance(value, str):
+                    annotation.string_value = value
+
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Create slices with various debug annotations
+    add_slice_with_debug_annotations(
+        ts=1000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="Database Query",
+        debug_annotations={
+            "query_id": 12345,
+            "table_name": "users",
+            "is_cached": False,
+            "timeout_ms": 5000.0
+        }
+    )
+
+    add_slice_with_debug_annotations(
+        ts=1200,
+        event_type=TrackEvent.TYPE_SLICE_END
+    )
+
+    # Another example with different annotation types
+    add_slice_with_debug_annotations(
+        ts=1500,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="HTTP Request",
+        debug_annotations={
+            "method": "POST",
+            "url": "/api/users/create",
+            "content_length": 2048,
+            "keep_alive": True
+        }
+    )
+
+    add_slice_with_debug_annotations(
+        ts=1800,
+        event_type=TrackEvent.TYPE_SLICE_END
+    )
+```
+
+</details>
+
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Adding Debug Annotations](/docs/images/converting-debug-basic.png)
+
+You can query debug annotations using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.name, EXTRACT_ARG(slice.arg_set_id, 'debug.query_id') AS query_id
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name = 'Debug Annotations Example';
+```
+
+### Python Example: Nested Debug Annotations
+
+Debug annotations can represent complex nested data structures including
+dictionaries and arrays. This is useful when you need to attach structured
+information like configuration objects, arrays of values, or hierarchical data.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    # Define a unique ID for this sequence of packets
+    TRUSTED_PACKET_SEQUENCE_ID = 6002
+
+    # Define a unique UUID for your custom track
+    NESTED_DEBUG_TRACK_UUID = 87654322
+
+    # 1. Define the Custom Track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = NESTED_DEBUG_TRACK_UUID
+    packet.track_descriptor.name = "Nested Debug Annotations"
+
+    # 2. Create a slice with nested debug annotations
+    packet = builder.add_packet()
+    packet.timestamp = 2000
+    packet.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+    packet.track_event.track_uuid = NESTED_DEBUG_TRACK_UUID
+    packet.track_event.name = "Complex Operation"
+
+    # Add a dictionary annotation with nested structure
+    config_annotation = packet.track_event.debug_annotations.add()
+    config_annotation.name = "config"
+
+    # Add dictionary entries
+    db_entry = config_annotation.dict_entries.add()
+    db_entry.name = "database"
+    db_entry.string_value = "postgres://localhost:5432/mydb"
+
+    timeout_entry = config_annotation.dict_entries.add()
+    timeout_entry.name = "timeout_ms"
+    timeout_entry.int_value = 30000
+
+    retry_entry = config_annotation.dict_entries.add()
+    retry_entry.name = "retry_enabled"
+    retry_entry.bool_value = True
+
+    # Add an array annotation
+    servers_annotation = packet.track_event.debug_annotations.add()
+    servers_annotation.name = "server_list"
+
+    # Add array values
+    server1 = servers_annotation.array_values.add()
+    server1.string_value = "server-1.example.com"
+
+    server2 = servers_annotation.array_values.add()
+    server2.string_value = "server-2.example.com"
+
+    server3 = servers_annotation.array_values.add()
+    server3.string_value = "server-3.example.com"
+
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # End the slice
+    packet = builder.add_packet()
+    packet.timestamp = 2500
+    packet.track_event.type = TrackEvent.TYPE_SLICE_END
+    packet.track_event.track_uuid = NESTED_DEBUG_TRACK_UUID
+    packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+```
+
+</details>
+
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Nested Debug Annotations](/docs/images/converting-debug-nested.png)
+
+You can query nested debug annotations using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT slice.name, 
+       EXTRACT_ARG(slice.arg_set_id, 'debug.config.database') AS database,
+       EXTRACT_ARG(slice.arg_set_id, 'debug.server_list[0]') AS first_server
+FROM slice 
+JOIN track ON slice.track_id = track.id 
+WHERE track.name = 'Nested Debug Annotations';
+```
+
 ## Next Steps
 
 You've now seen how to convert various types of custom timestamped data into
 Perfetto traces using Python and the `TrackEvent` protobuf. With these
 techniques, you can represent simple activities, nested operations, asynchronous
-events, counters, flows, and create organized track hierarchies.
+events, counters, flows, create organized track hierarchies, and add debug
+annotations to your events.
 
 Once you have your custom data in the Perfetto trace format (`.pftrace` file),
 you can:

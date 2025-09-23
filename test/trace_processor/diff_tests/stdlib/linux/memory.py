@@ -57,12 +57,12 @@ class Memory(TestSuite):
         "ts","dur","upid","pid","process_name","rss_high_watermark"
         37592474220,12993896,1,1982,"com.android.systemui",125865984
         37605468116,1628,1,1982,"com.android.systemui",126050304
-        37605469744,333774129,1,1982,"com.android.systemui",129040384
+        37605469744,1302,1,1982,"com.android.systemui",129040384
+        37605471046,212934245,1,1982,"com.android.systemui",129040384
+        37818405291,120838582,1,1982,"com.android.systemui",129040384
         37939243873,120479574,1,1982,"com.android.systemui",372977664
         38059723447,936,1,1982,"com.android.systemui",373043200
         38059724383,6749186,1,1982,"com.android.systemui",373174272
         38066473569,7869426,1,1982,"com.android.systemui",373309440
         38074342995,11596761,1,1982,"com.android.systemui",373444608
-        38085939756,4877848,1,1982,"com.android.systemui",373579776
-        38090817604,11930827,1,1982,"com.android.systemui",373714944
               """))

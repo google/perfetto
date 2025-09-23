@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
       uri,
       tags: {
         trackIds,
-        kind: SLICE_TRACK_KIND,
+        kinds: [SLICE_TRACK_KIND],
       },
       renderer: await createTraceProcessorSliceTrack({
         trace: ctx,

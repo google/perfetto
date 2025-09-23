@@ -233,6 +233,14 @@ class FtraceConfigMuxer {
     bool saved_tracing_on;  // Backup for the original tracing_on.
     // Set of kprobes that we've installed, to be cleaned up when tracing stops.
     base::FlatSet<GroupAndName> installed_kprobes;
+    // State of tracefs options before tracing started.
+    // Since there is no "default" value for tracefs options, we save the
+    // original values when tracing starts and restore them when tracing stops.
+    base::FlatHashMap<std::string, bool> saved_tracefs_options;
+    // The value of tracing_cpumask before tracing started.
+    // Since there is no "default" value for tracing_cpumask, we save the
+    // original value when tracing starts and restore it when tracing stops.
+    std::optional<std::string> saved_tracing_cpumask;
   };
 
   void SetupClock(const FtraceConfig& request);

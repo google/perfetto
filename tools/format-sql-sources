@@ -15,4 +15,8 @@
 
 set -eu
 ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
-exec $ROOT_DIR/.venv/bin/python3 python/tools/code_format_sql.py "$@"
+VENV_BIN=".venv/bin"
+if [[ "$OSTYPE" == "msys" ]]; then
+  VENV_BIN=".venv/Scripts"
+fi
+exec "$ROOT_DIR/$VENV_BIN/python3" python/tools/code_format_sql.py "$@"

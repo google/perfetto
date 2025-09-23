@@ -405,6 +405,9 @@ Wrote profile to /tmp/tmpup3QrQprofile
 This can be viewed using https://ui.perfetto.dev.
 ```
 
+We can also collect a snapshot of the object graph when allocations start
+failing with [java.lang.OutOfMemoryError](/docs/case-studies/android-outofmemoryerror.md).
+
 ### Viewing the Data
 
 Upload the trace to the [Perfetto UI](https://ui.perfetto.dev) and click on

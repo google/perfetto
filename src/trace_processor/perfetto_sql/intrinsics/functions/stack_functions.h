@@ -17,14 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_STACK_FUNCTIONS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_STACK_FUNCTIONS_H_
 
-#include <sqlite3.h>
 #include <cstddef>
-#include <cstdint>
 
 #include "perfetto/base/status.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
 class TraceProcessorContext;
@@ -53,7 +50,6 @@ class TraceProcessorContext;
 base::Status RegisterStackFunctions(PerfettoSqlEngine* engine,
                                     TraceProcessorContext* context);
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_STACK_FUNCTIONS_H_

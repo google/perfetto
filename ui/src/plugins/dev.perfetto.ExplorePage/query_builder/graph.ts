@@ -15,10 +15,11 @@
 import m from 'mithril';
 
 import {Icons} from '../../../base/semantic_icons';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
 
 import {
   NodeBox,
@@ -94,10 +95,15 @@ export interface GraphAttrs {
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
   readonly onAddAggregation: (node: QueryNode) => void;
+  readonly onAddModifyColumns: (node: QueryNode) => void;
   readonly onAddIntervalIntersect: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onImport: () => void;
+  readonly onImportWithStatement: () => void;
+  readonly onExport: () => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
@@ -299,6 +305,19 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           onclick: attrs.onAddSqlSource,
         }),
       ),
+      m(Button, {
+        label: 'Import',
+        onclick: attrs.onImport,
+        variant: ButtonVariant.Filled,
+        icon: 'file_upload',
+      }),
+      m(Button, {
+        label: 'Import from WITH statement',
+        onclick: attrs.onImportWithStatement,
+        variant: ButtonVariant.Filled,
+        icon: 'code',
+        style: {marginLeft: '8px'},
+      }),
     );
   }
 
@@ -311,7 +330,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: m(Button, {
             label: 'Add Node',
             icon: Icons.Add,
-            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
           }),
         },
         m(MenuItem, {
@@ -327,6 +346,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           onclick: attrs.onAddSqlSource,
         }),
       ),
+      m(Button, {
+        label: 'Export',
+        icon: Icons.Download,
+        variant: ButtonVariant.Minimal,
+        onclick: attrs.onExport,
+        style: {marginLeft: '8px'},
+      }),
       m(Button, {
         label: 'Clear All Nodes',
         icon: Icons.Delete,
@@ -417,8 +443,10 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
             onAddAggregation: attrs.onAddAggregation,
+            onModifyColumns: attrs.onAddModifyColumns,
             onAddIntervalIntersect: attrs.onAddIntervalIntersect,
             onNodeRendered,
+            onRemoveFilter: attrs.onRemoveFilter,
           }),
         );
       }

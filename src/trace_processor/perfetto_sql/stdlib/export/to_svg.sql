@@ -564,7 +564,7 @@ RETURNS Expr AS
         min_cutoff,
         min(y_pixel) AS track_top,
         max(y_pixel + height_pixel) AS track_bottom,
-        -- Get counter-specific info for y-axis labels
+        -- Get counter-specific info for y-axis labels (with NULL safety)
         max(CASE WHEN element_type = 'counter' THEN max_counter_value ELSE NULL END) AS max_counter_value,
         max(CASE WHEN element_type = 'counter' THEN min_counter_value ELSE NULL END) AS min_counter_value,
         max(CASE WHEN element_type = 'counter' THEN 1 ELSE 0 END) AS is_counter_track
@@ -572,125 +572,139 @@ RETURNS Expr AS
       GROUP BY
         $svg_group_key_col,
         $track_group_key_col
-      LIMIT 1
     ),
-    -- Generate counter path for counter tracks
-    counter_path AS (
+    -- Calculate counter scaling parameters with NULL safety
+    counter_scale AS (
       SELECT
-        tp.svg_group_key,
-        tp.track_group_key,
+        tp.*,
+        -- Prevent division by zero and handle NULL values
         CASE
           WHEN tp.is_counter_track = 1
-          THEN (
-            -- Calculate zero line position
-            WITH
-              zero_calc AS (
-                SELECT
-                  CASE
-                    WHEN tp.min_counter_value >= 0
-                    THEN 5 + tp.track_bottom
-                    WHEN tp.max_counter_value <= 0
-                    THEN 5
-                    ELSE 5 + tp.track_bottom * (
-                      tp.max_counter_value / (
-                        tp.max_counter_value - tp.min_counter_value
-                      )
-                    )
-                  END AS zero_y
-              ),
-              path_data AS (
-                SELECT
-                  'M0,' || zc.zero_y || ' ' || GROUP_CONCAT(
-                    'L' || p.x_pixel || ',' || CASE
-                      WHEN p.counter_value >= 0
-                      THEN CASE
-                        WHEN tp.min_counter_value >= 0
-                        THEN 5 + tp.track_bottom - (
-                          tp.track_bottom * (
-                            p.counter_value - tp.min_counter_value
-                          ) / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                        ELSE zc.zero_y - (
-                          tp.track_bottom * p.counter_value / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                      END
-                      ELSE CASE
-                        WHEN tp.max_counter_value <= 0
-                        THEN 5 + (
-                          tp.track_bottom * (
-                            p.counter_value - tp.max_counter_value
-                          ) / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                        ELSE zc.zero_y + (
-                          tp.track_bottom * abs(p.counter_value) / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                      END
-                    END || ' L' || (
-                      p.x_pixel + p.width_pixel
-                    ) || ',' || CASE
-                      WHEN p.counter_value >= 0
-                      THEN CASE
-                        WHEN tp.min_counter_value >= 0
-                        THEN 5 + tp.track_bottom - (
-                          tp.track_bottom * (
-                            p.counter_value - tp.min_counter_value
-                          ) / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                        ELSE zc.zero_y - (
-                          tp.track_bottom * p.counter_value / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                      END
-                      ELSE CASE
-                        WHEN tp.max_counter_value <= 0
-                        THEN 5 + (
-                          tp.track_bottom * (
-                            p.counter_value - tp.max_counter_value
-                          ) / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                        ELSE zc.zero_y + (
-                          tp.track_bottom * abs(p.counter_value) / (
-                            tp.max_counter_value - tp.min_counter_value
-                          )
-                        )
-                      END
-                    END,
-                    ' '
-                  ) || ' L' || tp.total_width || ',' || zc.zero_y || ' L0,' || zc.zero_y || ' Z' AS path_d
-                FROM $positions_table AS p, zero_calc AS zc
-                WHERE
-                  p.$svg_group_key_col = tp.svg_group_key
-                  AND p.$track_group_key_col = tp.track_group_key
-                  AND p.element_type = 'counter'
-                ORDER BY
-                  p.ts
+          AND NOT tp.max_counter_value IS NULL
+          AND NOT tp.min_counter_value IS NULL AND tp.max_counter_value != tp.min_counter_value
+          THEN tp.max_counter_value - tp.min_counter_value
+          ELSE 1.0
+        END AS counter_range,
+        -- Calculate zero line Y position
+        CASE
+          WHEN tp.is_counter_track = 1
+          AND NOT tp.max_counter_value IS NULL AND tp.min_counter_value IS NOT NULL
+          THEN CASE
+            WHEN tp.min_counter_value >= 0
+            THEN 5 + tp.track_bottom
+            WHEN tp.max_counter_value <= 0
+            THEN 5
+            ELSE 5 + tp.track_bottom * (
+              tp.max_counter_value / (
+                tp.max_counter_value - tp.min_counter_value
               )
-            SELECT
-              '<path d="' || pd.path_d || '" fill="steelblue" fill-opacity="0.7" stroke="steelblue" stroke-width="1"/>'
-            FROM path_data AS pd
-          )
-          ELSE ''
-        END AS counter_svg
+            )
+          END
+          ELSE 5 + tp.track_bottom
+        END AS zero_y
       FROM track_params AS tp
+    ),
+    -- Generate counter path data
+    counter_path_points AS (
+      SELECT
+        cs.svg_group_key,
+        cs.track_group_key,
+        p.x_pixel,
+        p.x_pixel + p.width_pixel AS x_end,
+        -- Calculate Y position for counter value
+        CASE
+          WHEN p.counter_value >= 0
+          THEN CASE
+            WHEN cs.min_counter_value >= 0
+            THEN 5 + cs.track_bottom - (
+              cs.track_bottom * (
+                p.counter_value - cs.min_counter_value
+              ) / cs.counter_range
+            )
+            ELSE cs.zero_y - (
+              cs.track_bottom * p.counter_value / cs.counter_range
+            )
+          END
+          ELSE CASE
+            WHEN cs.max_counter_value <= 0
+            THEN 5 + (
+              cs.track_bottom * (
+                p.counter_value - cs.max_counter_value
+              ) / cs.counter_range
+            )
+            ELSE cs.zero_y + (
+              cs.track_bottom * abs(p.counter_value) / cs.counter_range
+            )
+          END
+        END AS y_value,
+        cs.zero_y,
+        cs.total_width
+      FROM counter_scale AS cs
+      JOIN $positions_table AS p
+        ON p.$svg_group_key_col = cs.svg_group_key
+        AND p.$track_group_key_col = cs.track_group_key
+        AND p.element_type = 'counter'
+      WHERE
+        cs.is_counter_track = 1
+      ORDER BY
+        p.ts
+    ),
+    -- Build the SVG path string
+    counter_path AS (
+      SELECT
+        cpp.svg_group_key,
+        cpp.track_group_key,
+        '<path d="M0,' || cpp.zero_y || ' ' || GROUP_CONCAT(
+          'L' || cpp.x_pixel || ',' || cpp.y_value || ' L' || cpp.x_end || ',' || cpp.y_value,
+          ' '
+        ) || ' L' || cpp.total_width || ',' || cpp.zero_y || ' L0,' || cpp.zero_y || ' Z" ' || 'fill="steelblue" fill-opacity="0.7" stroke="steelblue" stroke-width="1"/>' AS counter_svg
+      FROM counter_path_points AS cpp
+      GROUP BY
+        cpp.svg_group_key,
+        cpp.track_group_key
+    ),
+    -- Generate rect slice/thread_state elements
+    rect_elements AS (
+      SELECT
+        p.$svg_group_key_col AS svg_group_key,
+        p.$track_group_key_col AS track_group_key,
+        GROUP_CONCAT(
+          CASE
+            WHEN p.element_type = 'thread_state'
+            THEN _thread_state_to_svg(
+              p.x_pixel,
+              cast_double!(p.y_pixel),
+              p.width_pixel,
+              cast_double!(p.height_pixel),
+              p.state,
+              p.io_wait,
+              p.blocked_function,
+              p.dur,
+              p.href,
+              tp.min_cutoff
+            )
+            WHEN p.element_type = 'counter'
+            THEN ''
+            ELSE _slice_to_svg(p.x_pixel, cast_double!(p.y_pixel), p.width_pixel, cast_double!(p.height_pixel), p.name, p.dur, p.href, tp.min_cutoff)
+          END,
+          ''
+        ) AS elements_svg
+      FROM $positions_table AS p
+      JOIN track_params AS tp
+        ON p.$svg_group_key_col = tp.svg_group_key
+        AND p.$track_group_key_col = tp.track_group_key
+      GROUP BY
+        p.$svg_group_key_col,
+        p.$track_group_key_col
     )
+  -- Final assembly
   SELECT
     tp.svg_group_key,
     tp.track_group_key,
-    '<text x="5" y="15" font-size="11" fill="#333">' || _escape_xml(cast_string!(label_text)) || '</text>' || CASE
+    -- Track label
+    '<text x="5" y="15" font-size="11" fill="#333">' || _escape_xml(cast_string!(tp.label_text)) || '</text>' || CASE
       WHEN tp.is_counter_track = 1
+      AND NOT tp.max_counter_value IS NULL AND tp.min_counter_value IS NOT NULL
       THEN '<text x="5" y="30" font-size="9" fill="#000">' || _format_large_number(tp.max_counter_value) || '</text>' || CASE
         WHEN tp.min_counter_value < 0
         THEN '<text x="5" y="' || (
@@ -699,45 +713,13 @@ RETURNS Expr AS
         ELSE ''
       END
       ELSE ''
-    END || '<g transform="translate(0,20)">' || CASE WHEN tp.is_counter_track = 1 THEN cp.counter_svg ELSE '' END || coalesce(
-      (
-        SELECT
-          GROUP_CONCAT(
-            CASE
-              WHEN p.element_type = 'thread_state'
-              THEN _thread_state_to_svg(
-                p.x_pixel,
-                cast_double!(p.y_pixel),
-                p.width_pixel,
-                cast_double!(p.height_pixel),
-                p.state,
-                p.io_wait,
-                p.blocked_function,
-                p.dur,
-                p.href,
-                tp.min_cutoff
-              )
-              WHEN p.element_type = 'counter'
-              THEN ''
-              ELSE _slice_to_svg(p.x_pixel, cast_double!(p.y_pixel), p.width_pixel, cast_double!(p.height_pixel), p.name, p.dur, p.href, tp.min_cutoff)
-            END,
-            ''
-          )
-        FROM $positions_table AS p
-        WHERE
-          p.$svg_group_key_col = tp.svg_group_key
-          AND p.$track_group_key_col = tp.track_group_key
-        ORDER BY
-          p.ts,
-          p.depth,
-          p.dur DESC
-      ),
-      ''
-    ) || '</g>' AS track_svg,
+    END || '<g transform="translate(0,20)">' || coalesce(cp.counter_svg, '') || coalesce(re.elements_svg, '') || '</g>' AS track_svg,
     tp.track_bottom + 20 AS track_height
   FROM track_params AS tp
   LEFT JOIN counter_path AS cp
     ON tp.svg_group_key = cp.svg_group_key AND tp.track_group_key = cp.track_group_key
+  LEFT JOIN rect_elements AS re
+    ON tp.svg_group_key = re.svg_group_key AND tp.track_group_key = re.track_group_key
 );
 
 -- Generate unlabeled tracks grouped by svg_group_key and track_group_key.

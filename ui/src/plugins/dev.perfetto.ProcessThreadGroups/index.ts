@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {maybeMachineLabel} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {maybeMachineLabel} from '../../public/utils';
 
 function stripPathFromExecutable(path: string) {
   if (path[0] === '/') {

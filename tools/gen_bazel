@@ -645,6 +645,10 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
   py_label.deps = [':' + sources_label.name]
   py_label.comment = sources_label.comment
 
+  dart_label = BazelLabel(name + '_dart_proto', 'perfetto_dart_proto_library')
+  dart_label.deps = [':' + sources_label.name]
+  dart_label.comment = sources_label.comment
+
   visibility = desc['visibility']
   if visibility:
     sources_label.visibility = visibility
@@ -652,6 +656,7 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
     java_label.visibility = visibility
     java_lite_label.visibility = visibility
     py_label.visibility = visibility
+    dart_label.visibility = visibility
 
   return [
       sources_label,
@@ -659,6 +664,7 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
       java_label,
       java_lite_label,
       py_label,
+      dart_label,
   ]
 
 
@@ -996,6 +1002,7 @@ load(
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_cc_tp_tables",
+    "perfetto_dart_proto_library",
     "perfetto_filegroup",
     "perfetto_genrule",
     "perfetto_go_proto_library",

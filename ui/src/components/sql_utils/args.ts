@@ -22,21 +22,10 @@ import {
 } from '../../trace_processor/query_result';
 import {ArgSetId, ArgsId, asArgId} from './core_types';
 
-export type ArgValue = bigint | string | number | boolean | null;
-export type ArgValueType =
-  | 'int'
-  | 'uint'
-  | 'pointer'
-  | 'string'
-  | 'bool'
-  | 'real'
-  | 'null';
-
 export interface Arg {
   id: ArgsId;
   flatKey: string;
   key: string;
-  value: ArgValue;
   displayValue: string;
 }
 
@@ -70,45 +59,12 @@ export async function getArgs(
 
   const result: Arg[] = [];
   for (; it.valid(); it.next()) {
-    const value = parseValue(it.valueType as ArgValueType, it);
     result.push({
       id: asArgId(it.id),
       flatKey: it.flatKey,
       key: it.key,
-      value,
       displayValue: it.displayValue ?? 'NULL',
     });
   }
-
   return result;
-}
-
-function parseValue(
-  valueType: ArgValueType,
-  value: {
-    intValue: bigint | null;
-    stringValue: string | null;
-    realValue: number | null;
-  },
-): ArgValue {
-  switch (valueType) {
-    case 'int':
-    case 'uint':
-      return value.intValue;
-    case 'pointer':
-      return value.intValue === null
-        ? null
-        : `0x${value.intValue.toString(16)}`;
-    case 'string':
-      return value.stringValue;
-    case 'bool':
-      return value.intValue === null ? null : value.intValue !== 0n;
-    case 'real':
-      return value.realValue;
-    case 'null':
-      return null;
-    default:
-      const x: number = valueType;
-      throw new Error(`Unable to process arg of type ${x}`);
-  }
 }

@@ -35,6 +35,12 @@ import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {SourceNode} from '../../source_node';
 
+export interface TableSourceSerializedState {
+  sqlTable?: string;
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
+
 export interface TableSourceState extends QueryNodeState {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
@@ -125,7 +131,7 @@ export class TableSourceNode extends SourceNode {
   }
 
   nodeSpecificModify(): m.Child {
-    if (this.state.sqlTable) {
+    if (this.state.sqlTable != null) {
       const table = this.state.sqlTable;
       return m(
         '.pf-stdlib-table-node',
@@ -211,5 +217,29 @@ export class TableSourceNode extends SourceNode {
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
+  }
+
+  serializeState(): TableSourceSerializedState {
+    return {
+      sqlTable: this.state.sqlTable?.name,
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
+  static deserializeState(
+    trace: Trace,
+    sqlModules: SqlModules,
+    state: TableSourceSerializedState,
+  ): TableSourceState {
+    const sqlTable = state.sqlTable
+      ? sqlModules.getTable(state.sqlTable)
+      : undefined;
+    return {
+      ...state,
+      trace,
+      sqlModules,
+      sqlTable,
+    };
   }
 }

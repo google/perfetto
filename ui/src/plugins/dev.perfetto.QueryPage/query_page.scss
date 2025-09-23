@@ -19,8 +19,7 @@
 
   &__elapsed-time {
     font-size: 0.9em;
-    color: rgb(83, 83, 83);
-    margin-left: 0.2rem;
+    margin-left: 0.2em;
   }
 
   &__toolbar {
@@ -42,7 +41,7 @@
 
   &__query-error {
     padding: 20px 10px;
-    color: hsl(-10, 50%, 50%);
+    color: var(--pf-color-danger);
     font-family: var(--pf-font-monospace);
     font-size: 12px;
     font-weight: 300;

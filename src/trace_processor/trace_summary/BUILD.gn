@@ -60,4 +60,8 @@ source_set("integrationtests") {
     "../../base:test_support",
     "../util:descriptors",
   ]
+
+  if (enable_perfetto_zlib) {
+    deps += [ "../../../gn:zlib" ]
+  }
 }

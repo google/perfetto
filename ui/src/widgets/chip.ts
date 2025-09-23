@@ -59,6 +59,10 @@ interface LabelChipAttrs extends CommonAttrs {
 
 export type ChipAttrs = LabelChipAttrs | IconChipAttrs;
 
+function isLabelChipAttrs(attrs: ChipAttrs): attrs is LabelChipAttrs {
+  return (attrs as LabelChipAttrs).label !== undefined;
+}
+
 export class Chip implements m.ClassComponent<ChipAttrs> {
   view({attrs}: m.CVnode<ChipAttrs>) {
     const {
@@ -74,7 +78,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       ...htmlAttrs
     } = attrs;
 
-    const label = 'label' in attrs ? attrs.label : undefined;
+    const label = isLabelChipAttrs(attrs) ? attrs.label : undefined;
 
     const classes = classNames(
       compact && 'pf-compact',

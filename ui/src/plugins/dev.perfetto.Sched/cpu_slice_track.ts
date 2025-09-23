@@ -35,7 +35,6 @@ import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {Cpu} from '../../base/multi_machine_trace';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -69,7 +68,7 @@ export class CpuSliceTrack implements TrackRenderer {
   constructor(
     private readonly trace: Trace,
     private readonly uri: string,
-    private readonly cpu: Cpu,
+    private readonly ucpu: number,
     private readonly threads: ThreadMap,
   ) {}
 
@@ -83,14 +82,14 @@ export class CpuSliceTrack implements TrackRenderer {
           iif(dur = -1, lead(ts, 1, trace_end()) over (order by ts) - ts, dur) as dur,
           0 as depth
         from sched
-        where ucpu = ${this.cpu.ucpu} and
+        where ucpu = ${this.ucpu} and
           not utid in (select utid from thread where is_idle)
       ));
     `);
     const it = await this.trace.engine.query(`
       select coalesce(max(id), -1) as lastRowId
       from sched
-      where ucpu = ${this.cpu.ucpu} and
+      where ucpu = ${this.ucpu} and
         not utid in (select utid from thread where is_idle)
     `);
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
@@ -113,7 +112,7 @@ export class CpuSliceTrack implements TrackRenderer {
       },
       filter: {
         col: 'ucpu',
-        eq: this.cpu.ucpu,
+        eq: this.ucpu,
       },
     });
   }

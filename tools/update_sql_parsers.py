@@ -20,8 +20,38 @@ import shutil
 import sys
 import tempfile
 
-GRAMMAR_FOOTER = '''
-%token SPACE ILLEGAL.
+EXPECTED_SPECIAL_TOKENS = '%token SPACE COMMENT ILLEGAL.'
+
+
+def validate_special_tokens(sqlite_grammar_file):
+  """Validate that SQLite's special tokens match our expectations."""
+  try:
+    with open(sqlite_grammar_file, 'r') as f:
+      lines = f.readlines()
+
+    # Look for the last %token line which should contain the special tokens
+    for line in reversed(lines):
+      line = line.strip()
+      if line.startswith('%token ') and ('SPACE' in line or 'ILLEGAL' in line):
+        if line != EXPECTED_SPECIAL_TOKENS:
+          raise ValueError(
+              f"SQLite special tokens have changed!\n"
+              f"Expected: {EXPECTED_SPECIAL_TOKENS}\n"
+              f"Found: {line}\n"
+              f"This likely means SQLite has been updated and the tokenizer integration "
+              f"needs to be reviewed. Please update EXPECTED_SPECIAL_TOKENS in this script "
+              f"and check if any new tokens need to be handled in tokenize_internal_helper.h"
+          )
+        return
+
+    raise ValueError("Could not find special tokens line in SQLite grammar")
+  except Exception as e:
+    raise ValueError(
+        f"Failed to validate special tokens in {sqlite_grammar_file}: {e}")
+
+
+GRAMMAR_FOOTER = f'''
+{EXPECTED_SPECIAL_TOKENS}
 '''
 
 KEYWORDHASH_HEADER = '''
@@ -40,6 +70,7 @@ KEYWORD_END_REPLACE = '''
   { "MODULE",           "TK_MODULE",       ALWAYS,           1      },
   { "RETURNS",          "TK_RETURNS",      ALWAYS,           1      },
   { "FUNCTION",         "TK_FUNCTION",     ALWAYS,           1      },
+  { "DELEGATES",        "TK_DELEGATES",    ALWAYS,           1      },
 };'''
 
 
@@ -160,6 +191,9 @@ def main():
       keywordhash_res = keywordhash_res[0:idx]
       g.write(KEYWORDHASH_HEADER)
       g.write(keywordhash_res)
+
+    # Validate that SQLite's special tokens haven't changed
+    validate_special_tokens(args.sqlite_grammar)
 
     # PerfettoSQL grammar
     sqlite_grammar = subprocess.check_output([

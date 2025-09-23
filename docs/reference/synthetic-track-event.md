@@ -130,6 +130,15 @@ your `trace_converter_template.py` script.
 
 ![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
 
+You can query process-associated counter data using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT counter.ts, counter.value, process.name AS process_name 
+FROM counter 
+JOIN process_counter_track ON counter.track_id = process_counter_track.id
+JOIN process USING(upid)
+WHERE process.pid = 1234;
+```
+
 Once you have defined a process track, you can parent various other kinds of
 tracks to it. This includes tracks for specific threads within that process (see
 next section), as well as custom tracks for process-wide counters (as shown
@@ -254,6 +263,15 @@ your `trace_converter_template.py` script.
 </details>
 
 ![Associating Tracks with Threads](/docs/images/synthetic-track-event-thread-slice.png)
+
+You can query thread-specific slices using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
+```sql
+INCLUDE PERFETTO MODULE slices.with_context;
+
+SELECT ts, dur, name, thread_name
+FROM thread_slice 
+WHERE tid = 5678;
+```
 
 ## Advanced Track Customization
 
@@ -390,13 +408,19 @@ your `trace_converter_template.py` script.
 
 ### Sharing Y-Axis Between Counters
 
-When visualizing multiple counter tracks, it is often useful to have them share the same Y-axis range. This allows for easy comparison of their values. Perfetto supports this feature through the `y_axis_share_key` field in the `CounterDescriptor`.
+When visualizing multiple counter tracks, it is often useful to have them share
+the same Y-axis range. This allows for easy comparison of their values. Perfetto
+supports this feature through the `y_axis_share_key` field in the
+`CounterDescriptor`.
 
-All counter tracks that have the same `y_axis_share_key` and the same parent track will share their Y-axis range in the UI.
+All counter tracks that have the same `y_axis_share_key` and the same parent
+track will share their Y-axis range in the UI.
 
 **Python Example: Sharing Y-Axis**
 
-In this example, we create two counter tracks with the same `y_axis_share_key`. This will cause them to be rendered with the same Y-axis range in the Perfetto UI.
+In this example, we create two counter tracks with the same `y_axis_share_key`.
+This will cause them to be rendered with the same Y-axis range in the Perfetto
+UI.
 
 <details>
 <summary><b>Click to expand/collapse Python code</b></summary>
@@ -441,6 +465,83 @@ In this example, we create two counter tracks with the same `y_axis_share_key`. 
 </details>
 
 ![Sharing Y-Axis](/docs/images/synthetic-track-event-share-y-axis.png)
+
+### Adding a Track Description
+
+You can add a human-readable description to any track to provide more context
+about the data it contains. In the Perfetto UI, this description appears in a
+popup when the user clicks the help icon next to the track's name. This is
+useful for explaining what a track represents, the meaning of its events, or how
+it should be interpreted, especially in complex custom traces.
+
+To add a description, you simply set the optional `description` field in the
+track's `TrackDescriptor`.
+
+#### Python Example
+
+This example defines two tracks: one with a `description` field set and one
+without, to illustrate the difference in the UI.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9005
+
+    # --- Define Track UUID ---
+    described_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    undescribed_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+
+    # --- 1. Define two tracks, one with a description and one without ---
+    # Track WITH description
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = described_track_uuid
+    desc.name = "Track With Description"
+    desc.description = "This track shows the processing stages for incoming user requests. Click the (?) icon to see this text."
+
+    # Track WITHOUT description
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = undescribed_track_uuid
+    desc.name = "Track Without Description"
+    # The 'description' field is simply not set.
+
+    # Helper to add a slice event to the track
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # --- 2. Emit some events on both tracks ---
+    # Events for the described track
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=described_track_uuid, name="Request #123")
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=described_track_uuid)
+
+    # Events for the undescribed track
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_BEGIN,
+                    event_track_uuid=undescribed_track_uuid, name="Some Other Task")
+    add_slice_event(ts=1500, event_type=TrackEvent.TYPE_SLICE_END,
+                    event_track_uuid=undescribed_track_uuid)
+```
+
+</details>
+
+![Adding a Track Description](/docs/images/synthetic-track-event-description.png)
+
+## Advanced Event Writing
+
+This section covers advanced TrackEvent features for specialized use cases,
+including data optimization techniques and event linking mechanisms.
 
 ### Interning Data for Trace Size Optimization
 
@@ -574,21 +675,49 @@ your `trace_converter_template.py` script.
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
 
-### Adding a Track Description
+### Linking Related Events with Correlation IDs
 
-You can add a human-readable description to any track to provide more context
-about the data it contains. In the Perfetto UI, this description appears in a
-popup when the user clicks the help icon next to the track's name. This is
-useful for explaining what a track represents, the meaning of its events, or how
-it should be interpreted, especially in complex custom traces.
+Correlation IDs provide a way to visually link slices that are part of the same
+logical operation, even when they are not causally connected. Unlike flows,
+which represent direct cause-and-effect relationships, correlation IDs group
+events that share a common context or belong to the same high-level operation.
 
-To add a description, you simply set the optional `description` field in the
-track's `TrackDescriptor`.
+**Common use cases:**
+
+- **GPU rendering**: Link all slices involved in rendering the same frame across
+  different GPU stages
+- **Distributed systems**: Group all slices related to the same RPC request as
+  it moves through different services
+- **Network processing**: Connect all slices involved in processing the same
+  network request through different kernel stages
+
+**Visual benefits:** The Perfetto UI can use correlation IDs to assign
+consistent colors to related slices or highlight the entire correlated set when
+one slice is hovered, making it easier to track related operations across
+different tracks.
+
+**Relationship to flows:**
+
+- Use **flows** when events have a direct causal relationship (A triggers B)
+- Use **correlation IDs** when events are part of the same logical operation but
+  not directly connected
+- You can use both together: flows for causal connections within a correlated
+  group
+
+Perfetto supports three types of correlation identifiers:
+
+- `correlation_id`: A 64-bit unsigned integer (most efficient, recommended for
+  most cases)
+- `correlation_id_str`: A string value (most flexible, human-readable)
+- `correlation_id_str_iid`: An interned string ID (see
+  [Interning Data for Trace Size Optimization](#interning-data-for-trace-size-optimization)
+  above for details on interning)
 
 #### Python Example
 
-This example defines two tracks: one with a `description` field set and one
-without, to illustrate the difference in the UI.
+This example demonstrates correlation IDs using integer identifiers by
+simulating different stages of processing for two separate requests across
+multiple service tracks.
 
 Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
@@ -597,54 +726,61 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    TRUSTED_PACKET_SEQUENCE_ID = 9005
+    TRUSTED_PACKET_SEQUENCE_ID = 9010
 
-    # --- Define Track UUID ---
-    described_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
-    undescribed_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    # --- Define Track UUIDs ---
+    frontend_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    auth_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    database_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    cache_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
 
-    # --- 1. Define two tracks, one with a description and one without ---
-    # Track WITH description
-    packet = builder.add_packet()
-    desc = packet.track_descriptor
-    desc.uuid = described_track_uuid
-    desc.name = "Track With Description"
-    desc.description = "This track shows the processing stages for incoming user requests. Click the (?) icon to see this text."
-
-    # Track WITHOUT description
-    packet = builder.add_packet()
-    desc = packet.track_descriptor
-    desc.uuid = undescribed_track_uuid
-    desc.name = "Track Without Description"
-    # The 'description' field is simply not set.
-
-    # Helper to add a slice event to the track
-    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name):
         packet = builder.add_packet()
-        packet.timestamp = ts
-        packet.track_event.type = event_type
-        packet.track_event.track_uuid = event_track_uuid
-        if name:
-            packet.track_event.name = name
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+
+    # 1. Define the tracks
+    define_custom_track(frontend_track_uuid, "Frontend Service")
+    define_custom_track(auth_track_uuid, "Auth Service")
+    define_custom_track(database_track_uuid, "Database Service")
+    define_custom_track(cache_track_uuid, "Cache Service")
+
+    # Helper to add slice with correlation ID
+    def add_correlated_slice(ts_start, ts_end, track_uuid, slice_name, correlation_id):
+        # Start slice
+        packet = builder.add_packet()
+        packet.timestamp = ts_start
+        packet.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+        packet.track_event.track_uuid = track_uuid
+        packet.track_event.name = slice_name
+        packet.track_event.correlation_id = correlation_id
         packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
 
-    # --- 2. Emit some events on both tracks ---
-    # Events for the described track
-    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
-                    event_track_uuid=described_track_uuid, name="Request #123")
-    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_END,
-                    event_track_uuid=described_track_uuid)
+        # End slice
+        packet = builder.add_packet()
+        packet.timestamp = ts_end
+        packet.track_event.type = TrackEvent.TYPE_SLICE_END
+        packet.track_event.track_uuid = track_uuid
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
 
-    # Events for the undescribed track
-    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_BEGIN,
-                    event_track_uuid=undescribed_track_uuid, name="Some Other Task")
-    add_slice_event(ts=1500, event_type=TrackEvent.TYPE_SLICE_END,
-                    event_track_uuid=undescribed_track_uuid)
+    # --- Request #42: All slices with correlation_id = 42 ---
+    REQUEST_42_ID = 42
+    add_correlated_slice(1000, 1200, frontend_track_uuid, "Handle Request #42", REQUEST_42_ID)
+    add_correlated_slice(1100, 1400, auth_track_uuid, "Authenticate Request #42", REQUEST_42_ID)
+    add_correlated_slice(1350, 1600, database_track_uuid, "Query for Request #42", REQUEST_42_ID)
+
+    # --- Request #123: All slices with correlation_id = 123 ---
+    REQUEST_123_ID = 123
+    add_correlated_slice(2000, 2300, frontend_track_uuid, "Handle Request #123", REQUEST_123_ID)
+    add_correlated_slice(2100, 2500, database_track_uuid, "Query for Request #123", REQUEST_123_ID)
+    add_correlated_slice(2400, 2600, cache_track_uuid, "Cache Request #123", REQUEST_123_ID)
 ```
 
 </details>
 
-![Adding a Track Description](/docs/images/synthetic-track-event-description.png)
+![Correlation IDs](/docs/images/synthetic-track-event-correlation-ids.png)
 
 ## {#controlling-track-merging} Controlling Track Merging
 
@@ -781,8 +917,8 @@ for moderately sized traces, but can lead to high memory consumption if you are
 generating traces with millions of events.
 
 For these scenarios, the `StreamingTraceProtoBuilder` is the recommended
-solution. It writes each `TracePacket` to a file as it's created, keeping
-memory usage minimal regardless of the trace size.
+solution. It writes each `TracePacket` to a file as it's created, keeping memory
+usage minimal regardless of the trace size.
 
 ### How it Works
 
@@ -799,9 +935,11 @@ The API for the streaming builder is slightly different:
 
 Here is a complete, standalone Python script that demonstrates how to use the
 `StreamingTraceProtoBuilder`. It is based on the "Creating Basic Timeline
-Slices" example from the [Getting Started guide](/docs/getting-started/converting.md).
+Slices" example from the
+[Getting Started guide](/docs/getting-started/converting.md).
 
-You can save this code as a new file (e.g., `streaming_converter.py`) and run it.
+You can save this code as a new file (e.g., `streaming_converter.py`) and run
+it.
 
 <details>
 <summary><b>Click to expand/collapse Python code</b></summary>

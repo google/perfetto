@@ -740,5 +740,10 @@ message FtraceEvent {
     HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
         589;
     HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
+    DrmSchedJobAddDepFtraceEvent drm_sched_job_add_dep = 591;
+    DrmSchedJobDoneFtraceEvent drm_sched_job_done = 592;
+    DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
+    DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
+    DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
   }
 }

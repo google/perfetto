@@ -56,6 +56,8 @@ export function createActualFramesTrack(
         jank_type: STR,
         jank_tag: STR_NULL,
         jank_severity_type: STR_NULL,
+        arg_set_id: NUM,
+        track_id: NUM,
       },
       filter: {
         col: 'track_id',

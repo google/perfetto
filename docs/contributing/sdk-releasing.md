@@ -132,7 +132,7 @@ git push origin vX.Y
    on https://luci-scheduler.appspot.com/jobs/perfetto . Wait for all the bots
    to have completed successfully and be back into the WAITING state.
 
-8. Run `tools/package-prebuilts-for-github-release vX.Y`. It will pull the
+8. Run `tools/release/package-prebuilts-for-github-release vX.Y`. It will pull the
    prebuilts under `/tmp/perfetto-prebuilts-vX.Y`.
   - There must be 10 zips in total: linux-{arm,arm64,amd64},
     android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, win-amd64.

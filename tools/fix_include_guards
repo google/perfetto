@@ -78,7 +78,7 @@ def main():
       for name in files:
         if not name.endswith('.h'):
           continue
-        fpath = os.path.join(root, name)
+        fpath = os.path.join(root, name).replace(os.path.sep, '/')
         if fpath in EXCLUDED_FILES:
           continue
         num_files_changed += fix_guards(fpath, checkonly)

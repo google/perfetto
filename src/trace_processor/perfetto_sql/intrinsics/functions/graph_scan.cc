@@ -706,10 +706,10 @@ struct GraphScan : public sqlite::Function<GraphScan> {
 
 base::Status RegisterGraphScanFunctions(PerfettoSqlEngine& engine,
                                         StringPool* pool) {
-  RETURN_IF_ERROR(engine.RegisterSqliteFunction<GraphScan>(
-      std::make_unique<GraphScan::UserData>(
+  RETURN_IF_ERROR(
+      engine.RegisterFunction<GraphScan>(std::make_unique<GraphScan::UserData>(
           GraphScan::UserData{&engine, pool})));
-  return engine.RegisterSqliteFunction<GraphAggregatingScan>(
+  return engine.RegisterFunction<GraphAggregatingScan>(
       std::make_unique<GraphAggregatingScan::UserData>(
           GraphAggregatingScan::UserData{&engine, pool}));
 }

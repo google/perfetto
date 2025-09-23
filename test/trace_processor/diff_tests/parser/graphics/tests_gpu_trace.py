@@ -179,7 +179,7 @@ class GraphicsGpuTrace(TestSuite):
           "track_name","track_desc","ts","dur","slice_name","depth","flat_key","string_value","context_id","render_target","render_target_name","render_pass","render_pass_name","command_buffer","command_buffer_name","submission_id","hw_queue_id","render_subpasses"
           "vertex","vertex queue",100,10,"binning",0,"description","binning graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
           "fragment","fragment queue",200,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,2,"[NULL]"
-          "vertex","vertex queue",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
+          "queue2","queue2 description",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
         '''))
 
   def test_vulkan_api_events(self):
@@ -254,4 +254,28 @@ class GraphicsGpuTrace(TestSuite):
           "track_name","ts","dur","slice_name","depth"
           "queue 1",100,10,"stage 1",0
           "queue 1",105,10,"stage 1",0
+        '''))
+
+  def test_gpu_render_stages_per_process(self):
+    return DiffTestBlueprint(
+        trace=DataPath('gpu_render_stages.pftrace'),
+        query='''
+          SELECT
+            CASE
+              WHEN g.name LIKE 'vkcube%' THEN 'vkcube_process'
+              WHEN g.name LIKE 'vulkan_sam%' THEN 'vulkan_sam_process'
+              ELSE 'other'
+            END AS process_indicator,
+            COUNT(DISTINCT g.id) AS distinct_track_count,
+            COUNT(*) AS total_slices
+          FROM gpu_track g
+          JOIN gpu_slice s ON g.id = s.track_id
+          WHERE g.name LIKE 'vkcube%' OR g.name LIKE 'vulkan_sam%'
+          GROUP BY process_indicator
+          ORDER BY process_indicator;
+        ''',
+        out=Csv('''
+          "process_indicator","distinct_track_count","total_slices"
+          "vkcube_process",6,3220
+          "vulkan_sam_process",22,111019
         '''))

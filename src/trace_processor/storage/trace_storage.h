@@ -877,6 +877,15 @@ class TraceStorage {
     return &windowmanager_table_;
   }
 
+  const tables::WindowManagerWindowContainerTable&
+  windowmanager_windowcontainer_table() const {
+    return windowmanager_windowcontainer_table_;
+  }
+  tables::WindowManagerWindowContainerTable*
+  mutable_windowmanager_windowcontainer_table() {
+    return &windowmanager_windowcontainer_table_;
+  }
+
   const tables::WindowManagerShellTransitionsTable&
   window_manager_shell_transitions_table() const {
     return window_manager_shell_transitions_table_;
@@ -1231,6 +1240,8 @@ class TraceStorage {
   tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{
       &string_pool_};
   tables::WindowManagerTable windowmanager_table_{&string_pool_};
+  tables::WindowManagerWindowContainerTable
+      windowmanager_windowcontainer_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable

@@ -22,7 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
-#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/traced/traced.h"
@@ -114,7 +114,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
     PERFETTO_DCHECK(res == 0);
   }
 
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
   ProbesProducer producer;
   // If the TRACED_PROBES_NOTIFY_FD env var is set, write 1 and close the FD,
   // when all data sources have been registered. This is used for //src/tracebox

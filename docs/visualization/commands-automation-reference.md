@@ -46,7 +46,14 @@ Pins tracks matching a regular expression pattern to the top of the timeline.
 
 **Arguments:**
 
-- `pattern` (string, required): Regular expression to match track names
+- `pattern` (string, required): Regular expression to match track names or paths
+- `nameOrPath` (string, optional): Whether to match against track names ("name")
+  or track paths ("path"). Defaults to "name"
+
+**Track names vs paths:**
+
+- Track name: `"RenderThread"`
+- Track path: `"com.example.app > RenderThread"`
 
 **Example:**
 
@@ -54,6 +61,15 @@ Pins tracks matching a regular expression pattern to the top of the timeline.
 {
   "id": "dev.perfetto.PinTracksByRegex",
   "args": [".*surfaceflinger.*"]
+}
+```
+
+**Example with track path filtering:**
+
+```json
+{
+  "id": "dev.perfetto.PinTracksByRegex",
+  "args": [".*com\\.example\\.app.*RenderThread.*", "path"]
 }
 ```
 
@@ -71,7 +87,15 @@ Expands track groups matching a regular expression pattern.
 
 **Arguments:**
 
-- `pattern` (string, required): Regular expression to match track group names
+- `pattern` (string, required): Regular expression to match track group names or
+  paths
+- `nameOrPath` (string, optional): Whether to match against track names ("name")
+  or track paths ("path"). Defaults to "name"
+
+**Track names vs paths:**
+
+- Track name: `"RenderThread"`
+- Track path: `"com.example.app > RenderThread"`
 
 **Example:**
 
@@ -79,6 +103,15 @@ Expands track groups matching a regular expression pattern.
 {
   "id": "dev.perfetto.ExpandTracksByRegex",
   "args": [".*system_server.*"]
+}
+```
+
+**Example with track path filtering:**
+
+```json
+{
+  "id": "dev.perfetto.ExpandTracksByRegex",
+  "args": [".*system_server.*RenderThread.*", "path"]
 }
 ```
 
@@ -90,7 +123,15 @@ Collapses track groups matching a regular expression pattern.
 
 **Arguments:**
 
-- `pattern` (string, required): Regular expression to match track group names
+- `pattern` (string, required): Regular expression to match track group names or
+  paths
+- `nameOrPath` (string, optional): Whether to match against track names ("name")
+  or track paths ("path"). Defaults to "name"
+
+**Track names vs paths:**
+
+- Track name: `"RenderThread"`
+- Track path: `"com.example.app > RenderThread"`
 
 **Example:**
 
@@ -98,6 +139,15 @@ Collapses track groups matching a regular expression pattern.
 {
   "id": "dev.perfetto.CollapseTracksByRegex",
   "args": ["CPU Scheduling"]
+}
+```
+
+**Example with track path filtering:**
+
+```json
+{
+  "id": "dev.perfetto.CollapseTracksByRegex",
+  "args": [".*com\\.example\\.app.*", "path"]
 }
 ```
 
@@ -267,8 +317,16 @@ Copies tracks matching a pattern to a workspace.
 
 **Arguments:**
 
-1. `pattern` (string, required): Regular expression to match track names
+1. `pattern` (string, required): Regular expression to match track names or
+   paths
 2. `workspaceTitle` (string, required): Target workspace name
+3. `nameOrPath` (string, optional): Whether to match against track names
+   ("name") or track paths ("path"). Defaults to "name"
+
+**Track names vs paths:**
+
+- Track name: `"RenderThread"`
+- Track path: `"com.example.app > RenderThread"`
 
 **Example:**
 
@@ -276,6 +334,15 @@ Copies tracks matching a pattern to a workspace.
 {
   "id": "dev.perfetto.CopyTracksToWorkspaceByRegex",
   "args": ["(Expected|Actual) Timeline", "Frame Analysis"]
+}
+```
+
+**Example with track path filtering:**
+
+```json
+{
+  "id": "dev.perfetto.CopyTracksToWorkspaceByRegex",
+  "args": [".*com\\.example\\.app.*RenderThread.*", "Frame Analysis", "path"]
 }
 ```
 
@@ -288,8 +355,16 @@ groups for context.
 
 **Arguments:**
 
-1. `pattern` (string, required): Regular expression to match track names
+1. `pattern` (string, required): Regular expression to match track names or
+   paths
 2. `workspaceTitle` (string, required): Target workspace name
+3. `nameOrPath` (string, optional): Whether to match against track names
+   ("name") or track paths ("path"). Defaults to "name"
+
+**Track names vs paths:**
+
+- Track name: `"RenderThread"`
+- Track path: `"com.example.app > RenderThread"`
 
 **Example:**
 
@@ -297,6 +372,19 @@ groups for context.
 {
   "id": "dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors",
   "args": ["RenderThread", "Rendering Analysis"]
+}
+```
+
+**Example with track path filtering:**
+
+```json
+{
+  "id": "dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors",
+  "args": [
+    ".*com\\.example\\.app.*RenderThread.*",
+    "Rendering Analysis",
+    "path"
+  ]
 }
 ```
 
@@ -315,7 +403,9 @@ Executes a PerfettoSQL query without displaying results.
 ```json
 {
   "id": "dev.perfetto.RunQuery",
-  "args": ["CREATE PERFETTO FUNCTION my_func(x INT) RETURNS INT AS SELECT $x * 2"]
+  "args": [
+    "CREATE PERFETTO FUNCTION my_func(x INT) RETURNS INT AS SELECT $x * 2"
+  ]
 }
 ```
 
@@ -336,15 +426,54 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 }
 ```
 
+### Macro Commands
+
+Macros are user-defined sequences of commands that execute in order. They
+provide a way to automate complex, multi-step analysis workflows.
+
+#### User-defined Macros
+
+Macros can be defined through the UI settings and automatically get stable
+command IDs.
+
+**Command Pattern:**
+
+- `dev.perfetto.UserMacro.{macroName}` - Executes a user-defined macro
+
+**Arguments:**
+
+None (macro commands and arguments are pre-configured)
+
+**Example:**
+
+```json
+{
+  "id": "dev.perfetto.UserMacro.MyAnalysisWorkflow",
+  "args": []
+}
+```
+
+**Notes:**
+
+- Each macro contains a sequence of commands that execute in order
+- When used as startup commands, all commands within the macro must also be
+  allowlisted
+- Macros can include any stable automation command from this reference
+- Failed commands within a macro are logged but don't stop execution of
+  remaining commands
+
+---
+
 ## Using Commands for Automation
 
 These stable automation commands can be used in several contexts:
 
 - **Startup Commands** - Automatically run when loading traces. See
-  [Startup Commands](/docs/visualization/perfetto-ui.md#startup-commands) in the
-  Perfetto UI guide.
+  [Startup Commands](/docs/visualization/ui-automation.md#commands-system-overview)
+  in the UI automation guide.
 - **Macros** - Named command sequences for on-demand execution. See
-  [Macros](/docs/visualization/perfetto-ui.md#macros) in the Perfetto UI guide.
+  [Macros](/docs/visualization/ui-automation.md#commands-system-overview) in the
+  UI automation guide.
 - **URL Deep Linking** - Embed commands in URLs or postMessage. See
   [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md#configuring-the-ui-with-startup-commands)
   for URL patterns and postMessage integration.
@@ -370,8 +499,8 @@ Commands are prioritized based on:
 
 ## See Also
 
-- [UI Automation guide](/docs/visualization/ui-automation.md) -
-  Practical recipes using these commands
+- [UI Automation guide](/docs/visualization/ui-automation.md) - Practical
+  recipes using these commands
 - [Perfetto UI Guide](/docs/visualization/perfetto-ui.md) - General UI
   documentation including commands
 - [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md) - Opening

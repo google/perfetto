@@ -296,14 +296,18 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 // 1. A lambda for writing custom TrackEvent fields:
 //
 //   TRACE_EVENT("category", "Name", [&](perfetto::EventContext ctx) {
-//     ctx.event()->set_custom_value(...);
+//     auto* debug_annotation = ctx.event()->add_debug_annotations();
+//     debug_annotation->set_name("key");
+//     debug_annotation->set_string_value("value");
 //   });
 //
 // 2. A timestamp and a lambda:
 //
 //   TRACE_EVENT("category", "Name", time_in_nanoseconds,
 //       [&](perfetto::EventContext ctx) {
-//     ctx.event()->set_custom_value(...);
+//     auto* debug_annotation = ctx.event()->add_debug_annotations();
+//     debug_annotation->set_name("key");
+//     debug_annotation->set_string_value("value");
 //   });
 //
 //   |time_in_nanoseconds| should be an uint64_t by default. To support custom
@@ -324,7 +328,9 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 //
 //   TRACE_EVENT("category", "Name", "arg", value,
 //       [&](perfetto::EventContext ctx) {
-//     ctx.event()->set_custom_value(...);
+//     auto* debug_annotation = ctx.event()->add_debug_annotations();
+//     debug_annotation->set_name("key");
+//     debug_annotation->set_string_value("value");
 //   });
 //
 // 5. An overridden track:
@@ -337,7 +343,9 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 //
 //   TRACE_EVENT("category", "Name", perfetto::Track(1234),
 //       [&](perfetto::EventContext ctx) {
-//     ctx.event()->set_custom_value(...);
+//     auto* debug_annotation = ctx.event()->add_debug_annotations();
+//     debug_annotation->set_name("key");
+//     debug_annotation->set_string_value("value");
 //   });
 //
 // 7. A track and a timestamp:
@@ -349,7 +357,9 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 //
 //   TRACE_EVENT("category", "Name", perfetto::Track(1234),
 //       time_in_nanoseconds, [&](perfetto::EventContext ctx) {
-//     ctx.event()->set_custom_value(...);
+//     auto* debug_annotation = ctx.event()->add_debug_annotations();
+//     debug_annotation->set_name("key");
+//     debug_annotation->set_string_value("value");
 //   });
 //
 // 9. A track and an arbitrary number of debug annotions:

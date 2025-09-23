@@ -88,7 +88,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
       const track = trace.tracks.getTrack(trackNode.uri);
       return (
         track &&
-        track.tags?.kind === SLICE_TRACK_KIND &&
+        track.tags?.kinds?.includes(SLICE_TRACK_KIND) &&
         track.tags?.trackIds?.includes(trackId)
       );
     });

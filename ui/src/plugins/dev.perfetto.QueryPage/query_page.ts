@@ -130,7 +130,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             Callout,
             {
               icon: 'wand_stars',
-              dismissable: true,
+              dismissible: true,
               onDismiss: () => {
                 this.hidePerfettoSqlAgentBanner();
               },

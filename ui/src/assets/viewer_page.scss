@@ -28,7 +28,7 @@
   &__header {
     display: grid;
     grid-template-columns: 1fr auto;
-    box-shadow: $box-shadow-2;
+    box-shadow: $box-shadow-1;
     z-index: 2;
 
     &:after {
@@ -44,7 +44,7 @@
     flex: 0 0 auto;
     max-height: 40%;
     z-index: 1;
-    box-shadow: $box-shadow-2;
+    box-shadow: $box-shadow-1;
     scrollbar-gutter: stable;
   }
 

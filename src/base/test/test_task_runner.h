@@ -24,8 +24,8 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/thread_checker.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 
 namespace perfetto {
 namespace base {
@@ -63,7 +63,7 @@ class TestTaskRunner : public TaskRunner {
   std::string pending_checkpoint_;
   std::map<std::string, bool> checkpoints_;
 
-  base::UnixTaskRunner task_runner_;
+  base::MaybeLockFreeTaskRunner task_runner_;
   ThreadChecker thread_checker_;
 };
 

@@ -343,21 +343,33 @@ function showWebUSBError() {
       'div',
       m(
         'span',
-        `Is adb already running on the host? Run this command and
-      try again.`,
+        `Cannot access the USB interface for ADB. This can happen when:`,
       ),
       m('br'),
+      m('br'),
+      m(
+        'ul',
+        m('li', 'Another tool is already using ADB (e.g., chrome://inspect)'),
+        m('li', 'ADB server is running on the host machine'),
+        m('li', 'Another profiling tool has exclusive access to the device'),
+      ),
+      m('br'),
+      m('span', 'Try the following solutions:'),
+      m('br'),
+      m('br'),
+      m(
+        'ol',
+        m('li', 'Close chrome://inspect or other debugging tools'),
+        m('li', 'Run the command below to kill the ADB server:'),
+      ),
       m('.pf-modal-bash', '> adb kill-server'),
       m('br'),
-      m('span', 'For details see '),
+      m('span', '3. Disconnect and reconnect your device'),
+      m('br'),
+      m('br'),
       m(
-        Anchor,
-        {
-          href: 'http://b/159048331',
-          target: '_blank',
-          icon: Icons.ExternalLink,
-        },
-        'b/159048331',
+        'span',
+        'Note: Perfetto and chrome://inspect cannot be used simultaneously as they both require exclusive access to the USB ADB interface.',
       ),
     ),
   });

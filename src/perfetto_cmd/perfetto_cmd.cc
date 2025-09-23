@@ -1664,7 +1664,7 @@ void PerfettoCmd::CloneAllBugreportTraces(
   // There are two TaskRunners here, nested into each other:
   // 1) The "outer" ThreadTaskRunner, created by `thd`. This will see only one
   //    task ever, which is "run perfetto_cmd until completion".
-  // 2) Internally PerfettoCmd creates its own UnixTaskRunner, which creates
+  // 2) Internally PerfettoCmd creates its own TaskRunner impl, which creates
   //    a nested TaskRunner that takes control of the execution. This returns
   //    only once TaskRunner::Quit() is called, in its epilogue.
   auto done_count = std::make_shared<std::atomic<size_t>>(num_sessions);

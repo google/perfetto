@@ -23,8 +23,8 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -33,28 +33,24 @@ namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
 
-struct CreatedFunction : public LegacySqlFunction {
-  // Expose a do-nothing context
-  using Context = Destructible;
+struct CreatedFunction : public sqlite::Function<CreatedFunction> {
+  using UserData = Destructible;
 
-  // SqlFunction implementation.
-  static base::Status Run(Context* ctx,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors&);
-  static base::Status VerifyPostConditions(Context*);
-  static void Cleanup(Context*);
+  static constexpr char* kName = nullptr;
+  static constexpr int kArgCount = -1;
+
+  // sqlite::Function implementation
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
   // Glue code for PerfettoSqlEngine.
-  static std::unique_ptr<Context> MakeContext(PerfettoSqlEngine*);
-  static bool IsValid(Context*);
-  static void Reset(Context*, PerfettoSqlEngine*);
-  static base::Status Prepare(Context*,
+  static std::unique_ptr<UserData> MakeContext(PerfettoSqlEngine*);
+  static bool IsValid(UserData*);
+  static void Reset(UserData*, PerfettoSqlEngine*);
+  static base::Status Prepare(UserData*,
                               FunctionPrototype,
                               sql_argument::Type return_type,
                               SqlSource sql);
-  static base::Status EnableMemoization(Context*);
+  static base::Status EnableMemoization(UserData*);
 };
 
 }  // namespace perfetto::trace_processor

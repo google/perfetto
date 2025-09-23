@@ -100,7 +100,7 @@ class AndroidLogReader : public ChunkedLineReader {
 
  private:
   std::optional<AndroidLogEvent::Format> format_;
-  int32_t year_;
+  int32_t default_year_;
   bool wait_for_tz_;
   std::vector<TimestampedAndroidLogEvent> non_tz_adjusted_events_;
 };

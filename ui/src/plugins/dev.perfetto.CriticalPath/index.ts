@@ -79,7 +79,7 @@ function getFirstUtidOfSelectionOrVisibleWindow(trace: Trace): number {
   if (selection.kind === 'area') {
     for (const trackDesc of selection.tracks) {
       if (
-        trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
+        trackDesc?.tags?.kinds?.includes(THREAD_STATE_TRACK_KIND) &&
         trackDesc?.tags?.utid !== undefined
       ) {
         return trackDesc.tags.utid;

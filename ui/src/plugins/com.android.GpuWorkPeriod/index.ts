@@ -71,7 +71,7 @@ export default class implements PerfettoPlugin {
         uri,
         tags: {
           trackIds: [trackId],
-          kind: SLICE_TRACK_KIND,
+          kinds: [SLICE_TRACK_KIND],
         },
         renderer: track,
       });

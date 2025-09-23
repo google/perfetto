@@ -28,8 +28,8 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/thread_checker.h"
-#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
@@ -166,7 +166,7 @@ class Unwinder {
   };
 
   // Must be instantiated via the |UnwinderHandle|.
-  Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner);
+  Unwinder(Delegate* delegate, base::MaybeLockFreeTaskRunner* task_runner);
 
   // Marks the data source as valid and active at the unwinding stage.
   // Initializes kernel address symbolization if needed.
@@ -251,7 +251,7 @@ class Unwinder {
 
   void ResetAndEnableUnwindstackCache();
 
-  base::UnixTaskRunner* const task_runner_;
+  base::MaybeLockFreeTaskRunner* const task_runner_;
   Delegate* const delegate_;
   UnwindQueue<UnwindEntry, kUnwindQueueCapacity> unwind_queue_;
   QueueFootprintTracker footprint_tracker_;
@@ -271,8 +271,8 @@ class UnwinderHandle {
     std::mutex init_lock;
     std::condition_variable init_cv;
 
-    std::function<void(base::UnixTaskRunner*, Unwinder*)> initializer =
-        [this, &init_lock, &init_cv](base::UnixTaskRunner* task_runner,
+    std::function<void(base::MaybeLockFreeTaskRunner*, Unwinder*)> initializer =
+        [this, &init_lock, &init_cv](base::MaybeLockFreeTaskRunner* task_runner,
                                      Unwinder* unwinder) {
           std::lock_guard<std::mutex> lock(init_lock);
           task_runner_ = task_runner;
@@ -293,7 +293,6 @@ class UnwinderHandle {
 
   ~UnwinderHandle() {
     if (task_runner_) {
-      PERFETTO_CHECK(!task_runner_->QuitCalled());
       task_runner_->Quit();
 
       PERFETTO_DCHECK(thread_.joinable());
@@ -305,10 +304,10 @@ class UnwinderHandle {
   Unwinder* operator->() { return unwinder_; }
 
  private:
-  void RunTaskThread(
-      std::function<void(base::UnixTaskRunner*, Unwinder*)> initializer,
-      Unwinder::Delegate* delegate) {
-    base::UnixTaskRunner task_runner;
+  void RunTaskThread(std::function<void(base::MaybeLockFreeTaskRunner*,
+                                        Unwinder*)> initializer,
+                     Unwinder::Delegate* delegate) {
+    base::MaybeLockFreeTaskRunner task_runner;
     Unwinder unwinder(delegate, &task_runner);
     task_runner.PostTask(
         std::bind(std::move(initializer), &task_runner, &unwinder));
@@ -316,7 +315,7 @@ class UnwinderHandle {
   }
 
   std::thread thread_;
-  base::UnixTaskRunner* task_runner_ = nullptr;
+  base::MaybeLockFreeTaskRunner* task_runner_ = nullptr;
   Unwinder* unwinder_ = nullptr;
 };
 

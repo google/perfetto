@@ -102,6 +102,12 @@ static void BM_RtMutex_Contention(benchmark::State& state) {
 BENCHMARK_TEMPLATE(BM_RtMutex_NoContention, std::mutex)->Apply(BenchmarkArgs);
 BENCHMARK_TEMPLATE(BM_RtMutex_Contention, std::mutex)->Apply(BenchmarkArgs);
 
+#if PERFETTO_HAS_RT_FUTEX()
+using perfetto::base::internal::RtFutex;
+BENCHMARK_TEMPLATE(BM_RtMutex_NoContention, RtFutex)->Apply(BenchmarkArgs);
+BENCHMARK_TEMPLATE(BM_RtMutex_Contention, RtFutex)->Apply(BenchmarkArgs);
+#endif
+
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
 using perfetto::base::internal::RtPosixMutex;
 BENCHMARK_TEMPLATE(BM_RtMutex_NoContention, RtPosixMutex)->Apply(BenchmarkArgs);

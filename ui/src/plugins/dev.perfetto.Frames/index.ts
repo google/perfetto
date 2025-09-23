@@ -15,6 +15,7 @@
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -79,6 +80,7 @@ export default class implements PerfettoPlugin {
         uri,
         renderer: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
+          kinds: [SLICE_TRACK_KIND],
           trackIds,
           upid,
         },
@@ -133,7 +135,7 @@ export default class implements PerfettoPlugin {
         tags: {
           upid,
           trackIds,
-          kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
+          kinds: [SLICE_TRACK_KIND, ACTUAL_FRAMES_SLICE_TRACK_KIND],
         },
       });
       const group = ctx.plugins
