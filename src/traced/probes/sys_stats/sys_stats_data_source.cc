@@ -83,18 +83,17 @@ SysStatsDataSource::SysStatsDataSource(
       task_runner_(task_runner),
       writer_(std::move(writer)),
       cpu_freq_info_(std::move(cpu_freq_info)),
+      open_fn_(open_fn ? open_fn : OpenReadOnly),
       weak_factory_(this) {
   ns_per_user_hz_ = 1000000000ull / static_cast<uint64_t>(sysconf(_SC_CLK_TCK));
-
-  open_fn = open_fn ? open_fn : OpenReadOnly;
-  meminfo_fd_ = open_fn("/proc/meminfo");
-  vmstat_fd_ = open_fn("/proc/vmstat");
-  stat_fd_ = open_fn("/proc/stat");
-  buddy_fd_ = open_fn("/proc/buddyinfo");
-  diskstat_fd_ = open_fn("/proc/diskstats");
-  psi_cpu_fd_ = open_fn("/proc/pressure/cpu");
-  psi_io_fd_ = open_fn("/proc/pressure/io");
-  psi_memory_fd_ = open_fn("/proc/pressure/memory");
+  meminfo_fd_ = open_fn_("/proc/meminfo");
+  vmstat_fd_ = open_fn_("/proc/vmstat");
+  stat_fd_ = open_fn_("/proc/stat");
+  buddy_fd_ = open_fn_("/proc/buddyinfo");
+  diskstat_fd_ = open_fn_("/proc/diskstats");
+  psi_cpu_fd_ = open_fn_("/proc/pressure/cpu");
+  psi_io_fd_ = open_fn_("/proc/pressure/io");
+  psi_memory_fd_ = open_fn_("/proc/pressure/memory");
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
   // Build a lookup map that allows to quickly translate strings like "MemTotal"
@@ -146,8 +145,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 11> periods_ms{};
-  std::array<uint32_t, 11> ticks{};
+  std::array<uint32_t, 12> periods_ms{};
+  std::array<uint32_t, 12> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -161,6 +160,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[8] = ClampTo10Ms(cfg.thermal_period_ms(), "thermal_period_ms");
   periods_ms[9] = ClampTo10Ms(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
   periods_ms[10] = ClampTo10Ms(cfg.gpufreq_period_ms(), "gpufreq_period_ms");
+  periods_ms[11] = ClampTo10Ms(cfg.cgroup_period_ms(), "cgroup_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -190,6 +190,46 @@ SysStatsDataSource::SysStatsDataSource(
   thermal_ticks_ = ticks[8];
   cpuidle_ticks_ = ticks[9];
   gpufreq_ticks_ = ticks[10];
+  cgroup_ticks_ = ticks[11];
+
+  // Build cgroup counters lookup map for enabled counters
+  constexpr size_t kMaxCgroupEnum = protos::pbzero::CgroupCounters_MAX;
+  std::bitset<kMaxCgroupEnum + 1> cgroup_counters_enabled{};
+  if (!cfg.has_cgroup_counters())
+    cgroup_counters_enabled.set();
+  for (auto it = cfg.cgroup_counters(); it; ++it) {
+    uint32_t counter = static_cast<uint32_t>(*it);
+    if (counter > 0 && counter <= kMaxCgroupEnum) {
+      cgroup_counters_enabled.set(counter);
+    } else {
+      PERFETTO_DFATAL("Cgroup counter out of bounds %u", counter);
+    }
+  }
+  for (size_t i = 0; i < base::ArraySize(kCgroupKeys); i++) {
+    const auto& k = kCgroupKeys[i];
+    if (cgroup_counters_enabled[static_cast<size_t>(k.id)])
+      cgroup_counters_.emplace(k.str, k.id);
+  }
+
+  // Configure cgroup paths to monitor
+  for (auto it = cfg.cgroup_paths(); it; ++it) {
+    cgroup_paths_.emplace_back(reinterpret_cast<const char*>(it->data()),
+                               it->size());
+  }
+
+  // Use default Android cgroup paths if none specified
+  if (cgroup_paths_.empty()) {
+    cgroup_paths_ = {
+        "/sys/fs/cgroup/cpu/top-app",
+        "/sys/fs/cgroup/cpu/foreground",
+        "/sys/fs/cgroup/cpu/background",
+        "/sys/fs/cgroup/cpu/system-background",
+        "/sys/fs/cgroup/memory/top-app",
+        "/sys/fs/cgroup/memory/foreground",
+        "/sys/fs/cgroup/memory/background",
+        "/sys/fs/cgroup/memory/system-background",
+    };
+  }
 }
 
 void SysStatsDataSource::Start() {
@@ -253,6 +293,9 @@ void SysStatsDataSource::ReadSysStats() {
 
   if (gpufreq_ticks_ && tick_ % gpufreq_ticks_ == 0)
     ReadGpuFrequency(sys_stats);
+
+  if (cgroup_ticks_ && tick_ % cgroup_ticks_ == 0)
+    ReadCgroup(sys_stats);
 
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -728,6 +771,220 @@ base::WeakPtr<SysStatsDataSource> SysStatsDataSource::GetWeakPtr() const {
 
 void SysStatsDataSource::Flush(FlushRequestID, std::function<void()> callback) {
   writer_->Flush(callback);
+}
+
+void SysStatsDataSource::ReadCgroup(protos::pbzero::SysStats* sys_stats) {
+  for (const auto& cgroup_path : cgroup_paths_) {
+    // Determine which files to read based on cgroup type
+    if (cgroup_path.find("/cpu/") != std::string::npos ||
+        cgroup_path.find("/cpu") == cgroup_path.length() - 4) {
+      ReadCgroupFile(sys_stats, cgroup_path, "cpu.stat", true);
+    }
+
+    if (cgroup_path.find("/memory/") != std::string::npos ||
+        cgroup_path.find("/memory") == cgroup_path.length() - 7) {
+      ReadCgroupFile(sys_stats, cgroup_path, "memory.stat", true);
+      ReadCgroupFile(sys_stats, cgroup_path, "memory.current", false);
+      ReadCgroupFile(sys_stats, cgroup_path, "memory.max", false);
+      ReadCgroupFile(sys_stats, cgroup_path, "memory.swap.current", false);
+      ReadCgroupFile(sys_stats, cgroup_path, "memory.swap.max", false);
+    }
+
+    // IO stats can be in various cgroup types
+    ReadCgroupFile(sys_stats, cgroup_path, "io.stat", false);
+  }
+}
+
+void SysStatsDataSource::ReadCgroupFile(protos::pbzero::SysStats* sys_stats,
+                                        const std::string& cgroup_path,
+                                        const std::string& file_name,
+                                        bool log_errors) {
+  std::string full_path = cgroup_path + "/" + file_name;
+  base::ScopedFile fd = open_fn_(full_path.c_str());
+  if (!fd) {
+    if (log_errors && !cgroup_error_logged_) {
+      PERFETTO_PLOG("Failed to open %s", full_path.c_str());
+      cgroup_error_logged_ = true;
+    }
+    return;
+  }
+
+  size_t rsize = ReadFile(&fd, full_path.c_str());
+  if (!rsize)
+    return;
+
+  char* buf = static_cast<char*>(read_buf_.Get());
+
+  if (file_name == "cpu.stat") {
+    ParseCgroupCpuStat(sys_stats, buf, rsize, cgroup_path);
+  } else if (file_name == "memory.stat") {
+    ParseCgroupMemoryStat(sys_stats, buf, rsize, cgroup_path);
+  } else if (file_name == "memory.current" || file_name == "memory.max" ||
+             file_name == "memory.swap.current" ||
+             file_name == "memory.swap.max") {
+    ParseCgroupSingleValue(sys_stats, buf, file_name, cgroup_path);
+  } else if (file_name == "io.stat") {
+    ParseCgroupIoStat(sys_stats, buf, rsize, cgroup_path);
+  }
+}
+
+void SysStatsDataSource::ParseCgroupCpuStat(protos::pbzero::SysStats* sys_stats,
+                                            char* buf,
+                                            size_t rsize,
+                                            const std::string& cgroup_path) {
+  for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
+    base::StringSplitter words(&lines, ' ');
+    if (!words.Next())
+      continue;
+
+    auto it = cgroup_counters_.find(words.cur_token());
+    if (it == cgroup_counters_.end())
+      continue;
+
+    int counter_id = it->second;
+    if (!words.Next())
+      continue;
+
+    auto value = static_cast<uint64_t>(strtoll(words.cur_token(), nullptr, 10));
+    auto* cgroup_value = sys_stats->add_cgroup();
+    cgroup_value->set_key(
+        static_cast<protos::pbzero::CgroupCounters>(counter_id));
+    cgroup_value->set_value(value);
+    cgroup_value->set_cgroup_path(cgroup_path);
+  }
+}
+
+void SysStatsDataSource::ParseCgroupMemoryStat(
+    protos::pbzero::SysStats* sys_stats,
+    char* buf,
+    size_t rsize,
+    const std::string& cgroup_path) {
+  for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
+    base::StringSplitter words(&lines, ' ');
+    if (!words.Next())
+      continue;
+
+    auto it = cgroup_counters_.find(words.cur_token());
+    if (it == cgroup_counters_.end())
+      continue;
+
+    int counter_id = it->second;
+    if (!words.Next())
+      continue;
+
+    auto value = static_cast<uint64_t>(strtoll(words.cur_token(), nullptr, 10));
+    auto* cgroup_value = sys_stats->add_cgroup();
+    cgroup_value->set_key(
+        static_cast<protos::pbzero::CgroupCounters>(counter_id));
+    cgroup_value->set_value(value);
+    cgroup_value->set_cgroup_path(cgroup_path);
+  }
+}
+
+void SysStatsDataSource::ParseCgroupSingleValue(
+    protos::pbzero::SysStats* sys_stats,
+    char* buf,
+    const std::string& file_name,
+    const std::string& cgroup_path) {
+  // Map filename to counter enum
+  protos::pbzero::CgroupCounters counter_enum;
+  int counter_id;
+
+  if (file_name == "memory.current") {
+    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_CURRENT;
+    counter_id = static_cast<int>(counter_enum);
+  } else if (file_name == "memory.max") {
+    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_MAX;
+    counter_id = static_cast<int>(counter_enum);
+  } else if (file_name == "memory.swap.current") {
+    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_CURRENT;
+    counter_id = static_cast<int>(counter_enum);
+  } else if (file_name == "memory.swap.max") {
+    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_MAX;
+    counter_id = static_cast<int>(counter_enum);
+  } else {
+    return;
+  }
+
+  // Check if this counter is enabled by looking for its ID
+  bool enabled = false;
+  for (const auto& pair : cgroup_counters_) {
+    if (pair.second == counter_id) {
+      enabled = true;
+      break;
+    }
+  }
+
+  if (!enabled)
+    return;
+
+  auto value = static_cast<uint64_t>(strtoll(buf, nullptr, 10));
+  auto* cgroup_value = sys_stats->add_cgroup();
+  cgroup_value->set_key(counter_enum);
+  cgroup_value->set_value(value);
+  cgroup_value->set_cgroup_path(cgroup_path);
+}
+
+void SysStatsDataSource::ParseCgroupIoStat(protos::pbzero::SysStats* sys_stats,
+                                           char* buf,
+                                           size_t rsize,
+                                           const std::string& cgroup_path) {
+  for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
+    base::StringSplitter words(&lines, ' ');
+    if (!words.Next())
+      continue;
+
+    std::string device = words.cur_token();
+
+    // Parse IO stats: device rbytes=X wbytes=Y rios=Z wios=A dbytes=B dios=C
+    while (words.Next()) {
+      std::string token = words.cur_token();
+      size_t eq_pos = token.find('=');
+      if (eq_pos == std::string::npos)
+        continue;
+
+      std::string key = token.substr(0, eq_pos);
+      std::string value_str = token.substr(eq_pos + 1);
+      uint64_t value =
+          static_cast<uint64_t>(strtoll(value_str.c_str(), nullptr, 10));
+
+      protos::pbzero::CgroupCounters counter_enum;
+      if (key == "rbytes") {
+        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_RBYTES;
+      } else if (key == "wbytes") {
+        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_WBYTES;
+      } else if (key == "rios") {
+        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_RIOS;
+      } else if (key == "wios") {
+        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_WIOS;
+      } else if (key == "dbytes") {
+        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_DBYTES;
+      } else if (key == "dios") {
+        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_DIOS;
+      } else {
+        continue;
+      }
+
+      // Check if this counter is enabled by looking for its ID
+      bool enabled = false;
+      int counter_id = static_cast<int>(counter_enum);
+      for (const auto& pair : cgroup_counters_) {
+        if (pair.second == counter_id) {
+          enabled = true;
+          break;
+        }
+      }
+
+      if (!enabled)
+        continue;
+
+      auto* cgroup_value = sys_stats->add_cgroup();
+      cgroup_value->set_key(counter_enum);
+      cgroup_value->set_value(value);
+      cgroup_value->set_cgroup_path(cgroup_path);
+      cgroup_value->set_device(device);
+    }
+  }
 }
 
 size_t SysStatsDataSource::ReadFile(base::ScopedFile* fd, const char* path) {

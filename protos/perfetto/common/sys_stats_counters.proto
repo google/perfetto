@@ -256,3 +256,100 @@ enum VmstatCounters {
   VMSTAT_WORKINGSET_RESTORE_ANON = 187;
   VMSTAT_WORKINGSET_RESTORE_FILE = 188;
 }
+
+// Cgroup counter definitions for Linux's /sys/fs/cgroup.
+// These counters track resource usage for specific task groups such as
+// foreground/background apps and system services in Android.
+enum CgroupCounters {
+  // Unspecified cgroup counter.
+  CGROUP_UNSPECIFIED = 0;
+
+  // CPU stats from cpu.stat
+  // Total CPU usage time in microseconds.
+  CGROUP_CPU_USAGE_USEC = 1;
+  // User-mode CPU time in microseconds.
+  CGROUP_CPU_USER_USEC = 2;
+  // Kernel-mode CPU time in microseconds.
+  CGROUP_CPU_SYSTEM_USEC = 3;
+  // Number of CFS scheduling periods.
+  CGROUP_CPU_NR_PERIODS = 4;
+  // Number of times throttled.
+  CGROUP_CPU_NR_THROTTLED = 5;
+  // Time spent throttled in microseconds.
+  CGROUP_CPU_THROTTLED_USEC = 6;
+
+  // Memory stats from memory.stat
+  // Anonymous memory pages.
+  CGROUP_MEMORY_ANON = 7;
+  // File cache pages.
+  CGROUP_MEMORY_FILE = 8;
+  // Kernel stack memory.
+  CGROUP_MEMORY_KERNEL_STACK = 9;
+  // Page table memory.
+  CGROUP_MEMORY_PAGETABLES = 10;
+  // Per-CPU memory.
+  CGROUP_MEMORY_PERCPU = 11;
+  // Socket buffer memory.
+  CGROUP_MEMORY_SOCK = 12;
+  // Shared memory pages.
+  CGROUP_MEMORY_SHMEM = 13;
+  // Memory-mapped file pages.
+  CGROUP_MEMORY_FILE_MAPPED = 14;
+  // Dirty file pages.
+  CGROUP_MEMORY_FILE_DIRTY = 15;
+  // File pages being written back.
+  CGROUP_MEMORY_FILE_WRITEBACK = 16;
+  // Swap-cached pages.
+  CGROUP_MEMORY_SWAPCACHED = 17;
+  // Anonymous transparent huge pages.
+  CGROUP_MEMORY_ANON_THPS = 18;
+  // File transparent huge pages.
+  CGROUP_MEMORY_FILE_THPS = 19;
+  // Shared memory transparent huge pages.
+  CGROUP_MEMORY_SHMEM_THPS = 20;
+  // Inactive anonymous memory.
+  CGROUP_MEMORY_INACTIVE_ANON = 21;
+  // Active anonymous memory.
+  CGROUP_MEMORY_ACTIVE_ANON = 22;
+  // Inactive file cache.
+  CGROUP_MEMORY_INACTIVE_FILE = 23;
+  // Active file cache.
+  CGROUP_MEMORY_ACTIVE_FILE = 24;
+  CGROUP_MEMORY_UNEVICTABLE = 25;
+  CGROUP_MEMORY_SLAB_RECLAIMABLE = 26;
+  CGROUP_MEMORY_SLAB_UNRECLAIMABLE = 27;
+  CGROUP_MEMORY_SLAB = 28;
+  CGROUP_MEMORY_WORKINGSET_REFAULT_ANON = 29;
+  CGROUP_MEMORY_WORKINGSET_REFAULT_FILE = 30;
+  CGROUP_MEMORY_WORKINGSET_ACTIVATE_ANON = 31;
+  CGROUP_MEMORY_WORKINGSET_ACTIVATE_FILE = 32;
+  CGROUP_MEMORY_WORKINGSET_RESTORE_ANON = 33;
+  CGROUP_MEMORY_WORKINGSET_RESTORE_FILE = 34;
+  CGROUP_MEMORY_WORKINGSET_NODERECLAIM = 35;
+  CGROUP_MEMORY_PGFAULT = 36;
+  CGROUP_MEMORY_PGMAJFAULT = 37;
+  CGROUP_MEMORY_PGREFILL = 38;
+  CGROUP_MEMORY_PGSCAN = 39;
+  CGROUP_MEMORY_PGSTEAL = 40;
+  CGROUP_MEMORY_PGACTIVATE = 41;
+  CGROUP_MEMORY_PGDEACTIVATE = 42;
+  CGROUP_MEMORY_PGLAZYFREE = 43;
+  CGROUP_MEMORY_PGLAZYFREED = 44;
+  CGROUP_MEMORY_THP_FAULT_ALLOC = 45;
+  CGROUP_MEMORY_THP_COLLAPSE_ALLOC = 46;
+
+  // Memory limits and usage from memory.current, memory.max, etc.
+  CGROUP_MEMORY_CURRENT = 47;
+  CGROUP_MEMORY_HIGH = 48;
+  CGROUP_MEMORY_MAX = 49;
+  CGROUP_MEMORY_SWAP_CURRENT = 50;
+  CGROUP_MEMORY_SWAP_MAX = 51;
+
+  // IO stats from io.stat (for devices)
+  CGROUP_IO_RBYTES = 52;
+  CGROUP_IO_WBYTES = 53;
+  CGROUP_IO_RIOS = 54;
+  CGROUP_IO_WIOS = 55;
+  CGROUP_IO_DBYTES = 56;
+  CGROUP_IO_DIOS = 57;
+}
