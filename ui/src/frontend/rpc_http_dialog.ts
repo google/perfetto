@@ -420,25 +420,25 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                   `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
                 ),
               ),
+              // right side: fixed button
+              m(Button, {
+                icon: 'close',
+                title: 'Close this trace processor instance',
+                compact: true,
+                onclick: async (e: MouseEvent) => {
+                  e.stopPropagation();
+                  if (id === null) return;
+                  await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
+                    method: 'POST',
+                    body: String(id),
+                  });
+                  traceProcessors = traceProcessors.filter(
+                    (p) => p.instanceId !== id,
+                  );
+                  m.redraw();
+                },
+              }),
             ),
-            // right side: fixed button
-            m(Button, {
-              icon: 'close',
-              title: 'Close this trace processor instance',
-              compact: true,
-              onclick: async (e: MouseEvent) => {
-                e.stopPropagation();
-                if (id === null) return;
-                await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
-                  method: 'POST',
-                  body: String(id),
-                });
-                traceProcessors = traceProcessors.filter(
-                  (p) => p.instanceId !== id,
-                );
-                m.redraw();
-              },
-            }),
           );
         });
 
