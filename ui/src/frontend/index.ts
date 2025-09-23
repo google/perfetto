@@ -64,6 +64,7 @@ import {
   CommandInvocation,
   commandInvocationArraySchema,
 } from '../core/command_manager';
+import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -348,12 +349,27 @@ function onCssLoaded() {
 
   // Mount the main mithril component. This also forces a sync render pass.
   raf.mount(document.body, {
-    view: () =>
-      m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillParent: true}, [
-          m(UiMain, {key: themeSetting.get()}),
+    view: () => {
+      const app = AppImpl.instance;
+      const commands = app.commands;
+      const hotkeys: HotkeyConfig[] = [];
+      for (const {id, defaultHotkey} of commands.commands) {
+        if (defaultHotkey) {
+          hotkeys.push({
+            callback: () => commands.runCommand(id),
+            hotkey: defaultHotkey,
+          });
+        }
+      }
+
+      return m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
+        m(HotkeyContext, {hotkeys, fillHeight: true, autoFocus: true}, [
+          m(OverlayContainer, {fillParent: true}, [
+            m(UiMain, {key: themeSetting.get()}),
+          ]),
         ]),
-      ]),
+      ]);
+    },
   });
 
   if (
