@@ -392,7 +392,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               );
 
               return m(
-                Card as unknown as string,
+                Card,
                 {
                   key: `row-${id ?? `default-${index}`}`,
                   role: 'option',
@@ -456,7 +456,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               m(CardStack, [
                 ...rows,
                 m(
-                  Card as unknown as string,
+                  Card,
                   {
                     key: 'new-instance-row',
                     role: 'option',
