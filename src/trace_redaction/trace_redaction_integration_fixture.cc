@@ -68,4 +68,8 @@ base::StatusOr<std::string> TraceRedactionIntegrationFixure::ReadRawTrace(
   return base::ErrStatus("Failed to read %s", path.c_str());
 }
 
+std::string TraceRedactionIntegrationFixure::GetSourceTrace() {
+  return src_trace_;
+}
+
 }  // namespace perfetto::trace_redaction
