@@ -16,7 +16,8 @@ import {z} from 'zod';
 
 // Args are parsed by the Router into strings or booleans only.
 // E.g. ?hideSidebar=true&url=a?b?c -> {hideSidebar: true, url: 'a?b?c'}
-const argSchema = z.union([z.string(), z.boolean()]);
+const stringOrBool = z.union([z.string(), z.boolean()]);
+const argSchema = z.union([stringOrBool, z.array(stringOrBool)]);
 export type RouteArg = z.infer<typeof argSchema>;
 
 // We use .catch(undefined) on every field below to make sure that passing an

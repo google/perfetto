@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import {buildUrlSearchParams, parseUrlSearchParams} from '../base/route_parser';
 import {assertTrue} from '../base/logging';
 import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
 
@@ -107,7 +107,7 @@ export class Router {
       newRoute.args.local_cache_key = oldRoute.args.local_cache_key;
     }
 
-    const args = m.buildQueryString(newRoute.args);
+    const args = buildUrlSearchParams(newRoute.args);
     let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
     if (args.length) {
       normalizedFragment += `?${args}`;
@@ -162,7 +162,7 @@ export class Router {
 
     let rawArgs = {};
     if (url.search) {
-      rawArgs = Router.parseQueryString(url.search);
+      rawArgs = parseUrlSearchParams(url.searchParams);
     }
 
     const args = safeParseRoute(rawArgs);
@@ -186,14 +186,9 @@ export class Router {
     return {page, subpage, args, fragment};
   }
 
-  private static parseQueryString(query: string) {
-    query = query.replaceAll('+', ' ');
-    return m.parseQueryString(query);
-  }
-
   private static parseSearchParams(url: string): RouteArgs {
-    const query = new URL(url).search;
-    const rawArgs = Router.parseQueryString(query);
+    const searchParams = new URL(url).searchParams;
+    const rawArgs = parseUrlSearchParams(searchParams);
     const args = safeParseRoute(rawArgs);
     return args;
   }

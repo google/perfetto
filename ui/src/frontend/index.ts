@@ -415,6 +415,9 @@ function onCssLoaded() {
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
+
+  console.log(route.args);
+
   pluginManager.activatePlugins(overrides);
 }
 

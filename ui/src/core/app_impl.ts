@@ -209,7 +209,7 @@ export class AppContext {
 
 export class AppImpl implements App {
   readonly pluginId: string;
-  readonly initialPluginRouteArgs: RouteArgs;
+  readonly initialPluginRouteArgs: {[key: string]: RouteArg | undefined};
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
 

@@ -34,10 +34,15 @@ const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
 function getParamValues(param: RouteArg | undefined): string[] {
   if (typeof param === 'boolean') return [];
   if (param === undefined) return [];
-
-  const trimmed = param.trim();
-  if (trimmed === '') return [];
-  return [trimmed];
+  if (typeof param === 'string') {
+    const trimmed = param.trim();
+    if (trimmed === '') return [];
+    return [trimmed];
+  }
+  return param
+    .filter((p) => typeof p === 'string')
+    .map((p) => p.trim())
+    .filter((p) => p !== '');
 }
 
 /**
