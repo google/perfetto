@@ -416,7 +416,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               m(
                 StackAuto,
                 m(
-                  'strong',
+                  'p',
                   `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
                 ),
               ),
@@ -475,7 +475,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               m(
                 Stack,
                 {orientation: 'horizontal'},
-                m(StackAuto, m('strong', 'New instance …')),
+                m(StackAuto, m('p', 'New instance …')),
               ),
             ),
           ]),
