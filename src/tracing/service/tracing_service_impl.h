@@ -883,17 +883,6 @@ class TracingServiceImpl : public TracingService {
   // happened.
   static bool IsWaitingForTrigger(TracingSession* tracing_session);
 
-  // Reads all the tracing buffers from the `*tracing_session` (but no more than
-  // `max_size` bytes) and writes them into `file`.
-  //
-  // Sets `*bytes_written_into_file` to the amount of bytes being written.
-  //
-  // Returns false in case of error.
-  bool DoReadBuffersIntoFile(TracingSession* tracing_session,
-                             base::ScopedFile& file,
-                             uint64_t* bytes_written_into_file,
-                             uint64_t max_size);
-
   // Reads the buffers from `*tracing_session` and returns them (along with some
   // metadata packets).
   //
@@ -913,17 +902,13 @@ class TracingServiceImpl : public TracingService {
   void MaybeCompressPackets(TracingSession* tracing_session,
                             std::vector<TracePacket>* packets);
 
-  // Writes `packets` (but no more than `max_size` bytes) into the `file`.
-  //
-  // Sets `*bytes_written_into_file` to the amount of bytes being written.
+  // If `*tracing_session` is configured to write into a file, writes `packets`
+  // into the file.
   //
   // Returns true if the file should be closed (because it's full or there has
   // been an error), false otherwise.
-  bool WriteIntoFile(base::ScopedFile& file,
-                     uint64_t* bytes_written_into_file,
-                     uint64_t max_size,
+  bool WriteIntoFile(TracingSession* tracing_session,
                      std::vector<TracePacket> packets);
-
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
                            const base::Uuid&,

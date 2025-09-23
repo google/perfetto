@@ -272,9 +272,15 @@ class PerfettoCmdlineTest : public ::testing::Test {
 
     // Verify that both the original trace and the cloned bugreport contain
     // the expected contents.
+    PERFETTO_DLOG("RunBugreportTest, GetBugreportTracePath(): %s",
+                  GetBugreportTracePath().c_str());
+    PERFETTO_DLOG("RunBugreportTest, original trace: %s", path.c_str());
     check_trace_contents(GetBugreportTracePath());
     if (check_original_trace)
       check_trace_contents(path);
+
+    // PERFETTO_DLOG("Now waiting for 100 seconds....");
+    // std::this_thread::sleep_for(std::chrono::seconds(100));
   }
 
   // Tests are allowed to freely use these variables.

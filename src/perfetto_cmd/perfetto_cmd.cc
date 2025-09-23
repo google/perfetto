@@ -1137,8 +1137,8 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   trace_data_timeout_armed_ = false;
 
-  // PERFETTO_DLOG("PerfettoCmd::OnTraceData, packets.size(): %lu",
-  //               packets.size());
+  PERFETTO_DLOG("PerfettoCmd::OnTraceData, packets.size(): %lu",
+                packets.size());
 
   PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
