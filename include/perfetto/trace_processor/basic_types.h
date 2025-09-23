@@ -204,6 +204,9 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // When set to true, trace processor will perform additional runtime checks
   // to catch additional classes of SQL errors.
   bool enable_extra_checks = false;
+
+  // This holds the Base64-encoded descriptors from the UI.
+  std::vector<std::string> extra_parsing_descriptors_base64;
 };
 
 // Represents a dynamically typed value returned by SQL.

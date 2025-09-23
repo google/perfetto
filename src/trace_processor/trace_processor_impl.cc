@@ -543,6 +543,19 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kAllWebviewMetricsDescriptor.data(), kAllWebviewMetricsDescriptor.size(),
       skip_prefixes);
 
+  // Add Extra Parsing Descriptors to its descriptor pool
+  for (const std::string& b64_str : config_.extra_parsing_descriptors_base64) {
+    std::string decoded_bytes;
+    if (absl::Base64Unescape(b64_str, &decoded_bytes)) {
+      // Add the decoded bytes to our new, separate parsing pool.
+      parsing_descriptor_pool_.AddFromFileDescriptorSet(
+          reinterpret_cast<const uint8_t*>(decoded_bytes.data()),
+          decoded_bytes.size(), {}, /*replace=*/true);
+    } else {
+      PERFETTO_ELOG("Failed to Base64-decode extra parsing descriptor");
+    }
+  }
+
   // Add the summary descriptor to the summary pool.
   {
     base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(

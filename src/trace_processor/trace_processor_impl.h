@@ -177,6 +177,8 @@ class TraceProcessorImpl : public TraceProcessor,
 
   DescriptorPool metrics_descriptor_pool_;
 
+  DescriptorPool parsing_descriptor_pool_;
+
   std::vector<metrics::SqlMetricFile> sql_metrics_;
   std::vector<SqlPackage> registered_sql_packages_;
 
