@@ -25,6 +25,7 @@ import {Intent} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
 import {closeModal, showModal} from '../widgets/modal';
 import {Stack, StackAuto} from '../widgets/stack';
+import {classNames} from '../base/classnames';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
@@ -384,11 +385,11 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               const id = status.instanceId ?? null;
               const isSelected = id !== null && selectedInstanceId === id;
 
-              const classes = [
+              const classes = classNames(
                 'pf-row',
-                isSelected ? 'pf-row--selected' : '',
-                hasActiveTab ? 'pf-row--disabled' : '',
-              ].join(' ');
+                isSelected && 'pf-row--selected',
+                hasActiveTab && 'pf-row--disabled',
+              );
 
               return m(
                 Card as unknown as string,
