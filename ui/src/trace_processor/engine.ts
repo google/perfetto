@@ -44,6 +44,7 @@ export interface TraceProcessorConfig {
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
   ftraceDropUntilAllCpusValid: boolean;
+  forceFullSort: boolean;
 }
 
 const QUERY_LOG_BUFFER_SIZE = 100;
@@ -380,6 +381,7 @@ export abstract class EngineBase implements Engine, Disposable {
     ingestFtraceInRawTable,
     analyzeTraceProtoContent,
     ftraceDropUntilAllCpusValid,
+    forceFullSort,
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
@@ -394,6 +396,9 @@ export abstract class EngineBase implements Engine, Disposable {
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
     args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
+    args.sortingMode = forceFullSort
+      ? protos.ResetTraceProcessorArgs.SortingMode.FORCE_FULL_SORT
+      : protos.ResetTraceProcessorArgs.SortingMode.DEFAULT_HEURISTICS;
     args.parsingMode = tokenizeOnly
       ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
       : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
