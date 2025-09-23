@@ -542,9 +542,9 @@ export abstract class EngineBase implements Engine, Disposable {
     try {
       const result = createQueryResult({query: sqlQuery});
       this.streamingQuery(result, sqlQuery, tag);
-      await result;
+      const resolvedResult = await result;
       queryLog.success = true;
-      return result;
+      return resolvedResult;
     } catch (e) {
       // Replace the error's stack trace with the one from here
       // Note: It seems only V8 can trace the stack up the promise chain, so its
