@@ -24,7 +24,6 @@ import {Card, CardStack} from '../widgets/card';
 import {Intent} from '../widgets/common';
 import {closeModal, showModal} from '../widgets/modal';
 import {Stack, StackAuto} from '../widgets/stack';
-import {classNames} from '../base/classnames';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
@@ -314,17 +313,12 @@ type PreloadedDialogResult =
 
 async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
   return new Promise<PreloadedDialogResult>(async (resolve) => {
-    // Fetch actual trace processor data for the comprehensive modal
     const httpRpcState = await HttpRpcEngine.checkConnection();
 
     let traceProcessors: Array<protos.IStatusResult> = [];
     if (httpRpcState.connected && httpRpcState.status) {
       traceProcessors = httpRpcState.status.instances ?? [];
     }
-
-    // UI selection state: null means "New instance" (or nothing chosen).
-    // If set to a number, it refers to an existing instanceId.
-    let selectedInstanceId: number | null = null;
 
     showModal({
       title: 'Use trace processor native acceleration?',
@@ -378,29 +372,22 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
         const rows = sortedProcessors.map((tp, index) => {
           const status = tp;
           const hasActiveTab = status.isAttached ?? false;
-          const id = status.instanceId ?? null;
-          const isSelected = id !== null && selectedInstanceId === id;
+          const id = status.instanceId ?? null; // TODO
 
-          const classes = classNames(
-            'pf-rpc-http-dialog__row',
-            isSelected && 'pf-rpc-http-dialog__row--selected',
-            hasActiveTab && 'pf-rpc-http-dialog__row--disabled',
-          );
 
           return m(
             Card,
             {
-              key: `row-${id ?? `default-${index}`}`,
+              key: `row-${id ?? `default-${index}`}`, // TODO
               role: 'option',
               tabindex: hasActiveTab ? -1 : 0,
-              className: classes,
               interactive: !hasActiveTab,
               onclick: () => {
                 // do not allow selecting rows that already have an active tab
                 if (hasActiveTab) return;
                 // Defensive: if id somehow null, treat it as "useRpc"
                 if (id === null) {
-                  closeModal();
+                  closeModal(); // TODO
                   resolve({ kind: 'useRpc' });
                   return;
                 }
@@ -413,7 +400,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
             m(
               Stack,
               {orientation: 'horizontal', spacing: 'small'},
-              // left side: text grows to fill available space
+              // left side: trace processor info
               m(
                 StackAuto,
                 m(
@@ -421,7 +408,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                   `#${status.instanceId ?? '0'} ${status.loadedTraceName ?? ''} ${formatInactivity(status.inactivityNs ?? 0)}${hasActiveTab ? ' [ATTACHED]' : ''}`,
                 ),
               ),
-              // right side: fixed button
+              // right side: button that sends an http request that closes the respective tp
               m(Button, {
                 icon: 'close',
                 title: 'Close this trace processor instance',
@@ -443,28 +430,18 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           );
         });
 
-        const newInstanceSelected = selectedInstanceId === null;
-
-        const newClasses = [
-          'pf-rpc-http-dialog__row',
-          newInstanceSelected ? 'pf-rpc-http-dialog__row--selected' : '',
-        ].join(' ');
 
         elements.push(
           m(CardStack, [
             ...rows,
-            // IMPORTANT CHANGE: clicking "New instance" now resolves immediately to { kind: 'useRpc' }
             m(
               Card,
               {
                 key: 'new-instance-row',
                 role: 'option',
                 tabindex: 0,
-                className: newClasses,
                 interactive: true,
                 onclick: () => {
-                  // behave the same as "Yes, Attach..." when no instance is selected:
-                  // close and resolve to 'useRpc' (i.e. use RPC without choosing an existing instance)
                   closeModal();
                   resolve({ kind: 'useRpc' });
                 },
@@ -485,14 +462,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           text: 'Yes, Attach to external RPC',
           primary: true,
           action: () => {
-            if (selectedInstanceId !== null) {
-              AppImpl.instance.httpRpc.selectedTraceProcessorId =
-                selectedInstanceId;
-              closeModal();
-              resolve({ kind: 'useRpcWithPreloadedTrace', instanceId: selectedInstanceId });
-              return;
-            }
-
             closeModal();
             resolve({ kind: 'useRpc' });
           },
