@@ -26,6 +26,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -111,9 +112,13 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
                          size_t min_chunk_size = 512,
                          size_t max_chunk_size = kMaxChunkSize) {
     EXPECT_LE(min_chunk_size, max_chunk_size);
+    std::string flags = base::kFopenReadFlag;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    flags += "b";  // Open in binary (untranslated) mode.
+#endif
     base::ScopedFstream f(
         fopen(base::GetTestDataPath(std::string("test/data/") + name).c_str(),
-              "rbe"));
+              flags.c_str()));
     std::minstd_rand0 rnd_engine(0);
     std::uniform_int_distribution<size_t> dist(min_chunk_size, max_chunk_size);
     while (!feof(*f)) {
