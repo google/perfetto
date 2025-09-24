@@ -299,10 +299,10 @@ export class AppImpl implements App {
     this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
   }
 
-  openTraceFromHttpRpc(): void {
+  openTraceFromHttpRpc(traceProcessorId?: number): void {
     this.openTrace({
       type: 'HTTP_RPC',
-      traceProcessorId: this.httpRpc.selectedTraceProcessorId ?? 0,
+      traceProcessorId: traceProcessorId ?? 0,
     });
   }
 

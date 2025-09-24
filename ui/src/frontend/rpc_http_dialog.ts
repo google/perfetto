@@ -194,17 +194,17 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   }
 
   const result = await showDialogToUsePreloadedTrace();
-  switch (result) {
-    case PreloadedDialogResult.Dismissed:
+  switch (result.kind) {
+    case 'dismissed':
       closeModal();
       return;
-    case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-      AppImpl.instance.openTraceFromHttpRpc();
+    case 'useRpcWithPreloadedTrace':
+      AppImpl.instance.openTraceFromHttpRpc(result.instanceId);
       return;
-    case PreloadedDialogResult.UseRpc:
+    case 'useRpc':
       // Resetting state is the default.
       return;
-    case PreloadedDialogResult.UseWasm:
+    case 'useWasm':
       forceWasm();
       return;
     default:
@@ -306,12 +306,11 @@ async function showDialogIncompatibleRPC(
   return result;
 }
 
-enum PreloadedDialogResult {
-  UseRpcWithPreloadedTrace = 'useRpcWithPreloadedTrace',
-  UseRpc = 'useRpc',
-  UseWasm = 'useWasm',
-  Dismissed = 'dismissed',
-}
+type PreloadedDialogResult =
+  | {kind: 'useRpcWithPreloadedTrace', instanceId: number}
+  | {kind: 'useRpc'}
+  | {kind: 'useWasm'}
+  | {kind: 'dismissed'};
 
 async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
   return new Promise<PreloadedDialogResult>(async (resolve) => {
@@ -478,19 +477,19 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               AppImpl.instance.httpRpc.selectedTraceProcessorId =
                 selectedInstanceId;
               closeModal();
-              resolve(PreloadedDialogResult.UseRpcWithPreloadedTrace);
+              resolve({kind: 'useRpcWithPreloadedTrace', instanceId: selectedInstanceId});
               return;
             }
 
             closeModal();
-            resolve(PreloadedDialogResult.UseRpc);
+            resolve({kind: 'useRpc'});
           },
         },
         {
           text: 'Use built-in WASM',
           action: () => {
             closeModal();
-            resolve(PreloadedDialogResult.UseWasm);
+            resolve({kind: 'useWasm'});
           },
         },
       ],
