@@ -89,6 +89,13 @@ const FTRACE_DROP_UNTIL_FLAG = featureFlags.register({
     'Drop ftrace events until all per-cpu data streams are known to be valid',
   defaultValue: true,
 });
+const FORCE_FULL_SORT_FLAG = featureFlags.register({
+  id: 'forceFullSort',
+  name: 'Force full sort',
+  description:
+    'Forces the trace processor into performing a full sort ignoring any windowing logic',
+  defaultValue: false,
+});
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
@@ -146,6 +153,7 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
+      forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
@@ -274,13 +282,8 @@ async function loadTraceIntoEngine(
   // This ensures startup commands see the complete, final state of the trace.
   if (trace.commands.hasStartupCommands()) {
     updateStatus(app, 'Running startup commands');
-    // Disable prompts during startup commands to prevent blocking
-    app.omnibox.disablePrompts();
-    try {
-      await trace.commands.runStartupCommands();
-    } finally {
-      app.omnibox.enablePrompts();
-    }
+    using _ = trace.omnibox.disablePrompts();
+    await trace.commands.runStartupCommands();
   }
 
   return trace;

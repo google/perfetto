@@ -408,6 +408,7 @@ perfetto_cc_library(
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
+        ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
@@ -832,9 +833,11 @@ perfetto_filegroup(
         "include/perfetto/ext/base/container_annotations.h",
         "include/perfetto/ext/base/crash_keys.h",
         "include/perfetto/ext/base/ctrl_c_handler.h",
+        "include/perfetto/ext/base/dynamic_string_writer.h",
         "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
+        "include/perfetto/ext/base/fixed_string_writer.h",
         "include/perfetto/ext/base/flags.h",
         "include/perfetto/ext/base/flat_hash_map.h",
         "include/perfetto/ext/base/fnv_hash.h",
@@ -862,7 +865,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/string_utils.h",
         "include/perfetto/ext/base/string_view.h",
         "include/perfetto/ext/base/string_view_splitter.h",
-        "include/perfetto/ext/base/string_writer.h",
         "include/perfetto/ext/base/subprocess.h",
         "include/perfetto/ext/base/sys_types.h",
         "include/perfetto/ext/base/temp_file.h",
@@ -2203,6 +2205,12 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.h",
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.h",
+        "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h",
+        "src/trace_processor/importers/proto/winscope/windowmanager_parser.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_parser.h",
+        "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h",
         "src/trace_processor/importers/proto/winscope/winscope_context.h",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.h",
@@ -3684,6 +3692,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/bump_allocator.cc",
         "src/trace_processor/util/bump_allocator.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:clock
+perfetto_filegroup(
+    name = "src_trace_processor_util_clock",
+    srcs = [
+        "src/trace_processor/util/clock_synchronizer.h",
     ],
 )
 
@@ -7515,6 +7531,7 @@ perfetto_cc_library(
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
+        ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
@@ -7725,6 +7742,7 @@ perfetto_cc_binary(
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
+        ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
@@ -7921,6 +7939,7 @@ perfetto_cc_binary(
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
+        ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",

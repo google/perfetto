@@ -95,7 +95,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       callback: () => {
         const tracks = ctx.tracks
           .getAllTracks()
-          .filter((t) => t.tags?.kind === THREAD_STATE_TRACK_KIND);
+          .filter((t) => t.tags?.kinds?.includes(THREAD_STATE_TRACK_KIND));
         ctx.selection.selectArea({
           trackUris: tracks.map((t) => t.uri),
           start: ctx.traceInfo.start,
@@ -108,7 +108,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       name: 'Sched Slices',
       selectTracks(tracks) {
         return tracks
-          .filter((t) => t.tags?.kind === CPU_SLICE_TRACK_KIND)
+          .filter((t) => t.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND))
           .filter((track) =>
             track.renderer.getDataset?.()?.implements({utid: NUM_NULL}),
           );
@@ -177,7 +177,7 @@ export default class SchedPlugin implements PerfettoPlugin {
         },
         uri,
         tags: {
-          kind: CPU_SLICE_TRACK_KIND,
+          kinds: [CPU_SLICE_TRACK_KIND],
           cpu: cpu.ucpu,
         },
         renderer: new CpuSliceTrack(ctx, uri, cpu.ucpu, threads),
@@ -291,7 +291,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           ]);
         },
         tags: {
-          kind: THREAD_STATE_TRACK_KIND,
+          kinds: [THREAD_STATE_TRACK_KIND],
           utid,
           upid: upid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),

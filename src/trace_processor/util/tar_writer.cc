@@ -105,27 +105,7 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
 
   RETURN_IF_ERROR(CreateAndWriteHeader(filename, file_size));
 
-  // Copy file content in chunks to avoid loading entire file into memory
-  constexpr size_t kChunkSize = 64 * 1024;  // 64KB chunks
-  char buffer[kChunkSize];
-  size_t bytes_written = 0;
-
-  while (bytes_written < file_size) {
-    size_t to_read = std::min(kChunkSize, file_size - bytes_written);
-    ssize_t bytes_read = base::Read(file.get(), buffer, to_read);
-
-    if (bytes_read <= 0) {
-      return base::Status("Failed to read from file: " + file_path);
-    }
-
-    ssize_t written = base::WriteAll(output_file_.get(), buffer,
-                                     static_cast<size_t>(bytes_read));
-    if (written != bytes_read) {
-      return base::Status("Failed to write file content");
-    }
-
-    bytes_written += static_cast<size_t>(bytes_read);
-  }
+  RETURN_IF_ERROR(base::CopyFileContents(*file, *output_file_));
 
   // Write padding to align to 512-byte boundary
   RETURN_IF_ERROR(WritePadding(file_size));

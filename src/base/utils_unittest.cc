@@ -327,6 +327,19 @@ TEST(UtilsTest, CopyFileContents) {
 #endif
 }
 
+TEST(UtilsTest, GetFileSize) {
+  TempFile file = TempFile::Create();
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
+  WriteAll(*file, payload.data(), payload.size());
+  FlushFile(*file);
+
+  auto maybe_size = GetFileSize(file.path());
+  ASSERT_TRUE(maybe_size.has_value());
+  ASSERT_EQ(maybe_size.value(), payload.size());
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

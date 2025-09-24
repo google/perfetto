@@ -76,7 +76,7 @@ export default class implements PerfettoPlugin {
       trace.tracks.registerTrack({
         uri,
         tags: {
-          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
           upid,
         },
         renderer: createProcessPerfSamplesProfileTrack(trace, uri, upid),
@@ -137,7 +137,7 @@ export default class implements PerfettoPlugin {
       trace.tracks.registerTrack({
         uri,
         tags: {
-          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
           utid,
           upid: upid ?? undefined,
         },
@@ -182,7 +182,7 @@ export default class implements PerfettoPlugin {
       trace.tracks.registerTrack({
         uri,
         tags: {
-          kind: COUNTER_TRACK_KIND,
+          kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
           cpu: cpu ?? undefined,
         },
@@ -263,7 +263,7 @@ function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const upids = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
-      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(PERF_SAMPLES_PROFILE_TRACK_KIND) &&
       trackInfo.tags?.utid === undefined
     ) {
       upids.push(assertExists(trackInfo.tags?.upid));
@@ -276,7 +276,7 @@ function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const utids = [];
   for (const trackInfo of currentSelection.tracks) {
     if (
-      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(PERF_SAMPLES_PROFILE_TRACK_KIND) &&
       trackInfo.tags?.utid !== undefined
     ) {
       utids.push(trackInfo.tags?.utid);

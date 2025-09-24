@@ -118,7 +118,7 @@ export default class implements PerfettoPlugin {
       uri,
       renderer,
       tags: {
-        kind: DAY_EXPLORER_TRACK_KIND,
+        kinds: [DAY_EXPLORER_TRACK_KIND],
       },
     });
 
@@ -158,7 +158,7 @@ export default class implements PerfettoPlugin {
     // day explorer tracks are considered for the graph.
     let hasDayExplorer = false;
     for (const trackInfo of currentSelection.tracks) {
-      if (trackInfo?.tags?.kind === DAY_EXPLORER_TRACK_KIND) {
+      if (trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND)) {
         hasDayExplorer = true;
         break;
       }

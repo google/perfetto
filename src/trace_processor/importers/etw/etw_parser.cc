@@ -240,21 +240,23 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
 
 StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   const auto state = static_cast<uint8_t>(task_state_int);
+
   // Mapping for the different Etw states with their string description.
-  std::map<uint8_t, base::StringView> etw_states_map = {
-      {0x00, "Initialized"},     // INITIALIZED
-      {0x01, "R"},               // READY
-      {0x02, "Running"},         // RUNNING
-      {0x03, "Stand By"},        // STANDBY
-      {0x04, "T"},               // TERMINATED
-      {0x05, "Waiting"},         // WAITING
-      {0x06, "Transition"},      // TRANSITION
-      {0x07, "Deferred Ready"},  // DEFERRED_READY
+  static constexpr std::string_view etw_states[] = {
+      "Initialized",    // 0x00
+      "Ready",          // 0x01
+      "Running",        // 0x02
+      "Standby",        // 0x03
+      "Terminated",     // 0x04
+      "Waiting",        // 0x05
+      "Transition",     // 0x06
+      "DeferredReady",  // 0x07
   };
 
-  return etw_states_map.find(state) != etw_states_map.end()
-             ? context_->storage->InternString(etw_states_map[state])
-             : kNullStringId;
+  if (state >= std::size(etw_states)) {
+    return kNullStringId;
+  }
+  return context_->storage->InternString(etw_states[state]);
 }
 
 }  // namespace trace_processor

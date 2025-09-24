@@ -51,7 +51,10 @@ class ProtoTraceReaderTest : public ::testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
-    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
+    std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_);
+    context_.clock_tracker =
+        std::make_unique<ClockTracker>(std::move(clock_tracker_listener));
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kDefault);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();

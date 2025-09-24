@@ -15,69 +15,70 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
-#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
 
-struct Base64Decode : public LegacySqlFunction {
-  static base::Status Run(Context*,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors) {
-    if (argc != 1) {
-      return base::ErrStatus("BASE64: expected one arg but got %zu", argc);
-    }
+struct Base64Decode : public sqlite::Function<Base64Decode> {
+  static constexpr char kName[] = "base64_decode";
+  static constexpr int kArgCount = 1;
 
-    auto in = sqlite::utils::SqliteValueToSqlValue(argv[0]);
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == 1);
 
     const char* src = nullptr;
     size_t src_size = 0;
-    switch (in.type) {
-      case SqlValue::kNull:
-        return base::OkStatus();
-      case SqlValue::kLong:
-      case SqlValue::kDouble:
-        return base::ErrStatus("BASE64: argument must be string or blob");
-      case SqlValue::kString:
-        src = in.AsString();
-        src_size = strlen(src);
+    switch (sqlite::value::Type(argv[0])) {
+      case sqlite::Type::kNull:
+        return sqlite::utils::ReturnNullFromFunction(ctx);
+      case sqlite::Type::kInteger:
+      case sqlite::Type::kFloat:
+        return sqlite::utils::SetError(
+            ctx, "BASE64: argument must be string or blob");
+      case sqlite::Type::kText:
+        src = sqlite::value::Text(argv[0]);
+        src_size = static_cast<size_t>(sqlite::value::Bytes(argv[0]));
         break;
-      case SqlValue::kBytes:
-        src = reinterpret_cast<const char*>(in.AsBytes());
-        src_size = in.bytes_count;
+      case sqlite::Type::kBlob:
+        src = reinterpret_cast<const char*>(sqlite::value::Blob(argv[0]));
+        src_size = static_cast<size_t>(sqlite::value::Bytes(argv[0]));
         break;
     }
 
     size_t dst_size = base::Base64DecSize(src_size);
-    uint8_t* dst = reinterpret_cast<uint8_t*>(malloc(dst_size));
-    ssize_t res = base::Base64Decode(src, src_size, dst, dst_size);
+    std::unique_ptr<uint8_t, base::FreeDeleter> dst(
+        reinterpret_cast<uint8_t*>(malloc(dst_size)));
+    auto res = base::Base64Decode(src, src_size, dst.get(), dst_size);
     if (res < 0) {
-      free(dst);
-      return base::ErrStatus("BASE64: Invalid input");
+      return sqlite::utils::SetError(ctx, "BASE64: Invalid input");
     }
     dst_size = static_cast<size_t>(res);
-    out = SqlValue::Bytes(dst, dst_size);
-    destructors.bytes_destructor = free;
-    return base::OkStatus();
+    return sqlite::result::RawBytes(ctx, dst.release(),
+                                    static_cast<int>(dst_size), free);
   }
 };
 
 }  // namespace
 
 base::Status RegisterBase64Functions(PerfettoSqlEngine& engine) {
-  return engine.RegisterStaticFunction<Base64Decode>("base64_decode", 1,
-                                                     nullptr, true);
+  return engine.RegisterFunction<Base64Decode>(nullptr);
 }
 
 }  // namespace perfetto::trace_processor

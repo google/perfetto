@@ -46,7 +46,9 @@ class ClockTrackerTest : public ::testing::Test {
 
   // using ClockId = uint64_t;
   TraceProcessorContext context_;
-  ClockTracker ct_{&context_};
+  std::unique_ptr<ClockSynchronizerListenerImpl> ct_companion_ =
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_);
+  ClockTracker ct_{std::move(ct_companion_)};
   base::StatusOr<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                   int64_t src_timestamp,
                                   ClockTracker::ClockId target_clock_id) {

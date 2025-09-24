@@ -55,7 +55,7 @@ SqliteTokenizer::Token SqliteTokenizer::Next() {
   }
   offset_ += static_cast<uint32_t>(n);
   token.str = std::string_view(start, static_cast<uint32_t>(n));
-  if (token.token_type != TK_SPACE) {
+  if (token.token_type != TK_SPACE && token.token_type != TK_COMMENT) {
     last_non_space_token_ = token.token_type;
   }
   return token;
@@ -63,7 +63,8 @@ SqliteTokenizer::Token SqliteTokenizer::Next() {
 
 SqliteTokenizer::Token SqliteTokenizer::NextNonWhitespace() {
   Token t;
-  for (t = Next(); t.token_type == TK_SPACE; t = Next()) {
+  for (t = Next(); t.token_type == TK_SPACE || t.token_type == TK_COMMENT;
+       t = Next()) {
   }
   return t;
 }

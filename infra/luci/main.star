@@ -96,6 +96,13 @@ def official_builder(name, os, caches=[]):
                 repo = "https://chromium.googlesource.com/external/github.com/google/perfetto",
                 refs = ["refs/tags/upstream/v.+"],
             ),
+            luci.gitiles_poller(
+                name = "perfetto-nightly-trigger",
+                bucket = "official",
+                repo = "https://chromium.googlesource.com/external/github.com/google/perfetto",
+                schedule = "0 5 * * *",
+                refs = ["refs/heads/upstream/main"],
+            ),
         ],
         caches = [
             swarming.cache(cache, name = cache)

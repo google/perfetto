@@ -28,7 +28,6 @@ import {TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
-import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {LinearProgress} from '../widgets/linear_progress';
 import {maybeRenderFullscreenModalDialog, showModal} from '../widgets/modal';
@@ -358,42 +357,27 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   view(): m.Children {
     const app = AppImpl.instance;
-    const hotkeys: HotkeyConfig[] = [];
-    for (const {id, defaultHotkey} of app.commands.commands) {
-      if (defaultHotkey) {
-        hotkeys.push({
-          callback: () => app.commands.runCommand(id),
-          hotkey: defaultHotkey,
-        });
-      }
-    }
-
     const isSomethingLoading =
       AppImpl.instance.isLoadingTrace ||
       (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 
-    return m(
-      HotkeyContext,
-      {hotkeys},
-      m(
-        'main.pf-ui-main',
-        m(Sidebar, {trace: this.trace}),
-        m(Topbar, {
-          omnibox: this.renderOmnibox(),
-          trace: this.trace,
-        }),
-        m(LinearProgress, {
-          className: 'pf-ui-main__loading',
-          state: isSomethingLoading ? 'indeterminate' : 'none',
-        }),
-        m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
-        m(CookieConsent),
-        maybeRenderFullscreenModalDialog(),
-        showStatusBarFlag.get() && renderStatusBar(app.trace),
-        app.perfDebugging.renderPerfStats(),
-      ),
-    );
+    return m('main.pf-ui-main', [
+      m(Sidebar, {trace: this.trace}),
+      m(Topbar, {
+        omnibox: this.renderOmnibox(),
+        trace: this.trace,
+      }),
+      m(LinearProgress, {
+        className: 'pf-ui-main__loading',
+        state: isSomethingLoading ? 'indeterminate' : 'none',
+      }),
+      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
+      m(CookieConsent),
+      maybeRenderFullscreenModalDialog(),
+      showStatusBarFlag.get() && renderStatusBar(app.trace),
+      app.perfDebugging.renderPerfStats(),
+    ]);
   }
 
   onupdate({dom}: m.VnodeDOM) {
