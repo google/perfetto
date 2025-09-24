@@ -306,7 +306,7 @@ async function showDialogIncompatibleRPC(
 }
 
 type PreloadedDialogResult =
-  | {kind: 'useRpcWithPreloadedTrace', instanceId?: number}
+  | {kind: 'useRpcWithPreloadedTrace'; instanceId?: number}
   | {kind: 'useRpc'}
   | {kind: 'useWasm'}
   | {kind: 'dismissed'};
@@ -374,7 +374,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           const hasActiveTab = status.isAttached ?? false;
           const id = status.instanceId ?? undefined;
 
-
           return m(
             Card,
             {
@@ -385,10 +384,10 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               onclick: () => {
                 // do not allow selecting rows that already have an active tab
                 if (hasActiveTab) return;
-                
+
                 // close and resolve immediately to open that trace in this tab
                 closeModal();
-                resolve({ kind: 'useRpcWithPreloadedTrace', instanceId: id });
+                resolve({kind: 'useRpcWithPreloadedTrace', instanceId: id});
               },
             },
             m(
@@ -424,7 +423,6 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           );
         });
 
-
         elements.push(
           m(CardStack, [
             ...rows,
@@ -437,7 +435,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 interactive: true,
                 onclick: () => {
                   closeModal();
-                  resolve({ kind: 'useRpc' });
+                  resolve({kind: 'useRpc'});
                 },
               },
               m(
@@ -457,21 +455,20 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
           primary: true,
           action: () => {
             closeModal();
-            resolve({ kind: 'useRpc' });
+            resolve({kind: 'useRpc'});
           },
         },
         {
           text: 'Use built-in WASM',
           action: () => {
             closeModal();
-            resolve({ kind: 'useWasm' });
+            resolve({kind: 'useWasm'});
           },
         },
       ],
     });
   });
 }
-
 
 function getUrlForVersion(versionCode: string): string {
   const url = `${window.location.origin}/${versionCode}/`;
