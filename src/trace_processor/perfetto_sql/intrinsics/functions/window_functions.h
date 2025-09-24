@@ -17,11 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_WINDOW_FUNCTIONS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_WINDOW_FUNCTIONS_H_
 
-#include <sqlite3.h>
 #include <cstdint>
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"

@@ -33,6 +33,7 @@ class WindowManagerHierarchyWalkerTest : public ::testing::Test {
     std::optional<int32_t> child_index;
     bool is_visible;
     std::optional<WindowManagerHierarchyWalker::ExtractedRect> rect;
+    std::string_view container_type;
   };
 
   void CheckWindowContainers(
@@ -50,6 +51,8 @@ class WindowManagerHierarchyWalkerTest : public ::testing::Test {
       EXPECT_EQ(actual->at(i).child_index, expected[i].child_index);
       EXPECT_EQ(actual->at(i).is_visible, expected[i].is_visible);
       CheckRects(actual->at(i).rect, expected[i].rect);
+      EXPECT_EQ(pool_.Get(actual->at(i).container_type).ToStdString(),
+                expected[i].container_type);
 
       bool is_root = !expected[i].parent_token.has_value();
       if (is_root) {
@@ -168,10 +171,11 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithRootOnly) {
       protos::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithRootOnly()));
 
-  CheckWindowContainers(containers, {
-                                        {"root", 1, std::nullopt, std::nullopt,
-                                         false, std::nullopt},
-                                    });
+  CheckWindowContainers(containers,
+                        {
+                            {"root", 1, std::nullopt, std::nullopt, false,
+                             std::nullopt, "RootWindowContainer"},
+                        });
 }
 
 // Hierarchy:
@@ -182,12 +186,14 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowContainerProto) {
           WindowManagerSampleProtos::HierarchyWithWindowContainer()));
 
   CheckWindowContainers(
-      containers,
-      {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - WindowContainer", 2, 1, 0, false, std::nullopt},
-          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt},
-      });
+      containers, {
+                      {"root", 1, std::nullopt, std::nullopt, false,
+                       std::nullopt, "RootWindowContainer"},
+                      {"child - WindowContainer", 2, 1, 0, false, std::nullopt,
+                       "WindowContainer"},
+                      {"grandchild - WindowContainer", 3, 2, 0, false,
+                       std::nullopt, "WindowContainer"},
+                  });
 }
 
 // Hierarchy:
@@ -207,14 +213,16 @@ TEST_F(WindowManagerHierarchyWalkerTest,
       5, 6, 10, 20, 1, 1, true, 0.5};
 
   CheckWindowContainers(
-      containers,
-      {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - DisplayContent", 2, 1, 0, false,
-           expectedRectDisplayContent},
-          {"grandchild - WindowState", 3, 2, 0, true, expectedRectWindowState},
-          {"grandgrandchild - WindowContainer", 4, 3, 0, false, std::nullopt},
-      });
+      containers, {
+                      {"root", 1, std::nullopt, std::nullopt, false,
+                       std::nullopt, "RootWindowContainer"},
+                      {"child - DisplayContent", 2, 1, 0, false,
+                       expectedRectDisplayContent, "DisplayContent"},
+                      {"grandchild - WindowState", 3, 2, 0, true,
+                       expectedRectWindowState, "WindowState"},
+                      {"grandgrandchild - WindowContainer", 4, 3, 0, false,
+                       std::nullopt, "WindowContainer"},
+                  });
 }
 
 // Hierarchy:
@@ -227,9 +235,11 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithDisplayAreaProto) {
   CheckWindowContainers(
       containers,
       {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - DisplayArea", 2, 1, 0, false, std::nullopt},
-          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt},
+          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt,
+           "RootWindowContainer"},
+          {"child - DisplayArea", 2, 1, 0, false, std::nullopt, "DisplayArea"},
+          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt,
+           "WindowContainer"},
       });
 }
 
@@ -241,12 +251,13 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskProto) {
           WindowManagerSampleProtos::HierarchyWithTask()));
 
   CheckWindowContainers(
-      containers,
-      {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - Task", 2, 1, 0, false, std::nullopt},
-          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt},
-      });
+      containers, {
+                      {"root", 1, std::nullopt, std::nullopt, false,
+                       std::nullopt, "RootWindowContainer"},
+                      {"child - Task", 2, 1, 0, false, std::nullopt, "Task"},
+                      {"grandchild - WindowContainer", 3, 2, 0, false,
+                       std::nullopt, "WindowContainer"},
+                  });
 }
 
 // Hierarchy:
@@ -259,9 +270,11 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithActivityRecordProto) {
   CheckWindowContainers(
       containers,
       {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - ActivityRecord", 2, 1, 0, false, std::nullopt},
-          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt},
+          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt,
+           "RootWindowContainer"},
+          {"child - ActivityRecord", 2, 1, 0, false, std::nullopt, "Activity"},
+          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt,
+           "WindowContainer"},
       });
 }
 
@@ -273,12 +286,13 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowTokenProto) {
           WindowManagerSampleProtos::HierarchyWithWindowToken()));
 
   CheckWindowContainers(
-      containers,
-      {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"0x02", 2, 1, 0, false, std::nullopt},
-          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt},
-      });
+      containers, {
+                      {"root", 1, std::nullopt, std::nullopt, false,
+                       std::nullopt, "RootWindowContainer"},
+                      {"0x02", 2, 1, 0, false, std::nullopt, "WindowToken"},
+                      {"grandchild - WindowContainer", 3, 2, 0, false,
+                       std::nullopt, "WindowContainer"},
+                  });
 }
 
 // Hierarchy:
@@ -289,12 +303,14 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskFragmentProto) {
           WindowManagerSampleProtos::HierarchyWithTaskFragment()));
 
   CheckWindowContainers(
-      containers,
-      {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - TaskFragment", 2, 1, 0, false, std::nullopt},
-          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt},
-      });
+      containers, {
+                      {"root", 1, std::nullopt, std::nullopt, false,
+                       std::nullopt, "RootWindowContainer"},
+                      {"child - TaskFragment", 2, 1, 0, false, std::nullopt,
+                       "TaskFragment"},
+                      {"grandchild - WindowContainer", 3, 2, 0, false,
+                       std::nullopt, "WindowContainer"},
+                  });
 }
 
 // Hierarchy:
@@ -310,12 +326,14 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithSiblings) {
           WindowManagerSampleProtos::HierarchyWithSiblings()));
 
   CheckWindowContainers(
-      containers,
-      {
-          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt},
-          {"child - WindowContainer1", 2, 1, 0, false, std::nullopt},
-          {"child - WindowContainer2", 3, 1, 1, false, std::nullopt},
-      });
+      containers, {
+                      {"root", 1, std::nullopt, std::nullopt, false,
+                       std::nullopt, "RootWindowContainer"},
+                      {"child - WindowContainer1", 2, 1, 0, false, std::nullopt,
+                       "WindowContainer"},
+                      {"child - WindowContainer2", 3, 1, 1, false, std::nullopt,
+                       "WindowContainer"},
+                  });
 }
 
 TEST_F(WindowManagerHierarchyWalkerTest, InvalidWindowContainerChildProto) {

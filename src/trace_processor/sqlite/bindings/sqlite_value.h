@@ -27,6 +27,10 @@ namespace perfetto::trace_processor::sqlite::value {
 // This file contains wraps the sqlite3_value_* functions which extract values
 // from sqlite3_value structs.
 
+inline Type NumericType(sqlite3_value* value) {
+  return static_cast<enum Type>(sqlite3_value_numeric_type(value));
+}
+
 inline Type Type(sqlite3_value* value) {
   return static_cast<enum Type>(sqlite3_value_type(value));
 }
@@ -45,6 +49,14 @@ inline double Double(sqlite3_value* value) {
 
 inline const char* Text(sqlite3_value* value) {
   return reinterpret_cast<const char*>(sqlite3_value_text(value));
+}
+
+inline const void* Blob(sqlite3_value* value) {
+  return sqlite3_value_blob(value);
+}
+
+inline int Bytes(sqlite3_value* value) {
+  return sqlite3_value_bytes(value);
 }
 
 template <typename T>
