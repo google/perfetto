@@ -306,7 +306,7 @@ async function showDialogIncompatibleRPC(
 }
 
 type PreloadedDialogResult =
-  | {kind: 'useRpcWithPreloadedTrace', instanceId: number}
+  | {kind: 'useRpcWithPreloadedTrace', instanceId?: number}
   | {kind: 'useRpc'}
   | {kind: 'useWasm'}
   | {kind: 'dismissed'};
@@ -372,25 +372,19 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
         const rows = sortedProcessors.map((tp, index) => {
           const status = tp;
           const hasActiveTab = status.isAttached ?? false;
-          const id = status.instanceId ?? null; // TODO
+          const id = status.instanceId ?? undefined;
 
 
           return m(
             Card,
             {
-              key: `row-${id ?? `default-${index}`}`, // TODO
+              key: `row-${id ?? `default-${index}`}`,
               role: 'option',
               tabindex: hasActiveTab ? -1 : 0,
               interactive: !hasActiveTab,
               onclick: () => {
                 // do not allow selecting rows that already have an active tab
                 if (hasActiveTab) return;
-                // Defensive: if id somehow null, treat it as "useRpc"
-                if (id === null) {
-                  closeModal(); // TODO
-                  resolve({ kind: 'useRpc' });
-                  return;
-                }
                 
                 // close and resolve immediately to open that trace in this tab
                 closeModal();
@@ -415,7 +409,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 compact: true,
                 onclick: async (e: MouseEvent) => {
                   e.stopPropagation();
-                  if (id === null) return;
+                  if (id === undefined) return;
                   await fetch(`http://${HttpRpcEngine.hostAndPort}/close`, {
                     method: 'POST',
                     body: String(id),
