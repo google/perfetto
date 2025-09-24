@@ -49,7 +49,6 @@ class EtwParser {
                        int32_t next_prio);
   StringId TaskStateToStringId(int64_t task_state_int);
   StringId WaitReasonToStringId(uint8_t reason);
-  bool IsIoWait(uint8_t reason);
 
   TraceProcessorContext* context_;
 

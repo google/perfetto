@@ -49,6 +49,15 @@ constexpr uint8_t kEtwWaitReasonPageIn = 2;
 constexpr uint8_t kEtwWaitReasonWrExecutive = 7;
 constexpr uint8_t kEtwWaitReasonWrRundown = 36;
 
+bool IsIoWait(uint8_t reason) {
+  // Reasons starting with "Wr" are for alertable waits, which are mostly for
+  // I/O. We also include "PageIn" which is a non-alertable I/O wait.
+  // See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
+  return reason == kEtwWaitReasonPageIn ||
+         (reason >= kEtwWaitReasonWrExecutive &&
+          reason <= kEtwWaitReasonWrRundown);
+}
+
 }  // namespace
 
 EtwParser::EtwParser(TraceProcessorContext* context)
@@ -331,15 +340,6 @@ StringId EtwParser::WaitReasonToStringId(uint8_t reason) {
     return unknown_wait_reason_id_;
   }
   return context_->storage->InternString(wait_reason_map[reason]);
-}
-
-bool EtwParser::IsIoWait(uint8_t reason) {
-  // Reasons starting with "Wr" are for alertable waits, which are mostly for
-  // I/O. We also include "PageIn" which is a non-alertable I/O wait.
-  // See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
-  return reason == kEtwWaitReasonPageIn ||
-         (reason >= kEtwWaitReasonWrExecutive &&
-          reason <= kEtwWaitReasonWrRundown);
 }
 
 }  // namespace trace_processor
