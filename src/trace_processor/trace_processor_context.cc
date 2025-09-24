@@ -80,7 +80,10 @@ void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
   context->symbol_tracker = Ptr<SymbolTracker>::MakeRoot(context);
   context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
   context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
-  context->clock_tracker = Ptr<ClockTracker>::MakeRoot(context);
+  std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
+      std::make_unique<ClockSynchronizerListenerImpl>(context);
+  context->clock_tracker =
+      Ptr<ClockTracker>::MakeRoot(std::move(clock_tracker_listener));
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);

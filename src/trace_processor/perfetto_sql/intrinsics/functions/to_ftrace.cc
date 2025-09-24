@@ -25,16 +25,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/public/compiler.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/gfp_flags.h"
@@ -80,7 +81,7 @@ class ArgsSerializer {
                  tables::ArgTable::ConstCursor*,
                  NullTermStringView event_name,
                  std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
-                 base::StringWriter*);
+                 base::FixedStringWriter*);
 
   void SerializeArgs();
 
@@ -155,7 +156,7 @@ class ArgsSerializer {
 
   uint32_t start_row_ = 0;
 
-  base::StringWriter* writer_ = nullptr;
+  base::FixedStringWriter* writer_ = nullptr;
 };
 
 ArgsSerializer::ArgsSerializer(
@@ -164,7 +165,7 @@ ArgsSerializer::ArgsSerializer(
     tables::ArgTable::ConstCursor* cursor,
     NullTermStringView event_name,
     std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
-    base::StringWriter* writer)
+    base::FixedStringWriter* writer)
     : storage_(context->storage.get()),
       context_(context),
       cursor_(cursor),
@@ -595,24 +596,23 @@ void ArgsSerializer::WriteValue(const Variadic& value) {
 
 }  // namespace
 
-base::Status ToFtrace::Run(Context* context,
-                           size_t argc,
-                           sqlite3_value** argv,
-                           SqlValue& out,
-                           Destructors& destructors) {
-  if (argc != 1 || sqlite::value::Type(argv[0]) != sqlite::Type::kInteger) {
-    return base::ErrStatus("Usage: to_ftrace(id)");
+void ToFtrace::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  PERFETTO_DCHECK(argc == 1);
+
+  if (sqlite::value::Type(argv[0]) != sqlite::Type::kInteger) {
+    return sqlite::utils::SetError(ctx, "Usage: to_ftrace(id)");
   }
-  uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
+
+  auto* context = GetUserData(ctx);
+  uint32_t row = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
 
   auto str = context->serializer.SerializeToString(row);
   if (str.get() == nullptr) {
-    return base::ErrStatus("to_ftrace: Cannot serialize row id %u", row);
+    return sqlite::utils::SetError(
+        ctx, base::ErrStatus("to_ftrace: Cannot serialize row id %u", row));
   }
 
-  out = SqlValue::String(str.release());
-  destructors.string_destructor = str.get_deleter();
-  return base::OkStatus();
+  sqlite::result::TransientString(ctx, str.get());
 }
 
 SystraceSerializer::SystraceSerializer(TraceProcessorContext* context)
@@ -632,7 +632,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   const auto& raw = storage_->ftrace_event_table();
 
   char line[4096];
-  base::StringWriter writer(line, sizeof(line));
+  base::FixedStringWriter writer(line, sizeof(line));
 
   auto row = raw[raw_row];
   StringId event_name_id = row.name();
@@ -662,7 +662,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
 }
 
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
-                                         base::StringWriter* writer) {
+                                         base::FixedStringWriter* writer) {
   const auto& raw = storage_->ftrace_event_table();
   const auto& cpu_table = storage_->cpu_table();
 

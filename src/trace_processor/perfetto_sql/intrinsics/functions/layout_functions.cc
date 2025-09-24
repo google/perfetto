@@ -204,8 +204,8 @@ The inverse step is not supported: the window clause should be
 }  // namespace
 
 base::Status RegisterLayoutFunctions(PerfettoSqlEngine& engine) {
-  return engine.RegisterSqliteWindowFunction<InternalLayout>(kFunctionName, 2,
-                                                             nullptr);
+  return engine.RegisterWindowFunction<InternalLayout>(kFunctionName, 2,
+                                                       nullptr);
 }
 
 }  // namespace perfetto::trace_processor

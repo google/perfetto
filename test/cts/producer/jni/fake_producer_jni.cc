@@ -26,16 +26,17 @@ namespace {
 static std::mutex g_mutex;
 
 // These variables are guarded by the above mutex.
-static perfetto::base::TaskRunner* g_activity_tr = nullptr;
-static perfetto::base::TaskRunner* g_service_tr = nullptr;
-static perfetto::base::TaskRunner* g_isolated_service_tr = nullptr;
+static perfetto::base::MaybeLockFreeTaskRunner* g_activity_tr = nullptr;
+static perfetto::base::MaybeLockFreeTaskRunner* g_service_tr = nullptr;
+static perfetto::base::MaybeLockFreeTaskRunner* g_isolated_service_tr = nullptr;
 
 }  // namespace
 
 namespace perfetto {
 namespace {
 
-void ListenAndRespond(const std::string& name, base::TaskRunner** tr) {
+void ListenAndRespond(const std::string& name,
+                      base::MaybeLockFreeTaskRunner** tr) {
   // Note that this lock is unlocked by a post task in the middle of the
   // function instead of at the end of this function.
   std::unique_lock<std::mutex> lock(g_mutex);

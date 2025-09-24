@@ -21,7 +21,7 @@ import {CommandInvocation} from '../core/command_manager';
 // proceeding as if the user is not internal.
 const SCRIPT_LOAD_TIMEOUT_MS = 5000;
 const SCRIPT_URL =
-  'https://storage.cloud.google.com/perfetto-ui-internal/is-internal-user/is_internal_user.js';
+  'https://storage.cloud.google.com/perfetto-ui-internal/internal-data-v1/amalgamated.js';
 
 // This interface describes the required interface that the script expect to
 // find on window.globals.
@@ -44,7 +44,7 @@ interface Globals {
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
-  readonly extraMacros: Record<string, CommandInvocation[]>;
+  readonly extraMacros: Record<string, CommandInvocation[]>[];
 
   // TODO(stevegolton): Check if we actually need to use these.
   // Used when switching to the legacy TraceViewer UI.
@@ -71,7 +71,7 @@ function setupGlobalsProxy(app: AppImpl) {
     get extraSqlPackages(): SqlPackage[] {
       return app.extraSqlPackages;
     },
-    get extraMacros(): Record<string, CommandInvocation[]> {
+    get extraMacros(): Record<string, CommandInvocation[]>[] {
       return app.extraMacros;
     },
     shutdown() {

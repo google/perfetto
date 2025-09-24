@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../base/async_limiter';
+import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {createProxy, getOrCreate} from '../base/utils';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
@@ -96,7 +97,10 @@ export class AppContext {
 
   // This is normally empty and is injected with extra google-internal macros
   // via is_internal_user.js
-  extraMacros: Record<string, CommandInvocation[]> = {};
+  extraMacros: Record<string, CommandInvocation[]>[] = [];
+
+  // Promise which is resolved when extra loading is completed.
+  extrasLoadingDeferred = defer<undefined>();
 
   // The currently open trace.
   currentTrace?: TraceContext;
@@ -405,7 +409,7 @@ export class AppImpl implements App {
     return this.appCtx.extraSqlPackages;
   }
 
-  get extraMacros(): Record<string, CommandInvocation[]> {
+  get extraMacros(): Record<string, CommandInvocation[]>[] {
     return this.appCtx.extraMacros;
   }
 
@@ -434,5 +438,13 @@ export class AppImpl implements App {
 
   set isInternalUser(value: boolean) {
     this.appCtx.isInternalUser = value;
+  }
+
+  notifyOnExtrasLoadingCompleted() {
+    this.appCtx.extrasLoadingDeferred.resolve();
+  }
+
+  get extraLoadingPromise(): Promise<undefined> {
+    return this.appCtx.extrasLoadingDeferred;
   }
 }

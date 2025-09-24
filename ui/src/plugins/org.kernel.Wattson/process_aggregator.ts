@@ -27,7 +27,7 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
   probe(area: AreaSelection) {
     const selectedCpus: number[] = [];
     for (const trackInfo of area.tracks) {
-      trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND) &&
         exists(trackInfo.tags.cpu) &&
         selectedCpus.push(trackInfo.tags.cpu);
     }

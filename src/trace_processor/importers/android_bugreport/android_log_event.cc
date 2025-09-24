@@ -65,7 +65,7 @@ std::optional<AndroidLogEvent::Format> AndroidLogEvent::DetectFormat(
   if (p[4].size() == 1 && p[4][0] >= 'A' && p[4][0] <= 'Z')
     return Format::kPersistentLog;
 
-  if (p[5].size() == 1 && p[5][0] >= 'A' && p[5][0] <= 'Z')
+  if (p.size() > 5 && p[5].size() == 1 && p[5][0] >= 'A' && p[5][0] <= 'Z')
     return Format::kBugreport;
 
   return std::nullopt;
