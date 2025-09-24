@@ -48,10 +48,13 @@ class EtwParser {
                        uint32_t next_pid,
                        int32_t next_prio);
   StringId TaskStateToStringId(int64_t task_state_int);
+  StringId WaitReasonToStringId(uint8_t reason);
+  bool IsIoWait(uint8_t reason);
 
   TraceProcessorContext* context_;
 
   SchedEventState sched_event_state_;
+  StringId unknown_wait_reason_id_;
 };
 
 }  // namespace trace_processor

@@ -44,9 +44,16 @@ namespace {
 
 using protozero::ConstBytes;
 
+constexpr uint8_t kEtwThreadStateWaiting = 5;
+constexpr uint8_t kEtwWaitReasonPageIn = 2;
+constexpr uint8_t kEtwWaitReasonWrExecutive = 7;
+constexpr uint8_t kEtwWaitReasonWrRundown = 36;
+
 }  // namespace
 
-EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
+EtwParser::EtwParser(TraceProcessorContext* context)
+    : context_(context),
+      unknown_wait_reason_id_(context->storage->InternString("Unknown")) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
@@ -250,21 +257,15 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
   // If the previous thread just entered a "Waiting" state, we can add
   // the reason for it.
   if (prev_state == kEtwThreadStateWaiting) {
-    StringId wait_reason_string_id =
-        WaitReasonToStringId(context_, prev_wait_reason);
-
-    // Per MSDN, wait reasons in this range are I/O waits.
-    bool is_io_wait = (prev_wait_reason >= kEtwWaitReasonIoStart &&
-                       prev_wait_reason <= kEtwWaitReasonIoEnd);
+    StringId wait_reason_string_id = WaitReasonToStringId(prev_wait_reason);
 
     ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
-        prev_utid, is_io_wait, wait_reason_string_id);
+        prev_utid, IsIoWait(prev_wait_reason), wait_reason_string_id);
   }
 }
 
 StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   const auto state = static_cast<uint8_t>(task_state_int);
-
   // Mapping for the different Etw states with their string description.
   static constexpr std::string_view etw_states[] = {
       "Initialized",    // 0x00
@@ -285,34 +286,60 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
 
 // Translates a Windows ETW wait reason enum to a string.
 // See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
-StringId WaitReasonToStringId(TraceProcessorContext* context, uint8_t reason) {
-  static const std::map<uint8_t, base::StringView> wait_reason_map = {
-      {0x00, "Executive"},        {0x01, "FreePage"},
-      {0x02, "PageIn"},           {0x03, "PoolAllocation"},
-      {0x04, "DelayExecution"},   {0x05, "Suspended"},
-      {0x06, "UserRequest"},      {0x07, "WrExecutive"},
-      {0x08, "WrFreePage"},       {0x09, "WrPageIn"},
-      {0x0A, "WrPoolAllocation"}, {0x0B, "WrDelayExecution"},
-      {0x0C, "WrSuspended"},      {0x0D, "WrUserRequest"},
-      {0x0E, "WrEventPair"},      {0x0F, "WrQueue"},
-      {0x10, "WrLpcReceive"},     {0x11, "WrLpcReply"},
-      {0x12, "WrVirtualMemory"},  {0x13, "WrPageOut"},
-      {0x14, "WrRendezvous"},     {0x15, "WrKeyedEvent"},
-      {0x16, "WrTerminated"},     {0x17, "WrProcessInSwap"},
-      {0x18, "WrCpuRateControl"}, {0x19, "WrCalloutStack"},
-      {0x1A, "WrKernel"},         {0x1B, "WrResource"},
-      {0x1C, "WrPushLock"},       {0x1D, "WrMutex"},
-      {0x1E, "WrQuantumEnd"},     {0x1F, "WrDispatchInt"},
-      {0x20, "WrPreempted"},      {0x21, "WrYieldExecution"},
-      {0x22, "WrFastMutex"},      {0x23, "WrGuardedMutex"},
-      {0x24, "WrRundown"},
+StringId EtwParser::WaitReasonToStringId(uint8_t reason) {
+  static constexpr std::string_view wait_reason_map[] = {
+      "Executive",         // 0x00
+      "FreePage",          // 0x01
+      "PageIn",            // 0x02
+      "PoolAllocation",    // 0x03
+      "DelayExecution",    // 0x04
+      "Suspended",         // 0x05
+      "UserRequest",       // 0x06
+      "WrExecutive",       // 0x07
+      "WrFreePage",        // 0x08
+      "WrPageIn",          // 0x09
+      "WrPoolAllocation",  // 0x0A
+      "WrDelayExecution",  // 0x0B
+      "WrSuspended",       // 0x0C
+      "WrUserRequest",     // 0x0D
+      "WrEventPair",       // 0x0E
+      "WrQueue",           // 0x0F
+      "WrLpcReceive",      // 0x10
+      "WrLpcReply",        // 0x11
+      "WrVirtualMemory",   // 0x12
+      "WrPageOut",         // 0x13
+      "WrRendezvous",      // 0x14
+      "WrKeyedEvent",      // 0x15
+      "WrTerminated",      // 0x16
+      "WrProcessInSwap",   // 0x17
+      "WrCpuRateControl",  // 0x18
+      "WrCalloutStack",    // 0x19
+      "WrKernel",          // 0x1A
+      "WrResource",        // 0x1B
+      "WrPushLock",        // 0x1C
+      "WrMutex",           // 0x1D
+      "WrQuantumEnd",      // 0x1E
+      "WrDispatchInt",     // 0x1F
+      "WrPreempted",       // 0x20
+      "WrYieldExecution",  // 0x21
+      "WrFastMutex",       // 0x22
+      "WrGuardedMutex",    // 0x23
+      "WrRundown",         // 0x24
   };
 
-  auto it = wait_reason_map.find(reason);
-  if (it == wait_reason_map.end()) {
-    return context->storage->InternString("Unknown");
+  if (reason >= std::size(wait_reason_map)) {
+    return unknown_wait_reason_id_;
   }
-  return context->storage->InternString(it->second);
+  return context_->storage->InternString(wait_reason_map[reason]);
+}
+
+bool EtwParser::IsIoWait(uint8_t reason) {
+  // Reasons starting with "Wr" are for alertable waits, which are mostly for
+  // I/O. We also include "PageIn" which is a non-alertable I/O wait.
+  // See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
+  return reason == kEtwWaitReasonPageIn ||
+         (reason >= kEtwWaitReasonWrExecutive &&
+          reason <= kEtwWaitReasonWrRundown);
 }
 
 }  // namespace trace_processor
