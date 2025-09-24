@@ -323,6 +323,9 @@ export class AppImpl implements App {
       } else {
         src = {...src, buffer: src.buffer.slice().buffer};
       }
+    } else if (src.type === 'HTTP_RPC') {
+      AppImpl.instance.httpRpc.selectedTraceProcessorId =
+        src.traceProcessorId ?? 0;
     }
 
     // Rationale for asyncLimiter: openTrace takes several seconds and involves

@@ -398,7 +398,16 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               onclick: () => {
                 // do not allow selecting rows that already have an active tab
                 if (hasActiveTab) return;
-                selectedInstanceId = id ?? null;
+                // Defensive: if id somehow null, treat it as "useRpc"
+                if (id === null) {
+                  closeModal();
+                  resolve({ kind: 'useRpc' });
+                  return;
+                }
+                
+                // close and resolve immediately to open that trace in this tab
+                closeModal();
+                resolve({ kind: 'useRpcWithPreloadedTrace', instanceId: id });
               },
             },
             m(
@@ -444,6 +453,7 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
         elements.push(
           m(CardStack, [
             ...rows,
+            // IMPORTANT CHANGE: clicking "New instance" now resolves immediately to { kind: 'useRpc' }
             m(
               Card,
               {
@@ -453,8 +463,10 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
                 className: newClasses,
                 interactive: true,
                 onclick: () => {
-                  selectedInstanceId = null;
-                  m.redraw(); // force UI update
+                  // behave the same as "Yes, Attach..." when no instance is selected:
+                  // close and resolve to 'useRpc' (i.e. use RPC without choosing an existing instance)
+                  closeModal();
+                  resolve({ kind: 'useRpc' });
                 },
               },
               m(
@@ -477,25 +489,26 @@ async function showDialogToUsePreloadedTrace(): Promise<PreloadedDialogResult> {
               AppImpl.instance.httpRpc.selectedTraceProcessorId =
                 selectedInstanceId;
               closeModal();
-              resolve({kind: 'useRpcWithPreloadedTrace', instanceId: selectedInstanceId});
+              resolve({ kind: 'useRpcWithPreloadedTrace', instanceId: selectedInstanceId });
               return;
             }
 
             closeModal();
-            resolve({kind: 'useRpc'});
+            resolve({ kind: 'useRpc' });
           },
         },
         {
           text: 'Use built-in WASM',
           action: () => {
             closeModal();
-            resolve({kind: 'useWasm'});
+            resolve({ kind: 'useWasm' });
           },
         },
       ],
     });
   });
 }
+
 
 function getUrlForVersion(versionCode: string): string {
   const url = `${window.location.origin}/${versionCode}/`;
