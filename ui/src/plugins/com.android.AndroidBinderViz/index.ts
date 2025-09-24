@@ -27,8 +27,11 @@ export default class implements PerfettoPlugin {
     await this.createBinderTransactionTrack(ctx, 'client', 'server');
   }
 
-  async createBinderTransactionTrack(ctx: Trace, perspective: string, opposite_perspective: string) {
-
+  async createBinderTransactionTrack(
+    ctx: Trace,
+    perspective: string,
+    opposite_perspective: string,
+  ) {
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: `Binder ${perspective} Transaction Counts`,
