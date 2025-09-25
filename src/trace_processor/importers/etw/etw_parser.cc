@@ -60,9 +60,7 @@ bool IsIoWait(uint8_t reason) {
 
 }  // namespace
 
-EtwParser::EtwParser(TraceProcessorContext* context)
-    : context_(context),
-      unknown_wait_reason_id_(context->storage->InternString("Unknown")) {}
+EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
@@ -337,7 +335,7 @@ StringId EtwParser::WaitReasonToStringId(uint8_t reason) {
   };
 
   if (reason >= std::size(wait_reason_map)) {
-    return unknown_wait_reason_id_;
+    return kNullStringId;
   }
   return context_->storage->InternString(wait_reason_map[reason]);
 }

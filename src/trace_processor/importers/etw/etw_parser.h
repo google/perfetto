@@ -53,7 +53,6 @@ class EtwParser {
   TraceProcessorContext* context_;
 
   SchedEventState sched_event_state_;
-  StringId unknown_wait_reason_id_;
 };
 
 }  // namespace trace_processor
