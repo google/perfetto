@@ -170,25 +170,16 @@ namespace perfetto::trace_processor {
 namespace {
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::UserData*>
-void RegisterFunction(PerfettoSqlEngine* engine,
-                      Ptr context = nullptr,
-                      bool deterministic = true) {
-  auto status =
-      engine->RegisterFunction<SqlFunction>(std::move(context), deterministic);
-  if (!status.ok())
-    PERFETTO_ELOG("%s", status.c_message());
-}
-
-template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
-void RegisterFunction(PerfettoSqlEngine* engine,
-                      const char* name,
-                      int argc,
-                      Ptr context = nullptr,
-                      bool deterministic = true) {
-  auto status = engine->RegisterLegacyFunction<SqlFunction>(
-      name, argc, std::move(context), deterministic);
-  if (!status.ok())
-    PERFETTO_ELOG("%s", status.c_message());
+void RegisterFunction(
+    PerfettoSqlEngine* engine,
+    Ptr context = nullptr,
+    const PerfettoSqlEngine::RegisterFunctionArgs& args = {}) {
+  auto status = engine->RegisterFunction<SqlFunction>(std::move(context), args);
+  if (!status.ok()) {
+    const char* name = args.name ? args.name : SqlFunction::kName;
+    PERFETTO_FATAL("Failed to register %s function: %s", name,
+                   status.c_message());
+  }
 }
 
 base::Status RegisterAllProtoBuilderFunctions(
@@ -212,9 +203,10 @@ base::Status RegisterAllProtoBuilderFunctions(
           registered_fn->second.c_str());
     }
     RegisterFunction<metrics::BuildProto>(
-        engine, fn_name.c_str(), -1,
-        std::make_unique<metrics::BuildProto::Context>(
-            metrics::BuildProto::Context{tp, pool, i}));
+        engine,
+        std::make_unique<metrics::BuildProto::UserData>(
+            metrics::BuildProto::UserData{tp, pool, i}),
+        PerfettoSqlEngine::RegisterFunctionArgs(fn_name.c_str()));
     proto_fn_name_to_path->emplace(fn_name, desc.full_name());
   }
   return base::OkStatus();
@@ -763,11 +755,11 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
         auto last_stmt,
         engine_->PrepareSqliteStatement(
             SqlSource::FromTraceProcessorImplementation(analyzed_sq.sql)));
-    auto sqlite_stmt = last_stmt.sqlite_stmt();
+    auto* sqlite_stmt = last_stmt.sqlite_stmt();
     int col_count = sqlite3_column_count(sqlite_stmt);
     std::vector<std::string> cols;
     for (int i = 0; i < col_count; i++) {
-      cols.push_back(sqlite3_column_name(sqlite_stmt, i));
+      cols.emplace_back(sqlite3_column_name(sqlite_stmt, i));
     }
     analyzed_sq.columns = std::move(cols);
 
@@ -1248,36 +1240,27 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   // Register SQL functions only used in local development instances.
   if (config.enable_dev_features) {
-    RegisterFunction<WriteFile>(engine.get(), "WRITE_FILE", 2);
+    RegisterFunction<WriteFile>(engine.get(), storage);
   }
   RegisterFunction<Glob>(engine.get());
-  RegisterFunction<Hash>(engine.get(), "HASH", -1);
-  RegisterFunction<Base64Encode>(engine.get(), "BASE64_ENCODE", 1);
-  RegisterFunction<Demangle>(engine.get(), "DEMANGLE", 1);
-  RegisterFunction<SourceGeq>(engine.get(), "SOURCE_GEQ", -1);
-  RegisterFunction<TablePtrBind>(engine.get(), "__intrinsic_table_ptr_bind",
-                                 -1);
-  RegisterFunction<ExportJson>(engine.get(), "EXPORT_JSON", 1, storage, false);
+  RegisterFunction<Hash>(engine.get());
+  RegisterFunction<Base64Encode>(engine.get());
+  RegisterFunction<Demangle>(engine.get());
+  RegisterFunction<SourceGeq>(engine.get());
+  RegisterFunction<TablePtrBind>(engine.get());
+  RegisterFunction<ExportJson>(engine.get(), storage);
   RegisterFunction<ExtractArg>(engine.get(), storage);
-  RegisterFunction<AbsTimeStr>(engine.get(), "ABS_TIME_STR", 1,
-                               context->clock_converter.get());
-  RegisterFunction<Reverse>(engine.get(), "REVERSE", 1);
-  RegisterFunction<ToMonotonic>(engine.get(), "TO_MONOTONIC", 1,
-                                context->clock_converter.get());
-  RegisterFunction<ToRealtime>(engine.get(), "TO_REALTIME", 1,
-                               context->clock_converter.get());
-  RegisterFunction<ToTimecode>(engine.get(), "TO_TIMECODE", 1);
-  RegisterFunction<CreateFunction>(engine.get(), "CREATE_FUNCTION", 3,
-                                   engine.get());
-  RegisterFunction<CreateViewFunction>(engine.get(), "CREATE_VIEW_FUNCTION", 3,
-                                       engine.get());
-  RegisterFunction<ExperimentalMemoize>(engine.get(), "EXPERIMENTAL_MEMOIZE", 1,
-                                        engine.get());
-  RegisterFunction<Import>(
-      engine.get(), "IMPORT", 1,
-      std::make_unique<Import::Context>(Import::Context{engine.get()}));
-  RegisterFunction<ToFtrace>(engine.get(), "TO_FTRACE", 1,
-                             std::make_unique<ToFtrace::Context>(context));
+  RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());
+  RegisterFunction<Reverse>(engine.get());
+  RegisterFunction<ToMonotonic>(engine.get(), context->clock_converter.get());
+  RegisterFunction<ToRealtime>(engine.get(), context->clock_converter.get());
+  RegisterFunction<ToTimecode>(engine.get());
+  RegisterFunction<CreateFunction>(engine.get(), engine.get());
+  RegisterFunction<CreateViewFunction>(engine.get(), engine.get());
+  RegisterFunction<ExperimentalMemoize>(engine.get(), engine.get());
+  RegisterFunction<Import>(engine.get(), engine.get());
+  RegisterFunction<ToFtrace>(engine.get(),
+                             std::make_unique<ToFtrace::UserData>(context));
 
   if constexpr (regex::IsRegexSupported()) {
     RegisterFunction<Regexp>(engine.get());
@@ -1392,15 +1375,14 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       PERFETTO_ELOG("%s", status.c_message());
   }
 
-  RegisterFunction<metrics::NullIfEmpty>(engine.get(), "NULL_IF_EMPTY", 1);
-  RegisterFunction<metrics::UnwrapMetricProto>(engine.get(),
-                                               "UNWRAP_METRIC_PROTO", 2);
+  RegisterFunction<metrics::NullIfEmpty>(engine.get());
+  RegisterFunction<metrics::UnwrapMetricProto>(engine.get());
   RegisterFunction<metrics::RunMetric>(
-      engine.get(), "RUN_METRIC", -1,
-      std::make_unique<metrics::RunMetric::Context>(metrics::RunMetric::Context{
-          engine.get(),
-          &sql_metrics,
-      }));
+      engine.get(), std::make_unique<metrics::RunMetric::UserData>(
+                        metrics::RunMetric::UserData{
+                            engine.get(),
+                            &sql_metrics,
+                        }));
 
   // Legacy tables.
   engine->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);

@@ -35,7 +35,8 @@ static perfetto::base::MaybeLockFreeTaskRunner* g_isolated_service_tr = nullptr;
 namespace perfetto {
 namespace {
 
-void ListenAndRespond(const std::string& name, base::TaskRunner** tr) {
+void ListenAndRespond(const std::string& name,
+                      base::MaybeLockFreeTaskRunner** tr) {
   // Note that this lock is unlocked by a post task in the middle of the
   // function instead of at the end of this function.
   std::unique_lock<std::mutex> lock(g_mutex);

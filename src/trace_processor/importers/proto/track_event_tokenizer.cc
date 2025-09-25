@@ -155,7 +155,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         reservation.ordering = Reservation::ChildTracksOrdering::kExplicit;
         break;
       default:
-        PERFETTO_FATAL("Unsupported ChildTracksOrdering");
+        context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+        return ModuleResult::Handled();
     }
   }
 
