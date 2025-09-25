@@ -162,7 +162,10 @@ class TraceBufferTest : public testing::Test {
     return keys;
   }
 
-  uint8_t* GetBufData(const TraceBufferV1& buf) { return buf.begin(); }
+  uint8_t* GetBufData(const TraceBuffer& buf) {
+    return static_cast<const TraceBufferV1&>(buf).begin();
+  }
+
   TraceBufferV1* trace_buffer() {
     return static_cast<TraceBufferV1*>(trace_buffer_.get());
   }
@@ -1742,7 +1745,7 @@ TEST_F(TraceBufferTest, Override_EndOfBuffer) {
 }
 
 TEST_F(TraceBufferTest, DiscardPolicy) {
-  ResetBuffer(4096, TraceBufferV1::kDiscard);
+  ResetBuffer(4096, TraceBuffer::kDiscard);
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(96 - 16, 'a')
@@ -1914,7 +1917,7 @@ TEST_F(TraceBufferTest, Clone_NoFragments) {
     }
 
     // Now create a snapshot and make sure we always read all the packets.
-    auto snap = trace_buffer()->CloneReadOnly();
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
     ASSERT_EQ(snap->used_size(), 32u * kNumWriters);
     snap->BeginRead();
     for (char i = 'A'; i < 'A' + kNumWriters; i++) {
@@ -1937,7 +1940,7 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
   {
     // Create a snapshot before the middle 'b' chunk is copied. Only 'a' should
     // be readable at this point.
-    auto snap = trace_buffer()->CloneReadOnly();
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
     snap->BeginRead();
     ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
     ASSERT_THAT(ReadPacket(snap), IsEmpty());
@@ -1948,7 +1951,7 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
       .CopyIntoTraceBuffer();
 
   // Now all three packes should be readable.
-  auto snap = trace_buffer()->CloneReadOnly();
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
@@ -1971,7 +1974,7 @@ TEST_F(TraceBufferTest, Clone_WithPatches) {
   ASSERT_TRUE(TryPatchChunkContents(ProducerID(2), WriterID(1), ChunkID(0),
                                     {{5, {{'Y', 'M', 'C', 'A'}}}}));
 
-  auto snap = trace_buffer()->CloneReadOnly();
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'a')));
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment("b00-YMCA", 8)));
@@ -1987,7 +1990,7 @@ TEST_F(TraceBufferTest, Clone_Wrapping) {
         .AddPacket(kFrgSize, static_cast<char>('a' + i))
         .CopyIntoTraceBuffer();
   }
-  auto snap = trace_buffer()->CloneReadOnly();
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
   ASSERT_EQ(snap->used_size(), snap->size());
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'c')));
@@ -2011,7 +2014,7 @@ TEST_F(TraceBufferTest, Clone_WrappingWithPadding) {
       .CopyIntoTraceBuffer();
 
   ASSERT_EQ(trace_buffer()->used_size(), trace_buffer()->size());
-  auto snap = trace_buffer()->CloneReadOnly();
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
   ASSERT_EQ(snap->used_size(), snap->size());
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(3192, 'b')));
@@ -2027,7 +2030,7 @@ TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
       .CopyIntoTraceBuffer();
 
   using base::vm_test_utils::IsMapped;
-  auto is_only_first_page_mapped = [&](const TraceBufferV1& buf) {
+  auto is_only_first_page_mapped = [&](const TraceBuffer& buf) {
     bool first_mapped = IsMapped(GetBufData(buf), page_size);
     bool rest_mapped = IsMapped(GetBufData(buf) + page_size, kPages - 1);
     return first_mapped && !rest_mapped;
@@ -2039,9 +2042,9 @@ TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
   if (!is_only_first_page_mapped(*trace_buffer()))
     GTEST_SKIP() << "VM commit detection not supported";
 
-  auto snap = trace_buffer()->CloneReadOnly();
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
   ASSERT_EQ(snap->used_size(), trace_buffer()->used_size());
-  ASSERT_TRUE(is_only_first_page_mapped(static_cast<TraceBufferV1&>(*snap)));
+  ASSERT_TRUE(is_only_first_page_mapped(*snap));
 }
 
 }  // namespace perfetto

@@ -3770,8 +3770,6 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       const TraceBuffer* buf = GetBufferByID(buf_id);
       if (!buf)
         continue;
-      // Cast to TraceBuffer to access writer_stats - this is safe since we know
-      // the concrete type in the service implementation
       for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
         const auto& hist = it.value();
         ProducerID p;
