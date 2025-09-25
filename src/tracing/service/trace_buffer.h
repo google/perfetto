@@ -60,7 +60,7 @@ class TraceBuffer {
     pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
   };
 
-  virtual ~TraceBuffer() = default;
+  virtual ~TraceBuffer();
 
   // Copies a Chunk from a producer Shared Memory Buffer into the trace buffer.
   virtual void CopyChunkUntrusted(ProducerID producer_id_trusted,

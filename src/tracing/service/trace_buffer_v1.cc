@@ -939,4 +939,7 @@ TraceBufferV1::TraceBufferV1(CloneCtor, const TraceBufferV1& src)
   read_iter_ = SequenceIterator();
 }
 
+// For the virtual base class.
+TraceBuffer::~TraceBuffer() = default;
+
 }  // namespace perfetto
