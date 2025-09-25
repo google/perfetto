@@ -1,7 +1,7 @@
 # UI Automation
 
-This page covers how to automate common Perfetto UI tasks to speed up your
-trace analysis workflow using commands, startup commands, and macros.
+This page covers how to automate common Perfetto UI tasks to speed up your trace
+analysis workflow using commands, startup commands, and macros.
 
 ## Commands System Overview
 
@@ -113,6 +113,48 @@ This startup command creates a debug track showing thread scheduling latency:
     "args": [
       "SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = 'R' AND dur > 1000000",
       "Long Scheduling Delays (>1ms)"
+    ]
+  }
+]
+```
+
+### Debug tracks using Perfetto modules
+
+When your query uses Perfetto modules (like `android.screen_state` or
+`android.memory.lmk`), you must include the module first as a separate command.
+**Important: The module include command must come before the query that uses
+it.**
+
+```json
+[
+  {
+    "id": "dev.perfetto.RunQuery",
+    "args": ["include perfetto module android.screen_state"]
+  },
+  {
+    "id": "dev.perfetto.AddDebugSliceTrack",
+    "args": [
+      "SELECT ts, dur FROM android_screen_state WHERE simple_screen_state = 'on'",
+      "Screen On Events"
+    ]
+  }
+]
+```
+
+Another example with memory LMK events:
+
+```json
+[
+  {
+    "id": "dev.perfetto.RunQuery",
+    "args": ["include perfetto module android.memory.lmk"]
+  },
+  {
+    "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
+    "args": [
+      "SELECT ts, process_name as name, 0 as dur FROM android_lmk_events",
+      "name",
+      "LMK Events by Process"
     ]
   }
 ]
