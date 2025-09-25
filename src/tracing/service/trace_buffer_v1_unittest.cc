@@ -73,7 +73,7 @@ class TraceBufferTest : public testing::Test {
 
   void ResetBuffer(
       size_t size_,
-      TraceBufferV1::OverwritePolicy policy = TraceBufferV1::kOverwrite) {
+      TraceBuffer::OverwritePolicy policy = TraceBuffer::kOverwrite) {
     trace_buffer_ = TraceBufferV1::Create(size_, policy);
     ASSERT_TRUE(trace_buffer_);
   }
@@ -81,7 +81,7 @@ class TraceBufferTest : public testing::Test {
   bool TryPatchChunkContents(ProducerID p,
                              WriterID w,
                              ChunkID c,
-                             std::vector<TraceBufferV1::Patch> patches,
+                             std::vector<TraceBuffer::Patch> patches,
                              bool other_patches_pending = false) {
     return trace_buffer_->TryPatchChunkContents(
         p, w, c, patches.data(), patches.size(), other_patches_pending);
@@ -89,11 +89,11 @@ class TraceBufferTest : public testing::Test {
 
   static std::vector<FakePacketFragment> ReadPacket(
       const std::unique_ptr<TraceBuffer>& buf,
-      TraceBufferV1::PacketSequenceProperties* sequence_properties = nullptr,
+      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
       bool* previous_packet_dropped = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
-    TraceBufferV1::PacketSequenceProperties ignored_sequence_properties{};
+    TraceBuffer::PacketSequenceProperties ignored_sequence_properties{};
     bool ignored_previous_packet_dropped;
     if (!buf->ReadNextTracePacket(
             &packet,
@@ -811,7 +811,7 @@ TEST_F(TraceBufferTest, Fragments_PreserveUID) {
       .SetUID(11)
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  TraceBufferV1::PacketSequenceProperties sequence_properties;
+  TraceBuffer::PacketSequenceProperties sequence_properties;
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'a')));
   ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
