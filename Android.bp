@@ -16558,6 +16558,7 @@ filegroup {
         "src/tracing/service/packet_stream_validator.cc",
         "src/tracing/service/random.cc",
         "src/tracing/service/trace_buffer_v1.cc",
+        "src/tracing/service/trace_buffer_v2.cc",
         "src/tracing/service/tracing_service_impl.cc",
     ],
 }
@@ -16569,6 +16570,7 @@ filegroup {
         "src/tracing/service/histogram_unittest.cc",
         "src/tracing/service/packet_stream_validator_unittest.cc",
         "src/tracing/service/trace_buffer_v1_unittest.cc",
+        "src/tracing/service/trace_buffer_v2_unittest.cc",
         "src/tracing/service/tracing_service_impl_unittest.cc",
         "src/tracing/service/zlib_compressor_unittest.cc",
     ],

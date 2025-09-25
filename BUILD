@@ -4384,6 +4384,8 @@ perfetto_filegroup(
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v1.h",
+        "src/tracing/service/trace_buffer_v2.cc",
+        "src/tracing/service/trace_buffer_v2.h",
         "src/tracing/service/tracing_service_impl.cc",
         "src/tracing/service/tracing_service_impl.h",
     ],
