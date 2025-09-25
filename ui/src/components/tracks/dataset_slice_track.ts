@@ -34,6 +34,7 @@ import {
 import {Point2D, Size2D} from '../../base/geom';
 import {exists} from '../../base/utils';
 import {removeFalsyValues} from '../../base/array_utils';
+import {DatasetSliceTrackDetailsPanel} from './dataset_slice_track_details_panel';
 
 export interface InstantStyle {
   /**
@@ -158,6 +159,10 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   /**
    * An optional callback to customize the details panel for events on this
    * track. Called whenever an event is selected.
+   *
+   * If omitted, a default details panel will be created that displays all
+   * fields from the dataset with appropriate formatting for common slice
+   * properties (name, ts, dur).
    */
   detailsPanel?(row: T): TrackEventDetailsPanel;
 
@@ -304,7 +309,13 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       // row's type `T`.
       return this.attrs.detailsPanel(sel as unknown as T);
     } else {
-      return undefined;
+      // Provide a default details panel that shows all dataset fields
+      const dataset = getDataset(this.attrs);
+      return new DatasetSliceTrackDetailsPanel(
+        this.trace,
+        dataset,
+        sel as unknown as T,
+      );
     }
   }
 
