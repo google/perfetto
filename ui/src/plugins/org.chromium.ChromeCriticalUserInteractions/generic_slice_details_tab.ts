@@ -20,7 +20,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
-import {dictToTree, Tree, TreeNode} from '../../widgets/tree';
+import {Tree, TreeNode} from '../../widgets/tree';
 import {Trace} from '../../public/trace';
 
 export interface ColumnConfig {
@@ -58,22 +58,24 @@ export class GenericSliceDetailsTab implements TrackEventDetailsPanel {
       return m('h2', 'Loading');
     }
 
-    const args: {[key: string]: m.Child} = {};
-    if (this.columns !== undefined) {
-      for (const key of Object.keys(this.columns)) {
-        let argKey = key;
-        if (this.columns[key].displayName !== undefined) {
-          argKey = this.columns[key].displayName!;
-        }
-        args[argKey] = sqlValueToReadableString(this.data[key]);
-      }
-    } else {
-      for (const key of Object.keys(this.data)) {
-        args[key] = sqlValueToReadableString(this.data[key]);
-      }
-    }
+    const columns = this.columns;
+    const data = this.data;
 
-    const details = dictToTree(args);
+    const detailNodes =
+      columns !== undefined
+        ? Object.keys(columns).map((key) => {
+            const argKey = columns[key].displayName ?? key;
+            return m(TreeNode, {
+              left: argKey,
+              right: sqlValueToReadableString(data[key]),
+            });
+          })
+        : Object.keys(this.data).map((key) => {
+            return m(TreeNode, {
+              left: key,
+              right: sqlValueToReadableString(data[key]),
+            });
+          });
 
     return m(
       DetailsShell,
@@ -82,7 +84,7 @@ export class GenericSliceDetailsTab implements TrackEventDetailsPanel {
       },
       m(
         GridLayout,
-        m(Section, {title: 'Details'}, m(Tree, details)),
+        m(Section, {title: 'Details'}, m(Tree, detailNodes)),
         m(
           Section,
           {title: 'Metadata'},

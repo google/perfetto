@@ -22,17 +22,15 @@ import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 import {
   SqlValue,
-  durationFromSql,
   LONG,
   STR,
-  timeFromSql,
   NUM_NULL,
 } from '../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
-import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
+import {Tree, TreeNode} from '../../widgets/tree';
 import {threadStateRef} from '../widgets/thread_state';
 import {getThreadName} from '../sql_utils/thread';
 import {getProcessName} from '../sql_utils/process';
@@ -57,27 +55,15 @@ function sqlValueToUtid(value?: SqlValue): Utid | undefined {
   return value as Utid;
 }
 
-function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
-  const children: m.Child[] = [];
-  for (const key of Object.keys(dict)) {
-    if (dict[key] === null || dict[key] === undefined) continue;
-    children.push(
-      m(TreeNode, {
-        left: key,
-        right: dict[key],
-      }),
-    );
-  }
-  return children;
+interface Data {
+  readonly name: string;
+  readonly ts: time;
+  readonly dur: duration;
+  readonly rawCols: {[key: string]: SqlValue};
 }
 
 export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
-  private data?: {
-    name: string;
-    ts: time;
-    dur: duration;
-    rawCols: {[key: string]: SqlValue};
-  };
+  private data?: Data;
 
   // These are the actual loaded args from the args table assuming an arg_set_id
   // is supplied.
@@ -126,20 +112,14 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     }
   }
 
-  private renderThreadStateInfo(): m.Child {
-    if (this.threadState === undefined) return null;
-    return m(
-      TreeNode,
-      {
-        left: threadStateRef(this.trace, this.threadState),
-        right: '',
-      },
-      renderTreeContents({
-        Thread: getThreadName(this.threadState.thread),
-        Process: getProcessName(this.threadState.thread?.process),
-        State: this.threadState.state,
-      }),
-    );
+  private renderThreadStateInfo(threadState: ThreadState): m.Children {
+    const thread = threadState.thread;
+    const process = thread?.process;
+    return m(TreeNode, {left: threadStateRef(this.trace, threadState)}, [
+      m(TreeNode, {left: 'Thread', right: getThreadName(thread)}),
+      m(TreeNode, {left: 'Process', right: getProcessName(process)}),
+      m(TreeNode, {left: 'State', right: threadState.state}),
+    ]);
   }
 
   private async maybeLoadSlice(
@@ -164,35 +144,16 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     }
   }
 
-  private renderSliceInfo() {
-    if (this.slice === undefined) return null;
-    return m(
-      TreeNode,
-      {
-        left: sliceRef(this.trace, this.slice, 'Slice'),
-        right: '',
-      },
-      m(TreeNode, {
-        left: 'Name',
-        right: this.slice.name,
-      }),
-      m(TreeNode, {
-        left: 'Thread',
-        right: getThreadName(this.slice.thread),
-      }),
-      m(TreeNode, {
-        left: 'Process',
-        right: getProcessName(this.slice.process),
-      }),
-      hasArgs(this.slice.args) &&
-        m(
-          TreeNode,
-          {
-            left: 'Args',
-          },
-          renderSliceArguments(this.trace, this.slice.args),
-        ),
-    );
+  private renderSliceInfo(slice: SliceDetails): m.Children {
+    return m(TreeNode, {left: sliceRef(this.trace, slice, 'Slice')}, [
+      m(TreeNode, {left: 'Name', right: slice.name}),
+      m(TreeNode, {left: 'Thread', right: getThreadName(slice.thread)}),
+      m(TreeNode, {left: 'Process', right: getProcessName(slice.process)}),
+      hasArgs(slice.args) &&
+        m(TreeNode, {left: 'Args'}, [
+          renderSliceArguments(this.trace, slice.args),
+        ]),
+    ]);
   }
 
   async load() {
@@ -247,48 +208,62 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
   }
 
   render() {
-    if (this.data === undefined) {
+    const data = this.data;
+    const args = this.args;
+
+    if (data === undefined) {
       return m('h2', 'Loading');
     }
-    const details = dictToTreeNodes({
-      'Name': this.data['name'] as string,
-      'Start time': m(Timestamp, {
-        trace: this.trace,
-        ts: timeFromSql(this.data['ts']),
-      }),
-      'Duration': m(DurationWidget, {
-        trace: this.trace,
-        dur: durationFromSql(this.data['dur']),
-      }),
-      'SQL ID': m(SqlRef, {table: this.tableName, id: this.eventId}),
-    });
-    details.push(this.renderThreadStateInfo());
-    details.push(this.renderSliceInfo());
-
-    const rawCols: {[key: string]: m.Child} = {};
-    for (const key of Object.keys(this.data.rawCols)) {
-      rawCols[key] = sqlValueToReadableString(this.data.rawCols[key]);
-    }
-
-    // Print the raw columns from the source query (previously called 'args')
-    details.push(m(TreeNode, {left: 'Raw columns'}, dictToTreeNodes(rawCols)));
 
     return m(
       DetailsShell,
       {
         title: 'Slice',
       },
-      m(
-        GridLayout,
-        m(Section, {title: 'Details'}, m(Tree, details)),
-        this.args &&
-          m(
-            Section,
-            {title: 'Arguments'},
-            m(Tree, renderArguments(this.trace, this.args)),
-          ),
-      ),
+      m(GridLayout, [
+        this.renderDetailsSection(data),
+        args && this.renderArgsSection(args),
+      ]),
     );
+  }
+
+  private renderDetailsSection(data: Data) {
+    const trace = this.trace;
+    return m(Section, {title: 'Details'}, [
+      m(Tree, [
+        m(TreeNode, {left: 'Name', right: data.name}),
+        m(TreeNode, {
+          left: 'Start time',
+          right: m(Timestamp, {trace, ts: data.ts}),
+        }),
+        m(TreeNode, {
+          left: 'Duration',
+          right: m(DurationWidget, {trace, dur: data.dur}),
+        }),
+        m(TreeNode, {
+          left: 'SQL ID',
+          right: m(SqlRef, {table: this.tableName, id: this.eventId}),
+        }),
+        this.threadState && this.renderThreadStateInfo(this.threadState),
+        this.slice && this.renderSliceInfo(this.slice),
+        m(
+          TreeNode,
+          {left: 'Raw columns'},
+          Object.entries(data.rawCols).map(([k, v]) => {
+            return m(TreeNode, {
+              left: k,
+              right: sqlValueToReadableString(v),
+            });
+          }),
+        ),
+      ]),
+    ]);
+  }
+
+  private renderArgsSection(args: Arg[]) {
+    return m(Section, {title: 'Arguments'}, [
+      m(Tree, renderArguments(this.trace, args)),
+    ]);
   }
 
   getTitle(): string {

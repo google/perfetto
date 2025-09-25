@@ -1234,4 +1234,9 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
   indices_reg_ = span_reg;
 }
 
+template <typename T>
+T& QueryPlanBuilder::AddOpcode(RowCountModifier rc) {
+  return AddOpcode<T>(bytecode::Index<T>(), rc, T::kCost);
+}
+
 }  // namespace perfetto::trace_processor::dataframe::impl

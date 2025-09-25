@@ -458,8 +458,8 @@ std::optional<uint64_t> GetFileSize(const std::string& file_path) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // This does not use base::OpenFile to avoid getting an exclusive lock.
   base::ScopedPlatformHandle fd(
-      CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+      CreateFileA(file_path.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ,
+                  nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
 #else
   base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
 #endif

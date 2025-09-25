@@ -36,7 +36,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
-import {dictToTreeNodes, Tree} from '../../widgets/tree';
+import {Tree, TreeNode} from '../../widgets/tree';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 
@@ -85,27 +85,6 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
     };
   }
 
-  private getDetailsDictionary() {
-    const details: {[key: string]: m.Child} = {};
-    if (this.data === undefined) return details;
-    details['Interaction'] = this.data.interactionType;
-    details['Timestamp'] = m(Timestamp, {trace: this.trace, ts: this.data.ts});
-    details['Duration'] = m(DurationWidget, {
-      trace: this.trace,
-      dur: this.data.dur,
-    });
-    details['Renderer Upid'] = this.data.upid;
-    details['Total duration of all events'] = m(DurationWidget, {
-      trace: this.trace,
-      dur: this.data.totalDurationMs,
-    });
-    details['SQL ID'] = m(SqlRef, {
-      table: 'chrome_web_content_interactions',
-      id: this.id,
-    });
-    return details;
-  }
-
   render() {
     if (!this.data) {
       return m('h2', 'Loading');
@@ -123,7 +102,38 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
           m(
             Section,
             {title: 'Details'},
-            m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
+            m(Tree, [
+              m(TreeNode, {
+                left: 'Interaction',
+                right: this.data.interactionType,
+              }),
+              m(TreeNode, {
+                left: 'Timestamp',
+                right: m(Timestamp, {trace: this.trace, ts: this.data.ts}),
+              }),
+              m(TreeNode, {
+                left: 'Duration',
+                right: m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.data.dur,
+                }),
+              }),
+              m(TreeNode, {left: 'Renderer Upid', right: this.data.upid}),
+              m(TreeNode, {
+                left: 'Total duration of all events',
+                right: m(DurationWidget, {
+                  trace: this.trace,
+                  dur: this.data.totalDurationMs,
+                }),
+              }),
+              m(TreeNode, {
+                left: 'SQL ID',
+                right: m(SqlRef, {
+                  table: 'chrome_web_content_interactions',
+                  id: this.id,
+                }),
+              }),
+            ]),
           ),
         ),
       ),
