@@ -28,7 +28,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/test/vm_test_utils.h"
-#include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_v1.h"
 #include "src/tracing/test/fake_packet.h"
 #include "test/gtest_and_gmock.h"
 
@@ -40,9 +40,9 @@ using ::testing::IsEmpty;
 
 class TraceBufferTest : public testing::Test {
  public:
-  using SequenceIterator = TraceBuffer::SequenceIterator;
-  using ChunkMetaKey = TraceBuffer::ChunkMeta::Key;
-  using ChunkRecord = TraceBuffer::ChunkRecord;
+  using SequenceIterator = TraceBufferV1::SequenceIterator;
+  using ChunkMetaKey = TraceBufferV1::ChunkMeta::Key;
+  using ChunkRecord = TraceBufferV1::ChunkRecord;
 
   static constexpr uint8_t kContFromPrevChunk =
       SharedMemoryABI::ChunkHeader::kFirstPacketContinuesFromPrevChunk;
@@ -73,27 +73,27 @@ class TraceBufferTest : public testing::Test {
 
   void ResetBuffer(
       size_t size_,
-      TraceBuffer::OverwritePolicy policy = TraceBuffer::kOverwrite) {
-    trace_buffer_ = TraceBuffer::Create(size_, policy);
+      TraceBufferV1::OverwritePolicy policy = TraceBufferV1::kOverwrite) {
+    trace_buffer_ = TraceBufferV1::Create(size_, policy);
     ASSERT_TRUE(trace_buffer_);
   }
 
   bool TryPatchChunkContents(ProducerID p,
                              WriterID w,
                              ChunkID c,
-                             std::vector<TraceBuffer::Patch> patches,
+                             std::vector<TraceBufferV1::Patch> patches,
                              bool other_patches_pending = false) {
     return trace_buffer_->TryPatchChunkContents(
         p, w, c, patches.data(), patches.size(), other_patches_pending);
   }
 
   static std::vector<FakePacketFragment> ReadPacket(
-      const std::unique_ptr<TraceBuffer>& buf,
-      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
+      const std::unique_ptr<TraceBufferV1>& buf,
+      TraceBufferV1::PacketSequenceProperties* sequence_properties = nullptr,
       bool* previous_packet_dropped = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
-    TraceBuffer::PacketSequenceProperties ignored_sequence_properties{};
+    TraceBufferV1::PacketSequenceProperties ignored_sequence_properties{};
     bool ignored_previous_packet_dropped;
     if (!buf->ReadNextTracePacket(
             &packet,
@@ -109,7 +109,7 @@ class TraceBufferTest : public testing::Test {
   }
 
   std::vector<FakePacketFragment> ReadPacket(
-      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
+      TraceBufferV1::PacketSequenceProperties* sequence_properties = nullptr,
       bool* previous_packet_dropped = nullptr) {
     return ReadPacket(trace_buffer_, sequence_properties,
                       previous_packet_dropped);
@@ -145,7 +145,7 @@ class TraceBufferTest : public testing::Test {
   }
 
   SequenceIterator GetReadIterForSequence(ProducerID p, WriterID w) {
-    TraceBuffer::ChunkMeta::Key key(p, w, 0);
+    TraceBufferV1::ChunkMeta::Key key(p, w, 0);
     return trace_buffer_->GetReadIterForSequence(
         trace_buffer_->index_.lower_bound(key));
   }
@@ -162,12 +162,12 @@ class TraceBufferTest : public testing::Test {
     return keys;
   }
 
-  uint8_t* GetBufData(const TraceBuffer& buf) { return buf.begin(); }
-  TraceBuffer* trace_buffer() { return trace_buffer_.get(); }
+  uint8_t* GetBufData(const TraceBufferV1& buf) { return buf.begin(); }
+  TraceBufferV1* trace_buffer() { return trace_buffer_.get(); }
   size_t size_to_end() { return trace_buffer_->size_to_end(); }
 
  private:
-  std::unique_ptr<TraceBuffer> trace_buffer_;
+  std::unique_ptr<TraceBufferV1> trace_buffer_;
 };
 
 // ----------------------
@@ -809,7 +809,7 @@ TEST_F(TraceBufferTest, Fragments_PreserveUID) {
       .SetUID(11)
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  TraceBuffer::PacketSequenceProperties sequence_properties;
+  TraceBufferV1::PacketSequenceProperties sequence_properties;
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'a')));
   ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
@@ -1740,7 +1740,7 @@ TEST_F(TraceBufferTest, Override_EndOfBuffer) {
 }
 
 TEST_F(TraceBufferTest, DiscardPolicy) {
-  ResetBuffer(4096, TraceBuffer::kDiscard);
+  ResetBuffer(4096, TraceBufferV1::kDiscard);
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(96 - 16, 'a')
@@ -1912,7 +1912,7 @@ TEST_F(TraceBufferTest, Clone_NoFragments) {
     }
 
     // Now create a snapshot and make sure we always read all the packets.
-    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
     ASSERT_EQ(snap->used_size(), 32u * kNumWriters);
     snap->BeginRead();
     for (char i = 'A'; i < 'A' + kNumWriters; i++) {
@@ -1935,7 +1935,7 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
   {
     // Create a snapshot before the middle 'b' chunk is copied. Only 'a' should
     // be readable at this point.
-    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
     snap->BeginRead();
     ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
     ASSERT_THAT(ReadPacket(snap), IsEmpty());
@@ -1946,7 +1946,7 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
       .CopyIntoTraceBuffer();
 
   // Now all three packes should be readable.
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
@@ -1969,7 +1969,7 @@ TEST_F(TraceBufferTest, Clone_WithPatches) {
   ASSERT_TRUE(TryPatchChunkContents(ProducerID(2), WriterID(1), ChunkID(0),
                                     {{5, {{'Y', 'M', 'C', 'A'}}}}));
 
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'a')));
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment("b00-YMCA", 8)));
@@ -1985,7 +1985,7 @@ TEST_F(TraceBufferTest, Clone_Wrapping) {
         .AddPacket(kFrgSize, static_cast<char>('a' + i))
         .CopyIntoTraceBuffer();
   }
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
   ASSERT_EQ(snap->used_size(), snap->size());
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'c')));
@@ -2009,7 +2009,7 @@ TEST_F(TraceBufferTest, Clone_WrappingWithPadding) {
       .CopyIntoTraceBuffer();
 
   ASSERT_EQ(trace_buffer()->used_size(), trace_buffer()->size());
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
   ASSERT_EQ(snap->used_size(), snap->size());
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(3192, 'b')));
@@ -2025,7 +2025,7 @@ TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
       .CopyIntoTraceBuffer();
 
   using base::vm_test_utils::IsMapped;
-  auto is_only_first_page_mapped = [&](const TraceBuffer& buf) {
+  auto is_only_first_page_mapped = [&](const TraceBufferV1& buf) {
     bool first_mapped = IsMapped(GetBufData(buf), page_size);
     bool rest_mapped = IsMapped(GetBufData(buf) + page_size, kPages - 1);
     return first_mapped && !rest_mapped;
@@ -2037,7 +2037,7 @@ TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
   if (!is_only_first_page_mapped(*trace_buffer()))
     GTEST_SKIP() << "VM commit detection not supported";
 
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  auto snap = std::unique_ptr<TraceBufferV1>(static_cast<TraceBufferV1*>(trace_buffer()->CloneReadOnly().release()));
   ASSERT_EQ(snap->used_size(), trace_buffer()->used_size());
   ASSERT_TRUE(is_only_first_page_mapped(*snap));
 }
