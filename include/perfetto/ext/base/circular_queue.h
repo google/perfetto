@@ -160,6 +160,8 @@ class CircularQueue {
     }
 
    private:
+    friend class CircularQueue<T>;
+
     inline void Add(difference_type offset) {
       pos_ = static_cast<uint64_t>(static_cast<difference_type>(pos_) + offset);
       PERFETTO_DCHECK(pos_ <= queue_->end_);
@@ -172,6 +174,11 @@ class CircularQueue {
     uint32_t generation_;
 #endif
   };
+
+  using ReverseIterator = std::reverse_iterator<Iterator>;
+  using value_type = T;
+  using const_iterator = Iterator;
+  using iterator = Iterator;
 
   explicit CircularQueue(size_t initial_capacity = 1024) {
     Grow(initial_capacity);
@@ -233,6 +240,30 @@ class CircularQueue {
 
   void pop_front() { erase_front(1); }
 
+  void InsertBefore(Iterator pos, T value) {
+    increment_generation();
+    PERFETTO_DCHECK(pos.queue_ == this);
+    PERFETTO_DCHECK(pos.pos_ >= begin_ && pos.pos_ <= end_);
+
+    if (PERFETTO_UNLIKELY(size() >= capacity_))
+      Grow();
+
+    // Move all elements one step forward from end_ - 1 to pos.pos_.
+    for (uint64_t i = end_++; i > pos.pos_; --i) {
+      T* dst = Get(i);
+      T* src = Get(i - 1);
+      new (dst) T(std::move(*src));
+      src->~T();
+    }
+
+    // Place the new value at pos.
+    new (Get(pos.pos_)) T(std::move(value));
+  }
+
+  void InsertAfter(ReverseIterator pos, T value) {
+    InsertBefore(pos.base(), std::move(value));
+  }
+
   void clear() { erase_front(size()); }
 
   void shrink_to_fit() {
@@ -252,6 +283,21 @@ class CircularQueue {
 
   Iterator begin() { return Iterator(this, begin_, generation()); }
   Iterator end() { return Iterator(this, end_, generation()); }
+  Iterator begin() const {
+    return Iterator(const_cast<CircularQueue*>(this), begin_, generation());
+  }
+  Iterator end() const {
+    return Iterator(const_cast<CircularQueue*>(this), end_, generation());
+  }
+
+  ReverseIterator rbegin() { return ReverseIterator(end()); }
+  ReverseIterator rend() { return ReverseIterator(begin()); }
+
+  Iterator Find(const T& value) {
+    auto it = std::find(begin(), end(), value);
+    return it;
+  }
+
   T& front() { return *begin(); }
   T& back() { return *(end() - 1); }
 
