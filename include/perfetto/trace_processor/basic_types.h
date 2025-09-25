@@ -205,7 +205,15 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // to catch additional classes of SQL errors.
   bool enable_extra_checks = false;
 
-  // This holds the serialized descriptors from the UI.
+  // A list of additional protobuf descriptors used to extend trace processor's
+  // parsing capabilities at runtime, for instance to parse custom Android
+  // statsd atoms.
+  //
+  // Each string in this vector should be a raw, serialized
+  // `proto2::FileDescriptorSet` proto.
+  //
+  // When provided, these descriptors allow trace processor to parse custom
+  // protobuf messages that are not compiled into Perfetto
   std::vector<std::string> extra_parsing_descriptors;
 };
 

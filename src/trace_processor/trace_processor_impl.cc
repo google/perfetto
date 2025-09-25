@@ -543,13 +543,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kAllWebviewMetricsDescriptor.data(), kAllWebviewMetricsDescriptor.size(),
       skip_prefixes);
 
-  // Add Extra Parsing Descriptors to the descriptor pool
-  for (const std::string& raw_bytes : config_.extra_parsing_descriptors) {
-    context()->descriptor_pool_->AddFromFileDescriptorSet(
-        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
-        {}, /*replace=*/true);
-  }
-
   // Add the summary descriptor to the summary pool.
   {
     base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(
