@@ -210,6 +210,25 @@ async function getSliceDetails(
   return getSlice(engine, asSliceSqlId(id));
 }
 
+/**
+ * A comprehensive details panel for slices from the `slice` table.
+ *
+ * This panel provides detailed information about a slice including:
+ * - Core slice properties (name, duration, timestamps, thread/process info)
+ * - Flow connections (preceding and following flows between slices)
+ * - Arguments and custom attributes
+ * - Contextual analysis tools and queries
+ *
+ * Note: This panel includes some domain-specific functionality (like binder
+ * transaction analysis and monitor contention tracking) that arguably belongs
+ * in specialized panels, but is included here for convenience and
+ * discoverability. This makes it a useful "Swiss Army knife" for slice
+ * analysis, even if not architecturally pure.
+ *
+ * The panel dynamically adapts its content based on the slice type and
+ * available data, providing relevant contextual options through the "Contextual
+ * Options" menu.
+ */
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
