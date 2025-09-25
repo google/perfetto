@@ -360,8 +360,8 @@ message ResetTraceProcessorArgs {
   optional ParsingMode parsing_mode = 5;
   optional SortingMode sorting_mode = 6;
 
-  // A list of Base64-encoded FileDescriptorSet strings.
-  repeated string extra_parsing_descriptors_base64 = 7;
+  // A list of serialized FileDescriptorSet protos.
+  repeated bytes extra_parsing_descriptors = 7;
 }
 
 message RegisterSqlPackageArgs {

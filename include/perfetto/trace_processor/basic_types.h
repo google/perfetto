@@ -205,8 +205,8 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // to catch additional classes of SQL errors.
   bool enable_extra_checks = false;
 
-  // This holds the Base64-encoded descriptors from the UI.
-  std::vector<std::string> extra_parsing_descriptors_base64;
+  // This holds the serialized descriptors from the UI.
+  std::vector<std::string> extra_parsing_descriptors;
 };
 
 // Represents a dynamically typed value returned by SQL.
