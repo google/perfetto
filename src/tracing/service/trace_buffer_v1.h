@@ -152,7 +152,7 @@ class TraceBufferV1 : public TraceBuffer {
   static std::unique_ptr<TraceBufferV1> Create(size_t size_in_bytes,
                                                OverwritePolicy = kOverwrite);
 
-  ~TraceBufferV1();
+  ~TraceBufferV1() override;
 
   // Copies a Chunk from a producer Shared Memory Buffer into the trace buffer.
   // |src| points to the first packet in the SharedMemoryABI's chunk shared with
