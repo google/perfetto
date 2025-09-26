@@ -62,7 +62,10 @@ class AddressRange {
 
   constexpr AddressRange(uint64_t start, uint64_t end)
       : start_(start), end_(end) {
-    PERFETTO_CHECK(start <= end);
+    if (start > end) {
+      start = 0;
+      end = 0;
+    }
   }
 
   // Checks whether the given `addr` lies withing this range.
