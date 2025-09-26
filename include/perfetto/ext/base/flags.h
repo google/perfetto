@@ -44,7 +44,8 @@ namespace perfetto::base::flags {
         ? NonAndroidPlatformDefault_TRUE                               \
         : NonAndroidPlatformDefault_FALSE)                             \
   X(use_rt_mutex, NonAndroidPlatformDefault_FALSE)                     \
-  X(use_rt_futex, NonAndroidPlatformDefault_FALSE)
+  X(use_rt_futex, NonAndroidPlatformDefault_FALSE)                     \
+  X(use_inotify_on_ipc_socket_client, NonAndroidPlatformDefault_TRUE)
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //

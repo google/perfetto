@@ -49,3 +49,10 @@ flag {
   bug: "443948543"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_inotify_on_ipc_socket_client"
+  namespace: "perfetto"
+  description: "Enables immediate reconnection to traced in case of crash or disconnection using inotify"
+  bug: "445943111"
+  is_fixed_read_only: true
+}

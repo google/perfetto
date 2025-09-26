@@ -94,6 +94,7 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
   bool invoking_method_reply_ = false;
   const char* socket_name_ = nullptr;
   bool socket_retry_ = false;
+  bool delayed_reconnect_pending_ = false;
   uint32_t socket_backoff_ms_ = 0;
   std::unique_ptr<base::UnixSocket> sock_;
   base::TaskRunner* const task_runner_;
@@ -105,6 +106,9 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
 
   // Queue of calls to BindService() that happened before the socket connected.
   std::list<base::WeakPtr<ServiceProxy>> queued_bindings_;
+
+  // To inotify-watch the unix socket creation in case of connection failure.
+  std::unique_ptr<base::UnixSocketWatch> sock_inotify_;
 
   base::WeakPtrFactory<Client> weak_ptr_factory_;  // Keep last.
 };
