@@ -41,7 +41,7 @@ message FrameTimelineEvent {
     JANK_APP_DEADLINE_MISSED = 64;
     JANK_BUFFER_STUFFING = 128;
     JANK_UNKNOWN = 256;
-    JANK_SF_STUFFING = 512;
+    JANK_SF_STUFFING = 513;
     JANK_DROPPED = 1025;
   };
 

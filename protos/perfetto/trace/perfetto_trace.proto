@@ -5608,7 +5608,7 @@ message FrameTimelineEvent {
     JANK_BUFFER_STUFFING = 128;
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
-    JANK_DROPPED = 1024;
+    JANK_DROPPED = 1025;
   };
 
   // Specifies the severity of a jank.
