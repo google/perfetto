@@ -49,7 +49,7 @@ SELECT
       package_name
     FROM package_list
     WHERE
-      uid = track.uid AND uid >= 10000
+      uid = track.uid % 100000 AND uid >= 10000
     LIMIT 1
   ) AS package_name
 FROM track;
