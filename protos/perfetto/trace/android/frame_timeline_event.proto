@@ -31,7 +31,7 @@ message FrameTimelineEvent {
   // Specifies the reason(s) most likely to have caused the jank.
   // Used as a bitmask.
   enum JankType {
-    JANK_UNSPECIFIED = 0;
+    JANK_UNSPECIFIED = 1;
     JANK_NONE = 1;
     JANK_SF_SCHEDULING = 2;
     JANK_PREDICTION_ERROR = 4;
