@@ -35,7 +35,7 @@ import {
 import {Point2D, Size2D} from '../../base/geom';
 import {exists} from '../../base/utils';
 import {removeFalsyValues} from '../../base/array_utils';
-import {DatasetSliceTrackDetailsPanel} from './dataset_slice_track_details_panel';
+import {SliceTrackDetailsPanel} from './slice_track_details_panel';
 
 export interface InstantStyle {
   /**
@@ -54,7 +54,7 @@ export interface InstantStyle {
   render(ctx: CanvasRenderingContext2D, rect: Size2D & Point2D): void;
 }
 
-export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
+export interface SliceTrackAttrs<T extends DatasetSchema> {
   /**
    * The trace object used by the track for accessing the query engine and other
    * trace-related resources.
@@ -201,34 +201,34 @@ export type RowSchema = {
 type SliceWithRow<T> = Slice & {row: T};
 
 function getDataset<T extends DatasetSchema>(
-  attrs: DatasetSliceTrackAttrs<T>,
+  attrs: SliceTrackAttrs<T>,
 ): SourceDataset<T> {
   const dataset = attrs.dataset;
   return typeof dataset === 'function' ? dataset() : dataset;
 }
 
-export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
+export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
   SliceWithRow<T>,
   BaseRow & T
 > {
   readonly rootTableName?: string;
 
   /**
-   * Factory function to create a DatasetSliceTrack. This is purely an alias for new
-   * DatasetSliceTrack() but exists for symmetry with createMaterialized()
+   * Factory function to create a SliceTrack. This is purely an alias for new
+   * SliceTrack() but exists for symmetry with createMaterialized()
    * below.
    *
    * @param attrs The track attributes
-   * @returns A fully initialized DatasetSliceTrack
+   * @returns A fully initialized SliceTrack
    */
   static create<T extends RowSchema>(
-    attrs: DatasetSliceTrackAttrs<T>,
-  ): DatasetSliceTrack<T> {
-    return new DatasetSliceTrack(attrs);
+    attrs: SliceTrackAttrs<T>,
+  ): SliceTrack<T> {
+    return new SliceTrack(attrs);
   }
 
   /**
-   * Async factory function to create a DatasetSliceTrack, first materializing
+   * Async factory function to create a SliceTrack, first materializing
    * the dataset into a perfetto table. This can be more efficient if for
    * example the dataset is a complex query with multiple joins or window
    * functions, so materializing it up front can improve rendering performance,
@@ -244,11 +244,11 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
    *   operations such as aggregations or search.
    *
    * @param attrs The track attributes
-   * @returns A fully initialized DatasetSliceTrack
+   * @returns A fully initialized SliceTrack
    */
   static async createMaterialized<T extends RowSchema>(
-    attrs: DatasetSliceTrackAttrs<T>,
-  ): Promise<DatasetSliceTrack<T>> {
+    attrs: SliceTrackAttrs<T>,
+  ): Promise<SliceTrack<T>> {
     const originalDataset = getDataset(attrs);
     // Create materialized table from the render query - we might as well
     // materialize the calculated columns that are missing from the source
@@ -274,13 +274,13 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
       },
     });
 
-    return new DatasetSliceTrack({
+    return new SliceTrack({
       ...attrs,
       dataset: materializedDataset,
     });
   }
 
-  private constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
+  private constructor(private readonly attrs: SliceTrackAttrs<T>) {
     const dataset = getDataset(attrs);
     super(
       attrs.trace,
@@ -351,7 +351,7 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
     } else {
       // Provide a default details panel that shows all dataset fields
       const dataset = getDataset(this.attrs);
-      return new DatasetSliceTrackDetailsPanel(
+      return new SliceTrackDetailsPanel(
         this.trace,
         dataset,
         sel as unknown as T,

@@ -19,7 +19,7 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -195,7 +195,7 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   const uri = `/wattson/markers_window`;
-  const track = await DatasetSliceTrack.createMaterialized({
+  const track = await SliceTrack.createMaterialized({
     trace: ctx,
     uri,
     dataset: new SourceDataset({

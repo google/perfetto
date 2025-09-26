@@ -30,7 +30,7 @@ import {createTopLevelScrollTrack} from './scroll_track';
 import {createScrollTimelineTrack} from './scroll_timeline_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
@@ -242,7 +242,7 @@ export default class implements PerfettoPlugin {
     {
       // Add a track for the VSync slices.
       const uri = 'org.chromium.ChromeScrollJank#ChromeVsync';
-      const track = await DatasetSliceTrack.createMaterialized({
+      const track = await SliceTrack.createMaterialized({
         trace: ctx,
         uri,
         dataset: new SourceDataset({
@@ -315,7 +315,7 @@ export default class implements PerfettoPlugin {
 
       for (const step of steps) {
         const uri = `org.chromium.ChromeScrollJank#chrome_scroll_update_info.${step.column}`;
-        const track = await DatasetSliceTrack.createMaterialized({
+        const track = await SliceTrack.createMaterialized({
           trace: ctx,
           uri,
           dataset: new SourceDataset({
