@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
   async createBinderTransactionTrack(
     ctx: Trace,
     perspective: string,
-    opposite_perspective: string,
+    oppositePerspective: string,
   ) {
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
@@ -42,18 +42,18 @@ export default class implements PerfettoPlugin {
           `${perspective}_process`,
           `(IFNULL(interface, "unknown interface"))`,
           `(IFNULL(method_name, "unknown method"))`,
-          `(${opposite_perspective}_process || ":" || ${opposite_perspective}_upid)`,
-          `(${opposite_perspective}_thread || ":" ||  ${opposite_perspective}_utid)`,
+          `(${oppositePerspective}_process || ":" || ${oppositePerspective}_upid)`,
+          `(${oppositePerspective}_thread || ":" ||  ${oppositePerspective}_utid)`,
         ],
-        tsCol: `${opposite_perspective}_ts`,
-        durCol: `${opposite_perspective}_dur`,
+        tsCol: `${oppositePerspective}_ts`,
+        durCol: `${oppositePerspective}_dur`,
         tableName: 'android_binder_txns',
       },
       slice: {
         columns: ['aidl_name'],
         tableName: 'android_binder_txns',
-        tsCol: `${opposite_perspective}_ts`,
-        durCol: `${opposite_perspective}_dur`,
+        tsCol: `${oppositePerspective}_ts`,
+        durCol: `${oppositePerspective}_dur`,
       },
       pivots: {
         columns: ['reason_type', 'reason'],
