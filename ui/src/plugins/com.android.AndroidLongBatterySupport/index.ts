@@ -18,10 +18,10 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {SliceTrack, RowSchema} from '../../components/tracks/slice_track';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {CounterTrack} from '../../components/tracks/counter_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLongBatterySupport';
@@ -93,14 +93,17 @@ export default class implements PerfettoPlugin {
     groupCollapsed = true,
   ) {
     const uri = `/long_battery_tracing_${name}`;
-    const track = await createQueryCounterTrack({
+    const track = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: query,
-        columns: ['ts', 'value'],
-      },
-      options,
+      dataset: new SourceDataset({
+        src: query,
+        schema: {
+          ts: LONG,
+          value: NUM,
+        },
+      }),
+      defaultOptions: options,
     });
     ctx.tracks.registerTrack({
       uri,

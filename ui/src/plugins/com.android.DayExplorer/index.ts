@@ -16,9 +16,8 @@ import {uuidv4} from '../../base/uuid';
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
-import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
+import {STR, LONG, NUM, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Flamegraph} from '../../widgets/flamegraph';
@@ -27,6 +26,10 @@ import {
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
+import {
+  CounterRowSchema,
+  CounterTrack,
+} from '../../components/tracks/counter_track';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
@@ -75,18 +78,30 @@ export default class implements PerfettoPlugin {
     });
 
     for (; childIter.valid(); childIter.next()) {
-      const query = `
-        SELECT ts, power_mw AS value
-        FROM day_explorer_ui_hierarchy_per_ts
-        WHERE track_id = ${childIter.track_id}
-      `;
+      const dataset = new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            power_mw AS value,
+            track_id
+          FROM day_explorer_ui_hierarchy_per_ts
+        `,
+        schema: {
+          ts: LONG,
+          value: NUM,
+        },
+        filter: {
+          col: 'track_id',
+          eq: childIter.track_id,
+        },
+      });
       const groupKey = `_day_explorer_ui_hierarchy_under_${parentId}`;
       const trackName = `${childIter.display_name} - ${childIter.energy_mwh}mWh`;
       const node = await this.createDayExplorerTrack(
         ctx,
         trackName,
         groupKey,
-        query,
+        dataset,
       );
       parent.addChildInOrder(node);
       await this.addDayExplorerRecursive(ctx, node, limit, childIter.track_id);
@@ -97,20 +112,14 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     name: string,
     groupKey: string,
-    query: string,
+    dataset: SourceDataset<CounterRowSchema>,
   ): Promise<TrackNode> {
     const uri = `/day_explorer_${uuidv4()}`;
-    const renderer = await createQueryCounterTrack({
+    const renderer = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: query,
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
-      options: {
+      dataset,
+      defaultOptions: {
         yRangeSharingKey: groupKey,
       },
     });
