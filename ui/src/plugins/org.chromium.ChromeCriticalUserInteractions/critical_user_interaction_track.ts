@@ -22,7 +22,7 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {Trace} from '../../public/trace';
 
 export function createCriticalUserInteractionTrack(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

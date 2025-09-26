@@ -36,7 +36,7 @@ export function createFlatColoredDurationTrack(
   uri: string,
   sqlSrc: string,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
