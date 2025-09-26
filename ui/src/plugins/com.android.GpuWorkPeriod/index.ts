@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.GpuWorkPeriod';
@@ -56,16 +57,21 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       const {trackId, gpuId, uid, packageName} = it;
       const uri = `/gpu_work_period_${gpuId}_${uid}`;
-      const track = await createQuerySliceTrack({
+      const track = await DatasetSliceTrack.createMaterialized({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
+        dataset: new SourceDataset({
+          src: `
             select ts, dur, name
             from slice
             where track_id = ${trackId}
           `,
-        },
+          schema: {
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+          },
+        }),
       });
       ctx.tracks.registerTrack({
         uri,
