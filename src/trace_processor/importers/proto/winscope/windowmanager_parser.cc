@@ -92,6 +92,7 @@ void WindowManagerParser::InsertWindowContainerRows(
     row.child_index = window_container.child_index;
     row.is_visible = window_container.is_visible;
     row.container_type = window_container.container_type;
+    row.name_override = window_container.name_override;
 
     if (window_container.rect) {
       row.window_rect_id = InsertRectRows(*window_container.rect);

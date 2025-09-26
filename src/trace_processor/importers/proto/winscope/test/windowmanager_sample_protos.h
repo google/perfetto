@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_H_
 
+#include <cstdint>
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -105,6 +106,25 @@ class WindowManagerSampleProtos {
     return entry.SerializeAsString();
   }
 
+  static std::string HierarchyWithWindowStateNameOverrides() {
+    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+
+    auto* root = AddRoot(&entry);
+
+    std::vector<std::string> prefixes = {"Starting", "Waiting For Debugger:"};
+    for (size_t i = 0; i < prefixes.size(); i++) {
+      auto* window_state = root->add_children()->set_window();
+      auto* window_state_window_container =
+          window_state->set_window_container();
+      auto* window_state_identifier =
+          window_state_window_container->set_identifier();
+      window_state_identifier->set_hash_code(2 + static_cast<int32_t>(i));
+      window_state_identifier->set_title(prefixes[i] + " state - WindowState");
+    }
+
+    return entry.SerializeAsString();
+  }
+
   static std::string HierarchyWithDisplayArea() {
     protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
 
@@ -133,6 +153,23 @@ class WindowManagerSampleProtos {
     identifier->set_title("child - Task");
 
     AddGrandchild(window_container);
+
+    return entry.SerializeAsString();
+  }
+
+  static std::string HierarchyWithTaskIdAndName() {
+    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+
+    auto* root = AddRoot(&entry);
+
+    auto* task = root->add_children()->set_task();
+    task->set_id(3);
+    task->set_task_name("MockTask");
+    auto* task_fragment = task->set_task_fragment();
+    auto* window_container = task_fragment->set_window_container();
+    auto* identifier = window_container->set_identifier();
+    identifier->set_hash_code(2);
+    identifier->set_title("child - Task");
 
     return entry.SerializeAsString();
   }
