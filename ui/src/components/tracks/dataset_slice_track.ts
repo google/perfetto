@@ -280,7 +280,7 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
     });
   }
 
-  constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
+  private constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
     const dataset = getDataset(attrs);
     super(
       attrs.trace,

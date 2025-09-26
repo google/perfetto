@@ -28,7 +28,7 @@ export function createExpectedFramesTrack(
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     initialMaxDepth: maxDepth,

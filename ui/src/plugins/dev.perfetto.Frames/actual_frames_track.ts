@@ -43,7 +43,7 @@ export function createActualFramesTrack(
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

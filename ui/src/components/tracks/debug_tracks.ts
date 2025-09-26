@@ -196,7 +196,7 @@ async function addPivotedSliceTracks(
 
     trace.tracks.registerTrack({
       uri,
-      renderer: new DatasetSliceTrack({
+      renderer: DatasetSliceTrack.create({
         trace,
         uri,
         dataset: new SourceDataset({
@@ -232,7 +232,7 @@ function addSingleSliceTrack(
 ) {
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: DatasetSliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({

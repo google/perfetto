@@ -38,7 +38,7 @@ const DEPTH_TO_COLOR = [
 const EVT_PX = 6; // Width of an event tick in pixels.
 
 export function createAndroidLogTrack(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     rootTableName: 'android_logs',

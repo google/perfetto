@@ -19,7 +19,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
 
 export function createScreenshotsTrack(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

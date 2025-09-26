@@ -54,7 +54,7 @@ export function createScrollTimelineTrack(
   trace: Trace,
   model: ScrollTimelineModel,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri: model.trackUri,
     dataset: new SourceDataset({
