@@ -366,7 +366,7 @@ SELECT
   process.name AS process_name,
   slice.name AS cuj_slice_name,
   -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
-  substr(slice.name, 3, length(slice.name) - 3) AS cuj_name,
+  _extract_cuj_name_from_slice(slice.name) AS cuj_name,
   slice.id AS slice_id,
   ts,
   ts + dur AS ts_end,
