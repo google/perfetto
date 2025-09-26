@@ -32,6 +32,8 @@ source_set("trace_redaction") {
     "add_synth_threads_to_process_trees.h",
     "broadphase_packet_filter.cc",
     "broadphase_packet_filter.h",
+    "collect_clocks.cc",
+    "collect_clocks.h",
     "collect_frame_cookies.cc",
     "collect_frame_cookies.h",
     "collect_system_info.cc",
@@ -63,6 +65,8 @@ source_set("trace_redaction") {
     "redact_process_events.h",
     "redact_sched_events.cc",
     "redact_sched_events.h",
+    "redactor_clock_converter.cc",
+    "redactor_clock_converter.h",
     "reduce_threads_in_process_trees.cc",
     "reduce_threads_in_process_trees.h",
     "scrub_process_stats.cc",
@@ -125,6 +129,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "broadphase_packet_filter_unittest.cc",
+    "collect_clocks_unittest.cc",
     "collect_frame_cookies_unittest.cc",
     "collect_system_info_unittest.cc",
     "collect_timeline_events_unittest.cc",
