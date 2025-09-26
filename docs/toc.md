@@ -185,6 +185,7 @@
       - [Security model](design-docs/security-model.md)
       - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
       - [Batch Trace Processor](design-docs/batch-trace-processor.md)
+      - [Trace Processor Architecture](design-docs/trace-processor-architecture.md)
       - [Heapprofd design](design-docs/heapprofd-design.md)
       - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
       - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
