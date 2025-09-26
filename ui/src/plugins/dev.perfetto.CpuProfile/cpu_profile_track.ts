@@ -21,7 +21,7 @@ import {Time} from '../../base/time';
 import {getColorForSample} from '../../components/colorizer';
 
 export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

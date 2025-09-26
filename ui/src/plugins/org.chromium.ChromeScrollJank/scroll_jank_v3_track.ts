@@ -24,7 +24,7 @@ const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
 export function createScrollJankV3Track(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

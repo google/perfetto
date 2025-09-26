@@ -110,7 +110,7 @@ export async function optimizationsTrack(
   const tableName = `_startup_optimization_slices`;
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: DatasetSliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -142,7 +142,7 @@ function classLoadingTrack(
   const uri = `/android_startups/${startup.id}/classloading`;
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: DatasetSliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({

@@ -23,31 +23,31 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.android.CpuPerUid';
   static readonly dependencies = [StandardGroupsPlugin];
 
+  private _topLevelGroup: TrackNode | undefined;
+
   private async addCpuPerUidTrack(
     ctx: Trace,
-    trackId: number,
+    sql: string,
     name: string,
+    uri: string,
     group: TrackNode,
+    sharing?: string,
   ) {
-    const uri = `/cpu_per_uid_${trackId}`;
     const track = await createQueryCounterTrack({
       trace: ctx,
       uri,
       data: {
-        sqlSource: `select
-           ts,
-           min(100, 100 * cpu_ratio) as value
-         from android_cpu_per_uid_counter
-         where track_id = ${trackId}`,
+        sqlSource: sql,
         columns: ['ts', 'value'],
       },
       columns: {ts: 'ts', value: 'value'},
       options: {
-        unit: 'percent',
+        unit: '%',
         yOverrideMaximum: 100,
         yOverrideMinimum: 0,
-        yRangeSharingKey: 'cpu-per-uid',
+        yRangeSharingKey: sharing,
       },
+      materialize: false,
     });
     ctx.tracks.registerTrack({
       uri,
@@ -60,26 +60,119 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.cpu.cpu_per_uid;`);
+    await this.addSummaryCpuCounters(ctx);
+    await this.addCpuCounters(ctx, 50000, 'Major users', 'cpu_per_uid');
+    await this.addCpuCounters(ctx, 0, 'All', 'cpu_per_uid_all');
+  }
+
+  async addSummaryCpuCounters(ctx: Trace): Promise<void> {
+    const e = ctx.engine;
+    await e.query(
+      `CREATE PERFETTO TABLE _android_cpu_per_uid_summary AS
+      select
+        case when t.uid % 100000 < 10000 then 'System' else 'Apps' end as type,
+        cluster,
+        ts,
+        sum(100 * max(0, cpu_ratio)) as value
+      from android_cpu_per_uid_track t join android_cpu_per_uid_counter c on t.id = c.track_id
+      group by type, cluster, ts
+      order by type, cluster, ts;`,
+    );
+
     const tracks = await e.query(
-      `select
-          id, 
-          cluster, 
-          ifnull(package_name, 'UID ' || uid) as name
-        from android_cpu_per_uid_track
+      `select distinct type, cluster
+        from _android_cpu_per_uid_summary
+        order by type, cluster`,
+    );
+
+    const it = tracks.iter({type: STR, cluster: NUM});
+    if (it.valid()) {
+      const group = new TrackNode({
+        name: 'Summary',
+        isSummary: true,
+      });
+      this.topLevelGroup(ctx).addChildInOrder(group);
+
+      for (; it.valid(); it.next()) {
+        const name = `${it.type} (${clusterName(it.cluster)})`;
+        await this.addCpuPerUidTrack(
+          ctx,
+          `select ts, value
+          from _android_cpu_per_uid_summary
+          where type = '${it.type}' and cluster = ${it.cluster}`,
+          name,
+          `/cpu_per_uid_summary_${it.type}_${it.cluster}`,
+          group,
+          'cpu-per-uid-summary',
+        );
+      }
+    }
+  }
+
+  async addCpuCounters(
+    ctx: Trace,
+    thresholdMs: number,
+    title: string,
+    uriPrefix: string,
+  ): Promise<void> {
+    const e = ctx.engine;
+    const tracks = await e.query(
+      `select 
+          t.id,
+          t.cluster,
+          ifnull(package_name, 'UID ' || uid) as name,
+          sum(diff_ms) as total_cpu_ms
+        from android_cpu_per_uid_track t join android_cpu_per_uid_counter c on t.id = c.track_id
+        group by t.id, cluster, name
+        having total_cpu_ms > ${thresholdMs}
         order by name, cluster`,
     );
     const it = tracks.iter({id: NUM, cluster: NUM, name: STR});
     if (it.valid()) {
       const group = new TrackNode({
-        name: 'CPU Per UID',
+        name: title,
         isSummary: true,
       });
-      ctx.workspace.addChildInOrder(group);
+      this.topLevelGroup(ctx).addChildInOrder(group);
 
       for (; it.valid(); it.next()) {
-        const name = `${it.name} (${it.cluster})`;
-        await this.addCpuPerUidTrack(ctx, it.id, name, group);
+        const name = `${it.name} (${clusterName(it.cluster)})`;
+        await this.addCpuPerUidTrack(
+          ctx,
+          `select
+           ts,
+           min(100, 100 * cpu_ratio) as value
+         from android_cpu_per_uid_counter
+         where track_id = ${it.id}`,
+          name,
+          `/${uriPrefix}_${it.id}`,
+          group,
+        );
       }
     }
   }
+
+  topLevelGroup(ctx: Trace) {
+    if (this._topLevelGroup === undefined) {
+      this._topLevelGroup = new TrackNode({
+        name: 'CPU per UID',
+        isSummary: true,
+      });
+      ctx.workspace.addChildInOrder(this._topLevelGroup);
+    }
+
+    return this._topLevelGroup;
+  }
+}
+
+function clusterName(num: number): string {
+  if (num === 0) {
+    return 'little';
+  } else if (num === 1) {
+    return 'mid';
+  } else if (num === 2) {
+    return 'big';
+  }
+
+  return `cl-${num}`;
 }

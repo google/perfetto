@@ -29,7 +29,7 @@ export function createHeapProfileTrack(
   upid: number,
   heapProfileIsIncomplete: boolean,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

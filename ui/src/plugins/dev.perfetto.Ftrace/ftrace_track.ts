@@ -29,7 +29,7 @@ export function createFtraceTrack(
   ucpu: number,
   store: Store<FtraceFilter>,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: () => {

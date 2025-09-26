@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
       return;
     }
     const uri = `/clock_snapshots`;
-    const track = new DatasetSliceTrack({
+    const track = DatasetSliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({

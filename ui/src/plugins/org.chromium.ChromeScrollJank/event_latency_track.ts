@@ -27,7 +27,7 @@ export function createEventLatencyTrack(
   uri: string,
   baseTable: string,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

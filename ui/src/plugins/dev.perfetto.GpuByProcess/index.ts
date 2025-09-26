@@ -60,7 +60,7 @@ export default class implements PerfettoPlugin {
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
       ctx.tracks.registerTrack({
         uri,
-        renderer: new DatasetSliceTrack({
+        renderer: DatasetSliceTrack.create({
           trace: ctx,
           uri,
           dataset: new SourceDataset({

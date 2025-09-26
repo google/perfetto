@@ -63,7 +63,7 @@ export async function createTraceProcessorSliceTrack({
   trackIds,
   detailsPanel,
 }: TraceProcessorSliceTrackAttrs) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: await getDataset(trace.engine, trackIds),

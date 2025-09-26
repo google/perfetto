@@ -19,6 +19,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {STR, LONG} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {
@@ -223,9 +224,21 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       'Day Explorer Behaviors',
-      `select ts, dur, behavior as name from day_explorer_behaviors`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            behavior as name
+          FROM day_explorer_behaviors
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
-      [],
       false,
     );
   }

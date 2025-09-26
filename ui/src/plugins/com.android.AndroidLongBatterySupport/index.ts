@@ -16,10 +16,14 @@ import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {
+  DatasetSliceTrack,
+  RowSchema,
+} from '../../components/tracks/dataset_slice_track';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
@@ -62,23 +66,18 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  async addSliceTrack(
+  async addSliceTrack<T extends RowSchema>(
     ctx: Trace,
     name: string,
-    query: string,
+    dataset: SourceDataset<T>,
     groupName: string,
-    columns: string[] = [],
     groupCollapsed = true,
   ) {
     const uri = `/long_battery_tracing_${name}`;
-    const track = await createQuerySliceTrack({
+    const track = await DatasetSliceTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: query,
-        columns: ['ts', 'dur', 'name', ...columns],
-      },
-      argColumns: columns,
+      dataset,
     });
     ctx.tracks.registerTrack({
       uri,

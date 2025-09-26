@@ -35,7 +35,7 @@ export function createProcessPerfSamplesProfileTrack(
   uri: string,
   upid: number,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
@@ -119,7 +119,7 @@ export function createThreadPerfSamplesProfileTrack(
   uri: string,
   utid: number,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

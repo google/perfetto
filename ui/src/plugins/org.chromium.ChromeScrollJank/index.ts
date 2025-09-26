@@ -25,7 +25,6 @@ import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createScrollTimelineModel} from './scroll_timeline_model';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
 import {createTopLevelScrollTrack} from './scroll_track';
 import {createScrollTimelineTrack} from './scroll_timeline_track';
@@ -243,11 +242,19 @@ export default class implements PerfettoPlugin {
     {
       // Add a track for the VSync slices.
       const uri = 'org.chromium.ChromeScrollJank#ChromeVsync';
-      const track = await createQuerySliceTrack({
+      const track = await DatasetSliceTrack.createMaterialized({
         trace: ctx,
-        data: {sqlSource: `SELECT * FROM ${vsyncTable}`},
-        argColumns: ['id', 'track_id', 'ts', 'dur'],
         uri,
+        dataset: new SourceDataset({
+          schema: {
+            id: NUM,
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+          },
+          src: vsyncTable,
+        }),
+        // Use default details panel
       });
       ctx.tracks.registerTrack({uri, renderer: track});
       group.addChildInOrder(new TrackNode({uri, name: 'Chrome VSync'}));
@@ -308,7 +315,7 @@ export default class implements PerfettoPlugin {
 
       for (const step of steps) {
         const uri = `org.chromium.ChromeScrollJank#chrome_scroll_update_info.${step.column}`;
-        const track = new DatasetSliceTrack({
+        const track = await DatasetSliceTrack.createMaterialized({
           trace: ctx,
           uri,
           dataset: new SourceDataset({

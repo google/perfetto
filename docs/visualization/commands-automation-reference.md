@@ -159,6 +159,11 @@ analysis.
 Create custom visualization tracks from SQL queries. Debug tracks are overlaid
 on the timeline and update automatically when the view changes.
 
+**Important:** If your queries use Perfetto modules (e.g., `android.screen_state`,
+`android.memory.lmk`), you must first execute a `RunQuery` command with the module
+include statement before creating the debug track. The module include must come
+first in the command sequence.
+
 #### `dev.perfetto.AddDebugSliceTrack`
 
 Creates a slice track from a SQL query returning time intervals.

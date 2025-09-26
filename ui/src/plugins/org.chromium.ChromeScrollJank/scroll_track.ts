@@ -19,7 +19,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export function createTopLevelScrollTrack(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

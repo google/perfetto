@@ -76,7 +76,7 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      renderer: new DatasetSliceTrack({
+      renderer: DatasetSliceTrack.create({
         trace: ctx,
         uri,
         dataset: new SourceDataset({

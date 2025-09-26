@@ -24,7 +24,7 @@ export function createChromeTasksThreadTrack(
   uri: string,
   utid: Utid,
 ) {
-  return new DatasetSliceTrack({
+  return DatasetSliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
