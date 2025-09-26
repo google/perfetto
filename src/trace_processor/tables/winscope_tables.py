@@ -806,6 +806,10 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
             'container_type',
             CppString(),
         ),
+        C(
+            'name_override',
+            CppOptional(CppString()),
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager_windowcontainer'),
     tabledoc=TableDoc(
@@ -832,6 +836,8 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
                 "The rect corresponding to this window container",
             'container_type':
                 "The window container type e.g. DisplayContent, TaskFragment",
+            'name_override':
+                "Optional name override for some container types",
         }))
 
 PROTOLOG_TABLE = Table(
