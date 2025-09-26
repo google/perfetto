@@ -312,7 +312,7 @@ std::optional<PerfCounter> MakePerfCounter(
 
   std::optional<PerfCounter> counter = build_counter_without_modifiers();
   if (!counter)
-    return counter;
+    return std::nullopt;
 
   return WithEventModifiers(counter.value(), event_desc.modifiers());
 }
