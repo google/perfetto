@@ -144,7 +144,7 @@ SELECT
   END;
 
 -- List of all ANRs that occurred in the trace (one row per ANR).
-CREATE PERFETTO VIEW android_anrs (
+CREATE PERFETTO TABLE android_anrs (
   -- Name of the process that triggered the ANR.
   process_name STRING,
   -- PID of the process that triggered the ANR.
@@ -158,7 +158,7 @@ CREATE PERFETTO VIEW android_anrs (
   -- Subject line of the ANR.
   subject STRING,
   -- The duration between the timer expiration event and the anr counter event
-  timer_delay DOUBLE,
+  timer_delay LONG,
   -- The standard type of ANR.
   anr_type STRING,
   -- Duration of the ANR, computed from the timer expiration event.
