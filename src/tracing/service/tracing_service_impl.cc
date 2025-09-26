@@ -2473,7 +2473,8 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
     base::FlushFile(tracing_session->write_into_file.get());
     tracing_session->write_into_file.reset();
     tracing_session->write_period_ms = 0;
-    if (tracing_session->state == TracingSession::STARTED)
+    if (tracing_session->state == TracingSession::STARTED ||
+        tracing_session->state == TracingSession::CLONED_READ_ONLY)
       DisableTracing(tsid);
     return true;
   }
@@ -4140,6 +4141,23 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
+  if (session->write_into_file) {
+    if (!args.output_file_fd) {
+      // TODO(ktimofeev): return better error message.
+      return PERFETTO_SVC_ERR(
+          "Can't clone write_into_file session: no file descriptor to copy "
+          "already written data.");
+    }
+    base::FlushFile(*session->write_into_file);
+    base::Status status =
+        base::CopyFileContents(*session->write_into_file, *args.output_file_fd);
+    if (!status.ok()) {
+      return base::ErrStatus(
+          "Can't copy '*session->write_into_file' file to the cloned session "
+          "file.");
+    }
+  }
+
   // If any of the buffers are marked as clear_before_clone, reset them before
   // issuing the Flush(kCloneReason).
   size_t buf_idx = 0;
@@ -4191,6 +4209,9 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
         args.clone_trigger_boot_time_ns, args.clone_trigger_name,
         args.clone_trigger_producer_name,
         args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
+  }
+  if (args.output_file_fd) {
+    clone_op.output_file_fd = std::move(args.output_file_fd);
   }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
@@ -4294,7 +4315,8 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
           &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
           std::move(clone_op.buffer_cloned_timestamps),
           clone_op.skip_trace_filter, !clone_op.flush_failed,
-          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns);
+          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns,
+          std::move(clone_op.output_file_fd));
     }
   }  // if (result.ok())
 
@@ -4355,7 +4377,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
     bool final_flush_outcome,
     std::optional<TriggerInfo> clone_trigger,
     base::Uuid* new_uuid,
-    int64_t clone_started_timestamp_ns) {
+    int64_t clone_started_timestamp_ns,
+    base::ScopedFile output_file_fd) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
                 ", skip_trace_filter=%d) started, consumer uid: %d",
                 src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
@@ -4462,6 +4485,11 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->final_flush_outcome = final_flush_outcome
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
+
+  cloned_session->write_into_file = std::move(output_file_fd);
+  cloned_session->write_period_ms = 0;
+  ReadBuffersIntoFile(cloned_session->id);
+
   return base::OkStatus();
 }
 

@@ -470,6 +470,14 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
     return;
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (args.output_file) {
+    consumer_->OnTracingDisabled(
+        "Passing FDs into CloneSession is not supported on Windows");
+    return;
+  }
+#endif
+
   protos::gen::CloneSessionRequest req;
   if (args.tsid) {
     req.set_session_id(args.tsid);
@@ -514,6 +522,7 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
               {response->success(), response->error(), uuid});
         }
       });
-  consumer_port_.CloneSession(req, std::move(async_response));
+  consumer_port_.CloneSession(req, std::move(async_response),
+                              *args.output_file_fd);
 }
 }  // namespace perfetto
