@@ -140,6 +140,12 @@ async function createEngine(
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
+  const descriptorBlobs: Uint8Array[] = [];
+  if (app.extraParsingDescriptors.length > 0) {
+    for (const b64Str of app.extraParsingDescriptors) {
+      descriptorBlobs.push(base64Decode(b64Str));
+    }
+  }
   let engine;
   if (useRpc) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
@@ -153,7 +159,7 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
-      extraParsingDescriptorsBase64: app.extraParsingDescriptors,
+      extraParsingDescriptors: descriptorBlobs,
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
@@ -539,4 +545,14 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
   }
 
   return new TimeSpan(startBound, endBound);
+}
+
+function base64Decode(str: string): Uint8Array {
+  const binaryStr = atob(str);
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes;
 }

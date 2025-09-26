@@ -362,6 +362,7 @@ export class AppImpl implements App {
     // complete trace loading (we don't bother supporting cancellations. If the
     // user is too bothered, they can reload the tab).
     this.appCtx.openTraceAsyncLimiter.schedule(async () => {
+      await this.extraLoadingPromise;
       this.appCtx.closeCurrentTrace();
       this.appCtx.isLoadingTrace = true;
       try {
