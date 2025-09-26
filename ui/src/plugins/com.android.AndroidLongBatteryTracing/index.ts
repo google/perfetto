@@ -865,7 +865,7 @@ export default class implements PerfettoPlugin {
     if (!features.has('atom.cpu_cycles_per_uid_cluster')) {
       return;
     }
-    const groupName = 'CPU per UID (major users)';
+    const groupName = 'CPU per UID (major users, from statsd)';
 
     const e = ctx.engine;
 
@@ -877,7 +877,7 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       await support.addCounterTrack(
         ctx,
-        `CPU (${it.cluster}): ${it.pkg}`,
+        `${it.pkg} (${it.cluster})`,
         `select ts, value from high_cpu where pkg = "${it.pkg}" and cluster="${it.cluster}"`,
         groupName,
         {yOverrideMaximum: 100, unit: '%'},

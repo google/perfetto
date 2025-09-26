@@ -5296,6 +5296,8 @@ TEST_P(PerfettoApiTest, NoFlushFlag) {
   dsd_flush.set_track_event_descriptor_raw("DESC_");
   UpdateDataSource<FlushDataSource>(dsd_flush);
 
+  perfetto::test::SyncProducers();
+
   result = tracing_session->QueryServiceStateBlocking();
   ASSERT_TRUE(result.success);
   ASSERT_TRUE(state.ParseFromArray(result.service_state_data.data(),

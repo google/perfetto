@@ -26,7 +26,7 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
-import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
+import {Tree, TreeNode} from '../../widgets/tree';
 import {EVENT_LATENCY_TRACK_URI, renderSliceRef} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
@@ -239,33 +239,51 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderDetailsDictionary(): m.Child[] {
-    const details: {[key: string]: m.Child} = {};
-    if (exists(this.data)) {
-      details['Name'] = this.data.name;
-      details['Expected Frame Presentation Timestamp'] = m(Timestamp, {
-        trace: this.trace,
-        ts: this.data.ts,
-      });
-      details['Actual Frame Presentation Timestamp'] = m(Timestamp, {
-        trace: this.trace,
-        ts: Time.add(this.data.ts, this.data.dur),
-      });
-      details['Frame Presentation Delay'] = m(DurationWidget, {
-        trace: this.trace,
-        dur: this.data.dur,
-      });
-      details['Vsyncs Delayed'] = this.data.delayedVsyncCount;
-      if (exists(this.data.jankyFrames)) {
-        details['Janky Frame Count'] = this.data.jankyFrames;
-      }
-      details['Original Event Latency'] = this.data.eventLatencyId;
-      details['SQL ID'] = m(SqlRef, {
-        table: 'chrome_janky_frame_presentation_intervals',
-        id: this.data.id,
-      });
+    if (!exists(this.data)) {
+      return [];
     }
 
-    return dictToTreeNodes(details);
+    return [
+      m(TreeNode, {left: 'Name', right: this.data.name}),
+      m(TreeNode, {
+        left: 'Expected Frame Presentation Timestamp',
+        right: m(Timestamp, {
+          trace: this.trace,
+          ts: this.data.ts,
+        }),
+      }),
+      m(TreeNode, {
+        left: 'Actual Frame Presentation Timestamp',
+        right: m(Timestamp, {
+          trace: this.trace,
+          ts: Time.add(this.data.ts, this.data.dur),
+        }),
+      }),
+      m(TreeNode, {
+        left: 'Frame Presentation Delay',
+        right: m(DurationWidget, {
+          trace: this.trace,
+          dur: this.data.dur,
+        }),
+      }),
+      m(TreeNode, {left: 'Vsyncs Delayed', right: this.data.delayedVsyncCount}),
+      exists(this.data.jankyFrames) &&
+        m(TreeNode, {
+          left: 'Janky Frame Count',
+          right: this.data.jankyFrames,
+        }),
+      m(TreeNode, {
+        left: 'Original Event Latency',
+        right: this.data.eventLatencyId,
+      }),
+      m(TreeNode, {
+        left: 'SQL ID',
+        right: m(SqlRef, {
+          table: 'chrome_janky_frame_presentation_intervals',
+          id: this.data.id,
+        }),
+      }),
+    ];
   }
 
   private getDescriptionText(): m.Child {
@@ -282,34 +300,15 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
     );
   }
 
-  private getLinksSection(): m.Child[] {
-    const result: {[key: string]: m.Child} = {};
+  private getLinksSection(): m.Children {
+    if (!exists(this.sliceDetails) || !exists(this.data)) {
+      return [];
+    }
 
-    if (exists(this.sliceDetails) && exists(this.data)) {
-      result['Janked Event Latency stage'] =
-        exists(this.causeSliceDetails) &&
-        renderSliceRef({
-          trace: this.trace,
-          id: this.causeSliceDetails.id,
-          trackUri: EVENT_LATENCY_TRACK_URI,
-          title: this.data.jankCause,
-        });
-
-      if (this.hasSubcause()) {
-        result['Sub-cause of Jank'] =
-          exists(this.subcauseSliceDetails) &&
-          renderSliceRef({
-            trace: this.trace,
-            id: this.subcauseSliceDetails.id,
-            trackUri: EVENT_LATENCY_TRACK_URI,
-            title: this.data.jankCause,
-          });
-      }
-
-      const children = dictToTreeNodes(result);
-      if (exists(this.eventLatencySliceDetails)) {
-        children.unshift(
-          m(TreeNode, {
+    return [
+      // This ternary handles the original unshift logic
+      exists(this.eventLatencySliceDetails)
+        ? m(TreeNode, {
             left: renderSliceRef({
               trace: this.trace,
               id: this.data.eventLatencyId,
@@ -317,24 +316,41 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
               title: this.data.jankCause,
             }),
             right: '',
+          })
+        : 'Event Latency',
+
+      // This node was unconditionally added with a conditional value,
+      // which we translate to a conditionally added node.
+      exists(this.causeSliceDetails) &&
+        m(TreeNode, {
+          left: 'Janked Event Latency stage',
+          right: renderSliceRef({
+            trace: this.trace,
+            id: this.causeSliceDetails.id,
+            trackUri: EVENT_LATENCY_TRACK_URI,
+            title: this.data.jankCause,
           }),
-        );
-      } else {
-        children.unshift('Event Latency');
-      }
+        }),
 
-      return children;
-    }
-
-    return dictToTreeNodes(result);
+      // This node was conditionally added
+      this.hasSubcause() &&
+        exists(this.subcauseSliceDetails) &&
+        m(TreeNode, {
+          left: 'Sub-cause of Jank',
+          right: renderSliceRef({
+            trace: this.trace,
+            id: this.subcauseSliceDetails.id,
+            trackUri: EVENT_LATENCY_TRACK_URI,
+            title: this.data.jankCause,
+          }),
+        }),
+    ];
   }
 
   render() {
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
-
-    const details = this.renderDetailsDictionary();
 
     return m(
       DetailsShell,
@@ -343,7 +359,14 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
       },
       m(
         GridLayout,
-        m(GridLayoutColumn, m(Section, {title: 'Details'}, m(Tree, details))),
+        m(
+          GridLayoutColumn,
+          m(
+            Section,
+            {title: 'Details'},
+            m(Tree, this.renderDetailsDictionary()),
+          ),
+        ),
         m(
           GridLayoutColumn,
           m(Section, {title: 'Description'}, this.getDescriptionText()),
