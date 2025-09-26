@@ -54,7 +54,7 @@ export interface InstantStyle {
   render(ctx: CanvasRenderingContext2D, rect: Size2D & Point2D): void;
 }
 
-export interface SliceTrackAttrs<T extends DatasetSchema> {
+export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   /**
    * The trace object used by the track for accessing the query engine and other
    * trace-related resources.
@@ -201,7 +201,7 @@ export type RowSchema = {
 type SliceWithRow<T> = Slice & {row: T};
 
 function getDataset<T extends DatasetSchema>(
-  attrs: SliceTrackAttrs<T>,
+  attrs: DatasetSliceTrackAttrs<T>,
 ): SourceDataset<T> {
   const dataset = attrs.dataset;
   return typeof dataset === 'function' ? dataset() : dataset;
@@ -222,7 +222,7 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
    * @returns A fully initialized DatasetSliceTrack
    */
   static create<T extends RowSchema>(
-    attrs: SliceTrackAttrs<T>,
+    attrs: DatasetSliceTrackAttrs<T>,
   ): DatasetSliceTrack<T> {
     return new DatasetSliceTrack(attrs);
   }
@@ -247,7 +247,7 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
    * @returns A fully initialized DatasetSliceTrack
    */
   static async createMaterialized<T extends RowSchema>(
-    attrs: SliceTrackAttrs<T>,
+    attrs: DatasetSliceTrackAttrs<T>,
   ): Promise<DatasetSliceTrack<T>> {
     const originalDataset = getDataset(attrs);
     // Create materialized table from the render query - we might as well
@@ -280,7 +280,7 @@ export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
     });
   }
 
-  constructor(private readonly attrs: SliceTrackAttrs<T>) {
+  constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
     const dataset = getDataset(attrs);
     super(
       attrs.trace,

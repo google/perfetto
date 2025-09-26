@@ -242,7 +242,7 @@ export default class implements PerfettoPlugin {
     {
       // Add a track for the VSync slices.
       const uri = 'org.chromium.ChromeScrollJank#ChromeVsync';
-      const track = new DatasetSliceTrack({
+      const track = await DatasetSliceTrack.createMaterialized({
         trace: ctx,
         uri,
         dataset: new SourceDataset({
@@ -315,7 +315,7 @@ export default class implements PerfettoPlugin {
 
       for (const step of steps) {
         const uri = `org.chromium.ChromeScrollJank#chrome_scroll_update_info.${step.column}`;
-        const track = new DatasetSliceTrack({
+        const track = await DatasetSliceTrack.createMaterialized({
           trace: ctx,
           uri,
           dataset: new SourceDataset({

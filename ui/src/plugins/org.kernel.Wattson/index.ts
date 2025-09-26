@@ -195,7 +195,7 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   const uri = `/wattson/markers_window`;
-  const track = new DatasetSliceTrack({
+  const track = await DatasetSliceTrack.createMaterialized({
     trace: ctx,
     uri,
     dataset: new SourceDataset({
