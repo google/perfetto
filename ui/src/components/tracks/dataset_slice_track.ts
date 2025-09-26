@@ -21,6 +21,7 @@ import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
 import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
 import {SqlValue, LONG, NUM} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {getColorForSlice} from '../colorizer';
 import {formatDuration} from '../time_utils';
 import {
@@ -34,6 +35,7 @@ import {
 import {Point2D, Size2D} from '../../base/geom';
 import {exists} from '../../base/utils';
 import {removeFalsyValues} from '../../base/array_utils';
+import {DatasetSliceTrackDetailsPanel} from './dataset_slice_track_details_panel';
 
 export interface InstantStyle {
   /**
@@ -80,9 +82,13 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * demand.
    *
    * Required columns:
-   * - `id` (NUM): Unique identifier for slices in the track.
    * - `ts` (LONG): Timestamp of each event (in nanoseconds). Serves as the
    *   start time for slices with a `dur` column or the instant time otherwise.
+   *
+   * Auto-generated columns (if not provided):
+   * - `id` (NUM): Unique identifier for slices in the track. If not provided
+   *   in the dataset, will be automatically generated using ROW_NUMBER()
+   *   ordered by timestamp.
    *
    * Optional columns:
    * - `dur` (LONG): Duration of each event (in nanoseconds). Without this
@@ -158,6 +164,10 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   /**
    * An optional callback to customize the details panel for events on this
    * track. Called whenever an event is selected.
+   *
+   * If omitted, a default details panel will be created that displays all
+   * fields from the dataset with appropriate formatting for common slice
+   * properties (name, ts, dur).
    */
   detailsPanel?(row: T): TrackEventDetailsPanel;
 
@@ -178,12 +188,13 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   shellButtons?(): m.Children;
 }
 
-const rowSchema = {
-  id: NUM,
-  ts: LONG,
-};
-
-export type ROW_SCHEMA = typeof rowSchema;
+export type RowSchema = {
+  readonly id?: number;
+  readonly ts: bigint;
+  readonly dur?: bigint;
+  readonly depth?: number;
+  readonly layer?: number;
+} & DatasetSchema;
 
 // We attach a copy of our rows to each slice, so that the tooltip can be
 // resolved properly.
@@ -196,11 +207,78 @@ function getDataset<T extends DatasetSchema>(
   return typeof dataset === 'function' ? dataset() : dataset;
 }
 
-export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
+export class DatasetSliceTrack<T extends RowSchema> extends BaseSliceTrack<
   SliceWithRow<T>,
   BaseRow & T
 > {
   readonly rootTableName?: string;
+
+  /**
+   * Factory function to create a DatasetSliceTrack. This is purely an alias for new
+   * DatasetSliceTrack() but exists for symmetry with createMaterialized()
+   * below.
+   *
+   * @param attrs The track attributes
+   * @returns A fully initialized DatasetSliceTrack
+   */
+  static create<T extends RowSchema>(
+    attrs: DatasetSliceTrackAttrs<T>,
+  ): DatasetSliceTrack<T> {
+    return new DatasetSliceTrack(attrs);
+  }
+
+  /**
+   * Async factory function to create a DatasetSliceTrack, first materializing
+   * the dataset into a perfetto table. This can be more efficient if for
+   * example the dataset is a complex query with multiple joins or window
+   * functions, so materializing it up front can improve rendering performance,
+   * for a one-time cost.
+   *
+   * However, it does have some downsides:
+   * - You're front loading the cost of materialization, which can slow down
+   *   trace load times.
+   * - It uses more memory, as the entire dataset is materialized in memory as a
+   *   new table.
+   * - It means that this dataset track has a new root source table, which makes
+   *   it impossible to combine with other tracks for the purposes of bulk
+   *   operations such as aggregations or search.
+   *
+   * @param attrs The track attributes
+   * @returns A fully initialized DatasetSliceTrack
+   */
+  static async createMaterialized<T extends RowSchema>(
+    attrs: DatasetSliceTrackAttrs<T>,
+  ): Promise<DatasetSliceTrack<T>> {
+    const originalDataset = getDataset(attrs);
+    // Create materialized table from the render query - we might as well
+    // materialize the calculated columns that are missing from the source
+    // dataset while we're here as this will improve performance at runtime.
+    const materializedTable = await createPerfettoTable({
+      engine: attrs.trace.engine,
+      as: generateRenderQuery(originalDataset),
+    });
+
+    // Create a new dataset that queries the materialized table
+    const materializedDataset = new SourceDataset({
+      src: materializedTable.name,
+      schema: {
+        ...originalDataset.schema,
+
+        // We know we must have these columns now as they are injected in
+        // generateRenderQuery(), so we can add them to the schema to avoid the
+        // DST from adding them again.
+        id: NUM,
+        layer: NUM,
+        depth: NUM,
+        dur: LONG,
+      },
+    });
+
+    return new DatasetSliceTrack({
+      ...attrs,
+      dataset: materializedDataset,
+    });
+  }
 
   constructor(private readonly attrs: DatasetSliceTrackAttrs<T>) {
     const dataset = getDataset(attrs);
@@ -236,39 +314,6 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     };
   }
 
-  // Generate a query to use for generating slices to be rendered
-  private generateRenderQuery(dataset: SourceDataset<T>) {
-    const hasLayer = dataset.implements({layer: NUM});
-    const hasDepth = dataset.implements({depth: NUM});
-    const hasDur = dataset.implements({dur: LONG});
-
-    const cols = removeFalsyValues([
-      // If we have no layer, assume flat layering.
-      !hasLayer && '0 as layer',
-
-      // If we have dur but no depth, automatically calculate layout.
-      !hasDepth &&
-        hasDur &&
-        `
-          internal_layout(ts, dur) OVER (
-            ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-          ) AS depth
-        `,
-
-      // If we have no dur or depth, use a flat layout.
-      !hasDepth && !hasDur && '0 as depth',
-
-      // If no dur, assume instant slices.
-      !hasDur && '0 as dur',
-    ]);
-
-    if (cols.length === 0) {
-      return dataset.query();
-    } else {
-      return `select ${cols.join(', ')}, * from (${dataset.query()})`;
-    }
-  }
-
   private getTitle(row: T) {
     if (this.attrs.sliceName) return this.attrs.sliceName(row);
     if ('name' in row && typeof row.name === 'string') return row.name;
@@ -286,7 +331,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       typeof this.attrs.dataset === 'function'
         ? this.attrs.dataset()
         : this.attrs.dataset;
-    return this.generateRenderQuery(dataset);
+    return generateRenderQuery(dataset);
   }
 
   getDataset() {
@@ -304,7 +349,13 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       // row's type `T`.
       return this.attrs.detailsPanel(sel as unknown as T);
     } else {
-      return undefined;
+      // Provide a default details panel that shows all dataset fields
+      const dataset = getDataset(this.attrs);
+      return new DatasetSliceTrackDetailsPanel(
+        this.trace,
+        dataset,
+        sel as unknown as T,
+      );
     }
   }
 
@@ -313,9 +364,25 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
   ): Promise<TrackEventDetails | undefined> {
     const {trace} = this.attrs;
     const dataset = getDataset(this.attrs);
+
+    // If our dataset already has an id column, we can use it directly,
+    // otherwise we need to generate one using row number.
+    const query = (function () {
+      if (dataset.implements({id: NUM})) {
+        return dataset.query();
+      } else {
+        return `
+          SELECT
+            ROW_NUMBER() OVER (ORDER BY ts) AS id,
+            *
+          FROM (${dataset.query()})
+        `;
+      }
+    })();
+
     const result = await trace.engine.query(`
       SELECT *
-      FROM (${dataset.query()})
+      FROM (${query})
       WHERE id = ${id}
     `);
 
@@ -393,5 +460,44 @@ function formatDurationForTooltip(trace: Trace, slice: Slice) {
     return undefined;
   } else {
     return formatDuration(trace, dur);
+  }
+}
+
+// Generate a query to use for generating slices to be rendered
+function generateRenderQuery<T extends DatasetSchema>(
+  dataset: SourceDataset<T>,
+) {
+  const hasId = dataset.implements({id: NUM});
+  const hasLayer = dataset.implements({layer: NUM});
+  const hasDepth = dataset.implements({depth: NUM});
+  const hasDur = dataset.implements({dur: LONG});
+
+  const cols = removeFalsyValues([
+    // If we have no id, automatically generate one using row number.
+    !hasId && 'ROW_NUMBER() OVER (ORDER BY ts) AS id',
+
+    // If we have no layer, assume flat layering.
+    !hasLayer && '0 as layer',
+
+    // If we have dur but no depth, automatically calculate layout.
+    !hasDepth &&
+      hasDur &&
+      `
+          internal_layout(ts, dur) OVER (
+            ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) AS depth
+        `,
+
+    // If we have no dur or depth, use a flat layout.
+    !hasDepth && !hasDur && '0 as depth',
+
+    // If no dur, assume instant slices.
+    !hasDur && '0 as dur',
+  ]);
+
+  if (cols.length === 0) {
+    return dataset.query();
+  } else {
+    return `select ${cols.join(', ')}, * from (${dataset.query()})`;
   }
 }

@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG} from '../../trace_processor/query_result';
+import {LONG, STR} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 
@@ -26,7 +27,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const cnt = await ctx.engine.query(`
       SELECT
-        count(*) as cnt
+        COUNT(*) AS cnt
       FROM slice
       WHERE name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
     `);
@@ -34,23 +35,26 @@ export default class implements PerfettoPlugin {
       return;
     }
 
-    const SQL_SOURCE = `
-      SELECT
-        read_time as ts,
-        end_to_end_latency_dur as dur,
-        CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
-      FROM android_input_events
-      WHERE end_to_end_latency_dur IS NOT NULL
-      `;
-
     await ctx.engine.query('INCLUDE PERFETTO MODULE android.input;');
     const uri = 'com.android.InputEvents#InputEventsTrack';
-    const track = await createQuerySliceTrack({
+    const track = await DatasetSliceTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: SQL_SOURCE,
-      },
+      dataset: new SourceDataset({
+        src: `
+          SELECT
+            read_time AS ts,
+            end_to_end_latency_dur AS dur,
+            CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
+          FROM android_input_events
+          WHERE end_to_end_latency_dur IS NOT NULL
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
     });
     ctx.tracks.registerTrack({
       uri,

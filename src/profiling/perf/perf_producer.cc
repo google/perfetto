@@ -149,6 +149,8 @@ TraceWriter::TracePacketHandle StartTracePacket(TraceWriter* trace_writer) {
 
 void WritePerfEventDefaultsPacket(const EventConfig& event_config,
                                   TraceWriter* trace_writer) {
+  using PE = protos::pbzero::PerfEvents;
+
   auto packet = trace_writer->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   packet->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
@@ -171,6 +173,7 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
     defaults->set_timestamp_clock_id(static_cast<uint32_t>(builtin_clock));
   }
 
+  const PerfCounter& timebase = event_config.timebase_event();
   auto* perf_defaults = defaults->set_perf_sample_defaults();
   auto* timebase_pb = perf_defaults->set_timebase();
 
@@ -183,70 +186,64 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
     timebase_pb->set_period(perf_attr->sample_period);
   }
 
-  // timebase event:
-  const PerfCounter& timebase = event_config.timebase_event();
-  switch (timebase.event_type()) {
-    case PerfCounter::Type::kBuiltinCounter: {
-      timebase_pb->set_counter(
-          static_cast<protos::pbzero::PerfEvents::Counter>(timebase.counter));
-      break;
+  auto write_event = [](const PerfCounter& c, auto* pb) {
+    switch (c.event_type()) {
+      case PerfCounter::Type::kBuiltinCounter: {
+        pb->set_counter(static_cast<PE::Counter>(c.counter));
+        break;
+      }
+      case PerfCounter::Type::kTracepoint: {
+        auto* tracepoint_pb = pb->set_tracepoint();
+        tracepoint_pb->set_name(c.tracepoint_name);
+        tracepoint_pb->set_filter(c.tracepoint_filter);
+        break;
+      }
+      case PerfCounter::Type::kRawEvent: {
+        auto* raw_pb = pb->set_raw_event();
+        raw_pb->set_type(c.attr_type);
+        raw_pb->set_config(c.attr_config);
+        raw_pb->set_config1(c.attr_config1);
+        raw_pb->set_config2(c.attr_config2);
+        break;
+      }
     }
-    case PerfCounter::Type::kTracepoint: {
-      auto* tracepoint_pb = timebase_pb->set_tracepoint();
-      tracepoint_pb->set_name(timebase.tracepoint_name);
-      tracepoint_pb->set_filter(timebase.tracepoint_filter);
-      break;
-    }
-    case PerfCounter::Type::kRawEvent: {
-      auto* raw_pb = timebase_pb->set_raw_event();
-      raw_pb->set_type(timebase.attr_type);
-      raw_pb->set_config(timebase.attr_config);
-      raw_pb->set_config1(timebase.attr_config1);
-      raw_pb->set_config2(timebase.attr_config2);
-      break;
-    }
-  }
 
-  // optional name to identify the counter during parsing:
-  if (!timebase.name.empty()) {
-    timebase_pb->set_name(timebase.name);
-  }
+    // optional name to identify the counter during parsing:
+    if (!c.name.empty()) {
+      pb->set_name(c.name);
+    }
+
+    // Write the counting scope modifiers (e.g. count only while in userspace)
+    // only if at least one is set.
+    if (c.attr_exclude_user || c.attr_exclude_kernel || c.attr_exclude_hv) {
+      if (!c.attr_exclude_user) {
+        pb->add_modifiers(PE::EVENT_MODIFIER_COUNT_USERSPACE);
+      }
+      if (!c.attr_exclude_kernel) {
+        pb->add_modifiers(PE::EVENT_MODIFIER_COUNT_KERNEL);
+      }
+      if (!c.attr_exclude_hv) {
+        pb->add_modifiers(PE::EVENT_MODIFIER_COUNT_HYPERVISOR);
+      }
+    }
+  };
+
+  // timebase (leader) event:
+  write_event(timebase, timebase_pb);
 
   // follower events:
   for (const auto& e : event_config.follower_events()) {
     auto* followers_pb = perf_defaults->add_followers();
-    followers_pb->set_name(e.name);
-
-    switch (e.event_type()) {
-      case PerfCounter::Type::kBuiltinCounter: {
-        followers_pb->set_counter(
-            static_cast<protos::pbzero::PerfEvents::Counter>(e.counter));
-        break;
-      }
-      case PerfCounter::Type::kTracepoint: {
-        auto* tracepoint_pb = followers_pb->set_tracepoint();
-        tracepoint_pb->set_name(e.tracepoint_name);
-        tracepoint_pb->set_filter(e.tracepoint_filter);
-        break;
-      }
-      case PerfCounter::Type::kRawEvent: {
-        auto* raw_pb = followers_pb->set_raw_event();
-        raw_pb->set_type(e.attr_type);
-        raw_pb->set_config(e.attr_config);
-        raw_pb->set_config1(e.attr_config1);
-        raw_pb->set_config2(e.attr_config2);
-        break;
-      }
-    }
+    write_event(e, followers_pb);
   }
 
   // Not setting timebase.timestamp_clock since the field that matters during
   // parsing is the root timestamp_clock_id set above.
 
-  // Record the random shard we've chosen so that the post-processing can infer
-  // which processes would've been unwound if sampled. In particular this lets
-  // us distinguish between "running but not chosen" and "running and chosen,
-  // but not sampled" cases.
+  // Niche: record the random shard we've chosen so that the post-processing can
+  // infer which processes would've been unwound if sampled. In particular this
+  // lets us distinguish between "running but not chosen" and "running and
+  // chosen, but not sampled" cases.
   const auto& process_sharding = event_config.filter().process_sharding;
   if (process_sharding.has_value()) {
     perf_defaults->set_process_shard_count(process_sharding->shard_count);
