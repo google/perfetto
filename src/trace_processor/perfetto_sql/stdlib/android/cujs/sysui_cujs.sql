@@ -378,7 +378,9 @@ JOIN process_track
 JOIN process
   USING (upid)
 WHERE
-  slice.name GLOB 'L<*>' AND dur > 0;
+  -- TODO(b/447577048): Add filtering support for completed/canceled latency CUJs.
+  slice.name GLOB 'L<*>'
+  AND dur > 0;
 
 -- Table tracking all jank/latency CUJs information.
 CREATE PERFETTO TABLE android_jank_latency_cujs (
