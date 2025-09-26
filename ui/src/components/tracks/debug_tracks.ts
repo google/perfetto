@@ -31,7 +31,23 @@ import {
   CounterColumnMapping,
   SqlTableCounterTrack,
 } from './query_counter_track';
-import {SliceColumnMapping, SqlDataSource} from './query_slice_track';
+
+export interface SqlDataSource {
+  // SQL source selecting the necessary data.
+  readonly sqlSource: string;
+
+  // Optional: Rename columns from the query result.
+  // If omitted, original column names from the query are used instead.
+  // The caller is responsible for ensuring that the number of items in this
+  // list matches the number of columns returned by sqlSource.
+  readonly columns?: ReadonlyArray<string>;
+}
+
+export interface SliceColumnMapping {
+  readonly ts: string;
+  readonly dur: string;
+  readonly name: string;
+}
 
 let trackCounter = 0; // For reproducible ids.
 
