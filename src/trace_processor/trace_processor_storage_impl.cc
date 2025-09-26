@@ -45,8 +45,8 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/trace_type.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -59,8 +59,8 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
   for (const std::string& raw_bytes : cfg.extra_parsing_descriptors) {
     // We add to the main, shared pool.
     context_.descriptor_pool_->AddFromFileDescriptorSet(
-        reinterpret_cast<const uint8_t*>(raw_bytes.data()),
-        raw_bytes.size(), {}, /*replace=*/true);
+        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
+        {}, /*replace=*/true);
   }
 }
 
