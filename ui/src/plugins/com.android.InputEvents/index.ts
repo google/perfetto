@@ -15,7 +15,7 @@
 import {LONG, STR} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
@@ -37,7 +37,7 @@ export default class implements PerfettoPlugin {
 
     await ctx.engine.query('INCLUDE PERFETTO MODULE android.input;');
     const uri = 'com.android.InputEvents#InputEventsTrack';
-    const track = await DatasetSliceTrack.createMaterialized({
+    const track = await SliceTrack.createMaterialized({
       trace: ctx,
       uri,
       dataset: new SourceDataset({

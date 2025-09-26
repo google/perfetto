@@ -22,7 +22,7 @@ import {
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
@@ -60,7 +60,7 @@ export default class implements PerfettoPlugin {
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
       ctx.tracks.registerTrack({
         uri,
-        renderer: DatasetSliceTrack.create({
+        renderer: SliceTrack.create({
           trace: ctx,
           uri,
           dataset: new SourceDataset({

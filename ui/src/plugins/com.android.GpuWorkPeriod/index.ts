@@ -17,7 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 
 export default class implements PerfettoPlugin {
@@ -57,7 +57,7 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       const {trackId, gpuId, uid, packageName} = it;
       const uri = `/gpu_work_period_${gpuId}_${uid}`;
-      const track = await DatasetSliceTrack.createMaterialized({
+      const track = await SliceTrack.createMaterialized({
         trace: ctx,
         uri,
         dataset: new SourceDataset({

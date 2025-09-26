@@ -14,7 +14,7 @@
 
 import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from './slice_track';
 import {
   createQueryCounterTrack,
   SqlTableCounterTrack,
@@ -388,7 +388,7 @@ export class BreakdownTracks {
       title,
       newFilters,
       (uri: string, filtersClause: string) => {
-        return DatasetSliceTrack.createMaterialized({
+        return SliceTrack.createMaterialized({
           trace: this.props.trace,
           uri,
           dataset: new SourceDataset({
@@ -453,7 +453,7 @@ export class BreakdownTracks {
       filtersClause: string,
     ) => Promise<
       | SqlTableCounterTrack
-      | DatasetSliceTrack<{
+      | SliceTrack<{
           ts: bigint;
           dur: bigint;
           name: string;

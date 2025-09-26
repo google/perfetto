@@ -23,12 +23,12 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
-import {RowSchema} from './dataset_slice_track';
+import {RowSchema} from './slice_track';
 import {exists} from '../../base/utils';
 import {Time} from '../../base/time';
 
 /**
- * Default details panel for DatasetSliceTrack that displays all fields from
+ * Default details panel for SliceTrack that displays all fields from
  * the dataset query.
  *
  * This panel provides a "better than nothing" experience when no custom
@@ -36,7 +36,7 @@ import {Time} from '../../base/time';
  * - Common slice fields (name, ts, dur) with appropriate formatting
  * - All other dataset columns as readable strings
  */
-export class DatasetSliceTrackDetailsPanel<T extends RowSchema>
+export class SliceTrackDetailsPanel<T extends RowSchema>
   implements TrackEventDetailsPanel
 {
   constructor(
