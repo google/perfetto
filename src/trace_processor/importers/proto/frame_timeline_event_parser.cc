@@ -95,6 +95,7 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
 
 bool DisplayFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
+      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
 
@@ -325,6 +326,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
     jank_tag = jank_tag_sf_stuffing_id_;
   } else if (event.jank_type() == FrameTimelineEvent::JANK_DROPPED) {
     jank_tag = jank_tag_dropped_id_;
+  } else if (event.jank_type() == FrameTimelineEvent::JANK_NON_ANIMATING) {
+    jank_tag = jank_tag_none_animating_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }
