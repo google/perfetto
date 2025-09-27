@@ -187,6 +187,15 @@ message FrameTimelineEvent {
     optional int32 jank_type = 7;
     optional PredictionType prediction_type = 8;
     optional JankSeverityType jank_severity_type = 9;
+
+    optional float present_delay_millis = 10;
+    optional float jank_severity_score = 11;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 12;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 13;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding

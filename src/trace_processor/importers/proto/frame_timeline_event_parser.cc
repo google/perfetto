@@ -194,9 +194,9 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       display_frame_token_id_(
           context->storage->InternString("Display frame token")),
       present_delay_millis_id_(
-          context->storage->InternString("Present Delay (ms)")),
-      vsync_resynced_jitter_millis_id_(
-          context->storage->InternString("Vsync Resynced Jitter (ms)")),
+          context->storage->InternString("Present Delay (ms) (experimental)")),
+      vsync_resynced_jitter_millis_id_(context->storage->InternString(
+          "Vsync Resynced Jitter (ms) (experimental)")),
       present_type_id_(context->storage->InternString("Present type")),
       present_type_experimental_id_(
           context->storage->InternString("Present type (experimental)")),
@@ -251,7 +251,6 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
       });
 }
 
-// TODO(adyabr): add missing fields here
 void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
                                                             ConstBytes blob) {
   ActualDisplayFrameStartDecoder event(blob);
@@ -264,6 +263,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
 
   int64_t cookie = event.cookie();
   int64_t token = event.token();
+  float jank_severity_score = event.jank_severity_score();
+  float present_delay_millis = event.present_delay_millis();
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
@@ -280,8 +281,21 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
     present_type = present_type_ids_[static_cast<size_t>(event.present_type())];
   }
 
+  // parse present type experimental
+  StringId present_type_experimental = present_type_experimental_ids_[0];
+  if (event.has_present_type_experimental() &&
+      ValidatePresentType(context_, event.present_type_experimental())) {
+    present_type_experimental =
+        present_type_experimental_ids_[static_cast<size_t>(
+            event.present_type_experimental())];
+  }
+
   // parse jank type
   StringId jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
+
+  // parse jank type experimental
+  StringId jank_type_experimental =
+      JankTypeBitmaskToStringId(context_, event.jank_type_experimental());
 
   // parse jank severity type
   StringId jank_severity_type;
@@ -319,14 +333,22 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
       timestamp, track_id, kNullStringId, name_id,
       [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
+        inserter->AddArg(present_delay_millis_id_,
+                         Variadic::Real(present_delay_millis));
         inserter->AddArg(present_type_id_, Variadic::String(present_type));
+        inserter->AddArg(present_type_experimental_id_,
+                         Variadic::String(present_type_experimental));
         inserter->AddArg(on_time_finish_id_,
                          Variadic::Integer(event.on_time_finish()));
         inserter->AddArg(gpu_composition_id_,
                          Variadic::Integer(event.gpu_composition()));
         inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
+        inserter->AddArg(jank_type_experimental_id_,
+                         Variadic::String(jank_type_experimental));
         inserter->AddArg(jank_severity_type_id_,
                          Variadic::String(jank_severity_type));
+        inserter->AddArg(jank_severity_score_id_,
+                         Variadic::Real(jank_severity_score));
         inserter->AddArg(prediction_type_id_,
                          Variadic::String(prediction_type));
         inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
@@ -439,7 +461,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
     present_type = present_type_ids_[static_cast<size_t>(event.present_type())];
   }
 
-  // parse present alt type
+  // parse present type experimental
   StringId present_type_experimental = present_type_experimental_ids_[0];
   if (event.has_present_type_experimental() &&
       ValidatePresentType(context_, event.present_type_experimental())) {
@@ -451,7 +473,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   // parse jank type
   StringId jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
 
-  // parse jank alt type
+  // parse jank type experimental
   StringId jank_type_experimental =
       JankTypeBitmaskToStringId(context_, event.jank_type_experimental());
 
