@@ -105,6 +105,86 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+bool IsPprofProfile(const uint8_t* data, size_t size) {
+  if (size < 10) {
+    return false;
+  }
+
+  const uint8_t* ptr = data;
+  const uint8_t* const end = ptr + size;
+
+  // Check if first field is sample_type (field 1, length-delimited)
+  uint64_t tag;
+  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr) {
+    return false;
+  }
+
+  constexpr uint64_t kSampleTypeTag =
+      protozero::proto_utils::MakeTagLengthDelimited(1);
+
+  if (tag != kSampleTypeTag) {
+    return false;
+  }
+
+  // Parse the length of the sample_type field
+  uint64_t sample_type_length;
+  const uint8_t* len_next =
+      protozero::proto_utils::ParseVarInt(next, end, &sample_type_length);
+  if (len_next == next || len_next + sample_type_length > end) {
+    return false;
+  }
+
+  // Look inside the sample_type field for pprof ValueType structure
+  // In pprof: ValueType has field 1 (type) and field 2 (unit) as varints (wire
+  // type 0) In Perfetto: field 1 would contain length-delimited data (wire type
+  // 2)
+  const uint8_t* value_type_ptr = len_next;
+  const uint8_t* value_type_end = len_next + sample_type_length;
+
+  // Parse the first ValueType message
+  if (value_type_ptr >= value_type_end) {
+    return false;
+  }
+
+  // Check for field 1 (type) as varint
+  uint64_t inner_tag;
+  const uint8_t* inner_next = protozero::proto_utils::ParseVarInt(
+      value_type_ptr, value_type_end, &inner_tag);
+  if (inner_next == value_type_ptr) {
+    return false;
+  }
+
+  // Field 1 with wire type 0 (varint) = (1 << 3) | 0 = 8
+  constexpr uint64_t kValueTypeFieldTag = 8;
+  if (inner_tag != kValueTypeFieldTag) {
+    return false;
+  }
+
+  // Skip over the varint value
+  uint64_t dummy_value;
+  const uint8_t* after_value = protozero::proto_utils::ParseVarInt(
+      inner_next, value_type_end, &dummy_value);
+  if (after_value == inner_next) {
+    return false;
+  }
+
+  // Check for field 2 (unit) as varint
+  if (after_value >= value_type_end) {
+    return false;
+  }
+
+  uint64_t second_tag;
+  const uint8_t* second_next = protozero::proto_utils::ParseVarInt(
+      after_value, value_type_end, &second_tag);
+  if (second_next == after_value) {
+    return false;
+  }
+
+  // For debugging: just check that we found varint fields inside field 1
+  return inner_tag == kValueTypeFieldTag;
+}
+
 }  // namespace
 
 const char* TraceTypeToString(TraceType trace_type) {
@@ -129,6 +209,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "zip";
     case kPerfDataTraceType:
       return "perf";
+    case kPprofTraceType:
+      return "pprof";
     case kInstrumentsXmlTraceType:
       return "instruments_xml";
     case kAndroidLogcatTraceType:
@@ -256,6 +338,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (IsProtoTraceWithSymbols(data, size))
     return kSymbolsTraceType;
+
+  if (IsPprofProfile(data, size))
+    return kPprofTraceType;
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;

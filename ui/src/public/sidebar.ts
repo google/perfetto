@@ -22,17 +22,21 @@ export const SIDEBAR_SECTIONS = {
     title: 'Current Trace',
     summary: 'Actions on the current trace',
   },
-  convert_trace: {
-    title: 'Convert trace',
-    summary: 'Convert to other formats',
-  },
   example_traces: {
     title: 'Example Traces',
     summary: 'Open an example trace',
   },
+  settings: {
+    title: 'Settings',
+    summary: 'Preferences and configuration',
+  },
   support: {
     title: 'Support',
     summary: 'Documentation & Bugs',
+  },
+  convert_trace: {
+    title: 'Convert trace',
+    summary: 'Convert to other formats',
   },
 } as const;
 
