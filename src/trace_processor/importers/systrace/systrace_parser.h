@@ -20,8 +20,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
+#include <string>
 #include <tuple>
+#include <utility>
 
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -317,6 +320,7 @@ class SystraceParser : public Destructible {
                           uint32_t pid,
                           systrace_utils::SystraceTracePoint event);
   void PostProcessSpecialSliceBegin(int64_t ts, base::StringView name);
+  void PostProcessSpecialSliceEnd(TrackId, SliceId);
 
   TraceProcessorContext* const context_;
   const StringId lmk_id_;

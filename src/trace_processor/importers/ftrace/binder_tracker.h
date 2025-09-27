@@ -17,19 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_BINDER_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_BINDER_TRACKER_H_
 
-#include <stdint.h>
+#include <cstdint>
+#include <functional>
 #include <optional>
 #include <stack>
+#include <unordered_map>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -91,6 +91,8 @@ class BinderTracker : public Destructible {
                            uint64_t data_size,
                            uint64_t offsets_size);
 
+  void UpdateAidlSliceName(SliceId reply_id, StringId aidl_name);
+
   // For testing
   bool utid_stacks_empty() const { return utid_stacks_.size() == 0; }
 
@@ -103,6 +105,7 @@ class BinderTracker : public Destructible {
     SetArgsCallback args_inserter;
     std::optional<TrackId> send_track_id;
     std::optional<SliceId> send_slice_id;
+    std::optional<SliceId> send_aidl_slice_id;
   };
   // TODO(rsavitski): switch back to FlatHashMap once the latter's perf is fixed
   // for insert+erase heavy workfloads.
@@ -134,6 +137,8 @@ class BinderTracker : public Destructible {
 
   base::FlatHashMap<uint32_t, int64_t> attempt_lock_;
   base::FlatHashMap<uint32_t, int64_t> lock_acquired_;
+  base::FlatHashMap<SliceId, SliceId> reply_id_to_send_aidl_id_;
+  base::FlatHashMap<SliceId, SliceId> send_aidl_id_to_reply_id_;
 
   const StringId binder_category_id_;
   const StringId lock_waiting_id_;
@@ -153,9 +158,9 @@ class BinderTracker : public Destructible {
   const StringId calling_tid_;
   const StringId data_size_;
   const StringId offsets_size_;
+  const StringId unknown_aidl_id_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_BINDER_TRACKER_H_
