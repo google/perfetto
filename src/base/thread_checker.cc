@@ -41,8 +41,9 @@ ThreadChecker::ThreadChecker() {
 
 ThreadChecker::~ThreadChecker() = default;
 
-ThreadChecker::ThreadChecker(const ThreadChecker& other) {
-  thread_id_ = other.thread_id_.load();
+ThreadChecker::ThreadChecker(const ThreadChecker& other) :
+  thread_id_(other.thread_id_.load())
+{
 }
 
 ThreadChecker& ThreadChecker::operator=(const ThreadChecker& other) {
