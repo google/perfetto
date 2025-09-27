@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
@@ -181,7 +182,11 @@ void SystraceParser::ParseSystracePoint(
         utid = context_->process_tracker->UpdateThread(pid, point.tgid);
       }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->End(ts, track_id);
+      std::optional<SliceId> slice_id =
+          context_->slice_tracker->End(ts, track_id);
+      if (slice_id) {
+        PostProcessSpecialSliceEnd(track_id, *slice_id);
+      }
       break;
     }
 
@@ -390,6 +395,22 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
         tracks::kAndroidLmkBlueprint, tracks::Dimensions(killed_upid));
     context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
   }
+}
+
+void SystraceParser::PostProcessSpecialSliceEnd(TrackId track, SliceId id) {
+  auto* slice = context_->storage->mutable_slice_table();
+  auto row = slice->FindById(id);
+  base::StringView name = context_->storage->GetString(row->name());
+  if (!name.StartsWith("AIDL::")) {
+    return;
+  }
+  std::optional<SliceId> maybe_reply =
+      context_->slice_tracker->GetTopmostSliceOnTrack(track);
+  if (!maybe_reply) {
+    return;
+  }
+  BinderTracker::GetOrCreate(context_)->UpdateAidlSliceName(*maybe_reply,
+                                                            *row->name());
 }
 
 }  // namespace perfetto::trace_processor

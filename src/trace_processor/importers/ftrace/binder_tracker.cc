@@ -15,11 +15,15 @@
  */
 
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
+
 #include <cstdint>
 #include <optional>
+#include <stack>
 #include <string>
 #include <utility>
+
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -174,8 +178,7 @@
 //
 // The tracking for commands and returns also tries to keep a correct stack, to
 // avoid unbounded growth of the stack itself (even though it's internal only).
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 constexpr int kOneWay = 0x01;
@@ -238,7 +241,8 @@ BinderTracker::BinderTracker(TraceProcessorContext* context)
       code_(context->storage->InternString("code")),
       calling_tid_(context->storage->InternString("calling tid")),
       data_size_(context->storage->InternString("data size")),
-      offsets_size_(context->storage->InternString("offsets size")) {}
+      offsets_size_(context->storage->InternString("offsets size")),
+      unknown_aidl_id_(context->storage->InternString("Unknown AIDL")) {}
 
 BinderTracker::~BinderTracker() = default;
 
@@ -272,8 +276,7 @@ void BinderTracker::Transaction(int64_t ts,
   bool is_oneway = (flags & kOneWay) == kOneWay;
   auto insert_slice = [&]() {
     if (is_reply) {
-      UniqueTid utid = context_->process_tracker->GetOrCreateThread(
-          static_cast<uint32_t>(dest_tid));
+      UniqueTid utid = context_->process_tracker->GetOrCreateThread(dest_tid);
       auto dest_thread_name = context_->storage->thread_table()[utid].name();
       auto dest_args_inserter = [this, dest_tid, &dest_thread_name](
                                     ArgsTracker::BoundInserter* inserter) {
@@ -295,13 +298,20 @@ void BinderTracker::Transaction(int64_t ts,
     return context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
                                           transaction_slice_id_, args_inserter);
   };
-
+  auto insert_aidl_slice = [&]() -> std::optional<SliceId> {
+    if (is_oneway || is_reply) {
+      return std::nullopt;
+    }
+    return context_->slice_tracker->Begin(ts, track_id, kNullStringId,
+                                          unknown_aidl_id_);
+  };
   OutstandingTransaction transaction;
   transaction.is_reply = is_reply;
   transaction.is_oneway = is_oneway;
   transaction.args_inserter = args_inserter;
   transaction.send_track_id = track_id;
   transaction.send_slice_id = insert_slice();
+  transaction.send_aidl_slice_id = insert_aidl_slice();
   outstanding_transactions_[transaction_id] = std::move(transaction);
   auto* frame = GetTidTopFrame(tid);
   if (frame) {
@@ -353,6 +363,18 @@ void BinderTracker::TransactionReceived(int64_t ts,
   }
 
   if (transaction.is_reply) {
+    if (!transaction.is_oneway) {
+      std::optional<SliceId> aidl_id =
+          context_->slice_tracker->End(ts, track_id);
+      // If `reply_id` exists, the above was closing the aidl slice. Otherwise,
+      // it was the binder transaction slice.
+      auto* reply_id =
+          aidl_id ? send_aidl_id_to_reply_id_.Find(*aidl_id) : nullptr;
+      if (reply_id) {
+        reply_id_to_send_aidl_id_.Erase(*reply_id);
+        send_aidl_id_to_reply_id_.Erase(*aidl_id);
+      }
+    }
     // Simply end the slice started back when the first |expects_reply|
     // transaction was sent.
     context_->slice_tracker->End(ts, track_id);
@@ -380,6 +402,12 @@ void BinderTracker::TransactionReceived(int64_t ts,
     }
     recv_slice_id = context_->slice_tracker->Begin(
         ts, track_id, binder_category_id_, reply_id_);
+    if (recv_slice_id && transaction.send_aidl_slice_id) {
+      reply_id_to_send_aidl_id_[*recv_slice_id] =
+          *transaction.send_aidl_slice_id;
+      send_aidl_id_to_reply_id_[*transaction.send_aidl_slice_id] =
+          *recv_slice_id;
+    }
   }
 
   // Create a flow between the sending slice and this slice.
@@ -579,5 +607,20 @@ void BinderTracker::PopTidFrame(uint32_t tid) {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+void BinderTracker::UpdateAidlSliceName(SliceId reply_id, StringId aidl_name) {
+  auto* aidl_slice_id = reply_id_to_send_aidl_id_.Find(reply_id);
+  if (!aidl_slice_id)
+    return;
+
+  auto* slice_table = context_->storage->mutable_slice_table();
+  auto aidl_row = slice_table->FindById(*aidl_slice_id);
+  aidl_row->set_name(aidl_name);
+
+  // Cleanup the mapping: doing this ensures only the first AIDL name is kept,
+  // which is the most relevant one. All other AIDL names nested under the
+  // reply will be silently dropped.
+  send_aidl_id_to_reply_id_.Erase(*aidl_slice_id);
+  reply_id_to_send_aidl_id_.Erase(reply_id);
+}
+
+}  // namespace perfetto::trace_processor
