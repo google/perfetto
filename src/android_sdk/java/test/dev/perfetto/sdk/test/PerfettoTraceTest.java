@@ -211,11 +211,11 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.begin(FOO_CATEGORY, "event")
-        .usingNamedTrack(PerfettoTrace.getProcessTrackUuid(), FOO)
+        .usingNamedTrack(123, FOO, PerfettoTrace.getProcessTrackUuid())
         .emit();
 
     PerfettoTrace.end(FOO_CATEGORY)
-        .usingNamedTrack(PerfettoTrace.getThreadTrackUuid(Process.myTid()), "bar")
+        .usingNamedTrack(456, "bar", PerfettoTrace.getThreadTrackUuid(Process.myTid()))
         .emit();
 
     Trace trace = Trace.parseFrom(session.close());
@@ -254,9 +254,9 @@ public class PerfettoTraceTest {
 
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
-    PerfettoTrace.begin(FOO_CATEGORY, "event").usingProcessNamedTrack(FOO).emit();
+    PerfettoTrace.begin(FOO_CATEGORY, "event").usingProcessNamedTrack(123, FOO).emit();
 
-    PerfettoTrace.end(FOO_CATEGORY).usingThreadNamedTrack(Process.myTid(), "bar").emit();
+    PerfettoTrace.end(FOO_CATEGORY).usingThreadNamedTrack(456, "bar", Process.myTid()).emit();
 
     Trace trace = Trace.parseFrom(session.close());
 
