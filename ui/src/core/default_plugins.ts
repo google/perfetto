@@ -65,6 +65,7 @@ export const defaultPlugins = [
   'dev.perfetto.MetricsPage',
   'dev.perfetto.Notes',
   'dev.perfetto.PowerRails',
+  'dev.perfetto.PprofPage',
   'dev.perfetto.Process',
   'dev.perfetto.ProcessSummary',
   'dev.perfetto.ProcessThreadGroups',
