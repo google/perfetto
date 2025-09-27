@@ -161,3 +161,35 @@ When writing commit messages, follow these guidelines:
   UI code with `ui:`, and general Perfetto changes with `perfetto:`.
 - **Keep it concise.** A short one-line summary followed by a paragraph
   describing the change is the best commit message.
+
+## 9. GitHub Discussion Management
+
+### Updating Discussion Content
+
+To update GitHub discussions, use the provided Python script:
+
+```sh
+python3 tools/github/update_github_discussion.py <discussion_number> <content_file>
+```
+
+**Examples:**
+```sh
+# Update discussion #3104 with content from a local file
+python3 tools/github/update_github_discussion.py 3104 /tmp/discussion_body.md
+
+# Update with content from a design document
+python3 tools/github/update_github_discussion.py 3104 design_doc.md
+```
+
+**Prerequisites:**
+- GitHub CLI (`gh`) must be installed and authenticated
+- Run `gh auth login` if not already authenticated
+
+**How it works:**
+1. The script fetches the discussion ID using GitHub's GraphQL API
+2. Reads the content from the specified file
+3. Updates the discussion body via GraphQL mutation
+4. Provides confirmation with the discussion URL
+
+This approach is more robust than manual API calls as it handles JSON escaping,
+error checking, and provides clear feedback about the update process.
