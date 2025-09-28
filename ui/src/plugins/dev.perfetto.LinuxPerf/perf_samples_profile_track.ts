@@ -48,11 +48,10 @@ export function createProcessPerfSamplesProfileTrack(
        SELECT
           p.id,
           ts,
-          callsite_id as callsiteId,
+          IIF(callsite_id is null, 0, callsite_id) as callsiteId,
           upid
         FROM perf_sample p
         JOIN thread using (utid)
-        WHERE callsite_id IS NOT NULL
         ORDER BY ts
       `,
       filter: {
@@ -69,7 +68,7 @@ export function createProcessPerfSamplesProfileTrack(
             select
               id,
               parent_id as parentId,
-              name,
+              IIF(name is null, "skipped sample", name) as name,
               mapping_name,
               source_file || ':' || line_number as source_location,
               self_count
@@ -132,10 +131,9 @@ export function createThreadPerfSamplesProfileTrack(
         SELECT
           p.id,
           ts,
-          callsite_id as callsiteId,
+          IIF(callsite_id is null, 0, callsite_id) as callsiteId,
           utid
         FROM perf_sample p
-        WHERE callsite_id IS NOT NULL
         ORDER BY ts
       `,
       filter: {
@@ -152,7 +150,7 @@ export function createThreadPerfSamplesProfileTrack(
             select
               id,
               parent_id as parentId,
-              name,
+              IIF(name is null, "skipped sample", name) as name,
               mapping_name,
               source_file || ':' || line_number as source_location,
               self_count
