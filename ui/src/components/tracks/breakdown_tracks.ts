@@ -15,10 +15,7 @@
 import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
 import {SliceTrack} from './slice_track';
-import {
-  createQueryCounterTrack,
-  SqlTableCounterTrack,
-} from '../../components/tracks/query_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -27,7 +24,9 @@ import {
   LONG,
   NUM_NULL,
   STR,
+  LONG_NULL,
 } from '../../trace_processor/query_result';
+import {TrackRenderer} from '../../public/track';
 
 /**
  * Aggregation types for the BreakdownTracks.
@@ -394,7 +393,7 @@ export class BreakdownTracks {
           dataset: new SourceDataset({
             schema: {
               ts: LONG,
-              dur: LONG,
+              dur: LONG_NULL,
               name: STR,
             },
             src: `
@@ -448,17 +447,7 @@ export class BreakdownTracks {
   private async createTrackNode(
     name: string,
     filters: Filter[],
-    createTrack: (
-      uri: string,
-      filtersClause: string,
-    ) => Promise<
-      | SqlTableCounterTrack
-      | SliceTrack<{
-          ts: bigint;
-          dur: bigint;
-          name: string;
-        }>
-    >,
+    createTrack: (uri: string, filtersClause: string) => Promise<TrackRenderer>,
     getSortOrder?: (filterClause: string) => Promise<number>,
   ) {
     const filtersClause =
