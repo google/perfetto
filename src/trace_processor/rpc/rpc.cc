@@ -486,6 +486,12 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
       config.sorting_mode = SortingMode::kForceFullSort;
       break;
   }
+  for (auto it = reset_trace_processor_args.extra_parsing_descriptors(); it;
+       ++it) {
+    protozero::ConstBytes bytes = it->as_bytes();
+    config.extra_parsing_descriptors.push_back(
+        std::string(reinterpret_cast<const char*>(bytes.data), bytes.size));
+  }
   ResetTraceProcessorInternal(config);
 }
 
