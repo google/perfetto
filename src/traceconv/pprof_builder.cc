@@ -16,28 +16,37 @@
 
 #include "perfetto/profiling/pprof_builder.h"
 
-#include "perfetto/base/build_config.h"
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <cxxabi.h>
-#endif
-
 #include <algorithm>
 #include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <map>
+#include <optional>
 #include <set>
+#include <string>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/traceconv/utils.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <cxxabi.h>
+#endif
 
 // Quick hint on navigating the file:
 // Conversions for both perf and heap profiles start with |TraceToPprof|.
@@ -258,8 +267,8 @@ PreprocessInliningInfo(trace_processor::TraceProcessor* tp,
       "stack_profile_symbol order by symbol_set_id asc, id asc;");
   while (it.Next()) {
     int64_t symbol_set_id = it.Get(0).AsLong();
-    auto func_sysname = it.Get(1).is_null() ? "" : it.Get(1).AsString();
-    auto filename = it.Get(2).is_null() ? "" : it.Get(2).AsString();
+    const auto* func_sysname = it.Get(1).is_null() ? "" : it.Get(1).AsString();
+    const auto* filename = it.Get(2).is_null() ? "" : it.Get(2).AsString();
     int64_t line_no = it.Get(3).is_null() ? 0 : it.Get(3).AsLong();
 
     inlines[symbol_set_id].emplace_back(interner->InternString(func_sysname),
@@ -327,10 +336,13 @@ LocationTracker PreprocessLocations(trace_processor::TraceProcessor* tp,
     std::vector<int64_t> callstack_loc_ids;
     while (c_it.Next()) {
       int64_t cid = c_it.Get(0).AsLong();
-      auto annotation = c_it.Get(1).is_null() ? "" : c_it.Get(1).AsString();
+      const auto* annotation =
+          c_it.Get(1).is_null() ? "" : c_it.Get(1).AsString();
       int64_t mapping_id = c_it.Get(2).AsLong();
-      auto func_sysname = c_it.Get(3).is_null() ? "" : c_it.Get(3).AsString();
-      auto func_name = c_it.Get(4).is_null() ? "" : c_it.Get(4).AsString();
+      const auto* func_sysname =
+          c_it.Get(3).is_null() ? "" : c_it.Get(3).AsString();
+      const auto* func_name =
+          c_it.Get(4).is_null() ? "" : c_it.Get(4).AsString();
       std::optional<int64_t> symbol_set_id =
           c_it.Get(5).is_null() ? std::nullopt
                                 : std::make_optional(c_it.Get(5).AsLong());
@@ -429,7 +441,7 @@ class GProfileBuilder {
     }
   }
 
-  bool AddSample(const protozero::PackedVarInt& values, int64_t callstack_id) {
+  bool AddSample(const std::vector<int64_t>& values, int64_t callstack_id) {
     const auto& location_ids = locations_.LocationsForCallstack(callstack_id);
     if (location_ids.empty()) {
       PERFETTO_DFATAL_OR_ELOG(
@@ -444,7 +456,9 @@ class GProfileBuilder {
       packed_locs.Append(ToPprofId(*it));
 
     auto* gsample = result_->add_sample();
-    gsample->set_value(values);
+    for (const auto& value : values) {
+      gsample->add_value(value);
+    }
     gsample->set_location_id(packed_locs);
 
     // Remember the locations s.t. we only serialize the referenced ones.
@@ -652,7 +666,7 @@ const View kJavaSamplesViews[] = {
     {"Total allocation count", "count", "SUM(count)", nullptr},
     {"Total allocation size", "bytes", "SUM(size)", nullptr}};
 
-static bool VerifyPIDStats(trace_processor::TraceProcessor* tp, uint64_t pid) {
+bool VerifyPIDStats(trace_processor::TraceProcessor* tp, uint64_t pid) {
   bool success = true;
   std::optional<int64_t> stat =
       GetStatsEntry(tp, "heapprofd_buffer_corrupted", std::make_optional(pid));
@@ -688,12 +702,11 @@ static bool VerifyPIDStats(trace_processor::TraceProcessor* tp, uint64_t pid) {
   return success;
 }
 
-static std::vector<Iterator> BuildViewIterators(
-    trace_processor::TraceProcessor* tp,
-    uint64_t upid,
-    uint64_t ts,
-    const char* heap_name,
-    const std::vector<View>& views) {
+std::vector<Iterator> BuildViewIterators(trace_processor::TraceProcessor* tp,
+                                         uint64_t upid,
+                                         uint64_t ts,
+                                         const char* heap_name,
+                                         const std::vector<View>& views) {
   std::vector<Iterator> view_its;
   for (const View& v : views) {
     std::string query = "SELECT hpa.callsite_id ";
@@ -712,8 +725,8 @@ static std::vector<Iterator> BuildViewIterators(
   return view_its;
 }
 
-static bool WriteAllocations(GProfileBuilder* builder,
-                             std::vector<Iterator>* view_its) {
+bool WriteAllocations(GProfileBuilder* builder,
+                      std::vector<Iterator>* view_its) {
   for (;;) {
     bool all_next = true;
     bool any_next = false;
@@ -734,7 +747,7 @@ static bool WriteAllocations(GProfileBuilder* builder,
       break;
     }
 
-    protozero::PackedVarInt sample_values;
+    std::vector<int64_t> sample_values;
     int64_t callstack_id = -1;
     for (size_t i = 0; i < view_its->size(); ++i) {
       if (i == 0) {
@@ -743,7 +756,7 @@ static bool WriteAllocations(GProfileBuilder* builder,
         PERFETTO_DFATAL_OR_ELOG("Wrong callstack.");
         return false;
       }
-      sample_values.Append((*view_its)[i].Get(1).AsLong());
+      sample_values.push_back((*view_its)[i].Get(1).AsLong());
     }
 
     if (!builder->AddSample(sample_values, callstack_id))
@@ -752,11 +765,11 @@ static bool WriteAllocations(GProfileBuilder* builder,
   return true;
 }
 
-static bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
-                             std::vector<SerializedProfile>* output,
-                             bool annotate_frames,
-                             uint64_t target_pid,
-                             const std::vector<uint64_t>& target_timestamps) {
+bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
+                      std::vector<SerializedProfile>* output,
+                      bool annotate_frames,
+                      uint64_t target_pid,
+                      const std::vector<uint64_t>& target_timestamps) {
   trace_processor::StringPool interner;
   LocationTracker locations =
       PreprocessLocations(tp, &interner, annotate_frames);
@@ -792,6 +805,7 @@ static bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
     }
 
     std::vector<std::pair<std::string, std::string>> sample_types;
+    sample_types.reserve(views.size());
     for (const View& view : views) {
       sample_types.emplace_back(view.type, view.unit);
     }
@@ -866,9 +880,9 @@ bool WriteAllocations(
     GProfileBuilder* builder,
     const std::unordered_map<int64_t, std::vector<int64_t>>& view_values) {
   for (const auto& [id, values] : view_values) {
-    protozero::PackedVarInt sample_values;
+    std::vector<int64_t> sample_values;
     for (const int64_t value : values) {
-      sample_values.Append(value);
+      sample_values.push_back(value);
     }
     if (!builder->AddSample(sample_values, id)) {
       return false;
@@ -926,9 +940,9 @@ LocationTracker PreprocessLocationsForJavaHeap(
                                   ? -1
                                   : it.Get(data_columns_count + 1).AsLong();
 
-    auto name = it.Get(data_columns_count + 2).is_null()
-                    ? ""
-                    : it.Get(data_columns_count + 2).AsString();
+    const auto* name = it.Get(data_columns_count + 2).is_null()
+                           ? ""
+                           : it.Get(data_columns_count + 2).AsString();
 
     parents.emplace(id, parent_id);
 
@@ -942,6 +956,7 @@ LocationTracker PreprocessLocationsForJavaHeap(
     interned_ids.emplace(id, interned_location_id);
 
     std::vector<int64_t> view_values_vector;
+    view_values_vector.reserve(views.size());
     for (uint32_t i = 0; i < views.size(); ++i) {
       view_values_vector.push_back(it.Get(i).AsLong());
     }
@@ -1020,6 +1035,7 @@ bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
     GProfileBuilder builder(locations, &interner);
 
     std::vector<std::pair<std::string, std::string>> sample_types;
+    sample_types.reserve(views.size());
     for (const auto& view : views) {
       sample_types.emplace_back(view.type, view.unit);
     }
@@ -1052,7 +1068,7 @@ struct ProcessInfo {
 };
 
 // Returns a map of upid -> {pid, utids[]} for sampled processes.
-static std::map<uint64_t, ProcessInfo> GetProcessMap(
+std::map<uint64_t, ProcessInfo> GetProcessMap(
     trace_processor::TraceProcessor* tp) {
   Iterator it = tp->ExecuteQuery(
       "select distinct process.upid, process.pid, thread.utid from perf_sample "
@@ -1074,7 +1090,7 @@ static std::map<uint64_t, ProcessInfo> GetProcessMap(
   return process_map;
 }
 
-static void LogTracePerfEventIssues(trace_processor::TraceProcessor* tp) {
+void LogTracePerfEventIssues(trace_processor::TraceProcessor* tp) {
   std::optional<int64_t> stat = GetStatsEntry(tp, "perf_samples_skipped");
   if (!stat.has_value()) {
     PERFETTO_DFATAL_OR_ELOG("Failed to look up perf_samples_skipped stat");
@@ -1123,10 +1139,10 @@ static void LogTracePerfEventIssues(trace_processor::TraceProcessor* tp) {
 // empty profile (and/or whether they should make the overall conversion
 // unsuccessful). Furthermore, clarify the return value's semantics for both
 // perf and heap profiles.
-static bool TraceToPerfPprof(trace_processor::TraceProcessor* tp,
-                             std::vector<SerializedProfile>* output,
-                             bool annotate_frames,
-                             uint64_t target_pid) {
+bool TraceToPerfPprof(trace_processor::TraceProcessor* tp,
+                      std::vector<SerializedProfile>* output,
+                      bool annotate_frames,
+                      uint64_t target_pid) {
   trace_processor::StringPool interner;
   LocationTracker locations =
       PreprocessLocations(tp, &interner, annotate_frames);
@@ -1148,12 +1164,12 @@ static bool TraceToPerfPprof(trace_processor::TraceProcessor* tp,
                         AsCsvString(process.utids) +
                         ") and callsite_id is not null order by ts asc;";
 
-    protozero::PackedVarInt single_count_value;
-    single_count_value.Append(1);
+    std::vector<int64_t> single_count_value;
+    single_count_value.push_back(1);
 
     Iterator it = tp->ExecuteQuery(query);
     while (it.Next()) {
-      int64_t callsite_id = static_cast<int64_t>(it.Get(0).AsLong());
+      int64_t callsite_id = it.Get(0).AsLong();
       builder.AddSample(single_count_value, callsite_id);
     }
     if (!it.Status().ok()) {
