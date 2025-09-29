@@ -32,7 +32,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 2px;
 
     &:hover {
@@ -42,7 +42,7 @@
     &[active] {
       color: var(--pf-color-primary);
       border-bottom: solid 2px var(--pf-color-primary);
-      cursor: default;
+      cursor: pointer;
     }
 
     &:nth-child(1) {
@@ -53,5 +53,23 @@
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;
+  }
+
+  &__tab-icon {
+    display: flex;
+    align-items: center;
+
+    &--left {
+      margin-right: 4px;
+    }
+
+    &--right {
+      margin-left: 4px;
+      cursor: pointer;
+
+      &:hover {
+        opacity: 0.7;
+      }
+    }
   }
 }
