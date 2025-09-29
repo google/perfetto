@@ -81,7 +81,8 @@ export default class implements PerfettoPlugin {
           ct.unit,
           ct.machine_id as machine,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
-          extract_arg(ct.dimension_arg_set_id, 'upid') as upid
+          extract_arg(ct.dimension_arg_set_id, 'upid') as upid,
+          extract_arg(ct.source_arg_set_id, 'description') as description
         from counter_track ct
         join _counter_track_summary using (id)
         order by ct.name
@@ -117,6 +118,7 @@ export default class implements PerfettoPlugin {
       isMainThread: NUM,
       isKernelThread: NUM,
       machine: NUM_NULL,
+      description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const {
@@ -133,6 +135,7 @@ export default class implements PerfettoPlugin {
         isMainThread,
         isKernelThread,
         machine,
+        description,
       } = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
@@ -152,8 +155,15 @@ export default class implements PerfettoPlugin {
         machine,
       });
       const uri = `/counter_${trackId}`;
+
+      const maybeDescriptionRenderer = schema.description?.({
+        name: trackName ?? undefined,
+        description: description ?? undefined,
+      });
+
       ctx.tracks.registerTrack({
         uri,
+        description: maybeDescriptionRenderer ?? description ?? undefined,
         tags: {
           kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
@@ -203,6 +213,7 @@ export default class implements PerfettoPlugin {
           lower(min(t.name)) as lower_name,
           extract_arg(t.dimension_arg_set_id, 'utid') as utid,
           extract_arg(t.dimension_arg_set_id, 'upid') as upid,
+          extract_arg(t.source_arg_set_id, 'description') as description,
           group_concat(t.id) as trackIds,
           count() as trackCount
         from _slice_track_summary s
@@ -221,7 +232,8 @@ export default class implements PerfettoPlugin {
         ifnull(p.pid, tp.pid) as pid,
         ifnull(p.name, tp.name) as processName,
         ifnull(thread.is_main_thread, 0) as isMainThread,
-        ifnull(k.is_kernel_thread, 0) AS isKernelThread
+        ifnull(k.is_kernel_thread, 0) AS isKernelThread,
+        s.description AS description
       from grouped s
       left join process p on s.upid = p.upid
       left join thread using (utid)
@@ -244,6 +256,7 @@ export default class implements PerfettoPlugin {
       processName: STR_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
+      description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const {
@@ -259,6 +272,7 @@ export default class implements PerfettoPlugin {
         pid,
         isMainThread,
         isKernelThread,
+        description,
       } = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
@@ -278,8 +292,15 @@ export default class implements PerfettoPlugin {
         threadTrack: utid !== undefined,
       });
       const uri = `/slice_${trackIds[0]}`;
+
+      const maybeDescriptionRenderer = schema.description?.({
+        name: trackName ?? undefined,
+        description: description ?? undefined,
+      });
+
       ctx.tracks.registerTrack({
         uri,
+        description: maybeDescriptionRenderer ?? description ?? undefined,
         tags: {
           kinds: [SLICE_TRACK_KIND],
           trackIds: trackIds,

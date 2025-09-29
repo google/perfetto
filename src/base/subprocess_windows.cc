@@ -170,7 +170,7 @@ void Subprocess::Start() {
 }
 
 // static
-void Subprocess::StdinThread(MovableState* s, std::string input) {
+void Subprocess::StdinThread(MovableState* s, const std::string& input) {
   size_t input_written = 0;
   while (input_written < input.size()) {
     DWORD wsize = 0;
