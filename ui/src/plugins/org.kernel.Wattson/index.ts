@@ -42,6 +42,7 @@ import {
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
 import SchedPlugin from '../dev.perfetto.Sched';
+import {linkify} from '../../widgets/anchor';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
@@ -245,7 +246,9 @@ function createCpuWarnings(
     warningMsg.push(
       m(
         '.pf-wattson-warning',
-        'Perfetto trace configuration is missing below trace_events for Wattson to work. ',
+        linkify(
+          `See https://source.android.com/docs/core/power/wattson/how-to-wattson for more details on Wattson's required trace configuration. The following ftrace_events are necessary for Wattson to make power estimates:`,
+        ),
         m(
           '.pf-wattson-warning__list',
           missingEvents.map((event) => m('li', event)),
