@@ -26,7 +26,13 @@ import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
@@ -201,7 +207,7 @@ async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
     dataset: new SourceDataset({
       schema: {
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
       },
       src: '_wattson_markers_window',
