@@ -28,7 +28,7 @@ import {createScrollTimelineModel} from './scroll_timeline_model';
 import {createFlatColoredDurationTrack} from './flat_colored_duration_track';
 import {createTopLevelScrollTrack} from './scroll_track';
 import {createScrollTimelineTrack} from './scroll_timeline_track';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {escapeQuery} from '../../trace_processor/query_utils';
@@ -249,7 +249,7 @@ export default class implements PerfettoPlugin {
           schema: {
             id: NUM,
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: vsyncTable,
@@ -322,7 +322,7 @@ export default class implements PerfettoPlugin {
             schema: {
               id: NUM,
               ts: LONG,
-              dur: LONG,
+              dur: LONG_NULL,
               name: STR,
             },
             src: `
