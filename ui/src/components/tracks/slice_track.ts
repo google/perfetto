@@ -20,7 +20,12 @@ import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
 import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
-import {SqlValue, LONG, NUM} from '../../trace_processor/query_result';
+import {
+  SqlValue,
+  LONG,
+  NUM,
+  LONG_NULL,
+} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {getColorForSlice} from '../colorizer';
 import {formatDuration} from '../time_utils';
@@ -34,7 +39,6 @@ import {
 } from './base_slice_track';
 import {Point2D, Size2D} from '../../base/geom';
 import {exists} from '../../base/utils';
-import {removeFalsyValues} from '../../base/array_utils';
 import {SliceTrackDetailsPanel} from './slice_track_details_panel';
 
 export interface InstantStyle {
@@ -191,7 +195,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
 export type RowSchema = {
   readonly id?: number;
   readonly ts: bigint;
-  readonly dur?: bigint;
+  readonly dur?: bigint | null;
   readonly depth?: number;
   readonly layer?: number;
 } & DatasetSchema;
@@ -221,9 +225,7 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
    * @param attrs The track attributes
    * @returns A fully initialized SliceTrack
    */
-  static create<T extends RowSchema>(
-    attrs: SliceTrackAttrs<T>,
-  ): SliceTrack<T> {
+  static create<T extends RowSchema>(attrs: SliceTrackAttrs<T>): SliceTrack<T> {
     return new SliceTrack(attrs);
   }
 
@@ -464,40 +466,61 @@ function formatDurationForTooltip(trace: Trace, slice: Slice) {
 }
 
 // Generate a query to use for generating slices to be rendered
-function generateRenderQuery<T extends DatasetSchema>(
+export function generateRenderQuery<T extends DatasetSchema>(
   dataset: SourceDataset<T>,
 ) {
   const hasId = dataset.implements({id: NUM});
   const hasLayer = dataset.implements({layer: NUM});
+
+  const extraCols = Object.fromEntries(
+    Object.keys(dataset.schema).map((key) => [key, key]),
+  );
+
+  const cols = {
+    ...extraCols,
+    // If we have no id, automatically generate one using row number.
+    id: hasId ? 'id' : 'ROW_NUMBER() OVER (ORDER BY ts)',
+    ts: 'ts',
+    layer: hasLayer ? 'layer' : 0, // If we have no layer, assume flat layering.
+    depth: getDepthExpression(dataset),
+    dur: getDurExpression(dataset),
+  } as const;
+
+  return `SELECT ${Object.entries(cols)
+    .map(([key, value]) => `${value} AS ${key}`)
+    .join(', ')} FROM (${dataset.query()})`;
+}
+
+function getDepthExpression<T extends DatasetSchema>(
+  dataset: SourceDataset<T>,
+): string {
   const hasDepth = dataset.implements({depth: NUM});
   const hasDur = dataset.implements({dur: LONG});
+  const hasNullableDur = dataset.implements({dur: LONG_NULL});
 
-  const cols = removeFalsyValues([
-    // If we have no id, automatically generate one using row number.
-    !hasId && 'ROW_NUMBER() OVER (ORDER BY ts) AS id',
-
-    // If we have no layer, assume flat layering.
-    !hasLayer && '0 as layer',
-
-    // If we have dur but no depth, automatically calculate layout.
-    !hasDepth &&
-      hasDur &&
-      `
-          internal_layout(ts, dur) OVER (
-            ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-          ) AS depth
-        `,
-
-    // If we have no dur or depth, use a flat layout.
-    !hasDepth && !hasDur && '0 as depth',
-
-    // If no dur, assume instant slices.
-    !hasDur && '0 as dur',
-  ]);
-
-  if (cols.length === 0) {
-    return dataset.query();
+  if (hasDepth) {
+    return 'depth';
+  } else if (hasDur) {
+    return `internal_layout(ts, dur) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`;
+  } else if (hasNullableDur) {
+    return `internal_layout(ts, COALESCE(dur, -1)) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`;
   } else {
-    return `select ${cols.join(', ')}, * from (${dataset.query()})`;
+    return '0';
+  }
+}
+
+function getDurExpression<T extends DatasetSchema>(
+  dataset: SourceDataset<T>,
+): string | undefined {
+  const hasDur = dataset.implements({dur: LONG});
+  const hasNullableDur = dataset.implements({dur: LONG_NULL});
+
+  if (hasDur) {
+    return 'dur';
+  } else if (hasNullableDur) {
+    return 'COALESCE(dur, -1)';
+  } else {
+    // Assume instants
+    return '0';
   }
 }
