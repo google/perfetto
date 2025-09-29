@@ -95,6 +95,8 @@ export class AppContext {
   // via is_internal_user.js
   extraSqlPackages: SqlPackage[] = [];
 
+  // This is normally empty and is injected with Base64-encoded protobuf
+  // descriptor sets via is_internal_user.js.
   extraParsingDescriptors: string[] = [];
 
   // This is normally empty and is injected with extra google-internal macros
@@ -362,6 +364,9 @@ export class AppImpl implements App {
     // complete trace loading (we don't bother supporting cancellations. If the
     // user is too bothered, they can reload the tab).
     this.appCtx.openTraceAsyncLimiter.schedule(async () => {
+      // Wait for extras parsing descriptors to be loaded
+      // via is_internal_user.js. This prevents a race condition where
+      // trace loading would otherwise begin before this data is available.
       await this.extraLoadingPromise;
       this.appCtx.closeCurrentTrace();
       this.appCtx.isLoadingTrace = true;

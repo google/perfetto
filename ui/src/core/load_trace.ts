@@ -47,6 +47,7 @@ import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
+import {base64Decode} from 'src/base/string_utils';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -538,14 +539,4 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
   }
 
   return new TimeSpan(startBound, endBound);
-}
-
-function base64Decode(str: string): Uint8Array {
-  const binaryStr = atob(str);
-  const len = binaryStr.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return bytes;
 }
