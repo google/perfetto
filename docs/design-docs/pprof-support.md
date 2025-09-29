@@ -1,6 +1,6 @@
 # pprof Support in Perfetto
 
-_**Status:** COMPLETED **·** lalitm **·** 2025-01-25_
+_**Status:** COMPLETED **·** lalitm **·** 2025-09-30_
 
 ## Objective
 

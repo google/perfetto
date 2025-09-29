@@ -85,7 +85,7 @@ base::Status PprofTraceReader::ParseProfile() {
   using namespace perfetto::third_party::perftools::profiles::pbzero;
 
   TraceStorage* storage = context_->storage.get();
-  Profile::Decoder profile(buffer_.data(), buffer_.size());
+  const Profile::Decoder profile(buffer_.data(), buffer_.size());
 
   // Parse string table first
   std::vector<StringId> string_table;
@@ -97,7 +97,7 @@ base::Status PprofTraceReader::ParseProfile() {
     return base::ErrStatus("Invalid pprof: empty string table");
   }
 
-  auto lookup_string_id = [&](int64_t index) -> StringId {
+  const auto lookup_string_id = [&](int64_t index) -> StringId {
     return index >= 0 && static_cast<size_t>(index) < string_table.size()
                ? string_table[static_cast<size_t>(index)]
                : kNullStringId;
@@ -106,7 +106,7 @@ base::Status PprofTraceReader::ParseProfile() {
   // Parse mappings and create VirtualMemoryMapping objects
   base::FlatHashMap<uint64_t, VirtualMemoryMapping*> mappings;
   for (auto it = profile.mapping(); it; ++it) {
-    Mapping::Decoder mapping_decoder(*it);
+    const Mapping::Decoder mapping_decoder(*it);
     if (!mapping_decoder.has_id()) {
       continue;
     }
@@ -137,7 +137,7 @@ base::Status PprofTraceReader::ParseProfile() {
   // Parse functions with source file and line information
   base::FlatHashMap<uint64_t, FunctionInfo> functions;
   for (auto it = profile.function(); it; ++it) {
-    Function::Decoder func_decoder(*it);
+    const Function::Decoder func_decoder(*it);
     if (!func_decoder.has_id()) {
       continue;
     }
@@ -153,7 +153,7 @@ base::Status PprofTraceReader::ParseProfile() {
   // Parse locations and create frames
   base::FlatHashMap<uint64_t, FrameId> location_to_frame;
   for (auto it = profile.location(); it; ++it) {
-    Location::Decoder loc_decoder(*it);
+    const Location::Decoder loc_decoder(*it);
     if (!loc_decoder.has_id()) {
       continue;
     }
@@ -161,7 +161,7 @@ base::Status PprofTraceReader::ParseProfile() {
     // Find or create mapping
     VirtualMemoryMapping* mapping = nullptr;
     if (loc_decoder.has_mapping_id()) {
-      if (auto* found = mappings.Find(loc_decoder.mapping_id())) {
+      if (const auto* found = mappings.Find(loc_decoder.mapping_id())) {
         mapping = *found;
       }
     }
@@ -172,11 +172,11 @@ base::Status PprofTraceReader::ParseProfile() {
     // Extract function information from the first line for frame name
     StringId frame_name_id = unknown_string_id_;
     for (auto line_it = loc_decoder.line(); line_it; ++line_it) {
-      Line::Decoder line_decoder(*line_it);
+      const Line::Decoder line_decoder(*line_it);
       if (!line_decoder.has_function_id()) {
         continue;
       }
-      auto* func_info = functions.Find(line_decoder.function_id());
+      const auto* func_info = functions.Find(line_decoder.function_id());
       if (func_info) {
         frame_name_id = func_info->name;
         break;
@@ -209,11 +209,11 @@ base::Status PprofTraceReader::ParseProfile() {
     };
     std::vector<LineData> valid_lines;
     for (auto line_it = loc_decoder.line(); line_it; ++line_it) {
-      Line::Decoder line_decoder(*line_it);
+      const Line::Decoder line_decoder(*line_it);
       if (!line_decoder.has_function_id()) {
         continue;
       }
-      auto* func_info = functions.Find(line_decoder.function_id());
+      const auto* func_info = functions.Find(line_decoder.function_id());
       if (func_info) {
         valid_lines.push_back(
             {line_decoder.function_id(),
@@ -224,7 +224,7 @@ base::Status PprofTraceReader::ParseProfile() {
     // Create symbol entries with inlined flag
     for (size_t i = 0; i < valid_lines.size(); ++i) {
       const auto& line_data = valid_lines[i];
-      auto* func_info = functions.Find(line_data.function_id);
+      const auto* func_info = functions.Find(line_data.function_id);
 
       StringId function_name_id = func_info->name;
       StringId source_file_id = func_info->filename;
@@ -270,7 +270,7 @@ base::Status PprofTraceReader::ParseProfile() {
   // Parse sample types and create aggregate_profile entries
   std::vector<tables::AggregateProfileTable::Id> profile_ids;
   for (auto it = profile.sample_type(); it; ++it) {
-    ValueType::Decoder sample_type_decoder(*it);
+    const ValueType::Decoder sample_type_decoder(*it);
 
     StringId type_str_id = sample_type_decoder.has_type()
                                ? lookup_string_id(sample_type_decoder.type())
@@ -291,7 +291,7 @@ base::Status PprofTraceReader::ParseProfile() {
 
   // Parse samples and create aggregate_sample entries
   for (auto it = profile.sample(); it; ++it) {
-    Sample::Decoder sample_decoder(*it);
+    const Sample::Decoder sample_decoder(*it);
 
     // Materialize location_ids first (pprof format: leaf is at [0])
     std::vector<uint64_t> location_ids;
@@ -314,7 +314,7 @@ base::Status PprofTraceReader::ParseProfile() {
     std::optional<CallsiteId> callsite_id;
     uint32_t depth = 0;
     for (uint64_t location_id : location_ids) {
-      auto* frame_id = location_to_frame.Find(location_id);
+      const auto* frame_id = location_to_frame.Find(location_id);
       if (!frame_id) {
         continue;
       }
@@ -336,6 +336,8 @@ base::Status PprofTraceReader::ParseProfile() {
         Sample::kValueFieldNumber, &values_parse_error);
     for (; !values_parse_error && value_it && value_index < profile_ids.size();
          ++value_it, ++value_index) {
+      // Cast to double as aggregate_sample table expects double values
+      // while pprof stores values as int64_t
       storage->mutable_aggregate_sample_table()->Insert(
           {profile_ids[value_index], *callsite_id,
            static_cast<double>(*value_it)});

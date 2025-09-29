@@ -106,7 +106,9 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
 }
 
 bool IsPprofProfile(const uint8_t* data, size_t size) {
-  if (size < 10) {
+  // Minimum size to parse a protobuf tag and small varint
+  constexpr size_t kMinPprofSize = 10;
+  if (size < kMinPprofSize) {
     return false;
   }
 
