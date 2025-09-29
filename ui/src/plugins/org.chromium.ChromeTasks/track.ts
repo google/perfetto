@@ -16,7 +16,7 @@ import {Utid} from '../../components/sql_utils/core_types';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {ChromeTasksDetailsPanel} from './details';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 
 export function createChromeTasksThreadTrack(
@@ -31,7 +31,7 @@ export function createChromeTasksThreadTrack(
       schema: {
         id: NUM,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
       },
       src: 'chrome_tasks',

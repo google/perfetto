@@ -17,7 +17,7 @@ import {JANK_COLOR} from './jank_colors';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../../components/colorizer';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
@@ -34,7 +34,7 @@ export function createEventLatencyTrack(
       schema: {
         id: NUM,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
         depth: NUM,
       },

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
@@ -29,7 +29,7 @@ export function createCriticalUserInteractionTrack(trace: Trace, uri: string) {
       schema: {
         id: NUM,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
         scopedId: NUM,
         type: STR,

@@ -17,7 +17,7 @@ import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice} from '../../components/colorizer';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
@@ -31,7 +31,7 @@ export function createScrollJankV3Track(trace: Trace, uri: string) {
       schema: {
         id: NUM,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
       },
       src: `

@@ -15,7 +15,7 @@
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export function createTopLevelScrollTrack(trace: Trace, uri: string) {
@@ -27,7 +27,7 @@ export function createTopLevelScrollTrack(trace: Trace, uri: string) {
         id: NUM,
         rawId: LONG,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
       },
       src: `

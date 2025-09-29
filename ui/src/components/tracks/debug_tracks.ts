@@ -16,7 +16,7 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   sqlValueToReadableString,
@@ -203,7 +203,7 @@ async function addPivotedSliceTracks(
           schema: {
             id: NUM,
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: tableName,
@@ -239,7 +239,7 @@ function addSingleSliceTrack(
         schema: {
           id: NUM,
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
         src: tableName,

@@ -27,6 +27,7 @@ import {
   LONG,
   NUM_NULL,
   STR,
+  LONG_NULL,
 } from '../../trace_processor/query_result';
 
 /**
@@ -394,7 +395,7 @@ export class BreakdownTracks {
           dataset: new SourceDataset({
             schema: {
               ts: LONG,
-              dur: LONG,
+              dur: LONG_NULL,
               name: STR,
             },
             src: `

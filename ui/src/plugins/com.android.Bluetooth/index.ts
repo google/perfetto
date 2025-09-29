@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
-import {STR, LONG, UNKNOWN} from '../../trace_processor/query_result';
+import {STR, LONG, UNKNOWN, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
@@ -47,7 +47,7 @@ function bleScanDataset(condition: string) {
     `,
     schema: {
       ts: LONG,
-      dur: LONG,
+      dur: LONG_NULL,
       name: STR,
     },
   });
@@ -72,7 +72,7 @@ const BLE_RESULTS_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -107,7 +107,7 @@ const BT_A2DP_AUDIO_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -143,7 +143,7 @@ const BT_CONNS_ACL_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -180,7 +180,7 @@ const BT_CONNS_SCO_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -210,7 +210,7 @@ const BT_LINK_LEVEL_EVENTS_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
     direction: UNKNOWN,
     type: UNKNOWN,
@@ -257,7 +257,7 @@ const BT_QUALITY_REPORTS_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
     quality_report_id: UNKNOWN,
     packet_types: UNKNOWN,
@@ -300,7 +300,7 @@ const BT_RSSI_REPORTS_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
     connection_handle: UNKNOWN,
     hci_status: UNKNOWN,
@@ -328,7 +328,7 @@ const BT_CODE_PATH_COUNTER_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
     key: UNKNOWN,
     number: UNKNOWN,
@@ -355,7 +355,7 @@ const BT_HAL_CRASHES_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
     metric_id: UNKNOWN,
     error_code: UNKNOWN,
@@ -404,7 +404,7 @@ const BT_BYTES_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -577,7 +577,7 @@ export default class implements PerfettoPlugin {
               WHERE inquiry_active`,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -595,7 +595,7 @@ export default class implements PerfettoPlugin {
               WHERE sco_active`,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -613,7 +613,7 @@ export default class implements PerfettoPlugin {
               WHERE a2dp_active`,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -631,7 +631,7 @@ export default class implements PerfettoPlugin {
               WHERE le_audio_active`,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),

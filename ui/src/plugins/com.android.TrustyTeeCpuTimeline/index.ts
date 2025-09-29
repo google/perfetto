@@ -17,7 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.TrustyTeeCpuTimeline';
@@ -51,7 +51,7 @@ export default class implements PerfettoPlugin {
           schema: {
             id: NUM,
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
             depth: NUM,
           },

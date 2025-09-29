@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
-import {STR, LONG, UNKNOWN} from '../../trace_processor/query_result';
+import {STR, LONG, UNKNOWN, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
@@ -119,7 +119,7 @@ const MODEM_RIL_CHANNELS_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -158,7 +158,7 @@ const MODEM_CELL_RESELECTION_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
     raw_ril: UNKNOWN,
   },
@@ -197,7 +197,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
         }),

@@ -15,7 +15,7 @@
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
 
 export function createScreenshotsTrack(trace: Trace, uri: string) {
@@ -26,7 +26,7 @@ export function createScreenshotsTrack(trace: Trace, uri: string) {
       schema: {
         id: NUM,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
       },
       src: 'android_screenshots',

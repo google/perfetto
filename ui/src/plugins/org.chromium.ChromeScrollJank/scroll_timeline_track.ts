@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {ColorScheme} from '../../base/color_scheme';
 import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
@@ -62,7 +62,7 @@ export function createScrollTimelineTrack(
       schema: {
         id: NUM,
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
         classification: NUM,
         depth: NUM,
