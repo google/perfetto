@@ -143,8 +143,6 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
     unwindstack::arm64_user_regs arm64_user_regs = {};
     memcpy(&arm64_user_regs.regs[0], &raw_regs.regs[0],
            sizeof(uint64_t) * (PERF_REG_ARM64_PC + 1));
-    arm64_user_regs.sp = raw_regs.regs[PERF_REG_ARM64_SP];
-    arm64_user_regs.pc = raw_regs.regs[PERF_REG_ARM64_PC];
     return std::unique_ptr<unwindstack::Regs>(
         unwindstack::RegsArm64::Read(&arm64_user_regs));
   }
