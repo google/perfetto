@@ -15,7 +15,14 @@
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
-import {STR} from '../../trace_processor/query_result';
+import {
+  STR,
+  LONG,
+  UNKNOWN,
+  SqlValue,
+  LONG_NULL,
+} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
 const PACKAGE_LOOKUP = `
@@ -47,32 +54,40 @@ const PACKAGE_LOOKUP = `
   );
 `;
 
-const DEFAULT_NETWORK = `
-  with base as (
-      select
-          ts,
-          substr(s.name, 6) as conn
-      from track t join slice s on t.id = s.track_id
-      where t.name = 'battery_stats.conn'
-  ),
-  diff as (
-      select
-          ts,
-          conn,
-          conn != lag(conn) over (order by ts) as keep
-      from base
-  )
-  select
-      ts,
-      ifnull(lead(ts) over (order by ts), (select end_ts from trace_bounds)) - ts as dur,
-      case
-        when conn like '-1:%' then 'Disconnected'
-        when conn like '0:%' then 'Modem'
-        when conn like '1:%' then 'WiFi'
-        when conn like '4:%' then 'VPN'
-        else conn
-      end as name
-  from diff where keep is null or keep`;
+const DEFAULT_NETWORK_DATASET = new SourceDataset({
+  src: `
+    with base as (
+        select
+            ts,
+            substr(s.name, 6) as conn
+        from track t join slice s on t.id = s.track_id
+        where t.name = 'battery_stats.conn'
+    ),
+    diff as (
+        select
+            ts,
+            conn,
+            conn != lag(conn) over (order by ts) as keep
+        from base
+    )
+    select
+        ts,
+        ifnull(lead(ts) over (order by ts), (select end_ts from trace_bounds)) - ts as dur,
+        case
+          when conn like '-1:%' then 'Disconnected'
+          when conn like '0:%' then 'Modem'
+          when conn like '1:%' then 'WiFi'
+          when conn like '4:%' then 'VPN'
+          else conn
+        end as name
+    from diff where keep is null or keep
+  `,
+  schema: {
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+  },
+});
 
 const RADIO_TRANSPORT_TYPE = `
   create or replace perfetto view radio_transport_data_conn as
@@ -101,16 +116,24 @@ const RADIO_TRANSPORT_TYPE = `
     end as name
   from radio_transport_join;`;
 
-const TETHERING = `
-  with base as (
-      select
-          ts as ts_end,
-          EXTRACT_ARG(arg_set_id, 'network_tethering_reported.duration_millis') * 1000000 as dur
-      from track t join slice s on t.id = s.track_id
-      where t.name = 'Statsd Atoms'
-        and s.name = 'network_tethering_reported'
-  )
-  select ts_end - dur as ts, dur, 'Tethering' as name from base`;
+const TETHERING_DATASET = new SourceDataset({
+  src: `
+    with base as (
+        select
+            ts as ts_end,
+            EXTRACT_ARG(arg_set_id, 'network_tethering_reported.duration_millis') * 1000000 as dur
+        from track t join slice s on t.id = s.track_id
+        where t.name = 'Statsd Atoms'
+          and s.name = 'network_tethering_reported'
+    )
+    select ts_end - dur as ts, dur, 'Tethering' as name from base
+  `,
+  schema: {
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+  },
+});
 
 const NETWORK_SUMMARY = `
   create or replace perfetto table network_summary as
@@ -154,46 +177,62 @@ const NETWORK_SUMMARY = `
   )
   select * from final where ts is not null`;
 
-const SUSPEND_RESUME = `
-  SELECT
-    ts,
-    dur,
-    'Suspended' AS name
-  FROM android_suspend_state
-  WHERE power_state = 'suspended'`;
+const SUSPEND_RESUME_DATASET = new SourceDataset({
+  src: `
+    SELECT
+      ts,
+      dur,
+      'Suspended' AS name
+    FROM android_suspend_state
+    WHERE power_state = 'suspended'
+  `,
+  schema: {
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+  },
+});
 
-const THERMAL_THROTTLING = `
-  with step1 as (
-      select
-          ts,
-          EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.sensor_type') as sensor_type,
-          EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.sensor_name') as sensor_name,
-          EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.temperature_deci_celsius') / 10.0 as temperature_celcius,
-          EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.severity') as severity
-      from track t join slice s on t.id = s.track_id
-      where t.name = 'Statsd Atoms'
-      and s.name = 'thermal_throttling_severity_state_changed'
-  ),
-  step2 as (
-      select
-          ts,
-          lead(ts) over (partition by sensor_type, sensor_name order by ts) - ts as dur,
-          sensor_type,
-          sensor_name,
-          temperature_celcius,
-          severity
-      from step1
-      where sensor_type not like 'TEMPERATURE_TYPE_BCL_%'
-  )
-  select
-    ts,
-    dur,
-    case sensor_name
-        when 'VIRTUAL-SKIN' then ''
-        else sensor_name || ' is '
-    end || severity || ' (' || temperature_celcius || 'C)' as name
-  from step2
-  where severity != 'NONE'`;
+const THERMAL_THROTTLING_DATASET = new SourceDataset({
+  src: `
+    with step1 as (
+        select
+            ts,
+            EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.sensor_type') as sensor_type,
+            EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.sensor_name') as sensor_name,
+            EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.temperature_deci_celsius') / 10.0 as temperature_celcius,
+            EXTRACT_ARG(arg_set_id, 'thermal_throttling_severity_state_changed.severity') as severity
+        from track t join slice s on t.id = s.track_id
+        where t.name = 'Statsd Atoms'
+        and s.name = 'thermal_throttling_severity_state_changed'
+    ),
+    step2 as (
+        select
+            ts,
+            lead(ts) over (partition by sensor_type, sensor_name order by ts) - ts as dur,
+            sensor_type,
+            sensor_name,
+            temperature_celcius,
+            severity
+        from step1
+        where sensor_type not like 'TEMPERATURE_TYPE_BCL_%'
+    )
+    select
+      ts,
+      dur,
+      case sensor_name
+          when 'VIRTUAL-SKIN' then ''
+          else sensor_name || ' is '
+      end || severity || ' (' || temperature_celcius || 'C)' as name
+    from step2
+    where severity != 'NONE'
+  `,
+  schema: {
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+  },
+});
 
 const KERNEL_WAKELOCKS_STATSD = `
   create or replace perfetto table kernel_wakelocks_statsd as
@@ -320,18 +359,6 @@ const HIGH_CPU = `
   from with_ratio
   group by 1, 3, 4`;
 
-const WAKEUPS_COLUMNS = [
-  'item',
-  'type',
-  'raw_wakeup',
-  'on_device_attribution',
-  'suspend_quality',
-  'backoff_state',
-  'backoff_reason',
-  'backoff_count',
-  'backoff_millis',
-];
-
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLongBatteryTracing';
   static readonly dependencies = [StandardGroupsPlugin, SupportPlugin];
@@ -354,9 +381,21 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       name,
-      `SELECT ts, safe_dur AS dur, value_name AS name
-    FROM android_battery_stats_state
-    WHERE track_name = "${track}"`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            safe_dur AS dur,
+            value_name AS name
+          FROM android_battery_stats_state
+          WHERE track_name = "${track}"
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
   }
@@ -376,9 +415,21 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       name,
-      `SELECT ts, safe_dur AS dur, str_value AS name
-    FROM android_battery_stats_event_slices
-    WHERE track_name = "${track}"`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            safe_dur AS dur,
+            str_value AS name
+          FROM android_battery_stats_event_slices
+          WHERE track_name = "${track}"
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
   }
@@ -411,31 +462,87 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       'Screen state',
-      `SELECT ts, dur, screen_state AS name FROM android_screen_state`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            screen_state AS name
+          FROM android_screen_state
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
+
     await support.addSliceTrack(
       ctx,
       'Charging',
-      `SELECT ts, dur, charging_state AS name FROM android_charging_states`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            charging_state AS name
+          FROM android_charging_states
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
+
     await support.addSliceTrack(
       ctx,
       'Suspend / resume',
-      SUSPEND_RESUME,
+      SUSPEND_RESUME_DATASET,
       groupName,
     );
+
     await support.addSliceTrack(
       ctx,
       'Doze light state',
-      `SELECT ts, dur, light_idle_state AS name FROM android_light_idle_state`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            light_idle_state AS name
+          FROM android_light_idle_state
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
+
     await support.addSliceTrack(
       ctx,
       'Doze deep state',
-      `SELECT ts, dur, deep_idle_state AS name FROM android_deep_idle_state`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            deep_idle_state AS name
+          FROM android_deep_idle_state
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
 
@@ -444,18 +551,29 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       'Long wakelocks',
-      `SELECT
-            ts - 60000000000 as ts,
-            safe_dur + 60000000000 as dur,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts - 60000000000 AS ts,
+            safe_dur + 60000000000 AS dur,
             str_value AS name,
-            package_name as package
-        FROM add_package_name!((
-          select *, int_value as uid
-          from android_battery_stats_event_slices
-          WHERE track_name = "battery_stats.longwake"
-        ))`,
+            package_name AS package
+          FROM add_package_name!((
+            SELECT
+              *,
+              int_value AS uid
+            FROM android_battery_stats_event_slices
+            WHERE track_name = "battery_stats.longwake"
+          ))
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+          package: STR,
+        },
+      }),
       groupName,
-      ['package'],
     );
 
     query('Foreground apps', 'battery_stats.fg');
@@ -469,9 +587,23 @@ export default class implements PerfettoPlugin {
       await support.addSliceTrack(
         ctx,
         'Jobs',
-        `SELECT ts, dur, tag AS name, uid FROM jobs`,
+        new SourceDataset({
+          src: `
+            SELECT
+              ts,
+              dur,
+              tag AS name,
+              uid
+            FROM jobs
+          `,
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+            uid: UNKNOWN,
+          },
+        }),
         groupName,
-        ['uid'],
       );
     } else {
       query('Jobs', 'battery_stats.job');
@@ -481,7 +613,7 @@ export default class implements PerfettoPlugin {
       await support.addSliceTrack(
         ctx,
         'Thermal throttling',
-        THERMAL_THROTTLING,
+        THERMAL_THROTTLING_DATASET,
         groupName,
       );
     }
@@ -582,15 +714,34 @@ export default class implements PerfettoPlugin {
                 as ${safeArg(arg)}`;
       }
 
+      // Add schema entries for dynamic columns
+      const argsSchema: Record<string, SqlValue> = {};
+      for (const arg of args) {
+        argsSchema[safeArg(arg)] = UNKNOWN;
+      }
+
       await support.addSliceTrack(
         ctx,
         tracks.get(atom)!.ui_name,
-        `select ts, dur, slice_name as name, ${args.map((a) => argSql(a)).join(', ')}
-         from atom_slices
-         where atom = '${atom}'
-         group by ts, dur, name`,
+        new SourceDataset({
+          src: `
+            SELECT
+              ts,
+              dur,
+              slice_name as name,
+              ${args.map((a) => argSql(a)).join(',')}
+            FROM atom_slices
+            WHERE atom = '${atom}'
+            GROUP BY ts, dur, name
+          `,
+          schema: {
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+            ...argsSchema,
+          },
+        }),
         tracks.get(atom)!.ui_group,
-        args.map((a) => safeArg(a)),
       );
     }
   }
@@ -615,12 +766,17 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       'Default network',
-      DEFAULT_NETWORK,
+      DEFAULT_NETWORK_DATASET,
       groupName,
     );
 
     if (features.has('atom.network_tethering_reported')) {
-      await support.addSliceTrack(ctx, 'Tethering', TETHERING, groupName);
+      await support.addSliceTrack(
+        ctx,
+        'Tethering',
+        TETHERING_DATASET,
+        groupName,
+      );
     }
     if (features.has('net.wifi')) {
       await support.addCounterTrack(
@@ -701,7 +857,20 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       'Cellular connection',
-      `select ts, dur, name from radio_transport`,
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            name
+          FROM radio_transport
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+        },
+      }),
       groupName,
     );
     this.addBatteryStatsState(
@@ -743,8 +912,21 @@ export default class implements PerfettoPlugin {
       await support.addSliceTrack(
         ctx,
         slicesIt.track_name,
-        `select ts, dur, slice_name as name from pixel_modem_slices
-            where track_name = '${slicesIt.track_name}'`,
+        new SourceDataset({
+          src: `
+            SELECT
+              ts,
+              dur,
+              slice_name as name
+            FROM pixel_modem_slices
+            WHERE track_name = '${slicesIt.track_name}'
+          `,
+          schema: {
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+          },
+        }),
         groupName,
       );
     }
@@ -839,21 +1021,53 @@ export default class implements PerfettoPlugin {
     let labelOther = false;
     for (; it.valid(); it.next()) {
       labelOther = true;
+
       await support.addSliceTrack(
         ctx,
         `Wakeup ${it.item}`,
-        `${sqlPrefix} where item="${it.item}"`,
+        new SourceDataset({
+          src: `${sqlPrefix} WHERE item="${it.item}"`,
+          schema: {
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+            item: UNKNOWN,
+            type: UNKNOWN,
+            raw_wakeup: UNKNOWN,
+            on_device_attribution: UNKNOWN,
+            suspend_quality: UNKNOWN,
+            backoff_state: UNKNOWN,
+            backoff_reason: UNKNOWN,
+            backoff_count: UNKNOWN,
+            backoff_millis: UNKNOWN,
+          },
+        }),
         groupName,
-        WAKEUPS_COLUMNS,
       );
       items.push(it.item);
     }
+
     await support.addSliceTrack(
       ctx,
       labelOther ? 'Other wakeups' : 'Wakeups',
-      `${sqlPrefix} where item not in ('${items.join("','")}')`,
+      new SourceDataset({
+        src: `${sqlPrefix} WHERE item NOT IN ('${items.join("','")}')`,
+        schema: {
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+          item: UNKNOWN,
+          type: UNKNOWN,
+          raw_wakeup: UNKNOWN,
+          on_device_attribution: UNKNOWN,
+          suspend_quality: UNKNOWN,
+          backoff_state: UNKNOWN,
+          backoff_reason: UNKNOWN,
+          backoff_count: UNKNOWN,
+          backoff_millis: UNKNOWN,
+        },
+      }),
       groupName,
-      WAKEUPS_COLUMNS,
     );
   }
 
@@ -865,7 +1079,7 @@ export default class implements PerfettoPlugin {
     if (!features.has('atom.cpu_cycles_per_uid_cluster')) {
       return;
     }
-    const groupName = 'CPU per UID (major users)';
+    const groupName = 'CPU per UID (major users, from statsd)';
 
     const e = ctx.engine;
 
@@ -877,7 +1091,7 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       await support.addCounterTrack(
         ctx,
-        `CPU (${it.cluster}): ${it.pkg}`,
+        `${it.pkg} (${it.cluster})`,
         `select ts, value from high_cpu where pkg = "${it.pkg}" and cluster="${it.cluster}"`,
         groupName,
         {yOverrideMaximum: 100, unit: '%'},

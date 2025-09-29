@@ -54,7 +54,9 @@ CREATE PERFETTO VIEW android_windowmanager_windowcontainer (
   -- The rect corresponding to this window container
   window_rect_id LONG,
   -- The window container type e.g. DisplayContent, TaskFragment
-  container_type STRING
+  container_type STRING,
+  -- Optional name override for some container types
+  name_override STRING
 ) AS
 SELECT
   id,
@@ -67,5 +69,6 @@ SELECT
   child_index,
   is_visible,
   window_rect_id,
-  container_type
+  container_type,
+  name_override
 FROM __intrinsic_windowmanager_windowcontainer;

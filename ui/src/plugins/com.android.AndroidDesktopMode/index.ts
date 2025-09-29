@@ -12,24 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, STR} from '../../trace_processor/query_result';
 
-const INCLUDE_DESKTOP_MODULE_QUERY = `INCLUDE PERFETTO MODULE android.desktop_mode`;
-
-const QUERY = `
-SELECT
-  ROW_NUMBER() OVER (ORDER BY ts) AS id,
-  ts,
-  dur,
-  ifnull(p.package_name, 'uid=' || dw.uid) AS name
-FROM android_desktop_mode_windows dw
-LEFT JOIN package_list p ON CAST (dw.uid AS INT) % 100000 = p.uid AND p.uid != 1000
-`;
-
-const COLUMNS = ['id', 'ts', 'dur', 'name'];
 const TRACK_NAME = 'Desktop Mode Windows';
 const TRACK_URI = '/desktop_windows';
 
@@ -37,27 +26,37 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidDesktopMode';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
-    await this.registerTrack(ctx, QUERY);
+    await ctx.engine.query('INCLUDE PERFETTO MODULE android.desktop_mode');
+
+    ctx.tracks.registerTrack({
+      uri: TRACK_URI,
+      renderer: await SliceTrack.createMaterialized({
+        trace: ctx,
+        uri: TRACK_URI,
+        dataset: new SourceDataset({
+          schema: {
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+          },
+          src: `
+            SELECT
+              ts,
+              dur,
+              ifnull(p.package_name, 'uid=' || dw.uid) AS name
+            FROM android_desktop_mode_windows dw
+            LEFT JOIN package_list p
+              ON CAST (dw.uid AS INT) % 100000 = p.uid
+              AND p.uid != 1000
+          `,
+        }),
+      }),
+    });
+
     ctx.commands.registerCommand({
       id: 'com.android.AddDesktopModeTrack',
       name: 'Add Track: ' + TRACK_NAME,
       callback: () => this.addSimpleTrack(ctx),
-    });
-  }
-
-  private async registerTrack(ctx: Trace, sql: string) {
-    const track = await createQuerySliceTrack({
-      trace: ctx,
-      uri: TRACK_URI,
-      data: {
-        sqlSource: sql,
-        columns: COLUMNS,
-      },
-    });
-    ctx.tracks.registerTrack({
-      uri: TRACK_URI,
-      renderer: track,
     });
   }
 

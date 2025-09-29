@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Utid} from '../../components/sql_utils/core_types';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {ChromeTasksDetailsPanel} from './details';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -24,7 +24,7 @@ export function createChromeTasksThreadTrack(
   uri: string,
   utid: Utid,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

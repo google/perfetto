@@ -68,7 +68,7 @@ int CloseFindHandle(HANDLE h) {
   return FindClose(h) ? 0 : -1;
 }
 
-std::optional<std::wstring> ToUtf16(const std::string str) {
+std::optional<std::wstring> ToUtf16(const std::string& str) {
   int len = MultiByteToWideChar(CP_UTF8, 0, str.data(),
                                 static_cast<int>(str.size()), nullptr, 0);
   if (len < 0) {
