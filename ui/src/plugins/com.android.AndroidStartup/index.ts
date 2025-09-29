@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -48,7 +48,7 @@ export default class implements PerfettoPlugin {
           schema: {
             id: NUM,
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: `
@@ -80,7 +80,7 @@ export default class implements PerfettoPlugin {
         dataset: new SourceDataset({
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: `

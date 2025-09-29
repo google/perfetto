@@ -84,7 +84,7 @@ const DEFAULT_NETWORK_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -130,7 +130,7 @@ const TETHERING_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -188,7 +188,7 @@ const SUSPEND_RESUME_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -229,7 +229,7 @@ const THERMAL_THROTTLING_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -392,7 +392,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -426,7 +426,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -472,7 +472,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -492,7 +492,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -519,7 +519,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -539,7 +539,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -568,7 +568,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
           package: STR,
         },
@@ -736,7 +736,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
             ...argsSchema,
           },
@@ -867,7 +867,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -923,7 +923,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
         }),
@@ -1029,7 +1029,7 @@ export default class implements PerfettoPlugin {
           src: `${sqlPrefix} WHERE item="${it.item}"`,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
             item: UNKNOWN,
             type: UNKNOWN,
@@ -1054,7 +1054,7 @@ export default class implements PerfettoPlugin {
         src: `${sqlPrefix} WHERE item NOT IN ('${items.join("','")}')`,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
           item: UNKNOWN,
           type: UNKNOWN,
