@@ -14,109 +14,104 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 
-#include "perfetto/ext/base/dynamic_string_writer.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/util/args_utils.h"
+#include "src/trace_processor/util/json_writer.h"
 
 namespace perfetto::trace_processor {
 namespace {
-// We care about the argument order, so we can't use jsoncpp here.
-void WriteAsJson(const ArgNode& node,
-                 const TraceStorage* storage,
-                 base::DynamicStringWriter& writer) {
-  switch (node.GetType()) {
-    case ArgNode::Type::kPrimitive: {
-      Variadic v = node.GetPrimitiveValue();
-      switch (v.type) {
-        case Variadic::Type::kNull:
-          writer.AppendLiteral("null");
-          break;
-        case Variadic::Type::kBool:
-          writer.AppendString(v.bool_value ? "true" : "false");
-          break;
-        case Variadic::Type::kInt:
-          writer.AppendInt(v.int_value);
-          break;
-        case Variadic::Type::kUint:
-          writer.AppendUnsignedInt(v.uint_value);
-          break;
-        case Variadic::Type::kReal:
-          if (std::isnan(v.real_value)) {
-            writer.AppendLiteral("\"NaN\"");
-          } else if (std::isinf(v.real_value) && v.real_value > 0) {
-            writer.AppendLiteral("\"Infinity\"");
-          } else if (std::isinf(v.real_value) && v.real_value < 0) {
-            writer.AppendLiteral("\"-Infinity\"");
-          } else {
-            writer.AppendDouble(v.real_value);
-          }
-          break;
-        case Variadic::Type::kString:
-          writer.AppendChar('"');
-          for (const char* p = storage->GetString(v.string_value).c_str(); *p;
-               p++) {
-            unsigned char c = static_cast<unsigned char>(*p);
-            if (*p == '"') {
-              writer.AppendLiteral("\\\"");
-            } else if (*p == '\\') {
-              writer.AppendLiteral("\\\\");
-            } else if (*p == '\n') {
-              writer.AppendLiteral("\\n");
-            } else if (*p == '\r') {
-              writer.AppendLiteral("\\r");
-            } else if (*p == '\t') {
-              writer.AppendLiteral("\\t");
-            } else if (c < 0x20) {
-              // Escape all control characters below 0x20 in \uXXXX format
-              writer.AppendLiteral("\\u00");
-              writer.AppendChar("0123456789abcdef"[c >> 4]);
-              writer.AppendChar("0123456789abcdef"[c & 0xf]);
-            } else {
-              writer.AppendChar(*p);
-            }
-          }
-          writer.AppendChar('"');
-          break;
-        case Variadic::Type::kPointer:
-          writer.AppendChar('"');
-          writer.AppendString(
-              base::StringView(base::Uint64ToHexString(v.pointer_value)));
-          writer.AppendChar('"');
-          break;
-        case Variadic::Type::kJson:
-          writer.AppendString(storage->GetString(v.json_value).c_str());
-          break;
-      }
+
+void WriteVariadic(const Variadic& v,
+                   const TraceStorage* storage,
+                   json::JsonValueWriter&& writer) {
+  switch (v.type) {
+    case Variadic::Type::kNull:
+      std::move(writer).WriteNull();
+      break;
+    case Variadic::Type::kBool:
+      std::move(writer).WriteBool(v.bool_value);
+      break;
+    case Variadic::Type::kInt:
+      std::move(writer).WriteInt(v.int_value);
+      break;
+    case Variadic::Type::kUint:
+      std::move(writer).WriteUint(v.uint_value);
+      break;
+    case Variadic::Type::kReal:
+      std::move(writer).WriteDouble(v.real_value);
+      break;
+    case Variadic::Type::kString:
+      std::move(writer).WriteString(storage->GetString(v.string_value).c_str());
+      break;
+    case Variadic::Type::kPointer: {
+      std::move(writer).WriteString(base::Uint64ToHexString(v.pointer_value));
       break;
     }
-    case ArgNode::Type::kArray: {
-      writer.AppendChar('[');
-      const auto& array = node.GetArray();
-      for (size_t i = 0; i < array.size(); i++) {
-        if (i > 0)
-          writer.AppendChar(',');
-        WriteAsJson(array[i], storage, writer);
-      }
-      writer.AppendChar(']');
+    case Variadic::Type::kJson:
+      // For JSON values, we need to parse and reconstruct them properly
+      // For now, just treat as string
+      std::move(writer).WriteString(storage->GetString(v.json_value).c_str());
       break;
-    }
-    case ArgNode::Type::kDict: {
-      writer.AppendChar('{');
-      const auto& dict = node.GetDict();
-      for (size_t i = 0; i < dict.size(); i++) {
-        if (i > 0)
-          writer.AppendChar(',');
-        writer.AppendChar('"');
-        writer.AppendString(dict[i].first.c_str());
-        writer.AppendLiteral("\":");
-        WriteAsJson(dict[i].second, storage, writer);
-      }
-      writer.AppendChar('}');
-      break;
-    }
   }
 }
+
+void WriteArgNode(const ArgNode& node,
+                  const TraceStorage* storage,
+                  json::JsonValueWriter&& writer);
+
+void WriteArgNode(const ArgNode& node,
+                  const TraceStorage* storage,
+                  json::JsonArrayWriter& writer);
+
+void WriteArgNode(const ArgNode& node,
+                  const TraceStorage* storage,
+                  json::JsonDictWriter& writer,
+                  std::string_view key);
+
+void WriteArgNode(const ArgNode& node,
+                  const TraceStorage* storage,
+                  json::JsonValueWriter&& writer) {
+  switch (node.GetType()) {
+    case ArgNode::Type::kPrimitive:
+      WriteVariadic(node.GetPrimitiveValue(), storage, std::move(writer));
+      break;
+    case ArgNode::Type::kArray:
+      std::move(writer).WriteArray(
+          [&node, storage](json::JsonArrayWriter& arr) {
+            for (const auto& child : node.GetArray()) {
+              WriteArgNode(child, storage, arr);
+            }
+          });
+      break;
+    case ArgNode::Type::kDict:
+      std::move(writer).WriteDict([&node, storage](json::JsonDictWriter& dict) {
+        for (const auto& [k, v] : node.GetDict()) {
+          WriteArgNode(v, storage, dict, k);
+        }
+      });
+      break;
+  }
+}
+
+void WriteArgNode(const ArgNode& node,
+                  const TraceStorage* storage,
+                  json::JsonArrayWriter& writer) {
+  writer.Append([&node, storage](json::JsonValueWriter&& value_writer) {
+    WriteArgNode(node, storage, std::move(value_writer));
+  });
+}
+
+void WriteArgNode(const ArgNode& node,
+                  const TraceStorage* storage,
+                  json::JsonDictWriter& writer,
+                  std::string_view key) {
+  writer.Add(key, [&node, storage](json::JsonValueWriter&& value_writer) {
+    WriteArgNode(node, storage, std::move(value_writer));
+  });
+}
+
 }  // namespace
 
 // static
@@ -198,9 +193,13 @@ void PrintArgs::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
       return sqlite::result::Error(ctx, result.c_message());
     }
   }
-  base::DynamicStringWriter writer;
-  WriteAsJson(arg_set.root(), storage, writer);
-  std::string result = writer.GetStringView().ToStdString();
+  std::string result = json::Write([&](json::JsonValueWriter&& json_writer) {
+    std::move(json_writer).WriteDict([&](json::JsonDictWriter& writer) {
+      for (const auto& [key, value] : arg_set.root().GetDict()) {
+        WriteArgNode(value, storage, writer, key);
+      }
+    });
+  });
   return sqlite::result::TransientString(ctx, result.c_str());
 }
 

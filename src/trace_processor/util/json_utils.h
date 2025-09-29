@@ -23,8 +23,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/value.h>

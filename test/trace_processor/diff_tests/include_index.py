@@ -147,7 +147,7 @@ from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
-from diff_tests.stdlib.prelude.args_tests import ArgsFunction
+from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
@@ -288,7 +288,7 @@ def fetch_all_diff_tests(
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
-      ArgsFunction,
+      ArgsFunctions,
       CpuClusters,
       Battery,
       DesktopMode,

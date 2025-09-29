@@ -85,6 +85,7 @@ source_set("functions") {
     "../../../types",
     "../../../util:args_utils",
     "../../../util:glob",
+    "../../../util:json_writer",
     "../../../util:profile_builder",
     "../../../util:regex",
     "../../../util:sql_argument",

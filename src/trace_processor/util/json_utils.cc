@@ -20,14 +20,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/util/json_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/json_parser.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -78,6 +77,7 @@ void InsertLeaf(TraceStorage* storage,
       PERFETTO_FATAL("Unreachable");
   }
 }
+
 }  // namespace
 
 std::optional<Json::Value> ParseJsonString(base::StringView raw_string) {
@@ -189,4 +189,5 @@ bool AddJsonValueToArgs(Iterator& it,
     InsertLeaf(storage, inserter, it.value(), flat_key_str, key_str);
   }
 }
+
 }  // namespace perfetto::trace_processor::json

@@ -19,7 +19,7 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class ArgsFunction(TestSuite):
+class ArgsFunctions(TestSuite):
 
   def test_extract_arg(self):
     return DiffTestBlueprint(
