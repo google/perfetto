@@ -21,7 +21,7 @@
 #include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::json {
 
 namespace {
 
@@ -55,7 +55,7 @@ void WriteEscapedJsonString(base::DynamicStringWriter& writer,
 }  // namespace
 
 JsonDictWriter::JsonDictWriter(base::DynamicStringWriter& writer)
-    : writer_(writer), first_(true) {}
+    : buffer_(writer), first_(true) {}
 
 void JsonDictWriter::AddNull(std::string_view key) {
   Add(key, [](JsonValueWriter&& v) { std::move(v).WriteNull(); });
@@ -81,17 +81,17 @@ void JsonDictWriter::AddString(std::string_view key, std::string_view value) {
   Add(key, [value](JsonValueWriter&& v) { std::move(v).WriteString(value); });
 }
 
-void JsonDictWriter::AddKey(std::string_view key) {
+void JsonDictWriter::WriteKey(std::string_view key) {
   if (!first_) {
-    writer_.AppendChar(',');
+    buffer_.AppendChar(',');
   }
   first_ = false;
-  WriteEscapedJsonString(writer_, key);
-  writer_.AppendChar(':');
+  WriteEscapedJsonString(buffer_, key);
+  buffer_.AppendChar(':');
 }
 
 JsonArrayWriter::JsonArrayWriter(base::DynamicStringWriter& writer)
-    : writer_(writer), first_(true) {}
+    : buffer_(writer), first_(true) {}
 
 void JsonArrayWriter::AppendNull() {
   Append([](JsonValueWriter&& v) { std::move(v).WriteNull(); });
@@ -119,39 +119,39 @@ void JsonArrayWriter::AppendString(std::string_view value) {
 
 void JsonArrayWriter::AddSeparator() {
   if (!first_) {
-    writer_.AppendChar(',');
+    buffer_.AppendChar(',');
   }
   first_ = false;
 }
 
 JsonValueWriter::JsonValueWriter(base::DynamicStringWriter& writer)
-    : writer_(writer) {}
+    : buffer_(writer) {}
 
 void JsonValueWriter::WriteNull() && {
-  writer_.AppendLiteral("null");
+  buffer_.AppendLiteral("null");
 }
 
 void JsonValueWriter::WriteBool(bool value) && {
-  writer_.AppendString(value ? "true" : "false");
+  buffer_.AppendString(value ? "true" : "false");
 }
 
 void JsonValueWriter::WriteInt(int64_t value) && {
-  writer_.AppendInt(value);
+  buffer_.AppendInt(value);
 }
 
 void JsonValueWriter::WriteUint(uint64_t value) && {
-  writer_.AppendUnsignedInt(value);
+  buffer_.AppendUnsignedInt(value);
 }
 
 void JsonValueWriter::WriteDouble(double value) && {
   if (std::isnan(value)) {
-    writer_.AppendLiteral("\"NaN\"");
+    buffer_.AppendLiteral("\"NaN\"");
   } else if (std::isinf(value) && value > 0) {
-    writer_.AppendLiteral("\"Infinity\"");
+    buffer_.AppendLiteral("\"Infinity\"");
   } else if (std::isinf(value) && value < 0) {
-    writer_.AppendLiteral("\"-Infinity\"");
+    buffer_.AppendLiteral("\"-Infinity\"");
   } else {
-    writer_.AppendDouble(value);
+    buffer_.AppendDouble(value);
   }
 }
 
@@ -160,28 +160,101 @@ void JsonValueWriter::WriteString(std::string_view value) && {
 }
 
 void JsonValueWriter::WriteEscapedString(std::string_view value) {
-  writer_.AppendChar('"');
+  buffer_.AppendChar('"');
   for (char c : value) {
     unsigned char uc = static_cast<unsigned char>(c);
     if (c == '"') {
-      writer_.AppendLiteral("\\\"");
+      buffer_.AppendLiteral("\\\"");
     } else if (c == '\\') {
-      writer_.AppendLiteral("\\\\");
+      buffer_.AppendLiteral("\\\\");
     } else if (c == '\n') {
-      writer_.AppendLiteral("\\n");
+      buffer_.AppendLiteral("\\n");
     } else if (c == '\r') {
-      writer_.AppendLiteral("\\r");
+      buffer_.AppendLiteral("\\r");
     } else if (c == '\t') {
-      writer_.AppendLiteral("\\t");
+      buffer_.AppendLiteral("\\t");
     } else if (uc < 0x20) {
-      writer_.AppendLiteral("\\u00");
-      writer_.AppendChar("0123456789abcdef"[uc >> 4]);
-      writer_.AppendChar("0123456789abcdef"[uc & 0xf]);
+      buffer_.AppendLiteral("\\u00");
+      buffer_.AppendChar("0123456789abcdef"[uc >> 4]);
+      buffer_.AppendChar("0123456789abcdef"[uc & 0xf]);
     } else {
-      writer_.AppendChar(c);
+      buffer_.AppendChar(c);
     }
   }
-  writer_.AppendChar('"');
+  buffer_.AppendChar('"');
 }
 
-}  // namespace perfetto::trace_processor
+void JsonDictWriter::Add(std::string_view key,
+                         std::function<void(JsonValueWriter&&)> writer) {
+  WriteKey(key);
+  writer(JsonValueWriter(buffer_));
+}
+
+void JsonDictWriter::AddDict(std::string_view key,
+                             std::function<void(JsonDictWriter&)> dict_writer) {
+  WriteKey(key);
+  buffer_.AppendChar('{');
+  JsonDictWriter dict(buffer_);
+  dict_writer(dict);
+  buffer_.AppendChar('}');
+}
+
+void JsonDictWriter::AddArray(
+    std::string_view key,
+    std::function<void(JsonArrayWriter&)> array_writer) {
+  WriteKey(key);
+  buffer_.AppendChar('[');
+  JsonArrayWriter array(buffer_);
+  array_writer(array);
+  buffer_.AppendChar(']');
+}
+
+void JsonArrayWriter::Append(
+    std::function<void(JsonValueWriter&&)> value_writer) {
+  AddSeparator();
+  JsonValueWriter writer(buffer_);
+  value_writer(std::move(writer));
+}
+
+void JsonArrayWriter::AppendDict(
+    std::function<void(JsonDictWriter&)> dict_writer) {
+  AddSeparator();
+  buffer_.AppendChar('{');
+  JsonDictWriter dict(buffer_);
+  dict_writer(dict);
+  buffer_.AppendChar('}');
+}
+
+void JsonArrayWriter::AppendArray(
+    std::function<void(JsonArrayWriter&)> array_writer) {
+  AddSeparator();
+  buffer_.AppendChar('[');
+  JsonArrayWriter array(buffer_);
+  array_writer(array);
+  buffer_.AppendChar(']');
+}
+
+void JsonValueWriter::WriteDict(
+    std::function<void(JsonDictWriter&)> dict_writer) && {
+  buffer_.AppendChar('{');
+  JsonDictWriter dict(buffer_);
+  dict_writer(dict);
+  buffer_.AppendChar('}');
+}
+
+void JsonValueWriter::WriteArray(
+    std::function<void(JsonArrayWriter&)> array_writer) && {
+  buffer_.AppendChar('[');
+  JsonArrayWriter array(buffer_);
+  array_writer(array);
+  buffer_.AppendChar(']');
+}
+
+std::string write(std::function<void(JsonValueWriter&&)> value_writer) {
+  base::DynamicStringWriter writer;
+  JsonValueWriter json_value_writer(writer);
+  value_writer(std::move(json_value_writer));
+  return writer.GetStringView().ToStdString();
+}
+
+}  // namespace perfetto::trace_processor::json

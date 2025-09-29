@@ -23,7 +23,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::json {
 namespace {
 
 // Helper function to strip all whitespace from a string for JSON comparison.
@@ -273,4 +273,4 @@ TEST(JsonWriterTest, Complex) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::json
