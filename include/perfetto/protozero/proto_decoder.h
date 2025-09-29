@@ -295,25 +295,15 @@ class UnifiedRepeatedFieldIterator {
   UnifiedRepeatedFieldIterator() : iter_(RegularIterator()) {}
 
   explicit operator bool() const {
-    if (std::holds_alternative<RegularIterator>(iter_)) {
-      return static_cast<bool>(*std::get_if<RegularIterator>(&iter_));
-    }
-    return static_cast<bool>(*std::get_if<PackedIterator>(&iter_));
+    return std::visit([](auto& it) { return static_cast<bool>(it); }, iter_);
   }
 
   CppType operator*() const {
-    if (std::holds_alternative<RegularIterator>(iter_)) {
-      return **std::get_if<RegularIterator>(&iter_);
-    }
-    return **std::get_if<PackedIterator>(&iter_);
+    return std::visit([](auto& it) { return *it; }, iter_);
   }
 
   UnifiedRepeatedFieldIterator& operator++() {
-    if (std::holds_alternative<RegularIterator>(iter_)) {
-      ++(*std::get_if<RegularIterator>(&iter_));
-    } else {
-      ++(*std::get_if<PackedIterator>(&iter_));
-    }
+    std::visit([](auto& it) { ++it; }, iter_);
     return *this;
   }
 
