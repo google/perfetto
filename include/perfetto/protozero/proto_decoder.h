@@ -283,18 +283,13 @@ class UnifiedRepeatedFieldIterator {
   using PackedIterator = PackedRepeatedFieldIterator<wire_type, CppType>;
   using VariantType = std::variant<RegularIterator, PackedIterator>;
 
-  // Constructor for non-packed repeated field iteration
-  UnifiedRepeatedFieldIterator(uint32_t field_id,
-                               const Field* begin,
-                               const Field* end,
-                               const Field* last)
-      : iter_(RegularIterator(field_id, begin, end, last)) {}
+  // Constructor taking a regular iterator
+  explicit UnifiedRepeatedFieldIterator(RegularIterator iter)
+      : iter_(std::move(iter)) {}
 
-  // Constructor for packed repeated field iteration
-  UnifiedRepeatedFieldIterator(const uint8_t* data_begin,
-                               size_t size,
-                               bool* parse_error_ptr)
-      : iter_(PackedIterator(data_begin, size, parse_error_ptr)) {}
+  // Constructor taking a packed iterator
+  explicit UnifiedRepeatedFieldIterator(PackedIterator iter)
+      : iter_(std::move(iter)) {}
 
   // Constructs an invalid iterator.
   UnifiedRepeatedFieldIterator() : iter_(RegularIterator()) {}
@@ -428,26 +423,16 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   UnifiedRepeatedFieldIterator<wire_type, cpp_type> GetUnifiedRepeated(
       uint32_t field_id,
       bool* parse_error_location) const {
-    // Check if this field has any values and if the last one is
-    // length-delimited
     const Field& field = Get(field_id);
     if (field.valid() &&
         field.type() == proto_utils::ProtoWireType::kLengthDelimited) {
       // This looks like a packed repeated field
       return UnifiedRepeatedFieldIterator<wire_type, cpp_type>(
-          field.data(), field.size(), parse_error_location);
-    }
-    // This is either invalid or a non-packed repeated field
-    const Field* repeated_begin;
-    if (PERFETTO_LIKELY(num_fields_ < size_)) {
-      repeated_begin = &fields_[num_fields_];
-    } else {
-      repeated_begin = &fields_[size_];
-    }
-    const Field* repeated_end = &fields_[size_];
-    const Field* last = &Get(field_id);
+          GetPackedRepeated<wire_type, cpp_type>(field_id,
+                                                 parse_error_location));
+    }  // This is either invalid or a non-packed repeated field
     return UnifiedRepeatedFieldIterator<wire_type, cpp_type>(
-        field_id, repeated_begin, repeated_end, last);
+        GetRepeated<cpp_type>(field_id));
   }
 
  protected:
