@@ -359,6 +359,9 @@ message ResetTraceProcessorArgs {
   optional bool ftrace_drop_until_all_cpus_valid = 4;
   optional ParsingMode parsing_mode = 5;
   optional SortingMode sorting_mode = 6;
+
+  // A list of serialized FileDescriptorSet protos.
+  repeated bytes extra_parsing_descriptors = 7;
 }
 
 message RegisterSqlPackageArgs {
