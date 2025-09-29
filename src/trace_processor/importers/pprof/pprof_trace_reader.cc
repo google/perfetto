@@ -27,7 +27,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "protos/third_party/pprof/profile.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
@@ -37,6 +36,8 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
+
+#include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto::third_party::perftools::profiles::pbzero {
 using Profile = ::perfetto::third_party::perftools::profiles::pbzero::Profile;

@@ -155,34 +155,16 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
     return false;
   }
 
-  // Field 1 with wire type 0 (varint) = (1 << 3) | 0 = 8
-  constexpr uint64_t kValueTypeFieldTag = 8;
-  if (inner_tag != kValueTypeFieldTag) {
-    return false;
-  }
+  // Use proto_utils to create proper field tags for pprof ValueType fields:
+  // Field 1 (type) and Field 2 (unit) are both varints in pprof format
+  constexpr uint64_t kValueTypeTypeFieldTag =
+      protozero::proto_utils::MakeTagVarInt(1);
+  constexpr uint64_t kValueTypeUnitFieldTag =
+      protozero::proto_utils::MakeTagVarInt(2);
 
-  // Skip over the varint value
-  uint64_t dummy_value;
-  const uint8_t* after_value = protozero::proto_utils::ParseVarInt(
-      inner_next, value_type_end, &dummy_value);
-  if (after_value == inner_next) {
-    return false;
-  }
-
-  // Check for field 2 (unit) as varint
-  if (after_value >= value_type_end) {
-    return false;
-  }
-
-  uint64_t second_tag;
-  const uint8_t* second_next = protozero::proto_utils::ParseVarInt(
-      after_value, value_type_end, &second_tag);
-  if (second_next == after_value) {
-    return false;
-  }
-
-  // For debugging: just check that we found varint fields inside field 1
-  return inner_tag == kValueTypeFieldTag;
+  // Accept either field 1 (type) or field 2 (unit) as evidence of pprof format
+  return inner_tag == kValueTypeTypeFieldTag ||
+         inner_tag == kValueTypeUnitFieldTag;
 }
 
 }  // namespace
