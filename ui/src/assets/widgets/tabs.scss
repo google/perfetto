@@ -32,7 +32,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 2px;
 
     &:hover {
@@ -56,20 +56,14 @@
   }
 
   &__tab-icon {
-    display: flex;
-    align-items: center;
-
     &--left {
       margin-right: 4px;
+      align-self: center;
     }
 
     &--right {
       margin-left: 4px;
-      cursor: pointer;
-
-      &:hover {
-        opacity: 0.7;
-      }
+      align-self: center;
     }
   }
 }
