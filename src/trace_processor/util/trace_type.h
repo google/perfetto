@@ -32,6 +32,7 @@ enum TraceType {
   kJsonTraceType,
   kNinjaLogTraceType,
   kPerfDataTraceType,
+  kPprofTraceType,
   kProtoTraceType,
   kSymbolsTraceType,
   kSystraceTraceType,
