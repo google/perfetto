@@ -26,6 +26,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -295,8 +296,10 @@ base::Status PprofTraceReader::ParseProfile() {
     // Materialize location_ids first (pprof format: leaf is at [0])
     std::vector<uint64_t> location_ids;
     bool location_parse_error = false;
-    for (auto loc_it = sample_decoder.location_id(&location_parse_error);
-         loc_it && !location_parse_error; ++loc_it) {
+    auto loc_it = sample_decoder.GetUnifiedRepeated<
+        protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(
+        Sample::kLocationIdFieldNumber, &location_parse_error);
+    for (; loc_it && !location_parse_error; ++loc_it) {
       location_ids.push_back(*loc_it);
     }
 
@@ -327,8 +330,11 @@ base::Status PprofTraceReader::ParseProfile() {
 
     // Create aggregate_sample entries for each value
     size_t value_index = 0;
-    for (auto value_it = sample_decoder.value();
-         value_it && value_index < profile_ids.size();
+    bool values_parse_error = false;
+    auto value_it = sample_decoder.GetUnifiedRepeated<
+        protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
+        Sample::kValueFieldNumber, &values_parse_error);
+    for (; !values_parse_error && value_it && value_index < profile_ids.size();
          ++value_it, ++value_index) {
       storage->mutable_aggregate_sample_table()->Insert(
           {profile_ids[value_index], *callsite_id,
