@@ -37,7 +37,7 @@ class JsonValueWriter;
 //       dict.AddString("hello", "world");
 //     });
 //   });
-std::string write(std::function<void(JsonValueWriter&&)> value_writer);
+std::string Write(std::function<void(JsonValueWriter&&)> value_writer);
 
 // Writes a JSON dictionary.
 // Usage example:

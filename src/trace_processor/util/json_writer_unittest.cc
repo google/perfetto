@@ -38,14 +38,14 @@ std::string StripWhitespace(const std::string& str) {
 }
 
 TEST(JsonWriterTest, WriteDictEmpty) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteDict([](JsonDictWriter&) {});
   });
   EXPECT_EQ(result, StripWhitespace("{}"));
 }
 
 TEST(JsonWriterTest, WriteDictPrimitives) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteDict([](JsonDictWriter& dict) {
       dict.AddNull("null_value");
       dict.AddBool("bool_true", true);
@@ -95,7 +95,7 @@ TEST(JsonWriterTest, WriteDictPrimitives) {
 }
 
 TEST(JsonWriterTest, WriteDictWhitespace) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteDict([](JsonDictWriter& dict) {
       dict.AddString("newline", "line1\nline2");
       dict.AddString("carriage", "line1\rline2");
@@ -110,7 +110,7 @@ TEST(JsonWriterTest, WriteDictWhitespace) {
 }
 
 TEST(JsonWriterTest, WriteDictSpecialDoubles) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteDict([](JsonDictWriter& dict) {
       dict.AddDouble("nan", std::nan(""));
       dict.AddDouble("inf", std::numeric_limits<double>::infinity());
@@ -128,7 +128,7 @@ TEST(JsonWriterTest, WriteDictSpecialDoubles) {
 }
 
 TEST(JsonWriterTest, WriteDictNested) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteDict([](JsonDictWriter& dict) {
       dict.AddString("outer", "value");
       dict.AddDict("nested", [](JsonDictWriter& nested) {
@@ -156,14 +156,14 @@ TEST(JsonWriterTest, WriteDictNested) {
 }
 
 TEST(JsonWriterTest, WriteArrayEmpty) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteArray([](JsonArrayWriter&) {});
   });
   EXPECT_EQ(result, StripWhitespace("[]"));
 }
 
 TEST(JsonWriterTest, WriteArrayPrimitives) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteArray([](JsonArrayWriter& arr) {
       arr.AppendNull();
       arr.AppendBool(true);
@@ -195,7 +195,7 @@ TEST(JsonWriterTest, WriteArrayPrimitives) {
 }
 
 TEST(JsonWriterTest, WriteArrayNested) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteArray([](JsonArrayWriter& arr) {
       arr.AppendString("first");
       arr.AppendDict([](JsonDictWriter& dict) {
@@ -228,7 +228,7 @@ TEST(JsonWriterTest, WriteArrayNested) {
 }
 
 TEST(JsonWriterTest, Complex) {
-  std::string result = write([](JsonValueWriter&& writer) {
+  std::string result = Write([](JsonValueWriter&& writer) {
     std::move(writer).WriteDict([](JsonDictWriter& dict) {
       dict.AddString("name", "root");
       dict.AddArray("items", [](JsonArrayWriter& arr) {

@@ -250,7 +250,7 @@ void JsonValueWriter::WriteArray(
   buffer_.AppendChar(']');
 }
 
-std::string write(std::function<void(JsonValueWriter&&)> value_writer) {
+std::string Write(std::function<void(JsonValueWriter&&)> value_writer) {
   base::DynamicStringWriter writer;
   JsonValueWriter json_value_writer(writer);
   value_writer(std::move(json_value_writer));
