@@ -230,11 +230,14 @@ bool GProfileBuilder::SampleAggregator::AddSample(
 }
 
 void GProfileBuilder::SampleAggregator::WriteTo(Profile& profile) {
+  protozero::PackedVarInt values;
   for (auto it = samples_.GetIterator(); it; ++it) {
-    Sample* sample = profile.add_sample();
+    values.Reset();
     for (int64_t value : it.value()) {
-      sample->add_value(value);
+      values.Append(value);
     }
+    Sample* sample = profile.add_sample();
+    sample->set_value(values);
     // Map key is the serialized varint. Just append the bytes.
     sample->AppendBytes(Sample::kLocationIdFieldNumber, it.key().data(),
                         it.key().size());

@@ -90,7 +90,7 @@ message Profile {
   int64 period = 12;
   // Freeform text associated to the profile.
   // Indices into string table.
-  repeated int64 comment = 13 [packed = false];
+  repeated int64 comment = 13;
   // Index into the string table of the type of the preferred sample
   // value. If unset, clients should default to the last sample value.
   int64 default_sample_type = 14;
@@ -111,14 +111,14 @@ message ValueType {
 message Sample {
   // The ids recorded here correspond to a Profile.location.id.
   // The leaf is at location_id[0].
-  repeated uint64 location_id = 1 [packed = true];
+  repeated uint64 location_id = 1;
   // The type and unit of each value is defined by the corresponding
   // entry in Profile.sample_type. All samples must have the same
   // number of values, the same as the length of Profile.sample_type.
   // When aggregating multiple samples into a single sample, the
   // result has a list of values that is the elemntwise sum of the
   // lists of the originals.
-  repeated int64 value = 2 [packed = false];
+  repeated int64 value = 2;
   // label includes additional context for this sample. It can include
   // things like a thread id, allocation size, etc
   repeated Label label = 3;

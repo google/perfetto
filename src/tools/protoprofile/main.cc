@@ -14,24 +14,18 @@
  * limitations under the License.
  */
 
-#include <fcntl.h>
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
-#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_profiler.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
@@ -134,8 +128,9 @@ std::string PprofProfileComputer::Compute(
 
     protozero::PackedVarInt location_ids;
     auto* sample = profile->add_sample();
-    for (auto l = field_path.rbegin(); l != field_path.rend(); ++l) {
-      location_ids.Append(static_cast<uint64_t>(InternLocation(*l)));
+    for (auto loc_it = field_path.rbegin(); loc_it != field_path.rend();
+         ++loc_it) {
+      location_ids.Append(InternLocation(*loc_it));
     }
     sample->set_location_id(location_ids);
 
@@ -148,11 +143,13 @@ std::string PprofProfileComputer::Compute(
     for (size_t i = 0; i < count; ++i)
       total_size += samples[i];
     // These have to be in the same order as the sample types above:
-    sample->add_value(static_cast<int64_t>(count));
-    sample->add_value(static_cast<int64_t>(max_size));
-    sample->add_value(static_cast<int64_t>(min_size));
-    sample->add_value(static_cast<int64_t>(median_size));
-    sample->add_value(static_cast<int64_t>(total_size));
+    protozero::PackedVarInt values;
+    values.Append(static_cast<int64_t>(count));
+    values.Append(static_cast<int64_t>(max_size));
+    values.Append(static_cast<int64_t>(min_size));
+    values.Append(static_cast<int64_t>(median_size));
+    values.Append(static_cast<int64_t>(total_size));
+    sample->set_value(values);
   }
 
   // The proto profile has a two step mapping where samples are associated with
