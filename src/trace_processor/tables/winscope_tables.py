@@ -744,6 +744,10 @@ WINDOW_MANAGER_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'focused_display_id',
+            CppUint32(),
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager'),
     tabledoc=TableDoc(
@@ -753,6 +757,7 @@ WINDOW_MANAGER_TABLE = Table(
             'ts': 'The timestamp the state snapshot was captured',
             'arg_set_id': 'Extra args parsed from the proto message',
             'base64_proto_id': 'String id for raw proto message',
+            'focused_display_id': 'Focused display id for this entry',
         }))
 
 WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
