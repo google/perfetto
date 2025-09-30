@@ -347,20 +347,23 @@ inline constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
       }
       if (key == "swap") {
         return base::StackString<1024>(
-            "Swapped memory (VmSwap): Memory moved to swap storage. Indicates "
-            "severe memory pressure. Accessing swapped memory causes major "
-            "page faults and performance degradation. Available from both "
-            "ftrace and polling for complementary views. See %s or %s for "
-            "information.",
+            "Swapped memory (VmSwap): Memory moved to swap storage. Does not "
+            "necessarily indicate severe pressure - kswapd may swap out "
+            "inactive memory proactively. However, if actively used and "
+            "swap/anon ratio is high, this suggests inefficient memory usage "
+            "or leaks. Accessing swapped memory causes major page faults and "
+            "performance degradation. Available from both ftrace and polling "
+            "for complementary views. See %s or %s for information.",
             kMemoryCountersFtraceUrl, kMemoryCountersPolledUrl);
       }
       if (key == "locked") {
         return base::StackString<1024>(
             "Locked memory pages (VmLocked): Memory pinned in RAM that cannot "
-            "be swapped out (via mlock). High values may prevent memory "
-            "reclamation during pressure. Used for security-sensitive or real-"
-            "time data. WARNING: Polled periodically, so may miss short-lived "
-            "changes. See %s for information.",
+            "be swapped out or reclaimed (via mlock). High values prevent "
+            "memory reclamation during pressure. Typically set via profiler-"
+            "guided optimization to minimize faults on critical paths. "
+            "WARNING: Polled periodically, so may miss short-lived changes. "
+            "See %s for information.",
             kMemoryCountersPolledUrl);
       }
       if (key == "rss.watermark") {
@@ -376,7 +379,9 @@ inline constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
       }
       if (key == "dmabuf_rss") {
         return base::StackString<1024>(
-            "DMA buffer RSS: Physical memory used for DMA buffers (GPU/media). "
+            "DMA buffer RSS: Physical memory used for DMA buffers (successor "
+            "to Android ION). Used for surfaces, hardware bitmaps, media/"
+            "camera buffers, and other GPU/hardware accelerator memory. "
             "Critical for graphics/camera apps. High values indicate GPU "
             "memory pressure or resource leaks in graphics/media pipelines. "
             "See dmabuf ftrace events or /proc/[pid]/fdinfo polling for "
