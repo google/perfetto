@@ -53,7 +53,7 @@ class MultiFileErrorCollectorImpl
                      int line,
                      int column,
                      absl::string_view message) override {
-    PERFETTO_ELOG("Warning %s %d:%d: %s", static_cast<int>(filename.size()),
+    PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
                   filename.data(), line, column,
                   static_cast<int>(message.size()), message.data());
   }
