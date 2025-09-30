@@ -44,7 +44,7 @@ export interface TraceProcessorConfig {
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
   ftraceDropUntilAllCpusValid: boolean;
-  extraParsingDescriptors?: Uint8Array[];
+  extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
 }
 
 const QUERY_LOG_BUFFER_SIZE = 100;
@@ -402,9 +402,11 @@ export abstract class EngineBase implements Engine, Disposable {
     args.parsingMode = tokenizeOnly
       ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
       : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
-    if (extraParsingDescriptors) {
-      args.extraParsingDescriptors = extraParsingDescriptors;
-    }
+    // If extraParsingDescriptors is defined, create a mutable copy for the
+    // protobuf object; otherwise, pass an empty array.
+    args.extraParsingDescriptors = extraParsingDescriptors
+      ? [...extraParsingDescriptors]
+      : [];
     this.rpcSendRequest(rpc);
     return asyncRes;
   }
