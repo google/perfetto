@@ -24,8 +24,8 @@
 // Keep the \n before to prevent clang-format reordering.
 #include <synchapi.h>
 #else
-#include <poll.h>
 #include <unistd.h>
+#include <poll.h>
 #endif
 
 #include <thread>
