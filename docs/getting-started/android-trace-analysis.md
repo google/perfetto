@@ -162,9 +162,10 @@ Demonstrates:
 - Finding peak memory usage during a trace
 
 Android provides comprehensive memory tracking through various metrics including
-RSS (Resident Set Size), swap usage, and OOM (Out of Memory) scores. The
-`android.memory.process` module provides standardized tables for analyzing
-memory consumption patterns.
+RSS (Resident Set Size), swap usage, and oom_score_adj
+([OOM-killer adjustment scores](https://man7.org/linux/man-pages/man5/proc_pid_oom_score_adj.5.html),
+a measure of process importance). The `android.memory.process` module provides
+standardized tables for analyzing memory consumption patterns.
 
 To query memory usage for a specific process like SystemUI:
 
@@ -179,8 +180,10 @@ WHERE process_name GLOB 'com.android.systemui*';
 ### Finding peak memory usage
 
 To compute the peak memory usage for a process during the trace, use the `MAX`
-aggregation. We highly recommend using `anon_rss_and_swap` as the primary memory
-metric:
+aggregation. We highly recommend using `anon_rss_and_swap` as the primary metric
+as it captures most failure conditions of "my app is using a lot of memory".
+Note it doesn't track file/shmem, so if those are important to you, you should
+use those metrics as well:
 
 ```sql
 INCLUDE PERFETTO MODULE android.memory.process;
