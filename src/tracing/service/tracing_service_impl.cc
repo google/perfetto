@@ -2464,6 +2464,9 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
     std::vector<TracePacket> packets =
         ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
 
+    PERFETTO_DLOG("ReadBuffersIntoFile, tsid: %lu, packets: %zu", tsid,
+                  packets.size());
+
     stop_writing_into_file = WriteIntoFile(tracing_session, std::move(packets));
   } while (has_more && !stop_writing_into_file);
 
