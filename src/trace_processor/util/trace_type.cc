@@ -139,8 +139,8 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
 
   // Look inside the sample_type field for pprof ValueType structure
   // In pprof: ValueType has field 1 (type) and field 2 (unit) as varints (wire
-  // type 0) In Perfetto: field 1 would contain length-delimited data (wire type
-  // 2)
+  // type 0)
+  // In Perfetto: field 1 would contain length-delimited data (wire type 2)
   const uint8_t* value_type_ptr = len_next;
   const uint8_t* value_type_end = len_next + sample_type_length;
 
