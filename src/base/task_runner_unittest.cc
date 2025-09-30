@@ -591,7 +591,6 @@ TYPED_TEST(TaskRunnerTest, RaceOnQuit) {
 
   std::thread thread([&]() {
     LockFreeTaskRunner tr;
-
     std::function<void()> keep_tr_pumped;
     keep_tr_pumped = [&] { tr.PostTask(keep_tr_pumped); };
     tr.PostTask([&] { task_runnner.store(&tr); });
@@ -605,7 +604,6 @@ TYPED_TEST(TaskRunnerTest, RaceOnQuit) {
   }
 
   tr->Quit();
-
   thread.join();
 }
 
