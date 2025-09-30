@@ -232,6 +232,7 @@ message DisplayContentProto {
   optional IdentifierProto input_method_control_target_identifier = 42;
   optional IdentifierProto current_focus_identifier = 43;
   optional RemoteInsetsControlTargetProto remote_insets_control_target = 44;
+  optional int32 engagement_mode = 45;
 }
 
 // represents DisplayArea object
