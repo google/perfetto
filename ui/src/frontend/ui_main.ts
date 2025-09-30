@@ -84,7 +84,7 @@ export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
       {
         id: 'dev.perfetto.OpenCommandPalette',
         name: 'Open command palette',
-        callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
+        callback: () => this.preferredApp.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
@@ -107,7 +107,7 @@ export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   }
 
   private renderOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+    const omnibox = this.preferredApp.omnibox;
     const omniboxMode = omnibox.mode;
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
@@ -132,7 +132,7 @@ export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   }
 
   renderPromptOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+    const omnibox = this.preferredApp.omnibox;
     const prompt = assertExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
@@ -251,15 +251,16 @@ export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   }
 
   renderQueryOmnibox(): m.Children {
+    const omnibox = this.preferredApp.omnibox;
     const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
     return m(Omnibox, {
-      value: AppImpl.instance.omnibox.text,
+      value: omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'pf-omnibox--query-mode',
 
       onInput: (value) => {
-        AppImpl.instance.omnibox.setText(value);
+        omnibox.setText(value);
       },
       onSubmit: (query, alt) => {
         const config = {
@@ -271,32 +272,33 @@ export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
         addQueryResultsTab(this.trace, config, tag);
       },
       onClose: () => {
-        AppImpl.instance.omnibox.setText('');
+        omnibox.setText('');
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        AppImpl.instance.omnibox.reset();
+        omnibox.reset();
       },
       onGoBack: () => {
-        AppImpl.instance.omnibox.reset();
+        omnibox.reset();
       },
     });
   }
 
   renderSearchOmnibox(): m.Children {
+    const omnibox = this.preferredApp.omnibox;
     return m(Omnibox, {
-      value: AppImpl.instance.omnibox.text,
+      value: omnibox.text,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Command);
+          omnibox.setMode(OmniboxMode.Command);
           return;
         } else if (value === ':') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Query);
+          omnibox.setMode(OmniboxMode.Query);
           return;
         }
-        AppImpl.instance.omnibox.setText(value);
+        omnibox.setText(value);
         if (this.trace === undefined) return; // No trace loaded.
         if (value.length >= 4) {
           this.trace.search.search(value);
@@ -419,20 +421,24 @@ export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   }
 
   private maybeFocusOmnibar() {
-    if (AppImpl.instance.omnibox.focusOmniboxNextRender && this.trace === AppImpl.instance.trace) {
+    const omnibox = (this.trace ?? AppImpl.instance).omnibox;
+    if (
+      omnibox.focusOmniboxNextRender &&
+      this.trace === AppImpl.instance.trace
+    ) {
       const omniboxEl = this.omniboxInputEl;
       if (omniboxEl) {
         omniboxEl.focus();
-        if (AppImpl.instance.omnibox.pendingCursorPlacement === undefined) {
+        if (omnibox.pendingCursorPlacement === undefined) {
           omniboxEl.select();
         } else {
           omniboxEl.setSelectionRange(
-            AppImpl.instance.omnibox.pendingCursorPlacement,
-            AppImpl.instance.omnibox.pendingCursorPlacement,
+            omnibox.pendingCursorPlacement,
+            omnibox.pendingCursorPlacement,
           );
         }
       }
-      AppImpl.instance.omnibox.clearFocusFlag();
+      omnibox.clearFocusFlag();
     }
   }
 
