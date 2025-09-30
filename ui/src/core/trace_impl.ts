@@ -206,6 +206,8 @@ export class TraceImpl implements Trace {
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly pluginMgrProxy: PluginManagerImpl;
 
+  private readonly omniboxMgr: OmniboxManagerImpl;
+
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
   // we can fork sibling instances (i.e. bound to the same TraceContext) for
@@ -229,6 +231,10 @@ export class TraceImpl implements Trace {
     this.appImpl = appImpl;
     this.traceCtx = ctx;
     const traceUnloadTrash = ctx.trash;
+
+    const childOmnibox = appImpl.omnibox.childFor(ctx);
+    traceUnloadTrash.use(childOmnibox);
+    this.omniboxMgr = childOmnibox;
 
     // Invalidate all the engine proxies when the TraceContext is destroyed.
     this.engineProxy = ctx.engine.getProxy(pluginId);
@@ -467,7 +473,7 @@ export class TraceImpl implements Trace {
   }
 
   get omnibox(): OmniboxManagerImpl {
-    return this.appImpl.omnibox;
+    return this.omniboxMgr;
   }
 
   get plugins(): PluginManagerImpl {
