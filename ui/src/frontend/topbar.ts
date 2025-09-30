@@ -30,7 +30,7 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
     const trace = attrs.trace;
     if (AppImpl.instance.embeddedMode) return;
 
-    const mode = AppImpl.instance.omnibox.mode;
+    const mode = trace.omnibox.mode;
     const totErrors = trace.traceInfo.importErrors + trace.loadingErrors.length;
     if (totErrors === 0 || mode === OmniboxMode.Command) {
       return;

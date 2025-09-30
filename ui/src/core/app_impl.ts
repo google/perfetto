@@ -32,7 +32,10 @@ import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {CommandInvocation, CommandManagerImpl} from './command_manager';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
-import {OmniboxManagerImpl} from './omnibox_manager';
+import {
+  HierarchicalOmniboxManager,
+  OmniboxManagerImpl,
+} from './omnibox_manager';
 import {PageManagerImpl} from './page_manager';
 import {PerfManager} from './perf_manager';
 import {CORE_PLUGIN_ID, PluginManagerImpl} from './plugin_manager';
@@ -74,7 +77,7 @@ export class AppContext {
   // The per-plugin instances of AppImpl (including the CORE_PLUGIN one).
   private readonly pluginInstances = new Map<string, AppImpl>();
   readonly commandMgr = new CommandManagerImpl();
-  readonly omniboxMgr = new OmniboxManagerImpl();
+  readonly omniboxMgr: HierarchicalOmniboxManager;
   readonly pageMgr = new PageManagerImpl();
   readonly sidebarMgr: SidebarManagerImpl;
   readonly pluginMgr: PluginManagerImpl;
@@ -144,6 +147,7 @@ export class AppContext {
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
   private constructor(initArgs: AppInitArgs) {
+    this.omniboxMgr = OmniboxManagerImpl.forApp(this);
     this.timestampFormat = initArgs.timestampFormatSetting;
     this.durationPrecision = initArgs.durationPrecisionSetting;
     this.timezoneOverride = initArgs.timezoneOverrideSetting;
@@ -243,7 +247,7 @@ export class AppContext {
   }
 
   closeTrace(traceCtx: TraceContext) {
-    this.omniboxMgr.reset(/* focus= */ false);
+    this.omniboxMgr.childFor(traceCtx).reset(/* focus= */ false);
     this.removeLoadedTrace(traceCtx);
     traceCtx[Symbol.dispose]();
 
@@ -359,7 +363,7 @@ export class AppImpl implements App {
     return this.appCtx.sidebarMgr;
   }
 
-  get omnibox(): OmniboxManagerImpl {
+  get omnibox(): HierarchicalOmniboxManager {
     return this.appCtx.omniboxMgr;
   }
 
@@ -467,9 +471,9 @@ export class AppImpl implements App {
         // - Continue with the trace loading logic (track decider, plugins, etc)
         // - Resolve the promise when everything is done.
         await loadTrace(this, src);
-        this.omnibox.reset(/* focus= */ false);
+        this.omnibox.childFor(src).reset(/* focus= */ false);
         // loadTrace() internally will call setActiveTrace() and change our
-        // _currentTrace in the middle of its ececution. We cannot wait for
+        // _currentTrace in the middle of its execution. We cannot wait for
         // loadTrace to be finished before setting it because some internal
         // implementation details of loadTrace() rely on that trace to be current
         // to work properly (mainly the router hash uuid).
