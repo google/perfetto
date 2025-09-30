@@ -153,7 +153,7 @@ FROM android_network_packets
 WHERE package_name = 'uid=12332';
 ```
 
-## Querying memory usage
+## Querying memory usage {#memory-metrics}
 
 Demonstrates:
 
