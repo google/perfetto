@@ -97,7 +97,7 @@ export class AppContext {
 
   // This is normally empty and is injected with Base64-encoded protobuf
   // descriptor sets via is_internal_user.js.
-  extraParsingDescriptors: string[] = [];
+  extraParsingDescriptors: ReadonlyArray<string> = [];
 
   // This is normally empty and is injected with extra google-internal macros
   // via is_internal_user.js
@@ -417,11 +417,11 @@ export class AppImpl implements App {
     return this.appCtx.extraSqlPackages;
   }
 
-  get extraParsingDescriptors(): string[] {
+  get extraParsingDescriptors(): ReadonlyArray<string> {
     return this.appCtx.extraParsingDescriptors;
   }
 
-  set extraParsingDescriptors(value: string[]) {
+  set extraParsingDescriptors(value: ReadonlyArray<string>) {
     this.appCtx.extraParsingDescriptors = value;
   }
 
