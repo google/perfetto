@@ -685,7 +685,7 @@ async function computeSliceFlamegraph(
         name: 'simple_count',
         displayName: 'Slice Count',
         mergeAggregation: 'SUM',
-        isVisible: true,
+        isVisible: (_) => true,
       },
     ],
   );

@@ -184,6 +184,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/ninja",
       "importers/perf",
       "importers/perf_text",
+      "importers/pprof",
       "importers/proto:full",
       "importers/proto:minimal",
       "importers/systrace:full",

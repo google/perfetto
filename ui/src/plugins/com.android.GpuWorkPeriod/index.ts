@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -68,7 +68,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
         }),

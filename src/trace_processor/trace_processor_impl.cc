@@ -68,6 +68,7 @@
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
+#include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -482,6 +483,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kSystraceTraceType);
   context()->reader_registry->RegisterTraceReader<NinjaLogParser>(
       kNinjaLogTraceType);
+  context()->reader_registry->RegisterTraceReader<PprofTraceReader>(
+      kPprofTraceType);
   context()
       ->reader_registry->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
           kPerfDataTraceType);
@@ -1015,6 +1018,8 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
 TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
+  AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_profile_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_aggregate_sample_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_android_game_intervenion_list_table());

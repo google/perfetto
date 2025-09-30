@@ -57,6 +57,10 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
                             ->InternString(base::StringView(
                                 base::Base64Encode(blob.data, blob.size)))
                             .raw_id();
+  protos::pbzero::WindowManagerTraceEntry::Decoder entry(blob);
+  protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
+      entry.window_manager_service());
+  row.focused_display_id = static_cast<uint32_t>(service.focused_display_id());
   auto row_id = trace_processor_context->storage->mutable_windowmanager_table()
                     ->Insert(row)
                     .id;
