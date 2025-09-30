@@ -160,13 +160,16 @@ class TrackTracker {
     }
     // Compute description from blueprint.
     using DBT = tracks::DescriptionBlueprintT;
-    using description_blueprint_t = typename BlueprintT::description_blueprint_t;
+    using description_blueprint_t =
+        typename BlueprintT::description_blueprint_t;
     StringId desc = kNullStringId;
     if constexpr (std::is_same_v<DBT::None, description_blueprint_t>) {
       // No description.
     } else if constexpr (std::is_same_v<DBT::Static, description_blueprint_t>) {
-      desc = context_->storage->InternString(bp.description_blueprint.description);
-    } else if constexpr (std::is_base_of_v<DBT::FnBase, description_blueprint_t>) {
+      desc =
+          context_->storage->InternString(bp.description_blueprint.description);
+    } else if constexpr (std::is_base_of_v<DBT::FnBase,
+                                           description_blueprint_t>) {
       desc = context_->storage->InternString(
           std::apply(bp.description_blueprint.fn, dims).string_view());
     } else {
