@@ -41,7 +41,9 @@ interface Globals {
   // internal_user script.
   readonly extraSqlPackages: SqlPackage[];
 
-  extraParsingDescriptors: string[];
+  // JSON Amalgamator populates this with statsd atom descriptors
+  // as a list of base64-encoded strings.
+  readonly extraParsingDescriptors: ReadonlyArray<string>;
 
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
@@ -73,11 +75,8 @@ function setupGlobalsProxy(app: AppImpl) {
     get extraSqlPackages(): SqlPackage[] {
       return app.extraSqlPackages;
     },
-    get extraParsingDescriptors(): string[] {
+    get extraParsingDescriptors(): ReadonlyArray<string> {
       return app.extraParsingDescriptors;
-    },
-    set extraParsingDescriptors(value: string[]) {
-      app.extraParsingDescriptors = value;
     },
     get extraMacros(): Record<string, CommandInvocation[]>[] {
       return app.extraMacros;
