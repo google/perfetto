@@ -47,6 +47,7 @@ import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
+import {base64Decode} from '../base/string_utils';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -140,6 +141,12 @@ async function createEngine(
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
+  const descriptorBlobs: Uint8Array[] = [];
+  if (app.extraParsingDescriptors.length > 0) {
+    for (const b64Str of app.extraParsingDescriptors) {
+      descriptorBlobs.push(base64Decode(b64Str));
+    }
+  }
   let engine;
   if (useRpc) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
@@ -153,6 +160,7 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
+      extraParsingDescriptors: descriptorBlobs,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
   }
@@ -230,7 +238,23 @@ async function loadTraceIntoEngine(
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
+
+  // Attempt to preserve the existing page, only add/change the local_cache_key.
+  //
+  // This is so that if the user opens a trace from a URL or has navigated to a
+  // page before opening a trace, we stay on that page. This allows links to
+  // e.g. #!/explore to work as expected.
+  //
+  // Only navigate to the timeline page if we are currently on the home page.
+  const route = Router.parseUrl(window.location.href);
+
+  let nextPage = route.page;
+  if (route.page === '/' || route.page === '') {
+    // Current'y on the home page, navigate to the timeline page.
+    nextPage = '/viewer';
+  }
+
+  Router.navigate(`#!${nextPage}?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);

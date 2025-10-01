@@ -17,7 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, STR} from '../../trace_processor/query_result';
 
 const TRACK_NAME = 'Desktop Mode Windows';
 const TRACK_URI = '/desktop_windows';
@@ -36,7 +36,7 @@ export default class implements PerfettoPlugin {
         dataset: new SourceDataset({
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: `

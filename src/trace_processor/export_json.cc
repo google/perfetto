@@ -58,6 +58,7 @@
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/config.h>
@@ -530,18 +531,20 @@ class JsonExporter {
           inf_value_(Json::StaticString("Infinity")),
           neg_inf_value_(Json::StaticString("-Infinity")) {
       const auto& arg_table = storage_->arg_table();
-      Json::Value* cur_args_ptr = nullptr;
+      ArgSet arg_set;
       uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
       for (auto it = arg_table.IterateRows(); it; ++it) {
         ArgSetId set_id = it.arg_set_id();
         if (set_id != cur_args_set_id) {
-          cur_args_ptr =
-              args_sets_.Insert(set_id, Json::Value(Json::objectValue)).first;
+          args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
+          arg_set = ArgSet();
           cur_args_set_id = set_id;
         }
-        const char* key = storage->GetString(it.key()).c_str();
-        Variadic value = storage_->GetArgValue(it.row_number().row_number());
-        AppendArg(cur_args_ptr, key, VariadicToJson(value));
+        arg_set.AppendArg(storage->GetString(it.key()),
+                          storage_->GetArgValue(it.row_number().row_number()));
+      }
+      if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
+        args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
       }
       PostprocessArgs();
     }
@@ -594,45 +597,26 @@ class JsonExporter {
       PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
-    static void AppendArg(Json::Value* target,
-                          const std::string& key,
-                          const Json::Value& value) {
-      for (base::StringSplitter parts(key, '.'); parts.Next();) {
-        if (PERFETTO_UNLIKELY(!target->isNull() && !target->isObject())) {
-          PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                        key.c_str(), target->toStyledString().c_str());
-          return;
-        }
-        std::string key_part = parts.cur_token();
-        size_t bracketpos = key_part.find('[');
-        if (bracketpos == std::string::npos) {  // A single item
-          target = &(*target)[key_part];
-        } else {  // A list item
-          target = &(*target)[key_part.substr(0, bracketpos)];
-          while (bracketpos != std::string::npos) {
-            // We constructed this string from an int earlier in trace_processor
-            // so it shouldn't be possible for this (or the StringToUInt32
-            // below) to fail.
-            std::string s =
-                key_part.substr(bracketpos + 1, key_part.find(']', bracketpos) -
-                                                    bracketpos - 1);
-            if (PERFETTO_UNLIKELY(!target->isNull() && !target->isArray())) {
-              PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
-                            key.c_str(), target->toStyledString().c_str());
-              return;
-            }
-            std::optional<uint32_t> index = base::StringToUInt32(s);
-            if (PERFETTO_UNLIKELY(!index)) {
-              PERFETTO_ELOG("Expected to be able to extract index from %s",
-                            key_part.c_str());
-              return;
-            }
-            target = &(*target)[index.value()];
-            bracketpos = key_part.find('[', bracketpos + 1);
+    Json::Value ArgNodeToJson(const ArgNode& node) {
+      switch (node.GetType()) {
+        case ArgNode::Type::kPrimitive:
+          return VariadicToJson(node.GetPrimitiveValue());
+        case ArgNode::Type::kArray: {
+          Json::Value result(Json::arrayValue);
+          for (const auto& child : node.GetArray()) {
+            result.append(ArgNodeToJson(child));
           }
+          return result;
+        }
+        case ArgNode::Type::kDict: {
+          Json::Value result(Json::objectValue);
+          for (const auto& [key, value] : node.GetDict()) {
+            result[key] = ArgNodeToJson(value);
+          }
+          return result;
         }
       }
-      *target = value;
+      PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
     void PostprocessArgs() {

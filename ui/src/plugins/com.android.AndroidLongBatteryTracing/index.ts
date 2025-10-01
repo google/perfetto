@@ -15,7 +15,13 @@
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
-import {STR, LONG, UNKNOWN, SqlValue} from '../../trace_processor/query_result';
+import {
+  STR,
+  LONG,
+  UNKNOWN,
+  SqlValue,
+  LONG_NULL,
+} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
@@ -78,7 +84,7 @@ const DEFAULT_NETWORK_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -124,7 +130,7 @@ const TETHERING_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -182,7 +188,7 @@ const SUSPEND_RESUME_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -223,7 +229,7 @@ const THERMAL_THROTTLING_DATASET = new SourceDataset({
   `,
   schema: {
     ts: LONG,
-    dur: LONG,
+    dur: LONG_NULL,
     name: STR,
   },
 });
@@ -386,7 +392,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -420,7 +426,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -466,7 +472,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -486,7 +492,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -513,7 +519,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -533,7 +539,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -562,7 +568,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
           package: STR,
         },
@@ -592,7 +598,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
             uid: UNKNOWN,
           },
@@ -730,7 +736,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
             ...argsSchema,
           },
@@ -861,7 +867,7 @@ export default class implements PerfettoPlugin {
         `,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
         },
       }),
@@ -917,7 +923,7 @@ export default class implements PerfettoPlugin {
           `,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
         }),
@@ -1023,7 +1029,7 @@ export default class implements PerfettoPlugin {
           src: `${sqlPrefix} WHERE item="${it.item}"`,
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
             item: UNKNOWN,
             type: UNKNOWN,
@@ -1048,7 +1054,7 @@ export default class implements PerfettoPlugin {
         src: `${sqlPrefix} WHERE item NOT IN ('${items.join("','")}')`,
         schema: {
           ts: LONG,
-          dur: LONG,
+          dur: LONG_NULL,
           name: STR,
           item: UNKNOWN,
           type: UNKNOWN,
