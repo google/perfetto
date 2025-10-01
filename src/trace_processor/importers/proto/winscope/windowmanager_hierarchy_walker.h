@@ -48,6 +48,7 @@ class WindowManagerHierarchyWalker {
     std::optional<uint32_t> child_index;
     bool is_visible;
     std::optional<ExtractedRect> rect;
+    std::optional<StringPool::Id> name_override;
     std::vector<uint8_t> pruned_proto;    // proto without children submessages
     const StringPool::Id container_type;  // container proto type e.g.
                                           // DisplayContent, ActivityRecord
@@ -136,15 +137,15 @@ class WindowManagerHierarchyWalker {
   StringPool* pool_{nullptr};
   int32_t current_display_id_{-1};
   uint32_t current_rect_depth_{0};
-  const StringPool::Id k_root_window_container_id_;
-  const StringPool::Id k_display_content_id_;
-  const StringPool::Id k_display_area_id_;
-  const StringPool::Id k_task_id_;
-  const StringPool::Id k_task_fragment_id_;
-  const StringPool::Id k_activity_id_;
-  const StringPool::Id k_window_token_id_;
-  const StringPool::Id k_window_state_id_;
-  const StringPool::Id k_window_container_id_;
+  const StringPool::Id kRootWindowContainerId;
+  const StringPool::Id kDisplayContentId;
+  const StringPool::Id kDisplayAreaId;
+  const StringPool::Id kTaskId;
+  const StringPool::Id kTaskFragmentId;
+  const StringPool::Id kActivityId;
+  const StringPool::Id kWindowTokenId;
+  const StringPool::Id kWindowStateId;
+  const StringPool::Id kWindowContainerId;
 };
 
 }  // namespace perfetto::trace_processor::winscope

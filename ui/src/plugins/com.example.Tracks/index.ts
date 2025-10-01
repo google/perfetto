@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
@@ -72,7 +72,7 @@ async function addBasicSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -100,7 +100,7 @@ async function addFilteredSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -134,7 +134,7 @@ async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -165,7 +165,7 @@ async function addInstantTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -191,7 +191,7 @@ async function addFlatSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -219,7 +219,7 @@ async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -314,7 +314,7 @@ function addTracksWithHelpText(trace: Trace) {
 
   trace.tracks.registerTrack({
     uri,
-    renderer: new DatasetSliceTrack({
+    renderer: SliceTrack.create({
       trace: trace,
       uri,
       dataset: new SourceDataset({

@@ -90,6 +90,7 @@ SELECT
   s.source_file,
   coalesce(jsf.line, s.line_number) AS line_number,
   coalesce(jsf.col, 0) AS column_number,
+  s.inlined,
   c.callsite_id,
   c.is_leaf AS is_leaf_function_in_callsite_frame
 FROM _callstack_spc_raw_forest AS c
@@ -129,6 +130,7 @@ RETURNS TableOrSubquery AS
     m.name AS mapping_name,
     f.source_file,
     f.line_number,
+    f.inlined,
     f.is_leaf_function_in_callsite_frame
   FROM _tree_reachable_ancestors_or_self!(
     _callstack_spc_forest,

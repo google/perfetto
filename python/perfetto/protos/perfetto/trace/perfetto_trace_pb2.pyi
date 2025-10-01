@@ -7433,16 +7433,18 @@ class FloatRectProto(_message.Message):
     def __init__(self, left: _Optional[float] = ..., top: _Optional[float] = ..., right: _Optional[float] = ..., bottom: _Optional[float] = ...) -> None: ...
 
 class FollowerEvent(_message.Message):
-    __slots__ = ["counter", "name", "raw_event", "tracepoint"]
+    __slots__ = ["counter", "modifiers", "name", "raw_event", "tracepoint"]
     COUNTER_FIELD_NUMBER: _ClassVar[int]
+    MODIFIERS_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     RAW_EVENT_FIELD_NUMBER: _ClassVar[int]
     TRACEPOINT_FIELD_NUMBER: _ClassVar[int]
     counter: PerfEvents.Counter
+    modifiers: _containers.RepeatedScalarFieldContainer[PerfEvents.EventModifier]
     name: str
     raw_event: PerfEvents.RawEvent
     tracepoint: PerfEvents.Tracepoint
-    def __init__(self, counter: _Optional[_Union[PerfEvents.Counter, str]] = ..., tracepoint: _Optional[_Union[PerfEvents.Tracepoint, _Mapping]] = ..., raw_event: _Optional[_Union[PerfEvents.RawEvent, _Mapping]] = ..., name: _Optional[str] = ...) -> None: ...
+    def __init__(self, counter: _Optional[_Union[PerfEvents.Counter, str]] = ..., tracepoint: _Optional[_Union[PerfEvents.Tracepoint, _Mapping]] = ..., raw_event: _Optional[_Union[PerfEvents.RawEvent, _Mapping]] = ..., modifiers: _Optional[_Iterable[_Union[PerfEvents.EventModifier, str]]] = ..., name: _Optional[str] = ...) -> None: ...
 
 class Frame(_message.Message):
     __slots__ = ["function_name_id", "iid", "mapping_id", "rel_pc"]
@@ -13081,6 +13083,8 @@ class PerfEvents(_message.Message):
     __slots__ = []
     class Counter(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
+    class EventModifier(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
     class PerfClock(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class RawEvent(_message.Message):
@@ -13095,9 +13099,10 @@ class PerfEvents(_message.Message):
         type: int
         def __init__(self, type: _Optional[int] = ..., config: _Optional[int] = ..., config1: _Optional[int] = ..., config2: _Optional[int] = ...) -> None: ...
     class Timebase(_message.Message):
-        __slots__ = ["counter", "frequency", "name", "period", "poll_period_ms", "raw_event", "timestamp_clock", "tracepoint"]
+        __slots__ = ["counter", "frequency", "modifiers", "name", "period", "poll_period_ms", "raw_event", "timestamp_clock", "tracepoint"]
         COUNTER_FIELD_NUMBER: _ClassVar[int]
         FREQUENCY_FIELD_NUMBER: _ClassVar[int]
+        MODIFIERS_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
         PERIOD_FIELD_NUMBER: _ClassVar[int]
         POLL_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
@@ -13106,13 +13111,14 @@ class PerfEvents(_message.Message):
         TRACEPOINT_FIELD_NUMBER: _ClassVar[int]
         counter: PerfEvents.Counter
         frequency: int
+        modifiers: _containers.RepeatedScalarFieldContainer[PerfEvents.EventModifier]
         name: str
         period: int
         poll_period_ms: int
         raw_event: PerfEvents.RawEvent
         timestamp_clock: PerfEvents.PerfClock
         tracepoint: PerfEvents.Tracepoint
-        def __init__(self, frequency: _Optional[int] = ..., period: _Optional[int] = ..., poll_period_ms: _Optional[int] = ..., counter: _Optional[_Union[PerfEvents.Counter, str]] = ..., tracepoint: _Optional[_Union[PerfEvents.Tracepoint, _Mapping]] = ..., raw_event: _Optional[_Union[PerfEvents.RawEvent, _Mapping]] = ..., timestamp_clock: _Optional[_Union[PerfEvents.PerfClock, str]] = ..., name: _Optional[str] = ...) -> None: ...
+        def __init__(self, frequency: _Optional[int] = ..., period: _Optional[int] = ..., poll_period_ms: _Optional[int] = ..., counter: _Optional[_Union[PerfEvents.Counter, str]] = ..., tracepoint: _Optional[_Union[PerfEvents.Tracepoint, _Mapping]] = ..., raw_event: _Optional[_Union[PerfEvents.RawEvent, _Mapping]] = ..., modifiers: _Optional[_Iterable[_Union[PerfEvents.EventModifier, str]]] = ..., timestamp_clock: _Optional[_Union[PerfEvents.PerfClock, str]] = ..., name: _Optional[str] = ...) -> None: ...
     class Tracepoint(_message.Message):
         __slots__ = ["filter", "name"]
         FILTER_FIELD_NUMBER: _ClassVar[int]
@@ -13120,6 +13126,9 @@ class PerfEvents(_message.Message):
         filter: str
         name: str
         def __init__(self, name: _Optional[str] = ..., filter: _Optional[str] = ...) -> None: ...
+    EVENT_MODIFIER_COUNT_HYPERVISOR: PerfEvents.EventModifier
+    EVENT_MODIFIER_COUNT_KERNEL: PerfEvents.EventModifier
+    EVENT_MODIFIER_COUNT_USERSPACE: PerfEvents.EventModifier
     HW_BRANCH_INSTRUCTIONS: PerfEvents.Counter
     HW_BRANCH_MISSES: PerfEvents.Counter
     HW_BUS_CYCLES: PerfEvents.Counter
@@ -13145,6 +13154,7 @@ class PerfEvents(_message.Message):
     SW_PAGE_FAULTS_MIN: PerfEvents.Counter
     SW_TASK_CLOCK: PerfEvents.Counter
     UNKNOWN_COUNTER: PerfEvents.Counter
+    UNKNOWN_EVENT_MODIFIER: PerfEvents.EventModifier
     UNKNOWN_PERF_CLOCK: PerfEvents.PerfClock
     def __init__(self) -> None: ...
 

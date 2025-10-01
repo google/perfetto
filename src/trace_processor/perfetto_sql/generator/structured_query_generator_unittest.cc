@@ -437,6 +437,39 @@ TEST(StructuredQueryGeneratorTest, Median) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, Percentile) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "table_source_thread_slice"
+    table: {
+      table_name: "thread_slice"
+      column_names: "name"
+      column_names: "dur"
+    }
+    referenced_modules: "slices.with_context"
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur"
+        op: PERCENTILE
+        result_column_name: "cheese"
+        percentile: 99
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH sq_table_source_thread_slice AS
+      (SELECT
+        name,
+        PERCENTILE(dur, 99.000000) AS cheese
+      FROM thread_slice
+      GROUP BY name)
+    SELECT * FROM sq_table_source_thread_slice
+  )"));
+}
+
 TEST(StructuredQueryGeneratorTest, CycleDetection) {
   StructuredQueryGenerator gen;
   auto proto_a = ToProto(R"(

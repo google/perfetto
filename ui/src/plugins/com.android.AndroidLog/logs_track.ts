@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
@@ -38,7 +38,7 @@ const DEPTH_TO_COLOR = [
 const EVT_PX = 6; // Width of an event tick in pixels.
 
 export function createAndroidLogTrack(trace: Trace, uri: string) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     rootTableName: 'android_logs',
@@ -62,7 +62,7 @@ export function createAndroidLogTrack(trace: Trace, uri: string) {
         from android_logs
         order by ts
         -- android_logs aren't guaranteed to be ordered by ts, but this is a
-        -- requirements for DatasetSliceTrack's mipmap operator to work 
+        -- requirements for SliceTrack's mipmap operator to work 
         -- correctly, so we must explicitly sort them above.
       `,
       schema: {

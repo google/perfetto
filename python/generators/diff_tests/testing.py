@@ -84,6 +84,12 @@ class BinaryProto:
 
 
 @dataclass
+class PprofTextproto:
+  """Represents a pprof file in textproto format."""
+  contents: str
+
+
+@dataclass
 class Systrace:
   """Represents a systrace file in string format."""
   contents: str

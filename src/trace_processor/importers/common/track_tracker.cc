@@ -32,11 +32,14 @@
 namespace perfetto::trace_processor {
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
-    : context_(context), args_tracker_(context) {}
+    : context_(context),
+      args_tracker_(context),
+      description_key_id_(context->storage->InternString("description")) {}
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                StringId name,
                                StringId counter_unit,
+                               StringId description,
                                GlobalArgsTracker::CompactArg* d_args,
                                uint32_t d_size,
                                const SetArgsCallback& args) {
@@ -67,9 +70,14 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   row.event_type = context_->storage->InternString(blueprint.event_type);
   row.counter_unit = counter_unit;
   TrackId id = context_->storage->mutable_track_table()->Insert(row).id;
-  if (args) {
+  if (description != kNullStringId || args) {
     auto inserter = args_tracker_.AddArgsTo(id);
-    args(inserter);
+    if (description != kNullStringId) {
+      inserter.AddArg(description_key_id_, Variadic::String(description));
+    }
+    if (args) {
+      args(inserter);
+    }
     args_tracker_.Flush();
   }
   return id;

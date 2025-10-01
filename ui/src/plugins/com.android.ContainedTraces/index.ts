@@ -15,6 +15,8 @@
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
+import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
 interface ContainedTrace {
@@ -52,18 +54,26 @@ export default class implements PerfettoPlugin {
       await support.addSliceTrack(
         ctx,
         subscription,
-        traces
-          .map(
-            (t) => `SELECT
-          CAST(${t.ts} * 1e6 AS int) AS ts,
-          CAST(${t.dur} * 1e6 AS int) AS dur,
-          '${t.trigger === '' ? 'Trace' : t.trigger}' AS name,
-          'http://go/trace-uuid/${t.uuid}' AS link
-        `,
-          )
-          .join(' UNION ALL '),
+        new SourceDataset({
+          src: traces
+            .map(
+              (t) => `
+              SELECT
+                CAST(${t.ts} * 1e6 AS int) AS ts,
+                CAST(${t.dur} * 1e6 AS int) AS dur,
+                '${t.trigger === '' ? 'Trace' : t.trigger}' AS name,
+                'http://go/trace-uuid/${t.uuid}' AS link
+              `,
+            )
+            .join(' UNION ALL '),
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+            link: STR,
+          },
+        }),
         'Other traces',
-        ['link'],
       );
     }
   }

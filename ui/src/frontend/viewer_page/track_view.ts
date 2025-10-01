@@ -52,7 +52,7 @@ import {
 } from '../css_constants';
 import {calculateResolution} from './resolution';
 import {Trace} from '../../public/trace';
-import {Anchor} from '../../widgets/anchor';
+import {Anchor, linkify} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
 import {Theme} from '../../public/theme';
@@ -140,7 +140,9 @@ export class TrackView {
           renderer?.track.getTrackShellButtons?.(),
           description !== undefined &&
             this.renderHelpButton(
-              typeof description === 'function' ? description() : description,
+              typeof description === 'function'
+                ? description()
+                : linkify(description),
             ),
           (removable || node.removable) && this.renderCloseButton(),
           // We don't want summary tracks to be pinned as they rarely have
@@ -365,7 +367,7 @@ export class TrackView {
     });
   }
 
-  private renderHelpButton(helpText: m.Children): m.Children {
+  private renderHelpButton(helpText: m.Children | string): m.Children {
     return m(
       Popup,
       {
