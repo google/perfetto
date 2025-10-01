@@ -126,7 +126,7 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: COUNTER_TRACK_KIND,
+            kinds: [COUNTER_TRACK_KIND],
             trackIds: [trackId],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
@@ -146,7 +146,7 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kind: SLICE_TRACK_KIND,
+            kinds: [SLICE_TRACK_KIND],
             trackIds: [trackId],
             upid: upid ?? undefined,
             utid: utid ?? undefined,

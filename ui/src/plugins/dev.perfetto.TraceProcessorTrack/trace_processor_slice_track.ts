@@ -18,10 +18,7 @@ import {clamp} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {
-  DatasetSliceTrack,
-  renderTooltip,
-} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack, renderTooltip} from '../../components/tracks/slice_track';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -63,7 +60,7 @@ export async function createTraceProcessorSliceTrack({
   trackIds,
   detailsPanel,
 }: TraceProcessorSliceTrackAttrs) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: await getDataset(trace.engine, trackIds),

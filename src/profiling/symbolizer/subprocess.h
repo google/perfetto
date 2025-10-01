@@ -18,6 +18,7 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_SUBPROCESS_H_
 #define SRC_PROFILING_SYMBOLIZER_SUBPROCESS_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

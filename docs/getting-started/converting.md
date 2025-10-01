@@ -45,8 +45,8 @@ Buffer support.
 
 - **Official Protobuf Libraries:** Google provides official protobuf compilers
   and runtime libraries for languages like
-  [Java](https://protobuf.dev/reference/java/generated-code/),
-  [C++](https://protobuf.dev/reference/cpp/generated-code/),
+  [Java](https://protobuf.dev/reference/java/java-generated/),
+  [C++](https://protobuf.dev/reference/cpp/cpp-generated/),
   [Python](https://protobuf.dev/reference/python/python-generated/),
   [Go](https://protobuf.dev/reference/go/go-generated/), and
   [more](https://protobuf.dev/reference/).

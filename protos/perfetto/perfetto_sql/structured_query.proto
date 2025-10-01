@@ -275,11 +275,15 @@ message PerfettoSqlStructuredQuery {
         MEAN = 5;
         MEDIAN = 6;
         DURATION_WEIGHTED_MEAN = 7;
+        PERCENTILE = 8;
       }
 
       optional string column_name = 1;
       optional Op op = 2;
       optional string result_column_name = 3;
+      // The percentile to compute when `op` is `PERCENTILE`. Must be between 0
+      // and 100.
+      optional double percentile = 4;
     }
     repeated Aggregate aggregates = 2;
   }

@@ -348,12 +348,20 @@ message ResetTraceProcessorArgs {
     TOKENIZE_ONLY = 1;
     TOKENIZE_AND_SORT = 2;
   }
+  enum SortingMode {
+    DEFAULT_HEURISTICS = 0;
+    FORCE_FULL_SORT = 1;
+  }
   // Mirror of the corresponding perfetto::trace_processor::Config fields.
   optional DropTrackEventDataBefore drop_track_event_data_before = 1;
   optional bool ingest_ftrace_in_raw_table = 2;
   optional bool analyze_trace_proto_content = 3;
   optional bool ftrace_drop_until_all_cpus_valid = 4;
   optional ParsingMode parsing_mode = 5;
+  optional SortingMode sorting_mode = 6;
+
+  // A list of serialized FileDescriptorSet protos.
+  repeated bytes extra_parsing_descriptors = 7;
 }
 
 message RegisterSqlPackageArgs {

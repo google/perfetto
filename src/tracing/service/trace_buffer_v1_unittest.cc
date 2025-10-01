@@ -21,6 +21,7 @@
 #include <sstream>
 #include <vector>
 
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
@@ -28,7 +29,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/test/vm_test_utils.h"
-#include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_v1.h"
 #include "src/tracing/test/fake_packet.h"
 #include "test/gtest_and_gmock.h"
 
@@ -40,9 +41,9 @@ using ::testing::IsEmpty;
 
 class TraceBufferTest : public testing::Test {
  public:
-  using SequenceIterator = TraceBuffer::SequenceIterator;
-  using ChunkMetaKey = TraceBuffer::ChunkMeta::Key;
-  using ChunkRecord = TraceBuffer::ChunkRecord;
+  using SequenceIterator = TraceBufferV1::SequenceIterator;
+  using ChunkMetaKey = TraceBufferV1::ChunkMeta::Key;
+  using ChunkRecord = TraceBufferV1::ChunkRecord;
 
   static constexpr uint8_t kContFromPrevChunk =
       SharedMemoryABI::ChunkHeader::kFirstPacketContinuesFromPrevChunk;
@@ -57,10 +58,10 @@ class TraceBufferTest : public testing::Test {
     if (trace_buffer_) {
       const size_t used_size = trace_buffer_->used_size();
       ASSERT_LE(used_size, trace_buffer_->size());
-      trace_buffer_->EnsureCommitted(trace_buffer_->size());
+      trace_buffer()->EnsureCommitted(trace_buffer_->size());
       bool zero_padded = true;
       for (size_t i = used_size; i < trace_buffer_->size(); ++i) {
-        bool is_zero = static_cast<char*>(trace_buffer_->data_.Get())[i] == 0;
+        bool is_zero = static_cast<char*>(trace_buffer()->data_.Get())[i] == 0;
         zero_padded = zero_padded && is_zero;
       }
       ASSERT_TRUE(zero_padded);
@@ -68,13 +69,13 @@ class TraceBufferTest : public testing::Test {
   }
 
   FakeChunk CreateChunk(ProducerID p, WriterID w, ChunkID c) {
-    return FakeChunk(trace_buffer_.get(), p, w, c);
+    return FakeChunk(trace_buffer(), p, w, c);
   }
 
   void ResetBuffer(
       size_t size_,
       TraceBuffer::OverwritePolicy policy = TraceBuffer::kOverwrite) {
-    trace_buffer_ = TraceBuffer::Create(size_, policy);
+    trace_buffer_ = TraceBufferV1::Create(size_, policy);
     ASSERT_TRUE(trace_buffer_);
   }
 
@@ -145,26 +146,31 @@ class TraceBufferTest : public testing::Test {
   }
 
   SequenceIterator GetReadIterForSequence(ProducerID p, WriterID w) {
-    TraceBuffer::ChunkMeta::Key key(p, w, 0);
-    return trace_buffer_->GetReadIterForSequence(
-        trace_buffer_->index_.lower_bound(key));
+    TraceBufferV1::ChunkMeta::Key key(p, w, 0);
+    return trace_buffer()->GetReadIterForSequence(
+        trace_buffer()->index_.lower_bound(key));
   }
 
   void SuppressClientDchecksForTesting() {
-    trace_buffer_->suppress_client_dchecks_for_testing_ = true;
+    trace_buffer()->suppress_client_dchecks_for_testing_ = true;
   }
 
   std::vector<ChunkMetaKey> GetIndex() {
     std::vector<ChunkMetaKey> keys;
-    keys.reserve(trace_buffer_->index_.size());
-    for (const auto& it : trace_buffer_->index_)
+    keys.reserve(trace_buffer()->index_.size());
+    for (const auto& it : trace_buffer()->index_)
       keys.push_back(it.first);
     return keys;
   }
 
-  uint8_t* GetBufData(const TraceBuffer& buf) { return buf.begin(); }
-  TraceBuffer* trace_buffer() { return trace_buffer_.get(); }
-  size_t size_to_end() { return trace_buffer_->size_to_end(); }
+  uint8_t* GetBufData(const TraceBuffer& buf) {
+    return static_cast<const TraceBufferV1&>(buf).begin();
+  }
+
+  TraceBufferV1* trace_buffer() {
+    return static_cast<TraceBufferV1*>(trace_buffer_.get());
+  }
+  size_t size_to_end() { return trace_buffer()->size_to_end(); }
 
  private:
   std::unique_ptr<TraceBuffer> trace_buffer_;
@@ -1889,7 +1895,13 @@ TEST_F(TraceBufferTest, MissingPacketsOnSequence) {
   ASSERT_TRUE(previous_packet_dropped);
 }
 
-TEST_F(TraceBufferTest, Clone_NoFragments) {
+// This test covers only the old behavior of CloneReadOnly() which used to reset
+// the read iterators on clone. This will be deprecated once the
+// buffer_clone_preserve_read_iter flag rollout sticks. See b/448604718.
+TEST_F(TraceBufferTest, Clone_NoFragments_NoPreserveReadIter) {
+  if (base::flags::buffer_clone_preserve_read_iter)
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=false";
+
   const char kNumWriters = 3;
   for (char num_pre_reads = 0; num_pre_reads < kNumWriters; num_pre_reads++) {
     ResetBuffer(4096);
@@ -1923,6 +1935,36 @@ TEST_F(TraceBufferTest, Clone_NoFragments) {
   }
 }
 
+TEST_F(TraceBufferTest, Clone_NoFragments_PreserveReadIter) {
+  if (!base::flags::buffer_clone_preserve_read_iter)
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+
+  ResetBuffer(4096);
+  ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+                     .AddPacket(32 - 16, 'A')
+                     .CopyIntoTraceBuffer());
+  ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+                     .AddPacket(32 - 16, 'B')
+                     .CopyIntoTraceBuffer());
+  ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+                     .AddPacket(32 - 16, 'C')
+                     .CopyIntoTraceBuffer());
+  ASSERT_EQ(trace_buffer()->used_size(), 32u * 3);
+
+  // Make some reads *before* cloning. This is to check that destructive
+  // reads are propagated into the cloned buffer.
+  // On every round (|num_pre_reads|), read a different number of packets.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'A')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'B')));
+
+  // Now create a snapshot and make sure we always read all the packets.
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  snap->BeginRead();
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(32 - 16, 'C')));
+  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+}
+
 TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
@@ -1946,12 +1988,33 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
       .CopyIntoTraceBuffer();
 
   // Now all three packes should be readable.
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
-  snap->BeginRead();
-  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
-  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
-  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
-  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  {
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    snap->BeginRead();
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
+    ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  }
+
+  // Verify that in the new behavior (buffer_clone_preserve_read_iter=true)
+  // If we read a fragment from the original buffer, the cloned buffer will
+  // continue from the updated position.
+  if (!base::flags::buffer_clone_preserve_read_iter)
+    return;
+
+  // Consume one packet from the original buffer.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+
+  // Verify that only 'b' and 'c' are read from the cloned buffer, but not 'a'.
+  {
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    snap->BeginRead();
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
+    ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  }
 }
 
 TEST_F(TraceBufferTest, Clone_WithPatches) {

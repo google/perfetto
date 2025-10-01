@@ -18,7 +18,8 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
-import {STR, LONG} from '../../trace_processor/query_result';
+import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {
@@ -118,7 +119,7 @@ export default class implements PerfettoPlugin {
       uri,
       renderer,
       tags: {
-        kind: DAY_EXPLORER_TRACK_KIND,
+        kinds: [DAY_EXPLORER_TRACK_KIND],
       },
     });
 
@@ -158,7 +159,7 @@ export default class implements PerfettoPlugin {
     // day explorer tracks are considered for the graph.
     let hasDayExplorer = false;
     for (const trackInfo of currentSelection.tracks) {
-      if (trackInfo?.tags?.kind === DAY_EXPLORER_TRACK_KIND) {
+      if (trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND)) {
         hasDayExplorer = true;
         break;
       }
@@ -208,7 +209,7 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  async addDayExplorerBehaviors(
+  async addDayExplorerUsage(
     ctx: Trace,
     support: SupportPlugin,
     groupName: string,
@@ -222,10 +223,22 @@ export default class implements PerfettoPlugin {
 
     await support.addSliceTrack(
       ctx,
-      'Day Explorer Behaviors',
-      `select ts, dur, behavior as name from day_explorer_behaviors`,
+      'Day Explorer Device Usage',
+      new SourceDataset({
+        src: `
+          SELECT
+            ts,
+            dur,
+            usage as name
+          FROM day_explorer_device_usage
+        `,
+        schema: {
+          ts: LONG,
+          dur: LONG_NULL,
+          name: STR,
+        },
+      }),
       groupName,
-      [],
       false,
     );
   }
@@ -248,11 +261,11 @@ export default class implements PerfettoPlugin {
             alert('Positive number required');
             return;
           }
-          await this.addDayExplorerBehaviors(ctx, support, 'Day explorer');
+          await this.addDayExplorerUsage(ctx, support, 'Day Explorer');
           await this.addDayExplorerCounters(
             ctx,
             support,
-            'Day explorer',
+            'Day Explorer',
             limit,
           );
         },

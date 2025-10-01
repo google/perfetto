@@ -24,7 +24,7 @@ import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Stack} from '../../widgets/stack';
 
@@ -35,7 +35,7 @@ export function createProcessInstrumentsSamplesProfileTrack(
   uri: string,
   upid: number,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
@@ -119,7 +119,7 @@ export function createThreadInstrumentsSamplesProfileTrack(
   uri: string,
   utid: number,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

@@ -15,6 +15,13 @@
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
+import {
+  STR,
+  LONG,
+  UNKNOWN,
+  LONG_NULL,
+} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
 const MODEM_RIL_STRENGTH = `
@@ -78,72 +85,89 @@ const MODEM_RIL_CHANNELS_PREAMBLE = `
   SELECT SUBSTR(trimmed, INSTR(trimmed, "=")+1, INSTR(trimmed, ",") - INSTR(trimmed, "=") - 1)
   FROM (SELECT SUBSTR($source, INSTR($source, $key_name)) AS trimmed);`;
 
-const MODEM_RIL_CHANNELS = `
-  With RawChannelConfig AS (
-      SELECT ts, slice.name AS raw_config
-      FROM slice, track
-      ON (slice.track_id = track.id)
-      WHERE track.name = 'RIL'
-      AND slice.name LIKE 'UNSOL_PHYSICAL_CHANNEL_CONFIG%'
-  ),
-  Attributes(attribute, attrib_name) AS (
-      VALUES ("mCellBandwidthDownlinkKhz", "downlink"),
-          ("mCellBandwidthUplinkKhz", "uplink"),
-          ("mNetworkType", "network"),
-          ("mBand", "band")
-  ),
-  Slots(idx, slot_name) AS (
-      VALUES (0, "primary"),
-          (1, "secondary 1"),
-          (2, "secondary 2")
-  ),
-  Stage1 AS (
-      SELECT *, IFNULL(EXTRACT_KEY_VALUE(STR_SPLIT(raw_config, "}, {", idx), attribute), "") AS name
-      FROM RawChannelConfig
-      JOIN Attributes
-      JOIN Slots
-  ),
-  Stage2 AS (
-      SELECT *, LAG(name) OVER (PARTITION BY idx, attribute ORDER BY ts) AS last_name
-      FROM Stage1
-  ),
-  Stage3 AS (
-      SELECT *, LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY idx, attribute ORDER BY ts) - ts AS dur
-      FROM Stage2 WHERE name != last_name
-  )
-  SELECT ts, dur, slot_name || "-" || attrib_name || "=" || name AS name
-  FROM Stage3`;
+const MODEM_RIL_CHANNELS_DATASET = new SourceDataset({
+  src: `
+    With RawChannelConfig AS (
+        SELECT ts, slice.name AS raw_config
+        FROM slice, track
+        ON (slice.track_id = track.id)
+        WHERE track.name = 'RIL'
+        AND slice.name LIKE 'UNSOL_PHYSICAL_CHANNEL_CONFIG%'
+    ),
+    Attributes(attribute, attrib_name) AS (
+        VALUES ("mCellBandwidthDownlinkKhz", "downlink"),
+            ("mCellBandwidthUplinkKhz", "uplink"),
+            ("mNetworkType", "network"),
+            ("mBand", "band")
+    ),
+    Slots(idx, slot_name) AS (
+        VALUES (0, "primary"),
+            (1, "secondary 1"),
+            (2, "secondary 2")
+    ),
+    Stage1 AS (
+        SELECT *, IFNULL(EXTRACT_KEY_VALUE(STR_SPLIT(raw_config, "}, {", idx), attribute), "") AS name
+        FROM RawChannelConfig
+        JOIN Attributes
+        JOIN Slots
+    ),
+    Stage2 AS (
+        SELECT *, LAG(name) OVER (PARTITION BY idx, attribute ORDER BY ts) AS last_name
+        FROM Stage1
+    ),
+    Stage3 AS (
+        SELECT *, LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY idx, attribute ORDER BY ts) - ts AS dur
+        FROM Stage2 WHERE name != last_name
+    )
+    SELECT ts, dur, slot_name || "-" || attrib_name || "=" || name AS name
+    FROM Stage3
+  `,
+  schema: {
+    ts: LONG,
+    dur: LONG_NULL,
+    name: STR,
+  },
+});
 
-const MODEM_CELL_RESELECTION = `
-  with base as (
-    select
-        ts,
-        s.name as raw_ril,
-        ifnull(str_split(str_split(s.name, 'CellIdentityLte{', 1), ', operatorNames', 0),
-            str_split(str_split(s.name, 'CellIdentityNr{', 1), ', operatorNames', 0)) as cell_id
-    from track t join slice s on t.id = s.track_id
-    where t.name = 'RIL' and s.name like '%DATA_REGISTRATION_STATE%'
-  ),
-  base2 as (
-    select
-        ts,
-        raw_ril,
-        case
-            when cell_id like '%earfcn%' then 'LTE ' || cell_id
-            when cell_id like '%nrarfcn%' then 'NR ' || cell_id
-            when cell_id is null then 'Unknown'
-            else cell_id
-        end as cell_id
-    from base
-  ),
-  base3 as (
-    select ts, cell_id , lag(cell_id) over (order by ts) as lag_cell_id, raw_ril
-    from base2
-  )
-  select ts, 0 as dur, cell_id as name, raw_ril
-  from base3
-  where cell_id != lag_cell_id
-  order by ts`;
+const MODEM_CELL_RESELECTION_DATASET = new SourceDataset({
+  src: `
+    with base as (
+      select
+          ts,
+          s.name as raw_ril,
+          ifnull(str_split(str_split(s.name, 'CellIdentityLte{', 1), ', operatorNames', 0),
+              str_split(str_split(s.name, 'CellIdentityNr{', 1), ', operatorNames', 0)) as cell_id
+      from track t join slice s on t.id = s.track_id
+      where t.name = 'RIL' and s.name like '%DATA_REGISTRATION_STATE%'
+    ),
+    base2 as (
+      select
+          ts,
+          raw_ril,
+          case
+              when cell_id like '%earfcn%' then 'LTE ' || cell_id
+              when cell_id like '%nrarfcn%' then 'NR ' || cell_id
+              when cell_id is null then 'Unknown'
+              else cell_id
+          end as cell_id
+      from base
+    ),
+    base3 as (
+      select ts, cell_id , lag(cell_id) over (order by ts) as lag_cell_id, raw_ril
+      from base2
+    )
+    select ts, 0 as dur, cell_id as name, raw_ril
+    from base3
+    where cell_id != lag_cell_id
+    order by ts
+  `,
+  schema: {
+    ts: LONG,
+    dur: LONG_NULL,
+    name: STR,
+    raw_ril: UNKNOWN,
+  },
+});
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidRil';
@@ -167,7 +191,21 @@ export default class implements PerfettoPlugin {
       await support.addSliceTrack(
         ctx,
         `Modem signal strength ${band} ${value}`,
-        `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${band}' AND value_name = '${value}'`,
+        new SourceDataset({
+          src: `
+            SELECT
+              ts,
+              dur,
+              name
+            FROM RilScreenOn
+            WHERE band_name = '${band}' AND value_name = '${value}'
+          `,
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+        }),
         groupName,
       );
 
@@ -182,16 +220,15 @@ export default class implements PerfettoPlugin {
     await support.addSliceTrack(
       ctx,
       'Modem channel config',
-      MODEM_RIL_CHANNELS,
+      MODEM_RIL_CHANNELS_DATASET,
       groupName,
     );
 
     await support.addSliceTrack(
       ctx,
       'Modem cell reselection',
-      MODEM_CELL_RESELECTION,
+      MODEM_CELL_RESELECTION_DATASET,
       groupName,
-      ['raw_ril'],
     );
   }
 }

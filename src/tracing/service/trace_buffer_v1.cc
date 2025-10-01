@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_v1.h"
 
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -43,27 +44,26 @@ constexpr uint8_t kChunkNeedsPatching =
     SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 }  // namespace.
 
-const size_t TraceBuffer::InlineChunkHeaderSize = sizeof(ChunkRecord);
-
 // static
-std::unique_ptr<TraceBuffer> TraceBuffer::Create(size_t size_in_bytes,
-                                                 OverwritePolicy pol) {
-  std::unique_ptr<TraceBuffer> trace_buffer(new TraceBuffer(pol));
+std::unique_ptr<TraceBufferV1> TraceBufferV1::Create(size_t size_in_bytes,
+                                                     OverwritePolicy pol) {
+  std::unique_ptr<TraceBufferV1> trace_buffer(new TraceBufferV1(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
   return trace_buffer;
 }
 
-TraceBuffer::TraceBuffer(OverwritePolicy pol) : overwrite_policy_(pol) {
+TraceBufferV1::TraceBufferV1(OverwritePolicy pol) : overwrite_policy_(pol) {
   // See comments in ChunkRecord for the rationale of this.
   static_assert(sizeof(ChunkRecord) == sizeof(SharedMemoryABI::PageHeader) +
                                            sizeof(SharedMemoryABI::ChunkHeader),
                 "ChunkRecord out of sync with the layout of SharedMemoryABI");
+  static_assert(sizeof(ChunkRecord) == TraceBuffer::InlineChunkHeaderSize);
 }
 
-TraceBuffer::~TraceBuffer() = default;
+TraceBufferV1::~TraceBufferV1() = default;
 
-bool TraceBuffer::Initialize(size_t size) {
+bool TraceBufferV1::Initialize(size_t size) {
   static_assert(
       SharedMemoryABI::kMinPageSize % sizeof(ChunkRecord) == 0,
       "sizeof(ChunkRecord) must be an integer divider of a page size");
@@ -89,7 +89,7 @@ bool TraceBuffer::Initialize(size_t size) {
 // Note: |src| points to a shmem region that is shared with the producer. Assume
 // that the producer is malicious and will change the content of |src|
 // while we execute here. Don't do any processing on it other than memcpy().
-void TraceBuffer::CopyChunkUntrusted(
+void TraceBufferV1::CopyChunkUntrusted(
     ProducerID producer_id_trusted,
     const ClientIdentity& client_identity_trusted,
     WriterID writer_id,
@@ -125,7 +125,7 @@ void TraceBuffer::CopyChunkUntrusted(
     if (num_fragments > 0) {
       num_fragments--;
       // These flags should only affect the last packet in the chunk. We clear
-      // them, so that TraceBuffer is able to look at the remaining packets in
+      // them, so that TraceBufferV1 is able to look at the remaining packets in
       // this chunk.
       chunk_flags &= ~kLastPacketContinuesOnNextChunk;
       chunk_flags &= ~kChunkNeedsPatching;
@@ -194,7 +194,7 @@ void TraceBuffer::CopyChunkUntrusted(
     // We should not have read past the last packet.
     if (record_meta->num_fragments_read > prev->num_fragments) {
       PERFETTO_ELOG(
-          "TraceBuffer read too many fragments from an incomplete chunk");
+          "TraceBufferV1 read too many fragments from an incomplete chunk");
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
@@ -310,7 +310,7 @@ void TraceBuffer::CopyChunkUntrusted(
     AddPaddingRecord(padding_size);
 }
 
-ssize_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
+ssize_t TraceBufferV1::DeleteNextChunksFor(size_t bytes_to_clear) {
   PERFETTO_CHECK(!discard_writes_);
 
   // Find the position of the first chunk which begins at or after
@@ -392,7 +392,7 @@ ssize_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
   return static_cast<ssize_t>(next_chunk_ptr - search_end);
 }
 
-void TraceBuffer::AddPaddingRecord(size_t size) {
+void TraceBufferV1::AddPaddingRecord(size_t size) {
   PERFETTO_DCHECK(size >= sizeof(ChunkRecord) && size <= ChunkRecord::kMaxSize);
   ChunkRecord record(size);
   record.is_padding = 1;
@@ -403,12 +403,12 @@ void TraceBuffer::AddPaddingRecord(size_t size) {
   // |wptr_| is deliberately not advanced when writing a padding record.
 }
 
-bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
-                                        WriterID writer_id,
-                                        ChunkID chunk_id,
-                                        const Patch* patches,
-                                        size_t patches_size,
-                                        bool other_patches_pending) {
+bool TraceBufferV1::TryPatchChunkContents(ProducerID producer_id,
+                                          WriterID writer_id,
+                                          ChunkID chunk_id,
+                                          const Patch* patches,
+                                          size_t patches_size,
+                                          bool other_patches_pending) {
   PERFETTO_CHECK(!read_only_);
   ChunkMeta::Key key(producer_id, writer_id, chunk_id);
   auto it = index_.find(key);
@@ -461,14 +461,14 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
   return true;
 }
 
-void TraceBuffer::BeginRead() {
+void TraceBufferV1::BeginRead() {
   read_iter_ = GetReadIterForSequence(index_.begin());
 #if PERFETTO_DCHECK_IS_ON()
   changed_since_last_read_ = false;
 #endif
 }
 
-TraceBuffer::SequenceIterator TraceBuffer::GetReadIterForSequence(
+TraceBufferV1::SequenceIterator TraceBufferV1::GetReadIterForSequence(
     ChunkMap::iterator seq_begin) {
   SequenceIterator iter;
   iter.seq_begin = seq_begin;
@@ -510,7 +510,7 @@ TraceBuffer::SequenceIterator TraceBuffer::GetReadIterForSequence(
   return iter;
 }
 
-void TraceBuffer::SequenceIterator::MoveNext() {
+void TraceBufferV1::SequenceIterator::MoveNext() {
   // Stop iterating when we reach the end of the sequence.
   // Note: |seq_begin| might be == |seq_end|.
   if (cur == seq_end || cur->first.chunk_id == wrapping_id) {
@@ -536,7 +536,7 @@ void TraceBuffer::SequenceIterator::MoveNext() {
     cur = seq_end;
 }
 
-bool TraceBuffer::ReadNextTracePacket(
+bool TraceBufferV1::ReadNextTracePacket(
     TracePacket* packet,
     PacketSequenceProperties* sequence_properties,
     bool* previous_packet_on_sequence_dropped) {
@@ -724,7 +724,7 @@ bool TraceBuffer::ReadNextTracePacket(
   }  // for(;;MoveNext()) [iterate over chunks].
 }
 
-TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
+TraceBufferV1::ReadAheadResult TraceBufferV1::ReadAhead(TracePacket* packet) {
   static_assert(static_cast<ChunkID>(kMaxChunkID + 1) == 0,
                 "relying on kMaxChunkID to wrap naturally");
   TRACE_BUFFER_DLOG(" readahead start @ chunk %u", read_iter_.chunk_id());
@@ -804,7 +804,7 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
   return ReadAheadResult::kFailedMoveToNextSequence;
 }
 
-TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
+TraceBufferV1::ReadPacketResult TraceBufferV1::ReadNextPacketInChunk(
     ProducerAndWriterID producer_and_writer_id,
     ChunkMeta* const chunk_meta,
     TracePacket* packet) {
@@ -875,8 +875,8 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
                         chunk_meta->is_complete())) {
     stats_.set_chunks_read(stats_.chunks_read() + 1);
     stats_.set_bytes_read(stats_.bytes_read() + chunk_record->size);
-    auto* writer_stats = writer_stats_.Insert(producer_and_writer_id, {}).first;
-    writer_stats->used_chunk_hist.Add(chunk_meta->cur_fragment_offset);
+    writer_stats_.Insert(producer_and_writer_id,
+                         chunk_meta->cur_fragment_offset);
   } else {
     // We have at least one more packet to parse. It should be within the chunk.
     if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=
@@ -896,21 +896,21 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
   return ReadPacketResult::kSucceeded;
 }
 
-void TraceBuffer::DiscardWrite() {
+void TraceBufferV1::DiscardWrite() {
   PERFETTO_DCHECK(overwrite_policy_ == kDiscard);
   discard_writes_ = true;
   stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
   TRACE_BUFFER_DLOG("  discarding write");
 }
 
-std::unique_ptr<TraceBuffer> TraceBuffer::CloneReadOnly() const {
-  std::unique_ptr<TraceBuffer> buf(new TraceBuffer(CloneCtor(), *this));
+std::unique_ptr<TraceBuffer> TraceBufferV1::CloneReadOnly() const {
+  std::unique_ptr<TraceBufferV1> buf(new TraceBufferV1(CloneCtor(), *this));
   if (!buf->data_.IsValid())
     return nullptr;  // PagedMemory::Allocate() failed. We are out of memory.
   return buf;
 }
 
-TraceBuffer::TraceBuffer(CloneCtor, const TraceBuffer& src)
+TraceBufferV1::TraceBufferV1(CloneCtor, const TraceBufferV1& src)
     : overwrite_policy_(src.overwrite_policy_),
       read_only_(true),
       discard_writes_(src.discard_writes_) {
@@ -929,15 +929,29 @@ TraceBuffer::TraceBuffer(CloneCtor, const TraceBuffer& src)
   stats_.set_readaheads_failed(0);
   stats_.set_readaheads_succeeded(0);
 
-  // Copy the index of chunk metadata and reset the read states.
+  // Copy the index of chunk metadata.
+  // NOTE: in 2025-10 the behavior of CloneReadOnly() in presence of existing
+  // reads has changed.
+  // Before: the read iterator would be reset and the cloned buffer would behave
+  //         as if no read was performed.
+  // After: the read iterators are untouched.
+  // This is done for two reasons:
+  // 1. To converge with the behavior of TraceBufferV2, which can't support the
+  //    old behavior.
+  // 2. To support properly cloning of write_into_file sessions (b/382209797).
   index_ = ChunkMap(src.index_);
-  for (auto& kv : index_) {
-    ChunkMeta& chunk_meta = kv.second;
-    chunk_meta.num_fragments_read = 0;
-    chunk_meta.cur_fragment_offset = 0;
-    chunk_meta.set_last_read_packet_skipped(false);
+  if (!base::flags::buffer_clone_preserve_read_iter) {
+    for (auto& kv : index_) {
+      ChunkMeta& chunk_meta = kv.second;
+      chunk_meta.num_fragments_read = 0;
+      chunk_meta.cur_fragment_offset = 0;
+      chunk_meta.set_last_read_packet_skipped(false);
+    }
   }
   read_iter_ = SequenceIterator();
 }
+
+// For the virtual base class.
+TraceBuffer::~TraceBuffer() = default;
 
 }  // namespace perfetto

@@ -30,12 +30,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
-#include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -83,13 +81,7 @@ class Dataframe {
 
     // Returns the bytecode instructions of the query plan as a vector of
     // strings, where each string represents a single bytecode instruction.
-    std::vector<std::string> BytecodeToString() const {
-      std::vector<std::string> result;
-      for (const auto& instr : plan_.bytecode) {
-        result.push_back(impl::bytecode::ToString(instr));
-      }
-      return result;
-    }
+    std::vector<std::string> BytecodeToString() const;
 
     // An estimate for the cost of executing the query plan.
     double estimated_cost() const { return plan_.params.estimated_cost; }

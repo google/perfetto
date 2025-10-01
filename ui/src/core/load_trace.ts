@@ -89,6 +89,13 @@ const FTRACE_DROP_UNTIL_FLAG = featureFlags.register({
     'Drop ftrace events until all per-cpu data streams are known to be valid',
   defaultValue: true,
 });
+const FORCE_FULL_SORT_FLAG = featureFlags.register({
+  id: 'forceFullSort',
+  name: 'Force full sort',
+  description:
+    'Forces the trace processor into performing a full sort ignoring any windowing logic',
+  defaultValue: false,
+});
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
@@ -146,6 +153,7 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
+      forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
@@ -222,7 +230,23 @@ async function loadTraceIntoEngine(
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
+
+  // Attempt to preserve the existing page, only add/change the local_cache_key.
+  //
+  // This is so that if the user opens a trace from a URL or has navigated to a
+  // page before opening a trace, we stay on that page. This allows links to
+  // e.g. #!/explore to work as expected.
+  //
+  // Only navigate to the timeline page if we are currently on the home page.
+  const route = Router.parseUrl(window.location.href);
+
+  let nextPage = route.page;
+  if (route.page === '/' || route.page === '') {
+    // Current'y on the home page, navigate to the timeline page.
+    nextPage = '/viewer';
+  }
+
+  Router.navigate(`#!${nextPage}?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);
@@ -274,13 +298,8 @@ async function loadTraceIntoEngine(
   // This ensures startup commands see the complete, final state of the trace.
   if (trace.commands.hasStartupCommands()) {
     updateStatus(app, 'Running startup commands');
-    // Disable prompts during startup commands to prevent blocking
-    app.omnibox.disablePrompts();
-    try {
-      await trace.commands.runStartupCommands();
-    } finally {
-      app.omnibox.enablePrompts();
-    }
+    using _ = trace.omnibox.disablePrompts();
+    await trace.commands.runStartupCommands();
   }
 
   return trace;

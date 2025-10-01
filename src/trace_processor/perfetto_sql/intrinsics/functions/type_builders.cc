@@ -553,22 +553,19 @@ struct SymbolizeAgg
 }  // namespace
 
 base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
-  RETURN_IF_ERROR(engine.RegisterSqliteAggregateFunction<ArrayAgg>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterSqliteFunction<Struct>(nullptr));
+  RETURN_IF_ERROR(engine.RegisterAggregateFunction<ArrayAgg>(nullptr));
+  RETURN_IF_ERROR(engine.RegisterFunction<Struct>(nullptr));
+  RETURN_IF_ERROR(engine.RegisterAggregateFunction<RowDataframeAgg>(nullptr));
   RETURN_IF_ERROR(
-      engine.RegisterSqliteAggregateFunction<RowDataframeAgg>(nullptr));
+      engine.RegisterAggregateFunction<IntervalTreeIntervalsAgg>(nullptr));
   RETURN_IF_ERROR(
-      engine.RegisterSqliteAggregateFunction<IntervalTreeIntervalsAgg>(
-          nullptr));
-  RETURN_IF_ERROR(
-      engine.RegisterSqliteAggregateFunction<CounterPerTrackAgg>(nullptr));
+      engine.RegisterAggregateFunction<CounterPerTrackAgg>(nullptr));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
-  RETURN_IF_ERROR(
-      engine.RegisterSqliteAggregateFunction<SymbolizeAgg>(nullptr));
+  RETURN_IF_ERROR(engine.RegisterAggregateFunction<SymbolizeAgg>(nullptr));
 #endif
 
-  return engine.RegisterSqliteAggregateFunction<NodeAgg>(nullptr);
+  return engine.RegisterAggregateFunction<NodeAgg>(nullptr);
 }
 
 }  // namespace perfetto::trace_processor
