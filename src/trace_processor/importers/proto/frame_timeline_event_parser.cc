@@ -264,8 +264,9 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
 
   int64_t cookie = event.cookie();
   int64_t token = event.token();
-  float jank_severity_score = event.jank_severity_score();
-  float present_delay_millis = event.present_delay_millis();
+  double jank_severity_score = static_cast<double>(event.jank_severity_score());
+  double present_delay_millis =
+      static_cast<double>(event.present_delay_millis());
   StringId name_id =
       context_->storage->InternString(base::StringView(std::to_string(token)));
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
@@ -438,9 +439,11 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  float jank_severity_score = event.jank_severity_score();
-  float present_delay_millis = event.present_delay_millis();
-  float vsync_resynced_jitter_millis = event.vsync_resynced_jitter_millis();
+  double jank_severity_score = static_cast<double>(event.jank_severity_score());
+  double present_delay_millis =
+      static_cast<double>(event.present_delay_millis());
+  double vsync_resynced_jitter_millis =
+      static_cast<double>(event.vsync_resynced_jitter_millis());
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
