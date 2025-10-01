@@ -33,7 +33,9 @@
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
-
+namespace base {
+class UnixSocketWatch;
+}
 class ProbesDataSource;
 
 const uint64_t kLRUInodeCacheSize = 1000;
@@ -134,6 +136,7 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>
       system_inodes_;
 
+  std::unique_ptr<base::UnixSocketWatch> sock_inotify_;
   base::WeakPtrFactory<ProbesProducer> weak_factory_;  // Keep last.
 };
 
