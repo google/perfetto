@@ -84,10 +84,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
     );
   }
 
-  private createFlamegraph(
-    attrs: PprofPageAttrs,
-    profile: PprofProfile,
-  ): void {
+  private createFlamegraph(attrs: PprofPageAttrs, profile: PprofProfile): void {
     if (profile.metrics.length === 0) {
       this.flamegraph = undefined;
       attrs.state.flamegraphState = undefined;
