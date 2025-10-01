@@ -98,13 +98,8 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
   uint32_t new_thread_id =
       cs.has_new_thread_id() ? cs.new_thread_id() : kAnonymizedThreadId;
 
-  if (old_thread_id == kAnonymizedThreadId) {
-    context_->process_tracker->UpdateThreadName(
-        context_->process_tracker->GetOrCreateThread(kAnonymizedThreadId),
-        context_->storage->InternString("Anonymized Process"),
-        ThreadNamePriority::kEtwTrace);
-  }
-  if (new_thread_id == kAnonymizedThreadId) {
+  if (old_thread_id == kAnonymizedThreadId ||
+      new_thread_id == kAnonymizedThreadId) {
     context_->process_tracker->UpdateThreadName(
         context_->process_tracker->GetOrCreateThread(kAnonymizedThreadId),
         context_->storage->InternString("Anonymized Process"),
