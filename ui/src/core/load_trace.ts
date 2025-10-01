@@ -47,7 +47,7 @@ import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
-import {base64Decode} from 'src/base/string_utils';
+import {base64Decode} from '../base/string_utils';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
