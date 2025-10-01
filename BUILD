@@ -407,6 +407,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -416,6 +417,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -2789,6 +2791,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_functions_functions",
     srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/args.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/args.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h",
@@ -3687,6 +3691,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:args_utils
+perfetto_filegroup(
+    name = "src_trace_processor_util_args_utils",
+    srcs = [
+        "src/trace_processor/util/args_utils.cc",
+        "src/trace_processor/util/args_utils.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:build_id
 perfetto_filegroup(
     name = "src_trace_processor_util_build_id",
@@ -3755,6 +3768,15 @@ perfetto_filegroup(
         "src/trace_processor/util/json_parser.h",
         "src/trace_processor/util/json_utils.cc",
         "src/trace_processor/util/json_utils.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:json_writer
+perfetto_filegroup(
+    name = "src_trace_processor_util_json_writer",
+    srcs = [
+        "src/trace_processor/util/json_writer.cc",
+        "src/trace_processor/util/json_writer.h",
     ],
 )
 
@@ -7541,6 +7563,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -7550,6 +7573,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7753,6 +7777,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -7762,6 +7787,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7951,6 +7977,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_args_utils",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -7960,6 +7987,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",

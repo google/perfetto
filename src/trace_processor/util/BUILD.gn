@@ -218,6 +218,20 @@ source_set("sql_argument") {
   ]
 }
 
+source_set("args_utils") {
+  sources = [
+    "args_utils.cc",
+    "args_utils.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../storage",
+    "../types",
+  ]
+}
+
 source_set("json_parser") {
   sources = [
     "json_parser.h",
