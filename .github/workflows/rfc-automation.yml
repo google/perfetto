@@ -1,0 +1,57 @@
+name: RFC Automation
+
+on:
+  push:
+    paths:
+      - '[0-9][0-9][0-9][0-9]-*.md'
+    branches:
+      - rfcs
+
+permissions:
+  contents: read
+  discussions: write
+
+jobs:
+  sync-to-discussions:
+    name: Sync RFC to GitHub Discussions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed RFC files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            [0-9][0-9][0-9][0-9]-*.md
+          separator: ","
+
+      - name: Setup Python
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          pip install requests
+
+      - name: Sync RFCs to Discussions
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          CATEGORY: "Design discussions"
+        run: |
+          # Convert comma-separated list to array, properly handling spaces in filenames
+          IFS=',' read -ra FILES <<< "${{ steps.changed-files.outputs.all_changed_files }}"
+
+          # Call Python script with all files, properly quoted
+          if [ ${#FILES[@]} -gt 0 ]; then
+            python .github/scripts/sync_rfc_to_discussion.py "${FILES[@]}"
+          fi
