@@ -17,7 +17,7 @@ mode, which will take care of starting and tearing down the services for you.
 If no applet name is specified, `tracebox` will behave like the `perfetto`
 command, but will also start `traced` and `traced_probes`.
 
-See [perfetto(1)](perfetto.md) for the documentation of the commandline client.
+See [perfetto(1)](perfetto-cli.md) for the documentation of the commandline client.
 
 ### Autostart Mode Usage
 
