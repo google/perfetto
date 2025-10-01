@@ -133,7 +133,8 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
   uint64_t sample_type_length;
   const uint8_t* len_next =
       protozero::proto_utils::ParseVarInt(next, end, &sample_type_length);
-  if (len_next == next || len_next + sample_type_length > end) {
+  if (len_next == next ||
+      sample_type_length > static_cast<uint64_t>(end - len_next)) {
     return false;
   }
 
