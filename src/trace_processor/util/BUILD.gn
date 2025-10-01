@@ -236,6 +236,17 @@ source_set("json_parser") {
   }
 }
 
+source_set("json_writer") {
+  sources = [
+    "json_writer.cc",
+    "json_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("proto_profiler") {
   sources = [
     "proto_profiler.cc",
@@ -331,6 +342,7 @@ source_set("unittests") {
     "debug_annotation_parser_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
+    "json_writer_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
@@ -353,6 +365,7 @@ source_set("unittests") {
     ":glob",
     ":gzip",
     ":json_parser",
+    ":json_writer",
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_json",
