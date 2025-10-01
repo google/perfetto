@@ -1988,12 +1988,33 @@ TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
       .CopyIntoTraceBuffer();
 
   // Now all three packes should be readable.
-  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
-  snap->BeginRead();
-  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
-  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
-  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
-  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  {
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    snap->BeginRead();
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
+    ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  }
+
+  // Verify that in the new behavior (buffer_clone_preserve_read_iter=true)
+  // If we read a fragment from the original buffer, the cloned buffer will
+  // continue from the updated position.
+  if (!base::flags::buffer_clone_preserve_read_iter)
+    return;
+
+  // Consume one packet from the original buffer.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+
+  // Verify that only 'b' and 'c' are read from the cloned buffer, but not 'a'.
+  {
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    snap->BeginRead();
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
+    ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  }
 }
 
 TEST_F(TraceBufferTest, Clone_WithPatches) {
