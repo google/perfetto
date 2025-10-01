@@ -1,4 +1,4 @@
-# Trace Clock Synchronization for Multi-Trace Merging #3104
+# Trace Clock Synchronization for Multi-Trace Merging
 
 **Authors:** @LalitMaganti
 
