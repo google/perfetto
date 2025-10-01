@@ -86,11 +86,11 @@ ArgNode& ArgNode::AddOrGet(const std::string_view key) {
 
 ArgSet::ArgSet() : root_(ArgNode::Dict()) {}
 
-base::Status ArgSet::AppendArg(const std::string& key, Variadic value) {
+base::Status ArgSet::AppendArg(NullTermStringView key, Variadic value) {
   // Parse the key path (e.g., "foo.bar[0].baz")
   ArgNode* target = &root_;
 
-  for (base::StringSplitter parts(key, '.'); parts.Next();) {
+  for (base::StringSplitter parts(key.c_str(), '.'); parts.Next();) {
     std::string_view part{parts.cur_token(), parts.cur_token_size()};
     if (target->IsNull()) {
       *target = ArgNode::Dict();

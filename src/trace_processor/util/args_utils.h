@@ -76,7 +76,7 @@ class ArgSet {
 
   const ArgNode& root() const { return root_; }
 
-  base::Status AppendArg(const std::string& key, Variadic value);
+  base::Status AppendArg(NullTermStringView key, Variadic value);
 
  private:
   ArgNode root_;

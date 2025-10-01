@@ -161,7 +161,7 @@ void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
 }
 
 // static
-void PrintArgs::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   sqlite::Type arg_set_value = sqlite::value::Type(argv[0]);
   if (arg_set_value == sqlite::Type::kNull) {
     return;
@@ -187,7 +187,7 @@ void PrintArgs::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     const auto row = row_number.ToRowReference(arg_table);
 
     const auto result =
-        arg_set.AppendArg(storage->GetString(row.key()).ToStdString(),
+        arg_set.AppendArg(storage->GetString(row.key()),
                           storage->GetArgValue(row_number.row_number()));
     if (!result.ok()) {
       return sqlite::result::Error(ctx, result.c_message());

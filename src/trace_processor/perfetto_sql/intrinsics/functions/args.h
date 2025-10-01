@@ -33,7 +33,7 @@ struct ExtractArg : public sqlite::Function<ExtractArg> {
 };
 
 // Prints the entire arg set as a json object.
-struct PrintArgs : public sqlite::Function<ExtractArg> {
+struct ArgSetToJson : public sqlite::Function<ExtractArg> {
   static constexpr char kName[] = "__intrinsic_arg_set_to_json";
   static constexpr int kArgCount = 1;
 

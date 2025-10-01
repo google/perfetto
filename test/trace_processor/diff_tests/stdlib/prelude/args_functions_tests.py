@@ -62,7 +62,7 @@ class ArgsFunctions(TestSuite):
         "Event","value1",42,3.250000,"[NULL]"
         """))
 
-  def test___intrinsic_arg_set_to_json_simple(self):
+  def test__intrinsic_arg_set_to_json_simple(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -96,7 +96,7 @@ class ArgsFunctions(TestSuite):
         "Event","{\"debug\":{\"key1\":\"value1\",\"key2\":42}}"
         """))
 
-  def test___intrinsic_arg_set_to_json_empty(self):
+  def test_arg_set_to_json_empty(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -122,7 +122,7 @@ class ArgsFunctions(TestSuite):
         "Event","{}"
         """))
 
-  def test___intrinsic_arg_set_to_json_complex_types(self):
+  def test_arg_set_to_json_complex_types(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -168,7 +168,7 @@ class ArgsFunctions(TestSuite):
         "Event","{\"debug\":{\"string_val\":\"test\",\"int_val\":-123,\"uint_val\":456,\"bool_val\":true,\"ptr_val\":\"0x64\"}}"
         """))
 
-  def test___intrinsic_arg_set_to_json_nested(self):
+  def test_arg_set_to_json_nested(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -209,7 +209,7 @@ class ArgsFunctions(TestSuite):
         "Event","{\"debug\":{\"simple\":\"value\",\"nested\":{\"inner1\":\"inner_value1\",\"inner2\":99}}}"
         """))
 
-  def test___intrinsic_arg_set_to_json_with_arrays(self):
+  def test_arg_set_to_json_with_arrays(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -259,7 +259,7 @@ class ArgsFunctions(TestSuite):
         "Event","{\"debug\":{\"array_field\":[1,2,3],\"string_array\":[\"a\",\"b\",\"c\"]}}"
         """))
 
-  def test___intrinsic_arg_set_to_json_preserves_order(self):
+  def test_arg_set_to_json_preserves_order(self):
     """Test that __intrinsic_arg_set_to_json preserves the insertion order of arguments
     and does not accidentally sort or reorder them."""
     return DiffTestBlueprint(

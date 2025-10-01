@@ -540,7 +540,7 @@ class JsonExporter {
           arg_set = ArgSet();
           cur_args_set_id = set_id;
         }
-        arg_set.AppendArg(storage->GetString(it.key()).ToStdString(),
+        arg_set.AppendArg(storage->GetString(it.key()),
                           storage_->GetArgValue(it.row_number().row_number()));
       }
       if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
