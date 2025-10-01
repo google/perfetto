@@ -46,7 +46,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
-          CATEGORY: "Design discussions"
+          CATEGORY: "Team Design Discussions"
         run: |
           # Convert comma-separated list to array, properly handling spaces in filenames
           IFS=',' read -ra FILES <<< "${{ steps.changed-files.outputs.all_changed_files }}"
