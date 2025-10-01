@@ -130,6 +130,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       closeOnOutsideClick = true,
     } = attrs;
 
+    this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
