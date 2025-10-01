@@ -26,8 +26,9 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/intrusive_list.h"
 
-// TODO DNS disable TRACE_BUFFER_VERBOSE_LOGGING.
-#define TRACE_BUFFER_VERBOSE_LOGGING() 1  // Set to 1 when debugging unittests.
+// Set manually when debugging test failures.
+// TRACE_BUFFER_DLOG is too verbose, even for debug builds.
+#define TRACE_BUFFER_VERBOSE_LOGGING() 0
 
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
@@ -141,11 +142,8 @@ std::optional<Frag> FragIterator::NextFragmentInChunk() {
   if (frag_size_u64 > reinterpret_cast<uintptr_t>(chunk_end) -
                           reinterpret_cast<uintptr_t>(frag_begin)) {
     chunk_corrupted_ = true;
-    // chunk_->payload_avail = 0;  // TODO remove this
     return std::nullopt;
   }
-
-  // TODO if last frag and needs patching return false?
 
   uint16_t frag_size = static_cast<uint16_t>(frag_size_u64);
   next_frag_off_ += hdr_size + frag_size;  // Was: next_frag_off_ += frag_size;
@@ -286,8 +284,6 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
   }
 }
 
-// TODO somewhere here we should check if we are linear on the chunkid or gaps.
-// Idelaly we should have the check in a single unified place.
 bool ChunkSeqReader::ReadNextPacket(TracePacket* out_packet) {
   PERFETTO_DCHECK(!iter_->is_padding());
   PERFETTO_DCHECK(frag_iter_.next_frag_off() >= iter_->unread_payload_off());
@@ -311,7 +307,9 @@ bool ChunkSeqReader::ReadNextPacket(TracePacket* out_packet) {
         seq_->data_loss = true;
       }
 
-      if (iter_->flags & kChunkIncomplete) {
+      // TODO this should have a && mode == kReadMode.
+      // Add a test to make sure incomplete doens't mess up with deletion.
+      if (iter_->flags & kChunkIncomplete /* && mode == kReadMode */) {
         // If the chunk is incomplete, we don't want to read past it.
         // TODO(minor) add a test to make sure that this doesn't mess deletion.
         seq_->skip_in_generation = buf_->read_generation_;
@@ -358,7 +356,6 @@ bool ChunkSeqReader::ReadNextPacket(TracePacket* out_packet) {
         break;  // Break the switch, continue the loop.
 
       case Frag::kFragBegin:
-        // TODO what happens if the chunk needs patching?
         auto reassembly_res = ReassembleFragmentedPacket(out_packet, &frag);
         if (reassembly_res == FragReassemblyResult::kSuccess) {
           buf_->stats_.set_readaheads_succeeded(
@@ -503,19 +500,13 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     break;
   }  // for (chunk in list)
 
-  if (res == FragReassemblyResult::kDataLoss) {
-    seq_->data_loss = true;  // TODO: Here or the caller does it? maybe caller.
-  }
-
   for (FragAndChunk& fc : frags) {
     Frag& f = fc.frag;
     if (res == FragReassemblyResult::kSuccess && f.size > 0) {
       out_packet->AddSlice(f.begin, f.size);
     }
     if (res == FragReassemblyResult::kSuccess ||
-        res == FragReassemblyResult::kDataLoss
-        // || force_erase // TODO unneded, remove
-    ) {
+        res == FragReassemblyResult::kDataLoss) {
       ConsumeFragment(fc.chunk, &f);
     }
   }
@@ -581,7 +572,19 @@ bool TraceBufferV2::ReadNextTracePacket(
 
   for (;;) {
     size_t next_rd = 0;
-    if (chunk_seq_reader_.has_value()) {
+    if (!chunk_seq_reader_.has_value()) {
+      // Note: in the edge case when the buffer is completely empty, TBChunk
+      // is designed in a way such that GetTBChunkAt(0) returns an empty padding
+      // chunk with a valid (zero) checksum.
+      // This is so we don't need extra branches to deal with this rare case.
+      TBChunk* chunk = GetTBChunkAt(rd_);
+      if (!chunk->is_padding()) {
+        chunk_seq_reader_.emplace(this, chunk, ChunkSeqReader::kReadMode);
+        continue;
+      }
+      // If this chunk is empty, try with the chunk in buffer order.
+      next_rd = rd_ + chunk->outer_size();
+    } else {
       // ReadNextPacket reads only packets for the current chunk. Eventually it
       // might go back to previous chunks in the sequence (even if they are in
       // Random parts of the buffer) and might go a bit futher if the last
@@ -599,18 +602,6 @@ bool TraceBufferV2::ReadNextTracePacket(
       // increment the rd_ cursor and try with the next chunk in buffer order.
       TBChunk* chunk = chunk_seq_reader_->end();
       next_rd = OffsetOf(chunk) + chunk->outer_size();
-    } else {
-      // Note: in the edge case when the buffer is completely empty, TBChunk
-      // is designed in a way such that GetTBChunkAt(0) returns a padding chunk
-      // with a valid checksum (which happens to be 0) of inner-size=0.
-      // This is so we don't need extra branches to deal with this rare case.
-      TBChunk* chunk = GetTBChunkAt(rd_);
-      if (!chunk->is_padding()) {
-        chunk_seq_reader_.emplace(this, chunk, ChunkSeqReader::kReadMode);
-        continue;
-      }
-      // If this chunk is empty, try with the chunk in buffer order.
-      next_rd = rd_ + chunk->outer_size();
     }
 
     PERFETTO_DCHECK(next_rd > 0);
@@ -641,11 +632,6 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   if (PERFETTO_UNLIKELY(discard_writes_))
     return DiscardWrite();
-
-  // Note: `src` points to the first packet fragment in the chunk. The caller
-  // (TracingServiceImpl) does the chunk header decoding for us and breaks it
-  // down into the various args passed here.
-  // const uint8_t* const end = src + src_size;  // TODO remove
 
   // chunk_complete is true in the majority of cases, and is false only when
   // the service performs SBM scraping (upon flush).
@@ -847,9 +833,20 @@ TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   return new (chunk) TBChunk(off, size);
 }
 
-// Note for reviewer: unlike the old v1 impl, here DeleteNextChunksFor also
-// takes care of writing the padding chunk in case of truncation.
-// TODO copy over the diagram from v1::CopyChunkUntrusted.
+// Deletes (by marking the record invalid and removing form the index) all
+// chunks from wr_ to (wr_ + bytes_to_clear).
+// Graphically, assume the initial situation is the following (|wptr_| = 10).
+// |0        |10 (wptr_)       |30       |40                 |60
+// +---------+-----------------+---------+-------------------+---------+
+// | Chunk 1 | Chunk 2         | Chunk 3 | Chunk 4           | Chunk 5 |
+// +---------+-----------------+---------+-------------------+---------+
+//           |_________Deletion range_______|~~padding chunk~~|
+//
+// A call to DeleteNextChunksFor(32) will remove chunks 2,3,4 and create a
+// 18 bytes (60 - 42) padding chunk, between the end of the deletion range and
+// the beginning of Chunk 5.
+// Unlike the old v1 impl, here DeleteNextChunksFor also takes care of writing
+// the padding chunk in case of truncation.
 void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   TRACE_BUFFER_DLOG("DeleteNextChunksFor(%zu) @ wr=%zu", bytes_to_clear, wr_);
   PERFETTO_CHECK(!discard_writes_);
@@ -910,40 +907,6 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     //   TODO_mark_sequence_as_data_loss();
   }
 
-  // When we set a limit in BeginRead(), ReadNextTracePacket() will stop
-  // at the chunk that contains the limit (bytes_to_clear), unless
-  // there are no chunks in the buffer (we are at the first write pass and
-  // haven't wrapped even once).
-  // Note that ReadNextTracePacket() might stop well before the limit, if the
-  // last chunks that precede the limits are already cleared. So we can't just
-  // assume that it will stop _precisely_ on that chunk. But we can assume that
-  // it will free up all the chunks between wr_ and the clear_end limit (incl.).
-  // As part of the its walking algorithm, it might free up also chunks that
-  // are not in the range [wr_, clear_end] if they happen to be earlier in the
-  // sequence of one of the chunks in that range.
-  // Now we need to take this last chunk and create a padding chunk precisely
-  // on the `bytes_to_clear` boundary. This is so that the buffer remains well
-  // formed, with a contiguous series of chunks.
-  // Visually:
-  //
-  // Situation before:
-  //           | wr_ is here initially
-  //           V
-  // +---------+----------+-----------+---------+
-  // | xxxxxxx |  Chunk1  |  Chunk 2  | Chunk 3 |
-  // +---------+----------+-----------+---------+
-  //           |                  |
-  //           +- bytes_to_clear -+
-  //
-  // Situation after:
-  //                                + This new zero chunk is what we are after!
-  //                                V
-  // +---------+----------+-------+---+---------+
-  // | xxxxxxx |  0000000 | 00000 | 0 | Chunk 3 |
-  // +---------+----------+-------+---+---------+
-  //           |                  |
-  //           +- bytes_to_clear -+
-  //
   for (size_t off = wr_; off < clear_end && off < used_size_;) {
     TBChunk* chunk = GetTBChunkAt(off);
     PERFETTO_DCHECK(chunk->is_padding());
@@ -1146,5 +1109,7 @@ void TraceBufferV2::DumpForTesting() {
 
 }  // namespace perfetto
 
-// TODO add a test that simulates a real-time reading where we write, and we
-// read a bit, we write more, we read more and we see everything in sequence
+// TODO add a test that checks that if we have pending patches, and overwrite,
+// we still see a data loss.
+
+// Same as above, but for kChunkIncomplete.

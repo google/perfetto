@@ -45,13 +45,26 @@ class TraceBufferV2;
 
 namespace internal {
 
-// A TraceBuffer Chunk. This is very similar to a Shmem ABI Chunk with the
-// following exceptions:
-// - The size of the chunk is variable (% 16B alignment) and matches the payload
-//   to minimize internal fragmentation and buffer efficiency.
-// - The metadata (ChunkID, etc) is stored slighly differently
-// - It keeps track both of the size of the original payload, and the consumed
-//   reads in the buffer are destructive.
+// See /docs/design-docs/trace-buffer.md for details about the design and
+// implementation details of TraceBuffer.
+
+// +---------------------------------------------------------------------------+
+// | TBChunk                                                                   |
+// +---------------------------------------------------------------------------+
+// TBChunk is the struct, stored in the trace buffer memory as a result of
+// calling CopyChunkUntrusted from a SMB chunk.
+// TBChunk exists only in the TraceBuffer PagedMemory `data_`, never on the
+// stack or on the heap. It is followed by the fragments and alignment padding.
+// A TBChunk is very similar to a SMB chunk with the following caveats:
+// - The sizeof() both is the same (16 bytes). This is very important to keep
+//   patches offsets consistent.
+// - The SMB chunk maintains a counter of fragments. TBChunk instead does
+//   byte-based bookkeeping, as that reduces the complexity of the iterators.
+// - The layout of the fields is slightly different, but they both contains
+//   ProducerID, WriterID, ChunkID, fragment counts/sizes and flags.
+//   The SMB chunk layout is an ABI. The TCHunk layout is not: it is an
+//   implementation detail and can be changed.
+// - TBChunk maintains a basic checksum for each chunk (only for debug builds).
 struct TBChunk {
   static constexpr size_t kMaxSize = std::numeric_limits<uint16_t>::max();
   static uint8_t Checksum(size_t off, size_t size) {
@@ -93,7 +106,8 @@ struct TBChunk {
   uint16_t payload_avail = 0;
 
   // These are == the SharedMemoryABI's chunk flags, with the addition of
-  // kChunkComplete (0x80) which doesn't exist at the ABI level, but only here.
+  // MSB flags added by TraceBufferV2 like kChunkIncomplete (0x80) which doesn't
+  // exist at the ABI level, but are synthesized here.
   uint8_t flags = 0;
 
   // This is used only for DCHECKS to verify the integrity of the chunk.
@@ -123,10 +137,16 @@ struct TBChunk {
   bool IsChecksumValid(size_t off) { return Checksum(off, size) == checksum; }
 };
 
+// +---------------------------------------------------------------------------+
+// | SequenceState                                                             |
+// +---------------------------------------------------------------------------+
 // Holds the state for each sequence that has TBCHunk(s) in the buffer.
 // Remember that this struct must be copyable for CloneReadOnly(). Don't hold
 // onto any pointers in here.
-// TODO handle destruction of these.
+// SequenceState(s) are not deleted aggressively to preserve the
+// last_chunk_id_consumed and detect data losses in long tracing mode. We allow
+// the last kKeepLastEmptySeq to stay alive to balance data loss detection with
+// memory bloats.
 struct SequenceState {
   SequenceState(ProducerID, WriterID, ClientIdentity);
   ~SequenceState();
@@ -142,10 +162,8 @@ struct SequenceState {
   // skip := skip_in_generation == TraceBuffer.read_generation_.
   uint64_t skip_in_generation = 0;
 
-  // When `chunks` becomes empty the SequenceState is eligible to be deleted.
-  // Rather than deleting it immediately, we remember its age (derived by
-  // incrementing TraceBufferV2.seq_age_) and remove only the oldest entries.
-  // See comments in DeleteStaleEmptySequences().
+  // Used by DeleteStaleEmptySequences() to keep the latest kKeepLastEmptySeq
+  // objects around.
   uint64_t age_for_gc = 0;
 
   std::optional<ChunkID> last_chunk_id_consumed;
@@ -161,10 +179,13 @@ struct SequenceState {
   base::CircularQueue<size_t> chunks;
 };
 
-// A packet fragment in the buffer.
-// This struct is used in two places:
-// 1. When tokenizing the fragments in CopyChunkUntrusted()
-// 2. When reading/manipulating the buffer.
+// +---------------------------------------------------------------------------+
+// | FragIterator                                                              |
+// +---------------------------------------------------------------------------+
+// A tokenized fragment in the buffer. Holds the fragment size & boundaries.
+// This struct is returned by FragIterator when tokenizing the fragments in
+// CopyChunkUntrusted() or reading the buffer.
+// Frag instances are short lived.
 struct Frag {
   enum FragType : uint8_t {
     // 1 packet == 1 fragment.
@@ -183,12 +204,18 @@ struct Frag {
     kFragEnd,
   };
 
-  // TODO add ascii diagram.
+  // Diagram for the member variables below.
+  //  +- `begin`
+  //  |
+  //  [VarInt header][ Fragment payload ]
+  //  (  hdr_size   )(       size       )
+  //  (         size_with_header        )
+
   // Pointes to the fragment payload, immediately after the header.
   const uint8_t* const begin = nullptr;
   FragType const type = kFragWholePacket;
-  uint8_t const hdr_size = 0;
-  uint16_t const size = 0;
+  uint8_t const hdr_size = 0;  // Size of the varint that tells the frag size.
+  uint16_t const size = 0;     // Size of the payload (the varint value).
 
   uint16_t size_with_header() { return size + hdr_size; }
 
@@ -196,31 +223,15 @@ struct Frag {
       : begin(b), type(t), hdr_size(h), size(s) {}
 };
 
-// Iterates over Chunks in a SequenceState
-class ChunkSeqIterator {
- public:
-  // Rewinds to the first chunk of the sequence.
-  explicit ChunkSeqIterator(TraceBufferV2*, SequenceState*);
-  ChunkSeqIterator() = default;  // Creates an invalid object, for default init.
-  ChunkSeqIterator(const ChunkSeqIterator&) = default;  // Allow copy.
-  ChunkSeqIterator& operator=(const ChunkSeqIterator&) = default;
-
-  TBChunk* NextChunkInSequence();
-  void EraseCurrentChunk();
-  TBChunk* chunk() const { return chunk_; }
-  bool sequence_gap_detected() const { return sequence_gap_detected_; }
-  bool valid() const { return !!seq_ && !!chunk_; }
-
- private:
-  TraceBufferV2* buf_ = nullptr;
-  SequenceState* seq_ = nullptr;
-  TBChunk* chunk_ = nullptr;
-  bool sequence_gap_detected_ = false;
-  size_t list_idx_ = 0;  // Offset of the current chunk in seq_.chunks.
-};
-
-// Iterates over fragments of a chunk.
-// TODO(minor) add explanation/drawings and mention that is used in two places.
+// A simple class that tokenizes fragments in a chunk and allows forward-only
+// iteration.
+// It deals with untrusted data, detecting malformed / out of bounds scenarios.
+// It does not alter the state of the buffer.
+// This is used in three places:
+// - In CopyChunkUntrusted(): to tokenize the fragments and figure out the
+//   "effective" size of the chunk, to get rid of chunk padding.
+// - In ChunkSeqReader::ReadNextPacket(): for the main read logic.
+// - In ReassembleFragmentedPacket(): for the fragment reassembly logic.
 class FragIterator {
  public:
   explicit FragIterator(TBChunk* chunk)
@@ -246,25 +257,62 @@ class FragIterator {
   bool trace_writer_data_drop_ = false;
 };
 
-// Identifiers that are constant for a packet sequence.
-struct PacketSequenceProperties {
-  ProducerID producer_id_trusted;
-  ClientIdentity client_identity_trusted;
-  WriterID writer_id;
+// +---------------------------------------------------------------------------+
+// | ChunkSeqIterator                                                          |
+// +---------------------------------------------------------------------------+
+// A simple utility class that iterates over the ordered list of TBChunk for
+// a given SequenceState. It merely follows the SequenceState.chunks queue
+// and detects gaps.
+class ChunkSeqIterator {
+ public:
+  // Rewinds to the first chunk of the sequence.
+  explicit ChunkSeqIterator(TraceBufferV2*, SequenceState*);
+  ChunkSeqIterator() = default;  // Creates an invalid object, for default init.
+  ChunkSeqIterator(const ChunkSeqIterator&) = default;  // Allow copy.
+  ChunkSeqIterator& operator=(const ChunkSeqIterator&) = default;
 
-  uid_t producer_uid_trusted() const { return client_identity_trusted.uid(); }
-  pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
+  TBChunk* NextChunkInSequence();
+  void EraseCurrentChunk();
+  TBChunk* chunk() const { return chunk_; }
+  bool sequence_gap_detected() const { return sequence_gap_detected_; }
+  bool valid() const { return !!seq_ && !!chunk_; }
+
+ private:
+  TraceBufferV2* buf_ = nullptr;
+  SequenceState* seq_ = nullptr;
+  TBChunk* chunk_ = nullptr;
+  bool sequence_gap_detected_ = false;
+  size_t list_idx_ = 0;  // Offset of the current chunk in seq_.chunks.
 };
 
-// TODO rework comment.
-// Takes a chunk in input which is the chunk we want to visit.
-// Identifies the first chunk (<= input) in the sequence to start the visit,
-// and goes through all fragments in the chunk range.
-// It can also go beyond the input (end_) chunk, if the last fragment is a
-// fragmented packet that continues beyond.
+// +---------------------------------------------------------------------------+
+// | ChunkSeqReader                                                            |
+// +---------------------------------------------------------------------------+
+// Encapsulates most of the readback complexity. It reads and consumes chunks
+// in sequence order, as follows:
+//
+// When constructed, the caller must pass a target TBChunk as argument. This
+// is the chunk where we will stop the iteration *.
+// At readback time this is the next chunk in the buffer that we want to read.
+// At overwrite time this is the chunk that we are about to overwriter.
+// In both cases, because of OOO commits, the next chunk in buffer-order might
+// not necessarily be the next chunk that should be consumed in FIFO order
+// (although in the vast majority cases we expect them to be in order).
+// Upon construction, it rewinds all the way back in the `SequenceState.chunks`
+// (using `ChunkSeqIterator`) and starts the iteration from there.
+// It keeps reading packets until we reach the target TBChunk passed in the
+// constructor.
+// In some cases (fragmentation) it might read beyon the target chunk. This is
+// to reassembly a packet that started in the target chunk and continued later
+// on.
+// When doing so it just consumes the fragment required for reassembly and
+// leaves the other packets in the chunk untouched, to preserve global FIFOness.
 class ChunkSeqReader {
  public:
-  enum Mode { kReadMode, kEraseMode };
+  enum Mode {
+    kReadMode,   // For standard readback.
+    kEraseMode,  // For read-while-overwriting in DeleteNextChunksFor().
+  };
 
   ChunkSeqReader(TraceBufferV2*, TBChunk*, Mode);
 
@@ -293,7 +341,6 @@ class ChunkSeqReader {
   // want to stop iterating, which might be < seq_.end().
   TBChunk* const end_ = nullptr;
 
-  // TODO invalidate this if we delete the seq ?
   SequenceState* const seq_ = nullptr;
 
   ChunkSeqIterator seq_iter_;
@@ -307,11 +354,12 @@ class ChunkSeqReader {
 
 }  // namespace internal
 
+// +---------------------------------------------------------------------------+
+// | TraceBufferV2                                                             |
+// +---------------------------------------------------------------------------+
 class TraceBufferV2 : public TraceBuffer {
  public:
   using TBChunk = internal::TBChunk;
-
-  // Import types from the interface to avoid conflicts
   using OverwritePolicy = TraceBuffer::OverwritePolicy;
   using Patch = TraceBuffer::Patch;
   using PacketSequenceProperties = TraceBuffer::PacketSequenceProperties;
@@ -320,6 +368,25 @@ class TraceBufferV2 : public TraceBuffer {
   static std::unique_ptr<TraceBufferV2> Create(size_t size_in_bytes,
                                                OverwritePolicy = kOverwrite);
 
+  // Copies a Chunk from a producer Shared Memory Buffer into the trace buffer.
+  // |src| points to the first packet in the SharedMemoryABI's chunk shared with
+  // an untrusted producer. "untrusted" here means: the producer might be
+  // malicious and might change |src| concurrently while we read it (internally
+  // this method memcpy()-s first the chunk before processing it). None of the
+  // arguments should be trusted, unless otherwise stated. We can trust that
+  // |src| points to a valid memory area, but not its contents.
+  //
+  // This method may be called multiple times for the same chunk. In this case,
+  // the original chunk's payload will be overridden and its number of fragments
+  // and flags adjusted to match |num_fragments| and |chunk_flags|. The service
+  // may use this to insert partial chunks (|chunk_complete = false|) before the
+  // producer has committed them.
+  //
+  // If |chunk_complete| is |false|, we will only consider the first
+  // |num_fragments - 1| fragments to be complete, since the producer may have
+  // not finished writing the latest packet. Reading from a sequence will also
+  // not progress past any incomplete chunks until they were rewritten with
+  // |chunk_complete = true|, e.g. after a producer's commit.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
                           const ClientIdentity& client_identity_trusted,
                           WriterID writer_id,
@@ -330,6 +397,28 @@ class TraceBufferV2 : public TraceBuffer {
                           const uint8_t* src,
                           size_t size) override;
 
+  // Applies a batch of |patches| to the given chunk, if the given chunk is
+  // still in the buffer. Does nothing if the given ChunkID is gone.
+  // Returns true if the chunk has been found and patched, false otherwise.
+  // |other_patches_pending| is used to determine whether this is the only
+  // batch of patches for the chunk or there is more.
+  // If |other_patches_pending| == false, the chunk is marked as ready to be
+  // consumed. If true, the state of the chunk is not altered.
+  //
+  // Note: If the producer is batching commits (see shared_memory_arbiter.h), it
+  // will also attempt to do patching locally. Namely, if nested messages are
+  // completed while the chunk on which they started is being batched (i.e.
+  // before it has been committed to the service), the producer will apply the
+  // respective patches to the batched chunk. These patches will not be sent to
+  // the service - i.e. only the patches that the producer did not manage to
+  // apply before committing the chunk will be applied here.
+  bool TryPatchChunkContents(ProducerID,
+                             WriterID,
+                             ChunkID,
+                             const Patch* patches,
+                             size_t patches_size,
+                             bool other_patches_pending) override;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -338,16 +427,36 @@ class TraceBufferV2 : public TraceBuffer {
   // Reads in the TraceBufferV2 are NOT idempotent.
   void BeginRead() override;
 
+  // Returns the next packet in the buffer, if any, and the producer/writer
+  // identity that wrote it (as passed in the CopyChunkUntrusted() call).
+  // Returns false if no packets can be read at this point.
+  // If a packet was read successfully, |previous_packet_on_sequence_dropped|
+  // signals whether any data loss has been detected on the sequence
+  // (e.g. because its chunk was overridden due to the ring buffer wrapping or
+  // due to an ABI violation), and to |false| otherwise.
+  //
+  // This function returns only complete packets. Specifically:
+  // When there is at least one complete packet in the buffer, this function
+  // returns true and populates the TracePacket argument with the boundaries of
+  // each fragment for one packet.
+  // TracePacket will have at least one slice when this function returns true.
+  // When there are no whole packets eligible to read (e.g. we are still missing
+  // fragments) this function returns false.
+  // This function guarantees also that packets for a given
+  // {ProducerID, WriterID} are read in FIFO order.
+  // This function does not guarantee any ordering w.r.t. packets belonging to
+  // different WriterID(s). For instance, given the following packets copied
+  // into the buffer:
+  //   {ProducerID: 1, WriterID: 1}: P1 P2 P3
+  //   {ProducerID: 1, WriterID: 2}: P4 P5 P6
+  //   {ProducerID: 2, WriterID: 1}: P7 P8 P9
+  // The following read sequence is possible:
+  //   P1, P4, P7, P2, P3, P5, P8, P9, P6
+  // But the following is guaranteed to NOT happen:
+  //   P1, P5, P7, P4 (P4 cannot come after P5)
   bool ReadNextTracePacket(TracePacket*,
                            PacketSequenceProperties* sequence_properties,
                            bool* previous_packet_on_sequence_dropped) override;
-
-  bool TryPatchChunkContents(ProducerID,
-                             WriterID,
-                             ChunkID,
-                             const Patch* patches,
-                             size_t patches_size,
-                             bool other_patches_pending) override;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called. Calls to
