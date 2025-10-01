@@ -247,8 +247,7 @@ class TraceBufferV1 : public TraceBuffer {
                            PacketSequenceProperties* sequence_properties,
                            bool* previous_packet_on_sequence_dropped) override;
 
-  // Creates a read-only clone of the trace buffer. The read iterators of the
-  // new buffer will be reset, as if no Read() had been called. Calls to
+  // Creates a read-only clone of the trace buffer. Calls to
   // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned
   // TraceBuffer will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const override;

@@ -16,10 +16,7 @@ import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
-import {
-  DatasetSliceTrack,
-  RowSchema,
-} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack, RowSchema} from '../../components/tracks/slice_track';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
@@ -74,7 +71,7 @@ export default class implements PerfettoPlugin {
     groupCollapsed = true,
   ) {
     const uri = `/long_battery_tracing_${name}`;
-    const track = await DatasetSliceTrack.createMaterialized({
+    const track = await SliceTrack.createMaterialized({
       trace: ctx,
       uri,
       dataset,

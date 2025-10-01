@@ -12,17 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 
 type CounterMode = CounterOptions['yMode'];
 
+type DescriptionRenderer = () => m.Children;
+
 interface CounterTrackTypeSchema {
-  type: string;
-  topLevelGroup: TopLevelTrackGroup;
-  group: string | TrackGroupSchema | undefined;
-  shareYAxis?: true;
-  mode?: CounterMode;
+  readonly type: string;
+  readonly topLevelGroup: TopLevelTrackGroup;
+  readonly group: string | TrackGroupSchema | undefined;
+  readonly shareYAxis?: true;
+  readonly mode?: CounterMode;
+
+  /**
+   * Optional function to provide a rich description renderer for the track.
+   *
+   * This function is called during track registration to generate custom
+   * descriptive content that will be displayed to users. The function receives
+   * the track name as input and returns a Mithril render function that produces
+   * the actual description content.
+   *
+   * If the track has a description in the trace, that will be used
+   * automatically so you don't need to define one here.
+   *
+   * @param trackDetails.name - The raw name of the track from the trace.
+   * @param trackDetails.description - The description from the trace, if
+   * available.
+   * @returns A Mithril render function that produces the description content
+   *
+   * @example
+   * ```typescript
+   * description: ({name}) => () => m('span', `Custom description for ${name}`)
+   * ```
+   */
+  readonly description?: (trackDetails: {
+    readonly name?: string;
+    readonly description?: string;
+  }) => DescriptionRenderer | undefined;
 }
 
 export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [

@@ -157,12 +157,12 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
   query(schema?: DatasetSchema) {
     schema = schema ?? this.schema;
     const cols = Object.keys(schema);
-    const selectSql = `select ${cols.join(', ')} from (${this.src})`;
+    const selectSql = `SELECT ${cols.join(', ')} FROM (${this.src})`;
     const filterSql = this.filterQuery();
     if (filterSql === undefined) {
       return selectSql;
     }
-    return `${selectSql} where ${filterSql}`;
+    return `${selectSql} WHERE ${filterSql}`;
   }
 
   optimize() {
@@ -184,7 +184,7 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
     if ('eq' in this.filter) {
       return `${this.filter.col} = ${sqlValueToSqliteString(this.filter.eq)}`;
     } else if ('in' in this.filter) {
-      return `${this.filter.col} in (${sqlValueToSqliteString(this.filter.in)})`;
+      return `${this.filter.col} IN (${sqlValueToSqliteString(this.filter.in)})`;
     } else {
       assertUnreachable(this.filter);
     }

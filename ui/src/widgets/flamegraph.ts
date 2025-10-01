@@ -86,6 +86,11 @@ export interface FlamegraphOptionalAction {
   readonly subActions?: FlamegraphOptionalAction[];
 }
 
+export interface FlamegraphOptionalMarker {
+  readonly name: string;
+  isVisible: (properties: ReadonlyMap<string, string>) => boolean;
+}
+
 export type FlamegraphPropertyDefinition = {
   displayName: string;
   value: string;
@@ -102,6 +107,7 @@ export interface FlamegraphQueryData {
     readonly cumulativeValue: number;
     readonly parentCumulativeValue?: number;
     readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
+    readonly marker?: string;
     readonly xStart: number;
     readonly xEnd: number;
   }>;
@@ -468,6 +474,22 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
+      // Render marker
+      const MARKER_SIZE = 3;
+      const MARKER_LEFT_MARGIN = 2;
+      const MIN_WIDTH_FOR_MARKER = 15; // Don't show marker on very small nodes
+      const hasMarker =
+        source.kind === 'NODE' &&
+        nodes[source.queryIdx].marker !== undefined &&
+        width >= MIN_WIDTH_FOR_MARKER;
+      if (hasMarker) {
+        ctx.fillStyle = 'black'; // Same as text color
+        const markerX = x + MARKER_LEFT_MARGIN;
+        const markerY = y + 2; // Position at top of node with small margin
+        ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
+      }
+
+      // Text positioning - no need to reserve space since marker is in top corner
       const widthNoPadding = width - LABEL_PADDING_PX * 2;
       if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
         ctx.fillStyle = 'black';
@@ -613,6 +635,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       selfValue,
       parentCumulativeValue,
       properties,
+      marker,
     } = nodes[queryIdx];
     const filterButtonClick = (state: FlamegraphState) => {
       this.attrs.onStateChange(state);
@@ -641,6 +664,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     }
     return m(
       'div',
+      // Show marker at the top of the tooltip
+      marker &&
+        m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
       m('.tooltip-bold-text', name),
       m(
         '.tooltip-text-line',
@@ -977,7 +1003,7 @@ function isIntersecting(
 }
 
 function displaySize(totalSize: number, unit: string): string {
-  if (unit === '') return totalSize.toLocaleString();
+  if (unit === '' || unit === 'count') return totalSize.toLocaleString();
   if (totalSize === 0) return `0 ${unit}`;
   let step: number;
   let units: string[];

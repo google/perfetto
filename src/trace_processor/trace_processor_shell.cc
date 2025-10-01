@@ -322,7 +322,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 }
 
 class ErrorPrinter : public google::protobuf::io::ErrorCollector {
-#if GOOGLE_PROTOBUF_VERSION >= 5026000
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
   void RecordError(int line, int col, absl::string_view msg) override {
     PERFETTO_ELOG("%d:%d: %.*s", line, col, static_cast<int>(msg.size()),
                   msg.data());

@@ -16,13 +16,12 @@
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
 -- Macro defining the filtering conditions for a jank or latency CUJ slice in relevant processes.
-CREATE PERFETTO MACRO _is_jank_latency_sysui_slice(
+CREATE PERFETTO MACRO _is_jank_sysui_slice(
     slice TableOrSubquery,
     process TableOrSubquery
 )
 RETURNS Expr AS
 $slice.name GLOB 'J<*>'
-OR $slice.name GLOB 'L<*>'
 AND (
   $process.name GLOB 'com.google.android*' OR $process.name GLOB 'com.android.*'
 );
@@ -30,7 +29,7 @@ AND (
 -- List of CUJ slices emitted. Note that this is not the final list of CUJs with the correct
 -- boundary information. The proper CUJs and their boundaries are computed after taking into
 -- account instant events and frame boundaries in the following tables.
-CREATE PERFETTO TABLE _sysui_cujs_slices AS
+CREATE PERFETTO TABLE _sysui_jank_cujs_slices AS
 SELECT
   row_number() OVER (ORDER BY ts) AS cuj_id,
   process.upid AS upid,
@@ -46,7 +45,7 @@ JOIN process_track
 JOIN process
   USING (upid)
 WHERE
-  _is_jank_latency_sysui_slice!(slice, process) AND dur > 0;
+  _is_jank_sysui_slice!(slice, process) AND dur > 0;
 
 -- Slices logged from FrameTracker#markEvent that describe when
 -- the instrumentation was started and the reason the CUJ ended.
@@ -71,7 +70,7 @@ SELECT
   END AS marker_type,
   cuj_state_marker.name AS marker_name,
   thread_track.utid AS utid
-FROM _sysui_cujs_slices AS cuj
+FROM _sysui_jank_cujs_slices AS cuj
 LEFT JOIN slice AS cuj_state_marker
   ON cuj_state_marker.ts >= cuj.ts AND cuj_state_marker.ts < cuj.ts_end
 LEFT JOIN track AS marker_track
@@ -121,7 +120,7 @@ SELECT
   -- Extract UI thread UTID from 'UIThread' marker.
   max(CASE WHEN csm.marker_type = 'UIThread' THEN csm.utid ELSE NULL END) AS ui_thread
 FROM _sysui_cuj_state_markers AS csm
-JOIN _sysui_cujs_slices AS cuj
+JOIN _sysui_jank_cujs_slices AS cuj
   USING (cuj_id)
 -- Only consider markers relevant for extracting these values.
 WHERE
@@ -160,7 +159,7 @@ WITH
     FROM android_frames_layers AS frame
     JOIN _sysui_cuj_instant_events AS cie
       ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
-    JOIN _sysui_cujs_slices AS cuj
+    JOIN _sysui_jank_cujs_slices AS cuj
       ON cie.cuj_id = cuj.cuj_id
     -- Check whether the frame_id falls within the begin and end vsync of the cuj.
     -- Also check if the frame start or end timestamp falls within the cuj boundary.
@@ -312,7 +311,7 @@ SELECT
   cuj_events.layer_id,
   cuj_events.begin_vsync,
   cuj_events.end_vsync
-FROM _sysui_cujs_slices AS cuj
+FROM _sysui_jank_cujs_slices AS cuj
 JOIN _sysui_cuj_instant_events AS cuj_events
   USING (cuj_id)
 JOIN cuj_frame_boundary AS boundary
@@ -362,51 +361,26 @@ CREATE PERFETTO TABLE android_sysui_latency_cujs (
   state STRING
 ) AS
 SELECT
-  cuj.cuj_id,
-  cuj.upid,
-  cuj.process_name,
-  cuj.cuj_slice_name,
+  row_number() OVER (ORDER BY ts) AS cuj_id,
+  process.upid AS upid,
+  process.name AS process_name,
+  slice.name AS cuj_slice_name,
   -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
-  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
-  cuj.slice_id,
-  cuj.ts,
-  cuj.ts_end,
-  cuj.dur,
-  CASE
-    WHEN EXISTS(
-      SELECT
-        1
-      FROM _sysui_cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'cancel'
-    )
-    THEN 'canceled'
-    WHEN EXISTS(
-      SELECT
-        1
-      FROM _sysui_cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'end'
-    )
-    THEN 'completed'
-    ELSE NULL
-  END AS state
-FROM _sysui_cujs_slices AS cuj
-JOIN _sysui_cuj_instant_events AS cuj_events
-  USING (cuj_id)
+  _extract_cuj_name_from_slice(slice.name) AS cuj_name,
+  slice.id AS slice_id,
+  ts,
+  ts + dur AS ts_end,
+  dur,
+  'completed' AS state
+FROM slice
+JOIN process_track
+  ON slice.track_id = process_track.id
+JOIN process
+  USING (upid)
 WHERE
-  -- Filter only latency CUJs.
-  cuj.cuj_slice_name GLOB 'L<*>'
-  AND (
-    state != 'canceled'
-    -- Older builds don't have the state markers so we allow NULL but filter out
-    -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
-    OR (
-      state IS NULL AND cuj.dur > 4e6
-    )
-  )
-ORDER BY
-  ts ASC;
+  -- TODO(b/447577048): Add filtering support for completed/canceled latency CUJs.
+  slice.name GLOB 'L<*>'
+  AND dur > 0;
 
 -- Table tracking all jank/latency CUJs information.
 CREATE PERFETTO TABLE android_jank_latency_cujs (

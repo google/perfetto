@@ -57,6 +57,7 @@ export default class implements PerfettoPlugin {
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
+      sortOrder: 21,
       text: 'Explore',
       href: '#!/explore',
       icon: 'data_exploration',

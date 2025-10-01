@@ -586,6 +586,27 @@ TEST_F(LockFreeTaskRunnerTest, NoSlabLeaks) {
   EXPECT_LE(task_runner.slabs_allocated(), 2u);
 }
 
+TYPED_TEST(TaskRunnerTest, RaceOnQuit) {
+  std::atomic<LockFreeTaskRunner*> task_runnner{};
+
+  std::thread thread([&]() {
+    LockFreeTaskRunner tr;
+    std::function<void()> keep_tr_pumped;
+    keep_tr_pumped = [&] { tr.PostTask(keep_tr_pumped); };
+    tr.PostTask([&] { task_runnner.store(&tr); });
+    tr.PostTask(keep_tr_pumped);
+    tr.Run();
+  });
+
+  LockFreeTaskRunner* tr = nullptr;
+  for (; !tr; tr = task_runnner.load()) {
+    std::this_thread::yield();
+  }
+
+  tr->Quit();
+  thread.join();
+}
+
 TEST_F(LockFreeTaskRunnerTest, HashSpreading) {
   constexpr uint32_t kBuckets = task_runner_internal::kNumRefcountBuckets;
   constexpr uint32_t kSamples = kBuckets * 16;

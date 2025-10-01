@@ -81,7 +81,7 @@ struct FileEntry {
 };
 
 struct stat CheckStat(const std::string& path) {
-  struct stat buf;
+  struct stat buf{};
   PERFETTO_CHECK(lstat(path.c_str(), &buf) != -1);
   return buf;
 }

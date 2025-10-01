@@ -194,7 +194,8 @@ class TrackCompressor {
             auto fn =
                 MakeNameFn<F, decltype(x)...>(blueprint.name_blueprint.fn);
             return tracks::BlueprintT<
-                decltype(fn), typename BT::unit_blueprint_t, decltype(x)...,
+                decltype(fn), typename BT::unit_blueprint_t,
+                typename BT::description_blueprint_t, decltype(x)...,
                 tracks::DimensionBlueprintT<uint32_t>>{
                 {
                     blueprint.event_type,
@@ -204,11 +205,13 @@ class TrackCompressor {
                 },
                 fn,
                 blueprint.unit_blueprint,
+                blueprint.description_blueprint,
             };
           } else {
             return tracks::BlueprintT<
                 typename BT::name_blueprint_t, typename BT::unit_blueprint_t,
-                decltype(x)..., tracks::DimensionBlueprintT<uint32_t>>{
+                typename BT::description_blueprint_t, decltype(x)...,
+                tracks::DimensionBlueprintT<uint32_t>>{
                 {
                     blueprint.event_type,
                     blueprint.type,
@@ -217,6 +220,7 @@ class TrackCompressor {
                 },
                 blueprint.name_blueprint,
                 blueprint.unit_blueprint,
+                blueprint.description_blueprint,
             };
           }
         },

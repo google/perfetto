@@ -97,7 +97,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       text: 'Query (SQL)',
       href: '#!/query',
       icon: 'database',
-      sortOrder: 1,
+      sortOrder: 20,
     });
 
     if (QueryPagePlugin.addQueryPageMiniFlag.get()) {

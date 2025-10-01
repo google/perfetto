@@ -49,3 +49,10 @@ flag {
   bug: "443948543"
   is_fixed_read_only: true
 }
+flag {
+  name: "buffer_clone_preserve_read_iter"
+  namespace: "perfetto"
+  description: "Controls whether TraceBuffer::CloneReadOnly() will preserve the read state (true, new behavior) or clear it (false, legacy behavior)."
+  bug: "448604718"
+  is_fixed_read_only: true
+}

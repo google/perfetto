@@ -131,8 +131,8 @@
     padding-bottom: var(--sidebar-padding-bottom);
 
     > section {
-      padding: 20px 0;
-      max-height: 80px;
+      padding: 12px 0 4px 0;
+      max-height: 60px;
       .pf-sidebar__section-header {
         cursor: pointer;
         > h1,
@@ -167,8 +167,9 @@
         background-color: var(--pf-sidebar-surface-secondary);
         max-height: unset;
         .pf-sidebar__section-header {
+          padding-bottom: 8px;
           h2 {
-            opacity: 0;
+            display: none;
           }
 
           &:before {
@@ -244,7 +245,7 @@
           word-break: break-all;
           font-weight: 300;
           letter-spacing: 0;
-          margin-top: -10px;
+          margin-top: -2px;
         }
       }
     }

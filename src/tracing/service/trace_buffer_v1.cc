@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -928,13 +929,24 @@ TraceBufferV1::TraceBufferV1(CloneCtor, const TraceBufferV1& src)
   stats_.set_readaheads_failed(0);
   stats_.set_readaheads_succeeded(0);
 
-  // Copy the index of chunk metadata and reset the read states.
+  // Copy the index of chunk metadata.
+  // NOTE: in 2025-10 the behavior of CloneReadOnly() in presence of existing
+  // reads has changed.
+  // Before: the read iterator would be reset and the cloned buffer would behave
+  //         as if no read was performed.
+  // After: the read iterators are untouched.
+  // This is done for two reasons:
+  // 1. To converge with the behavior of TraceBufferV2, which can't support the
+  //    old behavior.
+  // 2. To support properly cloning of write_into_file sessions (b/382209797).
   index_ = ChunkMap(src.index_);
-  for (auto& kv : index_) {
-    ChunkMeta& chunk_meta = kv.second;
-    chunk_meta.num_fragments_read = 0;
-    chunk_meta.cur_fragment_offset = 0;
-    chunk_meta.set_last_read_packet_skipped(false);
+  if (!base::flags::buffer_clone_preserve_read_iter) {
+    for (auto& kv : index_) {
+      ChunkMeta& chunk_meta = kv.second;
+      chunk_meta.num_fragments_read = 0;
+      chunk_meta.cur_fragment_offset = 0;
+      chunk_meta.set_last_read_packet_skipped(false);
+    }
   }
   read_iter_ = SequenceIterator();
 }

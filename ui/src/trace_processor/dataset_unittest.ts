@@ -31,7 +31,7 @@ test('get query for simple dataset', () => {
     schema: {id: NUM},
   });
 
-  expect(dataset.query()).toEqual('select id from (slice)');
+  expect(dataset.query()).toEqual('SELECT id FROM (slice)');
 });
 
 test("get query for simple dataset with 'eq' filter", () => {
@@ -44,7 +44,7 @@ test("get query for simple dataset with 'eq' filter", () => {
     },
   });
 
-  expect(dataset.query()).toEqual('select id from (slice) where id = 123');
+  expect(dataset.query()).toEqual('SELECT id FROM (slice) WHERE id = 123');
 });
 
 test("get query for simple dataset with an 'in' filter", () => {
@@ -58,7 +58,7 @@ test("get query for simple dataset with an 'in' filter", () => {
   });
 
   expect(dataset.query()).toEqual(
-    'select id from (slice) where id in (123,456)',
+    'SELECT id FROM (slice) WHERE id IN (123,456)',
   );
 });
 
@@ -83,7 +83,7 @@ test('get query for union dataset', () => {
   ]);
 
   expect(dataset.query()).toEqual(
-    'select id from (slice) where id = 123\nunion all\nselect id from (slice) where id = 456',
+    'SELECT id FROM (slice) WHERE id = 123\nunion all\nSELECT id FROM (slice) WHERE id = 456',
   );
 });
 

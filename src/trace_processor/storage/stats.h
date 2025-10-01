@@ -461,6 +461,9 @@ namespace perfetto::trace_processor::stats {
   F(winscope_protolog_view_config_collision,                                   \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Got a viewer config collision!"),                                       \
+  F(winscope_protolog_param_mismatch,                                          \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Message had mismatching parameters!"),                                  \
   F(winscope_viewcapture_parse_errors,                                         \
                                           kSingle,  kError,    kAnalysis,      \
       "ViewCapture packet has unknown fields, which results in some "          \

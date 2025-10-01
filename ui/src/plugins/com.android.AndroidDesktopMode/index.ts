@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, STR} from '../../trace_processor/query_result';
 
 const TRACK_NAME = 'Desktop Mode Windows';
 const TRACK_URI = '/desktop_windows';
@@ -30,13 +30,13 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri: TRACK_URI,
-      renderer: await DatasetSliceTrack.createMaterialized({
+      renderer: await SliceTrack.createMaterialized({
         trace: ctx,
         uri: TRACK_URI,
         dataset: new SourceDataset({
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: `

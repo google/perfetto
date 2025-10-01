@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
       text: 'Info and stats',
       href: '#!/info',
       icon: 'info',
-      sortOrder: 10,
+      sortOrder: 23,
     });
   }
 }

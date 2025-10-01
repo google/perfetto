@@ -14,7 +14,7 @@
 
 import {Store} from '../../base/store';
 import {materialColorScheme} from '../../components/colorizer';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -29,7 +29,7 @@ export function createFtraceTrack(
   ucpu: number,
   store: Store<FtraceFilter>,
 ) {
-  return DatasetSliceTrack.create({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: () => {

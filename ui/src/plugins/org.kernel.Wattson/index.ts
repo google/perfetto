@@ -19,14 +19,20 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
@@ -195,13 +201,13 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   const uri = `/wattson/markers_window`;
-  const track = await DatasetSliceTrack.createMaterialized({
+  const track = await SliceTrack.createMaterialized({
     trace: ctx,
     uri,
     dataset: new SourceDataset({
       schema: {
         ts: LONG,
-        dur: LONG,
+        dur: LONG_NULL,
         name: STR,
       },
       src: '_wattson_markers_window',

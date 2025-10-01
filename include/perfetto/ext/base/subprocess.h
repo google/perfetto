@@ -264,7 +264,7 @@ class Subprocess {
   };
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  static void StdinThread(MovableState*, std::string input);
+  static void StdinThread(MovableState*, const std::string& input);
   static void StdoutErrThread(MovableState*);
 #else
   void TryPushStdin();

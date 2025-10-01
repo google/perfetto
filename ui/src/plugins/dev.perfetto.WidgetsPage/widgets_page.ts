@@ -390,7 +390,7 @@ function ControlledPopup() {
         m(Button, {
           label: 'Close Popup',
           onclick: () => {
-            popupOpen = !popupOpen;
+            popupOpen = false;
           },
         }),
       );

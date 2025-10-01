@@ -57,8 +57,7 @@ class ScopedResource {
   static constexpr T kInvalid = InvalidValue;
 
   explicit ScopedResource(T t = InvalidValue) : t_(t) {}
-  ScopedResource(ScopedResource&& other) noexcept {
-    t_ = other.t_;
+  ScopedResource(ScopedResource&& other) noexcept : t_(other.t_) {
     other.t_ = InvalidValue;
   }
   ScopedResource& operator=(ScopedResource&& other) {

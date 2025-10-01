@@ -39,28 +39,41 @@ namespace {
 class MultiFileErrorCollectorImpl
     : public google::protobuf::compiler::MultiFileErrorCollector {
  public:
-  ~MultiFileErrorCollectorImpl() override;
-  void AddError(const std::string&, int, int, const std::string&) override;
-  void AddWarning(const std::string&, int, int, const std::string&) override;
+  ~MultiFileErrorCollectorImpl() override = default;
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
+  void RecordError(absl::string_view filename,
+                   int line,
+                   int column,
+                   absl::string_view message) override {
+    PERFETTO_ELOG("Error %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
+                  filename.data(), line, column,
+                  static_cast<int>(message.size()), message.data());
+  }
+  void RecordWarning(absl::string_view filename,
+                     int line,
+                     int column,
+                     absl::string_view message) override {
+    PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
+                  filename.data(), line, column,
+                  static_cast<int>(message.size()), message.data());
+  }
+#else
+  void AddError(const std::string& filename,
+                int line,
+                int column,
+                const std::string& message) override {
+    PERFETTO_ELOG("Error %s %d:%d: %s", filename.c_str(), line, column,
+                  message.c_str());
+  }
+  void AddWarning(const std::string& filename,
+                  int line,
+                  int column,
+                  const std::string& message) override {
+    PERFETTO_ELOG("Warning %s %d:%d: %s", filename.c_str(), line, column,
+                  message.c_str());
+  }
+#endif
 };
-
-MultiFileErrorCollectorImpl::~MultiFileErrorCollectorImpl() = default;
-
-void MultiFileErrorCollectorImpl::AddError(const std::string& filename,
-                                           int line,
-                                           int column,
-                                           const std::string& message) {
-  PERFETTO_ELOG("Error %s %d:%d: %s", filename.c_str(), line, column,
-                message.c_str());
-}
-
-void MultiFileErrorCollectorImpl::AddWarning(const std::string& filename,
-                                             int line,
-                                             int column,
-                                             const std::string& message) {
-  PERFETTO_ELOG("Warning %s %d:%d: %s", filename.c_str(), line, column,
-                message.c_str());
-}
 
 }  // namespace
 

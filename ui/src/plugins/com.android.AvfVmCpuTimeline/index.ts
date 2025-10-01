@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -76,7 +76,7 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      renderer: DatasetSliceTrack.create({
+      renderer: SliceTrack.create({
         trace: ctx,
         uri,
         dataset: new SourceDataset({

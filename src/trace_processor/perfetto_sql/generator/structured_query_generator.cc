@@ -184,8 +184,7 @@ class GeneratorImpl {
   static base::StatusOr<std::string> OperatorToString(
       StructuredQuery::Filter::Operator op);
   static base::StatusOr<std::string> AggregateToString(
-      StructuredQuery::GroupBy::Aggregate::Op op,
-      protozero::ConstChars column_name);
+      const StructuredQuery::GroupBy::Aggregate::Decoder&);
 
   // Index of the current query we are processing in the `state_` vector.
   size_t state_index_ = 0;
@@ -581,11 +580,7 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
     if (!sql.empty()) {
       sql += ", ";
     }
-    ASSIGN_OR_RETURN(
-        std::string agg,
-        AggregateToString(static_cast<StructuredQuery::GroupBy::Aggregate::Op>(
-                              aggregate.op()),
-                          aggregate.column_name()));
+    ASSIGN_OR_RETURN(std::string agg, AggregateToString(aggregate));
     if (o->has_value()) {
       sql += agg + " AS " + o->value();
     } else {
@@ -650,9 +645,10 @@ base::StatusOr<std::string> GeneratorImpl::OperatorToString(
 }
 
 base::StatusOr<std::string> GeneratorImpl::AggregateToString(
-    StructuredQuery::GroupBy::Aggregate::Op op,
-    protozero::ConstChars raw_column_name) {
-  std::string column_name = raw_column_name.ToStdString();
+    const StructuredQuery::GroupBy::Aggregate::Decoder& aggregate) {
+  std::string column_name = aggregate.column_name().ToStdString();
+  auto op =
+      static_cast<StructuredQuery::GroupBy::Aggregate::Op>(aggregate.op());
   switch (op) {
     case StructuredQuery::GroupBy::Aggregate::COUNT:
       return "COUNT(" + column_name + ")";
@@ -666,6 +662,9 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
       return "AVG(" + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::MEDIAN:
       return "PERCENTILE(" + column_name + ", 50)";
+    case StructuredQuery::GroupBy::Aggregate::PERCENTILE:
+      return "PERCENTILE(" + column_name + ", " +
+             std::to_string(aggregate.percentile()) + ")";
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
       return "SUM(cast_double!(" + column_name +
              " * dur)) / cast_double!(SUM(dur))";

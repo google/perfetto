@@ -22,7 +22,7 @@ import {
   sqlValueToReadableString,
   sqlValueToSqliteString,
 } from '../../trace_processor/sql_utils';
-import {DatasetSliceTrack} from './dataset_slice_track';
+import {SliceTrack} from './slice_track';
 import {
   RAW_PREFIX,
   DebugSliceTrackDetailsPanel,
@@ -196,7 +196,7 @@ async function addPivotedSliceTracks(
 
     trace.tracks.registerTrack({
       uri,
-      renderer: DatasetSliceTrack.create({
+      renderer: SliceTrack.create({
         trace,
         uri,
         dataset: new SourceDataset({
@@ -232,7 +232,7 @@ function addSingleSliceTrack(
 ) {
   trace.tracks.registerTrack({
     uri,
-    renderer: DatasetSliceTrack.create({
+    renderer: SliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({

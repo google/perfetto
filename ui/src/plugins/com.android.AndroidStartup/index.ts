@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
@@ -41,14 +41,14 @@ export default class implements PerfettoPlugin {
     const startupTrackUri = `/android_startups`;
     ctx.tracks.registerTrack({
       uri: startupTrackUri,
-      renderer: await DatasetSliceTrack.createMaterialized({
+      renderer: await SliceTrack.createMaterialized({
         trace: ctx,
         uri: startupTrackUri,
         dataset: new SourceDataset({
           schema: {
             id: NUM,
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: `
@@ -74,13 +74,13 @@ export default class implements PerfettoPlugin {
     const breakdownTrackUri = '/android_startups_breakdown';
     ctx.tracks.registerTrack({
       uri: breakdownTrackUri,
-      renderer: await DatasetSliceTrack.createMaterialized({
+      renderer: await SliceTrack.createMaterialized({
         trace: ctx,
         uri: breakdownTrackUri,
         dataset: new SourceDataset({
           schema: {
             ts: LONG,
-            dur: LONG,
+            dur: LONG_NULL,
             name: STR,
           },
           src: `

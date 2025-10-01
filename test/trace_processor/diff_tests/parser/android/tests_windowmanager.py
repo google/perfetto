@@ -27,14 +27,14 @@ class WindowManager(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.winscope.windowmanager;
         SELECT
-          ts
+          ts, focused_display_id
         FROM
           android_windowmanager;
         """,
         out=Csv("""
-        "ts"
-        558296470731
-        558884171862
+        "ts","focused_display_id"
+        558296470731,0
+        558884171862,2
         """))
 
   def test_snapshot_has_expected_args(self):

@@ -99,8 +99,8 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
   // Extract the wait reason. If not present in the trace, default to 0
   // (Executive).
   uint8_t old_thread_wait_reason =
-      cs.has_old_thread_wait_reason()
-          ? static_cast<uint8_t>(cs.old_thread_wait_reason())
+      cs.has_old_thread_wait_reason_int()
+          ? static_cast<uint8_t>(cs.old_thread_wait_reason_int())
           : 0;
 
   PushSchedSwitch(cpu, timestamp, old_thread_id, old_thread_state,
