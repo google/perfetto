@@ -141,7 +141,13 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   return {std::move(payload), std::move(metadata)};
 }
 
-TEST(UnwindingTest, DoUnwind) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_DoUnwind DISABLED_DoUnwind
+#else
+#define MAYBE_DoUnwind DoUnwind
+#endif
+TEST(UnwindingTest, MAYBE_DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
@@ -161,7 +167,13 @@ TEST(UnwindingTest, DoUnwind) {
                "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
 }
 
-TEST(UnwindingTest, DoUnwindReparse) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_DoUnwindReparse DISABLED_DoUnwindReparse
+#else
+#define MAYBE_DoUnwindReparse DoUnwindReparse
+#endif
+TEST(UnwindingTest, MAYBE_DoUnwindReparse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;

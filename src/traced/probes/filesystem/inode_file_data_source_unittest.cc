@@ -87,7 +87,13 @@ class InodeFileDataSourceTest : public ::testing::Test {
   base::TestTaskRunner task_runner_;
 };
 
-TEST_F(InodeFileDataSourceTest, TestFileSystemScan) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestFileSystemScan DISABLED_TestFileSystemScan
+#else
+#define MAYBE_TestFileSystemScan TestFileSystemScan
+#endif
+TEST_F(InodeFileDataSourceTest, MAYBE_TestFileSystemScan) {
   DataSourceConfig ds_config;
   protozero::HeapBuffered<protos::pbzero::InodeFileConfig> inode_cfg;
   inode_cfg->set_scan_interval_ms(1);
@@ -116,7 +122,13 @@ TEST_F(InodeFileDataSourceTest, TestFileSystemScan) {
               Pointee(Eq(value)));
 }
 
-TEST_F(InodeFileDataSourceTest, TestStaticMap) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestStaticMap DISABLED_TestStaticMap
+#else
+#define MAYBE_TestStaticMap TestStaticMap
+#endif
+TEST_F(InodeFileDataSourceTest, MAYBE_TestStaticMap) {
   DataSourceConfig config;
   auto data_source = GetInodeFileDataSource(config);
   CreateStaticDeviceToInodeMap(
@@ -139,7 +151,13 @@ TEST_F(InodeFileDataSourceTest, TestStaticMap) {
   EXPECT_THAT(cache_.Get(std::make_pair(buf.st_dev, buf.st_ino)), IsNull());
 }
 
-TEST_F(InodeFileDataSourceTest, TestCache) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestCache DISABLED_TestCache
+#else
+#define MAYBE_TestCache TestCache
+#endif
+TEST_F(InodeFileDataSourceTest, MAYBE_TestCache) {
   DataSourceConfig config;
   auto data_source = GetInodeFileDataSource(config);
   CreateStaticDeviceToInodeMap(

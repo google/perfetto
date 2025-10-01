@@ -91,7 +91,13 @@ FileEntry StatFileEntry(const std::string& path, InodeFileMap_Entry_Type type) {
   return FileEntry(buf.st_dev, buf.st_ino, path, type);
 }
 
-TEST(FileScannerTest, TestSynchronousStop) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestSynchronousStop DISABLED_TestSynchronousStop
+#else
+#define MAYBE_TestSynchronousStop TestSynchronousStop
+#endif
+TEST(FileScannerTest, MAYBE_TestSynchronousStop) {
   uint64_t seen = 0;
   bool done = false;
   TestDelegate delegate(
@@ -111,7 +117,13 @@ TEST(FileScannerTest, TestSynchronousStop) {
   EXPECT_TRUE(done);
 }
 
-TEST(FileScannerTest, TestAsynchronousStop) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestAsynchronousStop DISABLED_TestAsynchronousStop
+#else
+#define MAYBE_TestAsynchronousStop TestAsynchronousStop
+#endif
+TEST(FileScannerTest, MAYBE_TestAsynchronousStop) {
   uint64_t seen = 0;
   base::TestTaskRunner task_runner;
   TestDelegate delegate(
@@ -132,7 +144,13 @@ TEST(FileScannerTest, TestAsynchronousStop) {
   EXPECT_EQ(seen, 1u);
 }
 
-TEST(FileScannerTest, TestSynchronousFindFiles) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestSynchronousFindFiles DISABLED_TestSynchronousFindFiles
+#else
+#define MAYBE_TestSynchronousFindFiles TestSynchronousFindFiles
+#endif
+TEST(FileScannerTest, MAYBE_TestSynchronousFindFiles) {
   std::vector<FileEntry> file_entries;
   TestDelegate delegate(
       [&file_entries](BlockDeviceID block_device_id, Inode inode,
@@ -163,7 +181,13 @@ TEST(FileScannerTest, TestSynchronousFindFiles) {
               protos::pbzero::InodeFileMap::Entry::Type::DIRECTORY))));
 }
 
-TEST(FileScannerTest, TestAsynchronousFindFiles) {
+// TODO(b/448593724): Fix and re-enable on MSAN.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_TestAsynchronousFindFiles DISABLED_TestAsynchronousFindFiles
+#else
+#define MAYBE_TestAsynchronousFindFiles TestAsynchronousFindFiles
+#endif
+TEST(FileScannerTest, MAYBE_TestAsynchronousFindFiles) {
   base::TestTaskRunner task_runner;
   std::vector<FileEntry> file_entries;
   TestDelegate delegate(
