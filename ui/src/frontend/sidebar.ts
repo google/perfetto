@@ -582,6 +582,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
   traceTitle &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
+      sortOrder: 1,
       text: traceTitle,
       action: () => {
         // Do nothing (we need to supply an action to override the href).
@@ -591,19 +592,22 @@ function registerTraceMenuItems(trace: TraceImpl) {
     });
   trace.sidebar.addMenuItem({
     section: 'current_trace',
-    text: 'Show timeline',
+    sortOrder: 10,
+    text: 'Timeline',
     href: '#!/viewer',
     icon: 'line_style',
   });
   AppImpl.instance.isInternalUser &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
+      sortOrder: 50,
       text: 'Share',
       action: async () => await shareTrace(trace),
       icon: 'share',
     });
   trace.sidebar.addMenuItem({
     section: 'current_trace',
+    sortOrder: 51,
     text: 'Download',
     action: () => downloadTrace(trace),
     icon: 'file_download',

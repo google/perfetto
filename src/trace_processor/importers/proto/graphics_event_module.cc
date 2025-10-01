@@ -18,13 +18,16 @@
 
 #include <cstdint>
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
@@ -46,6 +49,29 @@ GraphicsEventModule::GraphicsEventModule(
 }
 
 GraphicsEventModule::~GraphicsEventModule() = default;
+
+ModuleResult GraphicsEventModule::TokenizePacket(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    TraceBlobView*,
+    int64_t,
+    RefPtr<PacketSequenceStateGeneration>,
+    uint32_t field_id) {
+  switch (field_id) {
+    case TracePacket::kGpuCounterEventFieldNumber:
+      parser_.TokenizeGpuCounterEvent(decoder.gpu_counter_event());
+      break;
+    case TracePacket::kFrameTimelineEventFieldNumber:
+    case TracePacket::kGpuRenderStageEventFieldNumber:
+    case TracePacket::kGpuLogFieldNumber:
+    case TracePacket::kGraphicsFrameEventFieldNumber:
+    case TracePacket::kVulkanMemoryEventFieldNumber:
+    case TracePacket::kVulkanApiEventFieldNumber:
+    case TracePacket::kGpuMemTotalEventFieldNumber:
+    default:
+      break;
+  }
+  return ModuleResult::Ignored();
+}
 
 void GraphicsEventModule::ParseTracePacketData(
     const TracePacket::Decoder& decoder,
@@ -83,5 +109,4 @@ void GraphicsEventModule::ParseTracePacketData(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

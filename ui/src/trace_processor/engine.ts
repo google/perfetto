@@ -45,6 +45,7 @@ export interface TraceProcessorConfig {
   analyzeTraceProtoContent: boolean;
   ftraceDropUntilAllCpusValid: boolean;
   extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
+  forceFullSort: boolean;
 }
 
 const QUERY_LOG_BUFFER_SIZE = 100;
@@ -382,6 +383,7 @@ export abstract class EngineBase implements Engine, Disposable {
     analyzeTraceProtoContent,
     ftraceDropUntilAllCpusValid,
     extraParsingDescriptors,
+    forceFullSort,
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
@@ -396,6 +398,9 @@ export abstract class EngineBase implements Engine, Disposable {
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
     args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
+    args.sortingMode = forceFullSort
+      ? protos.ResetTraceProcessorArgs.SortingMode.FORCE_FULL_SORT
+      : protos.ResetTraceProcessorArgs.SortingMode.DEFAULT_HEURISTICS;
     args.parsingMode = tokenizeOnly
       ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
       : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
@@ -510,10 +515,9 @@ export abstract class EngineBase implements Engine, Disposable {
   //
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
-  private streamingQuery(
-    sqlQuery: string,
-    tag?: string,
-  ): Promise<QueryResult> & QueryResult {
+  // NOTE: the only reason why this is public is so that Winscope (which uses a
+  // fork of our codebase) can invoke this directly. See commit msg of #3051.
+  streamingQuery(result: WritableQueryResult, sqlQuery: string, tag?: string) {
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new protos.QueryArgs();
@@ -521,12 +525,8 @@ export abstract class EngineBase implements Engine, Disposable {
     if (tag) {
       rpc.queryArgs.tag = tag;
     }
-    const result = createQueryResult({
-      query: sqlQuery,
-    });
     this.pendingQueries.push(result);
     this.rpcSendRequest(rpc);
-    return result;
   }
 
   private logQueryStart(
@@ -552,9 +552,11 @@ export abstract class EngineBase implements Engine, Disposable {
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
     const queryLog = this.logQueryStart(sqlQuery);
     try {
-      const result = await this.streamingQuery(sqlQuery, tag);
+      const result = createQueryResult({query: sqlQuery});
+      this.streamingQuery(result, sqlQuery, tag);
+      const resolvedResult = await result;
       queryLog.success = true;
-      return result;
+      return resolvedResult;
     } catch (e) {
       // Replace the error's stack trace with the one from here
       // Note: It seems only V8 can trace the stack up the promise chain, so its

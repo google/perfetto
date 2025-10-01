@@ -14,7 +14,7 @@
 
 import {HSLColor} from '../../base/color';
 import {ColorScheme} from '../../base/color_scheme';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
@@ -36,7 +36,7 @@ export function createThreadStateTrack(
   uri: string,
   utid: number,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

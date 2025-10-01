@@ -18,7 +18,7 @@ import {ColorScheme} from '../../base/color_scheme';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 
 // color named and defined based on Material Design color palettes
@@ -43,7 +43,7 @@ export function createActualFramesTrack(
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

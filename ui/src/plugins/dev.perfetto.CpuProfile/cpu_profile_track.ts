@@ -15,13 +15,13 @@
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 import {Trace} from '../../public/trace';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Time} from '../../base/time';
 import {getColorForSample} from '../../components/colorizer';
 
 export function createCpuProfileTrack(trace: Trace, uri: string, utid: number) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({

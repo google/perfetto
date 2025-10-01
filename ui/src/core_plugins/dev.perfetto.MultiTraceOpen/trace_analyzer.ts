@@ -53,6 +53,7 @@ export class WasmTraceAnalyzer implements TraceAnalyzer {
       ingestFtraceInRawTable: false,
       analyzeTraceProtoContent: false,
       ftraceDropUntilAllCpusValid: false,
+      forceFullSort: false,
     });
     const stream = new TraceFileStream(file);
     for (;;) {

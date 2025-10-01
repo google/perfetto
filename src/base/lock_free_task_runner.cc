@@ -207,6 +207,19 @@ void LockFreeTaskRunner::Run() {
       RunTaskWithWatchdogGuard(std::move(delayed_task));
     }
   }
+
+  // Wait for all other threads to have finished the Quit's PostTask().
+  // This is to prevent the following race in tests:
+  // - Thread1 (!= main thread) invokes Quit, which in turn becomes a PostTask.
+  // - This function sees quit_=true and returns from Run().
+  // - The owner of the LFTR at that point is entitled to destroy LFTR.
+  // - Thread1 is still executing the epilogue of the PostTask, decrementing the
+  //   refcount, and ends up operating on invalid memory.
+  while (
+      std::any_of(refcounts_.begin(), refcounts_.end(),
+                  [](std::atomic<int32_t>& bucket) { return bucket.load(); })) {
+    std::this_thread::yield();
+  }
 }
 
 std::function<void()> LockFreeTaskRunner::PopNextImmediateTask() {

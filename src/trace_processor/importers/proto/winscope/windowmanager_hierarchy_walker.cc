@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
 
+#include <string>
+
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -28,8 +30,22 @@
 
 namespace perfetto::trace_processor::winscope {
 
+namespace {
+static const auto STARTING = "Starting ";
+static const auto DEBUGGER = "Waiting For Debugger: ";
+}  // namespace
+
 WindowManagerHierarchyWalker::WindowManagerHierarchyWalker(StringPool* pool)
-    : pool_(pool) {}
+    : pool_(pool),
+      kRootWindowContainerId(pool_->InternString("RootWindowContainer")),
+      kDisplayContentId(pool_->InternString("DisplayContent")),
+      kDisplayAreaId(pool_->InternString("DisplayArea")),
+      kTaskId(pool_->InternString("Task")),
+      kTaskFragmentId(pool_->InternString("TaskFragment")),
+      kActivityId(pool_->InternString("Activity")),
+      kWindowTokenId(pool_->InternString("WindowToken")),
+      kWindowStateId(pool_->InternString("WindowState")),
+      kWindowContainerId(pool_->InternString("WindowContainer")) {}
 
 base::StatusOr<
     std::vector<WindowManagerHierarchyWalker::ExtractedWindowContainer>>
@@ -68,7 +84,8 @@ base::Status WindowManagerHierarchyWalker::ParseRootWindowContainer(
 
   result->push_back(ExtractedWindowContainer{
       tokenAndTitle->title, tokenAndTitle->token, std::nullopt, std::nullopt,
-      window_container.visible(), std::nullopt, std::move(pruned_proto)});
+      window_container.visible(), std::nullopt, std::nullopt,
+      std::move(pruned_proto), kRootWindowContainerId});
 
   return ParseWindowContainerChildren(window_container, tokenAndTitle->token,
                                       result);
@@ -138,7 +155,8 @@ base::Status WindowManagerHierarchyWalker::ParseWindowContainerProto(
 
   result->push_back(ExtractedWindowContainer{
       tokenAndTitle->title, tokenAndTitle->token, parent_token, child_index,
-      window_container.visible(), std::nullopt, std::move(pruned_proto)});
+      window_container.visible(), std::nullopt, std::nullopt,
+      std::move(pruned_proto), kWindowContainerId});
 
   return ParseWindowContainerChildren(window_container, tokenAndTitle->token,
                                       result);
@@ -183,7 +201,7 @@ base::Status WindowManagerHierarchyWalker::ParseDisplayContentProto(
 
   result->push_back(ExtractedWindowContainer{
       title, token, parent_token, child_index, window_container.visible(),
-      display, std::move(pruned_proto)});
+      display, std::nullopt, std::move(pruned_proto), kDisplayContentId});
 
   current_display_id_ = display_content.id();
   current_rect_depth_ = 1;
@@ -218,7 +236,7 @@ base::Status WindowManagerHierarchyWalker::ParseDisplayAreaProto(
 
   result->push_back(ExtractedWindowContainer{
       title, token, parent_token, child_index, window_container.visible(),
-      std::nullopt, std::move(pruned_proto)});
+      std::nullopt, std::nullopt, std::move(pruned_proto), kDisplayAreaId});
 
   return ParseWindowContainerChildren(window_container, token, result);
 }
@@ -242,9 +260,19 @@ base::Status WindowManagerHierarchyWalker::ParseTaskProto(
       windowmanager_proto_clone::CloneWindowContainerChildProtoPruningChildren(
           child);
 
+  std::optional<StringPool::Id> name_override;
+  if (task.has_id()) {
+    std::string name = std::to_string(task.id());
+    if (task.has_task_name()) {
+      name += "(" + task.task_name().ToStdString() + ")";
+    }
+    name_override = pool_->InternString(base::StringView(name));
+  }
+
   result->push_back(ExtractedWindowContainer{
       tokenAndTitle->title, tokenAndTitle->token, parent_token, child_index,
-      window_container.visible(), std::nullopt, std::move(pruned_proto)});
+      window_container.visible(), std::nullopt, name_override,
+      std::move(pruned_proto), kTaskId});
 
   return ParseWindowContainerChildren(window_container, tokenAndTitle->token,
                                       result);
@@ -276,7 +304,7 @@ base::Status WindowManagerHierarchyWalker::ParseActivityRecordProto(
 
   result->push_back(ExtractedWindowContainer{
       title, token, parent_token, child_index, activity.visible(), std::nullopt,
-      std::move(pruned_proto)});
+      std::nullopt, std::move(pruned_proto), kActivityId});
 
   return ParseWindowContainerChildren(window_container, token, result);
 }
@@ -303,7 +331,7 @@ base::Status WindowManagerHierarchyWalker::ParseWindowTokenProto(
 
   result->push_back(ExtractedWindowContainer{
       title, token, parent_token, child_index, window_container.visible(),
-      std::nullopt, std::move(pruned_proto)});
+      std::nullopt, std::nullopt, std::move(pruned_proto), kWindowTokenId});
 
   return ParseWindowContainerChildren(window_container, token, result);
 }
@@ -338,9 +366,20 @@ base::Status WindowManagerHierarchyWalker::ParseWindowStateProto(
                      window_state.is_visible(),
                      attributes.alpha()};
 
+  std::optional<StringPool::Id> name_override;
+  auto title_str = identifier.title().ToStdString();
+  if (title_str.find(STARTING) == 0) {
+    name_override = pool_->InternString(
+        base::StringView(title_str.substr(strlen(STARTING))));
+  } else if (title_str.find(DEBUGGER) == 0) {
+    name_override = pool_->InternString(
+        base::StringView(title_str.substr(strlen(DEBUGGER))));
+  }
+
   result->push_back(ExtractedWindowContainer{
       tokenAndTitle->title, tokenAndTitle->token, parent_token, child_index,
-      window_state.is_visible(), rect, std::move(pruned_proto)});
+      window_state.is_visible(), rect, name_override, std::move(pruned_proto),
+      kWindowStateId});
 
   return ParseWindowContainerChildren(window_container, tokenAndTitle->token,
                                       result);
@@ -366,7 +405,8 @@ base::Status WindowManagerHierarchyWalker::ParseTaskFragmentProto(
 
   result->push_back(ExtractedWindowContainer{
       tokenAndTitle->title, tokenAndTitle->token, parent_token, child_index,
-      window_container.visible(), std::nullopt, std::move(pruned_proto)});
+      window_container.visible(), std::nullopt, std::nullopt,
+      std::move(pruned_proto), kTaskFragmentId});
 
   return ParseWindowContainerChildren(window_container, tokenAndTitle->token,
                                       result);

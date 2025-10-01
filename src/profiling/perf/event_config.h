@@ -85,6 +85,9 @@ struct PerfCounter {
   uint64_t attr_config = 0;
   uint64_t attr_config1 = 0;  // optional extension
   uint64_t attr_config2 = 0;  // optional extension
+  bool attr_exclude_user = false;
+  bool attr_exclude_kernel = false;
+  bool attr_exclude_hv = false;
 
   Type event_type() const { return type; }
 

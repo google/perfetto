@@ -48,7 +48,10 @@ class WindowManagerHierarchyWalker {
     std::optional<uint32_t> child_index;
     bool is_visible;
     std::optional<ExtractedRect> rect;
-    std::vector<uint8_t> pruned_proto;  // proto without children submessages
+    std::optional<StringPool::Id> name_override;
+    std::vector<uint8_t> pruned_proto;    // proto without children submessages
+    const StringPool::Id container_type;  // container proto type e.g.
+                                          // DisplayContent, ActivityRecord
   };
 
   static constexpr const char* kErrorMessageMissingField =
@@ -134,6 +137,15 @@ class WindowManagerHierarchyWalker {
   StringPool* pool_{nullptr};
   int32_t current_display_id_{-1};
   uint32_t current_rect_depth_{0};
+  const StringPool::Id kRootWindowContainerId;
+  const StringPool::Id kDisplayContentId;
+  const StringPool::Id kDisplayAreaId;
+  const StringPool::Id kTaskId;
+  const StringPool::Id kTaskFragmentId;
+  const StringPool::Id kActivityId;
+  const StringPool::Id kWindowTokenId;
+  const StringPool::Id kWindowStateId;
+  const StringPool::Id kWindowContainerId;
 };
 
 }  // namespace perfetto::trace_processor::winscope

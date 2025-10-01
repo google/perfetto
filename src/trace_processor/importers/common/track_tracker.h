@@ -158,12 +158,31 @@ class TrackTracker {
       static_assert(std::is_same_v<UBT::Dynamic, unit_blueprint_t>);
       u = unit;
     }
+    // Compute description from blueprint.
+    using DBT = tracks::DescriptionBlueprintT;
+    using description_blueprint_t =
+        typename BlueprintT::description_blueprint_t;
+    StringId desc = kNullStringId;
+    if constexpr (std::is_same_v<DBT::None, description_blueprint_t>) {
+      // No description.
+    } else if constexpr (std::is_same_v<DBT::Static, description_blueprint_t>) {
+      desc =
+          context_->storage->InternString(bp.description_blueprint.description);
+    } else if constexpr (std::is_base_of_v<DBT::FnBase,
+                                           description_blueprint_t>) {
+      desc = context_->storage->InternString(
+          std::apply(bp.description_blueprint.fn, dims).string_view());
+    } else {
+      static_assert(std::is_same_v<DBT::Dynamic, description_blueprint_t>);
+      // Dynamic description not yet supported.
+    }
+
     // GCC warns about the variables being unused even they are in certain
     // constexpr branches above. Just use them here to suppress the warning.
     base::ignore_result(name, unit);
     static constexpr uint32_t kDimensionCount =
         std::tuple_size_v<typename BlueprintT::dimensions_t>;
-    return AddTrack(bp, n, u, a.data(), kDimensionCount, args);
+    return AddTrack(bp, n, u, desc, a.data(), kDimensionCount, args);
   }
 
  private:
@@ -171,6 +190,7 @@ class TrackTracker {
   friend class TrackEventTracker;
 
   TrackId AddTrack(const tracks::BlueprintBase&,
+                   StringId,
                    StringId,
                    StringId,
                    GlobalArgsTracker::CompactArg*,
@@ -221,6 +241,7 @@ class TrackTracker {
 
   TraceProcessorContext* const context_;
   ArgsTracker args_tracker_;
+  StringId description_key_id_;
 };
 
 }  // namespace perfetto::trace_processor
