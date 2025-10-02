@@ -2469,52 +2469,28 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
   }
 }
 
-std::string ToTraceString(
-    const std::vector<protos::gen::TracePacket>& packets) {
-  protos::gen::Trace trace;
-  for (const protos::gen::TracePacket& packet : packets) {
-    *trace.add_packet() = packet;
-  }
-  return trace.SerializeAsString();
-}
-
-void WriteTrace(const std::vector<protos::gen::TracePacket>& packets, int fd) {
-  // base::ScopedFile fd(base::OpenFile(fq_filename, O_WRONLY | O_CREAT, 0666));
-  //  PERFETTO_CHECK(*fd);
-  std::string trace_string = ToTraceString(packets);
-  PERFETTO_CHECK(base::WriteAll(fd, trace_string.data(), trace_string.size()) >=
-                 0);
-}
-
-// TODO(ktimofeev): in this test we want to check that all the lifecyle events
-// (service events) that we expect to have in the regular clone session are also
-// in the write_into_file clone session. We have a slightly different code path
-// when do clone the write_into_file session and.
-TEST_F(TracingServiceImplTest, CloneSessionPreamblePackets_DEBUG) {
+// In this test we check that all the lifecycle events that we expect to have in
+// the regular clone session are also present in the cloned 'write_into_file'
+// session. This is test is needed, because we have a slightly different code
+// path when we clone the 'write_into_file' session.
+TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
+  using TracingServiceEvent = protos::gen::TracingServiceEvent;
   std::unique_ptr<MockProducer> producer;
   std::unique_ptr<MockConsumer> consumer;
   std::unique_ptr<MockConsumer> clone_consumer;
   std::unique_ptr<TraceWriter> writer;
 
-  base::TempFile clone_consumer_output_file = base::TempFile::Create();
-  base::TempFile write_into_file_consumer_output_file =
-      base::TempFile::Create();
-  base::TempFile write_into_file_clone_consumer_output_file =
-      base::TempFile::Create();
-
-  base::TempFile cloned_dump = base::TempFile::Create();
+  base::TempFile write_into_file_session_file = base::TempFile::Create();
+  base::TempFile cloned_session_file = base::TempFile::Create();
 
   auto create_trace_config_fn = []() {
     TraceConfig trace_config;
-    trace_config.add_buffers()->set_size_kb(4096);
-    auto* ds_config = trace_config.add_data_sources()->mutable_config();
-    ds_config->set_name("data_source");
-    ds_config->set_target_buffer(0);
+    trace_config.add_buffers()->set_size_kb(128);
+    trace_config.add_data_sources()->mutable_config()->set_name("data_source");
     return trace_config;
   };
 
-  auto do_clone_session_fn = [&](base::ScopedFile clone_fd =
-                                     base::ScopedFile()) {
+  auto clone_session_fn = [&](base::ScopedFile clone_fd = base::ScopedFile()) {
     static int i = 0;
     auto checkpoint_name = "on_clone_done_" + std::to_string(i++);
     auto clone_done = task_runner.CreateCheckpoint(checkpoint_name);
@@ -2532,6 +2508,42 @@ TEST_F(TracingServiceImplTest, CloneSessionPreamblePackets_DEBUG) {
     task_runner.RunUntilCheckpoint(checkpoint_name);
   };
 
+  auto shutdown_producer_and_consumers_fn = [&]() {
+    writer.reset();
+    clone_consumer->FreeBuffers();
+    consumer->FreeBuffers();
+    producer->WaitForDataSourceStop("data_source");
+    clone_consumer.reset();
+    consumer.reset();
+    producer.reset();
+  };
+
+  auto assert_packets_fn =
+      [&](const std::vector<protos::gen::TracePacket>& packets) {
+        EXPECT_THAT(GetForTestingStrings(packets), ElementsAre("payload"));
+        EXPECT_THAT(packets, Contains(Property(
+                                 &protos::gen::TracePacket::has_trace_config,
+                                 Eq(true))));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::tracing_started));
+        EXPECT_THAT(
+            packets,
+            HasLifecycleField(&TracingServiceEvent::all_data_sources_started));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::clone_started));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::flush_started));
+        EXPECT_THAT(packets,
+                    HasLifecycleField(&TracingServiceEvent::has_buffer_cloned));
+        EXPECT_THAT(
+            packets,
+            Contains(Property(
+                &protos::gen::TracePacket::trace_stats,
+                Property(&protos::gen::TraceStats::final_flush_outcome,
+                         Eq(protos::gen::TraceStats::FINAL_FLUSH_SUCCEEDED)))));
+      };
+
+  // Clone the regular session.
   {
     producer = CreateMockProducer();
     producer->Connect(svc.get(), "mock_producer");
@@ -2555,20 +2567,15 @@ TEST_F(TracingServiceImplTest, CloneSessionPreamblePackets_DEBUG) {
       tp->set_for_testing()->set_str("payload");
     }
 
-    do_clone_session_fn();
+    clone_session_fn();
 
     const auto& packets = clone_consumer->ReadBuffers();
-    PERFETTO_DLOG("packets.size: %zu", packets.size());
+    assert_packets_fn(packets);
 
-    PERFETTO_DLOG("cloned dump: %s", clone_consumer_output_file.path().c_str());
-    WriteTrace(packets, clone_consumer_output_file.fd());
-
-    // TODO(ktimofeev): how to correctly shutdown consumers and producer?
-    consumer.reset();
-    clone_consumer.reset();
-    writer.reset();
-    producer.reset();
+    shutdown_producer_and_consumers_fn();
   }
+
+  // Clone the 'write_into_file' session.
   {
     producer = CreateMockProducer();
     producer->Connect(svc.get(), "mock_producer_1");
@@ -2579,8 +2586,7 @@ TEST_F(TracingServiceImplTest, CloneSessionPreamblePackets_DEBUG) {
     TraceConfig trace_config = create_trace_config_fn();
     trace_config.set_write_into_file(true);
     consumer->EnableTracing(
-        trace_config,
-        base::ScopedFile(dup(write_into_file_consumer_output_file.fd())));
+        trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
 
     producer->WaitForTracingSetup();
     producer->WaitForDataSourceSetup("data_source");
@@ -2595,31 +2601,34 @@ TEST_F(TracingServiceImplTest, CloneSessionPreamblePackets_DEBUG) {
       tp->set_for_testing()->set_str("payload");
     }
 
-    PERFETTO_DLOG("clone_consumer_output_file: %s",
-                  write_into_file_clone_consumer_output_file.path().c_str());
+    clone_session_fn(base::ScopedFile(dup(cloned_session_file.fd())));
 
-    do_clone_session_fn(
-        base::ScopedFile(dup(write_into_file_clone_consumer_output_file.fd())));
+    // ReadBuffers returns single service event, all the data is already written
+    // into the file.
+    auto clone_consumer_buffers = clone_consumer->ReadBuffers();
+    EXPECT_EQ(clone_consumer_buffers.size(), 1ul);
+    EXPECT_THAT(
+        clone_consumer_buffers,
+        HasLifecycleField(
+            &protos::gen::TracingServiceEvent::read_tracing_buffers_completed));
 
-    const auto& packets = clone_consumer->ReadBuffers();
-    PERFETTO_DLOG(
-        "write_into_file_clone_done, packets.size: %zu (expect to be zero)",
-        packets.size());  // should be zero
+    {
+      // Verify the content of the cloned session output file.
+      protos::gen::Trace trace;
+      ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_session_file, trace));
+      assert_packets_fn(trace.packet());
+    }
 
-    PERFETTO_DLOG("write_into_file_clone_done packets dump: %s",
-                  cloned_dump.path().c_str());
-    WriteTrace(packets, cloned_dump.fd());
-    base::FlushFile(cloned_dump.fd());
-
-    // TODO(ktimofeev): how to correctly shutdown consumers and producer?
-    consumer.reset();
-    clone_consumer.reset();
-    writer.reset();
-    producer.reset();
+    shutdown_producer_and_consumers_fn();
+    {
+      // Just in case, also verify that 'write_into_file' session write the
+      // payload to the file when stopped.
+      protos::gen::Trace trace;
+      ASSERT_TRUE(
+          ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+      EXPECT_THAT(GetForTestingStrings(trace.packet()), ElementsAre("payload"));
+    }
   }
-
-  PERFETTO_DLOG("both traces are ready, now sleep for 100 seconds...");
-  std::this_thread::sleep_for(std::chrono::seconds(100));
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileFilterMultipleChunks) {
