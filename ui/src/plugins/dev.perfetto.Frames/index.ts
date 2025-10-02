@@ -37,11 +37,11 @@ function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
 export default class Frames implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
-  static useExperimentalJankForClassicition: Setting<boolean>;
+  static useExperimentalJankForClassification: Setting<boolean>;
 
   static onActivate(app: App): void {
-    Frames.useExperimentalJankForClassicition = app.settings.register({
-      id: `${app.pluginId}#useExperimentalJankForClassicition`,
+    Frames.useExperimentalJankForClassification = app.settings.register({
+      id: `${app.pluginId}#useExperimentalJankForClassification`,
       name: 'Use experimental jank classificaiton (alpha)',
       description: 'Use alternative method to classify jank. Not recommented.',
       schema: z.boolean(),
@@ -151,7 +151,7 @@ export default class Frames implements PerfettoPlugin {
           uri,
           maxDepth,
           trackIds,
-          Frames.useExperimentalJankForClassicition.get(),
+          Frames.useExperimentalJankForClassification.get(),
         ),
         tags: {
           upid,
