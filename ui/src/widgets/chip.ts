@@ -101,7 +101,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
           icon: rightIcon,
           filled: iconFilled,
         }),
-      label || '\u200B', // Zero width space keeps chip in-flow
+      m('span.pf-chip__label', label || '\u200B'), // Zero width space keeps chip in-flow
       removable &&
         m(Button, {
           compact: true,
