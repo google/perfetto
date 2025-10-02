@@ -82,6 +82,7 @@
 #include "protos/perfetto/trace/ftrace/devfreq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
+#include "protos/perfetto/trace/ftrace/f2fs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -267,6 +268,32 @@ std::string GetUfsCmdString(uint32_t ufsopcode, uint32_t gid) {
     buffer = buffer + gid_str.c_str();
   }
   return buffer;
+}
+
+std::string GetF2fsCheckpointReasonString(int32_t reason) {
+  if (reason == 0) {
+    return "Unknown";
+  }
+
+  std::vector<std::string> flags;
+  if (reason & 0x00000001)
+    flags.push_back("Umount");
+  if (reason & 0x00000002)
+    flags.push_back("Fastboot");
+  if (reason & 0x00000004)
+    flags.push_back("Sync");
+  if (reason & 0x00000008)
+    flags.push_back("Recovery");
+  if (reason & 0x00000010)
+    flags.push_back("Discard");
+  if (reason & 0x00000020)
+    flags.push_back("Trimmed");
+  if (reason & 0x00000040)
+    flags.push_back("Pause");
+  if (reason & 0x00000080)
+    flags.push_back("Resize");
+
+  return base::Join(flags, "|");
 }
 
 enum RpmStatus {
@@ -530,7 +557,10 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       disp_vblank_irq_enable_output_id_arg_name_(
           context_->storage->InternString("output_id")),
       hrtimer_id_(context_->storage->InternString("hrtimer")),
-      local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")) {
+      local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")),
+      f2fs_checkpoint_cat_id_(
+          context_->storage->InternString("f2fs_write_checkpoint")),
+      f2fs_reason_arg_id_(context->storage->InternString("reason")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1480,6 +1510,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kFwtpPerfettoCounterFieldNumber: {
         ParseFwtpPerfettoCounter(fld_bytes);
+        break;
+      }
+      case FtraceEvent::kF2fsWriteCheckpointFieldNumber: {
+        ParseF2fsWriteCheckpoint(ts, pid, fld_bytes);
         break;
       }
       default:
@@ -4372,6 +4406,34 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
       kBlueprint, tracks::Dimensions(event.name()));
   context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
                                        event.value(), track_id);
+}
+
+void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
+                                            uint32_t pid,
+                                            ConstBytes blob) {
+  protos::pbzero::F2fsWriteCheckpointFtraceEvent::Decoder evt(blob);
+
+  base::StringView msg(evt.msg());
+
+  int32_t reason = evt.reason();
+  std::string reason_str = GetF2fsCheckpointReasonString(reason);
+  StringId reason_name_id =
+      context_->storage->InternString(base::StringView(reason_str));
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  if (msg.find("start block_ops") != base::StringView::npos) {
+    context_->slice_tracker->Begin(
+        ts, track_id, f2fs_checkpoint_cat_id_, reason_name_id,
+        [&](ArgsTracker::BoundInserter* inserter) {
+          inserter->AddArg(f2fs_reason_arg_id_,
+                           Variadic::String(reason_name_id));
+        });
+  } else if (msg.find("finish checkpoint") != base::StringView::npos) {
+    context_->slice_tracker->End(ts, track_id, f2fs_checkpoint_cat_id_,
+                                 reason_name_id);
+  }
 }
 
 }  // namespace perfetto::trace_processor
