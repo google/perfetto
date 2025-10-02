@@ -36,6 +36,7 @@ CREATE PERFETTO VIEW wattson_markers_rails_output AS
 SELECT AndroidWattsonTimePeriodMetric(
   'metric_version', metric_version,
   'power_model_version', power_model_version,
+  'is_crude_estimate', is_crude_estimate,
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonEstimateInfo(

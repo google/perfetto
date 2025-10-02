@@ -101,4 +101,5 @@ DROP VIEW IF EXISTS _wattson_tasks_metric_metadata;
 CREATE PERFETTO VIEW _wattson_tasks_metric_metadata AS
 SELECT
   4 AS metric_version,
-  1 AS power_model_version;
+  1 AS power_model_version,
+  NOT EXISTS (SELECT 1 FROM _wattson_cpuidle_counters_exist) AS is_crude_estimate;
