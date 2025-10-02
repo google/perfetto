@@ -710,3 +710,26 @@ In the code, the outer layer walk is implemented by
 `TraceBufferV2::ReadNextTracePacket()` while the inner walk is implemented by
 the `class ChunkSeqReader::ReadNextPacket()`.
 
+## Benchmarks
+
+### Apple Macbook (M4)
+
+```txt
+BM_TraceBuffer_WR_SingleWriter<TraceBufferV1>       bytes_per_second=9.77742G/s
+BM_TraceBuffer_WR_SingleWriter<TraceBufferV2>       bytes_per_second=12.6395G/s
+BM_TraceBuffer_WR_MultipleWriters<TraceBufferV1>    bytes_per_second=8.65385G/s
+BM_TraceBuffer_WR_MultipleWriters<TraceBufferV2>    bytes_per_second=11.7582G/s
+BM_TraceBuffer_RD_MixedPackets<TraceBufferV1>      bytes_per_second=4.27694G/s
+BM_TraceBuffer_RD_MixedPackets<TraceBufferV2>      bytes_per_second=4.35475G/s
+```
+
+### Google Pixel 7
+
+```txt
+BM_TraceBuffer_WR_SingleWriter<TraceBufferV1>      bytes_per_second=4.4379G/s
+BM_TraceBuffer_WR_SingleWriter<TraceBufferV2>      bytes_per_second=3.7931G/s
+BM_TraceBuffer_WR_MultipleWriters<TraceBufferV1>   bytes_per_second=3.19148G/s
+BM_TraceBuffer_WR_MultipleWriters<TraceBufferV2>   bytes_per_second=3.47354G/s
+BM_TraceBuffer_RD_MixedPackets<TraceBufferV1>      bytes_per_second=1.26698G/s
+BM_TraceBuffer_RD_MixedPackets<TraceBufferV2>      bytes_per_second=1.35394G/s
+```

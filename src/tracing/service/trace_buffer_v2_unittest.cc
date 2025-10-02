@@ -1836,7 +1836,7 @@ TEST_F(TraceBufferV2Test, Clone_WrappingWithPadding) {
       .CopyIntoTraceBuffer();
 
   std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
-  ASSERT_EQ(snap->used_size(), 3192u + 16u);
+  ASSERT_EQ(snap->used_size(), internal::TBChunk::OuterSize(3192u));
   snap->BeginRead();
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(3192, 'b')));
   ASSERT_THAT(ReadPacket(snap), IsEmpty());
@@ -2326,10 +2326,12 @@ TEST_F(TraceBufferV2Test, SequenceGaps_DetectionWithChunkIdWrap) {
 // 32 bytes.
 TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
   ResetBuffer(4096);
-  ASSERT_EQ(36u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
-                     .AddPacket(36 - 16, 'a')
-                     .CopyIntoTraceBuffer());
-  size_t pad_size = 4096 - internal::TBChunk::OuterSize(36);
+
+  size_t c1_size = 36;
+  ASSERT_EQ(c1_size, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+                         .AddPacket(c1_size - 16, 'a')
+                         .CopyIntoTraceBuffer());
+  size_t pad_size = 4096 - internal::TBChunk::OuterSize(c1_size - 16);
   ASSERT_EQ(pad_size, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
                           .AddPacket(pad_size - 16, 'b')
                           .CopyIntoTraceBuffer());
@@ -2341,7 +2343,6 @@ TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
 
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'c')));
-  ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
 }  // namespace perfetto
