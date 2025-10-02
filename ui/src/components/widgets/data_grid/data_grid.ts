@@ -207,6 +207,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
+  private columnWidths: Map<string, number> = new Map();
+  private hasCalculatedInitialWidths = false;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -216,6 +218,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialFilters) {
       this.filters = attrs.initialFilters;
     }
+
+    // Initialize column widths with a default value
+    attrs.columns.forEach((column) => {
+      if (!this.columnWidths.has(column.name)) {
+        this.columnWidths.set(column.name, 100);
+      }
+    });
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -281,6 +290,22 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
+
+    // Calculate initial column widths from first page of data
+    if (
+      !this.hasCalculatedInitialWidths &&
+      dataSource.rows &&
+      dataSource.rows.rows.length > 0
+    ) {
+      this.measureColumns(
+        columns,
+        dataSource.rows.rows.slice(offset, limit),
+        cellRenderer,
+        600, // Initial sizing: cap at 600px
+        0.95, // Use 95th percentile for initial sizing
+      );
+      this.hasCalculatedInitialWidths = true;
+    }
 
     // Calculate total pages based on totalRows and rowsPerPage
     const totalRows = dataSource.rows?.totalRows ?? 0;
@@ -405,6 +430,30 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         }
                       : undefined,
                     menuItems: menuItems.length > 0 ? menuItems : undefined,
+                    width: this.columnWidths.get(column.name),
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(column.name, newWidth);
+                      m.redraw();
+                    },
+                    onAutoResize: () => {
+                      // Measure the columns based on the current page of data
+                      const rowOffset = dataSource.rows?.rowOffset ?? 0;
+                      const firstRowInPage = offset - rowOffset;
+                      const lastRowInPage = offset + limit - rowOffset;
+                      if (dataSource.rows) {
+                        this.measureColumns(
+                          [column],
+                          dataSource.rows.rows.slice(
+                            firstRowInPage,
+                            lastRowInPage,
+                          ),
+                          cellRenderer,
+                          10_000, // Double-click: virtually no limit
+                          1.0, // Use max width (100%) for double-click
+                        );
+                        m.redraw();
+                      }
+                    },
                   },
                   column.title ?? column.name,
                 );
@@ -421,6 +470,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                       symbol:
                         column.aggregation &&
                         aggregationFunIcon(column.aggregation),
+                      width: this.columnWidths.get(column.name),
                     },
                     column.aggregation &&
                       dataSource.rows?.aggregates &&
@@ -696,6 +746,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   return 'left';
                 })(),
                 nullish: value === null,
+                width: this.columnWidths.get(column.name),
               },
               cellRenderer(value, column.name, row),
             );
@@ -706,6 +757,113 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         return undefined;
       }
     });
+  }
+
+  private measureColumns(
+    columns: ReadonlyArray<ColumnDefinition>,
+    rows: ReadonlyArray<RowDef>,
+    cellRenderer: CellRenderer,
+    maxWidth: number,
+    percentile: number = 1.0,
+    padding: number = 5, // Extra padding to add to measured width
+  ) {
+    // Create off-screen container for measuring with proper grid structure
+    const measureContainer = document.createElement('div');
+    measureContainer.style.position = 'absolute';
+    measureContainer.style.visibility = 'hidden';
+    measureContainer.style.pointerEvents = 'none';
+    measureContainer.style.top = '-9999px';
+    measureContainer.style.left = '-9999px';
+    measureContainer.className = 'pf-grid'; // Pretend this is a grid to get the right styles
+    document.body.appendChild(measureContainer);
+
+    columns.forEach((column) => {
+      const widths: number[] = [];
+
+      // Measure each cell in the column using actual GridDataCell component
+      rows.forEach((row) => {
+        const value = row[column.name];
+        const cellContainer = document.createElement('div');
+
+        // Render GridDataCell without menu items or width constraint
+        const cellVnode = m(
+          GridDataCell,
+          {
+            align: (() => {
+              if (isNumeric(value)) return 'right';
+              if (value === null) return 'center';
+              return 'left';
+            })(),
+            nullish: value === null,
+            width: 'fit-content',
+          },
+          cellRenderer(value, column.name, row),
+        );
+
+        m.render(cellContainer, cellVnode);
+        measureContainer.appendChild(cellContainer);
+
+        // Get the actual cell content width
+        const cellElement = cellContainer.querySelector('.pf-grid__cell');
+        if (cellElement) {
+          widths.push(cellElement.scrollWidth);
+        }
+
+        measureContainer.removeChild(cellContainer);
+      });
+
+      // Measure header width using actual GridHeaderCell component
+      // Always measure with sort button visible to ensure no ellipsis when sorted
+      const headerContainer = document.createElement('div');
+      const headerVnode = m(
+        GridHeaderCell,
+        {
+          width: 'fit-content',
+          sort: 'ASC', // Measure with sort button to ensure adequate width
+          onSort: () => {}, // Dummy callback
+        },
+        column.title ?? column.name,
+      );
+
+      m.render(headerContainer, headerVnode);
+      measureContainer.appendChild(headerContainer);
+
+      const headerElement = headerContainer.querySelector('.pf-grid__cell');
+      const headerWidth = headerElement ? headerElement.scrollWidth : 0;
+
+      measureContainer.removeChild(headerContainer);
+
+      // Calculate column width based on strategy
+      if (widths.length > 0) {
+        widths.sort((a, b) => a - b);
+
+        let contentWidth: number;
+        if (percentile < 1.0) {
+          // Use 95th percentile for initial sizing
+          const percentileIndex = Math.ceil(widths.length * percentile) - 1;
+          contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
+        } else {
+          // Use max width for double-click auto-resize
+          contentWidth = widths[widths.length - 1];
+        }
+
+        // Take the maximum of content width and header width, capped at maxWidth
+        const finalWidth = Math.min(
+          maxWidth,
+          Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
+        );
+        this.columnWidths.set(column.name, finalWidth + padding);
+      } else {
+        // If no cell data, just use header width, capped at maxWidth
+        const finalWidth = Math.min(
+          maxWidth,
+          Math.max(50, Math.ceil(headerWidth)),
+        );
+        this.columnWidths.set(column.name, finalWidth + padding);
+      }
+    });
+    // Clean up
+    document.body.removeChild(measureContainer);
   }
 }
 

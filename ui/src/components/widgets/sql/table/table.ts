@@ -215,6 +215,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
   private state: SqlTableState;
+  private columnWidths: Map<string, number> = new Map();
+  private hasCalculatedInitialWidths = false;
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
@@ -285,6 +287,21 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     const columns = this.state.getSelectedColumns();
 
+    // Calculate initial column widths on first render with data
+    if (!this.hasCalculatedInitialWidths && rows.length > 0) {
+      columns.forEach((column) => {
+        const columnKey = tableColumnId(column);
+        const optimalWidth = this.measureColumns(
+          column,
+          rows,
+          600, // Initial sizing: cap at 600px
+          true, // Use 95th percentile for initial sizing
+        );
+        this.columnWidths.set(columnKey, optimalWidth);
+      });
+      this.hasCalculatedInitialWidths = true;
+    }
+
     return [
       m(
         Grid,
@@ -331,6 +348,9 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                   }),
                 ];
 
+                const columnKey = tableColumnId(column);
+                const width = this.columnWidths.get(columnKey) ?? 100;
+
                 return m(
                   GridHeaderCell,
                   {
@@ -346,6 +366,21 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                         const toIndex = position === 'before' ? to : to + 1;
                         this.state.moveColumn(from, toIndex);
                       }
+                    },
+                    width,
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(columnKey, newWidth);
+                      m.redraw();
+                    },
+                    onAutoResize: () => {
+                      const optimalWidth = this.measureColumns(
+                        column,
+                        rows,
+                        800, // Double-click: cap at 800px
+                        false, // Use max width (100%) for double-click
+                      );
+                      this.columnWidths.set(columnKey, optimalWidth);
+                      m.redraw();
                     },
                   },
                   columnTitle(column),
@@ -364,12 +399,16 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                     row,
                     this.state,
                   );
+                  const columnKey = tableColumnId(col);
+                  const width = this.columnWidths.get(columnKey) ?? 100;
+
                   return m(
                     GridDataCell,
                     {
                       menuItems: menu,
                       align: isNull ? 'center' : isNumerical ? 'right' : 'left',
                       nullish: isNull,
+                      width,
                     },
                     content,
                   );
@@ -383,6 +422,99 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       this.state.getQueryError() !== undefined &&
         m('.query-error', this.state.getQueryError()),
     ];
+  }
+
+  private measureColumns(
+    column: TableColumn,
+    rows: ReadonlyArray<Row>,
+    maxWidth: number,
+    use95thPercentile: boolean,
+  ): number {
+    const measureContainer = document.createElement('div');
+    measureContainer.style.position = 'absolute';
+    measureContainer.style.visibility = 'hidden';
+    measureContainer.style.pointerEvents = 'none';
+    measureContainer.style.top = '-9999px';
+    measureContainer.style.left = '-9999px';
+    measureContainer.className = 'pf-grid'; // Pretend this is a grid to get the right styles
+    document.body.appendChild(measureContainer);
+
+    const widths: number[] = [];
+
+    // Measure each cell in the column
+    rows.forEach((row) => {
+      const {content, isNull, isNumerical} = renderCell(
+        column,
+        row,
+        this.state,
+      );
+      const cellContainer = document.createElement('div');
+      const cellVnode = m(
+        GridDataCell,
+        {
+          align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+          nullish: isNull,
+          width: 'fit-content',
+        },
+        content,
+      );
+
+      m.render(cellContainer, cellVnode);
+      measureContainer.appendChild(cellContainer);
+
+      const cellElement = cellContainer.querySelector('.pf-grid__cell');
+      if (cellElement) {
+        widths.push(cellElement.scrollWidth);
+      }
+
+      measureContainer.removeChild(cellContainer);
+    });
+
+    // Measure header width
+    // Always measure with sort button visible to ensure no ellipsis when sorted
+    const headerContainer = document.createElement('div');
+    const headerVnode = m(
+      GridHeaderCell,
+      {
+        width: 'fit-content',
+        sort: 'ASC', // Measure with sort button to ensure adequate width
+        onSort: () => {}, // Dummy callback
+      },
+      columnTitle(column),
+    );
+
+    m.render(headerContainer, headerVnode);
+    measureContainer.appendChild(headerContainer);
+
+    const headerElement = headerContainer.querySelector('.pf-grid__cell');
+    const headerWidth = headerElement ? headerElement.scrollWidth : 0;
+
+    measureContainer.removeChild(headerContainer);
+    document.body.removeChild(measureContainer);
+
+    // Calculate column width based on strategy
+    if (widths.length > 0) {
+      widths.sort((a, b) => a - b);
+
+      let contentWidth: number;
+      if (use95thPercentile) {
+        // Use 95th percentile for initial sizing
+        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
+        contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
+      } else {
+        // Use max width for double-click auto-resize
+        contentWidth = widths[widths.length - 1];
+      }
+
+      // Take the maximum of content width and header width, capped at maxWidth
+      return Math.min(
+        maxWidth,
+        Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
+      );
+    } else {
+      // If no cell data, just use header width, capped at maxWidth
+      return Math.min(maxWidth, Math.max(50, Math.ceil(headerWidth)));
+    }
   }
 }
 

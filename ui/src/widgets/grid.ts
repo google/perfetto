@@ -19,6 +19,9 @@ import {Button} from './button';
 import {MenuItem, PopupMenu} from './menu';
 import {MithrilEvent} from '../base/mithril_utils';
 
+const COL_WIDTH_MIN_PX = 60;
+const COL_WIDTH_DEFAULT_PX = 100;
+
 export interface GridAttrs {
   // If true, the grid will fill the height of its parent container.
   readonly fillHeight?: boolean;
@@ -90,6 +93,11 @@ export interface GridHeaderCellAttrs extends m.Attributes {
     to: string | number | undefined,
     position: ReorderPosition,
   ) => void;
+  // Callback invoked when the user resizes the column.
+  readonly onResize?: (newWidth: number) => void;
+  // Callback invoked when the user double-clicks the resize handle to
+  // auto-size.
+  readonly onAutoResize?: () => void;
   // If true, the cell will have a thick right border, useful for separating
   // groups of columns.
   readonly thickRightBorder?: boolean;
@@ -101,6 +109,15 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     count: 0,
     position: 'after',
   };
+  private resizeState: {
+    isResizing: boolean;
+    startX: number;
+    startWidth: number;
+  } = {
+    isResizing: false,
+    startX: 0,
+    startWidth: 0,
+  };
 
   view({attrs, children, key}: m.Vnode<GridHeaderCellAttrs>) {
     const {
@@ -109,8 +126,9 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       menuItems,
       reorderable,
       onReorder,
+      onResize,
       thickRightBorder,
-      width = 100,
+      width = COL_WIDTH_DEFAULT_PX,
       ...rest
     } = attrs;
 
@@ -127,7 +145,8 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
 
       return m(Button, {
         className: classNames(
-          !sort && 'pf-grid-cell__hint',
+          'pf-grid__cell__sort-button',
+          !sort && 'pf-grid__cell--hint',
           !sort && 'pf-visible-on-hover',
         ),
         rounded: true,
@@ -145,13 +164,55 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            className: 'pf-visible-on-hover pf-grid-cell__menu-button',
+            className: 'pf-visible-on-hover pf-grid__cell__menu-button',
             icon: Icons.ContextMenuAlt,
             rounded: true,
           }),
         },
         menuItems,
       );
+    };
+
+    const renderResizeHandle = () => {
+      if (!onResize) return null;
+
+      return m('.pf-grid__resize-handle', {
+        onmousedown: (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          this.resizeState.isResizing = true;
+          this.resizeState.startX = e.clientX;
+          this.resizeState.startWidth =
+            typeof width === 'number' ? width : parseInt(String(width)) || 100;
+
+          const handleMouseMove = (e: MouseEvent) => {
+            if (this.resizeState.isResizing) {
+              const delta = e.clientX - this.resizeState.startX;
+              const newWidth = Math.max(
+                COL_WIDTH_MIN_PX,
+                this.resizeState.startWidth + delta,
+              );
+              onResize(newWidth);
+              m.redraw();
+            }
+          };
+
+          const handleMouseUp = () => {
+            this.resizeState.isResizing = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+          };
+
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        },
+        ondblclick: (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          attrs.onAutoResize?.();
+        },
+      });
     };
 
     const reorderHandle = reorderable?.handle;
@@ -167,7 +228,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         className: classNames(
           this.dragOverState.count > 0 && 'pf-grid__cell--drag-over',
           this.dragOverState.count > 0 &&
-            `pf-grid__cell--drag-over--${this.dragOverState.position}`,
+            `pf-grid__cell--drag-over-${this.dragOverState.position}`,
           thickRightBorder && 'pf-grid__cell--thick-right-border',
         ),
         ondragstart: (e: MithrilEvent<DragEvent>) => {
@@ -213,11 +274,13 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           }
         },
       },
-      m('.pf-grid__cell--stretch.pf-grid__cell--padded', children),
-      renderSortButton(),
-      // TODO: Could put a spacer in here to push the sort button up to the
-      // content and the menu to the right.
+      m(
+        '.pf-grid__cell--stretch.pf-grid__cell--horiz',
+        m('.pf-grid__cell--padded.pf-grid__cell--shrink', children),
+        renderSortButton(),
+      ),
       renderMenu(),
+      renderResizeHandle(),
     );
   }
 }
@@ -235,7 +298,7 @@ export class GridAggregationCell
   view({attrs, children}: m.Vnode<GridAggregationCellAttrs>) {
     const {
       className,
-      width = 100,
+      width = COL_WIDTH_DEFAULT_PX,
       align,
       thickRightBorder,
       symbol,
@@ -287,7 +350,7 @@ export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
       nullish,
       thickRightBorder,
       className,
-      width = 100,
+      width = COL_WIDTH_DEFAULT_PX,
       ...rest
     } = attrs;
 
