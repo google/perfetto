@@ -646,9 +646,19 @@ base::StatusOr<std::string> GeneratorImpl::OperatorToString(
 
 base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     const StructuredQuery::GroupBy::Aggregate::Decoder& aggregate) {
-  std::string column_name = aggregate.column_name().ToStdString();
   auto op =
       static_cast<StructuredQuery::GroupBy::Aggregate::Op>(aggregate.op());
+
+  if (op == StructuredQuery::GroupBy::Aggregate::COUNT &&
+      !aggregate.has_column_name()) {
+    return std::string("COUNT(*)");
+  }
+
+  if (!aggregate.has_column_name()) {
+    return base::ErrStatus("Column name not specified for aggregation");
+  }
+  std::string column_name = aggregate.column_name().ToStdString();
+
   switch (op) {
     case StructuredQuery::GroupBy::Aggregate::COUNT:
       return "COUNT(" + column_name + ")";
@@ -663,6 +673,9 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
     case StructuredQuery::GroupBy::Aggregate::MEDIAN:
       return "PERCENTILE(" + column_name + ", 50)";
     case StructuredQuery::GroupBy::Aggregate::PERCENTILE:
+      if (!aggregate.has_percentile()) {
+        return base::ErrStatus("Percentile not specified for aggregation");
+      }
       return "PERCENTILE(" + column_name + ", " +
              std::to_string(aggregate.percentile()) + ")";
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
