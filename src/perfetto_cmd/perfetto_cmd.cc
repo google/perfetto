@@ -1440,7 +1440,7 @@ NAME                                     PRODUCER                     DETAILS
     }
     const size_t kCatsShortLen = 40;
     if (!query_service_long_ && cats.length() > kCatsShortLen) {
-      cats = cats.substr(0, kCatsShortLen);
+      cats.resize(kCatsShortLen);
       cats.append("... (use --long to expand)");
     }
     printf("%s\n", cats.c_str());

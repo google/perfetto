@@ -181,7 +181,7 @@ int32_t EncodeCommitDataRequest(ProducerID producer_id,
 }
 
 void SerializeAndAppendPacket(std::vector<TracePacket>* packets,
-                              std::vector<uint8_t> packet) {
+                              const std::vector<uint8_t>& packet) {
   Slice slice = Slice::Allocate(packet.size());
   memcpy(slice.own_data(), packet.data(), packet.size());
   packets->emplace_back();

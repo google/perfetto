@@ -36,6 +36,7 @@ const LIGHT_GREEN_500 = makeColorScheme(new HSLColor('#C0D588'));
 const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
+const WHITE_200 = makeColorScheme(new HSLColor('#F5F5F5'));
 
 export function createActualFramesTrack(
   trace: Trace,
@@ -90,6 +91,8 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_100;
       case 'No Jank': // should not happen
         return GREEN_200;
+      case 'Non Animating': // should not happen
+        return WHITE_200;
       default:
         return PINK_200;
     }
@@ -106,6 +109,8 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_500;
       case 'No Jank':
         return GREEN_500;
+      case 'Non Animating':
+        return WHITE_200;
       default:
         return PINK_500;
     }

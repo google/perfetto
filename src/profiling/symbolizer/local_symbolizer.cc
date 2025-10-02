@@ -913,8 +913,8 @@ LocalSymbolizer::~LocalSymbolizer() = default;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
 std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
-    std::vector<std::string> directories,
-    std::vector<std::string> individual_files,
+    const std::vector<std::string>& directories,
+    const std::vector<std::string>& individual_files,
     const char* mode) {
   std::unique_ptr<Symbolizer> symbolizer;
 
