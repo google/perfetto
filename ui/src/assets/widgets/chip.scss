@@ -43,11 +43,12 @@
     border-radius: 100px;
   }
 
-  & > .pf-left-icon {
-    margin-right: 6px; // Make some room between the icon and label
+  &__icon {
+    align-self: center;
+    margin-right: 6px;
   }
 
-  & > .pf-button {
+  .pf-button {
     margin-left: 6px; // Make some room between the icon and label
   }
 
@@ -80,11 +81,11 @@
   // Reduce padding when compact
   &.pf-compact {
     padding: 0px 4px;
-    & > .pf-left-icon {
+    .pf-chip__icon {
       margin-right: 2px;
     }
 
-    & > .pf-button {
+    .pf-button {
       margin-left: 2px;
     }
   }
