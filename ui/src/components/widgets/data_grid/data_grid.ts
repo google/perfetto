@@ -44,6 +44,7 @@ import {
   SortDirection,
   GridFilterBar,
   GridFilterChip,
+  GridAggregationCell,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
 
@@ -298,6 +299,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const sortControls = onSortingChangedWithReset !== noOp;
     const filterControls = onFiltersChangedWithReset !== noOp;
 
+    const hasAggregations = columns.some((c) => c.aggregation !== undefined);
+
     return m(
       '.pf-data-grid',
       {
@@ -402,24 +405,33 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         }
                       : undefined,
                     menuItems: menuItems.length > 0 ? menuItems : undefined,
-                    aggregation: column.aggregation &&
-                      dataSource.rows?.aggregates && {
-                        left: m(
-                          'span',
-                          {title: column.aggregation},
-                          aggregationFunIcon(column.aggregation),
-                        ),
-                        right: cellRenderer(
-                          dataSource.rows.aggregates[column.name],
-                          column.name,
-                          dataSource.rows.aggregates,
-                        ),
-                      },
                   },
                   column.title ?? column.name,
                 );
               }),
             ),
+            hasAggregations &&
+              m(
+                GridRow,
+                columns.map((column) => {
+                  return m(
+                    GridAggregationCell,
+                    {
+                      align: 'right', // Assume all aggregates are numeric
+                      symbol:
+                        column.aggregation &&
+                        aggregationFunIcon(column.aggregation),
+                    },
+                    column.aggregation &&
+                      dataSource.rows?.aggregates &&
+                      cellRenderer(
+                        dataSource.rows.aggregates[column.name],
+                        column.name,
+                        dataSource.rows.aggregates,
+                      ),
+                  );
+                }),
+              ),
           ),
           dataSource.rows &&
             m(
@@ -683,7 +695,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   if (value === null) return 'center';
                   return 'left';
                 })(),
-                isMissing: value === null,
+                nullish: value === null,
               },
               cellRenderer(value, column.name, row),
             );

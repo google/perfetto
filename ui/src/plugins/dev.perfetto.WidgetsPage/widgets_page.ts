@@ -81,6 +81,7 @@ import {TabStrip} from '../../widgets/tabs';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {
   Grid,
+  GridAggregationCell,
   GridBody,
   GridDataCell,
   GridHeader,
@@ -1781,13 +1782,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
+                      width: 100,
                       key: 'id',
                       sort: 'ASC',
                       onSort: () => {},
-                      aggregation: {
-                        left: 'Σ',
-                        right: 15,
-                      },
                       reorderable: reorderable ? {handle: 'left'} : undefined,
                     },
                     'ID',
@@ -1795,6 +1793,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
+                      width: 100,
                       key: 'lang',
                       onSort: () => {},
                       menuItems: [
@@ -1809,6 +1808,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
+                      width: 100,
                       key: 'year',
                       aggregation: {
                         left: 'AVG',
@@ -1829,16 +1829,38 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
+                      width: 140,
                       key: 'typing',
                       reorderable: reorderable ? {handle: 'right'} : undefined,
                     },
                     'Typing',
                   ),
                 ]),
+                // Aggregations go on the next row
+                m(GridRow, [
+                  m(
+                    GridAggregationCell,
+                    {
+                      width: 100,
+                      symbol: 'Σ',
+                      align: 'right',
+                    },
+                    '123',
+                  ),
+                  m(GridAggregationCell, {
+                    width: 100,
+                    thickRightBorder: true,
+                  }),
+                  m(GridAggregationCell, {
+                    width: 100,
+                  }),
+                  m(GridAggregationCell),
+                  m(GridAggregationCell),
+                ]),
               ]),
               m(GridBody, [
                 m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 1),
+                  m(GridDataCell, {width: 100, align: 'right'}, 1),
                   m(
                     GridDataCell,
                     {
@@ -1855,28 +1877,28 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(GridDataCell, 'Static'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 2),
+                  m(GridDataCell, {width: 100, align: 'right'}, 2),
                   m(GridDataCell, {thickRightBorder: true}, 'JavaScript'),
                   m(GridDataCell, {align: 'right'}, 1995),
                   m(GridDataCell, 'Brendan Eich'),
                   m(GridDataCell, 'Dynamic'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 3),
+                  m(GridDataCell, {width: 100, align: 'right'}, 3),
                   m(GridDataCell, {thickRightBorder: true}, 'Python'),
                   m(GridDataCell, {align: 'right'}, 1991),
                   m(GridDataCell, 'Guido van Rossum'),
                   m(GridDataCell, 'Dynamic'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 4),
+                  m(GridDataCell, {width: 100, align: 'right'}, 4),
                   m(GridDataCell, {thickRightBorder: true}, 'Java'),
                   m(GridDataCell, {align: 'right'}, 1995),
                   m(GridDataCell, 'James Gosling'),
                   m(GridDataCell, 'Static'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 5),
+                  m(GridDataCell, {width: 100, align: 'right'}, 5),
                   m(GridDataCell, {thickRightBorder: true}, 'C++'),
                   m(GridDataCell, {align: 'right'}, 1985),
                   m(GridDataCell, 'Bjarne Stroustrup'),

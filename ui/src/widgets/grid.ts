@@ -36,7 +36,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       {
         className: classNames(fillHeight && 'pf-grid--fill-height', className),
       },
-      m('.pf-grid__table', m('table', children)),
+      children,
     );
   }
 }
@@ -44,21 +44,21 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 // Renders the `<thead>` element. It's designed to contain `GridRow` components.
 export class GridHeader implements m.ClassComponent {
   view({children}: m.Vnode) {
-    return m('thead', children);
+    return m('.pf-grid__header', children);
   }
 }
 
 // Renders the `<tbody>` element. It will also contain `GridRow` components.
 export class GridBody implements m.ClassComponent {
   view({children}: m.Vnode) {
-    return m('tbody', children);
+    return m('.pf-grid__body', children);
   }
 }
 
 // Renders a `<tr>` element. It expects a list of cells.
 export class GridRow implements m.ClassComponent {
   view({children}: m.Vnode) {
-    return m('tr', children);
+    return m('.pf-grid__row', children);
   }
 }
 
@@ -69,6 +69,7 @@ export type CellAlignment = 'left' | 'center' | 'right';
 export type ReorderPosition = 'before' | 'after';
 
 export interface GridHeaderCellAttrs extends m.Attributes {
+  readonly width?: string | number;
   // The current sort direction, if any.
   readonly sort?: SortDirection;
   // Callback invoked when the user clicks the sort button.
@@ -76,11 +77,6 @@ export interface GridHeaderCellAttrs extends m.Attributes {
   // An array of Mithril children (e.g., MenuItem, MenuDivider) for the
   // context menu.
   readonly menuItems?: m.Children;
-  // Horizontal alignment of the cell content.
-  readonly aggregation?: {
-    readonly left: m.Children;
-    readonly right: m.Children;
-  };
   // A handle to identify a group of reorderable columns. Columns can only be
   // reordered within the same group.
   readonly reorderable?: {
@@ -111,10 +107,10 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       sort,
       onSort,
       menuItems,
-      aggregation,
       reorderable,
       onReorder,
       thickRightBorder,
+      width = 100,
       ...rest
     } = attrs;
 
@@ -158,19 +154,21 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       );
     };
 
-    const hasAggregation = aggregation !== undefined;
     const reorderHandle = reorderable?.handle;
 
     return m(
-      'th',
+      '.pf-grid__cell',
       {
         ...rest,
+        style: {
+          width: typeof width === 'number' ? `${width}px` : width,
+        },
         draggable: reorderable !== undefined,
         className: classNames(
-          this.dragOverState.count > 0 && 'pf-drag-over',
+          this.dragOverState.count > 0 && 'pf-grid__cell--drag-over',
           this.dragOverState.count > 0 &&
-            `pf-drag-over--${this.dragOverState.position}`,
-          thickRightBorder && 'pf-grid-cell--thick-right-border',
+            `pf-grid__cell--drag-over--${this.dragOverState.position}`,
+          thickRightBorder && 'pf-grid__cell--thick-right-border',
         ),
         ondragstart: (e: MithrilEvent<DragEvent>) => {
           e.redraw = false;
@@ -215,21 +213,54 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           }
         },
       },
-      m('.pf-grid-cell-header', [
-        m('.pf-grid-cell', [
-          m('.pf-grid-cell__content-container', [
-            m('.pf-grid-cell__content', children),
-            renderSortButton(),
-          ]),
-          renderMenu(),
-        ]),
-        hasAggregation &&
-          m(
-            '.pf-grid-cell__aggregation',
-            m('.pf-grid-cell__aggregation-left', aggregation.left),
-            m('.pf-grid-cell__aggregation-right', aggregation.right),
-          ),
-      ]),
+      m('.pf-grid__cell--stretch.pf-grid__cell--padded', children),
+      renderSortButton(),
+      // TODO: Could put a spacer in here to push the sort button up to the
+      // content and the menu to the right.
+      renderMenu(),
+    );
+  }
+}
+
+export interface GridAggregationCellAttrs extends m.Attributes {
+  readonly width?: string | number;
+  readonly align?: CellAlignment;
+  readonly thickRightBorder?: boolean;
+  readonly symbol?: string;
+}
+
+export class GridAggregationCell
+  implements m.ClassComponent<GridAggregationCellAttrs>
+{
+  view({attrs, children}: m.Vnode<GridAggregationCellAttrs>) {
+    const {
+      className,
+      width = 100,
+      align,
+      thickRightBorder,
+      symbol,
+      ...rest
+    } = attrs;
+    return m(
+      '.pf-grid__cell.pf-grid__cell--padded',
+      {
+        ...rest,
+        className: classNames(
+          className,
+          thickRightBorder && 'pf-grid__cell--thick-right-border',
+        ),
+        style: {
+          width: typeof width === 'number' ? `${width}px` : width,
+        },
+      },
+      symbol,
+      m(
+        '.pf-grid__cell--stretch',
+        {
+          className: classNames(align && `pf-grid__cell--align-${align}`),
+        },
+        children,
+      ),
     );
   }
 }
@@ -240,58 +271,69 @@ export interface GridDataCellAttrs extends m.Attributes {
   readonly menuItems?: m.Children;
   // Horizontal alignment of the cell content.
   readonly align?: CellAlignment;
-  // If true, the cell will be styled to indicate missing data.
-  readonly isMissing?: boolean;
+  // If true, the cell will be styled to indicate null or absent data.
+  readonly nullish?: boolean;
   // If true, the cell will have a thick right border.
   readonly thickRightBorder?: boolean;
+  readonly width?: string | number;
 }
 
 // Renders a `<td>` element, for use inside a `GridRow` within a `GridBody`.
 export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
   view({attrs, children}: m.Vnode<GridDataCellAttrs>) {
-    const {menuItems, align, isMissing, thickRightBorder, className, ...rest} =
-      attrs;
+    const {
+      menuItems,
+      align,
+      nullish,
+      thickRightBorder,
+      className,
+      width = 100,
+      ...rest
+    } = attrs;
 
     const renderMenu = () => {
-      if (menuItems === undefined) return null;
-      return m(
-        '.pf-grid-cell__actions',
+      return (
+        Boolean(menuItems) &&
         m(
           PopupMenu,
           {
             trigger: m(Button, {
-              className: 'pf-grid-cell__menu-button pf-visible-on-hover',
+              className: 'pf-grid__menu-button pf-visible-on-hover',
               icon: Icons.ContextMenuAlt,
               rounded: true,
             }),
           },
           menuItems,
-        ),
+        )
       );
     };
 
     return m(
-      'td',
+      '.pf-grid__cell',
       {
         ...rest,
         className: classNames(
           className,
-          thickRightBorder && 'pf-grid-cell--thick-right-border',
+          thickRightBorder && 'pf-grid__cell--thick-right-border',
+          align === 'right' && 'pf-grid__cell--rtl',
         ),
+        style: {
+          width: typeof width === 'number' ? `${width}px` : width,
+        },
       },
-      m('.pf-grid-cell', [
+      [
         m(
-          '.pf-grid-cell__content-container',
+          '.pf-grid__cell--padded.pf-grid__cell--stretch',
           {
             className: classNames(
-              align && `pf-grid-cell--align-${align}`,
-              isMissing && 'pf-grid-cell--missing',
+              align && `pf-grid__cell--align-${align}`,
+              nullish && 'pf-grid__cell--nullish',
             ),
           },
-          m('.pf-grid-cell__content', children),
+          children,
         ),
         renderMenu(),
-      ]),
+      ],
     );
   }
 }
