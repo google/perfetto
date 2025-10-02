@@ -1777,7 +1777,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                       key: 'id',
                       sort: 'ASC',
                       onSort: () => {},
-                      reorderable: reorderable ? {handle: 'left'} : undefined,
+                      // reorderable: reorderable ? {handle: 'left'} : undefined,
+                      onResize: (width) => {
+                        console.log('Resize!', width);
+                      },
                     },
                     'ID',
                   ),
@@ -1823,6 +1826,9 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                       width: 140,
                       key: 'typing',
                       reorderable: reorderable ? {handle: 'right'} : undefined,
+                      onResize: (width) => {
+                        console.log('Resize!', width);
+                      },
                     },
                     'Typing',
                   ),

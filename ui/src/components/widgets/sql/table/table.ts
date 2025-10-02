@@ -215,6 +215,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
   private state: SqlTableState;
+  private columnWidths: Map<string, number> = new Map();
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
@@ -331,6 +332,9 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                   }),
                 ];
 
+                const columnKey = tableColumnId(column);
+                const width = this.columnWidths.get(columnKey) ?? 100;
+
                 return m(
                   GridHeaderCell,
                   {
@@ -346,6 +350,11 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                         const toIndex = position === 'before' ? to : to + 1;
                         this.state.moveColumn(from, toIndex);
                       }
+                    },
+                    width,
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(columnKey, newWidth);
+                      m.redraw();
                     },
                   },
                   columnTitle(column),
@@ -364,12 +373,16 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                     row,
                     this.state,
                   );
+                  const columnKey = tableColumnId(col);
+                  const width = this.columnWidths.get(columnKey) ?? 100;
+
                   return m(
                     GridDataCell,
                     {
                       menuItems: menu,
                       align: isNull ? 'center' : isNumerical ? 'right' : 'left',
                       nullish: isNull,
+                      width,
                     },
                     content,
                   );
