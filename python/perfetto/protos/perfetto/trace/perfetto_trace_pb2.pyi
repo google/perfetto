@@ -9262,6 +9262,7 @@ class GpuCounterDescriptor(_message.Message):
     PIXEL: GpuCounterDescriptor.MeasureUnit
     PRIMITIVE: GpuCounterDescriptor.MeasureUnit
     PRIMITIVES: GpuCounterDescriptor.GpuCounterGroup
+    RAY_TRACING: GpuCounterDescriptor.GpuCounterGroup
     SECOND: GpuCounterDescriptor.MeasureUnit
     SPECS_FIELD_NUMBER: _ClassVar[int]
     SUPPORTS_INSTRUMENTED_SAMPLING_FIELD_NUMBER: _ClassVar[int]
