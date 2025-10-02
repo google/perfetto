@@ -57,11 +57,11 @@ class FrameTimelineEventParser {
 
   void ParseExpectedDisplayFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualDisplayFrameStart(int64_t timestamp, ConstBytes);
-  StringId calculateDisplayFrameJankTag(int32_t jank_type);
+  StringId CalculateDisplayFrameJankTag(int32_t jank_type);
 
   void ParseExpectedSurfaceFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualSurfaceFrameStart(int64_t timestamp, ConstBytes);
-  StringId calculateSurfaceFrameJankTag(
+  StringId CalculateSurfaceFrameJankTag(
       int32_t jank_type,
       std::optional<int32_t> present_type_opt);
 

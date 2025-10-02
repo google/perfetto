@@ -43,7 +43,7 @@ export function createActualFramesTrack(
   uri: string,
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
-  useExperimentalJank: boolean,
+  useExperimentalJankForClassicition: boolean,
 ) {
   return SliceTrack.create({
     trace,
@@ -69,7 +69,9 @@ export function createActualFramesTrack(
     }),
     colorizer: (row) => {
       return getColorSchemeForJank(
-        useExperimentalJank ? row.jank_tag_experimental : row.jank_tag,
+        useExperimentalJankForClassicition
+          ? row.jank_tag_experimental
+          : row.jank_tag,
         row.jank_severity_type,
       );
     },

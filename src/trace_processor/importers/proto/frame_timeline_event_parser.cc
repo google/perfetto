@@ -254,7 +254,7 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
       });
 }
 
-StringId FrameTimelineEventParser::calculateDisplayFrameJankTag(
+StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     int32_t jank_type) {
   StringId jank_tag;
   if (DisplayFrameJanky(jank_type)) {
@@ -340,9 +340,9 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
 
-  const StringId jank_tag = calculateDisplayFrameJankTag(event.jank_type());
+  const StringId jank_tag = CalculateDisplayFrameJankTag(event.jank_type());
   const StringId jank_tag_experimental =
-      calculateDisplayFrameJankTag(event.jank_type_experimental());
+      CalculateDisplayFrameJankTag(event.jank_type_experimental());
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, name_id,
@@ -438,7 +438,7 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
       });
 }
 
-StringId FrameTimelineEventParser::calculateSurfaceFrameJankTag(
+StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
     int32_t jank_type,
     std::optional<int32_t> present_type_opt) {
   StringId jank_tag;
@@ -541,11 +541,11 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
 
-  const StringId jank_tag = calculateSurfaceFrameJankTag(
+  const StringId jank_tag = CalculateSurfaceFrameJankTag(
       event.jank_type(), present_type_validated
                              ? std::make_optional(event.present_type())
                              : std::nullopt);
-  const StringId jank_tag_experimental = calculateSurfaceFrameJankTag(
+  const StringId jank_tag_experimental = CalculateSurfaceFrameJankTag(
       event.jank_type_experimental(),
       present_type_experimental_validated
           ? std::make_optional(event.present_type_experimental())
