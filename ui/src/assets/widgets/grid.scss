@@ -149,6 +149,32 @@ $border-3: 2px solid var(--pf-color-border);
       right: -2px;
     }
   }
+
+  &__resize-handle {
+    position: relative;
+    width: 8px;
+    height: 12px;
+    cursor: col-resize;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background-color: transparent;
+      transition: background-color 0.2s;
+      background-color: var(--pf-color-border);
+    }
+
+    &:active::after {
+      background-color: var(--pf-color-accent);
+    }
+  }
 }
 
 .pf-drag-over > * {

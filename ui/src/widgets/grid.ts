@@ -90,6 +90,8 @@ export interface GridHeaderCellAttrs extends m.Attributes {
     to: string | number | undefined,
     position: ReorderPosition,
   ) => void;
+  // Callback invoked when the user resizes the column.
+  readonly onResize?: (newWidth: number) => void;
   // If true, the cell will have a thick right border, useful for separating
   // groups of columns.
   readonly thickRightBorder?: boolean;
@@ -101,6 +103,15 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     count: 0,
     position: 'after',
   };
+  private resizeState: {
+    isResizing: boolean;
+    startX: number;
+    startWidth: number;
+  } = {
+    isResizing: false,
+    startX: 0,
+    startWidth: 0,
+  };
 
   view({attrs, children, key}: m.Vnode<GridHeaderCellAttrs>) {
     const {
@@ -109,6 +120,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       menuItems,
       reorderable,
       onReorder,
+      onResize,
       thickRightBorder,
       width = 100,
       ...rest
@@ -152,6 +164,43 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         },
         menuItems,
       );
+    };
+
+    const renderResizeHandle = () => {
+      if (!onResize) return null;
+
+      return m('.pf-grid__resize-handle', {
+        onmousedown: (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          this.resizeState.isResizing = true;
+          this.resizeState.startX = e.clientX;
+          this.resizeState.startWidth =
+            typeof width === 'number' ? width : parseInt(String(width)) || 100;
+
+          const handleMouseMove = (e: MouseEvent) => {
+            if (this.resizeState.isResizing) {
+              const delta = e.clientX - this.resizeState.startX;
+              const newWidth = Math.max(
+                50,
+                this.resizeState.startWidth + delta,
+              );
+              onResize(newWidth);
+              m.redraw();
+            }
+          };
+
+          const handleMouseUp = () => {
+            this.resizeState.isResizing = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+          };
+
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        },
+      });
     };
 
     const reorderHandle = reorderable?.handle;
@@ -218,6 +267,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       // TODO: Could put a spacer in here to push the sort button up to the
       // content and the menu to the right.
       renderMenu(),
+      renderResizeHandle(),
     );
   }
 }

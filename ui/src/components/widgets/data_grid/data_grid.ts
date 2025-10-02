@@ -207,6 +207,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
+  private columnWidths: Map<string, number> = new Map();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -216,6 +217,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialFilters) {
       this.filters = attrs.initialFilters;
     }
+
+    // Initialize column widths with a default value
+    attrs.columns.forEach((column) => {
+      if (!this.columnWidths.has(column.name)) {
+        this.columnWidths.set(column.name, 100);
+      }
+    });
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -396,6 +404,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         }
                       : undefined,
                     menuItems: menuItems.length > 0 ? menuItems : undefined,
+                    width: this.columnWidths.get(column.name) ?? 100,
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(column.name, newWidth);
+                      m.redraw();
+                    },
                   },
                   column.title ?? column.name,
                 );
@@ -411,6 +424,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     symbol:
                       column.aggregation &&
                       aggregationFunIcon(column.aggregation),
+                    width: this.columnWidths.get(column.name) ?? 100,
                   },
                   column.aggregation &&
                     dataSource.rows?.aggregates &&
@@ -676,6 +690,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   return 'left';
                 })(),
                 nullish: value === null,
+                width: this.columnWidths.get(column.name) ?? 100,
               },
               cellRenderer(value, column.name, row),
             );
