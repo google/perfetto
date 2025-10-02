@@ -87,6 +87,7 @@ function recalculatePuckRect(
     callback(targetPuckRect);
     data.rect = targetPuckRect;
   } else {
+    const oldRect = data.rect;
     const viewportRect = new Rect2D(containerElement.getBoundingClientRect());
 
     // Expand the viewportRect by the tolerance
@@ -95,15 +96,11 @@ function recalculatePuckRect(
     const sliderClientRect = sliderElement.getBoundingClientRect();
     const viewportClamped = viewportExpandedRect.intersect(sliderClientRect);
 
-    // Translate the puck rect into client space (currently in slider space)
-    const puckClientRect = viewportClamped.translate({
-      x: sliderClientRect.x,
-      y: sliderClientRect.y,
-    });
+    const viewportInSliderCoods = viewportClamped.reframe(sliderClientRect);
 
-    // Check if the tolerance rect entirely contains the expanded viewport rect
-    // If not, request an update
-    if (!puckClientRect.contains(viewportClamped)) {
+    // Check if the old rect contains the current viewport with the expanded
+    // tolerance, then we're all good, otherwise request an update.
+    if (!new Rect2D(oldRect).contains(viewportInSliderCoods)) {
       const targetPuckRect = getTargetPuckRect(
         sliderElement,
         containerElement,

@@ -14,8 +14,8 @@
 
 .pf-ftrace-explorer {
   height: 100%;
-  font-size: 11px;
-  font-family: var(--pf-font-monospace);
+  // font-size: 11px;
+  // font-family: var(--pf-font-monospace);
 
   .pf-ftrace-namebox {
     display: flex;
@@ -25,6 +25,7 @@
       display: inline-block;
       height: 10px;
       width: 10px;
+      flex-shrink: 0;
       margin-right: 4px;
     }
   }

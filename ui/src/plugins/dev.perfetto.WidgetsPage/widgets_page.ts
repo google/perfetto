@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
 import {Hotkey, Platform} from '../../base/hotkeys';
-import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {Anchor} from '../../widgets/anchor';
 import {
@@ -50,11 +48,6 @@ import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
 import {VegaView} from '../../components/widgets/vega_view';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
-import {
-  VirtualTable,
-  VirtualTableAttrs,
-  VirtualTableRow,
-} from '../../widgets/virtual_table';
 import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
@@ -79,14 +72,9 @@ import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 import {TabStrip} from '../../widgets/tabs';
 import {CodeSnippet} from '../../widgets/code_snippet';
-import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-} from '../../widgets/grid';
+import {EnumOption, renderWidgetShowcase, WidgetShowcase} from './widget_utils';
+import {renderGridDemo} from './grid_demo';
+import {renderDataGridDemo} from './data_grid_demo';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -403,21 +391,6 @@ function ControlledPopup() {
   };
 }
 
-type Options = {
-  [key: string]: EnumOption | boolean | string | number;
-};
-
-class EnumOption {
-  constructor(
-    public initial: string,
-    public options: string[],
-  ) {}
-}
-
-interface WidgetTitleAttrs {
-  label: string;
-}
-
 function recursiveTreeNode(): m.Children {
   return m(LazyTreeNode, {
     left: 'Recursive',
@@ -427,165 +400,6 @@ function recursiveTreeNode(): m.Children {
       return () => recursiveTreeNode();
     },
   });
-}
-
-class WidgetTitle implements m.ClassComponent<WidgetTitleAttrs> {
-  view({attrs}: m.CVnode<WidgetTitleAttrs>) {
-    const {label} = attrs;
-    const id = label.replaceAll(' ', '').toLowerCase();
-    const href = `#!/widgets#${id}`;
-    return m(Anchor, {id, href}, m('h2', label));
-  }
-}
-
-interface WidgetShowcaseAttrs {
-  label: string;
-  description?: string;
-  initialOpts?: Options;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  renderWidget: (options: any) => any;
-  wide?: boolean;
-}
-
-// A little helper class to render any vnode with a dynamic set of options
-class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private optValues: any = {};
-  private opts?: Options;
-
-  renderOptions(listItems: m.Child[]): m.Child {
-    if (listItems.length === 0) {
-      return null;
-    }
-    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
-  }
-
-  oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
-    this.opts = opts;
-    if (opts) {
-      // Make the initial options values
-      for (const key in opts) {
-        if (Object.prototype.hasOwnProperty.call(opts, key)) {
-          const option = opts[key];
-          if (option instanceof EnumOption) {
-            this.optValues[key] = option.initial;
-          } else {
-            this.optValues[key] = option;
-          }
-        }
-      }
-    }
-  }
-
-  view({attrs}: m.CVnode<WidgetShowcaseAttrs>) {
-    const {renderWidget, wide, label, description} = attrs;
-    const listItems = [];
-
-    if (this.opts) {
-      for (const key in this.opts) {
-        if (Object.prototype.hasOwnProperty.call(this.opts, key)) {
-          listItems.push(m('li', this.renderControlForOption(key)));
-        }
-      }
-    }
-
-    return [
-      m(WidgetTitle, {label}),
-      description && m('p', description),
-      m(
-        '.pf-widget-block',
-        m(
-          'div',
-          {
-            class: classNames(
-              'pf-widget-container',
-              wide && 'pf-widget-container--wide',
-            ),
-          },
-          renderWidget(this.optValues),
-        ),
-        this.renderOptions(listItems),
-      ),
-    ];
-  }
-
-  private renderControlForOption(key: string) {
-    if (!this.opts) return null;
-    const value = this.opts[key];
-    if (value instanceof EnumOption) {
-      return this.renderEnumOption(key, value);
-    } else if (typeof value === 'boolean') {
-      return this.renderBooleanOption(key);
-    } else if (isString(value)) {
-      return this.renderStringOption(key);
-    } else if (typeof value === 'number') {
-      return this.renderNumberOption(key);
-    } else {
-      return null;
-    }
-  }
-
-  private renderBooleanOption(key: string) {
-    return m(Checkbox, {
-      checked: this.optValues[key],
-      label: key,
-      onchange: () => {
-        this.optValues[key] = !Boolean(this.optValues[key]);
-      },
-    });
-  }
-
-  private renderStringOption(key: string) {
-    return m(
-      'label',
-      `${key}:`,
-      m(TextInput, {
-        placeholder: key,
-        value: this.optValues[key],
-        oninput: (e: Event) => {
-          this.optValues[key] = (e.target as HTMLInputElement).value;
-        },
-      }),
-    );
-  }
-
-  private renderNumberOption(key: string) {
-    return m(
-      'label',
-      `${key}:`,
-      m(TextInput, {
-        type: 'number',
-        placeholder: key,
-        value: this.optValues[key],
-        oninput: (e: Event) => {
-          this.optValues[key] = Number.parseInt(
-            (e.target as HTMLInputElement).value,
-          );
-        },
-      }),
-    );
-  }
-
-  private renderEnumOption(key: string, opt: EnumOption) {
-    const optionElements = opt.options.map((option: string) => {
-      return m('option', {value: option}, option);
-    });
-    return m(
-      'label',
-      `${key}:`,
-      m(
-        Select,
-        {
-          value: this.optValues[key],
-          onchange: (e: Event) => {
-            const el = e.target as HTMLSelectElement;
-            this.optValues[key] = el.value;
-          },
-        },
-        optionElements,
-      ),
-    );
-  }
 }
 
 interface File {
@@ -653,11 +467,6 @@ const files: File[] = [
     date: '2022-12-27',
   },
 ];
-
-let virtualTableData: {offset: number; rows: VirtualTableRow[]} = {
-  offset: 0,
-  rows: [],
-};
 
 function TagInputDemo() {
   const tags: string[] = ['foo', 'bar', 'baz'];
@@ -1534,34 +1343,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
       m(WidgetShowcase, {
-        label: 'VirtualTable',
-        description: `Virtualized table for efficient rendering of large datasets`,
-        renderWidget: () => {
-          const attrs: VirtualTableAttrs = {
-            columns: [
-              {header: 'x', width: '4em'},
-              {header: 'x^2', width: '8em'},
-            ],
-            rows: virtualTableData.rows,
-            firstRowOffset: virtualTableData.offset,
-            rowHeight: 20,
-            numRows: 500_000,
-            style: {height: '200px'},
-            onReload: (rowOffset, rowCount) => {
-              const rows = [];
-              for (let i = rowOffset; i < rowOffset + rowCount; i++) {
-                rows.push({id: i, cells: [i, i ** 2]});
-              }
-              virtualTableData = {
-                offset: rowOffset,
-                rows,
-              };
-            },
-          };
-          return m(VirtualTable, attrs);
-        },
-      }),
-      m(WidgetShowcase, {
         label: 'Tag Input',
         description: `
           TagInput displays Tag elements inside an input, followed by an
@@ -1762,337 +1543,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         },
       }),
 
-      renderWidgetShowcase({
-        label: 'Grid',
-        description: `
-          Presentation layer for grid/table elements. Defines a consistent look
-          and feel for grids but leaves the data and interaction handling to the
-          user. For instance, it provides slots and callbacks for sorting, column
-          reordering and column level aggregations, but doesn't have any
-          opinions about the data or how they should be manipulated.
-        `,
-        renderWidget: ({reorderable, ...rest}) =>
-          m(
-            '',
-            {style: {height: '400px', width: '400px', overflow: 'hidden'}},
-            m(Grid, rest, [
-              m(GridHeader, [
-                m(GridRow, [
-                  m(
-                    GridHeaderCell,
-                    {
-                      key: 'id',
-                      sort: 'ASC',
-                      onSort: () => {},
-                      aggregation: {
-                        left: 'Σ',
-                        right: 15,
-                      },
-                      reorderable: reorderable ? {handle: 'left'} : undefined,
-                    },
-                    'ID',
-                  ),
-                  m(
-                    GridHeaderCell,
-                    {
-                      key: 'lang',
-                      onSort: () => {},
-                      menuItems: [
-                        m(MenuItem, {label: 'Filter nulls'}),
-                        m(MenuItem, {label: 'Show only nulls'}),
-                      ],
-                      reorderable: reorderable ? {handle: 'left'} : undefined,
-                      thickRightBorder: true,
-                    },
-                    'Language',
-                  ),
-                  m(
-                    GridHeaderCell,
-                    {
-                      key: 'year',
-                      aggregation: {
-                        left: 'AVG',
-                        right: 1998.3,
-                      },
-                      reorderable: reorderable ? {handle: 'right'} : undefined,
-                    },
-                    'Year',
-                  ),
-                  m(
-                    GridHeaderCell,
-                    {
-                      key: 'creator',
-                      reorderable: reorderable ? {handle: 'right'} : undefined,
-                    },
-                    'Creator',
-                  ),
-                  m(
-                    GridHeaderCell,
-                    {
-                      key: 'typing',
-                      reorderable: reorderable ? {handle: 'right'} : undefined,
-                    },
-                    'Typing',
-                  ),
-                ]),
-              ]),
-              m(GridBody, [
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 1),
-                  m(
-                    GridDataCell,
-                    {
-                      menuItems: [
-                        m(MenuItem, {label: 'Filter to "TypeScript"'}),
-                        m(MenuItem, {label: 'Exclude "TypeScript"'}),
-                      ],
-                      thickRightBorder: true,
-                    },
-                    'TypeScript',
-                  ),
-                  m(GridDataCell, {align: 'right'}, 2012),
-                  m(GridDataCell, 'Microsoft'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 2),
-                  m(GridDataCell, {thickRightBorder: true}, 'JavaScript'),
-                  m(GridDataCell, {align: 'right'}, 1995),
-                  m(GridDataCell, 'Brendan Eich'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 3),
-                  m(GridDataCell, {thickRightBorder: true}, 'Python'),
-                  m(GridDataCell, {align: 'right'}, 1991),
-                  m(GridDataCell, 'Guido van Rossum'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 4),
-                  m(GridDataCell, {thickRightBorder: true}, 'Java'),
-                  m(GridDataCell, {align: 'right'}, 1995),
-                  m(GridDataCell, 'James Gosling'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 5),
-                  m(GridDataCell, {thickRightBorder: true}, 'C++'),
-                  m(GridDataCell, {align: 'right'}, 1985),
-                  m(GridDataCell, 'Bjarne Stroustrup'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 6),
-                  m(GridDataCell, {thickRightBorder: true}, 'Go'),
-                  m(GridDataCell, {align: 'right'}, 2009),
-                  m(GridDataCell, 'Google'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 7),
-                  m(GridDataCell, {thickRightBorder: true}, 'Rust'),
-                  m(GridDataCell, {align: 'right'}, 2010),
-                  m(GridDataCell, 'Graydon Hoare'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 8),
-                  m(GridDataCell, {thickRightBorder: true}, 'Ruby'),
-                  m(GridDataCell, {align: 'right'}, 1995),
-                  m(GridDataCell, 'Yukihiro Matsumoto'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 9),
-                  m(GridDataCell, {thickRightBorder: true}, 'Swift'),
-                  m(GridDataCell, {align: 'right'}, 2014),
-                  m(GridDataCell, 'Apple'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 10),
-                  m(GridDataCell, {thickRightBorder: true}, 'Kotlin'),
-                  m(GridDataCell, {align: 'right'}, 2011),
-                  m(GridDataCell, 'JetBrains'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 11),
-                  m(GridDataCell, {thickRightBorder: true}, 'PHP'),
-                  m(GridDataCell, {align: 'right'}, 1995),
-                  m(GridDataCell, 'Rasmus Lerdorf'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 12),
-                  m(GridDataCell, {thickRightBorder: true}, 'C#'),
-                  m(GridDataCell, {align: 'right'}, 2000),
-                  m(GridDataCell, 'Microsoft'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 13),
-                  m(GridDataCell, {thickRightBorder: true}, 'Perl'),
-                  m(GridDataCell, {align: 'right'}, 1987),
-                  m(GridDataCell, 'Larry Wall'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 14),
-                  m(GridDataCell, {thickRightBorder: true}, 'Scala'),
-                  m(GridDataCell, {align: 'right'}, 2004),
-                  m(GridDataCell, 'Martin Odersky'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 15),
-                  m(GridDataCell, {thickRightBorder: true}, 'Haskell'),
-                  m(GridDataCell, {align: 'right'}, 1990),
-                  m(GridDataCell, 'Lennart Augustsson, et al.'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 16),
-                  m(GridDataCell, {thickRightBorder: true}, 'Lua'),
-                  m(GridDataCell, {align: 'right'}, 1993),
-                  m(GridDataCell, 'Roberto Ierusalimschy, et al.'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 17),
-                  m(GridDataCell, {thickRightBorder: true}, 'Dart'),
-                  m(GridDataCell, {align: 'right'}, 2011),
-                  m(GridDataCell, 'Google'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 18),
-                  m(GridDataCell, {thickRightBorder: true}, 'Elixir'),
-                  m(GridDataCell, {align: 'right'}, 2012),
-                  m(GridDataCell, 'José Valim'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 19),
-                  m(GridDataCell, {thickRightBorder: true}, 'Clojure'),
-                  m(GridDataCell, {align: 'right'}, 2007),
-                  m(GridDataCell, 'Rich Hickey'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 20),
-                  m(GridDataCell, {thickRightBorder: true}, 'F#'),
-                  m(GridDataCell, {align: 'right'}, 2005),
-                  m(GridDataCell, 'Microsoft'),
-                  m(GridDataCell, 'Static'),
-                ]),
-                m(GridRow, [
-                  m(GridDataCell, {align: 'right'}, 21),
-                  m(GridDataCell, {thickRightBorder: true}, 'Lisp'),
-                  m(GridDataCell, {align: 'right'}, 1958),
-                  m(GridDataCell, 'John McCarthy'),
-                  m(GridDataCell, 'Dynamic'),
-                ]),
-              ]),
-            ]),
-          ),
-        initialOpts: {
-          fillHeight: true,
-          reorderable: true,
-        },
-      }),
+      // Grid
+      renderGridDemo(),
 
-      renderWidgetShowcase({
-        label: 'DataGrid (memory backed)',
-        description: `An interactive data explorer and viewer.`,
-        renderWidget: ({
-          readonlyFilters,
-          readonlySorting,
-          aggregation,
-          ...rest
-        }) =>
-          m(DataGrid, {
-            ...rest,
-            filters: readonlyFilters ? [] : undefined,
-            sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-            columns: [
-              {
-                name: 'id',
-                title: 'ID',
-                aggregation: aggregation ? 'COUNT' : undefined,
-                headerMenuItems: m(MenuItem, {
-                  label: 'Log column name',
-                  icon: 'info',
-                  onclick: () => console.log('Column: id'),
-                }),
-              },
-              {name: 'ts', title: 'Timestamp'},
-              {
-                name: 'dur',
-                aggregation: aggregation ? 'SUM' : undefined,
-                title: 'Duration',
-              },
-              {
-                name: 'name',
-                title: 'Name',
-                cellMenuItems: (value, row) => [
-                  m(MenuItem, {
-                    label: `Copy "${value}"`,
-                    icon: 'content_copy',
-                    onclick: () => {
-                      navigator.clipboard.writeText(String(value));
-                      console.log(`Copied: ${value}`);
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: `Log full row`,
-                    icon: 'bug_report',
-                    onclick: () => console.log('Row:', row),
-                  }),
-                ],
-              },
-              {name: 'data', title: 'Data'},
-              {name: 'maybe_null', title: 'Maybe Null?'},
-              {name: 'category', title: 'Category'},
-            ],
-            data: [
-              {
-                id: 1,
-                name: 'foo',
-                ts: 123n,
-                dur: 16n,
-                data: new Uint8Array(),
-                maybe_null: null,
-                category: 'aaa',
-              },
-              {
-                id: 2,
-                name: 'bar',
-                ts: 185n,
-                dur: 4n,
-                data: new Uint8Array([1, 2, 3]),
-                maybe_null: 'Non null',
-                category: 'aaa',
-              },
-              {
-                id: 3,
-                name: 'baz',
-                ts: 575n,
-                dur: 12n,
-                data: new Uint8Array([1, 2, 3]),
-                maybe_null: null,
-                category: 'aaa',
-              },
-            ],
-          }),
-        initialOpts: {
-          showFiltersInToolbar: true,
-          readonlyFilters: false,
-          readonlySorting: false,
-          aggregation: false,
-        },
-      }),
+      // DataGrid
+      renderDataGridDemo(),
 
       renderWidgetShowcase({
         label: 'DataGrid (query backed)',
@@ -2105,41 +1560,45 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         }) => {
           const trace = attrs.app.trace;
           if (trace) {
-            return m(QueryDataGrid, {
-              ...rest,
-              engine: trace.engine,
-              query: `
-                SELECT
-                  ts.id as id,
-                  dur,
-                  state,
-                  thread.name as thread_name,
-                  dur,
-                  io_wait,
-                  ucpu
-                FROM thread_state ts
-                JOIN thread USING(utid)
-              `,
-              filters: readonlyFilters ? [] : undefined,
-              sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
-              columns: [
-                {
-                  name: 'id',
-                  title: 'ID',
-                  aggregation: aggregation ? 'COUNT' : undefined,
-                },
-                {
-                  name: 'dur',
-                  title: 'Duration',
-                  aggregation: aggregation ? 'SUM' : undefined,
-                },
-                {name: 'state', title: 'State'},
-                {name: 'thread_name', title: 'Thread'},
-                {name: 'ucpu', title: 'CPU'},
-                {name: 'io_wait', title: 'IO Wait'},
-              ],
-              maxRowsPerPage: 10,
-            });
+            return m(
+              '',
+              {style: {height: '400px', width: '800px', overflow: 'hidden'}},
+              m(QueryDataGrid, {
+                ...rest,
+                engine: trace.engine,
+                query: `
+                  SELECT
+                    ts.id as id,
+                    dur,
+                    state,
+                    thread.name as thread_name,
+                    dur,
+                    io_wait,
+                    ucpu
+                  FROM thread_state ts
+                  JOIN thread USING(utid)
+                `,
+                fillHeight: true,
+                filters: readonlyFilters ? [] : undefined,
+                sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
+                columns: [
+                  {
+                    name: 'id',
+                    title: 'ID',
+                    aggregation: aggregation ? 'COUNT' : undefined,
+                  },
+                  {
+                    name: 'dur',
+                    title: 'Duration',
+                    aggregation: aggregation ? 'SUM' : undefined,
+                  },
+                  {name: 'state', title: 'State'},
+                  {name: 'thread_name', title: 'Thread'},
+                  {name: 'ucpu', title: 'CPU'},
+                  {name: 'io_wait', title: 'IO Wait'},
+                ],
+              }),
+            );
           } else {
             return 'Load a trace to start';
           }
@@ -2186,16 +1645,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       }),
     );
   }
-}
-
-function renderWidgetShowcase<T extends Options = {}>(attrs: {
-  label: string;
-  description?: string;
-  renderWidget(opts: T): m.Children;
-  initialOpts?: T;
-  wide?: boolean;
-}) {
-  return m(WidgetShowcase, attrs);
 }
 
 function CursorTooltipShowcase() {

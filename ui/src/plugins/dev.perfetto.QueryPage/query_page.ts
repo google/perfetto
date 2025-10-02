@@ -228,9 +228,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           data: dataSource,
           columns: queryResult.columns.map((c) => ({name: c})),
           toolbarItemsLeft: m(
-            'span.pf-query-page__elapsed-time',
-            {title: `This query returned in ${queryTimeString}`},
-            [m(Icon, {icon: 'timer'}), ' ', queryTimeString],
+            'span.pf-query-page__results-summary',
+            `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
           ),
           toolbarItemsRight: [
             this.renderCopyButton(queryResult),

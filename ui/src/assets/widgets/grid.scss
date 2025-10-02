@@ -21,11 +21,12 @@ $border-3: 2px solid var(--pf-color-border);
 .pf-grid {
   display: flex;
   flex-direction: column;
+
   white-space: nowrap;
   font-family: var(--pf-font-compact);
-
-  // Pretty much universally grids should be more compact than other text.
   font-size: 14px;
+  overflow: auto;
+  align-items: flex-start;
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
@@ -34,175 +35,177 @@ $border-3: 2px solid var(--pf-color-border);
     height: 100%;
   }
 
-  &__table {
-    overflow: auto;
-    flex: 1; // Allow the table to grow and fill the available space.
-  }
-
-  table {
+  &__header {
+    display: flex;
+    flex-direction: column;
+    background: var(--pf-color-background);
+    border-bottom: $border-1;
     min-width: 100%;
-    border-spacing: 0;
-    border-collapse: separate;
-    font-weight: 300;
-  }
-
-  // Highlight rows on hover.
-  tr {
-    &:hover {
-      background-color: color_hover(transparent);
-    }
-  }
-
-  thead {
     position: sticky;
     top: 0;
-    background-color: var(--pf-color-background);
+    z-index: 1; // Ensure header is above body rows when scrolling.
+  }
 
-    tr {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+
+    .pf-grid__row {
       &:hover {
-        background-color: unset;
+        background-color: color_hover(transparent);
       }
+      border-bottom: $border-2;
     }
   }
 
-  td,
-  th {
-    border-bottom: $border-2;
-    border-right: $border-2;
+  &__row {
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-direction: row;
+  }
 
-    &:first-child {
-      border-left: none;
+  &__cell {
+    position: relative; // Position absolute children relative to cell.
+    // display: flex;
+    align-items: baseline;
+    // border-right: $border-2;
+
+    &[active] {
+      background-color: color_active(transparent);
     }
 
-    &:last-child {
-      border-right: none;
+    // Column container for multi-row header cells
+    &--vertical {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
     }
 
     .pf-visible-on-hover {
-      visibility: hidden;
+      display: none;
 
       &.pf-active {
-        visibility: visible;
+        display: block;
       }
     }
 
     &:hover {
       .pf-visible-on-hover {
-        visibility: visible;
+        display: block;
+      }
+    }
+
+    &[draggable="true"] {
+      cursor: grab;
+
+      &:active {
+        cursor: grabbing;
+      }
+    }
+
+    &--border-right {
+      border-right: $border-2;
+    }
+
+    &--border-right-thick {
+      border-right: $border-3;
+    }
+
+    &--shrink {
+      flex-shrink: 1;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    &--horiz {
+      display: flex;
+      flex-direction: row;
+      align-items: baseline;
+    }
+
+    &--padded {
+      padding: 0.3em 0.5em;
+    }
+
+    &--stretch {
+      flex-grow: 1;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    &--rtl {
+      flex-direction: row-reverse;
+    }
+
+    &--align-right {
+      text-align: right;
+    }
+
+    &--align-center {
+      text-align: center;
+    }
+
+    &--nullish {
+      font-style: italic;
+      color: var(--pf-color-text-muted);
+    }
+
+    &--hint {
+      color: var(--pf-color-text-hint);
+    }
+
+    &--drag-over {
+      position: relative;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0; // Spans full cell height, including sub-rows
+        width: 3px;
+        background-color: var(--pf-color-accent);
+      }
+
+      &-before::after {
+        left: -2px;
+      }
+
+      &-after::after {
+        right: -2px;
       }
     }
   }
 
-  th[draggable="true"] {
-    cursor: grab;
-
-    &:active {
-      cursor: grabbing;
-    }
-  }
-
-  th {
-    // Some header cells can be taller than others so keep everything aligned.
-    vertical-align: top;
-    text-align: left;
-    font-weight: 400;
-
-    border-bottom: $border-1;
-    border-right: $border-2;
-  }
-
-  th.pf-grid-cell--thick-right-border,
-  td.pf-grid-cell--thick-right-border {
-    border-right: $border-3;
-  }
-
-  th.pf-drag-over {
-    position: relative;
-
-    &::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background-color: var(--pf-color-accent);
-    }
-
-    &--before::after {
-      left: -2px;
-    }
-
-    &--after::after {
-      right: -2px;
-    }
-  }
-
-  tr {
-    &:last-child {
-      td {
-        border-bottom: none;
-      }
-    }
-  }
-}
-
-.pf-grid-cell-header {
-  display: flex;
-  flex-direction: column;
-  font-weight: 500;
-}
-
-.pf-grid-cell__aggregation {
-  display: flex;
-  gap: 0.3em;
-  padding: 0.2em 0.4em;
-  justify-content: space-between;
-}
-
-.pf-grid-cell {
-  display: flex;
-
-  &__content-container {
-    display: flex;
-    flex-direction: row;
-    align-items: baseline;
-    flex: 1;
-    min-width: 0; // Prevents overflow of content in flex container.
-  }
-
-  &__content {
-    padding: 0.2em 0.4em;
-  }
-
-  &__actions {
+  &__resize-handle {
+    position: absolute;
+    float: right;
+    width: 9px;
+    cursor: col-resize;
+    user-select: none;
     display: flex;
     align-items: center;
-  }
-
-  &__aggregation {
-    grid-area: aggregation;
-  }
-
-  &__hint {
-    color: var(--pf-color-text-muted);
-  }
-
-  .pf-grid-cell--align-center {
     justify-content: center;
+    min-width: 9px;
+    right: -5px;
+    z-index: 30;
+    top: 0;
+    bottom: 0;
+
+    &:hover,
+    &:active {
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        transition: background-color 0.2s;
+        background-color: var(--pf-color-accent);
+      }
+    }
   }
-
-  .pf-grid-cell--align-right {
-    justify-content: flex-end;
-  }
-}
-
-.pf-grid-cell--missing {
-  font-style: italic;
-  color: var(--pf-color-text-muted);
-}
-
-.pf-grid-cell__reorder-handle {
-  color: var(--text-color-light);
 }
 
 .pf-drag-over > * {
