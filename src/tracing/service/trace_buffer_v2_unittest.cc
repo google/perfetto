@@ -2048,4 +2048,274 @@ TEST_F(TraceBufferV2Test, WrapAroundWithIncompleteChunk) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+// Test ChunkID wraparound with complex fragmentation
+TEST_F(TraceBufferV2Test, Fragments_ChunkIdMaxWraparoundFragmentation) {
+  ResetBuffer(4096);
+  std::vector<FakePacketFragment> expected;
+
+  // Create a fragmented packet spanning ChunkID wraparound from UINT32_MAX to 2
+  ChunkID start_id = static_cast<ChunkID>(-2);
+  for (uint32_t i = 0; i < 5; ++i) {
+    ChunkID chunk_id = start_id + i;
+    uint8_t flags = 0;
+    char data = static_cast<char>('a' + i);
+
+    if (i == 0)
+      flags = kContOnNextChunk;
+    else if (i == 4)
+      flags = kContFromPrevChunk;
+    else
+      flags = kContFromPrevChunk | kContOnNextChunk;
+
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(10, data, flags)
+        .CopyIntoTraceBuffer();
+    expected.emplace_back(10, data);
+  }
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ContainerEq(expected));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Test buffer boundary alignment with fragmentation
+TEST_F(TraceBufferV2Test, Alignment_ExactBufferBoundaryFragmentation) {
+  ResetBuffer(4096);
+
+  // Create a packet that fragments exactly at buffer boundaries
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(2032 - 16, 'a', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(2048 - 16, 'b', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(2032 - 16, 'a'),
+                                        FakePacketFragment(2048 - 16, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Test out-of-order patch application with fragmentation
+TEST_F(TraceBufferV2Test, Patching_OutOfOrderPatchesWithFragmentation) {
+  ResetBuffer(4096);
+
+  // Create fragmented packet needing patches on multiple chunks
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(100, 'a', kContOnNextChunk | kChunkNeedsPatching)
+      .ClearBytes(50, 4)
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(100, 'c', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(100, 'b',
+                 kContFromPrevChunk | kContOnNextChunk | kChunkNeedsPatching)
+      .ClearBytes(50, 4)
+      .CopyIntoTraceBuffer();
+
+  // Apply patches out of order
+  ASSERT_TRUE(TryPatchChunkContents(ProducerID(1), WriterID(1), ChunkID(1),
+                                    {{50, {{'B', 'B', 'B', 'B'}}}}));
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());  // Still blocked by chunk 0
+
+  ASSERT_TRUE(TryPatchChunkContents(ProducerID(1), WriterID(1), ChunkID(0),
+                                    {{50, {{'A', 'A', 'A', 'A'}}}}));
+
+  trace_buffer()->BeginRead();
+  // The patches should have been applied, changing the actual payload content
+  auto packet_frags = ReadPacket();
+  ASSERT_EQ(packet_frags.size(), 3u);
+  // Verify patches were actually applied by checking the modified payload
+  // content The patches AAAA and BBBB should be visible in the payload
+  EXPECT_NE(packet_frags[0].payload().find("AAAA"), std::string::npos);
+  EXPECT_NE(packet_frags[1].payload().find("BBBB"), std::string::npos);
+}
+
+// Test recommit from incomplete to complete with fragmentation
+TEST_F(TraceBufferV2Test, Recommit_IncompleteToCompleteWithFragments) {
+  ResetBuffer(4096);
+
+  // Create incomplete chunk
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(50, 'a')
+      .AddPacket(50, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());  // Blocked by incomplete chunk
+
+  // Recommit as complete with 'c' fragment that continues to next chunk
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(50, 'a')
+      .AddPacket(50, 'b')
+      .AddPacket(30, 'c')
+      .SetFlags(kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Add continuation chunk with fragmented packet spanning across chunks
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(40, 'd')
+      .SetFlags(kContFromPrevChunk | kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(20, 'e')
+      .SetFlags(kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c'),
+                                        FakePacketFragment(40, 'd'),
+                                        FakePacketFragment(20, 'e')));
+}
+
+// Test DISCARD mode with fragmented packet at buffer limit
+TEST_F(TraceBufferV2Test, DiscardMode_FragmentedPacketAtBoundary) {
+  ResetBuffer(4096, TraceBuffer::kDiscard);
+
+  // Fill most of buffer - leave just enough space for part of a fragmented
+  // packet
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(2000, 'a')
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(1500, 'b')
+      .CopyIntoTraceBuffer();
+
+  // Add chunk with multiple fragments, last one continuing to next chunk
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(200, 'c')
+      .AddPacket(150, 'd')
+      .AddPacket(100, 'e')  // This fragment continues to next chunk
+      .SetFlags(kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+
+  // This continuation should be discarded as it would overflow the buffer
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(500, 'f')
+      .SetFlags(kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(2000, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1500, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(200, 'c')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(150, 'd')));
+  // The fragmented packet 'e'+'f' should be incomplete due to discard
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Test maximum fragment count in a single packet
+TEST_F(TraceBufferV2Test, Fragments_LargeFragment) {
+  ResetBuffer(8192);
+  std::vector<FakePacketFragment> expected;
+
+  // Create a packet fragmented across 10 chunks
+  for (uint32_t i = 0; i < 10; ++i) {
+    uint8_t flags = 0;
+    char data = static_cast<char>('a' + i);
+
+    if (i == 0)
+      flags = kContOnNextChunk;
+    else if (i == 9)
+      flags = kContFromPrevChunk;
+    else
+      flags = kContFromPrevChunk | kContOnNextChunk;
+
+    CreateChunk(ProducerID(1), WriterID(1), ChunkID(i))
+        .AddPacket(50, data, flags)
+        .CopyIntoTraceBuffer();
+    expected.emplace_back(50, data);
+  }
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ContainerEq(expected));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Test empty chunks in long fragmentation chain
+TEST_F(TraceBufferV2Test, Fragments_EmptyChunksInLongChain) {
+  ResetBuffer(4096);
+  std::vector<FakePacketFragment> expected;
+
+  // Create fragmented packet with empty chunks in between
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  expected.emplace_back(20, 'a');
+
+  // Empty chunk in the middle
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1)).CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(20, 'b', kContFromPrevChunk | kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  expected.emplace_back(20, 'b');
+
+  // Another empty chunk
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3)).CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(4))
+      .AddPacket(20, 'c', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+  expected.emplace_back(20, 'c');
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ContainerEq(expected));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Test sequence gap detection across ChunkID wraparound
+TEST_F(TraceBufferV2Test, SequenceGaps_DetectionWithChunkIdWrap) {
+  ResetBuffer(4096);
+
+  // Normal sequence
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(kMaxChunkID - 1))
+      .AddPacket(32, 'a')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+
+  // Continuation across wraparound - no gap
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(kMaxChunkID))
+      .AddPacket(32, 'b')
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'c')
+      .CopyIntoTraceBuffer();
+
+  bool previous_packet_dropped = false;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'b')));
+  EXPECT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'c')));
+  EXPECT_FALSE(previous_packet_dropped);
+
+  // Now create a gap across wraparound
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))  // Gap: missing 1,2
+      .AddPacket(32, 'd')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'd')));
+  EXPECT_TRUE(previous_packet_dropped);  // Gap should be detected
+}
+
 }  // namespace perfetto
