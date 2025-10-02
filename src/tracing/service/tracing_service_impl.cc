@@ -2465,9 +2465,6 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
     std::vector<TracePacket> packets =
         ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
 
-    PERFETTO_DLOG("ReadBuffersIntoFile, tsid: %lu, packets: %zu", tsid,
-                  packets.size());
-
     stop_writing_into_file = WriteIntoFile(tracing_session, std::move(packets));
   } while (has_more && !stop_writing_into_file);
 
@@ -4146,18 +4143,18 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
 
   if (session->write_into_file) {
     if (!args.output_file_fd) {
-      // TODO(ktimofeev): return better error message.
       return PERFETTO_SVC_ERR(
-          "Can't clone write_into_file session: no file descriptor to copy "
-          "already written data.");
+          "Failed to clone 'write_into_file' session: a file descriptor is "
+          "required to copy existing file");
     }
     base::FlushFile(*session->write_into_file);
     base::Status status =
         base::CopyFileContents(*session->write_into_file, *args.output_file_fd);
     if (!status.ok()) {
-      return base::ErrStatus(
-          "Can't copy '*session->write_into_file' file to the cloned session "
-          "file.");
+      return PERFETTO_SVC_ERR(
+          "Failed to clone 'write_into_file' session: failed to copy existing "
+          "file: %s",
+          status.c_message());
     }
   }
 

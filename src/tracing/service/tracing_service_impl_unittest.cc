@@ -2327,7 +2327,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
   producer->ExpectFlush(writer.get());
   task_runner.RunUntilCheckpoint("clone_done");
 
-  // 'write_into_file' session doesn't write data to file.
+  // Assert that clone doesn't trigger 'write_into_file' session to write it
+  // buffers to file.
   ASSERT_EQ(base::GetFileSize(write_into_file_session_file.path()).value_or(-1),
             0ul);
 

@@ -322,6 +322,10 @@ message CloneSessionRequest {
   // If set, this is stored in the trace as the configured delay of the trigger
   // that caused the clone.
   optional uint64 clone_trigger_delay_ms = 9;
+  // Consumer may also send a file descriptor with this rpc message. If the
+  // descriptor is valid, and the session that should be cloned is
+  // 'write_into_file' session, traced writes the cloned session content to that
+  // file descriptor, instead of writing it in the cloned session buffers.
 }
 
 message CloneSessionResponse {

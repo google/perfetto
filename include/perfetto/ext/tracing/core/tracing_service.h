@@ -227,9 +227,9 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // milliseconds) of the trigger that caused the clone.
     uint64_t clone_trigger_delay_ms = 0;
 
-    // TODO(ktimofeev): add a doc aboout this field
-    // TODO(ktimofeev): add doc to 'message CloneSessionRequest' in
-    // perfetto/ipc/consumer_port.proto
+    // If valid, and the session that should be cloned is 'write_into_file'
+    // session, traced writes the cloned session content to this file
+    // descriptor, instead of writing it in the cloned session buffers.
     base::ScopedFile output_file_fd;
   };
   virtual void CloneSession(CloneSessionArgs) = 0;
