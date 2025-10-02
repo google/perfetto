@@ -97,3 +97,8 @@ SELECT
 FROM _wattson_thread_attribution
 GROUP BY period_id;
 
+DROP VIEW IF EXISTS _wattson_tasks_metric_metadata;
+CREATE PERFETTO VIEW _wattson_tasks_metric_metadata AS
+SELECT
+  4 AS metric_version,
+  1 AS power_model_version;

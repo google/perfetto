@@ -46,4 +46,5 @@ SELECT AndroidWattsonTasksAttributionMetric(
     )
     FROM _wattson_per_task
   )
-);
+)
+FROM _wattson_tasks_metric_metadata;

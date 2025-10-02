@@ -1,5 +1,5 @@
 wattson_atrace_apps_threads {
-  metric_version: 5
+  metric_version: 4
   power_model_version: 1
   period_info {
     period_id: 1
