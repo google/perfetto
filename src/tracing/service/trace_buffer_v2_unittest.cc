@@ -326,7 +326,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_MinimalPadding) {
     ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-// DNS I had to change this test because it was assuming readback in
+// NOTE: I had to change this test from V1 because it was assuming readback in
 // producer,writer order, while instead now expects buffer order.
 TEST_F(TraceBufferV2Test, ReadWrite_RandomChunksNoWrapping) {
   for (unsigned int seed = 1; seed <= 32; seed++) {
@@ -681,8 +681,8 @@ TEST_F(TraceBufferV2Test, Fragments_LongPacketWithWrappingID) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-// DNS: here I had to swap the order of expected packets because now we respect
-// buffer order.
+// Change from TraceBufferV1: here I had to swap the order of expected packets
+// because now we respect buffer order rather than going by {producer,writer}.
 TEST_F(TraceBufferV2Test, Fragments_PreserveUID) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
@@ -1720,9 +1720,6 @@ TEST_F(TraceBufferV2Test, PacketDropOnOverwrite) {
   ASSERT_TRUE(previous_packet_dropped);
 }
 
-// TODO add a test about writing a chunk that is corupted at CopyChunkUntrusted
-// time.
-
 TEST_F(TraceBufferV2Test, Clone_NoFragments) {
   ResetBuffer(4096);
   const char kNumWriters = 3;
@@ -1934,8 +1931,6 @@ TEST_F(TraceBufferV2Test, ChunkGaps_AcrossReadCycles) {
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(32 - 16, 'd')));
-  // TODO if I comment the below, a data loss is reported. dubious on the logic
-  // for detecting data loss.
   ASSERT_THAT(ReadPacket(), IsEmpty());
   EXPECT_TRUE(previous_packet_dropped);
 
@@ -2316,6 +2311,37 @@ TEST_F(TraceBufferV2Test, SequenceGaps_DetectionWithChunkIdWrap) {
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(32, 'd')));
   EXPECT_TRUE(previous_packet_dropped);  // Gap should be detected
+}
+
+// We try to write a 36 byte chunk with a 32 byte chunk, which leaves just a
+// 4 byte gap. That gap is not enough for a TBChunk header, without deleting
+// also c1.
+// This test today passes because we force the TBChunk alignment at 16 bytes
+// rather than 4 (see TODO in TBChunk::OuterSize()). If we put this back to 4
+// this test will break, until we figure out how to deal with this corner case.
+// Before: [c0: 36     ][c1: 4060                                   ]
+// After:  [c2: 32   ]
+// Note that the same could happen at the end of the buffer: imagine 36 byte
+// chunk that starts precisely @ 4096 - 36, and then get overwritten by one of
+// 32 bytes.
+TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
+  ResetBuffer(4096);
+  ASSERT_EQ(36u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+                     .AddPacket(36 - 16, 'a')
+                     .CopyIntoTraceBuffer());
+  size_t pad_size = 4096 - internal::TBChunk::OuterSize(36);
+  ASSERT_EQ(pad_size, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+                          .AddPacket(pad_size - 16, 'b')
+                          .CopyIntoTraceBuffer());
+  ASSERT_EQ(4096u, size_to_end());
+
+  ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+                     .AddPacket(32 - 16, 'c')
+                     .CopyIntoTraceBuffer());
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
 }  // namespace perfetto

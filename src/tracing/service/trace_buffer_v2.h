@@ -121,8 +121,17 @@ struct TBChunk {
     return payload_size - payload_avail;
   }
 
+  // TODO(primiano): in theory we could align just up to alignof(TBChunk)
+  // rather than sizeof(TBChunk), which is 4 rather than 16 bytes. That would
+  // reduce internal fragmentation.
+  // However, doing so requires some careful thinking as that creates the
+  // opportunity for more interesting edge cases, where overwriting a chunk
+  // leaves less than sizeof(TBChunk), leaving no space for a padding header
+  // after it. See TraceBufferV2Test.Overwrite_SizeDiffLessThanChunkHeader.
+  static inline constexpr size_t alignment() { return sizeof(TBChunk); }
+
   static inline size_t OuterSize(size_t sz) {
-    return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + sz);
+    return base::AlignUp<alignment()>(sizeof(TBChunk) + sz);
   }
   size_t outer_size() { return OuterSize(size); }
 

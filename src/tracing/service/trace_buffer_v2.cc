@@ -341,7 +341,8 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         if (frag.size == 0) {
           break;  // Breaks the switch(), continues the loop.
         }
-        out_packet->AddSlice(frag.begin, frag.size);
+        if (out_packet)
+          out_packet->AddSlice(frag.begin, frag.size);
         TRACE_BUFFER_DLOG("  ReadNextPacketInSeqOrder -> true (whole packet)");
         return true;
 
@@ -518,7 +519,8 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
   for (FragAndChunk& fc : frags) {
     Frag& f = fc.frag;
     if (res == FragReassemblyResult::kSuccess && f.size > 0) {
-      out_packet->AddSlice(f.begin, f.size);
+      if (out_packet)
+        out_packet->AddSlice(f.begin, f.size);
     }
     if (res == FragReassemblyResult::kSuccess ||
         res == FragReassemblyResult::kDataLoss) {
@@ -882,7 +884,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   TRACE_BUFFER_DLOG("DeleteNextChunksFor(%zu) @ wr=%zu", bytes_to_clear, wr_);
   PERFETTO_CHECK(!discard_writes_);
   PERFETTO_DCHECK(bytes_to_clear >= sizeof(TBChunk));
-  PERFETTO_DCHECK((bytes_to_clear % alignof(TBChunk)) == 0);
+  PERFETTO_DCHECK((bytes_to_clear % TBChunk::alignment()) == 0);
 
   DcheckIsAlignedAndWithinBounds(wr_);
   const size_t clear_end = wr_ + bytes_to_clear;
@@ -910,11 +912,14 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     ChunkSeqReader csr(this, chunk, ChunkSeqReader::kEraseMode);
     bool has_cleared_unconsumed_fragments = false;
     for (;;) {
-      TracePacket packet;
-      if (!csr.ReadNextPacketInSeqOrder(&packet))
+      // TODO(keanmariotti): if we have a ProtoVM here we should pass a non-null
+      // TracePacket. But if we don't we should pass nullptr, as AddSlice() on
+      // TracePacket has significant overhead (due to hitting the allocator)
+      TracePacket* trace_packet = nullptr;
+      if (!csr.ReadNextPacketInSeqOrder(trace_packet))
         break;
       has_cleared_unconsumed_fragments = true;
-      // TODO(keanmariotti): here pass packets to ProtoVM.
+      // TODO(keanmariotti): pass `trace_packet` to ProtoVM.
     }
 
     // In future this branch should become "&& !protovm_has_consumed_packet"

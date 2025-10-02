@@ -132,8 +132,12 @@ if (enable_perfetto_benchmarks) {
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../protozero",
       "../core",
+      "../test:test_support",
     ]
-    sources = [ "packet_stream_validator_benchmark.cc" ]
+    sources = [
+      "packet_stream_validator_benchmark.cc",
+      "trace_buffer_benchmark.cc",
+    ]
   }
 }
 
