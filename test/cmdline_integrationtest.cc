@@ -247,8 +247,6 @@ class PerfettoCmdlineTest : public ::testing::Test {
     task_runner_.RunUntilCheckpoint("data_written");
 
     ASSERT_EQ(0, perfetto_br_proc.Run(&stderr_)) << "stderr: " << stderr_;
-    PERFETTO_LOG("perfetto_br_proc, stderr:\n%s\n==========================",
-                 stderr_.c_str());
     perfetto_proc.SendSigterm();
     background_trace.join();
 
@@ -272,15 +270,9 @@ class PerfettoCmdlineTest : public ::testing::Test {
 
     // Verify that both the original trace and the cloned bugreport contain
     // the expected contents.
-    PERFETTO_DLOG("RunBugreportTest, GetBugreportTracePath(): %s",
-                  GetBugreportTracePath().c_str());
-    PERFETTO_DLOG("RunBugreportTest, original trace: %s", path.c_str());
     check_trace_contents(GetBugreportTracePath());
     if (check_original_trace)
       check_trace_contents(path);
-
-    // PERFETTO_DLOG("Now waiting for 100 seconds....");
-    // std::this_thread::sleep_for(std::chrono::seconds(100));
   }
 
   // Tests are allowed to freely use these variables.
@@ -1169,23 +1161,20 @@ TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
   std::thread background_trace([&perfetto_proc]() {
     std::string stderr_str;
     EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
-    PERFETTO_DLOG("perfetto_proc stderr: %s\n================\n",
-                  stderr_str.c_str());
   });
 
-  test_helper().WaitForProducerSetup();
-
+  test_helper().WaitForProducerEnabled();
   auto on_data_written = task_runner_.CreateCheckpoint("data_written");
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written");
 
-  // Wait untill all the data for the 'write_into_file' session is written.
-  bool write_into_file_data_written = false;
+  // Wait untill all the data for the 'write_into_file' session is written into
+  // file.
+  bool write_into_file_data_ready = false;
   for (int i = 0; i < 100; i++) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     protos::gen::Trace trace;
-    bool ok = ParseNotEmptyTraceFromFile(write_into_file_path, trace);
-    if (!ok) {
+    if (!ParseNotEmptyTraceFromFile(write_into_file_path, trace)) {
       continue;
     }
     ssize_t test_packets_count =
@@ -1193,39 +1182,32 @@ TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
                       [](const protos::gen::TracePacket& tp) {
                         return tp.has_for_testing();
                       });
-    if (test_packets_count > 0) {
-      write_into_file_data_written = true;
+    if (test_packets_count == kTestMessageCount) {
+      write_into_file_data_ready = true;
       break;
     }
   }
-  ASSERT_TRUE(write_into_file_data_written);
+  ASSERT_TRUE(write_into_file_data_ready);
 
-  // Now we clone that session.
-  std::string stderr_str_1;
-  EXPECT_EQ(0, clone_proc.Run(&stderr_str_1)) << stderr_str_1;
-
-  PERFETTO_DLOG("clone perfetto stderr: %s\n================\n",
-                stderr_str_1.c_str());
+  // Now we clone the session.
+  std::string stderr_str;
+  EXPECT_EQ(0, clone_proc.Run(&stderr_str)) << stderr_str;
 
   perfetto_proc.SendSigterm();
   background_trace.join();
-  // And now we assert that both original write_into_file and the cloned session
-  // have the same events.
+  // And now we assert that both original 'write_into_file' and the cloned
+  // session have the same events.
   {
     protos::gen::Trace trace;
     ASSERT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
     ExpectTraceContainsTestMessages(trace, kTestMessageCount);
     ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
-    PERFETTO_DLOG("Trace OK");
   }
   {
     protos::gen::Trace cloned_trace;
     ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_file_path, cloned_trace));
-    // At the moment this assert fails, the 'cloned_trace' have 22 packets
-    // (trace + trace).
     ExpectTraceContainsTestMessages(cloned_trace, kTestMessageCount);
     ExpectTraceContainsTestMessagesWithSize(cloned_trace, kTestMessageSize);
-    PERFETTO_DLOG("Cloned Trace OK");
   }
 }
 

@@ -2327,7 +2327,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
   producer->ExpectFlush(writer.get());
   task_runner.RunUntilCheckpoint("clone_done");
 
-  // 'write_into_file' session doens't write data to file.
+  // 'write_into_file' session doesn't write data to file.
   ASSERT_EQ(base::GetFileSize(write_into_file_session_file.path()).value_or(-1),
             0ul);
 
@@ -2404,6 +2404,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
   }
   writer->Flush();
 
+  // Advance timer, traced should write the data to the 'write_into_file'
+  // session output file.
   AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
 
   {
