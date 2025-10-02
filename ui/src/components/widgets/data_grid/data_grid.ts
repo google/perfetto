@@ -43,6 +43,7 @@ import {
   renderSortMenuItems,
   PageControl,
   SortDirection,
+  GridAggregationCell,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
 
@@ -205,6 +206,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
+  private columnWidths: Map<string, number> = new Map();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -214,6 +216,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialFilters) {
       this.filters = attrs.initialFilters;
     }
+
+    // Initialize column widths with a default value
+    attrs.columns.forEach((column) => {
+      if (!this.columnWidths.has(column.name)) {
+        this.columnWidths.set(column.name, 100);
+      }
+    });
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -394,21 +403,35 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         }
                       : undefined,
                     menuItems: menuItems.length > 0 ? menuItems : undefined,
-                    aggregation: column.aggregation &&
-                      dataSource.rows?.aggregates && {
-                        left: m(
-                          'span',
-                          {title: column.aggregation},
-                          aggregationFunIcon(column.aggregation),
-                        ),
-                        right: cellRenderer(
-                          dataSource.rows.aggregates[column.name],
-                          column.name,
-                          dataSource.rows.aggregates,
-                        ),
-                      },
+                    width: this.columnWidths.get(column.name) ?? 100,
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(column.name, newWidth);
+                      m.redraw();
+                    },
                   },
                   column.title ?? column.name,
+                );
+              }),
+            ),
+            m(
+              GridRow,
+              columns.map((column) => {
+                return m(
+                  GridAggregationCell,
+                  {
+                    align: 'right', // Assume all aggregates are numeric
+                    symbol:
+                      column.aggregation &&
+                      aggregationFunIcon(column.aggregation),
+                    width: this.columnWidths.get(column.name) ?? 100,
+                  },
+                  column.aggregation &&
+                    dataSource.rows?.aggregates &&
+                    cellRenderer(
+                      dataSource.rows.aggregates[column.name],
+                      column.name,
+                      dataSource.rows.aggregates,
+                    ),
                 );
               }),
             ),
@@ -666,7 +689,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   if (value === null) return 'center';
                   return 'left';
                 })(),
-                isMissing: value === null,
+                nullish: value === null,
+                width: this.columnWidths.get(column.name) ?? 100,
               },
               cellRenderer(value, column.name, row),
             );
