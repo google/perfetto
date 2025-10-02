@@ -699,7 +699,7 @@ void TraceBufferV2::CopyChunkUntrusted(
     all_frags_size += f.size_with_header();
     TRACE_BUFFER_DLOG("  Frag %u: %p - %p", frag_idx,
                       static_cast<const void*>(f.begin),
-                      (void*)(f.begin + f.size));
+                      static_cast<const void*>(f.begin + f.size));
   }
   bool trace_writer_data_drop = frag_iter.trace_writer_data_drop();
 
@@ -788,6 +788,8 @@ void TraceBufferV2::CopyChunkUntrusted(
     }
   }
 
+  const uint16_t all_frags_size_u16 = static_cast<uint16_t>(all_frags_size);
+
   // In the case of a re-commit we don't need to create a new chunk, we just
   // want to overwrite the existing one.
   if (PERFETTO_UNLIKELY(recommit_chunk)) {
@@ -808,8 +810,8 @@ void TraceBufferV2::CopyChunkUntrusted(
     }
     uint16_t payload_consumed =
         recommit_chunk->payload_size - recommit_chunk->payload_avail;
-    recommit_chunk->payload_size = all_frags_size;
-    recommit_chunk->payload_avail = all_frags_size - payload_consumed;
+    recommit_chunk->payload_size = all_frags_size_u16;
+    recommit_chunk->payload_avail = all_frags_size_u16 - payload_consumed;
     memcpy(recommit_chunk->fragments_begin(), src, all_frags_size);
     recommit_chunk->flags |= chunk_flags;
     stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
@@ -817,8 +819,8 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   TBChunk* tbchunk = CreateTBChunk(wr_, tbchunk_size);
-  tbchunk->payload_size = all_frags_size;
-  tbchunk->payload_avail = all_frags_size;
+  tbchunk->payload_size = all_frags_size_u16;
+  tbchunk->payload_avail = all_frags_size_u16;
   tbchunk->chunk_id = chunk_id;
   tbchunk->flags = chunk_flags;
   tbchunk->pri_wri_id = seq_key;
@@ -943,10 +945,10 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     if (clear_end > off && clear_end < chunk_end) {
       PERFETTO_DCHECK(chunk_end - clear_end >= sizeof(TBChunk));
       // Create a zero padding chunk at the end.
-      TBChunk* chunk =
+      TBChunk* pad_chunk =
           CreateTBChunk(clear_end, chunk_end - clear_end - sizeof(TBChunk));
       stats_.set_padding_bytes_written(stats_.padding_bytes_written() +
-                                       chunk->outer_size());
+                                       pad_chunk->outer_size());
     }
     off += chunk->outer_size();
   }
@@ -1137,5 +1139,3 @@ void TraceBufferV2::DumpForTesting() {
 }
 
 }  // namespace perfetto
-
-// Same as above, but for kChunkIncomplete.
