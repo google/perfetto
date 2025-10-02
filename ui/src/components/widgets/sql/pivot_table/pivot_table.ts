@@ -181,7 +181,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                           : renderedCell?.isNumerical
                             ? 'right'
                             : 'left',
-                        isMissing: renderedCell?.isNull,
+                        nullish: renderedCell?.isNull,
                       },
                       content,
                     );
@@ -199,7 +199,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                       : renderedCell?.isNumerical
                         ? 'right'
                         : 'left',
-                    isMissing: renderedCell?.isNull,
+                    nullish: renderedCell?.isNull,
                   },
                   renderedCell.content,
                 );

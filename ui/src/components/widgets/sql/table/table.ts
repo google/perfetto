@@ -369,7 +369,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                     {
                       menuItems: menu,
                       align: isNull ? 'center' : isNumerical ? 'right' : 'left',
-                      isMissing: isNull,
+                      nullish: isNull,
                     },
                     content,
                   );
