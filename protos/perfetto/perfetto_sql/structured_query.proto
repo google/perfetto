@@ -268,18 +268,34 @@ message PerfettoSqlStructuredQuery {
     message Aggregate {
       enum Op {
         UNSPECIFIED = 0;
+
+        // If no column_name is specified, this is a COUNT(*).
         COUNT = 1;
+
+        // Requires a column_name to be specified.
         SUM = 2;
         MIN = 3;
         MAX = 4;
         MEAN = 5;
         MEDIAN = 6;
         DURATION_WEIGHTED_MEAN = 7;
+
+        // Requires a column_name and a percentile to be specified.
+        PERCENTILE = 8;
       }
 
+      // The name of the column to aggregate. Not required for COUNT.
       optional string column_name = 1;
+
+      // Required.
       optional Op op = 2;
+
+      // Optional.
       optional string result_column_name = 3;
+
+      // The percentile to compute when `op` is `PERCENTILE`. Must be between 0
+      // and 100.
+      optional double percentile = 4;
     }
     repeated Aggregate aggregates = 2;
   }

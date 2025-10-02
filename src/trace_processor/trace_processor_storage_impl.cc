@@ -45,6 +45,7 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {

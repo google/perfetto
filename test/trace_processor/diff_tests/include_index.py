@@ -94,6 +94,7 @@ from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
+from diff_tests.parser.pprof.tests_pprof import PprofParser
 from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -146,6 +147,7 @@ from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
+from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
@@ -254,6 +256,7 @@ def fetch_all_diff_tests(
       ArtHprofParser,
       ArtMethodParser,
       PerfTextParser,
+      PprofParser,
   ]
 
   metrics_tests = [
@@ -285,6 +288,7 @@ def fetch_all_diff_tests(
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
+      ArgsFunctions,
       CpuClusters,
       Battery,
       DesktopMode,

@@ -14,5 +14,7 @@
 
 import type {Modifier, StrictModifiers} from '@popperjs/core';
 
-export type CustomModifier = Modifier<'sameWidth', {}>;
+export type CustomModifier =
+  | Modifier<'sameWidth', {}>
+  | Modifier<'hideOnInvisible', {}>;
 export type ExtendedModifiers = StrictModifiers | CustomModifier;

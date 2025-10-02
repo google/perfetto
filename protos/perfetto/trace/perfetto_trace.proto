@@ -46,6 +46,7 @@ message GpuCounterDescriptor {
     // Includes counters relating to caching and bandwidth.
     MEMORY = 5;
     COMPUTE = 6;
+    RAY_TRACING = 7;
   }
 
   message GpuCounterSpec {
@@ -1900,7 +1901,7 @@ message PerfEvents {
   // The primary event to count. If recording multiple events, this
   // counter is the "group leader".
   // Commented from the perspective of its use in |PerfEventConfig|.
-  // Next id: 12
+  // Next id: 13
   message Timebase {
     // How often to snapshot the counter, along with any follower events and
     // any additional sampled data such as callstacks.
@@ -1948,6 +1949,12 @@ message PerfEvents {
       Tracepoint tracepoint = 3;
       RawEvent raw_event = 5;
     }
+
+    // Optional modifiers for the event. Modelled after the perftool's
+    // https://man7.org/linux/man-pages/man1/perf-list.1.html#EVENT_MODIFIERS
+    // Currently supported: count scoping such as :u, :k, :uk, ...
+    // Modifiers can differ between the timebase and followers.
+    repeated EventModifier modifiers = 12;
 
     // If set, samples will be timestamped with the given clock.
     // If unset, the clock is chosen by the implementation.
@@ -2048,18 +2055,31 @@ message PerfEvents {
     PERF_CLOCK_MONOTONIC_RAW = 3;
     PERF_CLOCK_BOOTTIME = 4;
   }
+
+  enum EventModifier {
+    UNKNOWN_EVENT_MODIFIER = 0;
+    // count only while in userspace
+    EVENT_MODIFIER_COUNT_USERSPACE = 1;
+    // count only while in kernel
+    EVENT_MODIFIER_COUNT_KERNEL = 2;
+    // count only while in hypervisor
+    EVENT_MODIFIER_COUNT_HYPERVISOR = 3;
+  }
 }
 
 // Additional events associated with a leader.
-// Configuration is similar to Timebase event. Because data acquisition is
-// driven by the leader there is no option to configure the clock or the
-// frequency.
+// See https://man7.org/linux/man-pages/man1/perf-list.1.html#LEADER_SAMPLING
 message FollowerEvent {
   oneof event {
     PerfEvents.Counter counter = 1;
     PerfEvents.Tracepoint tracepoint = 2;
     PerfEvents.RawEvent raw_event = 3;
   }
+  // Modifiers can differ between the timebase and followers.
+  repeated PerfEvents.EventModifier modifiers = 5;
+  // Optional arbitrary name for the event, to identify it in the parsed
+  // trace. Does *not* affect the profiling itself. If unset, the trace
+  // parser will choose a suitable name.
   optional string name = 4;
 }
 
@@ -5590,6 +5610,8 @@ message FrameTimelineEvent {
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
     JANK_DROPPED = 1024;
+    JANK_NON_ANIMATING = 2048;
+    JANK_APP_RESYNCED_JITTER = 4096;
   };
 
   // Specifies the severity of a jank.
@@ -5677,6 +5699,15 @@ message FrameTimelineEvent {
     optional PredictionType prediction_type = 10;
     optional bool is_buffer = 11;
     optional JankSeverityType jank_severity_type = 12;
+    optional float present_delay_millis = 13;
+    optional float vsync_resynced_jitter_millis = 14;
+    optional float jank_severity_score = 15;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 16;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 17;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -5723,6 +5754,15 @@ message FrameTimelineEvent {
     optional int32 jank_type = 7;
     optional PredictionType prediction_type = 8;
     optional JankSeverityType jank_severity_type = 9;
+
+    optional float present_delay_millis = 10;
+    optional float jank_severity_score = 11;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 12;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 13;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding

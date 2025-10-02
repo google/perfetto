@@ -44,6 +44,7 @@ export interface TraceProcessorConfig {
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
   ftraceDropUntilAllCpusValid: boolean;
+  extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
   forceFullSort: boolean;
 }
 
@@ -381,6 +382,7 @@ export abstract class EngineBase implements Engine, Disposable {
     ingestFtraceInRawTable,
     analyzeTraceProtoContent,
     ftraceDropUntilAllCpusValid,
+    extraParsingDescriptors,
     forceFullSort,
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
@@ -402,6 +404,11 @@ export abstract class EngineBase implements Engine, Disposable {
     args.parsingMode = tokenizeOnly
       ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
       : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
+    // If extraParsingDescriptors is defined, create a mutable copy for the
+    // protobuf object; otherwise, pass an empty array.
+    args.extraParsingDescriptors = extraParsingDescriptors
+      ? [...extraParsingDescriptors]
+      : [];
     this.rpcSendRequest(rpc);
     return asyncRes;
   }

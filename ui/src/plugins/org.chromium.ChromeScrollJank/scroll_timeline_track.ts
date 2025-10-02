@@ -23,7 +23,7 @@ import {
   ScrollTimelineModel,
   ScrollUpdateClassification,
 } from './scroll_timeline_model';
-import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
@@ -54,7 +54,7 @@ export function createScrollTimelineTrack(
   trace: Trace,
   model: ScrollTimelineModel,
 ) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri: model.trackUri,
     dataset: new SourceDataset({

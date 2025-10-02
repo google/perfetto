@@ -95,61 +95,54 @@ const char* StringifyCounter(int32_t counter) {
 }
 
 template <typename T>
-StringId InternCounterName(
-    const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
-    TraceProcessorContext* context,
-    const T& desc_decoder) {
-  using namespace protos::pbzero;
-  PerfEvents::Timebase::Decoder timebase(perf_defaults.timebase());
+StringId InternCounterName(const T& event, TraceProcessorContext* context) {
+  using protos::pbzero::PerfEvents;
+  auto base_counter_name = [&]() -> base::StringView {
+    // explicit name from config takes precedence
+    if (event.name().size > 0) {
+      return event.name();
+    }
+    if (event.has_counter()) {
+      return StringifyCounter(event.counter());
+    }
+    if (event.has_tracepoint()) {
+      PerfEvents::Tracepoint::Decoder tracepoint(event.tracepoint());
+      return tracepoint.name();
+    }
+    if (event.has_raw_event()) {
+      PerfEvents::RawEvent::Decoder raw(event.raw_event());
+      // This doesn't follow any pre-existing naming scheme, but aims to be a
+      // short-enough default that is distinguishable.
+      base::StackString<128> name(
+          "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64,
+          raw.type(), raw.config(), raw.config1(), raw.config2());
+      return name.string_view();
+    }
+    PERFETTO_DLOG("Could not name the perf counter");
+    return "unknown";
+  };
 
-  auto config_given_name = desc_decoder.name();
-  if (config_given_name.size > 0) {
-    return context->storage->InternString(config_given_name);
-  }
-  if (desc_decoder.has_counter()) {
-    return context->storage->InternString(
-        StringifyCounter(desc_decoder.counter()));
-  }
-  if (desc_decoder.has_tracepoint()) {
-    PerfEvents::Tracepoint::Decoder tracepoint(desc_decoder.tracepoint());
-    return context->storage->InternString(tracepoint.name());
-  }
-  if (desc_decoder.has_raw_event()) {
-    PerfEvents::RawEvent::Decoder raw(desc_decoder.raw_event());
-    // This doesn't follow any pre-existing naming scheme, but aims to be a
-    // short-enough default that is distinguishable.
-    base::StackString<128> name(
-        "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64, raw.type(),
-        raw.config(), raw.config1(), raw.config2());
-    return context->storage->InternString(name.string_view());
-  }
+  std::string name = base_counter_name().ToStdString();
 
-  PERFETTO_DLOG("Could not name the perf counter");
-  return context->storage->InternString("unknown");
+  // Suffix with event modifiers, if any. Following the perftool convention.
+  std::string modifiers;
+  for (auto it = event.modifiers(); it; ++it) {
+    if (it->as_int32() == PerfEvents::EVENT_MODIFIER_COUNT_USERSPACE) {
+      modifiers += 'u';
+    }
+    if (it->as_int32() == PerfEvents::EVENT_MODIFIER_COUNT_KERNEL) {
+      modifiers += 'k';
+    }
+    if (it->as_int32() == PerfEvents::EVENT_MODIFIER_COUNT_HYPERVISOR) {
+      modifiers += 'h';
+    }
+  }
+  if (!modifiers.empty()) {
+    name = name + ':' + modifiers;
+  }
+  return context->storage->InternString(name);
 }
 
-StringId InternTimebaseCounterName(
-    const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
-    TraceProcessorContext* context) {
-  using namespace protos::pbzero;
-  PerfEvents::Timebase::Decoder timebase(perf_defaults.timebase());
-  return InternCounterName(perf_defaults, context, timebase);
-}
-
-std::vector<StringId> InternFollowersCounterName(
-    const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
-    TraceProcessorContext* context) {
-  using namespace protos::pbzero;
-
-  std::vector<StringId> string_ids;
-
-  for (auto it = perf_defaults.followers(); it; ++it) {
-    FollowerEvent::Decoder followers(*it);
-    string_ids.push_back(InternCounterName(perf_defaults, context, followers));
-  }
-
-  return string_ids;
-}
 }  // namespace
 
 PerfSampleTracker::PerfSampleTracker(TraceProcessorContext* context)
@@ -160,6 +153,8 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     uint32_t seq_id,
     uint32_t cpu,
     protos::pbzero::TracePacketDefaults::Decoder* nullable_defaults) {
+  using protos::pbzero::FollowerEvent;
+  using protos::pbzero::PerfEvents;
   using protos::pbzero::PerfSampleDefaults;
 
   auto seq_it = seq_state_.find(seq_id);
@@ -181,7 +176,8 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
 
   StringId name_id = kNullStringId;
   if (perf_defaults.has_value()) {
-    name_id = InternTimebaseCounterName(perf_defaults.value(), context_);
+    PerfEvents::Timebase::Decoder timebase(perf_defaults->timebase());
+    name_id = InternCounterName(timebase, context_);
   } else {
     // No defaults means legacy producer implementation, assume default timebase
     // of per-cpu timer. This means either an Android R or early S build.
@@ -200,9 +196,9 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
 
   std::vector<TrackId> follower_track_ids;
   if (perf_defaults.has_value()) {
-    auto name_ids = InternFollowersCounterName(perf_defaults.value(), context_);
-    follower_track_ids.reserve(name_ids.size());
-    for (const auto& follower_name_id : name_ids) {
+    for (auto it = perf_defaults->followers(); it; ++it) {
+      FollowerEvent::Decoder follower(*it);
+      StringId follower_name_id = InternCounterName(follower, context_);
       base::StringView follower_name =
           context_->storage->GetString(follower_name_id);
       follower_track_ids.push_back(context_->track_tracker->InternTrack(

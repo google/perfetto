@@ -22,13 +22,16 @@ CREATE PERFETTO VIEW android_windowmanager (
   -- Extra args parsed from the proto message
   arg_set_id ARGSETID,
   -- Raw proto message
-  base64_proto_id LONG
+  base64_proto_id LONG,
+  -- Focused display id for this entry
+  focused_display_id LONG
 ) AS
 SELECT
   id,
   ts,
   arg_set_id,
-  base64_proto_id
+  base64_proto_id,
+  focused_display_id
 FROM __intrinsic_windowmanager;
 
 -- Android WindowManager WindowContainer (from android.windowmanager data source).
@@ -54,7 +57,9 @@ CREATE PERFETTO VIEW android_windowmanager_windowcontainer (
   -- The rect corresponding to this window container
   window_rect_id LONG,
   -- The window container type e.g. DisplayContent, TaskFragment
-  container_type STRING
+  container_type STRING,
+  -- Optional name override for some container types
+  name_override STRING
 ) AS
 SELECT
   id,
@@ -67,5 +72,6 @@ SELECT
   child_index,
   is_visible,
   window_rect_id,
-  container_type
+  container_type,
+  name_override
 FROM __intrinsic_windowmanager_windowcontainer;

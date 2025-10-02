@@ -54,4 +54,16 @@
     margin: 0px 4px;
     overflow: hidden;
   }
+
+  &__tab-icon {
+    &--left {
+      margin-right: 4px;
+      align-self: center;
+    }
+
+    &--right {
+      margin-left: 4px;
+      align-self: center;
+    }
+  }
 }
