@@ -707,7 +707,7 @@ def InstallPythonVenv():
     subprocess.check_call(cmd)
 
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
-  logging.info(f'Updating pythong packages {" ".join(cmd)}')
+  logging.info(f'Updating python packages {" ".join(cmd)}')
   subprocess.check_call(cmd)
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
