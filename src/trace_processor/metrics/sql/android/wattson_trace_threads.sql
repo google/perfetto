@@ -33,8 +33,9 @@ SELECT RUN_METRIC(
 DROP VIEW IF EXISTS wattson_trace_threads_output;
 CREATE PERFETTO VIEW wattson_trace_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
-  'metric_version', 4,
-  'power_model_version', 1,
+  'metric_version', metric_version,
+  'power_model_version', power_model_version,
+  'is_crude_estimate', is_crude_estimate,
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonTaskPeriodInfo(
@@ -44,4 +45,5 @@ SELECT AndroidWattsonTasksAttributionMetric(
     )
     FROM _wattson_per_task
   )
-);
+)
+FROM _wattson_tasks_metric_metadata;
