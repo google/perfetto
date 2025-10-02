@@ -57,9 +57,13 @@ class FrameTimelineEventParser {
 
   void ParseExpectedDisplayFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualDisplayFrameStart(int64_t timestamp, ConstBytes);
+  StringId CalculateDisplayFrameJankTag(int32_t jank_type);
 
   void ParseExpectedSurfaceFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualSurfaceFrameStart(int64_t timestamp, ConstBytes);
+  StringId CalculateSurfaceFrameJankTag(
+      int32_t jank_type,
+      std::optional<int32_t> present_type_opt);
 
   void ParseFrameEnd(int64_t timestamp, ConstBytes);
 
@@ -90,6 +94,7 @@ class FrameTimelineEventParser {
   const StringId layer_name_id_;
   const StringId prediction_type_id_;
   const StringId jank_tag_id_;
+  const StringId jank_tag_experimental_id_;
   const StringId is_buffer_id_;
 
   const StringId jank_tag_none_id_;

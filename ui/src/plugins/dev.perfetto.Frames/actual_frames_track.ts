@@ -43,6 +43,7 @@ export function createActualFramesTrack(
   uri: string,
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
+  useExperimentalJankForClassification: boolean,
 ) {
   return SliceTrack.create({
     trace,
@@ -56,6 +57,7 @@ export function createActualFramesTrack(
         dur: LONG,
         jank_type: STR,
         jank_tag: STR_NULL,
+        jank_tag_experimental: STR_NULL,
         jank_severity_type: STR_NULL,
         arg_set_id: NUM,
         track_id: NUM,
@@ -66,7 +68,12 @@ export function createActualFramesTrack(
       },
     }),
     colorizer: (row) => {
-      return getColorSchemeForJank(row.jank_tag, row.jank_severity_type);
+      return getColorSchemeForJank(
+        useExperimentalJankForClassification
+          ? row.jank_tag_experimental
+          : row.jank_tag,
+        row.jank_severity_type,
+      );
     },
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
