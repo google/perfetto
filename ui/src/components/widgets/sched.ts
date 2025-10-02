@@ -18,7 +18,7 @@ import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 
-interface SchedRefAttrs {
+export interface SchedRefAttrs {
   readonly trace: Trace;
 
   // The id of the referenced sched slice in the sched_slice table.

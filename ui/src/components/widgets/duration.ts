@@ -23,7 +23,7 @@ import {formatDuration} from '../time_utils';
 import {DurationPrecisionMenuItem} from './duration_precision_menu_items';
 import {TimestampFormatMenuItem} from './timestamp_format_menu';
 
-interface DurationWidgetAttrs {
+export interface DurationWidgetAttrs {
   trace: Trace;
   dur: duration;
   extraMenuItems?: m.Child[];
