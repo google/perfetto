@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -25,15 +26,29 @@ import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
 } from './frame_selection_aggregator';
+import {Setting} from '../../public/settings';
+import {z} from 'zod';
 
 // Build a standardized URI for a frames track
 function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
   return `/process_${upid}/${kind}`;
 }
 
-export default class implements PerfettoPlugin {
+export default class Frames implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static useExperimentalJank: Setting<boolean>;
+
+  static onActivate(app: App): void {
+    Frames.useExperimentalJank = app.settings.register({
+      id: `${app.pluginId}#UseExperimentalJank`,
+      name: 'Use experimental jank classificaiton (alpha)',
+      description: 'Use alternative method to classify jank. Not recommented.',
+      schema: z.boolean(),
+      defaultValue: false,
+      requiresReload: true,
+    });
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
@@ -131,7 +146,13 @@ export default class implements PerfettoPlugin {
       const uri = makeUri(upid, 'actual_frames');
       ctx.tracks.registerTrack({
         uri,
-        renderer: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
+        renderer: createActualFramesTrack(
+          ctx,
+          uri,
+          maxDepth,
+          trackIds,
+          Frames.useExperimentalJank.get(),
+        ),
         tags: {
           upid,
           trackIds,
