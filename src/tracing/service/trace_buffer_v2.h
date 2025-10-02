@@ -316,7 +316,7 @@ class ChunkSeqReader {
 
   ChunkSeqReader(TraceBufferV2*, TBChunk*, Mode);
 
-  bool ReadNextPacket(TracePacket*);
+  bool ReadNextPacketInSeqOrder(TracePacket*);
   TBChunk* end() { return end_; }
   TBChunk* iter() { return iter_; }
   SequenceState* seq() { return seq_; }

@@ -892,8 +892,53 @@ TEST_F(TraceBufferV2Test, Patching_ReadWaitsForPatchComplete) {
   ASSERT_THAT(ReadPacket(),
               ElementsAre(FakePacketFragment("PERFETTOf02-f03", 15)));
   ASSERT_THAT(ReadPacket(), IsEmpty());
+}
 
-}  // namespace perfetto
+// Tests that if we have pending patches and those chunks get overwritten,
+// we still detect data loss properly.
+TEST_F(TraceBufferV2Test, PendingPatchesDataLossOnOverwrite) {
+  ResetBuffer(4096);
+
+  // Create a fragmented packet that needs patching
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(1024, 'a', kContOnNextChunk | kChunkNeedsPatching)
+      .CopyIntoTraceBuffer();
+
+  // Create the continuation chunk
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(1024, 'b', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  // Verify the chunk is waiting for patches (can't be read)
+  trace_buffer()->BeginRead();
+  // Should be empty because chunk needs patching
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Now write large chunks to cause buffer wrap and overwrite the pending
+  // chunks
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(2000, 'c')
+      .CopyIntoTraceBuffer();
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(2000, 'd')
+      .CopyIntoTraceBuffer();
+
+  // The pending chunks should have been overwritten. When we read the next
+  // chunk in the sequence, we should see a data loss because chunks 0-1
+  // (which were pending patches) were overwritten before being completed.
+  bool previous_packet_dropped = false;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(2000, 'c')));
+  EXPECT_TRUE(previous_packet_dropped);  // Data loss should be detected
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(2000, 'd')));
+  EXPECT_FALSE(previous_packet_dropped);  // No data loss for this packet
+
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
 
 // ---------------------
 // Malicious input tests
@@ -1956,6 +2001,51 @@ TEST_F(TraceBufferV2Test, ChunkGaps_EvenIfSequenceDisappears) {
               ElementsAre(FakePacketFragment(32 - 16, 'd')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
   EXPECT_TRUE(previous_packet_dropped);
+}
+
+TEST_F(TraceBufferV2Test, WrapAroundWithIncompleteChunk) {
+  ResetBuffer(4096);
+
+  // Commit C1, C2, C3 chunks of 1024 bytes each (1008 bytes payload + 16 bytes
+  // header)
+  ASSERT_EQ(1024u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+                       .AddPacket(1008, '1')
+                       .CopyIntoTraceBuffer());
+
+  // Mark C2 as incomplete - this chunk should be overwritten and not preserved
+  ASSERT_EQ(1024u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+                       .AddPacket(1008, '2')
+                       .CopyIntoTraceBuffer(/*chunk_complete=*/false));
+
+  ASSERT_EQ(1024u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+                       .AddPacket(1008, '3')
+                       .CopyIntoTraceBuffer());
+
+  // Buffer now contains: [C1: 1024][C2: 1024 incomplete][C3: 1024][1024 free]
+
+  // Write C4, C5, C6 to cause wrap around - these will overwrite C1, C2, and
+  // start to overwrite C3 But since C2 is incomplete, C3 should be preserved
+  ASSERT_EQ(1024u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(4))
+                       .AddPacket(1008, '4')
+                       .CopyIntoTraceBuffer());
+
+  ASSERT_EQ(1024u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(5))
+                       .AddPacket(1008, '5')
+                       .CopyIntoTraceBuffer());
+
+  ASSERT_EQ(1024u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(6))
+                       .AddPacket(1008, '6')
+                       .CopyIntoTraceBuffer());
+
+  // Buffer should now contain: [C4: 1024][C5: 1024][C6: 1024][C3: 1024]
+  // We should be able to read C3, C4, C5, C6 in that order
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1008, '3')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1008, '4')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1008, '5')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1008, '6')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
 }  // namespace perfetto

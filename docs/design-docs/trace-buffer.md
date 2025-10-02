@@ -17,9 +17,10 @@ NOTE: This section assumes you are familiar with the core concepts exposed in
 
 TraceBuffer is a _ring buffer on steroids_. Unfortunately due to the
 complications of the protocol (see [Challenges](#key-challenges) section) it is
-far from a plain byte-oriented FIFO ring buffer.
+far from a plain byte-oriented FIFO ring buffer when it comes to readback and
+deletions.
 
-Before delving into its complications, let's explore the key operation.
+Before delving into its complications, let's explore its key operations.
 
 Logically TraceBuffer deals with overlapping streams of data, called
 _TraceWriter Sequences_, or in short just _Sequences_:
@@ -54,6 +55,8 @@ Basic operation:
 * At readback time, TraceBuffer reconstructs the sequence of packets and
   reassembles larger fragmented packets.
 * Reading is a destructive operation.
+* However the destructivity of read involves (almost) the same logic of readback
+  to reconstruct packets being overwritten (and in future pass them to ProtoVM).
 
 Readback gives the following guarrantees:
 
@@ -127,41 +130,83 @@ part of the trace. This is conceptually easier: once reached the end of the
 buffer, TraceBuffer stops accepting data.
 
 There is a slight behavioural change from the V1 implementation. V1 tried
-to be too smart about DISCARD and allowed to keep writing data into the buffer
-as long as the read cursor was not hit (i.e. as long as the reader catched up).
+to be (too) smart about DISCARD and allowed to keep writing data into the buffer
+as long as the write and read cursors never crossed (i.e. as long as the reader
+catched up).
 This turned out to be useless and confusing: coupling `DISCARD` with
-`write_into_file` leads to a scenario where DISCARD behaves like RING_BUFFER,
-howver if the reader doesn't catch up (e.g. due to lack of CPU bandwith),
-TraceBuffer stops accepting data (forever).
-We later realized this was a misleading feature and added warnings when trying
-to combine the two.
+`write_into_file` leads to a scenario where DISCARD behaves almost like
+a RING_BUFFER. However if the reader doesn't catch up (e.g. due to lack of CPU
+bandwith), TraceBuffer stops accepting data (forever).
+We later realized this was a confusing feature (a ring buffer that suddenly
+stops) and added warnings when trying to combine the two.
 
 V2 doesn't try to do smart about readbacks and simply stops once we reach the
-end of the buffer, whether it has been read back or not.
+end of the buffer, whether it has been read or not.
 
 ### Fragmentation
 
 Packet fragmentation is the cause of most of TraceBuffer's design complexity.
 
-TODO drawings
+```
+Simple Fragmentation Example:
+Chunk A (ChunkID=100)      Chunk B (ChunkID=101)      Chunk C (ChunkID=102)
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│[Packet1: Complete]  │    │[Packet2: Begin]     │    │[Packet2: Continue]  │
+│[Packet2: Begin]     │    │ flags: kContOnNext  │    │ flags: kContFromPrev│
+│ flags: kContOnNext  │    └─────────────────────┘    │[Packet2: End]       │
+└─────────────────────┘                               │[Packet3: Complete]  │
+                                                      └─────────────────────┘
+
+Fragmentation Chain: Packet2 = [Begin] → [Continue] → [End]
+```
+
+**Key Fragmentation Challenges**:
+
+* **Out-of-order commits**: Chunks may arrive out of ChunkID order due to SMB scraping
+* **Missing fragments**: Gaps in ChunkID sequence cause packet drops
+* **Patch dependencies**: Chunks marked `kChunkNeedsPatching` block readback until patched
+* **Buffer wraparound**: Fragmented packets may span buffer wraparound boundaries
 
 ### Out-of-order commits
 
 Out of order commits are rare but regularly present. They happen due to a
 feature called _SMB Scraping_ introduced in the early years of Perfetto.
 
-SMB scraping happens when TracingServiceImpl, upon a Flush(), forcefully reads
+SMB scraping happens when TracingServiceImpl, upon a _Flush_, forcefully reads
 the chunks in the SMB, even if they are not marked as completed, and writes them
 into the trace buffer.
 
-The challenge is that TracingServiceImpl, when scraping, scans the SMB in linear
-order and commits chunks as-found. But that linear order translates into
-"chunk allocation order", which is unpredictable, effectively causing chunks
-to be potentially committed out of order.
+This was necessary to deal with data sources like TrackEvent that can be used on
+arbitrary threads that don't have a TaskRunner, where would it be impossible to
+issue a PostTask(FlushTask) upon a trace protocol Flush request.
 
-In practice, these instances are relatively rare, as they happen either only at
-the end, or every O(seconds) in the case of long tracing mode. Hence they must
-be supported, but not optimized for.
+The challenge is that TracingServiceImpl, when scraping, scans the SMB in linear
+order and commits chunks as found. But that linear order translates into
+"chunk allocation order", which is unpredictable, effectively causing chunks
+to be committed in random order.
+
+In practice, these instances are relatively rare, as they happen:
+
+* Only when stopping the trace, for most traces.
+* every O(seconds) in the case of [long tracing mode][lt]. Hence they must
+  be supported, but not optimized for.
+
+Important note: TraceBuffer assums that all out-of-order commits are batched
+together atomically. The only known use case for OOO is SMB scraping, which
+commits all scraped chunks in one go within a single TaskRunner task.
+
+Hence we assume that the following cannot happen:
+
+* Task 1 (IPC message)
+  * Commit chunk 1
+  * Commit chunk 3
+* Task 2
+  * ReadBuffers (e.g. due to periodic write_into_file)
+* Task 3 (IPC message)
+  * Commit chunk 2
+
+The logic on TraceBufferV2 treats any ChunkID gaps identified, after having
+sorted chunks by ChunkID, as data losses.
 
 ### Tracking of data losses
 
@@ -181,8 +226,8 @@ There are several different types and causes of data losses:
   a discontinuity in their ChunkID(s). This happens due to ring-buffer
   overwrites or due to some other issue when writing in the SMB.
 * ABI violations: this happens when a Chunk is malformed, for instance:
-  - One of its fragments has a size that goes out of bounds.
-  - The first fragment has a "fragment continuation" flag, but there was no
+  * One of its fragments has a size that goes out of bounds.
+  * The first fragment has a "fragment continuation" flag, but there was no
     fragment previously initiated.
 
 ### Patches
@@ -268,7 +313,9 @@ This is the scenario when recommit can legitimately happen:
   the last fragment.
 
 NOTE: kChunkNeedsPatching and kIncomplete are two different and orthogonal
-chunk states. Incomplete has nothing to do with fragments.
+chunk states. kIncomplete has nothing to do with fragments and is purely about
+SMB scraping (and the fact that we have to be conservative and ignore the last
+fragment).
 
 Implications:
 
@@ -292,8 +339,7 @@ only be read into. This is to support `CLONE_SNAPSHOT` triggers.
 Architecturally buffer cloning is not particularly complicated, at least in
 the current design. The main design implications are:
 
-* Ensuring that nothing load-bearing in the TraceBuffer contains pointers.
-  Any pointer data must be cleared before cloning to avoid UAF bugs.
+* Ensuring that no state in the TraceBuffer fields contains pointers.
 * For this reason, the core structure in the buffer use offsets rather than
   pointers (which also happen to be more memory compact and cache-friendly).
 * Stats and auxiliary metadata tends to be the thing that requires some care,
@@ -308,15 +354,14 @@ trace buffer.
 ProtoVM has been the reason that triggered the redesign of TraceBuffer V2.
 
 Without getting into its details, the primary requirement of ProtoVM is the
-following: When overwriting chunks in the trace buffer, we must pass valid
-packets to ProtoVM. We must do so in order, hence replicating the same logic
-that we would use when doing a readback.
+following: when overwriting chunks in the trace buffer, we must pass valid
+packets from these soon-to-be-deleted chunks to ProtoVM. We must do so in order,
+hence replicating the same logic that we would use when doing a readback.
 
 Internal docs about ProtoVM:
 
 * [go/perfetto-proto-vm](http://go/perfetto-proto-vm)
 * [go/perfetto-protovm-implementation](http://go/perfetto-protovm-implementation)
-* TODO(primiano): convert to .md and make them public.
 
 ### Overwrites
 
@@ -332,16 +377,7 @@ So overwrites are the equivalent of a no-stalling force-delete readback.
 
 ## Core design
 
-TODO describe here.
-Draw diagram with chunks out of order to explain
-
-### Core interactions
-
-![core-interactions](/docs/images/tracebuffer-design/core-interactions.drawio.svg)
-
-## Implementation details
-
-### Structures and helper classes
+There are two main data structures involved:
 
 #### `TBChunk`
 
@@ -365,6 +401,20 @@ A TBChunk is very similar to a SMB chunk with the following caveats:
 
 * TBChunk maintains a basic checksum for each chunk (used only in debug builds).
 
+In a nutshell TBChunk is:
+
+* A linear buffer of `base::PagedMemory` contains a sequence of chunks.
+* Each chunk is prefixed by a `struct TBChunk` header followed by its fragments'
+  payload.
+* The TBChunk header contains also
+  * The read state (how many bytes of fragments have been consumed)
+  * ABI Flags
+    * kFirstPacketContinuesFromPrevChunk
+    * kLastPacketContinuesOnNextChunk
+    * kChunkNeedsPatching
+  * Local flags
+    * kChunkIncomplete (for SMB-scraped chunks)
+
 ### SequenceState
 
 It maintains the state of a `{ProducerID, WriterID}` sequence.
@@ -373,6 +423,17 @@ Its important feature is maintaining an ordered list (logically) of TBChunk(s)
 for that sequence, sorted by ChunkID order.
 The "list" is actually a CircularQueue of offsets, which has O(1)
 `push_back()` and `pop_front()` operations.
+
+* TraceBuffer holds a hashmap of `ProducerAndWriterId` -> `SequenceState`.
+* There is one `SequenceState` for each {Producer,Writer} active in the buffer.
+* `SequenceState` holds:
+  * The identity of the producer (uid, pid, ...)
+  * The `last_chunk_id_consumed`, to detect gaps in the ChunkID sequence
+    (data losses)
+  * A sorted list (a `CircularQueue<size_t>`) of chunks, which stores their
+    offset in the buffer.
+* The `chunks` queue is maintained sorted and updated as chunks are appended and
+  consumed (removed) from the buffer.
 
 The lifetime of a `SequenceState` has a subtle tradeoff:
 
@@ -430,3 +491,222 @@ in sequence order, as follows:
   on.
 * When doing so it just consumes the fragment required for reassembly and leaves
   the other packets in the chunk untouched, to preserve global FIFO-ness.
+
+### Buffer order vs Sequence order
+
+Chunks can be visited in two different ways:
+
+1. Buffer order: in the order they have been written in the buffer.
+   In the example below: A1, B1, B3, A2, B2
+
+2. In Sequence order: in the order they appear in the SequenceState's list.
+
+![core design](/docs/images/tracebuffer-design/core-design.drawio.svg)
+
+### Writing chunks
+
+When chunks are written via `CopyChunkUntrusted()` a new `TBChunk` is
+allocated in the buffer's PagedMemory using the usual bump-pointer pattern
+you'd expect from a ring-buffer. Chunks are variable-size, and are stored
+contiguosly with 32-bit alignment.
+
+The offset of the chunk is also appended in the `SequenceState.chunks` list.
+
+After the first wrapping, writing a chunk involves deleting one or more
+existing chunks. The deletion operation `RemoveNextChunksFor()` is as complex
+as a redback, because reconstructs packets being deleted in order, to pass
+them to ProtoVM.
+
+So the writing itself is straightforward, but the deletion (overwrite) of
+existing chunks is where most of the complexity lies. This is described in
+the next section.
+
+#### DeleteNextChunksFor() Flow
+
+```mermaid
+flowchart TD
+    A[DeleteNextChunksFor<br/>bytes_to_clear] --> B[Initialize: off = wr_<br/>clear_end = wr_ + bytes_to_clear]
+    
+    B --> C{off < clear_end?}
+    C -->|No| M[Create padding chunks<br/>for partial deletions]
+    
+    C -->|Yes| D{off >= used_size_?}
+    D -->|Yes| N[Break - nothing to delete<br/>in unused space]
+    
+    D -->|No| E[chunk = GetTBChunkAt off]
+    E --> F{chunk.is_padding?}
+    F -->|Yes| G[Update padding stats<br/>off += chunk.outer_size]
+    F -->|No| H[Create ChunkSeqReader<br/>in kEraseMode]
+    
+    H --> I[ReadNextPacketInSeqOrder loop]
+    I --> J{Packet found?}
+    J -->|Yes| K[Pass packet to ProtoVM<br/>has_cleared_fragments = true]
+    J -->|No| L{has_cleared_fragments?}
+    
+    K --> I
+    L -->|Yes| O[Mark sequence data_loss = true]
+    L -->|No| P[No data loss]
+    
+    O --> Q[Update overwrite stats<br/>off += chunk.outer_size]
+    P --> Q
+    
+    Q --> R{More chunks in range?}
+    R -->|Yes| C
+    R -->|No| M
+    
+    G --> C
+    
+    M --> S[Scan remaining range for padding]
+    S --> T{Partial chunk at end?}
+    T -->|Yes| U[Create new padding chunk<br/>for remaining space]
+    T -->|No| V[End]
+    
+    U --> V
+    N --> V
+    
+    style A fill:#e1f5fe
+    style K fill:#fff3e0
+    style O fill:#ffcdd2
+    style V fill:#c8e6c9
+```
+
+**Key Differences from ReadNextTracePacket:**
+
+* **No stalling**: Chunks marked as incomplete or needing patches are
+  force-deleted
+* **ProtoVM integration**: Valid packets are reconstructed and passed to ProtoVM
+  before deletion
+* **Padding management**: Creates padding chunks for partial deletions at range
+  boundaries
+* **Stats tracking**: Updates overwrite statistics rather than read statistics
+
+### Reading back packets
+
+Readback (`ReadNextTracePacket()`) is where most of the TraceBuffer's complexity
+lies, as it needs to reassembles packets from fragments, deal with gaps / data
+losses, and deal with interleaving of chunks from different sequences, and out
+of ordering.
+
+```mermaid
+flowchart TD
+    A[ReadNextTracePacket Start] --> B{chunk_seq_reader_ exists?}
+    
+    B -->|No| C[Get chunk at rd_]
+    C --> D{Is chunk padding?}
+    D -->|Yes| E[rd_ += chunk.outer_size<br/>Check wrap around]
+    D -->|No| F[Create ChunkSeqReader<br/>for this chunk]
+    
+    B -->|Yes| G[ReadNextPacketInSeqOrder]
+    F --> G
+    
+    G --> H{Packet found?}
+    H -->|Yes| I[Set sequence properties<br/>Set data_loss flag<br/>Return packet]
+    H -->|No| J[Get end chunk from reader<br/>rd_ = end_offset + size]
+    
+    J --> K{rd_ == wr_ OR<br/>wrapped to wr_?}
+    K -->|Yes| L[Return false - no more data]
+    K -->|No| M[Reset chunk_seq_reader_<br/>Handle wrap around]
+    
+    E --> N{rd_ wrapped around?}
+    N -->|Yes| O[rd_ = 0]
+    N -->|No| P[Continue with new rd_]
+    
+    O --> K
+    P --> K
+    M --> B
+    
+    style A fill:#e1f5fe
+    style I fill:#c8e6c9
+    style L fill:#ffcdd2
+```
+
+#### ChunkSeqReader Internal Flow
+
+This is how ReadNextTracePacket() works:
+
+* We start the read iteration immediately after the write cursor. Because writes
+  are simply FIFO, the oldest data in the buffer is by design the one after the
+  write cursor.
+* For simplicity let's ignore fragmentation for now and assume that every chunk
+  is self-contained (i.e. every chunk contains N fragments = N packets).
+* If we assume no fragmentation, and if we also assume no out-of-order commits
+  (i.e. no scraping) we could just iterate linearly in buffer order, and visit
+  the chunks until we reach back the write cursor.
+* So we could just tokenize packets out of each chunk, and return one for each
+  `ReadNextTracePacket()` invocation. Done.
+
+
+```mermaid
+flowchart TD
+    A[ReadNextPacketInSeqOrder] --> B{skip_in_generation?}
+    B -->|Yes| C[Return false - stalled]
+    
+    B -->|No| D[NextFragmentInChunk]
+    D --> E{Fragment found?}
+    E -->|Yes| F{Fragment type?}
+    
+    F -->|kFragWholePacket| G[ConsumeFragment<br/>Return packet]
+    F -->|kFragBegin| H[ReassembleFragmentedPacket]
+    F -->|kFragEnd/Continue| I[Data loss - unexpected<br/>ConsumeFragment<br/>Continue loop]
+    
+    E -->|No| J{Chunk corrupted?}
+    J -->|Yes| K[Mark data_loss = true]
+    
+    J -->|No| L{Chunk incomplete?}
+    L -->|Yes| M[Set skip_in_generation<br/>Return false]
+    L -->|No| N[EraseCurrentChunk]
+    
+    K --> N
+    N --> O{Reached end chunk?}
+    O -->|Yes| P[Return false]
+    O -->|No| Q[NextChunkInSequence]
+    
+    Q --> R{Next chunk exists?}
+    R -->|No| P
+    R -->|Yes| S[iter_ = next_chunk<br/>Create new FragIterator]
+    
+    S --> D
+    
+    H --> T{Reassembly result?}
+    T -->|Success| U[Return reassembled packet]
+    T -->|NotEnoughData| V[Set skip_in_generation<br/>Return false]
+    T -->|DataLoss| W[Mark data_loss = true<br/>Continue loop]
+    
+    style A fill:#e1f5fe
+    style G fill:#c8e6c9
+    style U fill:#c8e6c9
+    style C fill:#ffcdd2
+    style P fill:#ffcdd2
+    style V fill:#fff3e0
+```
+
+#### Dealing with out-of-order chunks
+
+But things are more complicated. Let's take first only out-of-ordering into the
+picture. With reference to the drawing above, let's imagine the write cursor is
+@ offset=48, right before B3.
+
+If we proceeded simply in buffer order we would break FIFO-ness, as we would
+first emit the packets contained in B3, then A2 (this is fine) and ultimately
+B2 (this is problematic).
+
+The only valid linearizations that preserve in-sequence FIFO-ness, would be
+either [A2,B2,B3], [B2,B3,A2] or [B2,A2,B3].
+
+In order to deal with this we introduce a two layer walk in the readback code:
+
+* The outer layer iterates in buffer order, as that respects the global
+  FIFO-ness, trying to get events out in roughly the same order they got in 
+  (% chunking)
+* At every step, the inner layer proceeds in sequence order, as follows:
+  * It takes the next chunk (B3 in the example above) that buffer-order visit
+    found.
+  * It finds its SequenceState by doing a hash-lookup in the `sequences_` map.
+  * It jumps to the first Chunk in the `SequenceState.chunks` ordered list.
+  * It proceeds in sequence order until the target chunk (B3) has been reached.
+* The outer layer continues in buffer order and the story repeats.
+
+In the code, the outer layer walk is implemented by
+`TraceBufferV2::ReadNextTracePacket()` while the inner walk is implemented by
+the `class ChunkSeqReader::ReadNextPacket()`.
+
