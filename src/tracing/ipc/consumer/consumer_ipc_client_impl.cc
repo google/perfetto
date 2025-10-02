@@ -471,7 +471,7 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
   }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  if (args.output_file) {
+  if (args.output_file_fd) {
     consumer_->OnTracingDisabled(
         "Passing FDs into CloneSession is not supported on Windows");
     return;
