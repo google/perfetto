@@ -2474,8 +2474,7 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
     base::FlushFile(tracing_session->write_into_file.get());
     tracing_session->write_into_file.reset();
     tracing_session->write_period_ms = 0;
-    if (tracing_session->state == TracingSession::STARTED ||
-        tracing_session->state == TracingSession::CLONED_READ_ONLY)
+    if (tracing_session->state == TracingSession::STARTED)
       DisableTracing(tsid);
     return true;
   }
