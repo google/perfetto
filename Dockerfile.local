@@ -1,0 +1,31 @@
+# Stage 1: Build the Perfetto UI from local source
+FROM node:18 AS builder
+
+# Install utilities including jq
+RUN apt-get update && apt-get install -y python3-venv jq && rm -rf /var/lib/apt/lists/*
+
+# Set workdir and copy the entire local project content
+WORKDIR /app
+COPY . .
+
+# Navigate to the UI directory to modify package.json
+WORKDIR /app/ui
+
+# Remove the devDependency that uses the "link:" protocol
+RUN jq 'del(.devDependencies."eslint-plugin-perfetto")' package.json > package.json.tmp && mv package.json.tmp package.json
+
+# Go back to the root directory
+WORKDIR /app
+
+# Install UI dependencies using the script.
+RUN tools/install-build-deps --ui
+
+# Build the UI.
+RUN node ui/build.js --bigtrace
+
+# Stage 2: Serve the static files using nginx
+FROM nginx:alpine
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=builder /app/out/ui/ui/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
