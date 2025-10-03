@@ -333,6 +333,7 @@ export interface PageControlAttrs {
 }
 
 import {Stack} from './stack';
+import {Chip} from './chip';
 
 export class PageControl implements m.ClassComponent<PageControlAttrs> {
   view({attrs}: m.Vnode<PageControlAttrs>) {
@@ -376,5 +377,28 @@ export class PageControl implements m.ClassComponent<PageControlAttrs> {
         onclick: lastPageClick,
       }),
     ]);
+  }
+}
+
+export class GridFilterBar implements m.ClassComponent {
+  view({children}: m.Vnode) {
+    return m(Stack, {orientation: 'horizontal', wrap: true}, children);
+  }
+}
+
+export interface GridFilterAttrs {
+  readonly content: string;
+  onRemove(): void;
+}
+
+export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
+  view({attrs}: m.Vnode<GridFilterAttrs>): m.Children {
+    return m(Chip, {
+      className: 'pf-grid-filter',
+      label: attrs.content,
+      removable: true,
+      onRemove: attrs.onRemove,
+      title: attrs.content,
+    });
   }
 }

@@ -84,7 +84,8 @@ struct StripHexFunction : public sqlite::Function<StripHexFunction> {
                                            static_cast<int>(result.length()));
   }
 
-  static std::string StripHex(std::string input, int64_t min_repeated_digits) {
+  static std::string StripHex(const std::string& input,
+                              int64_t min_repeated_digits) {
     std::string result;
     result.reserve(input.length());
     for (size_t i = 0; i < input.length();) {
@@ -131,7 +132,7 @@ base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
   return engine->RegisterFunction<StripHexFunction>(nullptr);
 }
 
-std::string SqlStripHex(std::string input, int64_t min_repeated_digits) {
+std::string SqlStripHex(const std::string& input, int64_t min_repeated_digits) {
   return StripHexFunction::StripHex(input, min_repeated_digits);
 }
 

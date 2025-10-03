@@ -32,7 +32,7 @@ import {DurationWidget} from '../../components/widgets/duration';
 import {TrackEventSelection} from '../../public/selection';
 import {hasArgs, renderArguments} from '../../components/details/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
-import {Arg, getArgs} from '../../components/sql_utils/args';
+import {ArgsDict, getArgs} from '../../components/sql_utils/args';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
@@ -47,7 +47,7 @@ interface CounterDetails {
   // The delta between this sample's value and the previous one F(N) - F(N-1)
   delta: number;
 
-  args?: Arg[];
+  args?: ArgsDict;
 }
 
 export class CounterDetailsPanel implements TrackEventDetailsPanel {

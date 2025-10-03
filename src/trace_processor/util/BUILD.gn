@@ -218,6 +218,20 @@ source_set("sql_argument") {
   ]
 }
 
+source_set("args_utils") {
+  sources = [
+    "args_utils.cc",
+    "args_utils.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../storage",
+    "../types",
+  ]
+}
+
 source_set("json_parser") {
   sources = [
     "json_parser.h",
@@ -234,6 +248,17 @@ source_set("json_parser") {
   if (enable_perfetto_trace_processor_json) {
     public_deps = [ "../../../gn:jsoncpp" ]
   }
+}
+
+source_set("json_writer") {
+  sources = [
+    "json_writer.cc",
+    "json_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
 }
 
 source_set("proto_profiler") {
@@ -331,6 +356,7 @@ source_set("unittests") {
     "debug_annotation_parser_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
+    "json_writer_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
@@ -353,6 +379,7 @@ source_set("unittests") {
     ":glob",
     ":gzip",
     ":json_parser",
+    ":json_writer",
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_json",
