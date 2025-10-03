@@ -6281,6 +6281,62 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
           &protos::gen::TracePacket::has_clone_snapshot_trigger, Eq(true)))));
 }
 
+TEST_F(TracingServiceImplTest, CloneWithFileDescriptorNoWriteIntoFile) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+  writer->Flush();
+
+  base::TempFile cloned_session_file = base::TempFile::Create();
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce([clone_done](const Consumer::OnSessionClonedArgs& args) {
+        ASSERT_TRUE(args.success);
+        ASSERT_TRUE(args.error.empty());
+        clone_done();
+      });
+  ConsumerEndpoint::CloneSessionArgs clone_args;
+  clone_args.tsid = GetLastTracingSessionId(consumer.get());
+  clone_args.output_file_fd = base::ScopedFile(dup(cloned_session_file.fd()));
+  clone_consumer->endpoint()->CloneSession(std::move(clone_args));
+  producer->ExpectFlush(writer.get());
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // Assert traced doesn't write buffers to the file descriptor if session to
+  // clone is not the 'write_into_file' session.
+  EXPECT_EQ(base::GetFileSize(cloned_session_file.path()).value_or(-1), 0ul);
+  auto clone_consumer_buffers = clone_consumer->ReadBuffers();
+  EXPECT_THAT(GetForTestingStrings(clone_consumer_buffers),
+              ElementsAre("payload"));
+
+  auto consumer_buffers = consumer->ReadBuffers();
+  EXPECT_THAT(GetForTestingStrings(consumer_buffers), ElementsAre("payload"));
+}
+
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());

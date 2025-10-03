@@ -4174,6 +4174,8 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
           "file: %s",
           status.c_message());
     }
+  } else {
+    args.output_file_fd.reset();
   }
 
   // If any of the buffers are marked as clear_before_clone, reset them before
@@ -4503,10 +4505,11 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->final_flush_outcome = final_flush_outcome
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
-
-  cloned_session->write_into_file = std::move(output_file_fd);
-  cloned_session->write_period_ms = 0;
-  ReadBuffersIntoFile(cloned_session->id);
+  if (output_file_fd) {
+    cloned_session->write_into_file = std::move(output_file_fd);
+    cloned_session->write_period_ms = 0;
+    ReadBuffersIntoFile(cloned_session->id);
+  }
 
   return base::OkStatus();
 }
