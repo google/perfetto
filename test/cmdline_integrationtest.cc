@@ -1194,12 +1194,6 @@ TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
   std::string stderr_str;
   EXPECT_EQ(0, clone_proc.Run(&stderr_str)) << stderr_str;
 
-  if (!base::flags::buffer_clone_preserve_read_iter) {
-    EXPECT_THAT(stderr_str,
-                HasSubstr("Failed to clone 'write_into_file' session"));
-    EXPECT_THAT(stderr_str, HasSubstr("buffer_clone_preserve_read_iter"));
-  }
-
   perfetto_proc.SendSigterm();
   background_trace.join();
   // And now we assert that both original 'write_into_file' and the cloned
@@ -1211,14 +1205,10 @@ TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
     ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
   }
   {
-    if (!base::flags::buffer_clone_preserve_read_iter) {
-      EXPECT_FALSE(base::FileExists(cloned_file_path));
-    } else {
-      protos::gen::Trace cloned_trace;
-      ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_file_path, cloned_trace));
-      ExpectTraceContainsTestMessages(cloned_trace, kTestMessageCount);
-      ExpectTraceContainsTestMessagesWithSize(cloned_trace, kTestMessageSize);
-    }
+    protos::gen::Trace cloned_trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_file_path, cloned_trace));
+    ExpectTraceContainsTestMessages(cloned_trace, kTestMessageCount);
+    ExpectTraceContainsTestMessagesWithSize(cloned_trace, kTestMessageSize);
   }
 }
 

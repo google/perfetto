@@ -4141,28 +4141,20 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
-  if (session->write_into_file) {
+  // The new logic we use to clone 'write_into_file' session relies on the
+  // 'buffer_clone_preserve_read_iter' flag being true; see b/448604718.
+  //
+  // The old logic ignored |session->write_into_file| when doing clone.
+  // Therefore, if the 'buffer_clone_preserve_read_iter' flag is false, we
+  // ignore the file to make the new logic behave like the old logic.
+  bool clone_session_write_into_file =
+      base::flags::buffer_clone_preserve_read_iter && session->write_into_file;
+
+  if (clone_session_write_into_file) {
     if (!args.output_file_fd) {
       return PERFETTO_SVC_ERR(
           "Failed to clone 'write_into_file' session: a file descriptor is "
           "required to copy existing file");
-    }
-    // TODO(ktimofeev): write comment about two different clone options
-    // (read/don't read from file), Traceur and how it is related to the
-    // 'buffer_clone_preserve_read_iter' flag (see b/382209797).
-    if (!base::flags::buffer_clone_preserve_read_iter) {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      // On Windows 'base::GetFileSize' expects 'PlatformHandle', but
-      // 'ScopedFile::operator*()' returns int, so the next line won't compile.
-      // This code never executes on Windows, so we just '#ifdef' it.
-      bool session_write_into_file_empty_file =
-          base::GetFileSize(*session->write_into_file).value_or(-1) <= 0;
-      if (!session_write_into_file_empty_file) {
-        return PERFETTO_SVC_ERR(
-            "Failed to clone 'write_into_file' session: flag "
-            "'buffer_clone_preserve_read_iter=true' required");
-      }
-#endif
     }
     base::FlushFile(*session->write_into_file);
     base::Status status =
