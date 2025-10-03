@@ -173,28 +173,29 @@ uint32_t event_type_id = sample.event_type_id();
 uint64_t event_count = sample.event_count();
 
 // Process callchain
-std::vector<CallsiteId> callsites;
-CallsiteId parent_callsite = std::nullopt;
-
+// Simpleperf provides callchain in leaf-to-root order, but Perfetto uses
+// depth 0 = root convention. Reverse the entries to build root-to-leaf.
+std::vector<CallChainData> entries;
 for (auto entry : sample.callchain()) {
   CallChainEntry::Decoder call(entry);
-  uint64_t vaddr = call.vaddr_in_file();
-  uint32_t file_id = call.file_id();
-  int32_t symbol_id = call.symbol_id();
-
-  // Resolve symbol name from file's symbol table (populated by tokenizer)
-  std::optional<StringId> symbol_name = ResolveSymbol(file_id, symbol_id);
-
-  // Create frame and callsite
-  FrameId frame = CreateFrame(vaddr, file_id, symbol_name);
-  CallsiteId callsite = CreateCallsite(frame, parent_callsite);
-
-  parent_callsite = callsite;
+  entries.push_back({call.vaddr_in_file(), call.file_id(), call.symbol_id()});
 }
 
-// Insert into perf_sample table
-context_->storage->mutable_perf_sample_table()->Insert({
-  ts, tid, parent_callsite, event_count
+CallsiteId parent_callsite = std::nullopt;
+uint32_t depth = 0;
+
+for (auto rit = entries.rbegin(); rit != entries.rend(); ++rit) {
+  // Resolve symbol name from file's symbol table (populated by tokenizer)
+  std::optional<StringId> symbol_name = ResolveSymbol(rit->file_id, rit->symbol_id);
+
+  // Create frame and callsite (building from root to leaf, depth 0 = root)
+  FrameId frame = CreateFrame(rit->vaddr, rit->file_id, symbol_name);
+  parent_callsite = CreateCallsite(frame, parent_callsite, depth++);
+}
+
+// Insert into cpu_profile_stack_sample table with leaf callsite
+context_->storage->mutable_cpu_profile_stack_sample_table()->Insert({
+  ts, parent_callsite, tid, /*process_priority=*/0
 });
 ```
 
