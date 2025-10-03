@@ -53,6 +53,7 @@
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -4146,6 +4147,23 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       return PERFETTO_SVC_ERR(
           "Failed to clone 'write_into_file' session: a file descriptor is "
           "required to copy existing file");
+    }
+    // TODO(ktimofeev): write comment about two different clone options
+    // (read/don't read from file), Traceur and how it is related to the
+    // 'buffer_clone_preserve_read_iter' flag (see b/382209797).
+    if (!base::flags::buffer_clone_preserve_read_iter) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+      // On Windows 'base::GetFileSize' expects 'PlatformHandle', but
+      // 'ScopedFile::operator*()' returns int, so the next line won't compile.
+      // This code never executes on Windows, so we just '#ifdef' it.
+      bool session_write_into_file_empty_file =
+          base::GetFileSize(*session->write_into_file).value_or(-1) <= 0;
+      if (!session_write_into_file_empty_file) {
+        return PERFETTO_SVC_ERR(
+            "Failed to clone 'write_into_file' session: flag "
+            "'buffer_clone_preserve_read_iter=true' required");
+      }
+#endif
     }
     base::FlushFile(*session->write_into_file);
     base::Status status =

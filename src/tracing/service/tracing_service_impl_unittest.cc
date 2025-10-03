@@ -33,6 +33,7 @@
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
@@ -2279,6 +2280,10 @@ TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
+  if (!base::flags::buffer_clone_preserve_read_iter) {
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+  }
+
   auto write_into_file_session_file = base::TempFile::Create();
   auto cloned_session_file = base::TempFile::Create();
 
@@ -2371,6 +2376,10 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
+  if (!base::flags::buffer_clone_preserve_read_iter) {
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+  }
+
   auto write_into_file_session_file = base::TempFile::Create();
   auto cloned_session_file = base::TempFile::Create();
 
@@ -2477,6 +2486,10 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
 // session. This is test is needed, because we have a slightly different code
 // path when we clone the 'write_into_file' session.
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
+  if (!base::flags::buffer_clone_preserve_read_iter) {
+    GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
+  }
+
   using TracingServiceEvent = protos::gen::TracingServiceEvent;
   std::unique_ptr<MockProducer> producer;
   std::unique_ptr<MockConsumer> consumer;
