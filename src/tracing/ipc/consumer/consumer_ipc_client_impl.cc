@@ -524,6 +524,8 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
               {response->success(), response->error(), uuid});
         }
       });
+  // |args.output_file_fd| will be closed when this function returns, but it's
+  // fine because the IPC layer dup()'s it when sending the IPC.
   consumer_port_.CloneSession(req, std::move(async_response),
                               *args.output_file_fd);
 }

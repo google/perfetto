@@ -1041,6 +1041,10 @@ void PerfettoCmd::OnConnect() {
     }
 
     if (trace_out_stream_) {
+      // We always send the file descriptor to the traced, because perfetto_cmd
+      // doesn't know if the session to clone is 'write_into_file' session.
+      // The traced decides weither it writes the cloned buffers to this file
+      // descriptor or send them to the perfetto_cmd.
       args.output_file_fd = base::ScopedFile(dup(fileno(*trace_out_stream_)));
     }
 
