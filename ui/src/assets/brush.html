@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Brush API Request with OAuth</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #f5f5f5;
+  }
+
+  h1 {
+    color: #333;
+  }
+
+  .section {
+    background: white;
+    padding: 20px;
+    margin: 20px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .section h2 {
+    margin-top: 0;
+    color: #666;
+    font-size: 18px;
+  }
+
+  button {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 5px;
+  }
+
+  button:hover {
+    background: #357ae8;
+  }
+
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .status {
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .status.info {
+    background: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .status.success {
+    background: #e8f5e9;
+    color: #388e3c;
+  }
+
+  .status.error {
+    background: #ffebee;
+    color: #c62828;
+  }
+
+  pre {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 4px;
+    overflow-x: auto;
+    max-height: 400px;
+    font-size: 12px;
+  }
+
+  .token-display {
+    font-family: monospace;
+    font-size: 11px;
+    word-break: break-all;
+    color: #666;
+  }
+</style>
+</head>
+<body>
+<h1>Brush API Request with OAuth</h1>
+
+<!-- OAuth Section -->
+<div class="section">
+  <h2>1. OAuth Authentication (GIS)</h2>
+  <div id="authStatus" class="status info">Not authenticated</div>
+  <button id="loginBtn">Sign in with Google (OAuth)</button>
+  <button id="serverLoginBtn">Sign in with Server-Side Flow</button>
+  <button id="logoutBtn" disabled>Sign out</button>
+  <div id="tokenInfo" style="margin-top: 10px;"></div>
+  <div id="copy-token-section" style="display:none; margin-top: 15px;">
+    <button id="copyTokenBtn">Copy UI Flow Access Token</button>
+  </div>
+</div>
+
+<!-- CorpSSO Login Section -->
+<div class="section">
+  <h2>2. CorpSSO login</h2>
+  <button id="sendBtn">Send Request to /v1/login (CorpSSO)</button>
+  <pre id="response"></pre>
+</div>
+
+<!-- Authenticated Request Section -->
+<div class="section">
+  <h2>3. Authenticated Request (with OAuth token)</h2>
+  <button id="sendAuthBtn" disabled>Send Authenticated Request to /v1/trace_metrics</button>
+  <pre id="authResponse"></pre>
+</div>
+
+<!-- Load Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+// ===== GLOBAL STATE =====
+let accessToken = null;
+let tokenExpiry = null;
+
+// ===== CONFIGURATION =====
+const OAUTH_CONFIG = {
+  client_id: '411615048506-f3t8ivlhcb7h8uac1u8hguirs2os5ii7.apps.googleusercontent.com', // Replace with your client ID
+  scope: 'openid email profile',
+  // Add any other scopes needed for Brush API
+};
+
+const BRUSH_API_URL = 'https://brush-googleapis.corp.google.com/v1/trace_metrics';
+
+// ===== OAUTH FUNCTIONS =====
+
+function initGoogleSignIn() {
+  // Initialize Google Identity Services
+  google.accounts.id.initialize({
+    client_id: OAUTH_CONFIG.client_id,
+    callback: handleCredentialResponse,
+    auto_select: false,
+  });
+
+  // Set up OAuth2 token client for implicit flow
+  window.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CONFIG.client_id,
+    scope: OAUTH_CONFIG.scope,
+    callback: (tokenResponse) => {
+      if (tokenResponse.error) {
+        console.error('OAuth error:', tokenResponse);
+        updateAuthStatus('error', 'Authentication failed: ' + tokenResponse.error);
+        return;
+      }
+
+      // Store token in memory
+      accessToken = tokenResponse.access_token;
+      tokenExpiry = Date.now() + (tokenResponse.expires_in * 1000);
+
+      console.log('Access token obtained:', accessToken.substring(0, 20) + '...');
+
+      // Fetch user info from Google
+      fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      .then(response => response.json())
+      .then(userInfo => {
+        const userName = userInfo.name || userInfo.email;
+        const gaiaId = userInfo.id ? ` (ID: ${userInfo.id})` : '';
+        updateAuthStatus('success', `Authenticated as ${userName}${gaiaId}`);
+        updateTokenDisplay();
+        enableAuthenticatedButtons();
+        document.getElementById('copy-token-section').style.display = 'block';
+      })
+      .catch(error => {
+        console.error('Error fetching user info:', error);
+        updateAuthStatus('error', 'Authentication succeeded, but failed to fetch user info.');
+      });
+    },
+  });
+}
+
+function handleCredentialResponse(response) {
+  // This handles ID token (for user info only, not API access)
+  console.log('Credential response:', response);
+}
+
+function login() {
+  if (!window.tokenClient) {
+    updateAuthStatus('error', 'Google Sign-In not initialized yet. Please wait and try again.');
+    return;
+  }
+
+  // Request access token
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+
+function logout() {
+  const serverLogout = fetch('/auth/logout', { method: 'GET' });
+
+  const clientLogout = new Promise((resolve) => {
+    if (accessToken) {
+      google.accounts.oauth2.revoke(accessToken, () => {
+        console.log('Client-side token revoked');
+        resolve();
+      });
+    } else {
+      resolve();
+    }
+  });
+
+  // Run both logouts and then update the UI, regardless of individual success.
+  Promise.allSettled([serverLogout, clientLogout]).then(() => {
+    accessToken = null;
+    tokenExpiry = null;
+    updateAuthStatus('info', 'Not authenticated');
+    updateTokenDisplay();
+    disableAuthenticatedButtons();
+    document.getElementById('copy-token-section').style.display = 'none';
+  });
+}
+
+function isTokenValid() {
+  return accessToken && tokenExpiry && Date.now() < tokenExpiry;
+}
+
+function updateAuthStatus(type, message) {
+  const statusEl = document.getElementById('authStatus');
+  statusEl.className = `status ${type}`;
+  statusEl.textContent = message;
+}
+
+function updateTokenDisplay() {
+  const tokenInfoEl = document.getElementById('tokenInfo');
+
+  if (accessToken) {
+    const expiresIn = Math.floor((tokenExpiry - Date.now()) / 1000);
+    tokenInfoEl.innerHTML = `
+      <div class="token-display">
+        <strong>Access Token:</strong> ${accessToken.substring(0, 30)}...${accessToken.substring(accessToken.length - 10)}<br>
+        <strong>Expires in:</strong> ${expiresIn} seconds
+      </div>
+    `;
+  } else {
+    tokenInfoEl.innerHTML = '';
+  }
+}
+
+function enableAuthenticatedButtons() {
+  document.getElementById('sendAuthBtn').disabled = false;
+  document.getElementById('logoutBtn').disabled = false;
+  document.getElementById('loginBtn').disabled = true;
+}
+
+function disableAuthenticatedButtons() {
+  document.getElementById('sendAuthBtn').disabled = true;
+  document.getElementById('logoutBtn').disabled = true;
+  document.getElementById('loginBtn').disabled = false;
+}
+
+// ===== API REQUEST FUNCTIONS =====
+
+async function sendAuthenticatedRequest() {
+  const data = {
+    metric_id: 'android_anr',
+    page_size: 1,
+    offset: 0
+  };
+
+  document.getElementById('authResponse').textContent = 'Sending authenticated request...';
+
+  // If a client-side token is available and valid, use it directly.
+  if (isTokenValid()) {
+    console.log("Sending request with client-side UI token.");
+    try {
+      const response = await fetch(BRUSH_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(data),
+        mode: 'cors'
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}\n${errorText}`);
+      }
+      const responseData = await response.json();
+      document.getElementById('authResponse').textContent = 'Success (UI Flow)!\n\n' + JSON.stringify(responseData, null, 2);
+    } catch (e) {
+      document.getElementById('authResponse').textContent = 'Error (UI Flow): ' + e.message;
+      console.error('Client-side authenticated fetch error:', e);
+    }
+  } else {
+    // Otherwise, use the server-side proxy endpoint.
+    console.log("Sending request via server-side proxy.");
+    try {
+      const response = await fetch('/api/v1/trace_metrics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+        // No 'Authorization' header needed; the browser sends the session cookie.
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}\n${errorText}`);
+      }
+      const responseData = await response.json();
+      document.getElementById('authResponse').textContent = 'Success (Server Flow)!\n\n' + JSON.stringify(responseData, null, 2);
+    } catch (e) {
+      document.getElementById('authResponse').textContent = 'Error (Server Flow): ' + e.message;
+      console.error('Server-side proxy fetch error:', e);
+    }
+  }
+}
+
+async function sendCorpSsoRequest() {
+  document.getElementById('response').textContent = 'Sending CorpSSO login request...';
+
+  try {
+    const response = await fetch('https://brush-googleapis.corp.google.com/v1/login', {
+      method: 'GET',
+      mode: 'cors',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      // If the response is a redirect, the browser will handle it.
+      // We check for specific statuses that indicate a successful transparent redirect.
+      if (response.status >= 300 && response.status < 400) {
+         document.getElementById('response').textContent =
+           'Login redirect initiated. Check the new window or tab.';
+         // Since this is a GET, we can also just redirect the user
+         window.location.href = 'https://brush-googleapis.corp.google.com/v1/login';
+         return;
+      }
+      throw new Error(`HTTP error! status: ${response.status}\n${errorText}`);
+    }
+
+    const responseData = await response.json();
+    document.getElementById('response').textContent =
+      'Success!\n\n' + JSON.stringify(responseData, null, 2);
+  } catch (e) {
+    document.getElementById('response').textContent =
+      'Error: ' + e.message + '\n\n' +
+      'Check browser console for details.';
+    console.error('CorpSSO fetch error:', e);
+  }
+}
+
+// ===== EVENT LISTENERS =====
+
+document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('serverLoginBtn').addEventListener('click', () => {
+  window.location.href = '/auth/login';
+});
+document.getElementById('logoutBtn').addEventListener('click', logout);
+document.getElementById('sendAuthBtn').addEventListener('click', sendAuthenticatedRequest);
+document.getElementById('sendBtn').addEventListener('click', sendCorpSsoRequest);
+document.getElementById('copyTokenBtn').addEventListener('click', () => {
+  if (accessToken) {
+    navigator.clipboard.writeText(accessToken).then(() => {
+      alert("Token copied to clipboard!");
+    });
+  }
+});
+
+// ===== INITIALIZATION =====
+
+// Wait for Google Identity Services to load
+window.onload = () => {
+  // Check server-side auth status first
+  fetch('/api/user')
+    .then(response => response.json())
+    .then(data => {
+      if (data.authenticated) {
+        const userName = data.name || data.email;
+        const gaiaId = data.gaia_id ? ` (ID: ${data.gaia_id})` : '';
+        updateAuthStatus('success', `Authenticated as ${userName}${gaiaId}`);
+        enableAuthenticatedButtons();
+      }
+    })
+    .catch(error => console.error('Error checking auth status:', error));
+
+
+  // Check if google is defined
+  const checkGoogleLoaded = setInterval(() => {
+    if (typeof google !== 'undefined' && google.accounts) {
+      clearInterval(checkGoogleLoaded);
+      initGoogleSignIn();
+      console.log('Google Identity Services initialized');
+    }
+  }, 100);
+
+  // Timeout after 10 seconds
+  setTimeout(() => {
+    clearInterval(checkGoogleLoaded);
+    if (typeof google === 'undefined' || !google.accounts) {
+      updateAuthStatus('error', 'Failed to load Google Identity Services');
+      console.error('Google Identity Services failed to load');
+    }
+  }, 10000);
+};
+
+// Update token expiry display every second
+setInterval(() => {
+  if (accessToken && tokenExpiry) {
+    updateTokenDisplay();
+
+    // Check if token expired
+    if (!isTokenValid()) {
+      updateAuthStatus('error', 'Token expired. Please sign in again.');
+      disableAuthenticatedButtons();
+    }
+  }
+}, 1000);
+
+</script>
+</body>
+</html>

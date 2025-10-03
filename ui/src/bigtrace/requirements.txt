@@ -1,0 +1,7 @@
+flask
+google-cloud-secret-manager
+httpx
+google-auth
+gunicorn
+pyjwt
+cryptography

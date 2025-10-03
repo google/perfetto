@@ -1,0 +1,27 @@
+# Git
+# .git
+
+# Build outputs
+out
+ui/out
+
+# Node modules
+node_modules
+ui/node_modules
+
+# Python virtual environment
+.venv
+
+# Rust build artifacts
+.cargo
+target
+
+# Python cache
+*.pyc
+__pycache__
+
+# OS-specific
+.DS_Store
+
+# Symlinks created by the build script
+ui/src/gen
