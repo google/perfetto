@@ -12,17 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/proto_library.gni")
-
-perfetto_proto_library("@TYPE@") {
-  proto_generators = [
-    "zero",
-    "cpp",
-  ]
+source_set("simpleperf_proto") {
   sources = [
-    "cmd_report_sample.proto",
-    "record_file.proto",
+    "simpleperf_proto_parser.cc",
+    "simpleperf_proto_parser.h",
+    "simpleperf_proto_tokenizer.cc",
+    "simpleperf_proto_tokenizer.h",
+    "simpleperf_proto_tracker.h",
   ]
-  generate_descriptor = "simpleperf.descriptor"
-  descriptor_root_source = "cmd_report_sample.proto"
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../../../protos/third_party/simpleperf:zero",
+    "../../importers/common:common",
+    "../../sorter",
+    "../../storage",
+    "../../types",
+    "../../util:trace_blob_view_reader",
+  ]
 }

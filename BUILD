@@ -374,6 +374,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
         ":src_trace_processor_importers_proto_winscope_full",
+        ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -2444,6 +2445,18 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/proto_importer_module.cc",
         "src/trace_processor/importers/proto/proto_importer_module.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/simpleperf_proto:simpleperf_proto
+perfetto_filegroup(
+    name = "src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
+    srcs = [
+        "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_parser.cc",
+        "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_parser.h",
+        "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.cc",
+        "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h",
+        "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tracker.h",
     ],
 )
 
@@ -7223,6 +7236,7 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_third_party_simpleperf_protos",
     srcs = [
+        "protos/third_party/simpleperf/cmd_report_sample.proto",
         "protos/third_party/simpleperf/record_file.proto",
     ],
     visibility = [
@@ -7531,6 +7545,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
         ":src_trace_processor_importers_proto_winscope_full",
+        ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -7742,6 +7757,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
         ":src_trace_processor_importers_proto_winscope_full",
+        ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -7945,6 +7961,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
         ":src_trace_processor_importers_proto_winscope_full",
+        ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",

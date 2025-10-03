@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import struct
 import subprocess
 import tempfile
 from typing import Any, IO, List, Optional
@@ -21,6 +22,7 @@ from typing import Any, IO, List, Optional
 from google.protobuf import text_format
 
 from python.generators.diff_tests.testing import (DataPath, Path, TextProto,
+                                                  SimpleperfProto,
                                                   TraceInjector)
 from python.generators.diff_tests.utils import ProtoManager
 
@@ -66,6 +68,37 @@ class TraceGenerator:
       env['PYTHONPATH'] = os.path.join(root_dir, 'test')
     subprocess.check_call(python_cmd, env=env, stdout=out_stream)
 
+  def serialize_simpleperf_proto_trace(self, simpleperf_trace: SimpleperfProto,
+                                       out_stream: IO[bytes]):
+    # Write simpleperf_proto header
+    # Magic: "SIMPLEPERF" (10 bytes, null-padded)
+    magic = b"SIMPLEPERF"
+    out_stream.write(magic)
+
+    # Version: LittleEndian16 = 1
+    out_stream.write(struct.pack('<H', 1))
+
+    # Get the simpleperf Record proto message type
+    proto_manager = ProtoManager([self.trace_descriptor_path] +
+                                 self.extension_descriptor_paths)
+    record_proto_class = proto_manager.create_message(
+        'perfetto.third_party.simpleperf.proto.Record')
+
+    # Write each record
+    for record_textproto in simpleperf_trace.records:
+      record = record_proto_class()
+      text_format.Merge(record_textproto, record)
+      record_bytes = record.SerializeToString()
+
+      # Write record size (LittleEndian32)
+      out_stream.write(struct.pack('<I', len(record_bytes)))
+      # Write record data
+      out_stream.write(record_bytes)
+
+    # End marker: LittleEndian32(0)
+    out_stream.write(struct.pack('<I', 0))
+    out_stream.flush()
+
 
 def generate_trace_file(test_case: Any, trace_descriptor_path: str,
                         extension_descriptor_paths: List[str]) -> Optional[Any]:
@@ -97,6 +130,11 @@ def generate_trace_file(test_case: Any, trace_descriptor_path: str,
     text_format.Merge(test_case.blueprint.trace.contents, proto)
     gen_trace_file.write(proto.SerializeToString())
     gen_trace_file.flush()
+
+  elif test_case.blueprint.is_trace_simpleperf_proto():
+    gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
+    trace_generator.serialize_simpleperf_proto_trace(test_case.blueprint.trace,
+                                                     gen_trace_file)
 
   else:
     gen_trace_file = tempfile.NamedTemporaryFile(delete=False)

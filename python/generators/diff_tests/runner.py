@@ -144,7 +144,7 @@ class DiffTestsRunner:
                 trace_descriptor_path: str) -> Tuple[str, str, TestResult]:
     extension_descriptor_paths = [
         self.config.chrome_extensions, self.config.test_extensions,
-        self.config.winscope_extensions
+        self.config.winscope_extensions, self.config.simpleperf_extensions
     ]
     gen_trace_file = generate_trace_file(test, trace_descriptor_path,
                                          extension_descriptor_paths)
