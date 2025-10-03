@@ -216,6 +216,7 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_experimental_id_(
           context->storage->InternString("Jank tag (experimental)")),
       is_buffer_id_(context->storage->InternString("Is Buffer?")),
+      jank_tag_unspecified_id_(context->storage->InternString("Unspecified")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
       jank_tag_other_id_(context->storage->InternString("Other Jank")),
@@ -257,7 +258,9 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
 StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     int32_t jank_type) {
   StringId jank_tag;
-  if (DisplayFrameJanky(jank_type)) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
+    jank_tag = jank_tag_unspecified_id_;
+  } else if (DisplayFrameJanky(jank_type)) {
     jank_tag = jank_tag_self_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_SF_STUFFING) {
     jank_tag = jank_tag_sf_stuffing_id_;
@@ -442,7 +445,9 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
     int32_t jank_type,
     std::optional<int32_t> present_type_opt) {
   StringId jank_tag;
-  if (SurfaceFrameJanky(jank_type)) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
+    jank_tag = jank_tag_unspecified_id_;
+  } else if (SurfaceFrameJanky(jank_type)) {
     jank_tag = jank_tag_self_id_;
   } else if (DisplayFrameJanky(jank_type)) {
     jank_tag = jank_tag_other_id_;
