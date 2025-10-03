@@ -1,0 +1,32 @@
+# .gcloudignore
+#
+# This file specifies files that are *not* uploaded to Google Cloud Build.
+# It uses the same syntax as .gitignore.
+# See `gcloud topic gcloudignore` for more details.
+
+# Ignore large build artifact and dependency directories.
+# The build should always be done from a clean state inside Cloud Build.
+/out/
+/.cache/
+
+# Ignore node modules. These should be installed by the build script.
+/node_modules/
+/ui/node_modules/
+
+# Ignore Python virtual environments.
+.venv/
+
+# Ignore local editor and OS files.
+.vscode/
+.idea/
+.DS_Store
+
+# Ignore other gcloud configurations
+.gcloud/
+
+# Ignore development-specific artifacts and tags files
+GRTAGS
+GTAGS
+GPATH
+compile_commands.json
+perf.data*
