@@ -28,6 +28,7 @@ import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {CommandInvocation, CommandManagerImpl} from './command_manager';
+import {embedderContext} from './embedder';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -138,9 +139,14 @@ export class AppContext {
       initArgs.enforceStartupCommandAllowlistSetting;
     this.settingsManager = initArgs.settingsManager;
     this.initArgs = initArgs;
-    this.initialRouteArgs = initArgs.initialRouteArgs;
+    this.initialRouteArgs = {
+      ...initArgs.initialRouteArgs,
+      ...(embedderContext?.initialRouteArgs ?? {}),
+    };
     this.serviceWorkerController = new ServiceWorkerController();
-    this.embeddedMode = this.initialRouteArgs.mode === 'embedded';
+    this.embeddedMode =
+      this.initialRouteArgs.mode === 'embedded' ||
+      embedderContext !== undefined;
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
