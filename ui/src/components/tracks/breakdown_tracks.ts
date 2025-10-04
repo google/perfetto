@@ -15,7 +15,6 @@
 import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
 import {SliceTrack} from './slice_track';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -25,7 +24,9 @@ import {
   NUM_NULL,
   STR,
   LONG_NULL,
+  NUM,
 } from '../../trace_processor/query_result';
+import {CounterTrack} from './counter_track';
 import {TrackRenderer} from '../../public/track';
 
 /**
@@ -425,19 +426,19 @@ export class BreakdownTracks {
       name,
       newFilters,
       (uri: string, filtersClause: string) => {
-        return createQueryCounterTrack({
+        return CounterTrack.createMaterialized({
           trace: this.props.trace,
           uri,
-          data: {
-            sqlSource: `
+          dataset: new SourceDataset({
+            src: `
               SELECT ts, value FROM
               (${this.getAggregationQuery(filtersClause)})
             `,
-          },
-          columns: {
-            ts: 'ts',
-            value: 'value',
-          },
+            schema: {
+              ts: LONG,
+              value: NUM,
+            },
+          }),
         });
       },
       (filterClause) => this.getCounterTrackSortOrder(filterClause),
