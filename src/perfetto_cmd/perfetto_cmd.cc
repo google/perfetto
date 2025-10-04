@@ -1039,6 +1039,15 @@ void PerfettoCmd::OnConnect() {
       args.clone_trigger_boot_time_ns = snapshot_trigger_info_->boot_time_ns;
       args.clone_trigger_delay_ms = snapshot_trigger_info_->trigger_delay_ms;
     }
+
+    if (trace_out_stream_) {
+      // We always send the file descriptor to the traced, because perfetto_cmd
+      // doesn't know if the session to clone is 'write_into_file' session.
+      // The traced decides weither it writes the cloned buffers to this file
+      // descriptor or send them to the perfetto_cmd.
+      args.output_file_fd = base::ScopedFile(dup(fileno(*trace_out_stream_)));
+    }
+
     consumer_endpoint_->CloneSession(std::move(args));
     return;
   }

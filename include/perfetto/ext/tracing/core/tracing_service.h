@@ -226,6 +226,11 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // If not zero, this is stored in the trace as the configured delay (in
     // milliseconds) of the trigger that caused the clone.
     uint64_t clone_trigger_delay_ms = 0;
+
+    // If valid, and the session that should be cloned is 'write_into_file'
+    // session, traced writes the cloned session content to this file
+    // descriptor, instead of writing it in the cloned session buffers.
+    base::ScopedFile output_file_fd;
   };
   virtual void CloneSession(CloneSessionArgs) = 0;
 
