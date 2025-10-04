@@ -125,7 +125,7 @@ export async function loadTrace(
   app: AppImpl,
   traceSource: TraceSource,
 ): Promise<TraceImpl> {
-  updateStatus(app, 'Opening trace');
+  updateStatus(traceSource, app, 'Opening trace');
   const engineId = `${++lastEngineId}`;
   const engine = await createEngine(app, engineId);
   return await loadTraceIntoEngine(app, traceSource, engine);
@@ -212,7 +212,7 @@ async function loadTraceIntoEngine(
         status += `${Math.round(res.bytesRead / 1e6)} MB`;
       }
       status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
-      updateStatus(app, status);
+      updateStatus(traceSource, app, status);
       if (res.eof) break;
     }
     await engine.notifyEof();
@@ -257,7 +257,7 @@ async function loadTraceIntoEngine(
   Router.navigate(`#!${nextPage}?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
-  await includeSummaryTables(trace);
+  await includeSummaryTables(trace, app);
 
   await defineMaxLayoutDepthSqlFunction(engine);
 
@@ -266,12 +266,12 @@ async function loadTraceIntoEngine(
   }
 
   await app.plugins.onTraceLoad(trace, (id) => {
-    updateStatus(app, `Running plugin: ${id}`);
+    updateStatus(trace, app, `Running plugin: ${id}`);
   });
 
   decideTabs(trace);
 
-  updateStatus(app, `Loading minimap`);
+  updateStatus(trace, app, `Loading minimap`);
   await trace.minimap.load(traceDetails.start, traceDetails.end);
 
   // Trace Processor doesn't support the reliable range feature for JSON
@@ -305,7 +305,7 @@ async function loadTraceIntoEngine(
   // after the trace is fully loaded and any saved state has been restored.
   // This ensures startup commands see the complete, final state of the trace.
   if (trace.commands.hasStartupCommands()) {
-    updateStatus(app, 'Running startup commands');
+    updateStatus(trace, app, 'Running startup commands');
     using _ = trace.omnibox.disablePrompts();
     await trace.commands.runStartupCommands();
   }
@@ -320,24 +320,30 @@ function decideTabs(trace: TraceImpl) {
   }
 }
 
-async function includeSummaryTables(trace: TraceImpl) {
+async function includeSummaryTables(trace: TraceImpl, app: AppImpl) {
   const engine = trace.engine;
-  updateStatus(trace, 'Creating slice summaries');
+  updateStatus(trace, app, 'Creating slice summaries');
   await engine.query(`include perfetto module viz.summary.slices;`);
 
-  updateStatus(trace, 'Creating counter summaries');
+  updateStatus(trace, app, 'Creating counter summaries');
   await engine.query(`include perfetto module viz.summary.counters;`);
 
-  updateStatus(trace, 'Creating thread summaries');
+  updateStatus(trace, app, 'Creating thread summaries');
   await engine.query(`include perfetto module viz.summary.threads;`);
 
-  updateStatus(trace, 'Creating processes summaries');
+  updateStatus(trace, app, 'Creating processes summaries');
   await engine.query(`include perfetto module viz.summary.processes;`);
 }
 
-function updateStatus(traceOrApp: TraceImpl | AppImpl, msg: string): void {
+function updateStatus(
+  trace: TraceSource | TraceImpl,
+  app: AppImpl,
+  msg: string,
+): void {
   const showUntilDismissed = 0;
-  traceOrApp.omnibox.showStatusMessage(msg, showUntilDismissed);
+  const omnibox =
+    trace instanceof TraceImpl ? trace.omnibox : app.omnibox.childFor(trace);
+  omnibox.showStatusMessage(msg, showUntilDismissed);
 }
 
 async function computeFtraceBounds(engine: Engine): Promise<TimeSpan | null> {
@@ -491,7 +497,7 @@ async function getTraceInfo(
   // trace_uuid can be missing from the TP tables if the trace is empty or in
   // other similar edge cases.
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
-  updateStatus(app, 'Caching trace...');
+  updateStatus(traceSource, app, 'Caching trace...');
   const cached = await cacheTrace(traceSource, uuid);
 
   const downloadable =
