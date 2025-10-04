@@ -67,6 +67,15 @@ export class PerfettoTestHelper {
     await this.page.evaluate(() =>
       localStorage.setItem('dismissedPanningHint', 'true'),
     );
+    // Apply some CSS to make fonts more stable in screenshot tests.
+    await this.page.addStyleTag({
+      content: `
+        * {
+          -webkit-font-smoothing: antialiased !important;
+          font-kerning: none !important;
+        }
+      `,
+    });
     const tracePath = this.getTestTracePath(traceName);
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
