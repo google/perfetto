@@ -16,7 +16,7 @@ import m from 'mithril';
 import {HTMLAnchorAttrs} from './common';
 import {Icon} from './icon';
 
-interface AnchorAttrs extends HTMLAnchorAttrs {
+export interface AnchorAttrs extends HTMLAnchorAttrs {
   // Optional icon to show at the end of the content.
   icon?: string;
 }
