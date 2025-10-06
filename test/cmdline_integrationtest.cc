@@ -1169,7 +1169,7 @@ TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
   fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written");
 
-  // Wait untill all the data for the 'write_into_file' session is written into
+  // Wait until all the data for the 'write_into_file' session is written into
   // file.
   bool write_into_file_data_ready = false;
   for (int i = 0; i < 100; i++) {

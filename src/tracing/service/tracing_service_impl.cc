@@ -4166,6 +4166,10 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
           status.c_message());
     }
   } else {
+    // The client always sends a FD because when it asks to CloneSession,
+    // it doesn't know if the session being cloned is WIF or not. If it's
+    // not we should just ignore the file, the client will readback via IPC
+    // as usual in that case.
     args.output_file_fd.reset();
   }
 
