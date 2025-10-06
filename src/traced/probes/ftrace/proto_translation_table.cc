@@ -645,8 +645,8 @@ const Event* ProtoTranslationTable::CreateGenericEventInternal(
   event_pb_descriptor->set_name(group_and_name.name());
 
   auto add_pb_desc_field =
-      [&event_pb_descriptor](uint32_t id, const std::string& name,
-                             protos::pbzero::FieldDescriptorProto::Type type) {
+      [event_pb_descriptor](uint32_t id, const std::string& name,
+                            protos::pbzero::FieldDescriptorProto::Type type) {
         auto* f = event_pb_descriptor->add_field();
         f->set_number(static_cast<int32_t>(id));
         f->set_name(name);
