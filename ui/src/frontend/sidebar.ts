@@ -482,6 +482,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     }
     return m(
       'li',
+      {key: item.id}, // This is to work around a mithril bug (b/449784590).
       m(
         'a',
         {
