@@ -517,11 +517,12 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
           // If the IPC fails, we are talking to an older version of the service
           // that didn't support CloneSession at all.
           weak_this->consumer_->OnSessionCloned(
-              {false, "CloneSession IPC not supported", {}});
+              {false, "CloneSession IPC not supported", {}, false});
         } else {
           base::Uuid uuid(response->uuid_lsb(), response->uuid_msb());
           weak_this->consumer_->OnSessionCloned(
-              {response->success(), response->error(), uuid});
+              {response->success(), response->error(), uuid,
+               response->was_write_into_file()});
         }
       });
   // |args.output_file_fd| will be closed when this function returns, but it's

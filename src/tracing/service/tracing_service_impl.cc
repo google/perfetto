@@ -2880,7 +2880,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
           [weak_consumer = clone_op.weak_consumer] {
             if (weak_consumer) {
               weak_consumer->consumer_->OnSessionCloned(
-                  {false, "Original session ended", {}});
+                  {false, "Original session ended", {}, false});
             }
           });
     }
@@ -4314,6 +4314,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
     result = PERFETTO_SVC_ERR("Buffer allocation failed");
   }
 
+  bool was_write_into_file = false;
   if (result.ok()) {
     UpdateMemoryGuardrail();
 
@@ -4326,6 +4327,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
                  final_flush_outcome);
 
     if (clone_op.weak_consumer) {
+      was_write_into_file = static_cast<bool>(clone_op.output_file_fd);
       result = FinishCloneSession(
           &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
           std::move(clone_op.buffer_cloned_timestamps),
@@ -4337,7 +4339,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
 
   if (clone_op.weak_consumer) {
     clone_op.weak_consumer->consumer_->OnSessionCloned(
-        {result.ok(), result.message(), uuid});
+        {result.ok(), result.message(), uuid, was_write_into_file});
   }
 
   src->pending_clones.erase(it);
@@ -4871,7 +4873,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
   base::Status result = service_->FlushAndCloneSession(this, std::move(args));
 
   if (!result.ok()) {
-    consumer_->OnSessionCloned({false, result.message(), {}});
+    consumer_->OnSessionCloned({false, result.message(), {}, false});
   }
 }
 

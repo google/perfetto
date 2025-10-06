@@ -520,6 +520,7 @@ void ConsumerIPCService::RemoteConsumer::OnSessionCloned(
   resp->set_error(args.error);
   resp->set_uuid_msb(args.uuid.msb());
   resp->set_uuid_lsb(args.uuid.lsb());
+  resp->set_was_write_into_file(args.was_write_into_file);
   std::move(clone_session_response).Resolve(std::move(resp));
 }
 

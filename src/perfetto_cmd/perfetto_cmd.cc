@@ -1177,9 +1177,8 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
   // and we don't want to log anything after that.
   LogUploadEvent(PerfettoStatsdAtom::kOnTracingDisabled);
 
-  if (trace_config_->write_into_file()) {
-    // If write_into_file == true, at this point the passed file contains
-    // already all the packets.
+  if (trace_config_->write_into_file() || cloned_session_was_write_into_file_) {
+    // At this point the passed file already contains all the packets.
     return FinalizeTraceAndExit();
   }
 
@@ -1362,6 +1361,8 @@ void PerfettoCmd::OnSessionCloned(const OnSessionClonedArgs& args) {
     LogUploadEvent(PerfettoStatsdAtom::kCmdOnTriggerSessionClone,
                    snapshot_trigger_info_->trigger_name);
   }
+
+  cloned_session_was_write_into_file_ = args.was_write_into_file;
   ReadbackTraceDataAndQuit(full_error);
 }
 
