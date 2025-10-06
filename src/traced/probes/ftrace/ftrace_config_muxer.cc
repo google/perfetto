@@ -682,6 +682,12 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
   }
 
+  // perfetto v53: self-describing protos are now enabled by default.
+  bool denser_generic_event_encoding =
+      request.has_denser_generic_event_encoding()
+          ? request.denser_generic_event_encoding()
+          : true;
+
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
   std::vector<std::string> categories_sdk_optout = Subtract(
@@ -694,7 +700,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           std::move(categories), std::move(categories_sdk_optout),
           request.symbolize_ksyms(), request.drain_buffer_percent(),
           GetSyscallsReturningFds(syscalls_), std::move(kprobes),
-          request.debug_ftrace_abi(), request.denser_generic_event_encoding()));
+          request.debug_ftrace_abi(), denser_generic_event_encoding));
   return true;
 }
 
