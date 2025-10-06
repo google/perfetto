@@ -389,6 +389,7 @@ class AndroidMetrics(TestSuite):
         wattson_app_startup_rails {
           metric_version: 4
           power_model_version: 1
+          is_crude_estimate: false
           period_info {
             period_id: 1
             period_dur: 385136434
@@ -456,6 +457,7 @@ class AndroidMetrics(TestSuite):
         wattson_trace_rails {
           metric_version: 4
           power_model_version: 1
+          is_crude_estimate: false
           period_info {
             period_id: 1
             period_dur: 61793079818
@@ -491,6 +493,74 @@ class AndroidMetrics(TestSuite):
         }
         """))
 
+  def test_wattson_trace_rails_wo_cpuidle(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_tk4_aot.pb'),
+        query=Metric("wattson_trace_rails"),
+        out=Csv("""
+        wattson_trace_rails {
+          metric_version: 4
+          power_model_version: 1
+          is_crude_estimate: true
+          period_info {
+            period_id: 1
+            period_dur: 16532191699
+            cpu_subsystem {
+              estimated_mw: 94.580833
+              estimated_mws: 1563.628418
+              policy0 {
+                estimated_mw: 48.416279
+                estimated_mws: 800.427185
+                cpu0 {
+                  estimated_mw: 11.371411
+                  estimated_mws: 187.994354
+                }
+                cpu1 {
+                  estimated_mw: 12.886018
+                  estimated_mws: 213.034119
+                }
+                cpu2 {
+                  estimated_mw: 12.652553
+                  estimated_mws: 209.174423
+                }
+                cpu3 {
+                  estimated_mw: 11.506296
+                  estimated_mws: 190.224289
+                }
+              }
+              policy4 {
+                estimated_mw: 22.661949
+                estimated_mws: 374.651703
+                cpu4 {
+                  estimated_mw: 9.433892
+                  estimated_mws: 155.962921
+                }
+                cpu5 {
+                  estimated_mw: 6.5253134
+                  estimated_mws: 107.877731
+                }
+                cpu6 {
+                  estimated_mw: 6.702744
+                  estimated_mws: 110.811043
+                }
+              }
+              policy7 {
+                estimated_mw: 19.993582
+                estimated_mws: 330.537750
+                cpu7 {
+                  estimated_mw: 19.993582
+                  estimated_mws: 330.537750
+                }
+              }
+              dsu_scu {
+                estimated_mw: 3.509021
+                estimated_mws: 58.011806
+              }
+            }
+          }
+        }
+        """))
+
   def test_wattson_trace_threads_output(self):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
@@ -517,6 +587,7 @@ class AndroidMetrics(TestSuite):
         wattson_markers_rails {
           metric_version: 4
           power_model_version: 1
+          is_crude_estimate: false
           period_info {
             period_id: 1
             period_dur: 2031888905

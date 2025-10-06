@@ -12,6 +12,7 @@
 .eslintcache
 .gclient*
 .gemini
+.gemini/
 .gm-actuals
 .gradle
 .idea
@@ -23,6 +24,7 @@
 .vscode
 *.code-workspace
 *.iml
+*.LOCAL.md
 *.pyc
 *.sock
 *.swp
@@ -35,12 +37,11 @@
 /venv/*
 depot_tools/
 examples/sdk/build/
+gha-creds-*.json
 GPATH
 GRTAGS
 GTAGS
 mise.toml
 perf.data*
+rfcs
 TAGS
-
-.gemini/
-gha-creds-*.json

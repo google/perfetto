@@ -1533,13 +1533,14 @@ destBucket
 avg_duration (RavgDuration!
 max_duration (RmaxDuration!
 sum_duration (RsumDuration
-ê
-<protos/perfetto/metrics/android/wattson_in_time_period.protoperfetto.protos"Å
+–
+<protos/perfetto/metrics/android/wattson_in_time_period.protoperfetto.protos"ñ
 AndroidWattsonTimePeriodMetric%
 metric_version (RmetricVersion.
 power_model_version (RpowerModelVersionL
 period_info (2+.perfetto.protos.AndroidWattsonEstimateInfoR
-periodInfo"­
+periodInfo*
+is_crude_estimate (RisCrudeEstimate"­
 AndroidWattsonEstimateInfo
 	period_id (RperiodId
 period_name (	R
@@ -1597,13 +1598,14 @@ period_dur (R	periodDurX
 Unit
 UNIT_UNSPECIFIED 
 COUNT_PER_SECOND
-œ
-?protos/perfetto/metrics/android/wattson_tasks_attribution.protoperfetto.protos"Í
+È
+?protos/perfetto/metrics/android/wattson_tasks_attribution.protoperfetto.protos"ù
 $AndroidWattsonTasksAttributionMetric%
 metric_version (RmetricVersion.
 power_model_version (RpowerModelVersionN
 period_info (2-.perfetto.protos.AndroidWattsonTaskPeriodInfoR
-periodInfo"¢
+periodInfo*
+is_crude_estimate (RisCrudeEstimate"¢
 AndroidWattsonTaskPeriodInfo
 	period_id (RperiodId
 period_name (	R

@@ -7469,53 +7469,71 @@ class FrameTimelineEvent(_message.Message):
     class PresentType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class ActualDisplayFrameStart(_message.Message):
-        __slots__ = ["cookie", "gpu_composition", "jank_severity_type", "jank_type", "on_time_finish", "pid", "prediction_type", "present_type", "token"]
+        __slots__ = ["cookie", "gpu_composition", "jank_severity_score", "jank_severity_type", "jank_type", "jank_type_experimental", "on_time_finish", "pid", "prediction_type", "present_delay_millis", "present_type", "present_type_experimental", "token"]
         COOKIE_FIELD_NUMBER: _ClassVar[int]
         GPU_COMPOSITION_FIELD_NUMBER: _ClassVar[int]
+        JANK_SEVERITY_SCORE_FIELD_NUMBER: _ClassVar[int]
         JANK_SEVERITY_TYPE_FIELD_NUMBER: _ClassVar[int]
+        JANK_TYPE_EXPERIMENTAL_FIELD_NUMBER: _ClassVar[int]
         JANK_TYPE_FIELD_NUMBER: _ClassVar[int]
         ON_TIME_FINISH_FIELD_NUMBER: _ClassVar[int]
         PID_FIELD_NUMBER: _ClassVar[int]
         PREDICTION_TYPE_FIELD_NUMBER: _ClassVar[int]
+        PRESENT_DELAY_MILLIS_FIELD_NUMBER: _ClassVar[int]
+        PRESENT_TYPE_EXPERIMENTAL_FIELD_NUMBER: _ClassVar[int]
         PRESENT_TYPE_FIELD_NUMBER: _ClassVar[int]
         TOKEN_FIELD_NUMBER: _ClassVar[int]
         cookie: int
         gpu_composition: bool
+        jank_severity_score: float
         jank_severity_type: FrameTimelineEvent.JankSeverityType
         jank_type: int
+        jank_type_experimental: int
         on_time_finish: bool
         pid: int
         prediction_type: FrameTimelineEvent.PredictionType
+        present_delay_millis: float
         present_type: FrameTimelineEvent.PresentType
+        present_type_experimental: FrameTimelineEvent.PresentType
         token: int
-        def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., pid: _Optional[int] = ..., present_type: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., on_time_finish: bool = ..., gpu_composition: bool = ..., jank_type: _Optional[int] = ..., prediction_type: _Optional[_Union[FrameTimelineEvent.PredictionType, str]] = ..., jank_severity_type: _Optional[_Union[FrameTimelineEvent.JankSeverityType, str]] = ...) -> None: ...
+        def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., pid: _Optional[int] = ..., present_type: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., on_time_finish: bool = ..., gpu_composition: bool = ..., jank_type: _Optional[int] = ..., prediction_type: _Optional[_Union[FrameTimelineEvent.PredictionType, str]] = ..., jank_severity_type: _Optional[_Union[FrameTimelineEvent.JankSeverityType, str]] = ..., present_delay_millis: _Optional[float] = ..., jank_severity_score: _Optional[float] = ..., jank_type_experimental: _Optional[int] = ..., present_type_experimental: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ...) -> None: ...
     class ActualSurfaceFrameStart(_message.Message):
-        __slots__ = ["cookie", "display_frame_token", "gpu_composition", "is_buffer", "jank_severity_type", "jank_type", "layer_name", "on_time_finish", "pid", "prediction_type", "present_type", "token"]
+        __slots__ = ["cookie", "display_frame_token", "gpu_composition", "is_buffer", "jank_severity_score", "jank_severity_type", "jank_type", "jank_type_experimental", "layer_name", "on_time_finish", "pid", "prediction_type", "present_delay_millis", "present_type", "present_type_experimental", "token", "vsync_resynced_jitter_millis"]
         COOKIE_FIELD_NUMBER: _ClassVar[int]
         DISPLAY_FRAME_TOKEN_FIELD_NUMBER: _ClassVar[int]
         GPU_COMPOSITION_FIELD_NUMBER: _ClassVar[int]
         IS_BUFFER_FIELD_NUMBER: _ClassVar[int]
+        JANK_SEVERITY_SCORE_FIELD_NUMBER: _ClassVar[int]
         JANK_SEVERITY_TYPE_FIELD_NUMBER: _ClassVar[int]
+        JANK_TYPE_EXPERIMENTAL_FIELD_NUMBER: _ClassVar[int]
         JANK_TYPE_FIELD_NUMBER: _ClassVar[int]
         LAYER_NAME_FIELD_NUMBER: _ClassVar[int]
         ON_TIME_FINISH_FIELD_NUMBER: _ClassVar[int]
         PID_FIELD_NUMBER: _ClassVar[int]
         PREDICTION_TYPE_FIELD_NUMBER: _ClassVar[int]
+        PRESENT_DELAY_MILLIS_FIELD_NUMBER: _ClassVar[int]
+        PRESENT_TYPE_EXPERIMENTAL_FIELD_NUMBER: _ClassVar[int]
         PRESENT_TYPE_FIELD_NUMBER: _ClassVar[int]
         TOKEN_FIELD_NUMBER: _ClassVar[int]
+        VSYNC_RESYNCED_JITTER_MILLIS_FIELD_NUMBER: _ClassVar[int]
         cookie: int
         display_frame_token: int
         gpu_composition: bool
         is_buffer: bool
+        jank_severity_score: float
         jank_severity_type: FrameTimelineEvent.JankSeverityType
         jank_type: int
+        jank_type_experimental: int
         layer_name: str
         on_time_finish: bool
         pid: int
         prediction_type: FrameTimelineEvent.PredictionType
+        present_delay_millis: float
         present_type: FrameTimelineEvent.PresentType
+        present_type_experimental: FrameTimelineEvent.PresentType
         token: int
-        def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., display_frame_token: _Optional[int] = ..., pid: _Optional[int] = ..., layer_name: _Optional[str] = ..., present_type: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., on_time_finish: bool = ..., gpu_composition: bool = ..., jank_type: _Optional[int] = ..., prediction_type: _Optional[_Union[FrameTimelineEvent.PredictionType, str]] = ..., is_buffer: bool = ..., jank_severity_type: _Optional[_Union[FrameTimelineEvent.JankSeverityType, str]] = ...) -> None: ...
+        vsync_resynced_jitter_millis: float
+        def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., display_frame_token: _Optional[int] = ..., pid: _Optional[int] = ..., layer_name: _Optional[str] = ..., present_type: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., on_time_finish: bool = ..., gpu_composition: bool = ..., jank_type: _Optional[int] = ..., prediction_type: _Optional[_Union[FrameTimelineEvent.PredictionType, str]] = ..., is_buffer: bool = ..., jank_severity_type: _Optional[_Union[FrameTimelineEvent.JankSeverityType, str]] = ..., present_delay_millis: _Optional[float] = ..., vsync_resynced_jitter_millis: _Optional[float] = ..., jank_severity_score: _Optional[float] = ..., jank_type_experimental: _Optional[int] = ..., present_type_experimental: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ...) -> None: ...
     class ExpectedDisplayFrameStart(_message.Message):
         __slots__ = ["cookie", "pid", "token"]
         COOKIE_FIELD_NUMBER: _ClassVar[int]
@@ -7549,10 +7567,12 @@ class FrameTimelineEvent(_message.Message):
     EXPECTED_SURFACE_FRAME_START_FIELD_NUMBER: _ClassVar[int]
     FRAME_END_FIELD_NUMBER: _ClassVar[int]
     JANK_APP_DEADLINE_MISSED: FrameTimelineEvent.JankType
+    JANK_APP_RESYNCED_JITTER: FrameTimelineEvent.JankType
     JANK_BUFFER_STUFFING: FrameTimelineEvent.JankType
     JANK_DISPLAY_HAL: FrameTimelineEvent.JankType
     JANK_DROPPED: FrameTimelineEvent.JankType
     JANK_NONE: FrameTimelineEvent.JankType
+    JANK_NON_ANIMATING: FrameTimelineEvent.JankType
     JANK_PREDICTION_ERROR: FrameTimelineEvent.JankType
     JANK_SF_CPU_DEADLINE_MISSED: FrameTimelineEvent.JankType
     JANK_SF_GPU_DEADLINE_MISSED: FrameTimelineEvent.JankType
@@ -9242,6 +9262,7 @@ class GpuCounterDescriptor(_message.Message):
     PIXEL: GpuCounterDescriptor.MeasureUnit
     PRIMITIVE: GpuCounterDescriptor.MeasureUnit
     PRIMITIVES: GpuCounterDescriptor.GpuCounterGroup
+    RAY_TRACING: GpuCounterDescriptor.GpuCounterGroup
     SECOND: GpuCounterDescriptor.MeasureUnit
     SPECS_FIELD_NUMBER: _ClassVar[int]
     SUPPORTS_INSTRUMENTED_SAMPLING_FIELD_NUMBER: _ClassVar[int]

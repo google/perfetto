@@ -16,6 +16,7 @@ from python.tools.git_utils import (
     get_stack_branches_ordered,
     get_branch_parent,
     run_git_command,
+    MAINLINE_BRANCHES,
 )
 #pylint: enable=wrong-import-position
 
@@ -46,11 +47,10 @@ def main():
         file=sys.stderr)
     sys.exit(1)
 
-  mainline_branches = {'origin/main'}
   ordered_branches: List[str] = []
   try:
     ordered_branches = get_stack_branches_ordered(target_branch,
-                                                  mainline_branches,
+                                                  MAINLINE_BRANCHES,
                                                   all_local_branches)
   except ValueError as e:
     print(f"Error determining stack order (Cycle?): {e}", file=sys.stderr)

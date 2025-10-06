@@ -479,7 +479,7 @@ class ParserDelegate {
 
  private:
   template <typename T>
-  void VarIntField(const FieldDescriptorProto* field, Token t) {
+  void VarIntField(const FieldDescriptorProto* field, const Token& t) {
     auto field_id = static_cast<uint32_t>(field->number());
     uint64_t n = 0;
     PERFETTO_CHECK(ParseInteger(t.txt, &n));

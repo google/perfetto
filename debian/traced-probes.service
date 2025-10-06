@@ -6,3 +6,6 @@ Documentation=https://perfetto.dev/docs/
 ExecStart=/usr/sbin/traced_probes
 User=root
 Group=root
+
+[Install]
+WantedBy=multi-user.target

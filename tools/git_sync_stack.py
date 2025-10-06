@@ -19,6 +19,7 @@ from python.tools.git_utils import (
     get_upstream_branch_name,
     run_command,
     run_git_command,
+    MAINLINE_BRANCHES,
 )
 #pylint: enable=wrong-import-position
 
@@ -78,7 +79,6 @@ def main():
 
   default_remote_name = args.remote
   repo_default_branch = 'origin/main'
-  mainline_branches = {'origin/main', 'origin/ui-canary', 'origin/ui-stable'}
 
   all_local_branches = get_all_branches()
   if start_branch not in all_local_branches:
@@ -88,7 +88,7 @@ def main():
   branches_to_process: List[str] = []
   try:
     branches_to_process = get_stack_branches_ordered(start_branch,
-                                                     mainline_branches,
+                                                     MAINLINE_BRANCHES,
                                                      all_local_branches)
   except ValueError as e:
     print(f"Error determining stack order: {e}", file=sys.stderr)
@@ -106,8 +106,8 @@ def main():
     local_parent = get_branch_parent(branch)
     desired_base = local_parent.split(
         '/'
-    )[1] if local_parent and local_parent in mainline_branches else 'main'
-    if local_parent and local_parent not in mainline_branches:
+    )[1] if local_parent and local_parent in MAINLINE_BRANCHES else 'main'
+    if local_parent and local_parent not in MAINLINE_BRANCHES:
       upstream_base_name = get_upstream_branch_name(local_parent)
       if upstream_base_name:
         desired_base = upstream_base_name

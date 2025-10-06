@@ -1405,7 +1405,7 @@ base::Status ParseMetricExtensionPaths(
 base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   // Remove trailing slash
   if (root.back() == '/')
-    root = root.substr(0, root.length() - 1);
+    root.resize(root.length() - 1);
 
   if (!base::FileExists(root))
     return base::ErrStatus("Directory %s does not exist.", root.c_str());
@@ -1457,7 +1457,7 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
 base::Status LoadOverridenStdlib(std::string root) {
   // Remove trailing slash
   if (root.back() == '/') {
-    root = root.substr(0, root.length() - 1);
+    root.resize(root.length() - 1);
   }
 
   if (!base::FileExists(root)) {

@@ -15,6 +15,7 @@ from python.tools.git_utils import (
     get_current_branch,
     run_git_command,
     topological_sort_branches,
+    MAINLINE_BRANCHES,
 )
 #pylint: enable=wrong-import-position
 
@@ -52,7 +53,6 @@ def main():
   remap: Dict[str, str] = {}  # {pruned_branch: effective_parent_it_matched}
   branches_to_prune: Set[str] = set()
   all_local_branches = set(get_all_branches())
-  mainline_branches = {'origin/main', 'origin/ui-canary', 'origin/ui-stable'}
 
   print("Checking branches against effective parents...")
   for branch in sorted_branches:
@@ -62,7 +62,7 @@ def main():
     effective_parent = remap.get(original_parent, original_parent)
     if not effective_parent:
       continue
-    if effective_parent not in all_local_branches and effective_parent not in mainline_branches:
+    if effective_parent not in all_local_branches and effective_parent not in MAINLINE_BRANCHES:
       continue
 
     diff_cmd = ['diff', '--quiet', effective_parent, branch]

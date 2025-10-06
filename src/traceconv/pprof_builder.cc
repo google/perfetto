@@ -139,7 +139,7 @@ uint64_t ToPprofId(int64_t id) {
   return static_cast<uint64_t>(id) + 1;
 }
 
-std::string AsCsvString(std::vector<uint64_t> vals) {
+std::string AsCsvString(const std::vector<uint64_t>& vals) {
   std::string ret;
   for (size_t i = 0; i < vals.size(); i++) {
     if (i != 0) {

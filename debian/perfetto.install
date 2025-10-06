@@ -1,7 +1,7 @@
-out/release/libperfetto.so usr/lib
+out/release/libperfetto.so usr/lib/perfetto
 out/release/traced usr/sbin
 out/release/traced_probes usr/sbin
 out/release/perfetto usr/bin
 out/release/tracebox usr/bin
-debian/traced.service lib/systemd/system
-debian/traced-probes.service lib/systemd/system
+debian/traced.service usr/lib/systemd/system
+debian/traced-probes.service usr/lib/systemd/system

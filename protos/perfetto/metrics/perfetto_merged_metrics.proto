@@ -3151,6 +3151,11 @@ message AndroidWattsonTimePeriodMetric {
   // different power model versions.
   optional int32 power_model_version = 2;
   repeated AndroidWattsonEstimateInfo period_info = 3;
+  // Best effort power estimate made without all the essential traces, but with
+  // enough information to make an educated extrapolation of a HW state. The
+  // only example right now is for cpu_idle, of which the cpu_idle state can be
+  // extrapolated from the swapper thread (aka idle thread).
+  optional bool is_crude_estimate = 4;
 }
 
 message AndroidWattsonEstimateInfo {
@@ -3217,6 +3222,11 @@ message AndroidWattsonTasksAttributionMetric {
   optional int32 power_model_version = 2;
   // Lists tasks (e.g. threads, process, package) and associated estimates
   repeated AndroidWattsonTaskPeriodInfo period_info = 3;
+  // Best effort power estimate made without all the essential traces, but with
+  // enough information to make an educated extrapolation of a HW state. The
+  // only example right now is for cpu_idle, of which the cpu_idle state can be
+  // extrapolated from the swapper thread (aka idle thread).
+  optional bool is_crude_estimate = 4;
 }
 
 // Groups of power per task for each period

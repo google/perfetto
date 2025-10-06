@@ -184,6 +184,10 @@ You should use an exclusive session in the following scenarios:
 * For sensitive performance measurements where you need to minimize interference from other concurrent tracing activities.
 * When using data sources with high overhead, such as `function_graph` in ftrace, to ensure their behavior is not affected by other sessions.
 * When configuring parameters that apply globally and are not multiplexed, like the ftrace buffer size (`buffer_size_kb`), which is only configured by the first active session.
+* When using specific ftrace features that modify global kernel state. As of Perfetto v52 (Android 25Q3+), these include:
+    *   `tids_to_trace`: Filters ftrace events by specific Thread IDs (TIDs).
+    *   `tracefs_options`: Control the tracers or the trace output via tracefs/trace_options
+    *   `tracing_cpumask`: Restricts tracing to a specific set of CPUs.
 
 ### Behavior
 

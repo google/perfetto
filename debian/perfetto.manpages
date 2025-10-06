@@ -1,1 +1,4 @@
 debian/perfetto.1
+debian/tracebox.1
+debian/traced.8
+debian/traced_probes.8

@@ -137,6 +137,7 @@
 
       - [perfetto cmdline](reference/perfetto-cli.md)
       - [heap_profile cmdline](reference/heap_profile-cli.md)
+      - [tracebox](reference/tracebox.md)
 
   - [Advanced Trace Analysis](#)
 

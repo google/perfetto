@@ -124,14 +124,15 @@
     &--error {
       // Necessary trig because we have 45deg stripes
       $pattern-density: 1px * math.sqrt(2);
-      $pattern-col: #ddd;
+      $pattern-col: var(--pf-color-border);
+      $background-col: var(--pf-color-background);
 
       background: repeating-linear-gradient(
         -45deg,
         $pattern-col,
         $pattern-col $pattern-density,
-        white $pattern-density,
-        white $pattern-density * 4
+        $background-col $pattern-density,
+        $background-col $pattern-density * 4
       );
     }
   }

@@ -215,8 +215,8 @@ message AnnotatedPageContent {
   // The interaction information for the page--the subtree represented by the
   // AnnotatedPageContent. This is for top-level interactions, such as the mouse
   // position and focused element, for which there can only be one unique value
-  // for the entire page. Includes interaction information for the main frame
-  // and embedded iframes.
+  // for the entire page.
+  // Currently this is only tracked for the main frame.
   PageInteractionInfo page_interaction_info = 4 [features = { field_presence: EXPLICIT }];
 
   // The rect of the viewport for the tab. i.e., screenshot dimensions.
@@ -845,8 +845,9 @@ message TableRowData {
 
 // Represents the interaction information for the page. This is for top-level
 // interactions, such as the mouse position and focused element, for which
-// there can only be one unique value. Includes interaction information for
-// the main frame and embedded iframes.
+// there can only be one unique value.
+// Currently this is only tracked for the main frame. The IDs correspond to the
+// DOM node IDs of the content nodes in the main frame.
 // Next ID: 4
 message PageInteractionInfo {
   // The content node ID of the content node that is currently focused.
@@ -1949,7 +1950,7 @@ enum ContentAttributeType {
 }
 
 // The reason why a node is clickable.
-// Next ID: 12
+// Next ID: 14
 enum ClickabilityReason {
   // The node is a native form control.
   CLICKABILITY_REASON_CLICKABLE_CONTROL = 0;
@@ -1958,8 +1959,9 @@ enum ClickabilityReason {
   CLICKABILITY_REASON_CLICK_HANDLER = 1;
 
   // The node has mouse event handlers like mouseup, mousedown, mouseover and
-  // mouseenter.
-  CLICKABILITY_REASON_MOUSE_EVENTS = 2;
+  // mouseenter. Deprecated in favor of
+  // CLICKABILITY_REASON_MOUSE_CLICK and CLICKABILITY_REASON_MOUSE_HOVER.
+  CLICKABILITY_REASON_MOUSE_EVENTS = 2 [deprecated = true];
 
   // The node has keyboard event handlers like keydown, keypress, keyup.
   CLICKABILITY_REASON_KEY_EVENTS = 3;
@@ -1993,6 +1995,12 @@ enum ClickabilityReason {
   // The node has autocomplete, as indicated by the same-named attribute or
   // aria-autocomplete.
   CLICKABILITY_REASON_AUTOCOMPLETE = 11;
+
+  // The node has mouse event handlers like mouseup and mousedown.
+  CLICKABILITY_REASON_MOUSE_CLICK = 12;
+
+  // The node has mouse event handlers like mouseover and mouseenter.
+  CLICKABILITY_REASON_MOUSE_HOVER = 13;
 }
 
 // Next ID: 5

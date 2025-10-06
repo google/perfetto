@@ -6,6 +6,9 @@ import os
 from typing import List, Optional, Set, Dict, Tuple, Deque
 from collections import deque
 
+# Mainline branches that are treated as valid parents even though they're remote refs
+MAINLINE_BRANCHES = {'origin/main'}
+
 
 def run_command(
     cmd: List[str],

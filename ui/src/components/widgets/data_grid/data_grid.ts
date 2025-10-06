@@ -27,7 +27,6 @@ import {
   AggregationFunction,
 } from './common';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
-import {Chip} from '../../../widgets/chip';
 import {Icons} from '../../../base/semantic_icons';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {Stack, StackAuto} from '../../../widgets/stack';
@@ -43,6 +42,8 @@ import {
   renderSortMenuItems,
   PageControl,
   SortDirection,
+  GridFilterBar,
+  GridFilterChip,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
 
@@ -468,19 +469,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }),
         m(StackAuto, [
           showFilters &&
-            m(Stack, {orientation: 'horizontal', wrap: true}, [
-              filters.map((filter) =>
-                m(Chip, {
-                  label: this.formatFilter(filter),
-                  removable: true,
+            m(GridFilterBar, [
+              filters.map((filter) => {
+                return m(GridFilterChip, {
+                  content: this.formatFilter(filter),
                   onRemove: () => {
                     const newFilters = filters.filter((f) => f !== filter);
                     this.filters = newFilters;
                     onFiltersChanged(newFilters);
                     this.currentPage = 0;
                   },
-                }),
-              ),
+                });
+              }),
             ]),
         ]),
         m(PageControl, {

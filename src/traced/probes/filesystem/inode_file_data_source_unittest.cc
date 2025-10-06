@@ -52,7 +52,7 @@ class TestInodeFileDataSource : public InodeFileDataSource {
                             static_file_map,
                             cache,
                             std::move(writer)) {
-    struct stat buf;
+    struct stat buf{};
     PERFETTO_CHECK(
         lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata")
                   .c_str(),
@@ -95,7 +95,7 @@ TEST_F(InodeFileDataSourceTest, TestFileSystemScan) {
   ds_config.set_inode_file_config_raw(inode_cfg.SerializeAsString());
   auto data_source = GetInodeFileDataSource(ds_config);
 
-  struct stat buf;
+  struct stat buf{};
   PERFETTO_CHECK(
       lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")
                 .c_str(),
@@ -123,7 +123,7 @@ TEST_F(InodeFileDataSourceTest, TestStaticMap) {
       base::GetTestDataPath("src/traced/probes/filesystem/testdata"),
       &static_file_map_);
 
-  struct stat buf;
+  struct stat buf{};
   PERFETTO_CHECK(
       lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")
                 .c_str(),
@@ -146,7 +146,7 @@ TEST_F(InodeFileDataSourceTest, TestCache) {
       base::GetTestDataPath("src/traced/probes/filesystem/testdata"),
       &static_file_map_);
 
-  struct stat buf;
+  struct stat buf{};
   PERFETTO_CHECK(
       lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")
                 .c_str(),

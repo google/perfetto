@@ -294,7 +294,7 @@ base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes) {
       return base::ErrStatus("Failed to parse string for CMDLINE");
     }
   }
-  return std::move(args);
+  return args;
 }
 
 base::StatusOr<std::string> ParseOsRelease(TraceBlobView bytes) {
