@@ -449,7 +449,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
   FtraceMetadata metadata_;
   std::optional<TraceWriterForTesting> writer_;
   std::unique_ptr<CompactSchedBuffer> compact_sched_buf_;
-  base::FlatHashMap<uint32_t, std::vector<uint8_t>> generic_pb_descriptors_;
+  GenericEventProtoDescriptors generic_pb_descriptors_;
   std::optional<CpuReader::Bundler> bundler_;
   uint64_t last_read_event_ts_ = 0;
 };
