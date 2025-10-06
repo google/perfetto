@@ -310,10 +310,22 @@ export class SelectionManagerImpl implements SelectionManager {
     return undefined;
   }
 
+  async resolveSqlEvents(
+    sqlTableName: string,
+    ids: number[],
+  ): Promise<({eventId: number; trackUri: string} | undefined)[]> {
+    // TODO: Implement actual batch lookup and remove resolveSqlEvent.
+    return Promise.all(ids.map((id) => this.resolveSqlEvent(sqlTableName, id)));
+  }
+
   selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void {
-    this.resolveSqlEvent(sqlTableName, id).then((selection) => {
-      selection &&
-        this.selectTrackEvent(selection.trackUri, selection.eventId, opts);
+    this.resolveSqlEvents(sqlTableName, [id]).then((selection) => {
+      selection[0] &&
+        this.selectTrackEvent(
+          selection[0].trackUri,
+          selection[0].eventId,
+          opts,
+        );
     });
   }
 
