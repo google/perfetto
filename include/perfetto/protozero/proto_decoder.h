@@ -499,7 +499,7 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
 
 // Template class instantiated by the auto-generated decoder classes declared in
 // xxx.pbzero.h files.
-template <int MAX_FIELD_ID, bool HAS_NONPACKED_REPEATED_FIELDS>
+template <int MAX_FIELD_ID>
 class TypedProtoDecoder : public TypedProtoDecoderBase {
  public:
   TypedProtoDecoder(const uint8_t* buffer, size_t length)
