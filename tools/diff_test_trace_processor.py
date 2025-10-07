@@ -41,7 +41,7 @@ def main():
   parser.add_argument('--chrome-track-event-descriptor', type=str, default=None)
   parser.add_argument('--test-extensions', type=str, default=None)
   parser.add_argument('--winscope-extensions', type=str, default=None)
-  parser.add_argument('--simpleperf-extensions', type=str, default=None)
+  parser.add_argument('--simpleperf-descriptor', type=str, default=None)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
       '--override-sql-package', type=str, action='append', default=[])
