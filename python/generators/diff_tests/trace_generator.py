@@ -21,8 +21,8 @@ from typing import Any, IO, List, Optional
 
 from google.protobuf import text_format
 
-from python.generators.diff_tests.testing import (DataPath, Path, TextProto,
-                                                  SimpleperfProto,
+from python.generators.diff_tests.testing import (DataPath, Path,
+                                                  SimpleperfProto, TextProto,
                                                   TraceInjector)
 from python.generators.diff_tests.utils import ProtoManager
 

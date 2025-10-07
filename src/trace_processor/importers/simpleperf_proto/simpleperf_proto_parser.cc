@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/third_party/simpleperf/cmd_report_sample.pbzero.h"
@@ -83,8 +84,10 @@ void SimpleperfProtoParser::Parse(int64_t ts,
       // Get mapping for this file
       DummyMemoryMapping* mapping = tracker_->GetMapping(file_id);
       if (!mapping) {
-        // Fallback to dummy mapping if file_id not found
-        mapping = &context_->mapping_tracker->CreateDummyMapping("");
+        // Drop sample if file_id not found
+        context_->storage->IncrementStats(
+            stats::simpleperf_missing_file_mapping);
+        return;
       }
 
       // Intern frame with virtual address and symbol name

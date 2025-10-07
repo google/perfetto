@@ -20,10 +20,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -54,24 +54,23 @@ class SimpleperfProtoTracker {
     if (symbol_id < 0) {
       return std::nullopt;
     }
-    auto it = symbol_tables_.find(file_id);
-    if (it == symbol_tables_.end()) {
+    const auto* symbols = symbol_tables_.Find(file_id);
+    if (!symbols) {
       return std::nullopt;
     }
-    const auto& symbols = it->second;
-    if (static_cast<size_t>(symbol_id) >= symbols.size()) {
+    if (static_cast<size_t>(symbol_id) >= symbols->size()) {
       return std::nullopt;
     }
-    return symbols[static_cast<size_t>(symbol_id)];
+    return (*symbols)[static_cast<size_t>(symbol_id)];
   }
 
   // Lookup mapping by file_id
   DummyMemoryMapping* GetMapping(uint32_t file_id) const {
-    auto it = file_mappings_.find(file_id);
-    if (it == file_mappings_.end()) {
+    auto* mapping = file_mappings_.Find(file_id);
+    if (!mapping) {
       return nullptr;
     }
-    return it->second;
+    return *mapping;
   }
 
   // Lookup event type by event_type_id
@@ -84,10 +83,10 @@ class SimpleperfProtoTracker {
 
  private:
   // Map from file_id to symbol table (list of symbol names)
-  std::unordered_map<uint32_t, std::vector<StringId>> symbol_tables_;
+  base::FlatHashMap<uint32_t, std::vector<StringId>> symbol_tables_;
 
   // Map from file_id to DummyMemoryMapping pointer
-  std::unordered_map<uint32_t, DummyMemoryMapping*> file_mappings_;
+  base::FlatHashMap<uint32_t, DummyMemoryMapping*> file_mappings_;
 
   // List of event types indexed by event_type_id
   std::vector<StringId> event_types_;
