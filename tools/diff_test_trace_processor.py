@@ -78,8 +78,8 @@ def main():
   if args.winscope_extensions is None:
     args.winscope_extensions = os.path.join(protos_path, 'perfetto', 'trace',
                                             'android', 'winscope.descriptor')
-  if args.simpleperf_extensions is None:
-    args.simpleperf_extensions = os.path.join(protos_path, 'third_party',
+  if args.simpleperf_descriptor is None:
+    args.simpleperf_descriptor = os.path.join(protos_path, 'third_party',
                                               'simpleperf',
                                               'simpleperf.descriptor')
   if args.summary_descriptor is None:
@@ -100,7 +100,7 @@ def main():
       chrome_extensions=args.chrome_track_event_descriptor,
       test_extensions=args.test_extensions,
       winscope_extensions=args.winscope_extensions,
-      simpleperf_extensions=args.simpleperf_extensions,
+      simpleperf_descriptor=args.simpleperf_descriptor,
       keep_input=args.keep_input,
       print_slowest_tests=args.print_slowest_tests)
   test_runner = DiffTestsRunner(config)

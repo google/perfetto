@@ -101,7 +101,8 @@ class TraceGenerator:
 
 
 def generate_trace_file(test_case: Any, trace_descriptor_path: str,
-                        extension_descriptor_paths: List[str]) -> Optional[Any]:
+                        extension_descriptor_paths: List[str],
+                        simpleperf_descriptor: str) -> Optional[Any]:
   # We can't use delete=True here. When using that on Windows, the
   # resulting file is opened in exclusive mode (in turn that's a subtle
   # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
@@ -133,8 +134,12 @@ def generate_trace_file(test_case: Any, trace_descriptor_path: str,
 
   elif test_case.blueprint.is_trace_simpleperf_proto():
     gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
-    trace_generator.serialize_simpleperf_proto_trace(test_case.blueprint.trace,
-                                                     gen_trace_file)
+    # Simpleperf is a separate format, so use a dedicated generator with
+    # the simpleperf descriptor instead of the general Perfetto trace extensions.
+    simpleperf_generator = TraceGenerator(trace_descriptor_path,
+                                          [simpleperf_descriptor])
+    simpleperf_generator.serialize_simpleperf_proto_trace(
+        test_case.blueprint.trace, gen_trace_file)
 
   else:
     gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
