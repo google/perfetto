@@ -97,7 +97,7 @@ export class AppContext {
 
   // This is normally empty and is injected with Base64-encoded protobuf
   // descriptor sets via is_internal_user.js.
-  extraParsingDescriptors: string[] = [];
+  extraParsingDescriptors: ReadonlyArray<string> = [];
 
   // This is normally empty and is injected with extra google-internal macros
   // via is_internal_user.js

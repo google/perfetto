@@ -19,8 +19,8 @@ import {CommandInvocation} from '../core/command_manager';
 
 // This controls how long we wait for the script to load before giving up and
 // proceeding as if the user is not internal.
-const SCRIPT_LOAD_TIMEOUT_MS = 5000;
-const SCRIPT_URL =
+//const SCRIPT_LOAD_TIMEOUT_MS = 5000;
+//const SCRIPT_URL =
   'https://storage.cloud.google.com/perfetto-ui-internal/internal-data-v1/amalgamated.js';
 
 // This interface describes the required interface that the script expect to
@@ -43,7 +43,7 @@ interface Globals {
 
   // JSON Amalgamator populates this with statsd atom descriptors
   // as a list of base64-encoded strings.
-  readonly extraParsingDescriptors: ReadonlyArray<string>;
+  extraParsingDescriptors: ReadonlyArray<string>;
 
   // The script adds to this list, hence why it's readonly.
   // WARNING: do not change/rename/move without considering impact on the
@@ -101,16 +101,22 @@ export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
   // script.
   setupGlobalsProxy(app);
 
-  await new Promise<void>((resolve) => {
-    const script = document.createElement('script');
-    script.src = SCRIPT_URL;
-    script.async = true;
-    script.onerror = () => resolve();
-    script.onload = () => resolve();
-    document.head.append(script);
+  //const FDS_BASE_64 = 'CusDCmBsb2dzL3Byb3RvL3dpcmVsZXNzL2FuZHJvaWQvc3RhdHMvcGxhdGZvcm0vd2VzdHdvcmxkL2F0b21zL2JhdHRlcnkvYmF0dGVyeV9leHRlbnNpb25fYXRvbXMucHJvdG8SPGxvZ3MucHJvdG8ud2lyZWxlc3MuYW5kcm9pZC5zdGF0cy5wbGF0Zm9ybS53ZXN0d29ybGQuYmF0dGVyeSJxChxSYXdCYXR0ZXJ5R2F1Z2VTdGF0c1JlcG9ydGVkEh8KF3N5c3RlbV9jbG9ja190aW1lX25hbm9zGAEgAygDEhUKDXZvbHRhZ2Vfdm9sdHMYAiADKAISGQoRY3VycmVudF9taWxsaWFtcHMYAyADKAI6ngEKIHJhd19iYXR0ZXJ5X2dhdWdlX3N0YXRzX3JlcG9ydGVkEhcuYW5kcm9pZC5vcy5zdGF0c2QuQXRvbRi9CCABKAsyWi5sb2dzLnByb3RvLndpcmVsZXNzLmFuZHJvaWQuc3RhdHMucGxhdGZvcm0ud2VzdHdvcmxkLmJhdHRlcnkuUmF3QmF0dGVyeUdhdWdlU3RhdHNSZXBvcnRlZEItChZjb20uYW5kcm9pZC5vcy5iYXR0ZXJ5UAGSAwQgAxAC0u+AkAIGbGF0ZXN0YgZwcm90bzI=';
+  // Prod JSON Amalgamator
+  //const FDS_BASE_64 = 'CvADCmBsb2dzL3Byb3RvL3dpcmVsZXNzL2FuZHJvaWQvc3RhdHMvcGxhdGZvcm0vd2VzdHdvcmxkL2F0b21zL2JhdHRlcnkvYmF0dGVyeV9leHRlbnNpb25fYXRvbXMucHJvdG8SPGxvZ3MucHJvdG8ud2lyZWxlc3MuYW5kcm9pZC5zdGF0cy5wbGF0Zm9ybS53ZXN0d29ybGQuYmF0dGVyeSJxChxSYXdCYXR0ZXJ5R2F1Z2VTdGF0c1JlcG9ydGVkEh8KF3N5c3RlbV9jbG9ja190aW1lX25hbm9zGAEgAygDEhUKDXZvbHRhZ2Vfdm9sdHMYAiADKAISGQoRY3VycmVudF9taWxsaWFtcHMYAyADKAI6ngEKIHJhd19iYXR0ZXJ5X2dhdWdlX3N0YXRzX3JlcG9ydGVkEhcuYW5kcm9pZC5vcy5zdGF0c2QuQXRvbRi9CCABKAsyWi5sb2dzLnByb3RvLndpcmVsZXNzLmFuZHJvaWQuc3RhdHMucGxhdGZvcm0ud2VzdHdvcmxkLmJhdHRlcnkuUmF3QmF0dGVyeUdhdWdlU3RhdHNSZXBvcnRlZEItChZjb20uYW5kcm9pZC5vcy5iYXR0ZXJ5UAGSAwQQAiAD0u+AkAIGbGF0ZXN0YghlZGl0aW9uc3DoBwpVCiZzeW50aGV0aWMvYW5kcm9pZC9vcy9zdGF0c2QvYXRvbS5wcm90bxIRYW5kcm9pZC5vcy5zdGF0c2QiEAoEQXRvbSoICAEQgICAgAJiBnByb3RvMg==';
+  const FDS_BASE_64 = 'CscDCmBsb2dzL3Byb3RvL3dpcmVsZXNzL2FuZHJvaWQvc3RhdHMvcGxhdGZvcm0vd2VzdHdvcmxkL2F0b21zL2JhdHRlcnkvdGVtcF9leHRlbnNpb24ucHJvdG8SPGxvZ3MucHJvdG8ud2lyZWxlc3MuYW5kcm9pZC5zdGF0cy5wbGF0Zm9ybS53ZXN0d29ybGQuYmF0dGVyeSKnAQocUmF3QmF0dGVyeUdhdWdlU3RhdHNSZXBvcnRlZBI1ChdzeXN0ZW1fY2xvY2tfdGltZV9uYW5vcxgBIAMoA1IUc3lzdGVtQ2xvY2tUaW1lTmFub3MSIwoNdm9sdGFnZV92b2x0cxgCIAMoAlIMdm9sdGFnZVZvbHRzEisKEWN1cnJlbnRfbWlsbGlhbXBzGAMgAygCUhBjdXJyZW50TWlsbGlhbXBzOskBCiByYXdfYmF0dGVyeV9nYXVnZV9zdGF0c19yZXBvcnRlZBIXLmFuZHJvaWQub3Muc3RhdHNkLkF0b20YvQggASgLMloubG9ncy5wcm90by53aXJlbGVzcy5hbmRyb2lkLnN0YXRzLnBsYXRmb3JtLndlc3R3b3JsZC5iYXR0ZXJ5LlJhd0JhdHRlcnlHYXVnZVN0YXRzUmVwb3J0ZWRSHHJhd0JhdHRlcnlHYXVnZVN0YXRzUmVwb3J0ZWQ=';
+  (app as any).__appCtxForTrace.extraParsingDescriptors = [FDS_BASE_64];
 
-    // Set a timeout to avoid blocking the UI for too long if the script is slow
-    // to load.
-    setTimeout(() => resolve(), SCRIPT_LOAD_TIMEOUT_MS);
-  });
+  // await new Promise<void>((resolve) => {
+  //   const script = document.createElement('script');
+  //   script.src = SCRIPT_URL;
+  //   script.async = true;
+  //   script.onerror = () => resolve();
+  //   script.onload = () => resolve();
+  //   document.head.append(script);
+
+  //   // Set a timeout to avoid blocking the UI for too long if the script is slow
+  //   // to load.
+  //   setTimeout(() => resolve(), SCRIPT_LOAD_TIMEOUT_MS);
+  // });
 }

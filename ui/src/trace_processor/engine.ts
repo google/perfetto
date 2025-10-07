@@ -120,6 +120,8 @@ export interface Engine {
     structuredQueries: protos.PerfettoSqlStructuredQuery[],
   ): Promise<protos.AnalyzeStructuredQueryResult>;
 
+  registerExtraDescriptors(descriptors: Uint8Array): Promise<void>;
+
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
@@ -145,6 +147,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
+  private pendingRegisterDescriptors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
@@ -261,6 +264,9 @@ export abstract class EngineBase implements Engine, Disposable {
         break;
       case TPM.TPM_RESTORE_INITIAL_TABLES:
         assertExists(this.pendingRestoreTables.shift()).resolve();
+        break;
+      case TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS:
+        assertExists(this.pendingRegisterDescriptors.shift()).resolve();
         break;
       case TPM.TPM_QUERY_STREAMING:
         const qRes = assertExists(rpc.queryResult) as {} as QueryResultBypass;
@@ -422,6 +428,16 @@ export abstract class EngineBase implements Engine, Disposable {
     rpc.request = TPM.TPM_RESTORE_INITIAL_TABLES;
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
+  }
+
+  registerExtraDescriptors(descriptors: Uint8Array): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingRegisterDescriptors.push(asyncRes);
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS;
+    rpc.registerAdditionalDescriptorsArgs = descriptors;
+    this.rpcSendRequest(rpc);
+    return asyncRes;
   }
 
   // Shorthand for sending a compute metrics request to the engine.
@@ -647,6 +663,7 @@ export abstract class EngineBase implements Engine, Disposable {
     this.rpcSendRequest(rpc);
     return result;
   }
+  
 
   // Marshals the TraceProcessorRpc request arguments and sends the request
   // to the concrete Engine (Wasm or HTTP).
@@ -753,6 +770,10 @@ export class EngineProxy implements Engine, Disposable {
     structuredQueries: protos.PerfettoSqlStructuredQuery[],
   ): Promise<protos.AnalyzeStructuredQueryResult> {
     return this.engine.analyzeStructuredQuery(structuredQueries);
+  }
+
+  registerExtraDescriptors(descriptors: Uint8Array): Promise<void> {
+    return this.engine.registerExtraDescriptors(descriptors);
   }
 
   get engineId(): string {

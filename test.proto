@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package perfetto.protos.test;
+
+extend .android.os.statsd.Atom {
+  optional RawBatteryGaugeStatsReported raw_battery_gauge_stats_reported_test = 1085;
+}
+
+message RawBatteryGaugeStatsReported {
+  repeated int64 system_clock_time_nanos = 1;
+  repeated float voltage_volts = 2;
+  repeated float current_milliamps = 3;
+}

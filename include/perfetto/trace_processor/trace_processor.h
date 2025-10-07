@@ -71,6 +71,8 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // name.
   virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
 
+  virtual void ExtendDescriptorPool(const uint8_t* data, size_t size) = 0;
+
   // =================================================================
   // |        Trace summary related functionality starts here        |
   // =================================================================

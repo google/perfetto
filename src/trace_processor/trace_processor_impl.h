@@ -78,6 +78,8 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status RegisterSqlModule(SqlModule module) override;
 
+  void ExtendDescriptorPool(const uint8_t* data, size_t size) override;
+
   // =================================================================
   // |  Trace-based metrics (v2) related functionality starts here   |
   // =================================================================

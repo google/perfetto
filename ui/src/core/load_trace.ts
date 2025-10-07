@@ -160,9 +160,15 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
-      extraParsingDescriptors: descriptorBlobs,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
+  }
+  if (descriptorBlobs.length > 0) {
+    console.log(`Registering ${descriptorBlobs.length} custom descriptor sets.`);
+    for (const blob of descriptorBlobs) {
+      // This is the new RPC call that sends the descriptors to the backend.
+      await engine.registerExtraDescriptors(blob);
+    }
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
 

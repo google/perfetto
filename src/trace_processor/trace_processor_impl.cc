@@ -589,6 +589,20 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
 
+void TraceProcessorImpl::ExtendDescriptorPool(const uint8_t* data, size_t size) {
+  PERFETTO_LOG("Calling AddFromFileDescriptorSet");
+
+  // The AddFromFileDescriptorSet function now always merges and returns a Status.
+  base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(
+      data, size);
+
+  if (!status.ok()) {
+    PERFETTO_ELOG("Failed to extend descriptor pool: %s", status.c_message());
+  } else {
+    PERFETTO_LOG("Successfully extended descriptor pool.");
+  }
+}
+
 // =================================================================
 // |        TraceProcessorStorage implementation starts here       |
 // =================================================================
