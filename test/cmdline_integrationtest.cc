@@ -20,6 +20,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -1128,6 +1129,87 @@ TEST_F(PerfettoCmdlineTest, CloneByName) {
   ASSERT_TRUE(ParseNotEmptyTraceFromFile(path, trace));
   ExpectTraceContainsTestMessages(trace, kTestMessageCount);
   ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
+}
+
+TEST_F(PerfettoCmdlineTest, CloneWriteIntoFileSession) {
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+  trace_config.set_unique_session_name("my_session_name");
+
+  const std::string write_into_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(write_into_file_path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          write_into_file_path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  const std::string cloned_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit_1(cloned_file_path);
+  auto clone_proc = ExecPerfetto(
+      {"--out", cloned_file_path, "--clone-by-name", "my_session_name"});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  test_helper().WaitForProducerEnabled();
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written");
+
+  // Wait until all the data for the 'write_into_file' session is written into
+  // file.
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (!ParseNotEmptyTraceFromFile(write_into_file_path, trace)) {
+      continue;
+    }
+    ssize_t test_packets_count =
+        std::count_if(trace.packet().begin(), trace.packet().end(),
+                      [](const protos::gen::TracePacket& tp) {
+                        return tp.has_for_testing();
+                      });
+    if (test_packets_count == kTestMessageCount) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // Now we clone the session.
+  std::string stderr_str;
+  EXPECT_EQ(0, clone_proc.Run(&stderr_str)) << stderr_str;
+
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+  // And now we assert that both original 'write_into_file' and the cloned
+  // session have the same events.
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+    ExpectTraceContainsTestMessages(trace, kTestMessageCount);
+    ExpectTraceContainsTestMessagesWithSize(trace, kTestMessageSize);
+  }
+  {
+    protos::gen::Trace cloned_trace;
+    ASSERT_TRUE(ParseNotEmptyTraceFromFile(cloned_file_path, cloned_trace));
+    ExpectTraceContainsTestMessages(cloned_trace, kTestMessageCount);
+    ExpectTraceContainsTestMessagesWithSize(cloned_trace, kTestMessageSize);
+  }
 }
 
 // Regression test for b/279753347: --save-for-bugreport would create an empty
