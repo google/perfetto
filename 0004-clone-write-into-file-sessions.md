@@ -2,9 +2,7 @@
 
 **Authors:** @primiano @KirillTim
 
-**Status:** Implemented
-
-**Link to PR:** https://github.com/google/perfetto/pull/2871
+**Status:** Implemented ([#2871](https://github.com/google/perfetto/pull/2871))
 
 ## Problem
 
