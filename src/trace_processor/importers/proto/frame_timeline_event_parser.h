@@ -97,6 +97,7 @@ class FrameTimelineEventParser {
   const StringId jank_tag_experimental_id_;
   const StringId is_buffer_id_;
 
+  const StringId jank_tag_unspecified_id_;
   const StringId jank_tag_none_id_;
   const StringId jank_tag_self_id_;
   const StringId jank_tag_other_id_;

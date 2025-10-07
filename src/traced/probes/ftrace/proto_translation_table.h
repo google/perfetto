@@ -65,6 +65,17 @@ inline void PrintTo(const GroupAndName& event, ::std::ostream* os) {
   *os << "GroupAndName(" << event.group() << ", " << event.name() << ")";
 }
 
+struct GenericEventProtoDescriptors {
+  // Map: proto id -> serialised GenericEventDescriptor (which already contains
+  // the proto id as a field). Not garbage collected as the number of events is
+  // bounded unless someone is constantly creating dynamic probes. This is
+  // acceptable since the proto translation table itself only lives for as long
+  // as tracing is active.
+  // TODO(rsavitski): double-check the impact of tracepoint id reuse (deleting a
+  // probe and creating a new one will reuse the tracefs event id).
+  base::FlatHashMap<uint32_t, std::vector<uint8_t>> descriptors;
+};
+
 bool InferFtraceType(const std::string& type_and_name,
                      size_t size,
                      bool is_signed,
@@ -180,8 +191,7 @@ class ProtoTranslationTable {
     return proto_field_id >= kGenericEvtProtoMinPbFieldId;
   }
 
-  const base::FlatHashMap<uint32_t, std::vector<uint8_t>>*
-  generic_evt_pb_descriptors() const {
+  const GenericEventProtoDescriptors* generic_evt_pb_descriptors() const {
     return &generic_evt_pb_descriptors_;
   }
 
@@ -206,14 +216,11 @@ class ProtoTranslationTable {
   PrintkMap printk_formats_;
   // Used to assign proto field ids within "FtraceEvent" proto when serialising
   // events not known at compile time.
+  // TODO(rsavitski): support dense generic events when using multiple ftrace
+  // instances (i.e. make the proto id reservation across multiple translation
+  // table objects).
   uint32_t next_generic_evt_proto_id_ = kGenericEvtProtoMinPbFieldId;
-  // Keyed by proto id. Not garbage collected as the number of events is bounded
-  // unless someone is constantly recreating dynamic probes. This is acceptable
-  // since the proto translation table itself only lives for as long as tracing
-  // is active.
-  // TODO(rsavitski): double-check that tracefs doesn't reuse tracepoint ids for
-  // dynamic probes.
-  base::FlatHashMap<uint32_t, std::vector<uint8_t>> generic_evt_pb_descriptors_;
+  GenericEventProtoDescriptors generic_evt_pb_descriptors_;
 };
 
 // Class for efficient 'is event with id x enabled?' checks.
