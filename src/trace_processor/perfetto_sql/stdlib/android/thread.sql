@@ -47,11 +47,11 @@ SELECT
     )
   END;
 
--- Per process stats of threads created in a process
-CREATE PERFETTO FUNCTION _android_thread_creation_spam(
-    -- Minimum duration between creating and destroying a thread before their the
+-- Per <process, thread_name_prefix> stats of threads created in a process
+CREATE PERFETTO FUNCTION _android_thread_creation_spam_per_thread(
+    -- Maximum duration between creating and destroying a thread before their the
     -- thread creation event is considered. If NULL, considers all thread creations.
-    min_thread_dur DOUBLE,
+    max_thread_dur DOUBLE,
     -- Sliding window duration for counting the thread creations. Each window
     -- starts at the first thread creation per <process, thread_name_prefix>.
     sliding_window_dur DOUBLE
@@ -59,8 +59,8 @@ CREATE PERFETTO FUNCTION _android_thread_creation_spam(
 RETURNS TABLE (
   -- Process name creating threads.
   process_name STRING,
-  -- Process pid creating threads.
-  pid LONG,
+  -- Unique process pid creating threads.
+  upid JOINID(process.id),
   -- String prefix of thread names created.
   thread_name_prefix STRING,
   -- Max number of threads created within a time window.
@@ -69,31 +69,76 @@ RETURNS TABLE (
 WITH
   x AS (
     SELECT
-      pid,
       upid,
-      android_standardize_thread_name(thread.name) AS thread_name_prefix,
       process.name AS process_name,
-      count(thread.start_ts) OVER (PARTITION BY upid, thread.name ORDER BY thread.start_ts RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING) AS count
+      android_standardize_thread_name(thread.name) AS thread_name_prefix,
+      count(thread.start_ts) OVER (PARTITION BY upid, android_standardize_thread_name(thread.name) ORDER BY thread.start_ts RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING) AS count
     FROM thread
     JOIN process
       USING (upid)
     WHERE
       (
-        $min_thread_dur AND (
+        $max_thread_dur AND (
           thread.end_ts - thread.start_ts
-        ) <= $min_thread_dur
+        ) <= $max_thread_dur
       )
-      OR $min_thread_dur IS NULL
+      OR $max_thread_dur IS NULL
   )
 SELECT
   process_name,
-  pid,
+  upid,
   thread_name_prefix,
   max(count) AS max_count_per_sec
 FROM x
 GROUP BY
   upid,
   thread_name_prefix
+HAVING
+  max_count_per_sec > 0
+ORDER BY
+  count DESC;
+
+-- Per process stats of threads created in a process
+CREATE PERFETTO FUNCTION _android_thread_creation_spam_per_process(
+    -- Maximum duration between creating and destroying a thread before their
+    -- thread creation event is considered. If NULL, considers all thread creations.
+    max_thread_dur DOUBLE,
+    -- Sliding window duration for counting the thread creations. Each window
+    -- starts at the first thread creation per <process>.
+    sliding_window_dur DOUBLE
+)
+RETURNS TABLE (
+  -- Process name creating threads.
+  process_name STRING,
+  -- Unique process pid creating threads.
+  upid JOINID(process.id),
+  -- Max number of threads created within a time window.
+  max_count_per_sec LONG
+) AS
+WITH
+  x AS (
+    SELECT
+      upid,
+      process.name AS process_name,
+      count(thread.start_ts) OVER (PARTITION BY upid ORDER BY thread.start_ts RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING) AS count
+    FROM thread
+    JOIN process
+      USING (upid)
+    WHERE
+      (
+        $max_thread_dur AND (
+          thread.end_ts - thread.start_ts
+        ) <= $max_thread_dur
+      )
+      OR $max_thread_dur IS NULL
+  )
+SELECT
+  process_name,
+  upid,
+  max(count) AS max_count_per_sec
+FROM x
+GROUP BY
+  upid
 HAVING
   max_count_per_sec > 0
 ORDER BY
