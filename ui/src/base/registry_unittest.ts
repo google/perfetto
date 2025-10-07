@@ -59,6 +59,43 @@ test('registry allows iteration', () => {
   expect(values.includes(b)).toBe(true);
 });
 
+describe('registry filter', () => {
+  test('prevents registration of non-matching kinds', () => {
+    const registry = Registry.kindRegistry<Registrant>();
+    registry.setFilter((key) => key.startsWith('a'));
+
+    const alpha: Registrant = {kind: 'alpha', n: 1};
+    const beta: Registrant = {kind: 'beta', n: 2};
+    registry.register(alpha);
+    registry.register(beta);
+
+    expect(registry.has('alpha')).toBe(true);
+    expect(registry.has('beta')).toBe(false);
+    expect(() => registry.get('beta')).toThrow();
+    expect(registry.get('alpha')).toBe(alpha);
+  });
+
+  test('removes extant non-matching registrations', () => {
+    const registry = Registry.kindRegistry<Registrant>();
+    const a: Registrant = {kind: 'alpha', n: 1};
+    const b: Registrant = {kind: 'beta', n: 2};
+    registry.register(a);
+    registry.register(b);
+
+    registry.setFilter((key) => key.startsWith('a'));
+
+    expect(registry.has('alpha')).toBe(true);
+    expect(registry.has('beta')).toBe(false);
+    expect(() => registry.get('beta')).toThrow();
+  });
+});
+
+test('cannot replace a filter', () => {
+  const registry = Registry.kindRegistry<Registrant>();
+  registry.setFilter(() => true);
+  expect(() => registry.setFilter(() => false)).toThrow();
+});
+
 describe('Hierarchical (child) registries', () => {
   test('inheritance of registrations', () => {
     const parent = Registry.kindRegistry<Registrant>();
@@ -175,5 +212,66 @@ describe('Hierarchical (child) registries', () => {
     const child = parent.createChild();
 
     expect(child).not.toHaveProperty('id');
+  });
+
+  describe('registry filter', () => {
+    test('child does not inherit parent filter', () => {
+      const parent = Registry.kindRegistry<Registrant>();
+      parent.setFilter((key) => key.startsWith('x'));
+
+      const child = parent.createChild();
+
+      const child1: Registrant = {kind: 'xyz', n: 1};
+      const child2: Registrant = {kind: 'abc', n: 2};
+      child.register(child1);
+      child.register(child2);
+
+      const parentOk: Registrant = {kind: 'xenon', n: 3};
+      const parentNok: Registrant = {kind: 'beta', n: 4};
+      parent.register(parentOk);
+      parent.register(parentNok);
+
+      expect(child.has('xyz')).toBe(true);
+      expect(child.get('xyz')).toBe(child1);
+      expect(child.has('abc')).toBe(true);
+      expect(child.get('abc')).toBe(child2);
+
+      // Other registrations still accessible (or not) as usual via inheritance
+      expect(child.get('xenon')).toBe(parentOk);
+      expect(child.has('beta')).toBe(false);
+      expect(() => child.get('beta')).toThrow();
+    });
+
+    test('setting filter on child does not affect parent', () => {
+      const parent = Registry.kindRegistry<Registrant>();
+      const a: Registrant = {kind: 'a', n: 1};
+      const b: Registrant = {kind: 'b', n: 2};
+      parent.register(a);
+      parent.register(b);
+
+      const child = parent.createChild();
+      const c: Registrant = {kind: 'c', n: 3};
+      const d: Registrant = {kind: 'd', n: 4};
+      child.register(c);
+      child.register(d);
+
+      child.setFilter((key) => key === 'b' || key === 'd');
+
+      // Parent not pruned
+      expect(parent.has('a')).toBe(true);
+      expect(parent.has('b')).toBe(true);
+
+      // Child pruned
+      expect(child.has('c')).toBe(false);
+      expect(child.has('d')).toBe(true);
+
+      // Other registrations still accessible (or not) as usual
+      expect(child.get('b')).toBe(b);
+
+      // But inheritance needs to respect the child's filtering
+      expect(child.has('a')).toBe(false);
+      expect(() => child.get('a')).toThrow();
+      expect(child.valuesAsArray()).toStrictEqual([d, b]);
+    });
   });
 });

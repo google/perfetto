@@ -38,3 +38,31 @@ describe('CommandManagerImpl child manager', () => {
     expect(parent.hasCommand('child')).toBe(false);
   });
 });
+
+describe('CommandManagerImpl filtering', () => {
+  test('filters existing and future registrations', () => {
+    const parent = new CommandManagerImpl();
+
+    const allowCmd = TestCommand('allow');
+    const denyCmd = TestCommand('deny');
+
+    parent.registerCommand(allowCmd);
+    parent.registerCommand(denyCmd);
+
+    const mgr = parent.createChild();
+    expect(mgr.hasCommand('allow')).toBe(true);
+    expect(mgr.hasCommand('deny')).toBe(true);
+
+    mgr.setFilter((id) => id.startsWith('allow'));
+
+    // Extant non-matching commands are purged
+    expect(mgr.hasCommand('allow')).toBe(true);
+    expect(mgr.hasCommand('deny')).toBe(false);
+
+    // New registrations are screened by the filter.
+    mgr.registerCommand(TestCommand('deny'));
+    expect(mgr.hasCommand('deny')).toBe(false);
+    mgr.registerCommand(TestCommand('allowed'));
+    expect(mgr.hasCommand('allowed')).toBe(true);
+  });
+});
