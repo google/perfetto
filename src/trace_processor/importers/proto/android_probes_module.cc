@@ -16,24 +16,19 @@
 
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 
-#include <cinttypes>
 #include <cstdint>
 #include <string>
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -41,10 +36,11 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
+#include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
@@ -52,73 +48,6 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
-namespace {
-
-const char* MapToFriendlyPowerRailName(base::StringView raw) {
-  if (raw.EndsWith("M_VDD_CPUCL0")) {
-    return "cpu.little";
-  } else if (raw.EndsWith("M_VDD_CPUCL0_M")) {
-    return "cpu.little.mem";
-  } else if (raw.EndsWith("M_VDD_CPUCL1")) {
-    return "cpu.mid";
-  } else if (raw.EndsWith("M_VDD_CPUCL1_M")) {
-    return "cpu.mid.mem";
-  } else if (raw.EndsWith("M_VDD_CPUCL2")) {
-    return "cpu.big";
-  } else if (raw.EndsWith("M_VDD_INT")) {
-    return "system.fabric";
-  } else if (raw.EndsWith("M_VDD_TPU")) {
-    return "tpu";
-  } else if (raw.EndsWith("VSYS_PWR_DISP") ||
-             raw.EndsWith("VSYS_PWR_DISPLAY")) {
-    return "display";
-  } else if (raw.EndsWith("M_DISP")) {
-    return "ldo.main.a.display";
-  } else if (raw.EndsWith("VSYS_PWR_MODEM")) {
-    return "modem";
-  } else if (raw.EndsWith("M_VDD_MIF")) {
-    return "memory.interface";
-  } else if (raw.EndsWith("VSYS_PWR_WLAN_BT")) {
-    return "wifi.bt";
-  } else if (raw.EndsWith("VSYS_PWR_MMWAVE")) {
-    return "mmwave";
-  } else if (raw.EndsWith("S_VDD_AOC_RET")) {
-    return "aoc.memory";
-  } else if (raw.EndsWith("S_VDD_AOC")) {
-    return "aoc.logic";
-  } else if (raw.EndsWith("S_VDDQ_MEM")) {
-    return "ddr.a";
-  } else if (raw.EndsWith("S_VDD2L") || raw.EndsWith("S_VDD2L_MEM")) {
-    return "ddr.b";
-  } else if (raw.EndsWith("S_VDD2H_MEM")) {
-    return "ddr.c";
-  } else if (raw.EndsWith("S_VDD_G3D")) {
-    return "gpu";
-  } else if (raw.EndsWith("S_VDD_G3D_L2")) {
-    return "gpu.l2";
-  } else if (raw.EndsWith("S_GNSS_CORE")) {
-    return "gps";
-  } else if (raw.EndsWith("VSYS_PWR_RFFE")) {
-    return "radio.frontend";
-  } else if (raw.EndsWith("VSYS_PWR_CAMERA")) {
-    return "camera";
-  } else if (raw.EndsWith("S_VDD_CAM")) {
-    return "multimedia";
-  } else if (raw.EndsWith("S_UDFPS")) {
-    return "udfps";
-  } else if (raw.EndsWith("S_PLL_MIPI_UFS")) {
-    return "ufs";
-  } else if (raw.EndsWith("M_LLDO1")) {
-    return "ldo.main.a";
-  } else if (raw.EndsWith("M_LLDO2")) {
-    return "ldo.main.b";
-  } else if (raw.EndsWith("S_LLDO1")) {
-    return "ldo.sub";
-  }
-  return nullptr;
-}
-
-}  // namespace
 
 using perfetto::protos::pbzero::TracePacket;
 
@@ -128,10 +57,7 @@ AndroidProbesModule::AndroidProbesModule(
     : ProtoImporterModule(module_context),
       tracker_(std::make_unique<AndroidProbesTracker>(context->storage.get())),
       parser_(context, tracker_.get()),
-      context_(context),
-      power_rail_raw_name_id_(context->storage->InternString("raw_name")),
-      power_rail_subsys_name_arg_id_(
-          context->storage->InternString("subsystem_name")) {
+      context_(context) {
   RegisterForField(TracePacket::kBatteryFieldNumber);
   RegisterForField(TracePacket::kPowerRailsFieldNumber);
   RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber);
@@ -168,95 +94,110 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     return ModuleResult::Ignored();
   }
 
-  if (field_id != TracePacket::kPowerRailsFieldNumber) {
-    return ModuleResult::Ignored();
-  }
-
   // Power rails are similar to ftrace in that they have many events, each with
   // their own timestamp, packed inside a single TracePacket. This means that,
   // similar to ftrace, we need to unpack them and individually sort them.
+  // These events are not perf sensitive, so not worth adding a lot of machinery
+  // to shepherd these events through the sorting queues in a special way.
+  // Therefore, we just forge new packets and sort them as if they came from the
+  // underlying trace.
+  if (field_id == TracePacket::kPowerRailsFieldNumber) {
+    auto power_rails = decoder.power_rails();
+    protos::pbzero::PowerRails::Decoder evt(power_rails);
 
-  // However, as these events are not perf sensitive, it's not worth adding
-  // a lot of machinery to shepherd these events through the sorting queues
-  // in a special way. Therefore, we just forge new packets and sort them as if
-  // they came from the underlying trace.
-  auto power_rails = decoder.power_rails();
-  protos::pbzero::PowerRails::Decoder evt(power_rails);
+    parser_.ParseRailDescriptor(evt);
 
-  for (auto it = evt.rail_descriptor(); it; ++it) {
-    protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
-    uint32_t idx = desc.index();
-    if (PERFETTO_UNLIKELY(idx > 256)) {
-      PERFETTO_DLOG("Skipping excessively large power_rail index %" PRIu32,
-                    idx);
-      continue;
+    // For each energy data message, turn it into its own trace packet
+    // making sure its timestamp is consistent between the packet level and
+    // the EnergyData level.
+    for (auto it = evt.energy_data(); it; ++it) {
+      protos::pbzero::PowerRails::EnergyData::Decoder data(*it);
+      int64_t actual_ts =
+          data.has_timestamp_ms()
+              ? static_cast<int64_t>(data.timestamp_ms()) * 1000000
+              : packet_timestamp;
+
+      protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
+      // Keep the original timestamp to later extract as an arg; the sorter does
+      // not read this.
+      data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
+
+      auto* power_rails_proto = data_packet->set_power_rails();
+      power_rails_proto->set_session_uuid(evt.session_uuid());
+      auto* energy = power_rails_proto->add_energy_data();
+      energy->set_energy(data.energy());
+      energy->set_index(data.index());
+      energy->set_timestamp_ms(static_cast<uint64_t>(actual_ts / 1000000));
+
+      auto [vec, size] = data_packet.SerializeAsUniquePtr();
+      TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+      module_context_->trace_packet_stream->Push(
+          actual_ts, TracePacketData{std::move(tbv), state});
     }
-    static constexpr auto kPowerBlueprint = tracks::CounterBlueprint(
-        "power_rails", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(
-            tracks::kNameFromTraceDimensionBlueprint,
-            tracks::UintDimensionBlueprint("session_uuid")),
-        tracks::DynamicNameBlueprint());
-    const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
-    TrackId track;
-    auto args_fn = [this, &desc](ArgsTracker::BoundInserter& inserter) {
-      StringId raw_name = context_->storage->InternString(desc.rail_name());
-      inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
-
-      StringId subsys_name =
-          context_->storage->InternString(desc.subsys_name());
-      inserter.AddArg(power_rail_subsys_name_arg_id_,
-                      Variadic::String(subsys_name));
-    };
-    if (friendly_name) {
-      StringId id = context_->storage->InternString(
-          base::StackString<255>("power.rails.%s", friendly_name)
-              .string_view());
-      track = context_->track_tracker->InternTrack(
-          kPowerBlueprint,
-          tracks::Dimensions(desc.rail_name(), evt.session_uuid()),
-          tracks::DynamicName(id), args_fn);
-    } else {
-      StringId id = context_->storage->InternString(
-          base::StackString<255>("power.%.*s_uws", int(desc.rail_name().size),
-                                 desc.rail_name().data)
-              .string_view());
-      track = context_->track_tracker->InternTrack(
-          kPowerBlueprint,
-          tracks::Dimensions(desc.rail_name(), evt.session_uuid()),
-          tracks::DynamicName(id), args_fn);
-    }
-    tracker_->SetPowerRailTrack(evt.session_uuid(), desc.index(), track);
+    return ModuleResult::Handled();
   }
 
-  // For each energy data message, turn it into its own trace packet
-  // making sure its timestamp is consistent between the packet level and
-  // the EnergyData level.
-  for (auto it = evt.energy_data(); it; ++it) {
-    protos::pbzero::PowerRails::EnergyData::Decoder data(*it);
-    int64_t actual_ts =
-        data.has_timestamp_ms()
-            ? static_cast<int64_t>(data.timestamp_ms()) * 1000000
-            : packet_timestamp;
+  // We treat Android logs similarly to ftrace in that they have many events, so
+  // we just mimic the sorting logic to the one from kPowerRailsFieldNumber
+  // above.
+  if (field_id == TracePacket::kAndroidLogFieldNumber) {
+    auto android_log = decoder.android_log();
+    protos::pbzero::AndroidLogPacket::Decoder pkt(android_log);
+    for (auto it = pkt.events(); it; ++it) {
+      protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(*it);
+      int64_t realtime_ts = static_cast<int64_t>(evt.timestamp());
+      base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+          protos::pbzero::BUILTIN_CLOCK_REALTIME, realtime_ts);
+      if (!trace_ts.ok()) {
+        static std::atomic<uint32_t> dlog_count(0);
+        if (dlog_count++ < 10) {
+          PERFETTO_DLOG("%s", trace_ts.status().c_message());
+        }
+        continue;
+      }
+      int64_t actual_ts = *trace_ts;
 
-    protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
-    // Keep the original timestamp to later extract as an arg; the sorter does
-    // not read this.
-    data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
+      protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
+      data_packet->set_timestamp(static_cast<uint64_t>(actual_ts));
 
-    auto* power_rails_proto = data_packet->set_power_rails();
-    power_rails_proto->set_session_uuid(evt.session_uuid());
-    auto* energy = power_rails_proto->add_energy_data();
-    energy->set_energy(data.energy());
-    energy->set_index(data.index());
-    energy->set_timestamp_ms(static_cast<uint64_t>(actual_ts / 1000000));
+      auto* log_pkt = data_packet->set_android_log();
+      auto* log_evt = log_pkt->add_events();
+      log_evt->set_log_id(
+          static_cast<protos::pbzero::AndroidLogId>(evt.log_id()));
+      log_evt->set_pid(evt.pid());
+      log_evt->set_tid(evt.tid());
+      log_evt->set_uid(evt.uid());
+      log_evt->set_timestamp(evt.timestamp());
+      log_evt->set_tag(evt.tag());
+      log_evt->set_prio(
+          static_cast<protos::pbzero::AndroidLogPriority>(evt.prio()));
+      log_evt->set_message(evt.message());
+      for (auto arg_it = evt.args(); arg_it; ++arg_it) {
+        protos::pbzero::AndroidLogPacket::LogEvent::Arg::Decoder arg(*arg_it);
+        auto* new_arg = log_evt->add_args();
+        new_arg->set_name(arg.name());
+        if (arg.has_int_value()) {
+          new_arg->set_int_value(arg.int_value());
+        } else if (arg.has_float_value()) {
+          new_arg->set_float_value(arg.float_value());
+        } else if (arg.has_string_value()) {
+          new_arg->set_string_value(arg.string_value());
+        }
+      }
 
-    auto [vec, size] = data_packet.SerializeAsUniquePtr();
-    TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
-    module_context_->trace_packet_stream->Push(
-        actual_ts, TracePacketData{std::move(tbv), state});
+      auto [vec, size] = data_packet.SerializeAsUniquePtr();
+      TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+      module_context_->trace_packet_stream->Push(
+          actual_ts, TracePacketData{std::move(tbv), state});
+    }
+    if (pkt.has_stats()) {
+      parser_.ParseAndroidLogStats(pkt.stats());
+    }
+    return ModuleResult::Handled();
   }
-  return ModuleResult::Handled();
+
+  // Events with a timestamp are pushed to the sorter.
+  return ModuleResult::Ignored();
 }
 
 void AndroidProbesModule::ParseTracePacketData(
@@ -265,11 +206,18 @@ void AndroidProbesModule::ParseTracePacketData(
     const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
-    case TracePacket::kBatteryFieldNumber:
-      parser_.ParseBatteryCounters(ts, decoder.battery());
+    case TracePacket::kAndroidLogFieldNumber:
+      parser_.ParseAndroidLogPacket(ts, decoder.android_log());
+      return;
+    case TracePacket::kAndroidGameInterventionListFieldNumber:
+      parser_.ParseAndroidGameIntervention(
+          decoder.android_game_intervention_list());
       return;
     case TracePacket::kPowerRailsFieldNumber:
       parser_.ParsePowerRails(ts, decoder.timestamp(), decoder.power_rails());
+      return;
+    case TracePacket::kBatteryFieldNumber:
+      parser_.ParseBatteryCounters(ts, decoder.battery());
       return;
     case TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber:
       parser_.ParseEnergyBreakdown(
@@ -277,13 +225,6 @@ void AndroidProbesModule::ParseTracePacketData(
       return;
     case TracePacket::kEntityStateResidencyFieldNumber:
       parser_.ParseEntityStateResidency(ts, decoder.entity_state_residency());
-      return;
-    case TracePacket::kAndroidLogFieldNumber:
-      parser_.ParseAndroidLogPacket(decoder.android_log());
-      return;
-    case TracePacket::kAndroidGameInterventionListFieldNumber:
-      parser_.ParseAndroidGameIntervention(
-          decoder.android_game_intervention_list());
       return;
     case TracePacket::kInitialDisplayStateFieldNumber:
       parser_.ParseInitialDisplayState(ts, decoder.initial_display_state());
@@ -294,9 +235,10 @@ void AndroidProbesModule::ParseTracePacketData(
     case TracePacket::kBluetoothTraceEventFieldNumber:
       parser_.ParseBtTraceEvent(ts, decoder.bluetooth_trace_event());
       return;
+    default:
+      PERFETTO_FATAL("Unexpected field in AndroidProbesModule");
   }
 }
-
 void AndroidProbesModule::ParseTraceConfig(
     const protos::pbzero::TraceConfig::Decoder& decoder) {
   if (decoder.has_statsd_metadata()) {
