@@ -33,7 +33,7 @@ export interface SlicesSourceSerializedState {
   thread_name?: string;
   process_name?: string;
   track_name?: string;
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
 }
 
@@ -69,7 +69,7 @@ export class SlicesSourceNode extends SourceNode {
       thread_name: this.state.thread_name?.slice(),
       process_name: this.state.process_name?.slice(),
       track_name: this.state.track_name?.slice(),
-      filters: this.state.filters.map((f) => ({...f})),
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       customTitle: this.state.customTitle,
     };
     return new SlicesSourceNode(stateCopy);
