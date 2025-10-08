@@ -85,7 +85,7 @@ source_set("trace_redaction") {
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:zero",
-    "../trace_processor:storage_minimal",
+    "../trace_processor/util:blob",
   ]
 }
 
