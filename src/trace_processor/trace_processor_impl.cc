@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -70,6 +71,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/atoms.descriptor.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
@@ -554,6 +556,12 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     PERFETTO_CHECK(status.ok());
   }
 
+  {
+    base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(
+        kAtomsDescriptor.data(), kAtomsDescriptor.size());
+    PERFETTO_CHECK(status.ok());
+  }
+
   // Register stdlib packages.
   auto packages = GetStdlibPackages();
   for (auto package = packages.GetIterator(); package; ++package) {
@@ -589,12 +597,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
 
-void TraceProcessorImpl::ExtendDescriptorPool(const uint8_t* data, size_t size) {
-  PERFETTO_LOG("Calling AddFromFileDescriptorSet");
-
-  // The AddFromFileDescriptorSet function now always merges and returns a Status.
-  base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(
-      data, size);
+void TraceProcessorImpl::ExtendDescriptorPool(const uint8_t* data,
+                                              size_t size) {
+  // FINAL VERSION: A simple, clean call to add the descriptor set.
+  base::Status status =
+      context()->descriptor_pool_->AddFromFileDescriptorSet(data, size);
 
   if (!status.ok()) {
     PERFETTO_ELOG("Failed to extend descriptor pool: %s", status.c_message());

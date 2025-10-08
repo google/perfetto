@@ -45,3 +45,6 @@ mise.toml
 perf.data*
 rfcs
 TAGS
+1085_trace.perfetto_trace.gz
+test.proto
+test.proto

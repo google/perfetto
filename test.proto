@@ -3,7 +3,8 @@ syntax = "proto2";
 package perfetto.protos.test;
 
 extend .android.os.statsd.Atom {
-  optional RawBatteryGaugeStatsReported raw_battery_gauge_stats_reported_test = 1085;
+  optional RawBatteryGaugeStatsReported raw_battery_gauge_stats_reported_test =
+      1085;
 }
 
 message RawBatteryGaugeStatsReported {

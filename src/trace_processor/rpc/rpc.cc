@@ -355,23 +355,24 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       break;
     }
     case RpcProto::TPM_REGISTER_ADDITIONAL_DESCRIPTORS: {
-  Response resp(tx_seq_id_++, req_type);
-  if (!req.has_register_additional_descriptors_args()) {
-    // This field was renamed in the protos. If you get a build error,
-    // try !req.has_register_additional_descriptors_args_v2() or similar.
-  } else {
-    protozero::ConstBytes descriptor_set =
-        req.register_additional_descriptors_args();
+      Response resp(tx_seq_id_++, req_type);
+      if (!req.has_register_additional_descriptors_args()) {
+        // This field was renamed in the protos. If you get a build error,
+        // try !req.has_register_additional_descriptors_args_v2() or similar.
+      } else {
+        protozero::ConstBytes descriptor_set =
+            req.register_additional_descriptors_args();
 
-    PERFETTO_LOG("Received RegisterAdditionalDescriptors RPC with %zu bytes.",
-                 descriptor_set.size);
+        PERFETTO_LOG(
+            "Received RegisterAdditionalDescriptors RPC with %zu bytes.",
+            descriptor_set.size);
 
-    trace_processor_->ExtendDescriptorPool(descriptor_set.data,
-                                         descriptor_set.size);
-  }
-  resp.Send(rpc_response_fn_);
-  break;
-}
+        trace_processor_->ExtendDescriptorPool(descriptor_set.data,
+                                               descriptor_set.size);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     case RpcProto::TPM_ANALYZE_STRUCTURED_QUERY: {
       Response resp(tx_seq_id_++, req_type);
       protozero::ConstBytes args = req.analyze_structured_query_args();
