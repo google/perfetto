@@ -508,7 +508,6 @@ class TracingServiceImpl : public TracingService {
     bool skip_trace_filter = false;
     std::optional<TriggerInfo> clone_trigger;
     int64_t clone_started_timestamp_ns = 0;
-    base::ScopedFile output_file_fd;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound
@@ -872,8 +871,7 @@ class TracingServiceImpl : public TracingService {
                                   bool final_flush_outcome,
                                   std::optional<TriggerInfo> clone_trigger,
                                   base::Uuid*,
-                                  int64_t clone_started_timestamp_ns,
-                                  base::ScopedFile output_file_fd);
+                                  int64_t clone_started_timestamp_ns);
   void OnFlushDoneForClone(TracingSessionID src_tsid,
                            PendingCloneID clone_id,
                            const std::set<BufferID>& buf_ids,
