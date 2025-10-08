@@ -588,7 +588,6 @@ function registerTraceMenuItems(trace: TraceImpl) {
       action: () => {
         // Do nothing (we need to supply an action to override the href).
       },
-      tooltip: 'Click to copy the URL',
       cssClass: 'pf-sidebar__trace-file-name',
     });
   trace.sidebar.addMenuItem({
