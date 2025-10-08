@@ -62,7 +62,10 @@ bool IsIoWait(uint8_t reason) {
 
 }  // namespace
 
-EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
+EtwParser::EtwParser(TraceProcessorContext* context)
+    : context_(context),
+      anonymized_process_string_id_(
+          context->storage->InternString("Anonymized Process")) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
@@ -102,8 +105,7 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
       new_thread_id == kAnonymizedThreadId) {
     context_->process_tracker->UpdateThreadName(
         context_->process_tracker->GetOrCreateThread(kAnonymizedThreadId),
-        context_->storage->InternString("Anonymized Process"),
-        ThreadNamePriority::kEtwTrace);
+        anonymized_process_string_id_, ThreadNamePriority::kEtwTrace);
   }
 
   // Extract the wait reason. If not present in the trace, default to 0
