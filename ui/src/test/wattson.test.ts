@@ -43,7 +43,7 @@ test('wattson aggregations', async () => {
   const wattsonGrp = pth.locateTrack('Wattson');
   await wattsonGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(wattsonGrp);
-  const cpuEstimate = pth.locateTrack('Wattson/Cpu0 Estimate', wattsonGrp);
+  const cpuEstimate = pth.locateTrack('Wattson/Cpu0 estimate', wattsonGrp);
   const coords = assertExists(await cpuEstimate.boundingBox());
   await page.keyboard.press('Escape');
   await page.mouse.move(600, coords.y + 10);
