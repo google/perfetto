@@ -71,6 +71,7 @@
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
+#include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
@@ -82,6 +83,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
@@ -518,6 +520,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       ->reader_registry
       ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
           kPerfTextTraceType);
+  context()
+      ->reader_registry->RegisterTraceReader<
+          simpleperf_proto_importer::SimpleperfProtoTokenizer>(
+          kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
 
@@ -1251,10 +1257,10 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<Hash>(engine.get());
   RegisterFunction<Base64Encode>(engine.get());
   RegisterFunction<Demangle>(engine.get());
-  RegisterFunction<SourceGeq>(engine.get());
   RegisterFunction<TablePtrBind>(engine.get());
   RegisterFunction<ExportJson>(engine.get(), storage);
   RegisterFunction<ExtractArg>(engine.get(), storage);
+  RegisterFunction<ArgSetToJson>(engine.get(), storage);
   RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());
   RegisterFunction<Reverse>(engine.get());
   RegisterFunction<ToMonotonic>(engine.get(), context->clock_converter.get());

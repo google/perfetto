@@ -55,7 +55,7 @@ base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
 
 // Implementation of __intrinsic_strip_hex function
 // Visible for testing
-std::string SqlStripHex(std::string input, int64_t min_repeated_digits);
+std::string SqlStripHex(const std::string& input, int64_t min_repeated_digits);
 
 }  // namespace perfetto::trace_processor
 

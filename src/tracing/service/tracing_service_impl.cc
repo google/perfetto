@@ -53,6 +53,7 @@
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -181,7 +182,7 @@ int32_t EncodeCommitDataRequest(ProducerID producer_id,
 }
 
 void SerializeAndAppendPacket(std::vector<TracePacket>* packets,
-                              std::vector<uint8_t> packet) {
+                              const std::vector<uint8_t>& packet) {
   Slice slice = Slice::Allocate(packet.size());
   memcpy(slice.own_data(), packet.data(), packet.size());
   packets->emplace_back();
@@ -2879,7 +2880,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
           [weak_consumer = clone_op.weak_consumer] {
             if (weak_consumer) {
               weak_consumer->consumer_->OnSessionCloned(
-                  {false, "Original session ended", {}});
+                  {false, "Original session ended", {}, false});
             }
           });
     }
@@ -4140,6 +4141,38 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
+  // The new logic we use to clone 'write_into_file' session relies on the
+  // 'buffer_clone_preserve_read_iter' flag being true; see b/448604718.
+  //
+  // The old logic ignored |session->write_into_file| when doing clone.
+  // Therefore, if the 'buffer_clone_preserve_read_iter' flag is false, we
+  // ignore the file to make the new logic behave like the old logic.
+  bool clone_session_write_into_file =
+      base::flags::buffer_clone_preserve_read_iter && session->write_into_file;
+
+  if (clone_session_write_into_file) {
+    if (!args.output_file_fd) {
+      return PERFETTO_SVC_ERR(
+          "Failed to clone 'write_into_file' session: a file descriptor is "
+          "required to copy existing file");
+    }
+    base::FlushFile(*session->write_into_file);
+    base::Status status =
+        base::CopyFileContents(*session->write_into_file, *args.output_file_fd);
+    if (!status.ok()) {
+      return PERFETTO_SVC_ERR(
+          "Failed to clone 'write_into_file' session: failed to copy existing "
+          "file: %s",
+          status.c_message());
+    }
+  } else {
+    // The client always sends a FD because when it asks to CloneSession,
+    // it doesn't know if the session being cloned is WIF or not. If it's
+    // not we should just ignore the file, the client will readback via IPC
+    // as usual in that case.
+    args.output_file_fd.reset();
+  }
+
   // If any of the buffers are marked as clear_before_clone, reset them before
   // issuing the Flush(kCloneReason).
   size_t buf_idx = 0;
@@ -4191,6 +4224,9 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
         args.clone_trigger_boot_time_ns, args.clone_trigger_name,
         args.clone_trigger_producer_name,
         args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
+  }
+  if (args.output_file_fd) {
+    clone_op.output_file_fd = std::move(args.output_file_fd);
   }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
@@ -4278,6 +4314,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
     result = PERFETTO_SVC_ERR("Buffer allocation failed");
   }
 
+  bool was_write_into_file = false;
   if (result.ok()) {
     UpdateMemoryGuardrail();
 
@@ -4290,17 +4327,19 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
                  final_flush_outcome);
 
     if (clone_op.weak_consumer) {
+      was_write_into_file = static_cast<bool>(clone_op.output_file_fd);
       result = FinishCloneSession(
           &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
           std::move(clone_op.buffer_cloned_timestamps),
           clone_op.skip_trace_filter, !clone_op.flush_failed,
-          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns);
+          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns,
+          std::move(clone_op.output_file_fd));
     }
   }  // if (result.ok())
 
   if (clone_op.weak_consumer) {
     clone_op.weak_consumer->consumer_->OnSessionCloned(
-        {result.ok(), result.message(), uuid});
+        {result.ok(), result.message(), uuid, was_write_into_file});
   }
 
   src->pending_clones.erase(it);
@@ -4355,7 +4394,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
     bool final_flush_outcome,
     std::optional<TriggerInfo> clone_trigger,
     base::Uuid* new_uuid,
-    int64_t clone_started_timestamp_ns) {
+    int64_t clone_started_timestamp_ns,
+    base::ScopedFile output_file_fd) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
                 ", skip_trace_filter=%d) started, consumer uid: %d",
                 src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
@@ -4462,6 +4502,12 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->final_flush_outcome = final_flush_outcome
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
+  if (output_file_fd) {
+    cloned_session->write_into_file = std::move(output_file_fd);
+    cloned_session->write_period_ms = 0;
+    ReadBuffersIntoFile(cloned_session->id);
+  }
+
   return base::OkStatus();
 }
 
@@ -4827,7 +4873,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
   base::Status result = service_->FlushAndCloneSession(this, std::move(args));
 
   if (!result.ok()) {
-    consumer_->OnSessionCloned({false, result.message(), {}});
+    consumer_->OnSessionCloned({false, result.message(), {}, false});
   }
 }
 
