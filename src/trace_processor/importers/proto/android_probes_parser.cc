@@ -446,9 +446,15 @@ void AndroidProbesParser::ParseAndroidLogEvent(int64_t ts,
     prio = protos::pbzero::AndroidLogPriority::PRIO_INFO;
 
   if (arg_str != &arg_msg[0]) {
-    PERFETTO_DCHECK(msg_id.is_null());
     // Skip the first space char (" foo=1 bar=2" -> "foo=1 bar=2").
-    msg_id = context_->storage->InternString(&arg_msg[1]);
+    base::StringView args_sv(&arg_msg[1]);
+    if (msg_id.is_null()) {
+      msg_id = context_->storage->InternString(args_sv);
+    } else {
+      std::string new_msg = context_->storage->GetString(msg_id).ToStdString() +
+                            " " + args_sv.ToStdString();
+      msg_id = context_->storage->InternString(base::StringView(new_msg));
+    }
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
 

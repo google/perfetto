@@ -97,11 +97,11 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   // Power rails are similar to ftrace in that they have many events, each with
   // their own timestamp, packed inside a single TracePacket. This means that,
   // similar to ftrace, we need to unpack them and individually sort them.
+  // These events are not perf sensitive, so not worth adding a lot of machinery
+  // to shepherd these events through the sorting queues in a special way.
+  // Therefore, we just forge new packets and sort them as if they came from the
+  // underlying trace.
   if (field_id == TracePacket::kPowerRailsFieldNumber) {
-    // However, as these events are not perf sensitive, it's not worth adding
-    // a lot of machinery to shepherd these events through the sorting queues
-    // in a special way. Therefore, we just forge new packets and sort them as
-    // if they came from the underlying trace.
     auto power_rails = decoder.power_rails();
     protos::pbzero::PowerRails::Decoder evt(power_rails);
 
@@ -137,6 +137,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     return ModuleResult::Handled();
   }
 
+  // We treat Android logs similarly to ftrace in that they have many events, so
+  // we just mimic the sorting logic to the one from kPowerRailsFieldNumber
+  // above.
   if (field_id == TracePacket::kAndroidLogFieldNumber) {
     auto android_log = decoder.android_log();
     protos::pbzero::AndroidLogPacket::Decoder pkt(android_log);
