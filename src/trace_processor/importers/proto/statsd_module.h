@@ -52,8 +52,9 @@ class StatsdModule : public ProtoImporterModule {
                             const TracePacketData&,
                             uint32_t field_id) override;
 
- private:
   void ParseAtom(int64_t ts, protozero::ConstBytes bytes);
+
+ private:
   StringId GetAtomName(uint32_t atom_field_id);
   TrackId InternTrackId();
 
