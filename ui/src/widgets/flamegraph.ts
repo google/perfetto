@@ -376,7 +376,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               // We have a wide set of buttons that would overflow given the
               // normal width constraints of the popup.
               fitContent: true,
-              position: PopupPosition.Bottom,
+              position: PopupPosition.Right,
               isOpen:
                 this.tooltipPos?.state === 'HOVER' ||
                 this.tooltipPos?.state === 'CLICK',
