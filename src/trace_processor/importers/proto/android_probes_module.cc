@@ -105,7 +105,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     auto power_rails = decoder.power_rails();
     protos::pbzero::PowerRails::Decoder evt(power_rails);
 
-    parser_.ParseRailDescriptor(power_rails);
+    parser_.ParseRailDescriptor(evt);
 
     // For each energy data message, turn it into its own trace packet
     // making sure its timestamp is consistent between the packet level and
@@ -214,23 +214,23 @@ void AndroidProbesModule::ParseTracePacketData(
       parser_.ParsePowerRails(ts, decoder.timestamp(), decoder.power_rails());
       return;
     case TracePacket::kBatteryFieldNumber:
-      parser_.Parse(ts, field_id, decoder.battery());
+      parser_.ParseBatteryCounters(ts, decoder.battery());
       return;
     case TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber:
-      parser_.Parse(ts, field_id,
-                    decoder.android_energy_estimation_breakdown());
+      parser_.ParseEnergyBreakdown(
+          ts, decoder.android_energy_estimation_breakdown());
       return;
     case TracePacket::kEntityStateResidencyFieldNumber:
-      parser_.Parse(ts, field_id, decoder.entity_state_residency());
+      parser_.ParseEntityStateResidency(ts, decoder.entity_state_residency());
       return;
     case TracePacket::kInitialDisplayStateFieldNumber:
-      parser_.Parse(ts, field_id, decoder.initial_display_state());
+      parser_.ParseInitialDisplayState(ts, decoder.initial_display_state());
       return;
     case TracePacket::kAndroidSystemPropertyFieldNumber:
-      parser_.Parse(ts, field_id, decoder.android_system_property());
+      parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
       return;
     case TracePacket::kBluetoothTraceEventFieldNumber:
-      parser_.Parse(ts, field_id, decoder.bluetooth_trace_event());
+      parser_.ParseBtTraceEvent(ts, decoder.bluetooth_trace_event());
       return;
     default:
       PERFETTO_FATAL("Unexpected field in AndroidProbesModule");

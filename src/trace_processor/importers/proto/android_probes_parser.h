@@ -21,6 +21,7 @@
 
 #include "perfetto/protozero/field.h"
 
+#include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
@@ -35,8 +36,7 @@ class AndroidProbesParser {
 
   explicit AndroidProbesParser(TraceProcessorContext*, AndroidProbesTracker*);
 
-  void Parse(int64_t ts, uint32_t field_id, protozero::ConstBytes);
-  void ParseRailDescriptor(protozero::ConstBytes);
+  void ParseRailDescriptor(const protos::pbzero::PowerRails_Decoder&);
   void ParsePowerRails(int64_t ts,
                        uint64_t trace_packet_ts,
                        protozero::ConstBytes);
@@ -44,15 +44,15 @@ class AndroidProbesParser {
   void ParseAndroidLogStats(protozero::ConstBytes);
   void ParseStatsdMetadata(protozero::ConstBytes);
   void ParseAndroidGameIntervention(protozero::ConstBytes blob);
-
- private:
   void ParseBatteryCounters(int64_t ts, ConstBytes);
   void ParseEnergyBreakdown(int64_t ts, ConstBytes);
   void ParseEntityStateResidency(int64_t ts, ConstBytes);
-  void ParseAndroidLogEvent(int64_t ts, protozero::ConstBytes);
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
   void ParseAndroidSystemProperty(int64_t ts, ConstBytes);
   void ParseBtTraceEvent(int64_t ts, ConstBytes);
+
+ private:
+  void ParseAndroidLogEvent(int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* const context_;
   AndroidProbesTracker* const tracker_;

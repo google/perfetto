@@ -153,37 +153,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
       power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       rail_packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
 
-void AndroidProbesParser::Parse(int64_t ts,
-                                uint32_t field_id,
-                                protozero::ConstBytes blob) {
-  using TracePacket = protos::pbzero::TracePacket;
-  switch (field_id) {
-    case TracePacket::kBatteryFieldNumber:
-      ParseBatteryCounters(ts, blob);
-      return;
-    case TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber:
-      ParseEnergyBreakdown(ts, blob);
-      return;
-    case TracePacket::kEntityStateResidencyFieldNumber:
-      ParseEntityStateResidency(ts, blob);
-      return;
-    case TracePacket::kInitialDisplayStateFieldNumber:
-      ParseInitialDisplayState(ts, blob);
-      return;
-    case TracePacket::kAndroidSystemPropertyFieldNumber:
-      ParseAndroidSystemProperty(ts, blob);
-      return;
-    case TracePacket::kBluetoothTraceEventFieldNumber:
-      ParseBtTraceEvent(ts, blob);
-      return;
-    default:
-      PERFETTO_FATAL("Unexpected field in AndroidProbesParser");
-  }
-}
-
-void AndroidProbesParser::ParseRailDescriptor(protozero::ConstBytes blob) {
-  protos::pbzero::PowerRails::Decoder evt(blob);
-
+void AndroidProbesParser::ParseRailDescriptor(
+    const protos::pbzero::PowerRails_Decoder& evt) {
   for (auto it = evt.rail_descriptor(); it; ++it) {
     protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
     uint32_t idx = desc.index();
