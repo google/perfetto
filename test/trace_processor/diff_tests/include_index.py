@@ -109,6 +109,7 @@ from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfil
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
+from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
@@ -147,6 +148,7 @@ from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
+from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
@@ -220,6 +222,7 @@ def fetch_all_diff_tests(
       ProfilingLlvmSymbolizer,
       SchedParser,
       Simpleperf,
+      SimpleperfProtoParser,
       StdlibSched,
       Smoke,
       SmokeComputeMetrics,
@@ -287,6 +290,7 @@ def fetch_all_diff_tests(
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
+      ArgsFunctions,
       CpuClusters,
       Battery,
       DesktopMode,

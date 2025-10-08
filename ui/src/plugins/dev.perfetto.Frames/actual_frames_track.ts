@@ -36,12 +36,14 @@ const LIGHT_GREEN_500 = makeColorScheme(new HSLColor('#C0D588'));
 const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
+const WHITE_200 = makeColorScheme(new HSLColor('#F5F5F5'));
 
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
+  useExperimentalJankForClassification: boolean,
 ) {
   return SliceTrack.create({
     trace,
@@ -55,6 +57,7 @@ export function createActualFramesTrack(
         dur: LONG,
         jank_type: STR,
         jank_tag: STR_NULL,
+        jank_tag_experimental: STR_NULL,
         jank_severity_type: STR_NULL,
         arg_set_id: NUM,
         track_id: NUM,
@@ -65,7 +68,12 @@ export function createActualFramesTrack(
       },
     }),
     colorizer: (row) => {
-      return getColorSchemeForJank(row.jank_tag, row.jank_severity_type);
+      return getColorSchemeForJank(
+        useExperimentalJankForClassification
+          ? row.jank_tag_experimental
+          : row.jank_tag,
+        row.jank_severity_type,
+      );
     },
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
@@ -90,6 +98,8 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_100;
       case 'No Jank': // should not happen
         return GREEN_200;
+      case 'Non Animating': // should not happen
+        return WHITE_200;
       default:
         return PINK_200;
     }
@@ -106,6 +116,8 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_500;
       case 'No Jank':
         return GREEN_500;
+      case 'Non Animating':
+        return WHITE_200;
       default:
         return PINK_500;
     }

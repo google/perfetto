@@ -1030,7 +1030,9 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- Frame's prediction type (eg. valid / expired).
   prediction_type STRING,
   -- Jank tag based on jank type, used for slice visualization.
-  jank_tag STRING
+  jank_tag STRING,
+  -- Jank tag (experimental) based on jank type, used for slice visualization.
+  jank_tag_experimental STRING
 ) AS
 SELECT
   s.id,
@@ -1052,7 +1054,8 @@ SELECT
   extract_arg(s.arg_set_id, 'Jank type') AS jank_type,
   extract_arg(s.arg_set_id, 'Jank severity type') AS jank_severity_type,
   extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
-  extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag
+  extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag,
+  extract_arg(s.arg_set_id, 'Jank tag (experimental)') AS jank_tag_experimental
 FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id

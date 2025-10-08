@@ -4,8 +4,15 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
-# Filter out C flags incompatible with C++.
-FILTERED_CFLAGS := $(filter-out -Werror=implicit-function-declaration,${CFLAGS})
+# Final build flags passed to gn.
+FINAL_CFLAGS := $(filter-out -Werror=implicit-function-declaration,${CFLAGS}) -D_FORTIFY_SOURCE=2
+FINAL_CXXFLAGS := ${CXXFLAGS} -D_FORTIFY_SOURCE=2
+FINAL_LDFLAGS := ${LDFLAGS} -Wl,-rpath=/usr/lib/perfetto
+
+# Build directory for gn/ninja.
+BUILD_DIR := out/release
+
+PANDOC_CMD := pandoc -s -t man --shift-heading-level-by=-1
 
 %:
 	dh $@
@@ -26,19 +33,34 @@ override_dh_auto_configure: MAYBE_HOST_CPU=$(shell \
 override_dh_auto_configure:
 	env
 	uname -a
-	gn gen out/release --args="is_debug=false use_custom_libcxx=false\
-	  is_hermetic_clang=false is_system_compiler=true is_clang=false\
-	  skip_buildtools_check=true enable_perfetto_integration_tests=false\
-	  enable_perfetto_unittests=false perfetto_use_system_protobuf=true\
-	  perfetto_use_system_zlib=true perfetto_enable_git_rev_version_header=false\
-	  extra_cflags=\"${FILTERED_CFLAGS}\" extra_cxxflags=\"${CXXFLAGS}\"\
-	  extra_ldflags=\"${LDFLAGS}\" cc=\"${CC}\" cxx=\"${CXX}\"\
+	gn gen out/release --args="\
+	  is_debug=false \
+	  use_custom_libcxx=false \
+	  is_hermetic_clang=false \
+	  is_system_compiler=true \
+	  is_clang=false \
+	  skip_buildtools_check=true \
+	  enable_perfetto_integration_tests=false \
+	  enable_perfetto_unittests=false \
+	  perfetto_use_system_protobuf=true \
+	  perfetto_use_system_zlib=true \
+	  perfetto_enable_git_rev_version_header=false \
+	  extra_cflags=\"${FINAL_CFLAGS}\" \
+	  extra_cxxflags=\"${FINAL_CXXFLAGS}\" \
+	  extra_ldflags=\"${FINAL_LDFLAGS}\" \
+	  cc=\"${CC}\" \
+	  cxx=\"${CXX}\" \
 	  ${MAYBE_HOST_CPU}"
 
 override_dh_auto_build:
-	ninja -C out/release perfetto tracebox traced traced_probes
-	pandoc docs/reference/perfetto-cli.md -s -t man --shift-heading-level-by=-1 >\
-	 debian/perfetto.1
+	# Build binaries.
+	ninja -v -C ${BUILD_DIR} perfetto tracebox traced traced_probes
+
+	# Generate manpages.
+	${PANDOC_CMD} docs/reference/perfetto-cli.md > debian/perfetto.1
+	${PANDOC_CMD} docs/reference/tracebox.md > debian/tracebox.1
+	${PANDOC_CMD} docs/getting-started/system-tracing.md > debian/traced.8
+	${PANDOC_CMD} docs/getting-started/system-tracing.md > debian/traced_probes.8
 
 override_dh_auto_clean:
-	rm -rf out/release
+	rm -rf ${BUILD_DIR}

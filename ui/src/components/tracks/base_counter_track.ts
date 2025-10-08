@@ -147,14 +147,15 @@ interface CounterTooltipState {
   tsEnd?: time;
 }
 
-type ChartHeightSize = 1 | 4 | 8 | 16 | 32;
+type ChartHeightSize = 1 | 2 | 4 | 8 | 16 | 32;
 
 const CHART_HEIGHT_LABELS: [string, ChartHeightSize][] = [
   ['Small (1x)', 1],
-  ['Medium (4x)', 4],
-  ['Large (8x)', 8],
-  ['XLarge (16x)', 16],
-  ['XXLarge (32x)', 32],
+  ['Medium (2x)', 2],
+  ['Large (4x)', 4],
+  ['XLarge (8x)', 8],
+  ['XXLarge (16x)', 16],
+  ['XXXLarge (32x)', 32],
 ];
 
 export interface CounterOptions {
@@ -223,6 +224,7 @@ type YRangeRounding = z.infer<typeof yRangeRoundingSchema>;
 
 const chartHeightSizeSchema = z.union([
   z.literal(1),
+  z.literal(2),
   z.literal(4),
   z.literal(8),
   z.literal(16),

@@ -20,6 +20,9 @@
     background: color-mix(in srgb, $base-color 15%, transparent);
   }
 
+  display: inline-flex;
+  align-items: baseline;
+
   font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
@@ -28,16 +31,24 @@
   white-space: nowrap;
   min-width: max-content;
   border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
+  overflow: hidden;
+
+  &__label {
+    flex-shrink: 1;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
 
   &--rounded {
     border-radius: 100px;
   }
 
-  & > .pf-left-icon {
-    margin-right: 6px; // Make some room between the icon and label
+  &__icon {
+    align-self: center;
+    margin-right: 6px;
   }
 
-  & > .pf-button {
+  .pf-button {
     margin-left: 6px; // Make some room between the icon and label
   }
 
@@ -70,11 +81,11 @@
   // Reduce padding when compact
   &.pf-compact {
     padding: 0px 4px;
-    & > .pf-left-icon {
+    .pf-chip__icon {
       margin-right: 2px;
     }
 
-    & > .pf-button {
+    .pf-button {
       margin-left: 2px;
     }
   }
