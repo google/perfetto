@@ -37,7 +37,7 @@ import {SourceNode} from '../../source_node';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
 }
 
@@ -123,7 +123,7 @@ export class TableSourceNode extends SourceNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      filters: this.state.filters.map((f) => ({...f})),
+      filters: this.state.filters?.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
