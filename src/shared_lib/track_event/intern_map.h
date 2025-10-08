@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_SHARED_LIB_INTERN_MAP_H_
-#define SRC_SHARED_LIB_INTERN_MAP_H_
+#ifndef SRC_SHARED_LIB_TRACK_EVENT_INTERN_MAP_H_
+#define SRC_SHARED_LIB_TRACK_EVENT_INTERN_MAP_H_
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/fnv1a.h"
@@ -157,4 +157,4 @@ class InternMap {
 
 }  // namespace perfetto
 
-#endif  // SRC_SHARED_LIB_INTERN_MAP_H_
+#endif  // SRC_SHARED_LIB_TRACK_EVENT_INTERN_MAP_H_
