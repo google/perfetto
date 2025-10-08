@@ -180,7 +180,6 @@ perfetto_cc_library(
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
-        ":src_tracing_platform_impl",
         ":src_tracing_service_service",
         ":src_tracing_system_backend",
     ],
@@ -3042,7 +3041,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cuj_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
     ],
 )
@@ -4518,11 +4516,6 @@ perfetto_filegroup(
     srcs = [
         "src/tracing/internal/in_process_tracing_backend.cc",
     ],
-)
-
-# GN target: //src/tracing:platform_impl
-perfetto_filegroup(
-    name = "src_tracing_platform_impl",
 )
 
 # GN target: //src/tracing:system_backend

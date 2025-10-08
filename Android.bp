@@ -884,7 +884,6 @@ cc_library {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
-        ":perfetto_src_tracing_platform_impl",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_system_backend",
     ],
@@ -2812,7 +2811,6 @@ cc_test {
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_producer_relay",
         ":perfetto_src_tracing_ipc_service_service",
-        ":perfetto_src_tracing_platform_impl",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_api_test_support",
@@ -15161,7 +15159,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cuj_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/desktop_mode.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/device.sql",
@@ -16616,11 +16613,6 @@ filegroup {
     ],
 }
 
-// GN: //src/tracing:platform_impl
-filegroup {
-    name: "perfetto_src_tracing_platform_impl",
-}
-
 // GN: //src/tracing/service:service
 filegroup {
     name: "perfetto_src_tracing_service_service",
@@ -17681,7 +17673,6 @@ cc_test {
         ":perfetto_src_tracing_ipc_producer_relay",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
-        ":perfetto_src_tracing_platform_impl",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_unittests",
         ":perfetto_src_tracing_service_zlib_compressor",

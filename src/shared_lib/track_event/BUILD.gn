@@ -35,7 +35,6 @@ source_set("track_event") {
     "../../../include/perfetto/public",
     "../../base",
     "../../tracing:client_api",
-    "../../tracing:platform_impl",
   ]
   sources = [
     "category_impl.cc",
