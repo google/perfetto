@@ -119,11 +119,11 @@ function renderAddButton(attrs: NodeBoxAttrs): m.Child {
 
 function renderFilters(attrs: NodeBoxAttrs): m.Child {
   const {node, onRemoveFilter} = attrs;
-  if (node.state.filters.length === 0) return null;
+  if (!node.state.filters || node.state.filters.length === 0) return null;
 
   return m(
     '.pf-node-box__filters',
-    node.state.filters.map((filter) => {
+    node.state.filters?.map((filter) => {
       const label =
         'value' in filter
           ? `${filter.column} ${filter.op} ${filter.value}`

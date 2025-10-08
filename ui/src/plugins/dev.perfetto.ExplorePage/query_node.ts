@@ -45,7 +45,7 @@ export interface QueryNodeState {
   customTitle?: string;
 
   // Operations
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
 
   issues?: NodeIssues;
 

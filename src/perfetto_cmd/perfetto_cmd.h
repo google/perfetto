@@ -183,7 +183,6 @@ class PerfettoCmd : public Consumer {
   std::string clone_name_;
   bool clone_for_bugreport_ = false;
   std::function<void()> on_session_cloned_;
-  bool cloned_session_was_write_into_file_ = false;
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
