@@ -154,7 +154,6 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
       [&](ArgsTracker::BoundInserter* inserter) {
         ArgsParser delegate(ts, *inserter, *context_->storage);
 
-        // FINAL VERSION: Perform a just-in-time lookup for the descriptor.
         std::optional<uint32_t> descriptor_idx_opt =
             context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
         if (!descriptor_idx_opt) {
@@ -188,8 +187,7 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   if (cached_name) {
     return *cached_name;
   }
-
-  // FINAL VERSION: Perform a just-in-time lookup for the descriptor.
+  
   std::optional<uint32_t> descriptor_idx_opt =
       context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
   if (!descriptor_idx_opt) {
