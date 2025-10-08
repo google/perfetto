@@ -283,6 +283,7 @@ async function addWattsonCpuElements(
   const warningDesc = createCpuWarnings(missingEvents, hasCpuIdleCounters);
 
   // CPUs estimate as part of CPU subsystem
+  const estimateSuffix = `${hasCpuIdleCounters ? '' : ' crude'} estimate`;
   const schedPlugin = ctx.plugins.getPlugin(SchedPlugin);
   const schedCpus = schedPlugin.schedCpus;
   for (const cpu of schedCpus) {
@@ -305,13 +306,12 @@ async function addWattsonCpuElements(
     group.addChildInOrder(
       new TrackNode({
         uri,
-        name: `Cpu${cpu.toString()} Estimate`,
+        name: `Cpu${cpu.toString()}${estimateSuffix}`,
       }),
     );
   }
 
   const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
-  const title = `DSU/SCU Estimate`;
   ctx.tracks.registerTrack({
     uri,
     renderer: new WattsonSubsystemEstimateTrack(
@@ -325,7 +325,7 @@ async function addWattsonCpuElements(
       wattson: 'Dsu_Scu',
     },
   });
-  group.addChildInOrder(new TrackNode({uri, name: title}));
+  group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU${estimateSuffix}`}));
 
   // Register selection aggregators.
   // NOTE: the registration order matters because the laste two aggregators
