@@ -21,8 +21,7 @@ executable("trace_redactor") {
   deps = [
     ":trace_redaction",
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",
+    "../base",
   ]
 }
 
@@ -80,8 +79,6 @@ source_set("trace_redaction") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",
     "../../include/perfetto/protozero:protozero",
     "../../include/perfetto/trace_processor:util",
     "../../protos/perfetto/common:zero",
@@ -90,6 +87,7 @@ source_set("trace_redaction") {
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:zero",
+    "../base",
     "../trace_processor/util:blob",
     "../trace_processor/util:clock",
   ]
@@ -115,7 +113,6 @@ source_set("integrationtests") {
     ":trace_redaction",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../include/perfetto/ext/base",
     "../../include/perfetto/trace_processor:trace_processor",
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:non_minimal_zero",
@@ -123,6 +120,7 @@ source_set("integrationtests") {
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:zero",
+    "../base",
     "../base:test_support",
   ]
 }
@@ -148,7 +146,6 @@ perfetto_unittest_source_set("unittests") {
     ":trace_redaction",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../include/perfetto/ext/base:base",
     "../../include/perfetto/protozero:protozero",
     "../../protos/perfetto/common:cpp",
     "../../protos/perfetto/common:zero",
@@ -163,6 +160,7 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
+    "../base",
     "../base:test_support",
   ]
 }
