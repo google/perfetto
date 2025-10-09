@@ -185,6 +185,8 @@ async function loadTraceIntoEngine(
     traceStream = new TraceBufferStream(traceSource.buffer);
   } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
+  } else if (traceSource.type === 'STREAM') {
+    traceStream = traceSource.stream;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
   } else if (traceSource.type === 'MULTIPLE_FILES') {
