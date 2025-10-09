@@ -3328,9 +3328,15 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_prelude_after_eof_after_eof",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/casts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/core.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/counters.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/cpu_scheduling.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/events.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/indexes.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/memory.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tables_views.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tracks.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/views.sql",
     ],
 )
