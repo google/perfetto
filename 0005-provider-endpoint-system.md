@@ -1,14 +1,15 @@
-# Perfetto Provider Endpoint System
+# Perfetto UI Server Extensions
 
 **Authors:** @LalitMaganti
 
-**Status:** Complete - Ready for Implementation
+**Status:** In Review - Addressing Feedback
 
 ## Summary
 
-This RFC proposes a provider-based system for distributing Perfetto UI
-extensions and integrating with external services via standard HTTP(S)
-endpoints.
+This RFC proposes a system for distributing Perfetto UI extensions (macros, SQL
+modules, proto descriptors) and integrating with external services via standard
+HTTP(S) endpoints. Extension servers are optional and never load-bearing - the
+UI remains fully functional without them for local trace analysis.
 
 ## Problem
 
@@ -31,26 +32,44 @@ Perfetto has several pain points around extensibility:
 5. **Local filesystem access problem**: Browser-based UI cannot directly access
    local filesystem for symbols, mappings, or extensions.
 
+## Terminology
+
+- **Extension Server**: An HTTP(S) endpoint that serves Perfetto UI extensions.
+  Can be a static file host (GitHub, GCS, S3) or a dynamic server (corporate
+  infrastructure).
+- **Extension**: Declarative content that extends the Perfetto UI without code
+  execution. Three types:
+  - **Macros**: Named sequences of UI commands
+  - **SQL Modules**: Reusable SQL code (tables, views, functions)
+  - **Proto Descriptors**: Type definitions for custom protobuf messages
+- **Module**: A named collection of extensions (e.g., `android`, `chrome`,
+  `default`). Allows users to selectively load relevant extension sets.
+
 ## Decision
 
-Use a provider-based architecture where users configure HTTP(S) endpoints that
-serve Perfetto extensions. The browser UI queries configured providers to load
-macros, SQL modules, and proto descriptors.
+Users can optionally configure HTTP(S) endpoints (extension servers) that serve
+Perfetto UI extensions. The browser UI queries configured servers and aggregates
+extensions from all enabled servers/modules.
+
+**Extension servers are optional and never load-bearing.** The UI remains fully
+functional without any servers configured - users can always perform local trace
+analysis. Servers only provide optional enhancements like team-shared macros or
+symbol resolution.
 
 ## Scope
 
 **In Scope:**
 
-- Browser UI provider configuration and loading
-- Remote providers (HTTPS, GitHub, GCS, S3)
+- Browser UI server configuration and loading
+- Remote servers (HTTPS, GitHub, GCS, S3)
 - UI extensions: macros, SQL modules, proto descriptors
-- Authentication for browser access to providers
-- Team-based organization and filtering
-- Manual provider management via Settings (Provider Store/one-click install are
-  post-MVP followups)
+- Module-based organization and filtering
+- Manual server management via Settings (Extension Server Store/one-click
+  install are post-MVP followups)
 
-**Out of Scope (Future RFCs):**
+**Out of Scope (Separate RFCs):**
 
+- **Authentication** (RFC-0006: Extension Server Authentication)
 - **Symbolization and deobfuscation implementation** (separate RFC will cover
   browser integration, caching, mode selection, etc.)
 - CLI tools (`traceconv`, standalone scripts)
@@ -58,50 +77,50 @@ macros, SQL modules, and proto descriptors.
 - Command-line configuration files
 
 **Note:** Symbolization and deobfuscation endpoints are mentioned for
-completeness and to establish the overall provider architecture, but all
+completeness and to establish the overall server architecture, but all
 implementation details are deferred to a separate RFC.
 
 ## Key Principles
 
 1. **Standard protocols** - Use HTTP/HTTPS, not custom schemes
-2. **Leverage existing systems** - Use provider's existing auth (GitHub, GCS
-   IAM, corporate SSO), not custom Perfetto ACL
-3. **Simple capability detection** - No manifest files or service discovery;
-   rely on HTTP status codes (404 = not supported, 200 = supported)
+2. **Leverage existing systems** - Use server's existing auth (GitHub, GCS IAM,
+   corporate SSO), not custom Perfetto ACL
+3. **Simple discovery** - Required manifest file (`manifest.json`) provides
+   server metadata and module list
 4. **Safe extensions** - Only declarative extensions (macros, SQL, proto
    descriptors), no JavaScript code execution
 
 ## Architecture
 
-### Provider Configuration
+### Extension Server Configuration
 
-Users configure providers in Settings → Providers. Configuration stored in
-localStorage using existing Perfetto settings system. Credentials stored
-separately in localStorage.
+Users configure extension servers in Settings → Extension Servers. Configuration
+stored in localStorage using existing Perfetto settings system. Credentials
+stored separately in localStorage.
 
-**Two ways to add providers in MVP:**
+**Two ways to add servers in MVP:**
 
-1. **User-configured** - Manually add provider URL in Settings
-2. **Default Google provider** - Auto-added for Googlers on first load
+1. **User-configured** - Manually add server URL in Settings
+2. **Installation-configured** - Packaged with the UI deployment (e.g., Google's
+   internal server auto-added for Googlers)
 
-Provider Store entries and URL-parameter-based one-click install remain goals
-for a V1 followup (separate RFC covering catalog UX + distribution) and are
-tracked in Phase 2 future work.
+Extension Server Store entries and URL-parameter-based one-click install remain
+goals for a V1 followup (separate RFC covering catalog UX + distribution) and
+are tracked in Phase 2 future work.
 
-The default Google provider (internal-only) is auto-added on first load with the
-`perfetto` team preselected. Every other team remains opt-in via Settings so
-that users explicitly enable the content sets they care about.
+Installation-configured servers (like Google's internal server) are added on
+first load with the `default` module selected. Other modules remain opt-in via
+Settings so users explicitly choose which content sets to enable.
 
-The hosted UI is intentionally client-distributed: there is no first-party way
-to centrally provision provider lists or credentials into every user profile.
-This follows directly from the “static client + no backend” architecture, so
-org-level bootstrap and managed policy distribution are intentionally out of
-scope. Organizations that require locked-down bootstrap flows must fork/deploy
-their own Perfetto UI bundle and pair it with server-side automation that
-preloads the desired provider endpoints.
+**Important:** The Perfetto UI is a static client with no backend. Each UI
+deployment (e.g., ui.perfetto.dev) can package default servers into the client
+bundle, but cannot remotely provision servers or credentials into existing user
+profiles. This is intentional - it follows from the "static client + no backend"
+architecture. Organizations needing centralized provisioning must fork/deploy
+their own UI bundle with the desired servers pre-configured.
 
-Providers are configured with HTTPS URLs. For convenience, the UI also supports
-shorthand aliases that resolve to standard HTTPS endpoints:
+Extension servers are configured with HTTPS URLs. For convenience, the UI also
+supports shorthand aliases that resolve to standard HTTPS endpoints:
 
 - `github://owner/repo/ref` resolves to GitHub raw.githubusercontent.com
 - `gs://bucket/path` resolves to GCS public HTTPS API
@@ -112,38 +131,52 @@ Appendix A (Endpoint Specification).
 
 ### Standard Endpoints
 
-Providers implement these HTTP(S) endpoints (structure explained below):
+Extension servers implement these HTTP(S) endpoints:
 
 ```
-# Team discovery (optional)
-{base_url}/teams                            (GET)
+# Server metadata (required)
+{base_url}/manifest.json                          (GET)
 
-# UI Extensions (team-scoped)
-{base_url}/teams/{team}/macros              (GET)
-{base_url}/teams/{team}/sql_modules         (GET)
-{base_url}/teams/{team}/proto_descriptors   (GET)
-
-# UI Extensions (no teams - fallback)
-{base_url}/macros                           (GET)
-{base_url}/sql_modules                      (GET)
-{base_url}/proto_descriptors                (GET)
+# UI Extensions (module-scoped)
+{base_url}/modules/{module}/macros                (GET)
+{base_url}/modules/{module}/sql_modules           (GET)
+{base_url}/modules/{module}/proto_descriptors     (GET)
 
 # Symbolization (optional - details in separate RFC)
-{base_url}/symbolize/frames           (POST)
-{base_url}/symbolize/elf/{build_id}   (GET)
+{base_url}/symbolize/frames                       (POST)
+{base_url}/symbolize/elf/{build_id}               (GET)
 
 # Deobfuscation (optional - details in separate RFC)
-{base_url}/deobfuscate/symbols        (POST)
-{base_url}/deobfuscate/mapping/{id}   (GET)
+{base_url}/deobfuscate/symbols                    (POST)
+{base_url}/deobfuscate/mapping/{id}               (GET)
 ```
+
+**Manifest File:**
+
+The `manifest.json` file contains server metadata and module list:
+
+```json
+{
+  "name": "Google Internal Extensions",
+  "modules": ["default", "android", "chrome"],
+  "csp_allow": ["https://symbolserver.corp.google.com"]
+}
+```
+
+**Fields:**
+- `name` (required): Human-readable server name shown in Settings
+- `modules` (required): List of available modules. Use `["default"]` for
+  single-module servers.
+- `csp_allow` (optional): URLs to add to Content Security Policy for
+  symbolization/deobfuscation endpoints
 
 ### Request Strategy
 
 The UI uses different request patterns for different endpoint types:
 
 - **UI extensions (macros, SQL modules, proto descriptors):** Queries all
-  enabled provider/team combinations and aggregates responses. Partial failures
-  are acceptable - failed providers are skipped and logged.
+  enabled server/module combinations and aggregates responses. Partial failures
+  are acceptable - failed servers are skipped and logged.
 - **Symbolization/deobfuscation:** Try-until-success pattern (first successful
   response ends the search).
 
@@ -166,7 +199,7 @@ is specified in Appendix A.
   protobuf messages in traces. Example: Android system_server proto definitions.
 
 All extensions are declarative and execute locally - no trace data sent to
-providers.
+extension servers.
 
 **Symbolization & Deobfuscation:**
 
@@ -177,9 +210,9 @@ providers.
 
 Details for these endpoints deferred to separate RFC.
 
-### Team-Based Organization
+### Module-Based Organization
 
-**Why teams exist:**
+**Why modules exist:**
 
 In large organizations, different teams build different extensions:
 
@@ -187,33 +220,29 @@ In large organizations, different teams build different extensions:
 - Chrome team creates rendering performance macros
 - Infrastructure team creates general profiling utilities
 
-Without teams, all extensions from a provider would load for everyone, creating
-noise. Teams let users choose which sets of extensions they want.
+Without modules, all extensions from a server would load for everyone, creating
+noise. Modules let users choose which sets of extensions they want.
 
-**How teams work:**
+**How modules work:**
 
-- Provider implements `GET /teams` returning:
-  `{"teams": ["android", "chrome", "infra"]}`
-- When adding provider, UI calls `/teams` and shows team checkboxes in Settings
-- Users explicitly select which teams to load (none selected by default)
-- UI loads extensions only from selected teams
-- Each team's extensions in separate files: `/teams/android/macros`,
-  `/teams/chrome/macros`, etc.
+- Server's `manifest.json` lists available modules:
+  `{"name": "...", "modules": ["default", "android", "chrome"]}`
+- When adding server, UI fetches manifest and shows module checkboxes in
+  Settings
+- Users explicitly select which modules to load (none selected by default except
+  for installation-configured servers)
+- UI loads extensions only from selected modules
+- Each module's extensions in separate paths: `/modules/android/macros`,
+  `/modules/chrome/macros`, etc.
 
-**Default bootstrap behavior:** when the internal Google provider is auto-added,
-the UI selects the `perfetto` team by default and leaves all other teams
-unchecked so users can opt in explicitly.
-
-**Providers without teams:**
-
-If `/teams` returns 404, provider serves a single set of extensions. UI loads
-directly from `{base_url}/macros`, `{base_url}/sql_modules`, etc. Good for
-simple providers.
+**Default bootstrap behavior:** when an installation-configured server (like
+Google's internal server) is auto-added, the UI selects the `default` module
+automatically. Other modules remain unchecked so users can opt in explicitly.
 
 **Implementation notes:**
 
 - **Flat structure only**: Use dashes for hierarchy (e.g., `android-frameworks`)
-- **No team-level ACL**: Access control at provider level (GitHub repo
+- **No module-level ACL**: Access control at server level (GitHub repo
   permissions, GCS IAM, etc.)
 
 ### Resource Naming and Conflicts
@@ -222,15 +251,19 @@ simple providers.
 
 Macros are automatically namespaced to prevent conflicts.
 
-Format: `[provider_key team] macro_name`
+Format: `[server_key module] macro_name`
 
 Examples:
 
-- `[google android] Startup Analysis`
-- `[acme mobile] Memory Snapshot`
+- `[google-internal default] Startup Analysis`
+- `[acme-corp android] Memory Snapshot`
 
-`provider_key` references the normalized slug defined in Appendix A. Duplicate
+`server_key` references the normalized slug defined in Appendix A. Duplicate
 handling specifics are documented in Appendix B.
+
+**Note:** Macros are registered with their full namespaced name. When invoking
+macros programmatically with `RunCommand`, use the full namespaced name (e.g.,
+`RunCommand("[google-internal default] Startup Analysis")`).
 
 **SQL Modules & Proto Descriptors: Conflict Handling**
 
@@ -246,15 +279,17 @@ reload.**
 Load flow:
 
 1. UI initializes
-2. Load provider configuration from localStorage
-3. Fetch extensions from all enabled providers/teams in deterministic
-   alphabetical order
-4. Register macros, SQL modules, proto descriptors
-5. UI ready
+2. Load installation-configured servers (from UI bundle)
+3. Load user-configured servers (from localStorage)
+4. Fetch extensions from all enabled servers/modules in deterministic order
+   (installation-configured servers first, then user-configured servers
+   alphabetically)
+5. Register macros, SQL modules, proto descriptors
+6. UI ready
 
 **Configuration changes:**
 
-- Add/remove provider or change team selection → Settings shows "Reload page to
+- Add/remove server or change module selection → Settings shows "Reload page to
   apply changes"
 - User clicks **[Reload Page]** button
 - No automatic reload, no hot-reload logic
@@ -262,41 +297,44 @@ Load flow:
 **Caching:**
 
 - Extensions kept in memory during session
-- UI respects standard HTTP caching semantics (provider-set `Cache-Control`,
+- UI respects standard HTTP caching semantics (server-set `Cache-Control`,
   `ETag`, etc.)
-- Providers control cache behavior via HTTP headers
-- No localStorage cache for extensions
+- Servers control cache behavior via HTTP headers
+- No localStorage cache for extensions in MVP
+- **Future consideration (V2):** Service worker caching for offline support.
+  This would allow extensions to work offline after initial load. Requires
+  separate design for cache invalidation and version management.
 
 **Failure handling:**
 
-- If all providers fail (timeout, network error, auth failure, etc.), the UI
-  still initializes successfully with an empty extension set
-- Console logs show which providers failed and why
+- If all servers fail (timeout, network error, auth failure, etc.), the UI still
+  initializes successfully with an empty extension set
+- Console logs show which servers failed and why
 - UI remains fully functional for local trace analysis
 
 ### Authentication
 
-All providers follow same pattern:
+**Note:** Authentication implementation is covered in **RFC-0006: Extension
+Server Authentication**. This section provides a high-level overview for context.
 
-1. Check if credentials stored for this provider
-2. If yes → Use stored credentials
-3. If no → Try request without credentials (may be public)
-4. On 401/403 → Prompt user for credentials
-5. Store credentials in localStorage (separate from settings)
-6. Retry with credentials
+Extension servers support standard authentication mechanisms:
 
-For OAuth-backed providers, the UI owns refresh handling: tokens are refreshed
-via the provider's standard flow (e.g., GitHub Device Flow refresh tokens) and
-no manual rotation is required for the default deployment.
+- **Public access**: Servers can be publicly accessible (no auth required)
+- **GitHub OAuth**: Device Flow for client-side authentication without backend
+- **Cloud storage**: GCS and S3 native authentication
+- **Standard HTTPS auth**: Bearer tokens or Basic authentication
 
-**GitHub OAuth:** Uses GitHub App with Device Flow (client-side only, no backend
-needed). User visits github.com/login/device and enters code. Access and refresh
-tokens stored in localStorage.
+**Authentication flow:**
 
-**GCS/S3/HTTPS:** User enters credentials (API tokens, access keys, etc.) when
-prompted. Stored per-provider in localStorage.
+1. Try request without credentials (works for public servers)
+2. On 401/403 → Prompt user for credentials via provider-specific flow
+3. Store credentials in localStorage (separate from settings)
+4. Retry request with credentials
+5. Auto-refresh OAuth tokens as needed
 
-See Appendix C for detailed authentication flows.
+**Full specification:** See RFC-0006 for storage schemas, credential management
+UI, OAuth flows, token refresh logic, and security considerations. Appendix C
+below provides minimal context for understanding this RFC.
 
 ## Examples
 
@@ -306,7 +344,12 @@ See Appendix C for detailed authentication flows.
 
 ```
 acme-corp/perfetto-resources/
-├── teams/
+├── manifest.json
+├── modules/
+│   ├── default/
+│   │   ├── macros
+│   │   ├── sql_modules
+│   │   └── proto_descriptors
 │   ├── android/
 │   │   ├── macros
 │   │   ├── sql_modules
@@ -314,34 +357,45 @@ acme-corp/perfetto-resources/
 │   └── chrome/
 │       ├── macros
 │       └── sql_modules
-└── teams              (team list: ["android", "chrome"])
+```
+
+**File: `manifest.json`**
+
+```json
+{
+  "name": "Acme Corp Extensions",
+  "modules": ["default", "android", "chrome"]
+}
 ```
 
 **Configuration:**
 
 ```
 URL: github://acme-corp/perfetto-resources/main
-Teams: android, chrome
+Modules: default, android, chrome
 Auth: GitHub OAuth (automatic)
 ```
 
 ### Corporate Server
 
 ```python
-@app.route('/teams')
-def list_teams():
-    return jsonify({"teams": ["android", "chrome", "infra"]})
+@app.route('/manifest.json')
+def get_manifest():
+    return jsonify({
+        "name": "Acme Corp Extensions",
+        "modules": ["default", "android", "chrome", "infra"]
+    })
 
-@app.route('/teams/<team>/macros')
-def get_team_macros(team):
-    return send_file(f'/data/teams/{team}/macros')
+@app.route('/modules/<module>/macros')
+def get_module_macros(module):
+    return send_file(f'/data/modules/{module}/macros')
 ```
 
 **Configuration:**
 
 ```
 URL: https://perfetto.corp.example.com
-Teams: android
+Modules: default, android
 Auth: Corporate SSO (OAuth2/OIDC)
 ```
 
@@ -360,10 +414,10 @@ All extensions are **declarative and safe** - no code execution:
 JavaScript plugins are NOT supported. Future executable plugins would require
 separate RFC with sandboxing.
 
-### Provider Integrity Expectations
+### Server Integrity Expectations
 
-Perfetto does not attempt to verify that provider-hosted JSON or descriptor
-payloads are trusted. Provider operators are solely responsible for reviewing,
+Perfetto does not attempt to verify that server-hosted JSON or descriptor
+payloads are trusted. Server operators are solely responsible for reviewing,
 signing, or gating their own content before distribution to guard against
 compromised repos or buckets. Each organization can apply its own signing or
 review pipeline (e.g., proxy servers, checksum validation, internal CI) without
@@ -372,11 +426,11 @@ mechanism.
 
 ### Data Sensitivity
 
-**For UI extensions:** NO trace data sent to providers. Extensions downloaded
-once and executed locally.
+**For UI extensions:** NO trace data sent to extension servers. Extensions
+downloaded once and executed locally.
 
-**Consent model:** Adding a provider = implicit consent to load extensions from
-it.
+**Consent model:** Adding an extension server = implicit consent to load
+extensions from it.
 
 **For symbolization (future RFC):** Will send trace data (addresses, build IDs).
 Future RFC will specify consent flow and warnings.
@@ -394,7 +448,7 @@ Future RFC will specify consent flow and warnings.
 
 ### CORS Requirements
 
-All HTTPS providers MUST set CORS headers:
+All HTTPS extension servers MUST set CORS headers:
 
 ```
 Access-Control-Allow-Origin: https://ui.perfetto.dev
@@ -406,8 +460,8 @@ Access-Control-Allow-Headers: Authorization, Content-Type
 
 - CORS violations manifest as browser network errors (typically "CORS policy"
   errors in the console)
-- Logged to console with provider URL and endpoint
-- Provider/team combination is skipped (same as other network failures)
+- Logged to console with server URL and endpoint
+- Server/module combination is skipped (same as other network failures)
 - Future: Settings UI could detect CORS issues and suggest configuration fixes
 
 Request orchestration details (timeouts, rate limiting, ordering) are specified
@@ -420,10 +474,11 @@ in Appendix A.
 **Rejected** - Adds parsing complexity for minimal benefit. Standard HTTP(S)
 URLs work fine.
 
-### Service Discovery via Manifest Files
+### Service Discovery via Manifest File
 
-**Rejected** - Extra request for every provider. HTTP status codes (404, 401)
-work fine for capability detection.
+**Adopted** - Manifest file (`manifest.json`) is required and serves multiple
+purposes: friendly server name, module list, and CSP configuration for optional
+endpoints like symbolization.
 
 ### Perfetto-Hosted Registry
 
@@ -437,33 +492,44 @@ Leverage existing systems (GitHub, GCS, corporate SSO).
 
 ## Implementation
 
-### Phase 1: Core Provider Infrastructure
+### Phase 1: Core Extension Server Infrastructure
 
-- Provider config schema (localStorage)
-- Provider fan-out orchestration (aggregate UI extensions from all enabled
-  providers/teams)
+- Extension server config schema (localStorage)
+- Server fan-out orchestration (aggregate UI extensions from all enabled
+  servers/modules)
+- Manifest fetching and parsing
 - Auth header injection
 - Error handling and logging
 
 ### Phase 2: UI Extensions
 
-- Team discovery (`/teams`)
+- Manifest endpoint (`/manifest.json`)
+- Module discovery and selection UI
 - Extension endpoints (macros, SQL modules, proto descriptors)
-- GitHub App OAuth (Device Flow)
 - Replace `is_internal_user_script_loader.ts`
-- Default Google provider bootstrap (auto-added, `perfetto` team selected)
+- Installation-configured server bootstrap (auto-added, `default` module
+  selected)
 
-### Phase 2.5: Post-MVP Enhancements
+### Phase 2.5: Authentication (RFC-0006)
 
-- Provider Store (curated catalog + Settings shortcuts; cover in dedicated RFC)
-- URL parameter support (`?add_provider=...`)
+- GitHub App OAuth (Device Flow)
+- GCS/S3/HTTPS authentication flows
+- Credential management UI
+- See RFC-0006: Extension Server Authentication for details
 
-### Phase 3: Local HTTP Accelerator (Future)
+### Phase 3: Post-MVP Enhancements
 
-- Extend `trace_processor --httpd` to serve provider endpoints
+- Extension Server Store (curated catalog + Settings shortcuts; cover in
+  dedicated RFC)
+- URL parameter support (`?add_server=...`)
+- Service worker caching for offline support
+
+### Phase 4: Local HTTP Accelerator (Future)
+
+- Extend `trace_processor --httpd` to serve extension server endpoints
 - Local filesystem discovery
 
-### Phase 4: Symbolization & Deobfuscation (Separate RFC)
+### Phase 5: Symbolization & Deobfuscation (Separate RFC)
 
 - Endpoint specifications
 - Browser integration
@@ -471,20 +537,20 @@ Leverage existing systems (GitHub, GCS, corporate SSO).
 
 ### Migration Strategy
 
-- Replacing the legacy `is_internal_user_script_loader.ts` assets with providers
-  happens centrally: hosted Perfetto deployments will update their default
-  provider list and the UI automatically begins fetching from the new endpoints
-  on reload without user action.
-- Existing inline macros/SQL bundles ship until the provider backend is ready,
-  so the switch is transparent to users aside from the new Settings surface.
+- Replacing the legacy `is_internal_user_script_loader.ts` assets with extension
+  servers happens centrally: hosted Perfetto deployments will update their
+  installation-configured server list and the UI automatically begins fetching
+  from the new endpoints on reload without user action.
+- Existing inline macros/SQL bundles ship until the extension server backend is
+  ready, so the switch is transparent to users aside from the new Settings
+  surface.
 - Forked or self-hosted deployments can follow the same pattern; they only need
-  to update the packaged provider defaults before rolling the refreshed UI
-  bundle.
+  to update the packaged server defaults before rolling the refreshed UI bundle.
 
 ### Prerequisites
 
 1. Register Perfetto GitHub App
-2. Set up internal Google provider server
+2. Set up internal Google extension server
 3. Create example GitHub repo with test extensions
 
 ## Design Decisions & Non-Goals
@@ -502,10 +568,11 @@ prevent future confusion about what is explicitly out of scope.
 
 - No version negotiation or compatibility checks between UI and extensions.
   Extensions are always fetched fresh on reload. This matches how normal
-  websites work - users get the latest version on page load. Providers are
-  responsible for ensuring extensions remain compatible or coordinating updates
-  with users. Version pinning, rollback switches, or multi-version compatibility
-  matrices would require backend orchestration and are intentionally excluded.
+  websites work - users get the latest version on page load. Extension servers
+  are responsible for ensuring extensions remain compatible or coordinating
+  updates with users. Version pinning, rollback switches, or multi-version
+  compatibility matrices would require backend orchestration and are
+  intentionally excluded.
 
 **Proto Descriptor Validation:**
 
@@ -522,17 +589,17 @@ prevent future confusion about what is explicitly out of scope.
 
 **Resource Quotas:**
 
-- No hard limits on number of providers, extensions per provider, or response
-  sizes. The user explicitly adds providers, establishing an implicit trust
-  relationship - malicious or misconfigured providers are not an expected attack
-  vector. In practice, these limits are not expected to be reached. If
-  performance issues arise, limits can be added later.
+- No hard limits on number of servers, extensions per server, or response sizes.
+  The user explicitly adds servers, establishing an implicit trust relationship -
+  malicious or misconfigured servers are not an expected attack vector. In
+  practice, these limits are not expected to be reached. If performance issues
+  arise, limits can be added later.
 
 **Namespace Protection:**
 
 - Overriding built-in Perfetto functionality (commands, SQL modules, etc.) is
-  undefined behavior. Providers should use domain-specific names to avoid
-  conflicts with current or future built-in features.
+  undefined behavior. Extension servers should use domain-specific names to
+  avoid conflicts with current or future built-in features.
 
 **Macro Validation:**
 
@@ -541,19 +608,19 @@ prevent future confusion about what is explicitly out of scope.
   how ad-hoc macros work today - the macro simply fails to execute correctly if
   it's malformed or incompatible with the UI version.
 
-**Cross-Provider Dependencies:**
+**Cross-Server Dependencies:**
 
 - Extensions cannot declare dependencies on other extensions, especially across
-  providers. Loading order is deterministic but dependencies are not enforced.
-  If an extension relies on another extension being present, this is undefined
+  servers. Loading order is deterministic but dependencies are not enforced. If
+  an extension relies on another extension being present, this is undefined
   behavior and will fail at runtime. Users should configure extensions from a
-  single provider if dependencies are required.
+  single server if dependencies are required.
 
-**Provider Deployment Ownership:**
+**Extension Server Deployment Ownership:**
 
-- Provider hosting, rollout cadence, and monitoring are intentionally delegated
-  to each organization. The RFC does not prescribe SLAs, scaling rules, or
-  shared infrastructure so that internal and external deployments can evolve
+- Server hosting, rollout cadence, and monitoring are intentionally delegated to
+  each organization. The RFC does not prescribe SLAs, scaling rules, or shared
+  infrastructure so that internal and external deployments can evolve
   independently.
 
 **Offline Distribution:**
@@ -565,9 +632,9 @@ prevent future confusion about what is explicitly out of scope.
 
 **Telemetry Scope:**
 
-- Provider usage or health telemetry is not part of the MVP. Future work can add
-  aggregate reporting once core plumbing is proven, but client behavior today is
-  limited to console logging.
+- Extension server usage or health telemetry is not part of the MVP. Future work
+  can add aggregate reporting once core plumbing is proven, but client behavior
+  today is limited to console logging.
 - Post-MVP telemetry requirements will arrive through a follow-up RFC that
   defines event schemas, privacy review, and rollout expectations before any
   data collection is enabled. Until that happens, console logging remains the
@@ -648,24 +715,41 @@ All JSON fields use **snake_case** (following GitHub, Stripe):
 
 ### Endpoint Versioning
 
-No versioning initially. When breaking changes needed, add `/v2/` prefix:
+**Proto-style versioning:** Avoid monolithic version increments. Instead:
 
-- `/v2/teams`
-- `/v2/symbolize/frames`
+1. **Adding fields/features** - Just add them. Worst case: clients get 404 for
+   new optional endpoints, which is handled gracefully.
+2. **Changing semantics** - Define new types/endpoints alongside old ones. For
+   example, if symbolization behavior changes fundamentally, the manifest can
+   specify:
+   ```json
+   {
+     "symbolizers": [
+       {
+         "type": "on_demand_symbolizer_v2",
+         "path": "/symbolize/v2/frames"
+       }
+     ]
+   }
+   ```
+   Old `on_demand_symbolizer` continues working at its original path. UI
+   supports both, preferring newer versions when available.
 
-Old endpoints continue for backward compatibility.
+**No monolithic `/v2/` prefixes** - These force unnecessary version bumps.
+Version individual features only when semantics change, not when adding new
+capabilities.
 
-### Endpoint Aliases & Provider Keys
+### Endpoint Aliases & Server Keys
 
 - Shorthand aliases resolve to canonical HTTPS endpoints before issuing
   requests:
   - `github://owner/repo/ref[/optional/path]` →
     `https://raw.githubusercontent.com/owner/repo/ref[/optional/path]`. When no
     optional path is supplied the repo root is used and Perfetto appends the
-    standard endpoint suffix (for example `/teams/android/macros`).
+    standard endpoint suffix (for example `/modules/android/macros`).
   - `gs://bucket/path` → `https://storage.googleapis.com/bucket/path`
   - `s3://bucket/path` → `https://bucket.s3.amazonaws.com/path`
-- Provider keys are normalized from the canonical HTTPS URL:
+- Server keys are normalized from the canonical HTTPS URL:
   1. Lowercase the URL.
   2. Strip the `https://` prefix.
   3. Remove any query string or fragment.
@@ -673,11 +757,11 @@ Old endpoints continue for backward compatibility.
   5. Collapse repeated `-` and trim leading/trailing `-`.
 - Example mappings:
   - `https://perfetto.acme.com` → `perfetto-acme-com`
-  - `https://corp.example.com:8443/teams` → `corp-example-com-8443-teams`
+  - `https://corp.example.com:8443/modules` → `corp-example-com-8443-modules`
   - `github://acme/perfetto-ext/main` →
     `raw-githubusercontent-com-acme-perfetto-ext-main`
-- Display labels shown in Settings can be overridden, but normalized provider
-  keys remain stable and are used for deduplication, ordering, and credential
+- Display labels shown in Settings can be overridden, but normalized server keys
+  remain stable and are used for deduplication, ordering, and credential
   lookups.
 
 ### Ordering Algorithm
@@ -685,26 +769,32 @@ Old endpoints continue for backward compatibility.
 Extension loading follows a deterministic ordering to ensure consistent behavior
 across sessions and predictable conflict resolution:
 
-1. **Provider ordering:** Iterate providers alphabetically by normalized
-   provider key (as defined above).
-2. **Team ordering:** For each team-scoped provider, iterate selected teams
-   alphabetically. Single-set providers contribute one logical entry at this
-   level.
+1. **Server ordering:**
+   - Installation-configured servers load first (in the order they're defined in
+     the UI bundle)
+   - Then user-configured servers, alphabetically by normalized server key (as
+     defined above)
+2. **Module ordering:** For each server, iterate selected modules alphabetically
 3. **Resource ordering:** Within each resource type (macros, SQL modules, proto
-   descriptors), iterate resource keys in lexicographical order.
+   descriptors), iterate resource keys in lexicographical order
 
-**Example:** Given providers `corp-example-com` (teams: `chrome`, `android`) and
-`raw-githubusercontent-com-acme-ext-main` (single-set), the load order is:
+**Example:** Given installation-configured server `google-internal` (modules:
+`default`) and user-configured servers `corp-example-com` (modules: `chrome`,
+`android`) and `raw-githubusercontent-com-acme-ext-main` (modules: `default`),
+the load order is:
 
-1. `corp-example-com` / `android` / macros (keys sorted)
-2. `corp-example-com` / `android` / sql_modules (keys sorted)
-3. `corp-example-com` / `android` / proto_descriptors (keys sorted)
-4. `corp-example-com` / `chrome` / macros (keys sorted)
-5. `corp-example-com` / `chrome` / sql_modules (keys sorted)
-6. `corp-example-com` / `chrome` / proto_descriptors (keys sorted)
-7. `raw-githubusercontent-com-acme-ext-main` / macros (keys sorted)
-8. `raw-githubusercontent-com-acme-ext-main` / sql_modules (keys sorted)
-9. `raw-githubusercontent-com-acme-ext-main` / proto_descriptors (keys sorted)
+1. `google-internal` / `default` / macros (keys sorted)
+2. `google-internal` / `default` / sql_modules (keys sorted)
+3. `google-internal` / `default` / proto_descriptors (keys sorted)
+4. `corp-example-com` / `android` / macros (keys sorted)
+5. `corp-example-com` / `android` / sql_modules (keys sorted)
+6. `corp-example-com` / `android` / proto_descriptors (keys sorted)
+7. `corp-example-com` / `chrome` / macros (keys sorted)
+8. `corp-example-com` / `chrome` / sql_modules (keys sorted)
+9. `corp-example-com` / `chrome` / proto_descriptors (keys sorted)
+10. `raw-githubusercontent-com-acme-ext-main` / `default` / macros (keys sorted)
+11. `raw-githubusercontent-com-acme-ext-main` / `default` / sql_modules (keys sorted)
+12. `raw-githubusercontent-com-acme-ext-main` / `default` / proto_descriptors (keys sorted)
 
 This ordering determines which resource wins in case of conflicts (first
 registration wins).
@@ -714,19 +804,19 @@ registration wins).
 **Request ordering:**
 
 - Extension loading follows the deterministic ordering specified in the
-  "Ordering Algorithm" subsection above (provider key → team → resource type →
+  "Ordering Algorithm" subsection above (server key → module → resource type →
   resource key).
-- Extension requests issue serially per provider to limit rate spikes; the UI
+- Extension requests issue serially per server to limit rate spikes; the UI
   remains interactive and surfaces loading spinners plus console logs while
-  providers load.
+  servers load.
 - Symbolization/deobfuscation continue the try-until-success pattern (first
-  provider returning success ends the iteration).
+  server returning success ends the iteration).
 
 **Timeouts (fail-fast):**
 
 Per-endpoint timeout values:
 
-- Team discovery: 5s
+- Manifest discovery: 5s
 - Extension loading: 10s
 - Symbolization: 15s
 - Bulk downloads: 30s
@@ -734,16 +824,16 @@ Per-endpoint timeout values:
 Timeout handling:
 
 - For UI extensions (macros, SQL modules, proto descriptors): timeout skips that
-  provider/team combination and continues with others. Partial data still loads.
+  server/module combination and continues with others. Partial data still loads.
 - For symbolization/deobfuscation: timeout triggers immediate fallback to next
-  provider (try-until-success pattern).
+  server (try-until-success pattern).
 
 **Rate limiting:**
 
 - HTTP 429/503 responses:
-  - If a `Retry-After` header is present, further requests to that provider/team
+  - If a `Retry-After` header is present, further requests to that server/module
     are deferred until the header expires.
-  - Without `Retry-After`, the provider/team is skipped for the remainder of the
+  - Without `Retry-After`, the server/module is skipped for the remainder of the
     session and retried on next reload.
 
 ## Appendix B: Resource Format Specifications
@@ -755,10 +845,10 @@ Macros are named sequences of UI commands following
 
 **Endpoints:**
 
-- Team-scoped: `GET /teams/{team}/macros`
-- Single-set (no teams): `GET /macros`
+- `GET /modules/{module}/macros`
 
-Both endpoints use the same response format.
+All servers use the same response format regardless of how many modules they
+have.
 
 **Response:**
 
@@ -818,19 +908,19 @@ for complete list.
 
 **Namespacing & duplicates:**
 
-- Registered macro names follow `[provider_key team] macro_name`, where
-  `provider_key` uses the normalization rules in Appendix A.
+- Registered macro names follow `[server_key module] macro_name`, where
+  `server_key` uses the normalization rules in Appendix A.
 - Duplicate keys in JSON are handled by the parser (typically last-wins); no
-  additional deduplication is performed within a single provider/team payload.
+  additional deduplication is performed within a single server/module payload.
 
 ### SQL Modules Format
 
 **Endpoints:**
 
-- Team-scoped: `GET /teams/{team}/sql_modules`
-- Single-set (no teams): `GET /sql_modules`
+- `GET /modules/{module}/sql_modules`
 
-Both endpoints use the same response format.
+All servers use the same response format regardless of how many modules they
+have.
 
 **Response:**
 
@@ -857,20 +947,20 @@ Both endpoints use the same response format.
 
 **Conflict handling:**
 
-- SQL modules register in deterministic order (provider key → team →
+- SQL modules register in deterministic order (server key → module →
   module_path). "Successfully registered" means the module was registered in the
   trace processor engine. The first successfully registered definition stays
-  active; subsequent duplicates are skipped and logged, including both providers
+  active; subsequent duplicates are skipped and logged, including both servers
   and the conflicting module path.
 
 ### Proto Descriptors Format
 
 **Endpoints:**
 
-- Team-scoped: `GET /teams/{team}/proto_descriptors`
-- Single-set (no teams): `GET /proto_descriptors`
+- `GET /modules/{module}/proto_descriptors`
 
-Both endpoints use the same response format.
+All servers use the same response format regardless of how many modules they
+have.
 
 **Response:**
 
@@ -916,181 +1006,40 @@ base64 protos.desc > protos.desc.b64
 
 - Proto descriptor entries follow the same deterministic ordering and first-win
   semantics as SQL modules. Duplicate IDs yield console warnings listing the
-  provider/team/id that was retained vs dropped.
+  server/module/id that was retained vs dropped.
 
 ## Appendix C: Authentication Details
 
-### Storage Schema
+**Note:** Authentication implementation is fully specified in **RFC-0006:
+Extension Server Authentication**. This appendix provides minimal context for
+understanding the overall system architecture of RFC-0005.
 
-**Provider configuration** (in Perfetto settings):
+### High-Level Overview
 
-```typescript
-interface ProviderSettings {
-  providers: {
-    [provider_key: string]: {
-      // Normalized provider key (see Appendix A)
-      enabled: boolean;
-      selected_teams: string[];
-      team_mode: 'team_scoped' | 'single_set';
-    };
-  };
-}
+Extension servers support standard authentication methods:
 
-// Defaults:
-// - User-added providers: enabled = false, selected_teams = [], team_mode inferred from discovery
-// - Providers without /teams responses use team_mode='single_set' and treat selected_teams as []
-// - Auto-added Google provider (Googlers only): enabled = true, selected_teams = ['perfetto'], team_mode='team_scoped'
-```
+- **GitHub OAuth**: Device Flow for client-side authentication
+- **GCS/S3**: Native cloud provider authentication
+- **HTTPS**: Bearer tokens or Basic auth
 
-**Credentials** (separate localStorage key `perfetto_provider_credentials`):
+### Storage
 
-```typescript
-interface ProviderCredentials {
-  [provider_key: string]: {
-    // Normalized provider key (see Appendix A)
-    type:
-      | 'github_oauth'
-      | 'bearer_token'
-      | 'basic_auth'
-      | 'gcs_oauth'
-      | 's3_keys';
-    access_token?: string;
-    refresh_token?: string;
-    expires_at?: number;
-    bearer_token?: string;
-    username?: string;
-    password?: string;
-    access_key_id?: string;
-    secret_access_key?: string;
-    session_token?: string;
-    last_used_at?: number;
-  };
-}
-```
+- Server configuration stored in Perfetto settings (localStorage)
+- Credentials stored separately in `perfetto_server_credentials` (localStorage)
+- Credentials scoped per-server to support multiple accounts
 
-### Configuration Defaults & Bootstrap
+### Key Flows
 
-- Providers whose `/teams` request returns 404 are marked
-  `team_mode = 'single_set'` and expose a single toggle in Settings that
-  controls access to `/macros`, `/sql_modules`, and `/proto_descriptors`.
-- User-added providers are created disabled with `selected_teams: []`. For
-  `single_set` providers that toggle simply tracks whether the provider is
-  enabled.
+1. **Server Addition**: User adds server URL → manifest fetched → modules
+   displayed → user selects modules
+2. **Authentication**: On 401/403 → prompt for credentials → store → retry
+3. **Token Refresh**: OAuth tokens auto-refresh using standard flows
 
-### Provider Addition Flow (Settings UI)
+**Full authentication specification:** See RFC-0006 for storage schemas,
+credential management UI, OAuth flows, token refresh logic, security
+considerations, and implementation details.
 
-1. User enters an HTTPS URL or supported alias.
-2. Client normalizes and validates the input (including alias expansion).
-3. `/teams` is fetched immediately:
-   - `200` populates the returned team list and sets `team_mode='team_scoped'`.
-   - `404` marks `team_mode='single_set'`.
-   - Other failures add the provider in a disabled state and surface inline
-     errors in the Settings UI.
-4. On 401/403 the UI prompts for credentials before exposing team toggles.
-5. Providers remain disabled until the user toggles `enabled` and selects teams.
-
-### Credential Management UI
-
-- Settings lists each provider credential record with the auth type label.
-- Sensitive fields render masked with a "Reveal" action (confirmation required).
-- `Delete credentials` clears stored secrets and forces re-auth on next use.
-- `Force re-auth` replays the provider-specific authentication flow (GitHub
-  Device Flow modal, OAuth popup, AWS key dialog, etc.).
-- Credentials are scoped to the normalized provider key to avoid reuse across
-  distinct providers.
-
-### Provider Removal
-
-When a user removes a provider from Settings:
-
-- The provider configuration entry is deleted from the Perfetto settings in
-  localStorage
-- Associated credentials are deleted from `perfetto_provider_credentials` in
-  localStorage
-- The removal is permanent and cannot be undone
-- Re-adding the same provider requires reconfiguring team selections and
-  re-authenticating
-
-### GitHub OAuth (Device Flow)
-
-Uses GitHub App with Device Flow
-([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)) for fully
-client-side authentication.
-
-**Flow:**
-
-1. User adds `github://` provider
-2. UI tries to fetch without auth → receives 401/403
-3. UI requests device code: `POST https://github.com/login/device/code`
-   - `client_id`: Perfetto GitHub App ID (hardcoded in UI)
-4. GitHub returns: `device_code`, `user_code`, `verification_uri`
-5. UI shows modal:
-   ```
-   To authorize Perfetto:
-   1. Visit: github.com/login/device
-   2. Enter code: ABCD-1234
-   [Copy Code] [Open GitHub]
-   ```
-6. User authorizes in separate browser tab/window
-7. UI polls `POST https://github.com/login/oauth/access_token` until complete
-8. Receives access token AND refresh token
-9. Both tokens stored in localStorage
-10. All requests use: `Authorization: Bearer {access_token}`
-
-**Token Refresh:**
-
-Access tokens expire after 8 hours. On 401 response:
-
-```
-POST https://github.com/login/oauth/access_token
-  client_id: PERFETTO_GITHUB_CLIENT_ID
-  grant_type: refresh_token
-  refresh_token: {stored_refresh_token}
-```
-
-Refresh tokens do NOT require client secret for GitHub App Device Flow. If
-refresh fails, re-run Device Flow.
-
-**Per-Provider Authentication:**
-
-Each `github://` provider URL gets own token. Supports multiple accounts (e.g.,
-work + personal).
-
-**Required GitHub App permissions:**
-
-- Repository permissions: Contents (read-only)
-- No account permissions
-
-**URL Resolution:**
-
-- `github://owner/repo/ref/path` →
-  `https://raw.githubusercontent.com/owner/repo/ref/path`
-
-### Google Cloud Storage
-
-1. Try public access
-2. On 401/403 → Initiate Google OAuth Sign-In in browser
-3. Store OAuth token in localStorage
-4. Retry with signed request
-
-### AWS S3
-
-1. Try public access
-2. On 401/403 → Prompt for Access Key ID, Secret Access Key, optional Session
-   Token
-3. Store credentials in localStorage
-4. Retry with SigV4-signed request
-
-### HTTP/HTTPS
-
-1. Try without auth
-2. On 401/403 → Check `WWW-Authenticate` header
-   - For Bearer: Prompt "Enter API token"
-   - For Basic: Prompt "Enter username and password"
-3. Store credentials in localStorage
-4. Retry with `Authorization` header
-
-## Appendix D: Provider Implementation Examples
+## Appendix D: Extension Server Implementation Examples
 
 ### GitHub Static Hosting
 
@@ -1098,7 +1047,12 @@ work + personal).
 
 ```
 acme-corp/perfetto-resources/
-├── teams/
+├── manifest.json
+├── modules/
+│   ├── default/
+│   │   ├── macros
+│   │   ├── sql_modules
+│   │   └── proto_descriptors
 │   ├── android/
 │   │   ├── macros              (all android macros in one JSON file)
 │   │   ├── sql_modules         (all android SQL modules in one JSON file)
@@ -1106,18 +1060,18 @@ acme-corp/perfetto-resources/
 │   └── chrome/
 │       ├── macros
 │       └── sql_modules
-└── teams                       (JSON file with team list)
 ```
 
-**File: `teams`**
+**File: `manifest.json`**
 
 ```json
 {
-  "teams": ["android", "chrome"]
+  "name": "Acme Corp Extensions",
+  "modules": ["default", "android", "chrome"]
 }
 ```
 
-**File: `teams/android/macros`**
+**File: `modules/android/macros`**
 
 ```json
 {
@@ -1139,14 +1093,14 @@ acme-corp/perfetto-resources/
 
 **URL Resolution:**
 
-`github://acme-corp/perfetto-resources/main/teams/android/macros`
+`github://acme-corp/perfetto-resources/main/modules/android/macros`
 
 →
-`https://raw.githubusercontent.com/acme-corp/perfetto-resources/main/teams/android/macros`
+`https://raw.githubusercontent.com/acme-corp/perfetto-resources/main/modules/android/macros`
 
 **Authentication:** Automatic via GitHub OAuth if repo is private.
 
-### Corporate Symbol Server (Flask)
+### Corporate Extension Server (Flask)
 
 ```python
 from flask import Flask, send_file, jsonify
@@ -1155,27 +1109,30 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app, origins=["https://ui.perfetto.dev"])
 
-@app.route('/teams')
-def list_teams():
-    return jsonify({"teams": ["android", "chrome", "infra"]})
+@app.route('/manifest.json')
+def get_manifest():
+    return jsonify({
+        "name": "Acme Corp Extensions",
+        "modules": ["default", "android", "chrome", "infra"]
+    })
 
-@app.route('/teams/<team>/macros')
-def get_team_macros(team):
-    macro_file = f'/data/teams/{team}/macros'
+@app.route('/modules/<module>/macros')
+def get_module_macros(module):
+    macro_file = f'/data/modules/{module}/macros'
     if os.path.exists(macro_file):
         return send_file(macro_file, mimetype='application/json')
     return '', 404
 
-@app.route('/teams/<team>/sql_modules')
-def get_team_sql_modules(team):
-    sql_file = f'/data/teams/{team}/sql_modules'
+@app.route('/modules/<module>/sql_modules')
+def get_module_sql_modules(module):
+    sql_file = f'/data/modules/{module}/sql_modules'
     if os.path.exists(sql_file):
         return send_file(sql_file, mimetype='application/json')
     return '', 404
 
-@app.route('/teams/<team>/proto_descriptors')
-def get_team_proto_descriptors(team):
-    proto_file = f'/data/teams/{team}/proto_descriptors'
+@app.route('/modules/<module>/proto_descriptors')
+def get_module_proto_descriptors(module):
+    proto_file = f'/data/modules/{module}/proto_descriptors'
     if os.path.exists(proto_file):
         return send_file(proto_file, mimetype='application/json')
     return '', 404
@@ -1188,47 +1145,42 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=443, ssl_context='adhoc')
 ```
 
-**Authentication:** Corporate SSO/OAuth2/OIDC. Provider handles auth, Perfetto
-sends tokens in `Authorization` header.
+**Authentication:** Corporate SSO/OAuth2/OIDC. Extension server handles auth,
+Perfetto sends tokens in `Authorization` header.
 
 ### UI Integration Example
 
 ```typescript
-class ProviderService {
-  private providers: Map<string, ProviderConfig>;
+class ServerService {
+  private servers: Map<string, ServerConfig>;
 
-  async discoverTeams(provider: string): Promise<string[] | null> {
+  async discoverManifest(server: string): Promise<Manifest | null> {
     try {
-      const response = await fetch(`${provider}/teams`);
+      const response = await fetch(`${server}/manifest.json`);
       if (response.ok) {
         const data = await response.json();
-        return data.teams;
-      }
-      if (response.status === 404) {
-        return null; // No team support
+        return data;
       }
     } catch (e) {
-      console.error('Failed to discover teams', e);
+      console.error('Failed to discover manifest', e);
     }
     return null;
   }
 
   async loadResources(
-    provider: string,
-    team: string | null,
+    server: string,
+    module: string,
     resourceType: 'macros' | 'sql_modules' | 'proto_descriptors',
   ): Promise<Record<string, any> | null> {
-    const url = team
-      ? `${provider}/teams/${team}/${resourceType}`
-      : `${provider}/${resourceType}`;
+    const url = `${server}/modules/${module}/${resourceType}`;
 
     try {
-      const headers = await this.getAuthHeaders(provider);
+      const headers = await this.getAuthHeaders(server);
       const response = await fetch(url, {headers});
 
       if (response.status === 401 || response.status === 403) {
-        await this.handleAuthRequired(provider);
-        return this.loadResources(provider, team, resourceType); // Retry
+        await this.handleAuthRequired(server);
+        return this.loadResources(server, module, resourceType); // Retry
       }
 
       if (response.ok) {
@@ -1240,8 +1192,8 @@ class ProviderService {
     return null;
   }
 
-  private async getAuthHeaders(provider: string): Promise<Headers> {
-    const creds = this.getStoredCredentials(provider);
+  private async getAuthHeaders(server: string): Promise<Headers> {
+    const creds = this.getStoredCredentials(server);
     const headers = new Headers();
 
     if (creds?.type === 'github_oauth' && creds.access_token) {
@@ -1256,39 +1208,37 @@ class ProviderService {
     return headers;
   }
 
-  private getStoredCredentials(provider: string): any {
-    const credsJson = localStorage.getItem('perfetto_provider_credentials');
+  private getStoredCredentials(server: string): any {
+    const credsJson = localStorage.getItem('perfetto_server_credentials');
     if (!credsJson) return null;
     const allCreds = JSON.parse(credsJson);
-    return allCreds[provider];
+    return allCreds[server];
   }
 
-  private async handleAuthRequired(provider: string): Promise<void> {
-    // Trigger provider-specific auth flow (GitHub OAuth, token prompt, etc.)
-    // Implementation depends on provider type
+  private async handleAuthRequired(server: string): Promise<void> {
+    // Trigger server-specific auth flow (GitHub OAuth, token prompt, etc.)
+    // Implementation depends on server type
   }
 
   async loadAllExtensions(): Promise<void> {
-    for (const [providerUrl, config] of this.providers) {
-      if (config.selectedTeams && config.selectedTeams.length > 0) {
-        for (const team of config.selectedTeams) {
-          await this.loadAndRegister(providerUrl, team);
+    for (const [serverUrl, config] of this.servers) {
+      if (config.selectedModules && config.selectedModules.length > 0) {
+        for (const module of config.selectedModules) {
+          await this.loadAndRegister(serverUrl, module);
         }
-      } else {
-        await this.loadAndRegister(providerUrl, null);
       }
     }
   }
 
   private async loadAndRegister(
-    provider: string,
-    team: string | null,
+    server: string,
+    module: string,
   ): Promise<void> {
-    const macros = await this.loadResources(provider, team, 'macros');
-    const sqlModules = await this.loadResources(provider, team, 'sql_modules');
+    const macros = await this.loadResources(server, module, 'macros');
+    const sqlModules = await this.loadResources(server, module, 'sql_modules');
     const protoDescs = await this.loadResources(
-      provider,
-      team,
+      server,
+      module,
       'proto_descriptors',
     );
 
@@ -1316,8 +1266,8 @@ for resuming work. Human readers can stop here.**
 **Key design decision:**
 
 - Standard HTTP(S) endpoints with well-defined paths
-- Provider-based: users configure URLs, UI aggregates extensions from all
-  enabled providers
+- Server-based: users configure URLs, UI aggregates extensions from all enabled
+  servers
 - Piggyback on existing ACL (GitHub, GCS, corporate SSO)
 
 **Related GitHub issues:** #3085
@@ -1334,16 +1284,16 @@ for resuming work. Human readers can stop here.**
 3. ✅ URL normalization: Behind the scenes, preserve user input for display
 4. ✅ CORS: Required, documented in Security section
 
-**Endpoint Specification:** 5. ✅ Versioning: No versioning initially, add
-`/v2/` when needed 6. ✅ Partial success: UI extensions aggregate across all
-selected providers; symbolization/deobfuscation fall back to first-success
-semantics in the followup RFC 7. ✅ JSON format: snake_case 8. ✅ Compression:
-Optional, browser-handled
+**Endpoint Specification:** 5. ✅ Versioning: Proto-style (field additions ok,
+semantic changes = new types) 6. ✅ Partial success: UI extensions aggregate
+across all selected servers; symbolization/deobfuscation fall back to
+first-success semantics in the followup RFC 7. ✅ JSON format: snake_case 8. ✅
+Compression: Optional, browser-handled
 
 **Symbolization & Deobfuscation:** 9. ✅ All deferred to separate RFC
 
 **Performance & Reliability:** 13. ✅ Timeouts: Fixed (5s/10s/15s/30s),
-fail-fast 14. ✅ Retry: No retry, try next provider immediately 15. ✅ Provider
+fail-fast 14. ✅ Retry: No retry, try next server immediately 15. ✅ Server
 queries: Serial (one at a time) 16. ✅ Rate limiting: Respect Retry-After
 headers
 
@@ -1354,50 +1304,58 @@ only declarative
 
 **User Experience:** 20. ✅ Error reporting: Console logging only for MVP 21. ✅
 Health monitoring: No monitoring for MVP 22. ✅ Migration: One-shot when
-provider server ready 23. ✅ Discovery: Settings instructions (Provider Store
-catalog deferred)
+extension server ready 23. ✅ Discovery: Settings instructions (Extension Server
+Store catalog deferred)
 
-**Teams & Filtering:** 24. ✅ Team discovery: Automatic when adding provider 25.
-✅ Team hierarchy: Flat only (use dashes for organization) 26. ✅ Team
-permissions: No team-level ACL (provider-level only) 27. ✅ Team wildcards: No
-wildcards 28. ✅ No teams support: Fallback to root paths
+**Modules & Filtering:** 24. ✅ Module discovery: Via manifest.json when adding
+server 25. ✅ Module hierarchy: Flat only (use dashes for organization) 26. ✅
+Module permissions: No module-level ACL (server-level only) 27. ✅ Module
+wildcards: No wildcards
 
 **GitHub App OAuth:** 29. ✅ Scopes: Repository Contents (read-only) only 30. ✅
 Token refresh: Use refresh tokens, auto-refresh 31. ✅ Hosting: Client-side only
-(Device Flow) 32. ✅ Multiple accounts: Per-provider auth (natural support)
+(Device Flow) 32. ✅ Multiple accounts: Per-server auth (natural support)
 
 ### Implementation Checklist
 
-**Phase 1: Core Provider Infrastructure**
+**Phase 1: Core Extension Server Infrastructure**
 
-- [ ] Provider config schema (localStorage)
-- [ ] Provider fan-out orchestration (aggregate UI extensions from all enabled
-      providers/teams)
-- [ ] Alias resolution + provider key normalization helpers
+- [ ] Extension server config schema (localStorage)
+- [ ] Server fan-out orchestration (aggregate UI extensions from all enabled
+      servers/modules)
+- [ ] Alias resolution + server key normalization helpers
+- [ ] Manifest fetching and parsing
 - [ ] Auth header injection
 - [ ] Error handling and logging
 
 **Phase 2: UI Extensions**
 
-- [ ] Team discovery endpoint (`/teams`)
+- [ ] Manifest endpoint (`/manifest.json`)
+- [ ] Module discovery and selection UI
 - [ ] Extension endpoints (macros, SQL modules, proto descriptors)
-- [ ] Extension loading with team filtering
-- [ ] GitHub App OAuth (Device Flow)
+- [ ] Extension loading with module filtering
 - [ ] Replace `is_internal_user_script_loader.ts`
-- [ ] Default Google provider bootstrap (auto-add + perfetto team selection
-      guidance)
+- [ ] Installation-configured server bootstrap (auto-add + default module
+      selection)
 
-**Phase 2.5: Post-MVP Enhancements**
+**Phase 2.5: Authentication (Separate RFC)**
 
-- [ ] Provider Store (requires dedicated Store UX RFC)
-- [ ] URL parameter support (`?add_provider=...`)
+- [ ] GitHub App OAuth (Device Flow)
+- [ ] GCS/S3/HTTPS authentication flows
+- [ ] Credential management UI
 
-**Phase 3: Local HTTP Accelerator (Future)**
+**Phase 3: Post-MVP Enhancements**
+
+- [ ] Extension Server Store (requires dedicated Store UX RFC)
+- [ ] URL parameter support (`?add_server=...`)
+- [ ] Service worker caching for offline support
+
+**Phase 4: Local HTTP Accelerator (Future)**
 
 - [ ] Extend `trace_processor --httpd`
 - [ ] Local filesystem discovery
 
-**Phase 4: Symbolization & Deobfuscation (Separate RFC)**
+**Phase 5: Symbolization & Deobfuscation (Separate RFC)**
 
 - [ ] Write separate RFC
 - [ ] Implement endpoints
@@ -1409,7 +1367,7 @@ Token refresh: Use refresh tokens, auto-refresh 31. ✅ Hosting: Client-side onl
 **Before Phase 1:**
 
 1. Register Perfetto GitHub App with GitHub
-2. Set up internal Google provider server
+2. Set up internal Google extension server
 
 **Before Phase 2:** 3. Create example GitHub repo with test extensions 4.
 Finalize localStorage settings schema
@@ -1418,8 +1376,8 @@ Finalize localStorage settings schema
 
 **New files:**
 
-- `ui/src/core/providers/provider_service.ts` - Core provider logic
-- `ui/src/core/providers/provider_config.ts` - Config schema
+- `ui/src/core/servers/server_service.ts` - Core server logic
+- `ui/src/core/servers/server_config.ts` - Config schema
 
 **Files to modify:**
 
@@ -1427,51 +1385,56 @@ Finalize localStorage settings schema
 
 **Deferred new files (post-MVP):**
 
-- `ui/src/core/providers/store.ts` - Provider Store (curated list + shortcuts)
+- `ui/src/core/servers/store.ts` - Extension Server Store (curated list +
+  shortcuts)
 
 ### Testing Strategy
 
 **Unit tests:**
 
-- Provider config parsing
+- Extension server config parsing
 - Auth header injection
 - Extension aggregation logic with mocks
 - Error handling
 - Conflict filtering/logging for duplicate SQL modules and proto descriptors
-- Deterministic ordering across provider/team/resource aggregation
-- Alias resolution and provider key normalization helpers
+- Deterministic ordering across server/module/resource aggregation
+- Alias resolution and server key normalization helpers
+- Manifest fetching and parsing
 
 **Integration tests:**
 
 - Real GitHub repo with test extensions
-- Mock providers with various response patterns
+- Mock extension servers with various response patterns
 - Auth with test tokens
 
 **E2E tests:**
 
-- Add provider → select teams → reload → extensions loaded
+- Add server → select modules → reload → extensions loaded
 - Install macro from GitHub → run macro → verify behavior
 
 ### Key Technical Challenges
 
-1. **Browser filesystem access** - Solved via local httpd (Phase 3)
-2. **CORS** - All providers must support CORS
+1. **Browser filesystem access** - Solved via local httpd (Phase 4)
+2. **CORS** - All extension servers must support CORS
 3. **GitHub OAuth** - Device Flow in browser without backend
-4. **Team discovery UX** - Immediate discovery, Settings UI for selection
+4. **Manifest discovery UX** - Immediate discovery, Settings UI for module
+   selection
 5. **Credential security** - localStorage with same-origin protection
 
 ### Success Criteria
 
 **MVP (Phase 1-2):**
 
-- Users can configure providers via Settings
+- Users can configure extension servers via Settings
 - UI loads extensions from GitHub or HTTPS
 - Replace `is_internal_user_script_loader.ts`
-- Team selection works
-- GitHub OAuth works
+- Module selection works
+- Manifest discovery works
 
-**Future (Phase 3-4):**
+**Future (Phase 3-5):**
 
+- GitHub OAuth (separate authentication RFC)
+- Extension Server Store (separate RFC)
 - Local httpd for filesystem access
 - Symbolization/deobfuscation (separate RFC)
 
