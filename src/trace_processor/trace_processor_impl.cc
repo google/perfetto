@@ -594,6 +594,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
 
+base::Status TraceProcessorImpl::ExtendDescriptorPool(const uint8_t* data,
+                                                      size_t size) {
+  return context()->descriptor_pool_->AddFromFileDescriptorSet(
+      data, size,
+      {},
+      true);
+}
+
 // =================================================================
 // |        TraceProcessorStorage implementation starts here       |
 // =================================================================

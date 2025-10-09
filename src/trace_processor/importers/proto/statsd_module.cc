@@ -115,12 +115,7 @@ StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
       args_parser_(*context_->descriptor_pool_) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber);
   context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
-                                                       kAtomsDescriptor.size());
-  if (auto i = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName)) {
-    descriptor_idx_ = *i;
-  } else {
-    PERFETTO_FATAL("Failed to find descriptor for %s", kAtomProtoName);
-  }
+                                                       kAtomsDescriptor.size(),{},true);
 }
 
 StatsdModule::~StatsdModule() = default;
@@ -197,8 +192,15 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
       [&](ArgsTracker::BoundInserter* inserter) {
         ArgsParser delegate(ts, *inserter, *context_->storage);
 
+        auto desc_idx = GetAtomDescriptorIdx();
+        if (!desc_idx) {
+          PERFETTO_ELOG("Failed to find descriptor for %s", kAtomProtoName);
+          context_->storage->IncrementStats(stats::atom_unknown);
+          return;
+        }
         const auto& descriptor =
-            context_->descriptor_pool_->descriptors()[descriptor_idx_];
+            context_->descriptor_pool_->descriptors()[*desc_idx];
+        
         const auto& field_it = descriptor.fields().find(nested_field_id);
         base::Status status;
 
@@ -226,13 +228,15 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
 StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   StringId* cached_name = atom_names_.Find(atom_field_id);
   if (cached_name == nullptr) {
-    if (!descriptor_idx_) {
+    auto desc_idx = GetAtomDescriptorIdx();
+    if (!desc_idx) {
       context_->storage->IncrementStats(stats::atom_unknown);
       return context_->storage->InternString("Could not load atom descriptor");
     }
 
     const auto& descriptor =
-        context_->descriptor_pool_->descriptors()[descriptor_idx_];
+        context_->descriptor_pool_->descriptors()[*desc_idx];
+
     StringId name_id;
     const auto& field_it = descriptor.fields().find(atom_field_id);
     if (field_it == descriptor.fields().end()) {
@@ -256,6 +260,13 @@ TrackId StatsdModule::InternTrackId() {
     track_id_ = context_->track_tracker->InternTrack(kBlueprint);
   }
   return *track_id_;
+}
+
+std::optional<uint32_t> StatsdModule::GetAtomDescriptorIdx() {
+  if (!descriptor_idx_) {
+    descriptor_idx_ = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
+  }
+  return descriptor_idx_;
 }
 
 }  // namespace perfetto::trace_processor

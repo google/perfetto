@@ -56,10 +56,11 @@ class StatsdModule : public ProtoImporterModule {
   void ParseAtom(int64_t ts, protozero::ConstBytes bytes);
   StringId GetAtomName(uint32_t atom_field_id);
   TrackId InternTrackId();
-
+  std::optional<uint32_t> GetAtomDescriptorIdx();
+  
   TraceProcessorContext* context_;
   base::FlatHashMap<uint32_t, StringId> atom_names_;
-  uint32_t descriptor_idx_ = std::numeric_limits<uint32_t>::max();
+  std::optional<uint32_t> descriptor_idx_;
   util::ProtoToArgsParser args_parser_;
   std::optional<TrackId> track_id_;
 };
