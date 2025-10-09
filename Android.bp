@@ -18909,6 +18909,7 @@ cc_binary {
 cc_binary {
     name: "trace_redactor",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_protozero_protozero",
