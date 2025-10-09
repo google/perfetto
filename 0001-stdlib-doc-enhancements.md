@@ -165,33 +165,85 @@ The single-page documentation approach has several critical issues:
 **Files:** Design document, `infra/perfetto.dev/BUILD.gn` (new targets)
 **Priority:** Critical (blocks diagram work) **Dependencies:** Phase 1 complete
 
+**Current Build Process:**
+1. `gen_stdlib_docs_json.py` → `stdlib_docs.json`
+2. `gen_stdlib_docs_md.py` → `stdlib_docs.md` (single file)
+3. `md_to_html` → `docs/analysis/stdlib-docs` (single HTML)
+
 **Proposed Structure (Rust-style):**
 
 ```
-/docs/analysis/sql-tables/
-  ├── index.md                    # Overview + global table list
+docs/analysis/sql-tables/
+  ├── index                          # Global index (all packages overview)
   ├── prelude/
-  │   ├── index.md               # Prelude package overview
-  │   ├── core.md                # prelude.after_eof.core module
-  │   ├── tracks.md              # prelude.after_eof.tracks module
-  │   ├── cpu_scheduling.md      # prelude.after_eof.cpu_scheduling module
-  │   └── ...
+  │   ├── index                      # Prelude package index
+  │   ├── core                       # prelude.after_eof.core
+  │   ├── tracks                     # prelude.after_eof.tracks
+  │   ├── cpu_scheduling             # prelude.after_eof.cpu_scheduling
+  │   ├── counters                   # prelude.after_eof.counters
+  │   ├── events                     # prelude.after_eof.events
+  │   └── memory                     # prelude.after_eof.memory
   ├── android/
-  │   ├── index.md               # Android package overview
-  │   ├── startup.md             # android.startup module
-  │   ├── memory.md              # android.memory module
+  │   ├── index                      # Android package index
+  │   ├── startup                    # android.startup
+  │   ├── memory                     # android.memory
   │   └── ...
   └── ...
 ```
 
+**URL Examples:**
+- `/docs/analysis/sql-tables/` → Global index
+- `/docs/analysis/sql-tables/prelude/` → Prelude package index
+- `/docs/analysis/sql-tables/prelude/core` → Core module details
+- `/docs/analysis/sql-tables/android/startup` → Android startup module
+
+**Page Types:**
+
+1. **Global Index** (`sql-tables/index`)
+   - Introduction to PerfettoSQL stdlib
+   - List of all packages with descriptions
+   - Quick links to popular modules
+
+2. **Package Index** (`sql-tables/{package}/index`)
+   - Package description
+   - List of modules with summaries
+   - Links to module pages
+
+3. **Module Detail** (`sql-tables/{package}/{module}`)
+   - Module description (from `@module` docs)
+   - Mermaid diagram (module relationships)
+   - Tables/views, functions, table functions, macros
+
+**Build System Changes:**
+
+```python
+# New: Generate multiple markdown files instead of one
+action("gen_stdlib_docs_multipage") {
+  script = "src/gen_stdlib_docs_multipage.py"
+  # Outputs: multiple .md files in structured directories
+}
+
+# New: md_to_html for each page
+foreach(page in all_pages) {
+  md_to_html("gen_stdlib_${page}") {
+    markdown = page.md_file
+    out_html = page.output_path
+  }
+}
+```
+
+**Backward Compatibility:**
+- Keep `/docs/analysis/stdlib-docs` URL active
+- Redirect to `/docs/analysis/sql-tables/` (global index)
+
 **Implementation Steps:**
 
-- [ ] Design URL structure and navigation hierarchy
-- [ ] Create build targets for per-module markdown generation
-- [ ] Design global index page with package/module summary
+- [x] Design URL structure and navigation hierarchy
+- [x] Define page types and templates
+- [x] Design build system changes
+- [ ] Create proof-of-concept for 2-3 modules
 - [ ] Plan cross-page linking and navigation
-- [ ] Update build system to generate multiple output files
-- [ ] **Design Review** before implementation
+- [ ] **Design Review** before full implementation
 
 #### Task 2.2: Implement Multi-Page Documentation Generator
 
@@ -628,9 +680,9 @@ user experience.
 - [x] Task 1.1: Reorganize Prelude Module Structure
 - [x] Task 1.2: Add Module Documentation Support to Parser
 
-**Phase 2: Multi-Page Documentation Structure** - ⏸️ NOT STARTED (CRITICAL)
+**Phase 2: Multi-Page Documentation Structure** - 🚧 IN PROGRESS (CRITICAL)
 
-- [ ] Task 2.1: Design Multi-Page Documentation Structure
+- [x] Task 2.1: Design Multi-Page Documentation Structure
 - [ ] Task 2.2: Implement Multi-Page Documentation Generator
 - [ ] Task 2.3: Update Documentation Site Integration
 
