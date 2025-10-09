@@ -57,6 +57,8 @@ class AndroidProbesParser {
   TraceProcessorContext* const context_;
   AndroidProbesTracker* const tracker_;
 
+  std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
+
   const StringId battery_status_id_;
   const StringId plug_type_id_;
   const StringId energy_consumer_id_;
@@ -72,7 +74,6 @@ class AndroidProbesParser {
   const StringId bt_handle_id_;
   const StringId power_rail_raw_name_id_;
   const StringId power_rail_subsys_name_arg_id_;
-  std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
   const StringId rail_packet_timestamp_id_;
 };
 }  // namespace perfetto::trace_processor
