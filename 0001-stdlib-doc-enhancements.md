@@ -24,14 +24,25 @@ proper module organization, and better structure.
 
 ### Current Problems
 
-1. **Table relationship visualization missing** - No visual representation of
-   how stdlib tables connect via `JOINID(table.column)` relationships
-2. **Prelude organization poor** - 40+ tables/views dumped into flat sections
+1. **Single-page documentation unwieldy** - All stdlib documentation (40+
+   prelude tables, 50+ android tables, etc.) is crammed into one massive page,
+   making it difficult to navigate and slow to load. Need Rust-style
+   documentation with global list + per-module pages.
+2. **Large package diagrams unreadable** - Packages like `android` with >50
+   tables produce tiny, illegible mermaid diagrams. Diagrams need to be scoped
+   to individual modules or broken into focused subgraphs.
+3. **Cross-package relationships missing** - No visualization of how tables in
+   different packages connect (e.g., Android tables linking to prelude's
+   process/thread tables via JOINID).
+4. **Table relationship visualization missing** - No visual representation of
+   how stdlib tables connect via `JOINID(table.column)` relationships (within a
+   module).
+5. **Prelude organization poor** - 40+ tables/views dumped into flat sections
    without logical grouping
-3. **No module-level documentation** - Missing module descriptions, purposes,
+6. **No module-level documentation** - Missing module descriptions, purposes,
    and relationships
-4. **Poor navigation** - Hard to find related functionality, no cross-references
-5. **Monolithic prelude structure** - `prelude/after_eof/tables_views.sql`
+7. **Poor navigation** - Hard to find related functionality, no cross-references
+8. **Monolithic prelude structure** - `prelude/after_eof/tables_views.sql`
    contains 32 tables in one file
 
 ## Enhancement Goals
@@ -54,9 +65,12 @@ proper module organization, and better structure.
 
 ## Implementation Plan
 
+**IMPORTANT:** Phase 2 (Multi-page Documentation) must be completed BEFORE Phase
+3 (Mermaid Diagrams) to avoid creating unusable single-page diagrams.
+
 ### Phase 1: Foundation & Refactoring (Dependencies First)
 
-**Status: Not Started**
+**Status: Completed**
 
 #### Task 1.1: Reorganize Prelude Module Structure
 
@@ -92,13 +106,12 @@ Break up the monolithic `tables_views.sql` (32 tables) into focused modules:
 
 **Implementation Steps:**
 
-- [ ] Create new module files with proper `-- @module` documentation
-- [ ] Move table definitions from `tables_views.sql` to appropriate modules
-- [ ] Update `BUILD.gn` dependencies
-- [ ] Update include chain in `tables_views.sql` to include new modules
-- [ ] Test that all tables remain accessible in prelude
-- [ ] **Commit:**
-      `git add . && git commit -m "tp: reorganize prelude into focused modules"`
+- [x] Create new module files with proper `-- @module` documentation
+- [x] Move table definitions from `tables_views.sql` to appropriate modules
+- [x] Update `BUILD.gn` dependencies
+- [x] Update include chain in `tables_views.sql` to include new modules
+- [x] Test that all tables remain accessible in prelude
+- [x] **Commit:** `9df0833e9e - tp: reorganize prelude into focused modules`
 
 #### Task 1.2: Add Module Documentation Support to Parser
 
@@ -125,19 +138,98 @@ Extend SQL parsing to extract module-level documentation:
 
 **Implementation Steps:**
 
-- [ ] Extend `docs_parse.py` to recognize `-- @module` comments
-- [ ] Extract module name, description, and metadata
-- [ ] Add module information to JSON schema output
-- [ ] Update `gen_stdlib_docs_json.py` to include module metadata in output
-- [ ] Test with sample module documentation
+- [x] Extend `docs_parse.py` to recognize `-- @module` comments
+- [x] Extract module name, description, and metadata
+- [x] Add module information to JSON schema output
+- [x] Update `gen_stdlib_docs_json.py` to include module metadata in output
+- [x] Test with sample module documentation
+- [x] **Commit:**
+      `c324ab46cb - tp: add module documentation support to stdlib parser`
+
+### Phase 2: Multi-Page Documentation Structure
+
+**Status: Not Started** **Priority: CRITICAL** - Must complete before Phase 3
+(Mermaid Diagrams)
+
+#### Rationale
+
+The single-page documentation approach has several critical issues:
+
+1. **Performance**: Single page with 100+ tables is slow to load and navigate
+2. **Diagram readability**: Package-level diagrams with >50 tables are illegible
+3. **Navigation**: Users can't efficiently find specific modules or tables
+4. **Maintenance**: One massive file is hard to update and version control
+
+#### Task 2.1: Design Multi-Page Documentation Structure
+
+**Files:** Design document, `infra/perfetto.dev/BUILD.gn` (new targets)
+**Priority:** Critical (blocks diagram work) **Dependencies:** Phase 1 complete
+
+**Proposed Structure (Rust-style):**
+
+```
+/docs/analysis/sql-tables/
+  ├── index.md                    # Overview + global table list
+  ├── prelude/
+  │   ├── index.md               # Prelude package overview
+  │   ├── core.md                # prelude.after_eof.core module
+  │   ├── tracks.md              # prelude.after_eof.tracks module
+  │   ├── cpu_scheduling.md      # prelude.after_eof.cpu_scheduling module
+  │   └── ...
+  ├── android/
+  │   ├── index.md               # Android package overview
+  │   ├── startup.md             # android.startup module
+  │   ├── memory.md              # android.memory module
+  │   └── ...
+  └── ...
+```
+
+**Implementation Steps:**
+
+- [ ] Design URL structure and navigation hierarchy
+- [ ] Create build targets for per-module markdown generation
+- [ ] Design global index page with package/module summary
+- [ ] Plan cross-page linking and navigation
+- [ ] Update build system to generate multiple output files
+- [ ] **Design Review** before implementation
+
+#### Task 2.2: Implement Multi-Page Documentation Generator
+
+**Files:** `infra/perfetto.dev/src/gen_stdlib_docs_md.py`,
+`infra/perfetto.dev/BUILD.gn` **Priority:** Critical **Dependencies:** Task 2.1
+
+**Implementation Steps:**
+
+- [ ] Refactor `gen_stdlib_docs_md.py` to support multi-page output
+- [ ] Implement global index page generation
+- [ ] Implement per-package index generation
+- [ ] Implement per-module page generation
+- [ ] Add navigation breadcrumbs and cross-links
+- [ ] Update build targets to generate all pages
+- [ ] Test navigation and linking
 - [ ] **Commit:**
-      `git add . && git commit -m "tp: add module documentation support to stdlib parser"`
+      `git add . && git commit -m "tp: implement multi-page stdlib documentation"`
 
-### Phase 2: Mermaid Diagram Integration
+#### Task 2.3: Update Documentation Site Integration
 
-**Status: Not Started**
+**Files:** `infra/perfetto.dev/` site templates and configuration **Priority:**
+High **Dependencies:** Task 2.2
 
-#### Task 2.1: Port Table Relationship Logic to Python
+**Implementation Steps:**
+
+- [ ] Update site navigation to include stdlib module pages
+- [ ] Implement search indexing for multi-page docs
+- [ ] Add breadcrumb navigation in site templates
+- [ ] Configure URL routing for new page structure
+- [ ] Test site integration and navigation
+- [ ] **Commit:**
+      `git add . && git commit -m "tp: integrate multi-page stdlib docs into site"`
+
+### Phase 3: Mermaid Diagram Integration
+
+**Status: Blocked** (waiting for Phase 2 completion)
+
+#### Task 3.1: Port Table Relationship Logic to Python
 
 **Files:** `tools/stdlib_mermaid_generator.py` (new),
 `infra/perfetto.dev/src/gen_stdlib_docs_md.py` **Priority:** High (core visual
@@ -424,3 +516,131 @@ tools/ninja -C out/linux_clang_release -k 10000 trace_processor_shell
 
 This design document should be treated as a living specification that evolves
 with implementation learnings.
+
+---
+
+## Implementation Status and Findings (as of 2025-10-09)
+
+### Completed Work
+
+**Branch:** `dev/lalitm/stdlib-docs-mermaid-generation`
+
+**Completed Commits:**
+
+1. `9df0833e9e` - tp: reorganize prelude into focused modules
+2. `c324ab46cb` - tp: add module documentation support to stdlib parser
+3. `e9ca2a4121` - tp: add mermaid diagram generation for stdlib tables
+4. `d98f1b670f` - tp: integrate table relationship diagrams into docs
+
+### Critical Findings from Initial Implementation
+
+#### 1. Single-Page Documentation is Unusable
+
+The current approach generates one massive markdown file with all stdlib
+documentation:
+
+- **40+ prelude tables**
+- **50+ android tables**
+- **Total: 100+ tables** on one page
+
+**Problems:**
+
+- Page is slow to load
+- Difficult to navigate
+- Poor user experience
+- Hard to maintain
+
+**Solution Required:** Rust-style multi-page documentation with:
+
+- Global index page listing all packages/modules
+- Per-package index pages
+- Per-module detail pages
+
+#### 2. Package-Level Diagrams are Illegible
+
+Packages like `android` with 50+ tables produce mermaid diagrams that are:
+
+- Tiny and unreadable
+- Provide no useful information
+- Cluttering the page
+
+**Example:** The `android` package diagram attempts to show all 50+ tables and
+their relationships in one graph, resulting in microscopic text and overlapping
+edges.
+
+**Solution Required:**
+
+- **Remove package-level diagrams** for packages with >20 tables
+- **Keep module-level diagrams** (scoped to 5-15 tables each)
+- **Add focused subgraphs** for large modules
+
+#### 3. Cross-Package Relationships Not Visualized
+
+Many stdlib tables reference tables in other packages via JOINID:
+
+- Android tables → prelude's `process`/`thread` tables
+- Memory tables → `heap_graph` tables
+- But these relationships are **not shown** in the diagrams
+
+**Current limitation:** Mermaid generator only shows intra-module or
+intra-package relationships, missing the important cross-package connections.
+
+**Solution Required:**
+
+- Text-based cross-reference links (not diagrams)
+- "Related Tables" sections listing cross-package references
+- Consider separate "Architecture Overview" diagram showing major package
+  relationships
+
+### Revised Implementation Plan
+
+**Critical Change:** Multi-page documentation (Phase 2) must be implemented
+**BEFORE** continuing with mermaid diagrams. The current single-page approach
+makes diagrams unusable.
+
+**Recommended Next Steps:**
+
+1. **HOLD diagram work** - Current implementation on branch can serve as
+   prototype
+2. **Implement Phase 2** - Multi-page documentation structure
+3. **Resume diagram work** - Once pages are scoped appropriately, add diagrams
+   to individual module pages
+
+**Rationale:** Diagrams are only useful when scoped to individual module pages.
+Putting 50-table diagrams on a single page provides no value and creates a poor
+user experience.
+
+### Lessons Learned
+
+1. **Start with page structure, not features** - Should have implemented
+   multi-page docs first
+2. **Diagram scope matters** - Module-level diagrams (5-15 tables) are useful;
+   package-level diagrams (50+ tables) are not
+3. **Cross-package visualization needs different approach** - Can't use same
+   technique as intra-module relationships
+4. **Test with real data** - Implementing against `android` package (50+ tables)
+   revealed problems that weren't apparent with smaller modules
+
+### Updated Progress Tracking
+
+**Phase 1: Foundation & Refactoring** - ✅ COMPLETE
+
+- [x] Task 1.1: Reorganize Prelude Module Structure
+- [x] Task 1.2: Add Module Documentation Support to Parser
+
+**Phase 2: Multi-Page Documentation Structure** - ⏸️ NOT STARTED (CRITICAL)
+
+- [ ] Task 2.1: Design Multi-Page Documentation Structure
+- [ ] Task 2.2: Implement Multi-Page Documentation Generator
+- [ ] Task 2.3: Update Documentation Site Integration
+
+**Phase 3: Mermaid Diagram Integration** - ⚠️ PARTIAL/ON HOLD
+
+- [x] Task 3.1: Port Table Relationship Logic to Python (done, but needs
+      refinement)
+- [x] Task 3.2: Integrate Mermaid Generation (done, but blocked on multi-page
+      docs)
+- **Status:** Prototype complete but unusable without multi-page structure
+
+**Next Action:** Focus on Phase 2 (multi-page docs) before continuing diagram
+work.
