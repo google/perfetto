@@ -132,6 +132,7 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
                                          AndroidProbesTracker* tracker)
     : context_(context),
       tracker_(tracker),
+      power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
       energy_consumer_id_(
@@ -150,7 +151,6 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
       power_rail_raw_name_id_(context->storage->InternString("raw_name")),
       power_rail_subsys_name_arg_id_(
           context->storage->InternString("subsystem_name")),
-      power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       rail_packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
 
 void AndroidProbesParser::ParseRailDescriptor(
