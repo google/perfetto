@@ -127,13 +127,14 @@ export async function loadTrace(
 ): Promise<TraceImpl> {
   updateStatus(app, 'Opening trace');
   const engineId = `${++lastEngineId}`;
-  const engine = await createEngine(app, engineId);
+  const engine = await createEngine(app, engineId, app.extraParsingDescriptors);
   return await loadTraceIntoEngine(app, traceSource, engine);
 }
 
 async function createEngine(
   app: AppImpl,
   engineId: string,
+  extraParsingDescriptors: ReadonlyArray<string>,
 ): Promise<EngineBase> {
   // Check if there is any instance of the trace_processor_shell running in
   // HTTP RPC mode (i.e. trace_processor_shell -D).
@@ -160,10 +161,18 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
-      extraParsingDescriptors: descriptorBlobs,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
   }
+
+  // Register descriptors for whichever engine was created
+  if (extraParsingDescriptors.length > 0) {
+    for (const b64Str of extraParsingDescriptors) {
+      const blob = base64Decode(b64Str);
+      await engine.registerExtraDescriptors(blob);
+    }
+  }
+
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
 
   if (isMetatracingEnabled()) {

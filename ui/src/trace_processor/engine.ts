@@ -120,6 +120,8 @@ export interface Engine {
     structuredQueries: protos.PerfettoSqlStructuredQuery[],
   ): Promise<protos.AnalyzeStructuredQueryResult>;
 
+  registerExtraDescriptors(descriptors: Uint8Array): Promise<void>;
+
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
@@ -145,6 +147,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
+  private pendingRegisterDescriptors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
@@ -311,6 +314,9 @@ export abstract class EngineBase implements Engine, Disposable {
         } else {
           res.resolve();
         }
+        break;
+      case TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS:
+        assertExists(this.pendingRegisterDescriptors.shift()).resolve();
         break;
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
@@ -631,6 +637,17 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
+  registerExtraDescriptors(descriptors: Uint8Array): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingRegisterDescriptors.push(asyncRes);
+    const rpc = protos.TraceProcessorRpc.create({
+      request: TPM.TPM_REGISTER_ADDITIONAL_DESCRIPTORS,
+      registerAdditionalDescriptorsArgs: descriptors,
+    });
+    this.rpcSendRequest(rpc);
+    return asyncRes;
+  }
+
   analyzeStructuredQuery(
     structuredQueries: protos.PerfettoSqlStructuredQuery[],
   ): Promise<protos.AnalyzeStructuredQueryResult> {
@@ -739,6 +756,10 @@ export class EngineProxy implements Engine, Disposable {
       metadataId,
       format,
     );
+  }
+
+  registerExtraDescriptors(descriptors: Uint8Array): Promise<void> {
+    return this.engine.registerExtraDescriptors(descriptors);
   }
 
   enableMetatrace(categories?: protos.MetatraceCategories): void {

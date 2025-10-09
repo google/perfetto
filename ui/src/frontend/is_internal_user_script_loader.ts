@@ -113,4 +113,6 @@ export async function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
     // to load.
     setTimeout(() => resolve(), SCRIPT_LOAD_TIMEOUT_MS);
   });
+
+  app.notifyOnExtrasLoadingCompleted();
 }
