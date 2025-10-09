@@ -19,8 +19,13 @@ INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Include all focused modules
 INCLUDE PERFETTO MODULE prelude.after_eof.core;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.tracks;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.cpu_scheduling;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.counters;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.events;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.memory;

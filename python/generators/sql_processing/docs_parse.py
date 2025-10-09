@@ -460,10 +460,15 @@ class ParsedModule:
   macros: List[Macro] = []
   includes: List[Include]
 
-  def __init__(self, package_name: str, module_as_list: List[str],
-               errors: List[str], table_views: List[TableOrView],
-               functions: List[Function], table_functions: List[TableFunction],
-               macros: List[Macro], includes: List[Include],
+  def __init__(self,
+               package_name: str,
+               module_as_list: List[str],
+               errors: List[str],
+               table_views: List[TableOrView],
+               functions: List[Function],
+               table_functions: List[TableFunction],
+               macros: List[Macro],
+               includes: List[Include],
                module_doc: Optional[ModuleDoc] = None):
     self.package_name = package_name
     self.module_as_list = module_as_list
