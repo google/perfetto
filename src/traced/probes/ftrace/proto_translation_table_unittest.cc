@@ -24,8 +24,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/descriptor.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 
 using testing::_;
 using testing::AllOf;
@@ -555,16 +554,21 @@ print fmt: "some format")"));
   //
 
   uint32_t pb_id = table->GetEventById(42)->proto_field_id;
-  auto* descriptors = table->generic_evt_pb_descriptors();
+  auto* descriptors = &table->generic_evt_pb_descriptors()->descriptors;
   ASSERT_TRUE(descriptors->Find(pb_id));
 
   std::vector<uint8_t> serialised_descriptor = *descriptors->Find(pb_id);
-  protos::gen::DescriptorProto descriptor;
-  descriptor.ParseFromArray(serialised_descriptor.data(),
-                            serialised_descriptor.size());
+  protos::gen::FtraceEventBundle::GenericEventDescriptor outer_descriptor;
+  outer_descriptor.ParseFromArray(serialised_descriptor.data(),
+                                  serialised_descriptor.size());
 
-  EXPECT_STREQ(descriptor.name().c_str(), "foo");
-  const auto& fields = descriptor.field();
+  EXPECT_STREQ(outer_descriptor.group_name().c_str(), "group");
+
+  protos::gen::DescriptorProto event_descriptor;
+  event_descriptor.ParseFromString(outer_descriptor.event_descriptor());
+
+  EXPECT_STREQ(event_descriptor.name().c_str(), "foo");
+  const auto& fields = event_descriptor.field();
   EXPECT_EQ(fields.size(), 4u);
 
   using FDP = protos::gen::FieldDescriptorProto;

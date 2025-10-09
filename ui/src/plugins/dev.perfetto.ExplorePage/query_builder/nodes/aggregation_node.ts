@@ -43,7 +43,7 @@ export interface AggregationSerializedState {
     isValid?: boolean;
     isEditing?: boolean;
   }[];
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
 }
 
@@ -210,7 +210,7 @@ export class AggregationNode implements QueryNode {
       prevNodes: this.state.prevNodes,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
-      filters: [],
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
       issues: this.state.issues,

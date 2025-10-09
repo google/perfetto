@@ -44,6 +44,8 @@ namespace {
 
 using protozero::ConstBytes;
 
+constexpr uint32_t kAnonymizedThreadId = uint32_t(-1);
+
 constexpr uint8_t kEtwThreadStateWaiting = 5;
 constexpr uint8_t kEtwWaitReasonPageIn = 2;
 constexpr uint8_t kEtwWaitReasonWrExecutive = 7;
@@ -60,7 +62,10 @@ bool IsIoWait(uint8_t reason) {
 
 }  // namespace
 
-EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
+EtwParser::EtwParser(TraceProcessorContext* context)
+    : context_(context),
+      anonymized_process_string_id_(
+          context->storage->InternString("Anonymized Process")) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
@@ -92,9 +97,16 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
   // thread_id might be erased for privacy/security concerns, in this case, use
   // a dummy id since 0 means idle.
   uint32_t old_thread_id =
-      cs.has_old_thread_id() ? cs.old_thread_id() : uint32_t(-1);
+      cs.has_old_thread_id() ? cs.old_thread_id() : kAnonymizedThreadId;
   uint32_t new_thread_id =
-      cs.has_new_thread_id() ? cs.new_thread_id() : uint32_t(-1);
+      cs.has_new_thread_id() ? cs.new_thread_id() : kAnonymizedThreadId;
+
+  if (old_thread_id == kAnonymizedThreadId ||
+      new_thread_id == kAnonymizedThreadId) {
+    context_->process_tracker->UpdateThreadName(
+        context_->process_tracker->GetOrCreateThread(kAnonymizedThreadId),
+        anonymized_process_string_id_, ThreadNamePriority::kEtwTrace);
+  }
 
   // Extract the wait reason. If not present in the trace, default to 0
   // (Executive).

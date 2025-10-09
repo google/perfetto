@@ -65,15 +65,13 @@ TEST(MetricsTest, TemplateReplace) {
 
 class ProtoBuilderTest : public ::testing::Test {
  protected:
-  template <bool repeated>
-  protozero::TypedProtoDecoder<1, repeated> DecodeSingleFieldProto(
+  protozero::TypedProtoDecoder<1> DecodeSingleFieldProto(
       const std::vector<uint8_t>& result_ser) {
     protos::pbzero::ProtoBuilderResult::Decoder result(result_ser.data(),
                                                        result_ser.size());
     protos::pbzero::SingleBuilderResult::Decoder single(result.single());
     protozero::ConstBytes proto_ser = single.protobuf();
-    return protozero::TypedProtoDecoder<1, repeated>(proto_ser.data,
-                                                     proto_ser.size);
+    return protozero::TypedProtoDecoder<1>(proto_ser.data, proto_ser.size);
   }
 };
 
@@ -96,7 +94,7 @@ TEST_F(ProtoBuilderTest, AppendLong) {
   ASSERT_OK(builder.AppendSqlValue("int_value", SqlValue::Long(12345)));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
-  auto proto = DecodeSingleFieldProto<false>(result_ser);
+  auto proto = DecodeSingleFieldProto(result_ser);
   const protozero::Field& int_field = proto.Get(1);
   ASSERT_EQ(int_field.as_int64(), 12345);
 }
@@ -120,7 +118,7 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
   ASSERT_OK(builder.AppendSqlValue("double_value", SqlValue::Double(1.2345)));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
-  auto proto = DecodeSingleFieldProto<false>(result_ser);
+  auto proto = DecodeSingleFieldProto(result_ser);
   const protozero::Field& db_field = proto.Get(1);
   ASSERT_DOUBLE_EQ(db_field.as_double(), 1.2345);
 }
@@ -145,7 +143,7 @@ TEST_F(ProtoBuilderTest, AppendString) {
       builder.AppendSqlValue("string_value", SqlValue::String("hello world!")));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
-  auto proto = DecodeSingleFieldProto<false>(result_ser);
+  auto proto = DecodeSingleFieldProto(result_ser);
   const protozero::Field& str_field = proto.Get(1);
   ASSERT_EQ(str_field.as_std_string(), "hello world!");
 }
@@ -189,13 +187,13 @@ TEST_F(ProtoBuilderTest, AppendNested) {
       "nested_value", SqlValue::Bytes(nest_ser.data(), nest_ser.size())));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
-  auto proto = DecodeSingleFieldProto<false>(result_ser);
+  auto proto = DecodeSingleFieldProto(result_ser);
   const protozero::Field& nest_field = proto.Get(1);
   ASSERT_EQ(nest_field.type(),
             protozero::proto_utils::ProtoWireType::kLengthDelimited);
 
   protozero::ConstBytes nest_bytes = nest_field.as_bytes();
-  protozero::TypedProtoDecoder<1, false> nest(nest_bytes.data, nest_bytes.size);
+  protozero::TypedProtoDecoder<1> nest(nest_bytes.data, nest_bytes.size);
 
   const protozero::Field& nest_int_field = nest.Get(1);
   ASSERT_EQ(nest_int_field.type(),
@@ -224,8 +222,7 @@ TEST_F(ProtoBuilderTest, AppendRepeatedEmpty) {
   ProtoBuilder builder(&pool, &descriptor);
   ASSERT_OK(builder.AppendSqlValue("rep_int_value", SqlValue()));
 
-  auto proto =
-      DecodeSingleFieldProto<true>(builder.SerializeToProtoBuilderResult());
+  auto proto = DecodeSingleFieldProto(builder.SerializeToProtoBuilderResult());
   auto it = proto.GetRepeated<int64_t>(1);
   ASSERT_FALSE(it);
 }
@@ -255,8 +252,7 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   ASSERT_OK(builder.AppendSqlValue(
       "rep_int_value", SqlValue::Bytes(rep_ser.data(), rep_ser.size())));
 
-  auto proto =
-      DecodeSingleFieldProto<true>(builder.SerializeToProtoBuilderResult());
+  auto proto = DecodeSingleFieldProto(builder.SerializeToProtoBuilderResult());
   auto it = proto.GetRepeated<int64_t>(1);
   ASSERT_EQ(*it, 1234);
   ASSERT_EQ(*++it, 5678);
@@ -302,8 +298,8 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
   ASSERT_THAT(value_builder.AppendSqlValue("enum_value", SqlValue::Long(6)),
               IsError());
 
-  auto value_proto = DecodeSingleFieldProto<false>(
-      value_builder.SerializeToProtoBuilderResult());
+  auto value_proto =
+      DecodeSingleFieldProto(value_builder.SerializeToProtoBuilderResult());
   ASSERT_EQ(value_proto.Get(1).as_int32(), 3);
 
   ProtoBuilder str_builder(&pool, &descriptor);
@@ -316,8 +312,8 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
       str_builder.AppendSqlValue("enum_value", SqlValue::String("OTHER")),
       IsError());
 
-  auto str_proto = DecodeSingleFieldProto<false>(
-      str_builder.SerializeToProtoBuilderResult());
+  auto str_proto =
+      DecodeSingleFieldProto(str_builder.SerializeToProtoBuilderResult());
   ASSERT_EQ(str_proto.Get(1).as_int32(), 2);
 }
 

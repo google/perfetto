@@ -8957,12 +8957,14 @@ class FtraceEventBundle(_message.Message):
         timestamp: int
         def __init__(self, timestamp: _Optional[int] = ..., status: _Optional[_Union[FtraceParseStatus, str]] = ...) -> None: ...
     class GenericEventDescriptor(_message.Message):
-        __slots__ = ["event_descriptor", "field_id"]
+        __slots__ = ["event_descriptor", "field_id", "group_name"]
         EVENT_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
         FIELD_ID_FIELD_NUMBER: _ClassVar[int]
+        GROUP_NAME_FIELD_NUMBER: _ClassVar[int]
         event_descriptor: bytes
         field_id: int
-        def __init__(self, field_id: _Optional[int] = ..., event_descriptor: _Optional[bytes] = ...) -> None: ...
+        group_name: str
+        def __init__(self, field_id: _Optional[int] = ..., group_name: _Optional[str] = ..., event_descriptor: _Optional[bytes] = ...) -> None: ...
     BOOT_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     BROKEN_ABI_TRACE_PAGE_FIELD_NUMBER: _ClassVar[int]
     COMPACT_SCHED_FIELD_NUMBER: _ClassVar[int]

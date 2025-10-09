@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/shared_lib/intern_map.h"
+#include "src/shared_lib/track_event/intern_map.h"
 
 #include "test/gtest_and_gmock.h"
 

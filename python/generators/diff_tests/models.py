@@ -52,6 +52,7 @@ class Config:
   chrome_extensions: str
   test_extensions: str
   winscope_extensions: str
+  simpleperf_descriptor: str
   keep_input: bool
   print_slowest_tests: bool
 

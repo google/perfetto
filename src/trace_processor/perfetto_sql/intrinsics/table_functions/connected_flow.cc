@@ -71,12 +71,10 @@ enum RelativesVisitMode : uint8_t {
 class BFS {
  public:
   explicit BFS(const TraceStorage* storage,
-               tables::FlowTable::ConstCursor& incoming_cursor,
-               tables::FlowTable::ConstCursor& outgoing_cursor,
+               const FlowGraph& flow_graph,
                tables::SliceTable::ConstCursor& descendant_cursor)
       : storage_(storage),
-        incoming_cursor_(incoming_cursor),
-        outgoing_cursor_(outgoing_cursor),
+        flow_graph_(flow_graph),
         descendant_cursor_(descendant_cursor) {}
 
   std::vector<tables::FlowTable::RowNumber> TakeResultingFlows() && {
@@ -153,15 +151,22 @@ class BFS {
   void GoByFlow(SliceId slice_id, FlowDirection flow_direction) {
     PERFETTO_DCHECK(known_slices_.count(slice_id) != 0);
 
-    auto& cursor = flow_direction == FlowDirection::OUTGOING ? outgoing_cursor_
-                                                             : incoming_cursor_;
-    cursor.SetFilterValueUnchecked(0, slice_id.value);
-    for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
-      flow_rows_.push_back(cursor.ToRowNumber());
+    const auto& flow_map = flow_direction == FlowDirection::OUTGOING
+                               ? flow_graph_.outgoing_flows
+                               : flow_graph_.incoming_flows;
+    auto* flows = flow_map.Find(slice_id);
+    if (!flows) {
+      return;
+    }
 
+    const auto& flow_table = storage_->flow_table();
+    for (tables::FlowTable::RowNumber row : *flows) {
+      flow_rows_.push_back(row);
+
+      auto ref = row.ToRowReference(flow_table);
       SliceId next_slice_id = flow_direction == FlowDirection::OUTGOING
-                                  ? cursor.slice_in()
-                                  : cursor.slice_out();
+                                  ? ref.slice_in()
+                                  : ref.slice_out();
       if (known_slices_.count(next_slice_id)) {
         continue;
       }
@@ -187,8 +192,7 @@ class BFS {
   }
 
   const TraceStorage* storage_;
-  tables::FlowTable::ConstCursor& incoming_cursor_;
-  tables::FlowTable::ConstCursor& outgoing_cursor_;
+  const FlowGraph& flow_graph_;
   tables::SliceTable::ConstCursor& descendant_cursor_;
 
   std::queue<std::pair<SliceId, VisitType>> slices_to_visit_;
@@ -204,20 +208,6 @@ ConnectedFlow::Cursor::Cursor(Mode mode, TraceStorage* storage)
     : mode_(mode),
       storage_(storage),
       table_(storage->mutable_string_pool()),
-      outgoing_cursor_(
-          storage->flow_table().CreateCursor({dataframe::FilterSpec{
-              tables::FlowTable::ColumnIndex::slice_out,
-              0,
-              dataframe::Eq{},
-              std::nullopt,
-          }})),
-      incoming_cursor_(
-          storage->flow_table().CreateCursor({dataframe::FilterSpec{
-              tables::FlowTable::ColumnIndex::slice_in,
-              0,
-              dataframe::Eq{},
-              std::nullopt,
-          }})),
       descendant_cursor_(Descendant::MakeCursor(storage->slice_table())) {}
 
 bool ConnectedFlow::Cursor::Run(const std::vector<SqlValue>& arguments) {
@@ -240,7 +230,13 @@ bool ConnectedFlow::Cursor::Run(const std::vector<SqlValue>& arguments) {
   if (!slice.FindById(start_id)) {
     return OnFailure(base::ErrStatus("invalid slice id %u", start_id.value));
   }
-  BFS bfs(storage_, incoming_cursor_, outgoing_cursor_, descendant_cursor_);
+
+  // Use cached graph if available, otherwise build a new one.
+  FlowGraph graph = cached_flow_graph_.has_value()
+                        ? std::move(cached_flow_graph_).value()
+                        : FlowGraph::Build(flow);
+
+  BFS bfs(storage_, graph, descendant_cursor_);
   switch (mode_) {
     case Mode::kDirectlyConnectedFlow:
       bfs.Start(start_id).VisitAll(VISIT_INCOMING_AND_OUTGOING,
@@ -267,6 +263,12 @@ bool ConnectedFlow::Cursor::Run(const std::vector<SqlValue>& arguments) {
         ref.arg_set_id(),
     });
   }
+
+  // Cache the graph if the table is finalized.
+  if (flow.dataframe().finalized()) {
+    cached_flow_graph_ = std::move(graph);
+  }
+
   return OnSuccess(&table_.dataframe());
 }
 

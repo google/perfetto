@@ -52,8 +52,8 @@
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-#include "src/shared_lib/intern_map.h"
 #include "src/shared_lib/reset_for_testing.h"
+#include "src/shared_lib/track_event/intern_map.h"
 
 struct PerfettoTeCategoryImpl* perfetto_te_any_categories;
 

@@ -88,7 +88,7 @@ ProbesProducer::~ProbesProducer() {
   instance_ = nullptr;
   // The ftrace data sources must be deleted before the ftrace controller.
   data_sources_.clear();
-  ftrace_.reset();
+  ftrace_controller_.reset();
 }
 
 void ProbesProducer::Restart() {
@@ -121,10 +121,10 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
   FtraceConfig ftrace_config;
   ftrace_config.ParseFromString(config.ftrace_config_raw());
   // Lazily create on the first instance.
-  if (!ftrace_) {
-    ftrace_ = FtraceController::Create(task_runner_, this);
+  if (!ftrace_controller_) {
+    ftrace_controller_ = FtraceController::Create(task_runner_, this);
 
-    if (!ftrace_) {
+    if (!ftrace_controller_) {
       PERFETTO_ELOG("Failed to create FtraceController");
       ftrace_creation_failed_ = true;
       return nullptr;
@@ -134,9 +134,9 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
   PERFETTO_LOG("Ftrace setup (target_buf=%" PRIu32 ")", config.target_buffer());
   const BufferID buffer_id = static_cast<BufferID>(config.target_buffer());
   std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
-      ftrace_->GetWeakPtr(), session_id, std::move(ftrace_config),
+      ftrace_controller_->GetWeakPtr(), session_id, std::move(ftrace_config),
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall)));
-  if (!ftrace_->AddDataSource(data_source.get())) {
+  if (!ftrace_controller_->AddDataSource(data_source.get())) {
     PERFETTO_ELOG("Failed to setup ftrace");
     return nullptr;
   }

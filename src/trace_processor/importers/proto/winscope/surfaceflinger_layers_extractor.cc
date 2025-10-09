@@ -17,17 +17,15 @@
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
 
 #include <algorithm>
-#include <functional>
 #include <utility>
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_utils.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 namespace {
-enum ProcessingStage { VisitChildren, Add };
 
-// When z-order is the same, we sort such that the layer with the layer id
-// is drawn on top.
+// Sorts in ascending order. When z-order is the same, we sort such that the
+// layer with the greater layer id is drawn on top.
 void SortByZThenLayerId(
     std::vector<int32_t>& layer_ids,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id) {
@@ -35,9 +33,42 @@ void SortByZThenLayerId(
             [&layers_by_id](int32_t a, int32_t b) {
               const auto& layer_a = layers_by_id.at(a);
               const auto& layer_b = layers_by_id.at(b);
-              return std::make_tuple(layer_a.z(), layer_a.id()) >
+              return std::make_tuple(layer_a.z(), layer_a.id()) <
                      std::make_tuple(layer_b.z(), layer_b.id());
             });
+}
+
+// Extract layers bottom-to-top according to layer drawing order from
+// /frameworks/native/services/surfaceflinger/FrontEnd/readme.md.
+void ExtractBottomToTop(
+    int32_t node_id,
+    std::unordered_map<int32_t, std::vector<int32_t>>& child_ids_by_z_parent,
+    std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
+    std::vector<int32_t>& layer_ids_bottom_to_top) {
+  std::vector<int32_t> child_ids;
+  auto pos = child_ids_by_z_parent.find(node_id);
+  if (pos != child_ids_by_z_parent.end()) {
+    child_ids = pos->second;
+    SortByZThenLayerId(child_ids, layers_by_id);
+  }
+
+  for (auto it = child_ids.begin(); it != child_ids.end(); ++it) {
+    const LayerDecoder& child_layer = layers_by_id.at(*it);
+    if (child_layer.z() < 0) {
+      ExtractBottomToTop(*it, child_ids_by_z_parent, layers_by_id,
+                         layer_ids_bottom_to_top);
+    }
+  }
+
+  layer_ids_bottom_to_top.emplace_back(node_id);
+
+  for (auto it = child_ids.begin(); it != child_ids.end(); ++it) {
+    const LayerDecoder& child_layer = layers_by_id.at(*it);
+    if (child_layer.z() >= 0) {
+      ExtractBottomToTop(*it, child_ids_by_z_parent, layers_by_id,
+                         layer_ids_bottom_to_top);
+    }
+  }
 }
 
 // We work with layer ids to enable sorting and copying, as LayerDecoder can
@@ -48,55 +79,16 @@ std::vector<LayerDecoder> ExtractLayersByZOrder(
     std::unordered_map<int32_t, LayerDecoder>& layers_by_id) {
   SortByZThenLayerId(root_layer_ids, layers_by_id);
 
-  std::vector<int32_t> layer_ids_top_to_bottom;
+  std::vector<int32_t> layer_ids_bottom_to_top;
 
-  std::vector<std::pair<int32_t, ProcessingStage>> processing_queue;
-  for (auto it = root_layer_ids.rbegin(); it != root_layer_ids.rend(); ++it) {
-    processing_queue.emplace_back(*it, ProcessingStage::VisitChildren);
+  for (auto it = root_layer_ids.begin(); it != root_layer_ids.end(); it++) {
+    ExtractBottomToTop(*it, child_ids_by_z_parent, layers_by_id,
+                       layer_ids_bottom_to_top);
   }
 
-  while (!processing_queue.empty()) {
-    const auto curr = processing_queue.back();
-    processing_queue.pop_back();
-
-    int32_t curr_layer_id = curr.first;
-    const LayerDecoder& curr_layer = layers_by_id.at(curr_layer_id);
-
-    std::vector<int32_t> curr_child_ids;
-    auto pos = child_ids_by_z_parent.find(curr_layer_id);
-    if (pos != child_ids_by_z_parent.end()) {
-      curr_child_ids = pos->second;
-      SortByZThenLayerId(curr_child_ids, layers_by_id);
-    }
-
-    int32_t current_z = curr_layer.z();
-
-    if (curr.second == ProcessingStage::VisitChildren) {
-      processing_queue.emplace_back(curr_layer_id, ProcessingStage::Add);
-
-      for (auto it = curr_child_ids.rbegin(); it != curr_child_ids.rend();
-           ++it) {
-        const LayerDecoder& child_layer = layers_by_id.at(*it);
-        if (child_layer.z() >= current_z) {
-          processing_queue.emplace_back(*it, ProcessingStage::VisitChildren);
-        }
-      }
-    } else {
-      layer_ids_top_to_bottom.emplace_back(curr_layer_id);
-
-      for (auto it = curr_child_ids.rbegin(); it != curr_child_ids.rend();
-           ++it) {
-        const LayerDecoder& child_layer = layers_by_id.at(*it);
-        if (child_layer.z() < current_z) {
-          processing_queue.emplace_back(*it, ProcessingStage::VisitChildren);
-        }
-      }
-    }
-  }
-
+  std::reverse(layer_ids_bottom_to_top.begin(), layer_ids_bottom_to_top.end());
   std::vector<LayerDecoder> layers_top_to_bottom;
-  layers_top_to_bottom.reserve(layer_ids_top_to_bottom.size());
-  for (int32_t id : layer_ids_top_to_bottom) {
+  for (int32_t id : layer_ids_bottom_to_top) {
     layers_top_to_bottom.emplace_back(std::move(layers_by_id.at(id)));
   }
   return layers_top_to_bottom;

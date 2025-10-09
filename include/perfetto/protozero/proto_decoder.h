@@ -499,7 +499,11 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
 
 // Template class instantiated by the auto-generated decoder classes declared in
 // xxx.pbzero.h files.
-template <int MAX_FIELD_ID, bool HAS_NONPACKED_REPEATED_FIELDS>
+// TODO(lalitm): the second argument exists for legacy reasons as targets in
+// G3 are (incorrectly) depending on internal implementation details of
+// Perfetto via checked-in protozero classes. Remove this when they fix this
+// incorrect dependency.
+template <int MAX_FIELD_ID, bool = false>
 class TypedProtoDecoder : public TypedProtoDecoderBase {
  public:
   TypedProtoDecoder(const uint8_t* buffer, size_t length)

@@ -22,6 +22,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {createVirtualTable} from '../../trace_processor/sql_utils';
 import {calculateResolution} from './resolution';
+import {COLOR_HIGHLIGHT} from '../css_constants';
 
 interface SearchSummary {
   tsStarts: BigInt64Array;
@@ -221,7 +222,7 @@ export class SearchOverviewTrack implements AsyncDisposable {
       }
       const rectStart = Math.max(timescale.timeToPx(tStart), 0);
       const rectEnd = timescale.timeToPx(tEnd);
-      ctx.fillStyle = '#ffe263';
+      ctx.fillStyle = COLOR_HIGHLIGHT;
       ctx.fillRect(
         Math.floor(rectStart),
         0,

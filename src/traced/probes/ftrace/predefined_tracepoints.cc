@@ -17,7 +17,6 @@
 #include "src/traced/probes/ftrace/predefined_tracepoints.h"
 
 #include <map>
-#include <set>
 
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/tracefs.h"
@@ -418,24 +417,24 @@ GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
 
 std::map<std::string, base::FlatSet<GroupAndName>> GetPredefinedTracePoints(
     const ProtoTranslationTable* table,
-    Tracefs* ftrace) {
-  return GeneratePredefinedTracePoints(table, ftrace);
+    Tracefs* tracefs) {
+  return GeneratePredefinedTracePoints(table, tracefs);
 }
 
 std::map<std::string, base::FlatSet<GroupAndName>>
 GetAccessiblePredefinedTracePoints(const ProtoTranslationTable* table,
-                                   Tracefs* ftrace) {
-  auto tracepoints = GetPredefinedTracePoints(table, ftrace);
+                                   Tracefs* tracefs) {
+  auto tracepoints = GetPredefinedTracePoints(table, tracefs);
 
-  bool generic_enable = ftrace->IsGenericSetEventWritable();
+  bool generic_enable = tracefs->IsGenericSetEventWritable();
 
   std::map<std::string, base::FlatSet<GroupAndName>> accessible_tracepoints;
   for (const auto& [category, events] : tracepoints) {
     base::FlatSet<GroupAndName> accessible_events;
     for (const auto& event : events) {
       if (generic_enable
-              ? ftrace->IsEventFormatReadable(event.group(), event.name())
-              : ftrace->IsEventAccessible(event.group(), event.name())) {
+              ? tracefs->IsEventFormatReadable(event.group(), event.name())
+              : tracefs->IsEventAccessible(event.group(), event.name())) {
         accessible_events.insert(event);
       }
     }
