@@ -57,7 +57,7 @@ class StatsdModule : public ProtoImporterModule {
   StringId GetAtomName(uint32_t atom_field_id);
   TrackId InternTrackId();
   std::optional<uint32_t> GetAtomDescriptorIdx();
-  
+
   TraceProcessorContext* context_;
   base::FlatHashMap<uint32_t, StringId> atom_names_;
   std::optional<uint32_t> descriptor_idx_;

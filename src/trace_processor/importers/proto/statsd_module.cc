@@ -114,8 +114,8 @@ StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
       context_(context),
       args_parser_(*context_->descriptor_pool_) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber);
-  context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
-                                                       kAtomsDescriptor.size(),{},true);
+  context_->descriptor_pool_->AddFromFileDescriptorSet(
+      kAtomsDescriptor.data(), kAtomsDescriptor.size(), {}, true);
 }
 
 StatsdModule::~StatsdModule() = default;
@@ -200,7 +200,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
         }
         const auto& descriptor =
             context_->descriptor_pool_->descriptors()[*desc_idx];
-        
+
         const auto& field_it = descriptor.fields().find(nested_field_id);
         base::Status status;
 
@@ -264,7 +264,8 @@ TrackId StatsdModule::InternTrackId() {
 
 std::optional<uint32_t> StatsdModule::GetAtomDescriptorIdx() {
   if (!descriptor_idx_) {
-    descriptor_idx_ = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
+    descriptor_idx_ =
+        context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
   }
   return descriptor_idx_;
 }

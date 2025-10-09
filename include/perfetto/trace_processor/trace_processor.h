@@ -79,11 +79,12 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // This allows the Perfetto UI to provide file descriptor sets at
   // runtime, enabling the parsing of custom protobuf messages not known at
   // compile time, such as new statsd atoms.
-  
+
   // This is needed because the main descriptor pool will only get
   // updated with Android quarterly updates and this new descriptor
   // set can be modified any time in google3
-  virtual base::Status ExtendDescriptorPool(const uint8_t* data, size_t size) = 0;
+  virtual base::Status ExtendDescriptorPool(const uint8_t* data,
+                                            size_t size) = 0;
 
   // =================================================================
   // |        Trace summary related functionality starts here        |
