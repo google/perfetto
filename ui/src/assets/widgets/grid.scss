@@ -208,3 +208,9 @@ $border-3: 2px solid var(--pf-color-border);
 .pf-drag-over > * {
   pointer-events: none;
 }
+
+.pf-grid-filter {
+  .pf-chip__label {
+    max-width: 300px;
+  }
+}

@@ -482,6 +482,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     }
     return m(
       'li',
+      {key: item.id}, // This is to work around a mithril bug (b/449784590).
       m(
         'a',
         {
@@ -587,7 +588,6 @@ function registerTraceMenuItems(trace: TraceImpl) {
       action: () => {
         // Do nothing (we need to supply an action to override the href).
       },
-      tooltip: 'Click to copy the URL',
       cssClass: 'pf-sidebar__trace-file-name',
     });
   trace.sidebar.addMenuItem({

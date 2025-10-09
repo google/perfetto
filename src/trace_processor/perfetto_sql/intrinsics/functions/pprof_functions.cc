@@ -114,7 +114,7 @@ class AggregateContext {
 
       sample_types.push_back({type->AsString(), units->AsString()});
     }
-    return std::move(sample_types);
+    return sample_types;
   }
 
   AggregateContext(TraceProcessorContext* tp_context,

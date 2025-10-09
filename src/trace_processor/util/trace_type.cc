@@ -46,6 +46,8 @@ constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
 constexpr char kTarPosixMagic[] = {'u', 's', 't', 'a', 'r', '\0'};
 constexpr char kTarGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
 constexpr size_t kTarMagicOffset = 257;
+constexpr char kSimpleperfMagic[] = {'S', 'I', 'M', 'P', 'L',
+                                     'E', 'P', 'E', 'R', 'F'};
 
 constexpr uint8_t kTracePacketTag =
     protozero::proto_utils::MakeTagLengthDelimited(
@@ -212,6 +214,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "art_hprof";
     case kPerfTextTraceType:
       return "perf_text";
+    case kSimpleperfProtoTraceType:
+      return "simpleperf_proto";
     case kUnknownTraceType:
       return "unknown";
     case kTarTraceType:
@@ -239,6 +243,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kPerfMagic)) {
     return kPerfDataTraceType;
+  }
+  if (MatchesMagic(data, size, kSimpleperfMagic)) {
+    return kSimpleperfProtoTraceType;
   }
 
   if (MatchesMagic(data, size, kZipMagic)) {

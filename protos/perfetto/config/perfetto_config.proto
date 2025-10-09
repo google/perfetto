@@ -46,6 +46,7 @@ message GpuCounterDescriptor {
     // Includes counters relating to caching and bandwidth.
     MEMORY = 5;
     COMPUTE = 6;
+    RAY_TRACING = 7;
   }
 
   message GpuCounterSpec {
@@ -1171,6 +1172,11 @@ message FtraceConfig {
   // If true, use self-describing proto messages when writing events not known
   // at compile time (aka generic events). Each event bundle will have a set of
   // serialised proto descriptors for events within that bundle.
+  //
+  // Default if unset:
+  // * v53+: true
+  // * before v53: false
+  //
   // Added in: perfetto v50.
   optional bool denser_generic_event_encoding = 32;
 
