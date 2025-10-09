@@ -149,15 +149,30 @@ function proceduralColorScheme(seed: string): ColorScheme {
   }
 }
 
+const tidColorCache = new Map<number, ColorScheme>();
+/**
+ * Selects a predictable color scheme from a palette of material design colors,
+ * based on a thread id.
+ */
 export function colorForTid(tid: number): ColorScheme {
-  return materialColorScheme(tid.toString());
+  let colorScheme = tidColorCache.get(tid);
+  if (colorScheme) {
+    return colorScheme;
+  }
+  colorScheme = materialColorScheme(tid.toString());
+  tidColorCache.set(tid, colorScheme);
+  return colorScheme;
 }
+
+// From src/trace_processor/importers/etw/etw_parser.cc
+export const ANONYMIZED_PROCESS_NAME = 'Anonymized Process';
 
 export function colorForThread(thread?: {
   pid?: number;
   tid: number;
+  threadName?: string;
 }): ColorScheme {
-  if (thread === undefined) {
+  if (thread === undefined || thread.threadName === ANONYMIZED_PROCESS_NAME) {
     return GRAY;
   }
   const tid = thread.pid ?? thread.tid;

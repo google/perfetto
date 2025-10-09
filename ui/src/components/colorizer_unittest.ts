@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {colorForCpu, colorForThread} from './colorizer';
+import {
+  ANONYMIZED_PROCESS_NAME,
+  colorForCpu,
+  colorForTid,
+  colorForThread,
+  GRAY,
+} from './colorizer';
 
 const PROCESS_A_THREAD_A = {
   tid: 100,
@@ -59,4 +65,23 @@ test("it doesn't copy colors", () => {
 
 test('it gives different cpus different hues', () => {
   expect(colorForCpu(0)).not.toEqual(colorForCpu(1));
+});
+
+test("it doesn't copy colors for tid", () => {
+  const a = colorForTid(123);
+  const b = colorForTid(123);
+  expect(a).toBe(b);
+});
+
+test('it gives anonymized threads a grey color', () => {
+  const anonymized = {
+    tid: 123,
+    threadName: ANONYMIZED_PROCESS_NAME,
+  };
+  const normalThread = {
+    tid: 789,
+    threadName: 'MyThread',
+  };
+  expect(colorForThread(anonymized)).toEqual(GRAY);
+  expect(colorForThread(normalThread)).not.toEqual(GRAY);
 });
