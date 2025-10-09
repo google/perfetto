@@ -853,7 +853,7 @@ void DoParse(const ExamplePage& test_case,
   NullTraceWriter writer;
   FtraceMetadata metadata{};
   auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
-  base::FlatHashMap<uint32_t, std::vector<uint8_t>> generic_pb_descriptors;
+  GenericEventProtoDescriptors generic_pb_descriptors;
   CpuReader::Bundler bundler(
       &writer, &metadata, /*symbolizer=*/nullptr, /*cpu=*/0,
       /*clock_snapshot=*/std::nullopt, compact_sched_buf.get(),

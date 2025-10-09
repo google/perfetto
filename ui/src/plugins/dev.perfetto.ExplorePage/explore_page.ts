@@ -77,7 +77,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         trace,
         sqlModules,
         sqlTable: selection.sqlTable,
-        filters: [],
       });
       onStateUpdate({
         ...state,
@@ -93,7 +92,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       prevNodes: [node],
       groupByColumns: [],
       aggregations: [],
-      filters: [],
     });
     node.nextNodes.push(newNode);
     onStateUpdate({
@@ -108,7 +106,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       prevNodes: [node],
       newColumns: [],
       selectedColumns: [],
-      filters: [],
     });
     node.nextNodes.push(newNode);
     onStateUpdate({
@@ -123,7 +120,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       prevNodes: [node],
       allNodes: state.rootNodes,
       intervalNodes: [],
-      filters: [],
     });
     node.nextNodes.push(newNode);
     onStateUpdate({
@@ -134,9 +130,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   handleAddSlicesSource(attrs: ExplorePageAttrs) {
     const {state, onStateUpdate} = attrs;
-    const newNode = new SlicesSourceNode({
-      filters: [],
-    });
+    const newNode = new SlicesSourceNode({});
     onStateUpdate({
       ...state,
       rootNodes: [...state.rootNodes, newNode],
@@ -148,7 +142,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const {state, onStateUpdate} = attrs;
     const newNode = new SqlSourceNode({
       trace: attrs.trace,
-      filters: [],
     });
     onStateUpdate({
       ...state,
@@ -352,9 +345,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onImportWithStatement: () => this.handleImportWithStatement(attrs),
         onExport: () => this.handleExport(state, trace),
         onRemoveFilter: (node, filter) => {
-          const filterIndex = node.state.filters.indexOf(filter);
-          if (filterIndex > -1) {
-            node.state.filters.splice(filterIndex, 1);
+          if (node.state.filters) {
+            const filterIndex = node.state.filters.indexOf(filter);
+            if (filterIndex > -1) {
+              node.state.filters.splice(filterIndex, 1);
+            }
           }
           attrs.onStateUpdate({...state});
         },

@@ -446,39 +446,71 @@ class AndroidStdlib(TestSuite):
         fg:android.os.MessageQueue.next (0x0)
         """))
 
-  def test_thread_creation_spam(self):
+  def test_thread_creation_spam_per_thread(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       INCLUDE PERFETTO MODULE android.thread;
-      SELECT * FROM _android_thread_creation_spam(1e9, 1e9);
+      SELECT * FROM _android_thread_creation_spam_per_thread(1e9, 1e9);
       """,
         out=Csv("""
-      "process_name","pid","thread_name_prefix","max_count_per_sec"
-      "com.android.providers.media.module",3487,"SharedPreferenc",3
-      "com.android.providers.media.module",3487,"MediaCodec_loop",2
-      "/apex/com.android.adbd/bin/adbd",527,"shell",1
-      "media.swcodec",563,"id.hevc.decoder",1
-      "system_server",642,"Thread",1
-      "sh",3474,"sh",1
-      "sh",3476,"sh",1
-      "sh",3478,"sh",1
-      "am",3480,"am",1
-      "cmd",3482,"binder",1
-      "cmd",3482,"cmd",1
-      "com.android.providers.media.module",3487,"CodecLooper",1
-      "sh",3517,"sh",1
-      "sgdisk",3521,"sgdisk",1
-      "blkid",3523,"blkid",1
-      "binder:243_4",3524,"binder",1
-      "fsck_msdos",3525,"fsck_msdos",1
-      "binder:243_4",3526,"binder",1
-      "sh",3532,"sh",1
-      "cut",3534,"cut",1
-      "sh",3536,"sh",1
-      "sh",3544,"sh",1
-      "sh",3546,"sh",1
-      "sh",3564,"sh",1
+      "process_name","upid","thread_name_prefix","max_count_per_sec"
+      "/apex/com.android.adbd/bin/adbd",230,"shell",3
+      "com.android.providers.media.module",303,"SharedPreferenc",3
+      "cmd",302,"binder",2
+      "com.android.providers.media.module",303,"MediaCodec_loop",2
+      "media.swcodec",244,"id.hevc.decoder",1
+      "system_server",250,"Thread",1
+      "sh",298,"sh",1
+      "sh",299,"sh",1
+      "sh",300,"sh",1
+      "am",301,"am",1
+      "cmd",302,"cmd",1
+      "com.android.providers.media.module",303,"CodecLooper",1
+      "sh",304,"sh",1
+      "sgdisk",305,"sgdisk",1
+      "blkid",306,"blkid",1
+      "binder:243_4",307,"binder",1
+      "fsck_msdos",308,"fsck_msdos",1
+      "binder:243_4",309,"binder",1
+      "sh",310,"sh",1
+      "cut",311,"cut",1
+      "sh",312,"sh",1
+      "sh",313,"sh",1
+      "sh",314,"sh",1
+      "sh",316,"sh",1
+      """))
+
+  def test_thread_creation_spam_per_process(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      INCLUDE PERFETTO MODULE android.thread;
+      SELECT * FROM _android_thread_creation_spam_per_process(1e9, 1e9);
+      """,
+        out=Csv("""
+      "process_name","upid","max_count_per_sec"
+      "com.android.providers.media.module",303,6
+      "cmd",302,3
+      "/apex/com.android.adbd/bin/adbd",230,3
+      "sh",316,1
+      "sh",314,1
+      "sh",313,1
+      "sh",312,1
+      "cut",311,1
+      "sh",310,1
+      "binder:243_4",309,1
+      "fsck_msdos",308,1
+      "binder:243_4",307,1
+      "blkid",306,1
+      "sgdisk",305,1
+      "sh",304,1
+      "am",301,1
+      "sh",300,1
+      "sh",299,1
+      "sh",298,1
+      "system_server",250,1
+      "media.swcodec",244,1
       """))
 
   def test_f2fs_counter_stats(self):

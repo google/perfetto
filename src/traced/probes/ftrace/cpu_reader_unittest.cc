@@ -144,7 +144,7 @@ class MockTracefs : public Tracefs {
 
 class CpuReaderTableTest : public ::testing::Test {
  protected:
-  NiceMock<MockTracefs> ftrace_;
+  NiceMock<MockTracefs> tracefs_;
 };
 
 // Single class to manage the whole protozero -> scattered stream -> chunks ->
@@ -449,7 +449,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
   FtraceMetadata metadata_;
   std::optional<TraceWriterForTesting> writer_;
   std::unique_ptr<CompactSchedBuffer> compact_sched_buf_;
-  base::FlatHashMap<uint32_t, std::vector<uint8_t>> generic_pb_descriptors_;
+  GenericEventProtoDescriptors generic_pb_descriptors_;
   std::optional<CpuReader::Bundler> bundler_;
   uint64_t last_read_event_ts_ = 0;
 };
@@ -1439,7 +1439,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   PrintkMap printk_formats;
   printk_formats.insert(0xffffff8504f51b23, "my_printk_format_string");
   ProtoTranslationTable table(
-      &ftrace_, events, std::move(common_fields),
+      &tracefs_, events, std::move(common_fields),
       ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
       InvalidCompactSchedEventFormatForTesting(), printk_formats);
   FtraceDataSourceConfig ds_config = EmptyConfig();

@@ -52,6 +52,8 @@ class EtwParser {
 
   TraceProcessorContext* context_;
 
+  StringId anonymized_process_string_id_;
+
   SchedEventState sched_event_state_;
 };
 

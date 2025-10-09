@@ -75,24 +75,24 @@ class TracefsIntegrationTest : public testing::Test {
   void SetUp() override;
   void TearDown() override;
 
-  std::unique_ptr<Tracefs> ftrace_;
+  std::unique_ptr<Tracefs> tracefs_;
 };
 
 void TracefsIntegrationTest::SetUp() {
-  ftrace_ = Tracefs::Create(GetFtracePath());
-  ASSERT_TRUE(ftrace_);
-  if (!ftrace_->IsTracingAvailable()) {
+  tracefs_ = Tracefs::Create(GetFtracePath());
+  ASSERT_TRUE(tracefs_);
+  if (!tracefs_->IsTracingAvailable()) {
     GTEST_SKIP() << "Something else is using ftrace, skipping";
   }
 
-  ftrace_->ClearTrace();
-  ftrace_->SetTracingOn(true);
+  tracefs_->ClearTrace();
+  tracefs_->SetTracingOn(true);
 }
 
 void TracefsIntegrationTest::TearDown() {
-  ftrace_->DisableAllEvents();
-  ftrace_->ClearTrace();
-  ftrace_->SetTracingOn(false);
+  tracefs_->DisableAllEvents();
+  tracefs_->ClearTrace();
+  tracefs_->SetTracingOn(false);
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(CreateWithBadPath)) {
@@ -100,85 +100,83 @@ TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(CreateWithBadPath)) {
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(ClearTrace)) {
-  ftrace_->WriteTraceMarker("Hello, World!");
-  ftrace_->ClearTrace();
+  tracefs_->WriteTraceMarker("Hello, World!");
+  tracefs_->ClearTrace();
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello, World!")));
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(TraceMarker)) {
-  ftrace_->WriteTraceMarker("Hello, World!");
+  tracefs_->WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableEvent)) {
-  ASSERT_TRUE(ftrace_->EnableEvent("sched", "sched_switch"));
+  ASSERT_TRUE(tracefs_->EnableEvent("sched", "sched_switch"));
   sleep(1);
-  ASSERT_TRUE(ftrace_->DisableEvent("sched", "sched_switch"));
+  ASSERT_TRUE(tracefs_->DisableEvent("sched", "sched_switch"));
 
   EXPECT_THAT(GetTraceOutput(), HasSubstr("sched_switch"));
 
-  ftrace_->ClearTrace();
+  tracefs_->ClearTrace();
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
 }
 
-TEST_F(TracefsIntegrationTest,
-       ANDROID_ONLY_TEST(EnableDisableTraceBuffer)) {
-  ftrace_->WriteTraceMarker("Before");
-  ftrace_->SetTracingOn(false);
-  ftrace_->WriteTraceMarker("During");
-  ftrace_->SetTracingOn(true);
-  ftrace_->WriteTraceMarker("After");
+TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableTraceBuffer)) {
+  tracefs_->WriteTraceMarker("Before");
+  tracefs_->SetTracingOn(false);
+  tracefs_->WriteTraceMarker("During");
+  tracefs_->SetTracingOn(true);
+  tracefs_->WriteTraceMarker("After");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Before"));
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("During")));
   EXPECT_THAT(GetTraceOutput(), HasSubstr("After"));
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(IsTracingAvailable)) {
-  EXPECT_TRUE(ftrace_->IsTracingAvailable());
-  ftrace_->SetCurrentTracer("function");
-  EXPECT_FALSE(ftrace_->IsTracingAvailable());
-  ftrace_->SetCurrentTracer("nop");
-  EXPECT_TRUE(ftrace_->IsTracingAvailable());
-  ASSERT_TRUE(ftrace_->EnableEvent("sched", "sched_switch"));
-  EXPECT_FALSE(ftrace_->IsTracingAvailable());
-  ftrace_->DisableAllEvents();
-  EXPECT_TRUE(ftrace_->IsTracingAvailable());
+  EXPECT_TRUE(tracefs_->IsTracingAvailable());
+  tracefs_->SetCurrentTracer("function");
+  EXPECT_FALSE(tracefs_->IsTracingAvailable());
+  tracefs_->SetCurrentTracer("nop");
+  EXPECT_TRUE(tracefs_->IsTracingAvailable());
+  ASSERT_TRUE(tracefs_->EnableEvent("sched", "sched_switch"));
+  EXPECT_FALSE(tracefs_->IsTracingAvailable());
+  tracefs_->DisableAllEvents();
+  EXPECT_TRUE(tracefs_->IsTracingAvailable());
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(ReadFormatFile)) {
-  std::string format = ftrace_->ReadEventFormat("ftrace", "print");
+  std::string format = tracefs_->ReadEventFormat("ftrace", "print");
   EXPECT_THAT(format, HasSubstr("name: print"));
   EXPECT_THAT(format, HasSubstr("field:char buf"));
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(CanOpenTracePipeRaw)) {
-  EXPECT_TRUE(ftrace_->OpenPipeForCpu(0));
+  EXPECT_TRUE(tracefs_->OpenPipeForCpu(0));
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(Clock)) {
-  std::set<std::string> clocks = ftrace_->AvailableClocks();
+  std::set<std::string> clocks = tracefs_->AvailableClocks();
   EXPECT_THAT(clocks, Contains("local"));
   EXPECT_THAT(clocks, Contains("global"));
 
-  EXPECT_TRUE(ftrace_->SetClock("global"));
-  EXPECT_EQ(ftrace_->GetClock(), "global");
-  EXPECT_TRUE(ftrace_->SetClock("local"));
-  EXPECT_EQ(ftrace_->GetClock(), "local");
+  EXPECT_TRUE(tracefs_->SetClock("global"));
+  EXPECT_EQ(tracefs_->GetClock(), "global");
+  EXPECT_TRUE(tracefs_->SetClock("local"));
+  EXPECT_EQ(tracefs_->GetClock(), "local");
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(CanSetBufferSize)) {
-  EXPECT_TRUE(ftrace_->SetCpuBufferSizeInPages(4ul));
+  EXPECT_TRUE(tracefs_->SetCpuBufferSizeInPages(4ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");  // (4096 * 4) / 1024
-  EXPECT_TRUE(ftrace_->SetCpuBufferSizeInPages(5ul));
+  EXPECT_TRUE(tracefs_->SetCpuBufferSizeInPages(5ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "20\n");  // (4096 * 5) / 1024
 }
 
-TEST_F(TracefsIntegrationTest,
-       ANDROID_ONLY_TEST(FtraceControllerHardReset)) {
-  ftrace_->SetCpuBufferSizeInPages(4ul);
-  ftrace_->EnableEvent("sched", "sched_switch");
-  ftrace_->WriteTraceMarker("Hello, World!");
+TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(FtraceControllerHardReset)) {
+  tracefs_->SetCpuBufferSizeInPages(4ul);
+  tracefs_->EnableEvent("sched", "sched_switch");
+  tracefs_->WriteTraceMarker("Hello, World!");
 
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");
   EXPECT_EQ(ReadFile("tracing_on"), "1\n");
@@ -193,18 +191,18 @@ TEST_F(TracefsIntegrationTest,
 }
 
 TEST_F(TracefsIntegrationTest, ANDROID_ONLY_TEST(ReadEnabledEvents)) {
-  EXPECT_THAT(ftrace_->ReadEnabledEvents(), IsEmpty());
+  EXPECT_THAT(tracefs_->ReadEnabledEvents(), IsEmpty());
 
-  ftrace_->EnableEvent("sched", "sched_switch");
-  ftrace_->EnableEvent("kmem", "kmalloc");
+  tracefs_->EnableEvent("sched", "sched_switch");
+  tracefs_->EnableEvent("kmem", "kmalloc");
 
-  EXPECT_THAT(ftrace_->ReadEnabledEvents(),
+  EXPECT_THAT(tracefs_->ReadEnabledEvents(),
               UnorderedElementsAre("sched/sched_switch", "kmem/kmalloc"));
 
-  ftrace_->DisableEvent("sched", "sched_switch");
-  ftrace_->DisableEvent("kmem", "kmalloc");
+  tracefs_->DisableEvent("sched", "sched_switch");
+  tracefs_->DisableEvent("kmem", "kmalloc");
 
-  EXPECT_THAT(ftrace_->ReadEnabledEvents(), IsEmpty());
+  EXPECT_THAT(tracefs_->ReadEnabledEvents(), IsEmpty());
 }
 
 }  // namespace

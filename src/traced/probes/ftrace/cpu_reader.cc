@@ -36,7 +36,6 @@
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
-#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"  // FtraceParseStatus
@@ -361,14 +360,13 @@ void CpuReader::Bundler::WriteGenericEventDescriptors() {
     return;
 
   for (uint32_t proto_id : generic_descriptors_to_write_) {
-    PERFETTO_DCHECK(generic_pb_descriptors_->Find(proto_id));
+    PERFETTO_DCHECK(generic_pb_descriptors_->descriptors.Find(proto_id));
 
-    std::vector<unsigned char>* pb_descriptor =
-        generic_pb_descriptors_->Find(proto_id);
+    auto* pb_descriptor = generic_pb_descriptors_->descriptors.Find(proto_id);
     if (pb_descriptor) {
-      auto* g = bundle_->add_generic_event_descriptors();
-      g->set_field_id(static_cast<int32_t>(proto_id));
-      g->set_event_descriptor(pb_descriptor->data(), pb_descriptor->size());
+      bundle_->AppendBytes(protos::pbzero::FtraceEventBundle::
+                               kGenericEventDescriptorsFieldNumber,
+                           pb_descriptor->data(), pb_descriptor->size());
     }
   }
 }

@@ -24,9 +24,10 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/traced/probes/ftrace/tracefs.h"
 
-#include "protos/perfetto/common/descriptor.gen.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
@@ -244,8 +245,8 @@ ProtoSchemaType ToGenericProtoField(FtraceFieldType ftrace_type) {
   PERFETTO_FATAL("For GCC");
 }
 
-protos::gen::FieldDescriptorProto::Type ToPbDescEnum(ProtoSchemaType v) {
-  using PB = protos::gen::FieldDescriptorProto;
+protos::pbzero::FieldDescriptorProto::Type ToPbDescEnum(ProtoSchemaType v) {
+  using PB = protos::pbzero::FieldDescriptorProto;
   switch (v) {
     case (ProtoSchemaType::kDouble):
       return PB::TYPE_DOUBLE;
@@ -632,19 +633,25 @@ const Event* ProtoTranslationTable::CreateGenericEventInternal(
     evt->size = std::max(field_end, evt->size);
   }
 
-  // TODO(rsavitski): consider mixing in the group into the name (while keeping
-  // it a valid C identifier).
-  protos::gen::DescriptorProto pb_descriptor;
-  pb_descriptor.set_name(group_and_name.name());
+  using GED = protos::pbzero::FtraceEventBundle::GenericEventDescriptor;
+  protozero::HeapBuffered<GED> outer_descriptor;
+  outer_descriptor->set_field_id(static_cast<int32_t>(proto_field_id));
+  outer_descriptor->set_group_name(group_and_name.group());
 
-  auto add_pb_desc_field = [&pb_descriptor](
-                               uint32_t id, const std::string& name,
-                               protos::gen::FieldDescriptorProto::Type type) {
-    auto* f = pb_descriptor.add_field();
-    f->set_number(static_cast<int32_t>(id));
-    f->set_name(name);
-    f->set_type(type);  // e.g. int32, fixed64
-  };
+  auto* event_pb_descriptor =
+      outer_descriptor->BeginNestedMessage<protos::pbzero::DescriptorProto>(
+          GED::kEventDescriptorFieldNumber);
+
+  event_pb_descriptor->set_name(group_and_name.name());
+
+  auto add_pb_desc_field =
+      [event_pb_descriptor](uint32_t id, const std::string& name,
+                            protos::pbzero::FieldDescriptorProto::Type type) {
+        auto* f = event_pb_descriptor->add_field();
+        f->set_number(static_cast<int32_t>(id));
+        f->set_name(name);
+        f->set_type(type);  // e.g. int32, fixed64
+      };
 
   // Create a transcoding mapping for the fields.
   uint32_t submessage_field_proto_id = 1;
@@ -689,8 +696,8 @@ const Event* ProtoTranslationTable::CreateGenericEventInternal(
   }
 
   if (keep_proto_descriptor) {
-    generic_evt_pb_descriptors_.Insert(evt->proto_field_id,
-                                       pb_descriptor.SerializeAsArray());
+    generic_evt_pb_descriptors_.descriptors.Insert(
+        evt->proto_field_id, outer_descriptor.SerializeAsArray());
   }
 
   PERFETTO_DCHECK(evt == &events_.at(evt->ftrace_event_id));

@@ -39,7 +39,7 @@ export interface UIFilter {
  */
 export interface FilterAttrs {
   readonly sourceCols: ColumnInfo[];
-  readonly filters: ReadonlyArray<FilterDefinition>;
+  readonly filters?: ReadonlyArray<FilterDefinition>;
   readonly onFiltersChanged?: (
     filters: ReadonlyArray<FilterDefinition>,
   ) => void;
@@ -52,13 +52,13 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   private editingFilter?: UIFilter;
 
   oncreate({attrs}: m.Vnode<FilterAttrs>) {
-    this.uiFilters = [...attrs.filters];
+    this.uiFilters = [...(attrs.filters ?? [])];
   }
 
   onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
     // If we are not in editing mode, sync with the parent.
     if (this.editingFilter === undefined) {
-      this.uiFilters = [...attrs.filters];
+      this.uiFilters = [...(attrs.filters ?? [])];
     }
   }
 
@@ -495,10 +495,10 @@ export const ALL_FILTER_OPS: FilterOp[] = [
 ];
 
 export function createFiltersProto(
-  filters: FilterDefinition[],
+  filters: FilterDefinition[] | undefined,
   sourceCols: ColumnInfo[],
 ): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
-  if (filters.length === 0) {
+  if (filters === undefined || filters.length === 0) {
     return undefined;
   }
 

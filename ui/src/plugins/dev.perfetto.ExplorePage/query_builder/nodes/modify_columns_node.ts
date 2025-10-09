@@ -40,7 +40,7 @@ export interface ModifyColumnsSerializedState {
   prevNodeIds: string[];
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
 }
 
@@ -48,7 +48,7 @@ export interface ModifyColumnsState extends QueryNodeState {
   prevNodes: QueryNode[];
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
 }
 

@@ -35,7 +35,7 @@ import {FilterDefinition} from '../../../../../components/widgets/data_grid/comm
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
 }
 
@@ -77,7 +77,7 @@ export class SqlSourceNode extends SourceNode {
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      filters: [],
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       customTitle: this.state.customTitle,
       issues: this.state.issues,
       trace: this.state.trace,

@@ -1172,6 +1172,11 @@ message FtraceConfig {
   // If true, use self-describing proto messages when writing events not known
   // at compile time (aka generic events). Each event bundle will have a set of
   // serialised proto descriptors for events within that bundle.
+  //
+  // Default if unset:
+  // * v53+: true
+  // * before v53: false
+  //
   // Added in: perfetto v50.
   optional bool denser_generic_event_encoding = 32;
 
@@ -13048,7 +13053,10 @@ message FtraceEventBundle {
   message GenericEventDescriptor {
     // submessage id within FtraceEvent described by |event_descriptor|.
     optional int32 field_id = 1;
-    // serialised DescriptorProto
+    // optional: the event's group, e.g. "sched" for "sched/sched_switch".
+    // The event name itself is in |event_descriptor.name|.
+    optional string group_name = 3;
+    // serialised DescriptorProto.
     optional bytes event_descriptor = 2;
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;
