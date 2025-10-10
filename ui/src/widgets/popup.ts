@@ -155,7 +155,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     isControlled: boolean,
   ): m.Children {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const baseAttrs: any = {
+    const baseAttrs = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
       active: isOpen,
