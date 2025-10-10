@@ -2462,7 +2462,10 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
     return false;
 
   auto do_read_buffers_into_file_fn =
-      [this, tracing_session, tsid](bool async_flush_buffers_before_read) {
+      [this, tsid](bool async_flush_buffers_before_read) {
+        TracingSession* tracing_session = GetTracingSession(tsid);
+        if (!tracing_session)
+          return;
         // ReadBuffers() can allocate memory internally, for filtering. By
         // limiting the data that ReadBuffers() reads to kWriteIntoChunksSize
         // per iteration, we limit the amount of memory used on each iteration.
