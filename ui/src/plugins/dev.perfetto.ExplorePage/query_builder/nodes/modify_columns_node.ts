@@ -19,7 +19,10 @@ import {
   nextNodeId,
   NodeType,
 } from '../../query_node';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
+import {Icon} from '../../../../widgets/icon';
 import {TextInput} from '../../../../widgets/text_input';
 import {
   ColumnInfo,
@@ -162,13 +165,7 @@ export class ModifyColumnsNode implements QueryNode {
             return m('div', c.column.name);
           }
         });
-        details.push(
-          m(
-            '.pf-node-details-box',
-            m('strong', 'Selected columns:'),
-            ...selectedItems,
-          ),
-        );
+        details.push(m('.pf-node-details-box', ...selectedItems));
       }
     }
 
@@ -192,135 +189,213 @@ export class ModifyColumnsNode implements QueryNode {
 
   nodeSpecificModify(): m.Child {
     return m(
-      'div',
+      'div.pf-modify-columns-node',
       m(
-        'div.pf-column-list',
-        this.state.selectedColumns.map((col, index) =>
-          m(
-            '.pf-column',
-            {
-              draggable: true,
-              ondragstart: (e: DragEvent) => {
-                e.dataTransfer!.setData('text/plain', index.toString());
-              },
-              ondragover: (e: DragEvent) => {
-                e.preventDefault();
-              },
-              ondrop: (e: DragEvent) => {
-                e.preventDefault();
-                const from = parseInt(
-                  e.dataTransfer!.getData('text/plain'),
-                  10,
-                );
-                const to = index;
-                const [removed] = this.state.selectedColumns.splice(from, 1);
-                this.state.selectedColumns.splice(to, 0, removed);
-              },
-            },
-            m(Checkbox, {
-              checked: col.checked,
-              label: col.column.name,
-              onchange: (e) => {
-                col.checked = (e.target as HTMLInputElement).checked;
-              },
-            }),
-            m(TextInput, {
-              oninput: (e: Event) => {
-                col.alias = (e.target as HTMLInputElement).value;
-              },
-              placeholder: 'alias',
-              value: col.alias ? col.alias : '',
-            }),
-          ),
-        ),
-      ),
-      this.state.newColumns.map((col, index) =>
+        CardStack,
         m(
-          '.pf-column',
-          {
-            draggable: true,
-            ondragstart: (e: DragEvent) => {
-              e.dataTransfer!.setData(
-                'text/plain',
-                (this.state.selectedColumns.length + index).toString(),
-              );
-            },
-            ondragover: (e: DragEvent) => {
-              e.preventDefault();
-            },
-            ondrop: (e: DragEvent) => {
-              e.preventDefault();
-              const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
-              const to = this.state.selectedColumns.length + index;
-              if (from < this.state.selectedColumns.length) {
-                const [removed] = this.state.selectedColumns.splice(from, 1);
-                this.state.newColumns.splice(
-                  to - this.state.selectedColumns.length,
-                  0,
-                  {
-                    expression: removed.column.name,
-                    name: removed.alias || '',
-                  },
-                );
-              } else {
-                const [removed] = this.state.newColumns.splice(
-                  from - this.state.selectedColumns.length,
-                  1,
-                );
-                this.state.newColumns.splice(
-                  to - this.state.selectedColumns.length,
-                  0,
-                  removed,
-                );
-              }
-            },
-          },
-          m(TextInput, {
-            oninput: (e: Event) => {
-              col.expression = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'expression',
-            value: col.expression,
-          }),
-          m(TextInput, {
-            oninput: (e: Event) => {
-              col.name = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'name',
-            value: col.name,
-          }),
+          Card,
+          m('h2.pf-columns-box-title', 'Selected Columns'),
           m(
-            'button',
-            {
-              onclick: () => {
-                this.state.newColumns.splice(index, 1);
-              },
-            },
-            'Remove',
+            'div.pf-column-list',
+            this.state.selectedColumns.map((col, index) =>
+              this.renderSelectedColumn(col, index),
+            ),
           ),
         ),
+        m(
+          Card,
+          this.state.newColumns.map((col, index) =>
+            this.renderNewColumn(col, index),
+          ),
+          this.renderAddColumnButton(),
+        ),
       ),
+      this.renderFilterOperation(),
+    );
+  }
+
+  private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
+    return m(
+      '.pf-column',
+      {
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
+          const to = index;
+
+          const newSelectedColumns = [...this.state.selectedColumns];
+          const [removed] = newSelectedColumns.splice(from, 1);
+          newSelectedColumns.splice(to, 0, removed);
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.onchange?.();
+        },
+      },
       m(
-        'button.pf-add-column-button',
+        'span.pf-drag-handle',
         {
-          onclick: () => {
-            this.state.newColumns.push({
-              expression: '',
-              name: '',
-            });
+          draggable: true,
+          ondragstart: (e: DragEvent) => {
+            e.dataTransfer!.setData('text/plain', index.toString());
           },
         },
-        'Add column',
+        '☰',
       ),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          this.state.filters = newFilters as FilterDefinition[];
+      m(Checkbox, {
+        checked: col.checked,
+        label: col.column.name,
+        onchange: (e) => {
+          const newSelectedColumns = [...this.state.selectedColumns];
+          newSelectedColumns[index] = {
+            ...newSelectedColumns[index],
+            checked: (e.target as HTMLInputElement).checked,
+          };
+          this.state.selectedColumns = newSelectedColumns;
           this.state.onchange?.();
         },
       }),
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const newSelectedColumns = [...this.state.selectedColumns];
+          newSelectedColumns[index] = {
+            ...newSelectedColumns[index],
+            alias: (e.target as HTMLInputElement).value,
+          };
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.onchange?.();
+        },
+        placeholder: 'alias',
+        value: col.alias ? col.alias : '',
+      }),
     );
+  }
+
+  private isNewColumnValid(col: NewColumn): boolean {
+    return col.expression.trim() !== '' && col.name.trim() !== '';
+  }
+
+  private renderNewColumn(col: NewColumn, index: number): m.Child {
+    const isValid = this.isNewColumnValid(col);
+
+    return m(
+      '.pf-column',
+      {
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
+          const to = this.state.selectedColumns.length + index;
+
+          const newSelectedColumns = [...this.state.selectedColumns];
+          const newNewColumns = [...this.state.newColumns];
+
+          if (from < this.state.selectedColumns.length) {
+            const [removed] = newSelectedColumns.splice(from, 1);
+            newNewColumns.splice(to - this.state.selectedColumns.length, 0, {
+              expression: removed.column.name,
+              name: removed.alias || '',
+            });
+          } else {
+            const [removed] = newNewColumns.splice(
+              from - this.state.selectedColumns.length,
+              1,
+            );
+            newNewColumns.splice(
+              to - this.state.selectedColumns.length,
+              0,
+              removed,
+            );
+          }
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+      },
+      m(
+        'span.pf-drag-handle',
+        {
+          draggable: true,
+          ondragstart: (e: DragEvent) => {
+            e.dataTransfer!.setData(
+              'text/plain',
+              (this.state.selectedColumns.length + index).toString(),
+            );
+          },
+        },
+        '☰',
+      ),
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const newNewColumns = [...this.state.newColumns];
+          newNewColumns[index] = {
+            ...newNewColumns[index],
+            expression: (e.target as HTMLInputElement).value,
+          };
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+        placeholder: 'expression',
+        value: col.expression,
+      }),
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const newNewColumns = [...this.state.newColumns];
+          newNewColumns[index] = {
+            ...newNewColumns[index],
+            name: (e.target as HTMLInputElement).value,
+          };
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+        placeholder: 'name',
+        value: col.name,
+      }),
+      !isValid && m(Icon, {icon: 'warning'}),
+      m(
+        'button',
+        {
+          onclick: () => {
+            const newNewColumns = [...this.state.newColumns];
+            newNewColumns.splice(index, 1);
+            this.state.newColumns = newNewColumns;
+            this.state.onchange?.();
+          },
+        },
+        m(Icon, {icon: 'close'}),
+      ),
+    );
+  }
+
+  private renderAddColumnButton(): m.Child {
+    return m(Button, {
+      label: 'Add column',
+      variant: ButtonVariant.Outlined,
+      onclick: () => {
+        this.state.newColumns = [
+          ...this.state.newColumns,
+          {
+            expression: '',
+            name: '',
+          },
+        ];
+        this.state.onchange?.();
+      },
+    });
+  }
+
+  private renderFilterOperation(): m.Child {
+    return m(FilterOperation, {
+      filters: this.state.filters,
+      sourceCols: this.finalCols,
+      onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+        this.state.filters = newFilters as FilterDefinition[];
+        this.state.onchange?.();
+      },
+    });
   }
 
   clone(): QueryNode {

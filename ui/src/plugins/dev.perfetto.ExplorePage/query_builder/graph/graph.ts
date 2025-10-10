@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 
-import {Icons} from '../../../base/semantic_icons';
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {Intent} from '../../../widgets/common';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {QueryNode} from '../query_node';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
+import {Icons} from '../../../../base/semantic_icons';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Intent} from '../../../../widgets/common';
+import {MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {QueryNode, singleNodeOperation} from '../../query_node';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 
 import {
   NodeBox,
@@ -28,8 +28,9 @@ import {
   PADDING,
   DEFAULT_NODE_WIDTH,
 } from './node_box';
+import {NodeBlock} from './node_block';
 import {Arrow, Port} from './arrow';
-import {Icon} from '../../../widgets/icon';
+import {Icon} from '../../../../widgets/icon';
 
 const BUTTONS_AREA_WIDTH = 300;
 const BUTTONS_AREA_HEIGHT = 50;
@@ -227,9 +228,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     }
 
     this.dragNode = node;
-    const nodeElem = (event.target as HTMLElement).closest(
-      '.pf-node-box',
-    ) as HTMLElement;
+    const nodeElem = event.currentTarget as HTMLElement;
 
     this.resolvedNodeLayouts.set(node, {
       ...layout,
@@ -363,9 +362,122 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     );
   }
 
+
+  private identifyNodeBlocks(allNodes: QueryNode[]): {
+    nodeToBlock: Map<QueryNode, QueryNode[]>;
+    renderedAsPartOfBlock: Set<QueryNode>;
+  } {
+    const renderedAsPartOfBlock = new Set<QueryNode>();
+    const nodeToBlock = new Map<QueryNode, QueryNode[]>();
+
+    for (const node of allNodes) {
+      if (renderedAsPartOfBlock.has(node)) continue;
+      const block: QueryNode[] = [node];
+      let currentNode = node;
+      while (
+        currentNode.nextNodes.length === 1 &&
+        singleNodeOperation(currentNode.nextNodes[0].type)
+      ) {
+        currentNode = currentNode.nextNodes[0];
+        block.push(currentNode);
+      }
+      if (block.length > 1) {
+        nodeToBlock.set(node, block);
+        for (const blockNode of block) {
+          renderedAsPartOfBlock.add(blockNode);
+        }
+      }
+    }
+    return {nodeToBlock, renderedAsPartOfBlock};
+  }
+
+  private renderNodesAndBlocks(
+    attrs: GraphAttrs,
+    allNodes: QueryNode[],
+    nodeToBlock: Map<QueryNode, QueryNode[]>,
+    renderedAsPartOfBlock: Set<QueryNode>,
+    onNodeRendered: (node: QueryNode, element: HTMLElement) => void,
+  ): m.Child[] {
+    const {selectedNode, onNodeSelected} = attrs;
+    const children: m.Child[] = [];
+    for (const node of allNodes) {
+      if (renderedAsPartOfBlock.has(node) && !nodeToBlock.has(node)) {
+        continue;
+      }
+
+      const block = nodeToBlock.get(node);
+      if (block) {
+        const layout = this.resolvedNodeLayouts.get(node)!;
+        children.push(
+          m(NodeBlock, {
+            nodes: block,
+            isSelected: selectedNode ? block.includes(selectedNode) : false,
+            isDragging: this.dragNode === node,
+            layout,
+            onNodeSelected,
+            onNodeDragStart: this.onNodeDragStart,
+            onDuplicateNode: attrs.onDuplicateNode,
+            onDeleteNode: attrs.onDeleteNode,
+            onAddAggregation: attrs.onAddAggregation,
+            onModifyColumns: attrs.onAddModifyColumns,
+            onAddIntervalIntersect: attrs.onAddIntervalIntersect,
+            onNodeRendered,
+            onRemoveFilter: attrs.onRemoveFilter,
+          }),
+        );
+      } else {
+        const layout = this.resolvedNodeLayouts.get(node)!;
+        children.push(
+          m(NodeBox, {
+            node,
+            isSelected: selectedNode === node,
+            isDragging: this.dragNode === node,
+            layout,
+            onNodeSelected,
+            onNodeDragStart: this.onNodeDragStart,
+            onDuplicateNode: attrs.onDuplicateNode,
+            onDeleteNode: attrs.onDeleteNode,
+            onAddAggregation: attrs.onAddAggregation,
+            onModifyColumns: attrs.onAddModifyColumns,
+            onAddIntervalIntersect: attrs.onAddIntervalIntersect,
+            onNodeRendered,
+            onRemoveFilter: attrs.onRemoveFilter,
+          }),
+        );
+      }
+    }
+    return children;
+  }
+
+  private renderArrows(
+    allNodes: QueryNode[],
+    nodeToBlock: Map<QueryNode, QueryNode[]>,
+    renderedAsPartOfBlock: Set<QueryNode>,
+  ): m.Child[] {
+    const children: m.Child[] = [];
+    for (const node of allNodes) {
+      if (renderedAsPartOfBlock.has(node) && !nodeToBlock.has(node)) {
+        continue;
+      }
+      const block = nodeToBlock.get(node);
+      const lastNodeInGroup = block ? block[block.length - 1] : node;
+
+      for (const nextNode of lastNodeInGroup.nextNodes) {
+        const from = this.resolvedNodeLayouts.get(lastNodeInGroup);
+        const to = this.resolvedNodeLayouts.get(nextNode);
+        if (from && to) {
+          const fromPort = getOutputPorts(from, 1)[0];
+          const toPort = getInputPorts(to, 1)[0];
+          children.push(m(Arrow, {from: fromPort, to: toPort}));
+        }
+      }
+    }
+    return children;
+  }
+
   view({attrs}: m.CVnode<GraphAttrs>) {
     this.attrs = attrs;
-    const {rootNodes, onNodeSelected, selectedNode} = attrs;
+    const {rootNodes} = attrs;
 
     const onNodeRendered = (node: QueryNode, element: HTMLElement) => {
       const layout = this.resolvedNodeLayouts.get(node);
@@ -417,39 +529,23 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     if (allNodes.length === 0) {
       children.push(this.renderEmptyNodeGraph(attrs));
     } else {
-      for (const node of allNodes) {
-        const layout = this.resolvedNodeLayouts.get(node)!;
-        const inputPorts = getInputPorts(layout, node.prevNodes?.length ?? 1);
-        for (let i = 0; i < (node.prevNodes?.length ?? 0); i++) {
-          const prevNode = node.prevNodes![i];
-          const from = this.resolvedNodeLayouts.get(prevNode);
-          if (from) {
-            const outputPorts = getOutputPorts(from, prevNode.nextNodes.length);
-            const fromPort =
-              outputPorts[prevNode.nextNodes.indexOf(node)] ?? outputPorts[0];
-            const toPort = inputPorts[i];
-            children.push(m(Arrow, {from: fromPort, to: toPort}));
-          }
-        }
+      const {nodeToBlock, renderedAsPartOfBlock} =
+        this.identifyNodeBlocks(allNodes);
 
-        children.push(
-          m(NodeBox, {
-            node,
-            isSelected: selectedNode === node,
-            isDragging: this.dragNode === node,
-            layout,
-            onNodeSelected,
-            onNodeDragStart: this.onNodeDragStart,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onDeleteNode: attrs.onDeleteNode,
-            onAddAggregation: attrs.onAddAggregation,
-            onModifyColumns: attrs.onAddModifyColumns,
-            onAddIntervalIntersect: attrs.onAddIntervalIntersect,
-            onNodeRendered,
-            onRemoveFilter: attrs.onRemoveFilter,
-          }),
-        );
-      }
+      children.push(
+        ...this.renderNodesAndBlocks(
+          attrs,
+          allNodes,
+          nodeToBlock,
+          renderedAsPartOfBlock,
+          onNodeRendered,
+        ),
+      );
+
+      children.push(
+        ...this.renderArrows(allNodes, nodeToBlock, renderedAsPartOfBlock),
+      );
+
       children.push(this.renderControls(attrs));
     }
 
