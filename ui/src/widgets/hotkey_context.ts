@@ -37,12 +37,23 @@ export interface HotkeyContextAttrs {
   // If true, a focus ring will be shown when the context is focused.
   // Defaults to false.
   readonly showFocusRing?: boolean;
+
+  // Controls where keyboard events are captured:
+  // - true (default): Binds to this element; requires element focus.
+  //   Use for scoped contexts (e.g., modals, embedded mode).
+  // - false: Binds to document for global hotkeys; no tabindex set.
+  //   Provides better UX in standalone apps (e.g., PGUP/PGDN scrolling),
+  //   but may interfere with parent pages when embedded.
+  // Defaults to true.
+  readonly focusable?: boolean;
 }
 
 export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
   private hotkeys?: HotkeyConfig[];
+  private eventTarget?: EventTarget;
 
   view(vnode: m.Vnode<HotkeyContextAttrs>): m.Children {
+    const focusable = vnode.attrs.focusable ?? true;
     return m(
       '.pf-hotkey-context',
       {
@@ -50,7 +61,8 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
         // This is needed to capture key events.
         // The -1 value means it won't be focusable by tabbing, but can be
         // focused programmatically.
-        tabindex: -1,
+        // Omit tabindex when focusable is false (document binding).
+        tabindex: focusable ? -1 : undefined,
         className: classNames(
           vnode.attrs.fillHeight && 'pf-hotkey-context--fill-height',
           vnode.attrs.showFocusRing && 'pf-hotkey-context--show-focus-ring',
@@ -61,9 +73,13 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<HotkeyContextAttrs>) {
-    vnode.dom.addEventListener('keydown', this.onKeyDown);
+    const focusable = vnode.attrs.focusable ?? true;
+    // If focusable is false, bind to document for global hotkeys.
+    // Otherwise, bind to the element itself.
+    this.eventTarget = focusable ? vnode.dom : document;
+    this.eventTarget.addEventListener('keydown', this.onKeyDown);
     this.hotkeys = vnode.attrs.hotkeys;
-    if (vnode.attrs.autoFocus) {
+    if (vnode.attrs.autoFocus && focusable) {
       toHTMLElement(vnode.dom).focus();
     }
   }
@@ -72,8 +88,9 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     this.hotkeys = vnode.attrs.hotkeys;
   }
 
-  onremove(vnode: m.VnodeDOM<HotkeyContextAttrs>) {
-    vnode.dom.removeEventListener('keydown', this.onKeyDown);
+  onremove(_vnode: m.VnodeDOM<HotkeyContextAttrs>) {
+    this.eventTarget?.removeEventListener('keydown', this.onKeyDown);
+    this.eventTarget = undefined;
     this.hotkeys = undefined;
   }
 
