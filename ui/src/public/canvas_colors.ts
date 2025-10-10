@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Theme {
+export interface CanvasColors {
   COLOR_BORDER: string;
   COLOR_BORDER_SECONDARY: string;
   COLOR_BACKGROUND_SECONDARY: string;
@@ -21,4 +21,5 @@ export interface Theme {
   COLOR_TEXT: string;
   COLOR_TEXT_MUTED: string;
   COLOR_NEUTRAL: string;
+  COLOR_TIMELINE_OVERLAY: string;
 }
