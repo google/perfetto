@@ -115,7 +115,9 @@ StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
       args_parser_(*context_->descriptor_pool_) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber);
   context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
-                                                       kAtomsDescriptor.size());
+                                                       kAtomsDescriptor.size(),
+                                                       {},
+                                                       true); // To allow merging of extra descriptors from statsd
   if (auto i = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName)) {
     descriptor_idx_ = *i;
   } else {
