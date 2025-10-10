@@ -1635,6 +1635,18 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_shared_lib_track_event_track_event",
     srcs = [
+        "src/shared_lib/track_event/category_impl.cc",
+        "src/shared_lib/track_event/category_impl.h",
+        "src/shared_lib/track_event/category_utils.cc",
+        "src/shared_lib/track_event/category_utils.h",
+        "src/shared_lib/track_event/ds.cc",
+        "src/shared_lib/track_event/ds.h",
+        "src/shared_lib/track_event/global_state.cc",
+        "src/shared_lib/track_event/global_state.h",
+        "src/shared_lib/track_event/hl.cc",
+        "src/shared_lib/track_event/ll.cc",
+        "src/shared_lib/track_event/serialization.cc",
+        "src/shared_lib/track_event/serialization.h",
         "src/shared_lib/track_event/track_event.cc",
     ],
 )
