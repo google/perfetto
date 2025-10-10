@@ -292,6 +292,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   uint32_t,
                   exclusive_prio,
                   41);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  bool,
+                  no_flush_before_write_into_file,
+                  42);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_SessionSemaphore,

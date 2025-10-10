@@ -18,7 +18,7 @@ import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button} from '../../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {QueryNode} from '../../query_node';
+import {QueryNode, singleNodeOperation} from '../../query_node';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {Chip} from '../../../../widgets/chip';
 import {Icon} from '../../../../widgets/icon';
@@ -142,9 +142,12 @@ export function renderFilters(attrs: NodeBoxAttrs): m.Child {
 export const NodeBoxContent: m.Component<{node: QueryNode}> = {
   view({attrs}) {
     const {node} = attrs;
+    const hasCustomTitle = node.state.customTitle !== undefined;
+    const shouldShowTitle = !singleNodeOperation(node.type) || hasCustomTitle;
+
     return m(
       '.pf-node-box__content',
-      m('span.pf-node-box__title', node.getTitle()),
+      shouldShowTitle && m('span.pf-node-box__title', node.getTitle()),
       m('.pf-node-box__details', node.nodeDetails?.()),
     );
   },

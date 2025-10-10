@@ -2279,6 +2279,90 @@ TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
                   Property(&protos::gen::TestEvent::str, Eq("payload")))));
 }
 
+TEST_F(TracingServiceImplTest, FlushBeforeWriteIntoFile) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10000);  // 10s
+  // Flush before write into file is turned on by default.
+
+  auto write_into_file_session_file = base::TempFile::Create();
+  consumer->EnableTracing(
+      trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #1");
+  }
+  // Don't manually flush writer, keep data in the producer buffer.
+
+  producer->ExpectFlush(writer.get());
+  AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()),
+                ElementsAre("payload #1"));
+  }
+}
+
+TEST_F(TracingServiceImplTest, NoFlushBeforeWriteIntoFile) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10000);  // 10s
+  trace_config.set_no_flush_before_write_into_file(true);
+
+  auto write_into_file_session_file = base::TempFile::Create();
+  consumer->EnableTracing(
+      trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload #1");
+  }
+  // Don't manually flush writer, keep data in the producer buffer.
+
+  AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+
+  {
+    protos::gen::Trace trace;
+    ASSERT_TRUE(
+        ParseNotEmptyTraceFromFile(write_into_file_session_file, trace));
+    EXPECT_THAT(GetForTestingStrings(trace.packet()), IsEmpty());
+  }
+}
+
 TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
   if (!base::flags::buffer_clone_preserve_read_iter) {
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
@@ -2416,6 +2500,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
 
   // Advance timer, traced should write the data to the 'write_into_file'
   // session output file.
+  // ReadBuffersIntoFile() will implicitly issue a flush.
+  producer->ExpectFlush(writer.get());
   AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
 
   {
@@ -3346,6 +3432,8 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     if (i % (100 / kNumMarkers) == 0) {
       writer->Flush();
       // The snapshot will happen every 100ms
+      // Each ReadBuffersIntoFile() will implicitly issue a flush.
+      producer->ExpectFlush(writer.get());
       AdvanceTimeAndRunUntilIdle(100);
     }
   }
