@@ -30,6 +30,7 @@ import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {RequiredField} from '../../base/utils';
+import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
@@ -49,11 +50,15 @@ import {Popup} from '../../widgets/popup';
 import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
 
-const TRACK_HEIGHT_MIN_PX = 18;
+const DEFAULT_TRACK_HEIGHT_MIN_PX = 18;
 
 function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
+
+  const TRACK_HEIGHT_MIN_PX =
+    (AppImpl.instance.settings.get('track-height-min-px')?.get() as number) ??
+    DEFAULT_TRACK_HEIGHT_MIN_PX;
 
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
