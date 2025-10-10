@@ -411,6 +411,7 @@ perfetto_cc_library(
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_args_utils",
+        ":src_trace_processor_util_blob",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -451,6 +452,7 @@ perfetto_cc_library(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":include_perfetto_trace_processor_util",
     ],
     deps = [
                ":protos_perfetto_common_cpp",
@@ -545,6 +547,7 @@ perfetto_cc_library(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":include_perfetto_trace_processor_util",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
@@ -1140,9 +1143,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "include_perfetto_trace_processor_storage",
     srcs = [
-        "include/perfetto/trace_processor/ref_counted.h",
-        "include/perfetto/trace_processor/trace_blob.h",
-        "include/perfetto/trace_processor/trace_blob_view.h",
         "include/perfetto/trace_processor/trace_processor_storage.h",
     ],
 )
@@ -1155,6 +1155,16 @@ perfetto_filegroup(
         "include/perfetto/trace_processor/metatrace_config.h",
         "include/perfetto/trace_processor/read_trace.h",
         "include/perfetto/trace_processor/trace_processor.h",
+    ],
+)
+
+# GN target: //include/perfetto/trace_processor:util
+perfetto_filegroup(
+    name = "include_perfetto_trace_processor_util",
+    srcs = [
+        "include/perfetto/trace_processor/ref_counted.h",
+        "include/perfetto/trace_processor/trace_blob.h",
+        "include/perfetto/trace_processor/trace_blob_view.h",
     ],
 )
 
@@ -3728,6 +3738,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:blob
+perfetto_filegroup(
+    name = "src_trace_processor_util_blob",
+    srcs = [
+        "src/trace_processor/util/trace_blob.cc",
+    ],
+)
+
 # GN target: //src/trace_processor/util:build_id
 perfetto_filegroup(
     name = "src_trace_processor_util_build_id",
@@ -3994,7 +4012,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
-        "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
@@ -7594,6 +7611,7 @@ perfetto_cc_library(
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_args_utils",
+        ":src_trace_processor_util_blob",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -7632,6 +7650,7 @@ perfetto_cc_library(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":include_perfetto_trace_processor_util",
     ],
     visibility = [
         "//visibility:public",
@@ -7725,6 +7744,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
@@ -7809,6 +7829,7 @@ perfetto_cc_binary(
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_args_utils",
+        ":src_trace_processor_util_blob",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
@@ -7929,6 +7950,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
+        ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
@@ -8010,6 +8032,7 @@ perfetto_cc_binary(
         ":src_trace_processor_trace_summary_trace_summary",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_args_utils",
+        ":src_trace_processor_util_blob",
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",

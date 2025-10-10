@@ -26,6 +26,8 @@ import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
+import {Color, HSLColor} from '../base/color';
+import {hash} from '../base/hash';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -376,7 +378,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               // We have a wide set of buttons that would overflow given the
               // normal width constraints of the popup.
               fitContent: true,
-              position: PopupPosition.Bottom,
+              position: PopupPosition.Right,
               isOpen:
                 this.tooltipPos?.state === 'HOVER' ||
                 this.tooltipPos?.state === 'CLICK',
@@ -457,6 +459,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
       const hover = isIntersecting(this.hoveredX, this.hoveredY, node);
       let name: string;
+      let colorScheme;
       if (source.kind === 'ROOT') {
         const val = displaySize(allRootsCumulativeValue, unit);
         const percent = displayPercentage(
@@ -464,14 +467,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           unfilteredCumulativeValue,
         );
         name = `root: ${val} (${percent})`;
-        ctx.fillStyle = generateColor('root', state === 'PARTIAL', hover);
+        colorScheme = getFlamegraphColorScheme('root', state === 'PARTIAL');
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
-        ctx.fillStyle = generateColor(name, state === 'PARTIAL', false);
+        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
         name = nodes[source.queryIdx].name;
-        ctx.fillStyle = generateColor(name, state === 'PARTIAL', hover);
+        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
+      const bgColor = hover ? colorScheme.variant : colorScheme.base;
+      const textColor = hover ? colorScheme.textVariant : colorScheme.textBase;
+      ctx.fillStyle = bgColor.cssString;
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
       // Render marker
@@ -483,7 +489,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         nodes[source.queryIdx].marker !== undefined &&
         width >= MIN_WIDTH_FOR_MARKER;
       if (hasMarker) {
-        ctx.fillStyle = 'black'; // Same as text color
+        ctx.fillStyle = textColor.cssString;
         const markerX = x + MARKER_LEFT_MARGIN;
         const markerY = y + 2; // Position at top of node with small margin
         ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
@@ -492,7 +498,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       // Text positioning - no need to reserve space since marker is in top corner
       const widthNoPadding = width - LABEL_PADDING_PX * 2;
       if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = textColor.cssString;
         ctx.fillText(
           name.substring(0, widthNoPadding / this.labelCharWidth),
           x + LABEL_PADDING_PX,
@@ -1105,16 +1111,42 @@ function addFilter(
   };
 }
 
-function generateColor(name: string, greyed: boolean, hovered: boolean) {
+// Unfortunately, widgets *cannot* depend on components so we cannot use the
+// colorizer code. Since we need very little of that code anyway, just inline
+// what we need here.
+const PERCEIVED_BRIGHTNESS_LIMIT = 180;
+const WHITE_COLOR = new HSLColor([0, 0, 100]);
+const BLACK_COLOR = new HSLColor([0, 0, 0]);
+const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
+
+function makeColorScheme(base: Color, variant: Color) {
+  return {
+    base,
+    variant,
+    textBase:
+      base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+        ? BLACK_COLOR
+        : WHITE_COLOR,
+    textVariant:
+      variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+        ? BLACK_COLOR
+        : WHITE_COLOR,
+  };
+}
+
+function getFlamegraphColorScheme(name: string, greyed: boolean) {
   if (greyed) {
-    return `hsl(0deg, 0%, ${hovered ? 85 : 80}%)`;
+    return makeColorScheme(GRAY_VARIANT_COLOR, GRAY_VARIANT_COLOR.darken(5));
   }
   if (name === 'unknown' || name === 'root') {
-    return `hsl(0deg, 0%, ${hovered ? 78 : 73}%)`;
+    return makeColorScheme(
+      GRAY_VARIANT_COLOR.darken(10),
+      GRAY_VARIANT_COLOR.darken(15),
+    );
   }
-  let x = 0;
-  for (let i = 0; i < name.length; ++i) {
-    x += name.charCodeAt(i) % 64;
-  }
-  return `hsl(${x % 360}deg, 45%, ${hovered ? 78 : 73}%)`;
+  // Hash the name to get a predictable hue, then create color with fixed
+  // saturation and lightness values to match what pprof web UI does.
+  const hue = hash(name, 360);
+  const base = new HSLColor({h: hue, s: 46, l: 80});
+  return makeColorScheme(base, base.darken(15).saturate(15));
 }
