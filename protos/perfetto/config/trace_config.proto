@@ -767,9 +767,10 @@ message TraceConfig {
   // If true && |write_into_file|, do NOT flush buffers when periodically write
   // them into file.
   //
-  // By default, each time we periodically write buffers into file, we first
-  // issue a Flush() to all data source, forcing them to commit their data into
-  // the tracing service. This helps us to always write latest data to the file.
+  // By default, if |write_into_file| is set, each time we periodically write
+  // buffers into file, we first issue a Flush() to all data source, forcing
+  // them to commit their data into the tracing service. This helps us to always
+  // write latest data to the file.
   //
   // Introduced in: perfetto v53.
   // Supported on: Android 25Q4+.
