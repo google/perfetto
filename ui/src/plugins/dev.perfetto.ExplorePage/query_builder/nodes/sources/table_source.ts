@@ -187,7 +187,7 @@ export class TableSourceNode extends SourceNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
+    return this.state.customTitle ?? `${this.state.sqlTable?.name}`;
   }
 
   isMaterialised(): boolean {

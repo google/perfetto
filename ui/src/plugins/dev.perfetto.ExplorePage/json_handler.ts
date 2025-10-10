@@ -39,7 +39,7 @@ import {
   IntervalIntersectNodeState,
   IntervalIntersectSerializedState,
 } from './query_builder/nodes/interval_intersect_node';
-import {NodeBoxLayout} from './query_builder/node_box';
+import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 
