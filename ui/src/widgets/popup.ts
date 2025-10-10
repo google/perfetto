@@ -62,7 +62,11 @@ export interface PopupAttrs {
   // Defaults to true.
   closeOnOutsideClick?: boolean;
   // Controls whether the popup is open or not.
-  // If omitted, the popup operates in uncontrolled mode.
+  // When provided, the popup operates in controlled mode and will not
+  // automatically toggle on trigger clicks. The parent component must
+  // handle opening the popup (e.g., via the trigger's onclick handler).
+  // When omitted, the popup operates in uncontrolled mode and
+  // automatically toggles when the trigger is clicked.
   isOpen?: boolean;
   // Called when the popup isOpen state should be changed in controlled mode.
   onChange?: OnChangeCallback;
@@ -130,13 +134,16 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       closeOnOutsideClick = true,
     } = attrs;
 
+    // Detect if we're in controlled mode (parent provides isOpen prop)
+    const isControlled = attrs.isOpen !== undefined;
+
     this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
 
     return [
-      this.renderTrigger(trigger, isOpen),
+      this.renderTrigger(trigger, isOpen, isControlled),
       isOpen && this.renderPopup(attrs, children),
     ];
   }
@@ -145,16 +152,25 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     trigger: m.Vnode<any, any>,
     isOpen: boolean,
+    isControlled: boolean,
   ): m.Children {
-    trigger.attrs = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const baseAttrs: any = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
-      onclick: (e: MouseEvent) => {
-        this.togglePopup();
-        e.preventDefault();
-      },
       active: isOpen,
     };
+
+    // In controlled mode, don't override the trigger's onclick.
+    // Let the parent handle opening/closing via the isOpen prop.
+    if (!isControlled) {
+      baseAttrs.onclick = (e: MouseEvent) => {
+        this.togglePopup();
+        e.preventDefault();
+      };
+    }
+
+    trigger.attrs = baseAttrs;
     return trigger;
   }
 
