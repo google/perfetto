@@ -4947,6 +4947,10 @@ message TraceConfig {
   // them to commit their data into the tracing service. This helps us to always
   // write latest data to the file.
   //
+  // Before this flag was introduced, the default behavior was NOT to flush
+  // buffers when periodically write them into file. If true this flag
+  // returns the old default behavior.
+  //
   // Introduced in: perfetto v53.
   // Supported on: Android 25Q4+.
   optional bool no_flush_before_write_into_file = 42;
