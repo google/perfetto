@@ -14,7 +14,10 @@
 
 import {DisposableStack} from '../base/disposable_stack';
 import {OmniboxManager, PromptChoices} from '../public/omnibox';
+import {AppContext} from './app_impl';
 import {raf} from './raf_scheduler';
+import {TraceContext} from './trace_impl';
+import {TraceSource} from './trace_source';
 
 export enum OmniboxMode {
   Search,
@@ -226,4 +229,115 @@ export class OmniboxManagerImpl implements OmniboxManager {
       this._pendingPrompt = undefined;
     }
   }
+
+  static forApp(appCtx: AppContext): HierarchicalOmniboxManager {
+    const children = new Map<TraceSource, OmniboxManagerImpl & Disposable>();
+    let activeChild: OmniboxManagerImpl | undefined;
+    const trash = new DisposableStack();
+
+    const result = new Proxy(
+      Object.assign(new OmniboxManagerImpl(), {
+        get activeChild() {
+          return activeChild;
+        },
+
+        activateChild(child: OmniboxManagerImpl) {
+          for (const next of children.values()) {
+            if (next === child) {
+              activeChild = next;
+              break;
+            }
+          }
+          throw new Error('not a child');
+        },
+
+        childFor(traceCtx: TraceContext | TraceSource) {
+          const source =
+            traceCtx instanceof TraceContext
+              ? traceCtx.traceInfo.source
+              : traceCtx;
+          let child = children.get(source);
+          if (child === undefined) {
+            child = Object.assign(new OmniboxManagerImpl(), {
+              [Symbol.dispose]: () => {
+                if (activeChild === child) {
+                  activeChild =
+                    appCtx.currentTrace !== undefined &&
+                    appCtx.currentTrace.traceInfo.source !== source
+                      ? children.get(appCtx.currentTrace.traceInfo.source)
+                      : undefined;
+                }
+                children.delete(source);
+              },
+            });
+            children.set(source, child);
+          }
+          return child;
+        },
+
+        [Symbol.dispose]() {
+          return () => trash.dispose();
+        },
+      }),
+      {
+        get(target, p) {
+          if (p === 'disablePrompts') {
+            // Disable prompts in all omniboxes
+            return () => {
+              const disposables = new DisposableStack();
+              children.forEach((child) =>
+                disposables.use(child.disablePrompts()),
+              );
+              disposables.use(target.disablePrompts());
+              return disposables;
+            };
+          }
+
+          let owner = activeChild ?? target;
+          let result = Reflect.get(owner, p, owner);
+          if (result === undefined) {
+            owner = target;
+            result = Reflect.get(owner, p, owner);
+          }
+          if (typeof result === 'function') {
+            result = result.bind(owner);
+          }
+          return result;
+        },
+      },
+    );
+
+    trash.use(
+      appCtx.onActiveTraceChanged.addListener((trace) => {
+        if (trace) {
+          activeChild = result.childFor(trace);
+        } else {
+          activeChild = undefined;
+        }
+      }),
+    );
+
+    return result;
+  }
 }
+
+/**
+ * A specialized omnibox manager that internally tracks a child per open
+ * trace and delegates to the child corresponding to the active trace when
+ * some trace is active. Otherwise, it provides an app-global omnibox.
+ */
+export type HierarchicalOmniboxManager = OmniboxManagerImpl & {
+  /** The currently active child omnibox, if any. */
+  readonly activeChild: OmniboxManagerImpl | undefined;
+  /** Activate the given child omnibox. Throws if it is not a known child. */
+  activateChild(child: OmniboxManagerImpl): void;
+  /**
+   * Obtains the canonical child omnibox for the given trace context.
+   * Disposing the child removes it from the hierarchy and deactivates
+   * it if it happens to be active. While a trace is being loaded, its
+   * source can be used as a proxy for it until its context is created.
+   */
+  childFor(
+    traceCtx: TraceContext | TraceSource,
+  ): OmniboxManagerImpl & Disposable;
+};

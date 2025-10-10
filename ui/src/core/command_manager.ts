@@ -66,8 +66,38 @@ export interface CommandWithMatchInfo extends Command {
 }
 
 export class CommandManagerImpl implements CommandManager {
-  private readonly registry = new Registry<Command>((cmd) => cmd.id);
+  private readonly registry: Registry<Command>;
   private allowlistCheckFn: (id: string) => boolean = () => true;
+
+  constructor(parentRegistry?: Registry<Command>) {
+    this.registry = parentRegistry
+      ? parentRegistry.createChild()
+      : new Registry<Command>((cmd) => cmd.id);
+  }
+
+  /**
+   * Create a subordinate command manager, as for trace-scoped commands.
+   */
+  createChild(): CommandManagerImpl {
+    return new CommandManagerImpl(this.registry);
+  }
+
+  /**
+   * Set a filter to screen command registrations. Command IDs that do not
+   * pass the filter are not registered. This is distinct from the
+   * `allowlistCheck` function, which screens out start-up commands that
+   * should be skipped.
+   *
+   * This is intended for applications embedding the Perfetto UI to exclude services
+   * that are inappropriate or otherwise unwanted in their contexts. Initially, a
+   * registry has no filter.
+   *
+   * **Note** that a filter may only be set once. An attempt to replace or clear the
+   * filter will throw an error.
+   */
+  setFilter(filter: (commandId: string) => boolean) {
+    this.registry.setFilter(filter);
+  }
 
   getCommand(commandId: string): Command {
     return this.registry.get(commandId);

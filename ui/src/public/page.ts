@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Trace} from './trace';
 
 /**
  * Allows to register custom page endpoints that response to given routes, e.g.
@@ -33,6 +34,17 @@ export interface PageManager {
   registerPage(pageHandler: PageHandler): Disposable;
 }
 
+export interface PageRenderContext {
+  /** Optional subpage path segment after the main route. */
+  subpage?: string;
+
+  /**
+   * The current trace, if any. Pages that must only be shown when a
+   * trace is loaded are encouraged to render nothing.
+   */
+  trace?: Trace;
+}
+
 export interface PageHandler {
   /**
    * The route path this page handler responds to (e.g., '/', '/viewer').
@@ -50,7 +62,20 @@ export interface PageHandler {
    * Renders the page content.
    * Called during each Mithril render cycle.
    *
+   * One of this function or |renderPage| must be implemented.
+   *
    * @param subpage Optional subpage path segment after the main route
+   * @deprecated Prefer the render context, instead
    */
-  readonly render: (subpage: string | undefined) => m.Children;
+ readonly render?: (subpage: string | undefined) => m.Children;
+
+ /**
+  * Renders the page content.
+  * Called during each Mithril render cycle.
+  *
+  * One of this function or |render| must be implemented and this function has priority.
+  *
+  * @param ctx the page rendering context, including optional sub-page path and loaded trace
+  */
+  readonly renderPage?: (ctx: PageRenderContext) => m.Children;
 }
