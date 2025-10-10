@@ -258,7 +258,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
     new_package.modules.Insert(module_name_and_sql.first,
                                {module_name_and_sql.second, false});
   }
-  return new_package;
+  return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
 
 class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
