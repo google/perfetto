@@ -363,11 +363,23 @@ function onCssLoaded() {
       }
 
       return m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(HotkeyContext, {hotkeys, fillHeight: true, autoFocus: true}, [
-          m(OverlayContainer, {fillParent: true}, [
-            m(UiMain, {key: themeSetting.get()}),
-          ]),
-        ]),
+        m(
+          HotkeyContext,
+          {
+            hotkeys,
+            fillHeight: true,
+            // When embedded, hotkeys should be scoped to the context element to
+            // avoid interfering with the parent page. In standalone mode,
+            // document-level binding provides better UX (e.g., PGUP/PGDN scroll
+            // behavior).
+            focusable: false,
+          },
+          [
+            m(OverlayContainer, {fillParent: true}, [
+              m(UiMain, {key: themeSetting.get()}),
+            ]),
+          ],
+        ),
       ]);
     },
   });
