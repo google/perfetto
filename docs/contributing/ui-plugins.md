@@ -1674,9 +1674,10 @@ interact with the flag's state:
 **Example:**
 
 ```typescript
-import {App, Flag, FlagSettings} from '../../public'; // Adjust path as needed
+import {Flag, FlagSettings} from '../../public/featureflag'; // Adjust path as needed
+import {App} from '../../public/app';
 
-export default class implements PerfettoPlugin {
+export default class MyFeatureFlagPlugin implements PerfettoPlugin {
   static readonly id = 'com.example.MyFeatureFlagPlugin';
   private static myCoolFeatureFlag: Flag;
 
