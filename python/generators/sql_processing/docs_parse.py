@@ -437,11 +437,22 @@ class IncludeParser(AbstractDocParser):
     )
 
 
+class ModuleDoc:
+  """Module-level documentation"""
+  name: str
+  desc: str
+
+  def __init__(self, name: str, desc: str):
+    self.name = name
+    self.desc = desc
+
+
 class ParsedModule:
   """Data class containing all of the documentation of single SQL file"""
   package_name: str = ""
   module_as_list: List[str]
   module: str
+  module_doc: Optional[ModuleDoc] = None
   errors: List[str] = []
   table_views: List[TableOrView] = []
   functions: List[Function] = []
@@ -449,19 +460,66 @@ class ParsedModule:
   macros: List[Macro] = []
   includes: List[Include]
 
-  def __init__(self, package_name: str, module_as_list: List[str],
-               errors: List[str], table_views: List[TableOrView],
-               functions: List[Function], table_functions: List[TableFunction],
-               macros: List[Macro], includes: List[Include]):
+  def __init__(self,
+               package_name: str,
+               module_as_list: List[str],
+               errors: List[str],
+               table_views: List[TableOrView],
+               functions: List[Function],
+               table_functions: List[TableFunction],
+               macros: List[Macro],
+               includes: List[Include],
+               module_doc: Optional[ModuleDoc] = None):
     self.package_name = package_name
     self.module_as_list = module_as_list
     self.module = ".".join(module_as_list)
+    self.module_doc = module_doc
     self.errors = errors
     self.table_views = table_views
     self.functions = functions
     self.table_functions = table_functions
     self.macros = macros
     self.includes = includes
+
+
+def _extract_module_doc(sql: str) -> Optional[ModuleDoc]:
+  """Extracts module-level documentation from -- @module comments."""
+  lines = sql.split('\n')
+
+  # Find the @module line
+  module_name = None
+  module_desc_lines = []
+  in_module_doc = False
+
+  for line in lines:
+    stripped = line.strip()
+
+    # Check for @module directive
+    if stripped.startswith('-- @module'):
+      module_name = stripped[len('-- @module'):].strip()
+      in_module_doc = True
+      continue
+
+    # If we found @module, collect description lines
+    if in_module_doc:
+      if stripped.startswith('--'):
+        # Remove leading '--' and whitespace
+        desc_line = stripped[2:].lstrip()
+        module_desc_lines.append(desc_line)
+      elif stripped == '':
+        # Empty line is OK, keep collecting
+        continue
+      else:
+        # Non-comment line, stop collecting
+        break
+
+  if not module_name:
+    return None
+
+  # Join description lines with proper spacing
+  module_desc = '\n'.join(module_desc_lines).strip()
+
+  return ModuleDoc(name=module_name, desc=module_desc)
 
 
 def parse_file(
@@ -484,12 +542,15 @@ def parse_file(
   if package_name == "deprecated":
     return
 
+  # Extract module-level documentation
+  module_doc = _extract_module_doc(sql)
+
   # Extract all the docs from the SQL.
   extractor = DocsExtractor(path, package_name, sql)
   docs = extractor.extract()
   if extractor.errors:
     return ParsedModule(package_name, module_as_list, extractor.errors, [], [],
-                        [], [], [])
+                        [], [], [], module_doc)
 
   # Parse the extracted docs.
   errors: List[str] = []
@@ -531,4 +592,4 @@ def parse_file(
       errors += parser.errors
 
   return ParsedModule(package_name, module_as_list, errors, table_views,
-                      functions, table_functions, macros, includes)
+                      functions, table_functions, macros, includes, module_doc)

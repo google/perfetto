@@ -138,6 +138,58 @@ export class ModifyColumnsNode implements QueryNode {
     return this.state.customTitle ?? 'Modify Columns';
   }
 
+  nodeDetails(): m.Child {
+    // Determine the state of modifications.
+    const hasUnselected = this.state.selectedColumns.some((c) => !c.checked);
+    const hasAlias = this.state.selectedColumns.some((c) => c.alias);
+    const hasNewColumns = this.state.newColumns.length > 0;
+
+    // If there are no modifications, show a default message.
+    if (!hasUnselected && !hasAlias && !hasNewColumns) {
+      return m('.pf-node-details-message', 'Select all');
+    }
+
+    const details: m.Child[] = [];
+
+    // If columns have been unselected or aliased, list the selected ones.
+    if (hasUnselected || hasAlias) {
+      const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
+      if (selectedCols.length > 0) {
+        const selectedItems = selectedCols.map((c) => {
+          if (c.alias) {
+            return m('div', `${c.column.name} AS ${c.alias}`);
+          } else {
+            return m('div', c.column.name);
+          }
+        });
+        details.push(
+          m(
+            '.pf-node-details-box',
+            m('strong', 'Selected columns:'),
+            ...selectedItems,
+          ),
+        );
+      }
+    }
+
+    // If new columns have been added, list them.
+    if (hasNewColumns) {
+      const newItems = this.state.newColumns.map((c) =>
+        m('div', `${c.expression} AS ${c.name}`),
+      );
+      details.push(
+        m('.pf-node-details-box', m('strong', 'New columns:'), ...newItems),
+      );
+    }
+
+    // If all columns have been deselected, show a specific message.
+    if (details.length === 0) {
+      return m('.pf-node-details-message', 'All columns deselected');
+    }
+
+    return m('.pf-modify-columns-node-details', details);
+  }
+
   nodeSpecificModify(): m.Child {
     return m(
       'div',
