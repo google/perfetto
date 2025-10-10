@@ -301,6 +301,15 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_REGISTER_ADDITIONAL_DESCRIPTORS: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes descriptor_set =
+          req.register_additional_descriptors_args();
+      base::Status status = trace_processor_->ExtendDescriptorPool(
+          descriptor_set.data, descriptor_set.size);
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     case RpcProto::TPM_GET_METRIC_DESCRIPTORS: {
       Response resp(tx_seq_id_++, req_type);
       auto descriptor_set = trace_processor_->GetMetricDescriptors();
