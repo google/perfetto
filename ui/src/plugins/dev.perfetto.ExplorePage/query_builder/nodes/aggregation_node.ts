@@ -181,7 +181,7 @@ export class AggregationNode implements QueryNode {
     }
 
     if (details.length === 0) {
-      return;
+      return m('div', `No aggregation`);
     }
     return m('.pf-aggregation-node-details', details);
   }
