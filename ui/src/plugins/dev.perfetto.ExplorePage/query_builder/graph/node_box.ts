@@ -51,9 +51,7 @@ export interface NodeBoxAttrs {
   ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddAggregation: (node: QueryNode) => void;
-  readonly onModifyColumns: (node: QueryNode) => void;
-  readonly onAddIntervalIntersect: (node: QueryNode) => void;
+  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -69,6 +67,8 @@ export function renderWarningIcon(node: QueryNode): m.Child {
     title: node.state.issues.getTitle(),
   });
 }
+
+import {nodeRegistry} from '../node_registry';
 
 export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
@@ -96,8 +96,15 @@ export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddAggregation, onModifyColumns, onAddIntervalIntersect} =
-    attrs;
+  const {node, onAddDerivedNode} = attrs;
+  const derivedNodes = nodeRegistry
+    .list()
+    .filter(([_id, descriptor]) => descriptor.type === 'derived');
+
+  if (derivedNodes.length === 0) {
+    return null;
+  }
+
   return m(
     PopupMenu,
     {
@@ -106,17 +113,11 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
         icon: 'add',
       }),
     },
-    m(MenuItem, {
-      label: 'Aggregate',
-      onclick: () => onAddAggregation(node),
-    }),
-    m(MenuItem, {
-      label: 'Modify Columns',
-      onclick: () => onModifyColumns(node),
-    }),
-    m(MenuItem, {
-      label: 'Interval Intersect',
-      onclick: () => onAddIntervalIntersect(node),
+    ...derivedNodes.map(([id, descriptor]) => {
+      return m(MenuItem, {
+        label: descriptor.name,
+        onclick: () => onAddDerivedNode(id, node),
+      });
     }),
   );
 }

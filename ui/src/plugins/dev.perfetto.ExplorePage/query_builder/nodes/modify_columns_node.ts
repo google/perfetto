@@ -69,7 +69,7 @@ export class ModifyColumnsNode implements QueryNode {
     // This node assumes it has only one previous node.
     this.sourceCols =
       state.prevNodes.length > 0 ? state.prevNodes[0].finalCols : [];
-    if (state.selectedColumns.length === 0 && this.sourceCols.length > 0) {
+    if (state.selectedColumns.length === 0) {
       state.selectedColumns = newColumnInfoList(this.sourceCols);
     }
     this.prevNodes = state.prevNodes;

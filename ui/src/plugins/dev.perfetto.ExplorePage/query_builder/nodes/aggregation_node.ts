@@ -51,7 +51,7 @@ export interface AggregationSerializedState {
 export interface AggregationNodeState extends QueryNodeState {
   prevNodes?: QueryNode[];
   groupByColumns: ColumnInfo[];
-  readonly aggregations: Aggregation[];
+  aggregations: Aggregation[];
 }
 
 export interface Aggregation {
@@ -93,7 +93,7 @@ export class AggregationNode implements QueryNode {
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
-    if (!this.state.groupByColumns.length) {
+    if (this.state.groupByColumns.length === 0) {
       this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
     }
   }
