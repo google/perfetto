@@ -22,7 +22,7 @@ import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
-import {Theme} from './theme';
+import {CanvasColors} from './canvas_colors';
 import {z} from 'zod';
 
 export interface TrackFilterCriteria {
@@ -110,7 +110,10 @@ export interface TrackRenderContext extends TrackContext {
    */
   readonly timescale: TimeScale;
 
-  readonly theme: Theme;
+  /**
+   * Semantic colors which can vary depending on the current theme.
+   */
+  readonly colors: CanvasColors;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -393,5 +396,6 @@ export interface Overlay {
     timescale: TimeScale,
     size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
+    theme: CanvasColors,
   ): void;
 }

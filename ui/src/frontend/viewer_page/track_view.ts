@@ -40,22 +40,13 @@ import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {
-  COLOR_ACCENT,
-  COLOR_BACKGROUND,
-  COLOR_BACKGROUND_SECONDARY,
-  COLOR_BORDER,
-  COLOR_BORDER_SECONDARY,
-  COLOR_NEUTRAL,
-  COLOR_TEXT,
-  COLOR_TEXT_MUTED,
-} from '../css_constants';
+import {COLOR_ACCENT} from '../css_constants';
 import {calculateResolution} from './resolution';
 import {Trace} from '../../public/trace';
 import {Anchor, linkify} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
-import {Theme} from '../../public/theme';
+import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
 
 const TRACK_HEIGHT_MIN_PX = 18;
@@ -268,6 +259,7 @@ export class TrackView {
     visibleWindow: HighPrecisionTimeSpan,
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
+    colors: CanvasColors,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
@@ -301,17 +293,6 @@ export class TrackView {
       return;
     }
 
-    const theme: Theme = {
-      COLOR_BORDER,
-      COLOR_BORDER_SECONDARY,
-      COLOR_BACKGROUND_SECONDARY,
-      COLOR_ACCENT,
-      COLOR_BACKGROUND,
-      COLOR_NEUTRAL,
-      COLOR_TEXT,
-      COLOR_TEXT_MUTED,
-    };
-
     const start = performance.now();
     node.uri &&
       renderer?.render({
@@ -321,7 +302,7 @@ export class TrackView {
         resolution: maybeNewResolution.value,
         ctx,
         timescale,
-        theme,
+        colors,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);

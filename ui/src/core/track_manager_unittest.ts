@@ -52,7 +52,7 @@ const dummyCtx: TrackRenderContext = {
   visibleWindow,
   resolution: Duration.ZERO,
   timescale: new TimeScale(visibleWindow, {left: 0, right: 0}),
-  theme: {
+  colors: {
     COLOR_BORDER: 'hotpink',
     COLOR_BORDER_SECONDARY: 'hotpink',
     COLOR_BACKGROUND_SECONDARY: 'hotpink',
@@ -61,6 +61,7 @@ const dummyCtx: TrackRenderContext = {
     COLOR_TEXT: 'hotpink',
     COLOR_TEXT_MUTED: 'hotpink',
     COLOR_NEUTRAL: 'hotpink',
+    COLOR_TIMELINE_OVERLAY: 'hotpink',
   },
 };
 
