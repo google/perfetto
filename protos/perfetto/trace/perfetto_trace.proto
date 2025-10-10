@@ -4940,7 +4940,7 @@ message TraceConfig {
   optional uint32 exclusive_prio = 41;
 
   // TODO(ktimofeev): write doc here.
-  optional bool flush_before_write_into_file = 42;
+  optional bool no_flush_before_write_into_file = 42;
 }
 
 // End of protos/perfetto/config/trace_config.proto

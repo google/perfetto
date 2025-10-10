@@ -382,8 +382,9 @@ class TracingServiceImpl : public TracingService {
 
   // Reads all the tracing buffers from the tracing session `tsid` and writes
   // them into the associated file.
-  // If `flush_buffers_before_read` is set we flush the buffers before read them
-  // into the file.
+  // If `async_flush_buffers_before_read` is `true` this function becomes
+  // asynchronous: immediately posts a `Flush` task and returns. Reads the
+  // buffers when the flush is done, inside the `FlushCallback`.
   //
   // Reads all the data in the buffers (or until the file is full) before
   // returning.
@@ -394,7 +395,7 @@ class TracingServiceImpl : public TracingService {
   //
   // Returns false in case of error.
   bool ReadBuffersIntoFile(TracingSessionID tsid,
-                           bool flush_buffers_before_read);
+                           bool async_flush_buffers_before_read);
 
   void FreeBuffers(TracingSessionID tsid, const std::string& error = {});
 

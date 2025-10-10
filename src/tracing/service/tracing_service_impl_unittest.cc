@@ -2294,8 +2294,6 @@ TEST_F(TracingServiceImplTest, FlushBeforeWriteIntoFile) {
   trace_config.add_data_sources()->mutable_config()->set_name("data_source");
   trace_config.set_write_into_file(true);
   trace_config.set_file_write_period_ms(10000);  // 10s
-  trace_config.set_flush_period_ms(100000);      // 100s
-  trace_config.set_flush_before_write_into_file(true);
 
   consumer->EnableTracing(
       trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
@@ -2310,8 +2308,8 @@ TEST_F(TracingServiceImplTest, FlushBeforeWriteIntoFile) {
     auto tp = writer->NewTracePacket();
     tp->set_for_testing()->set_str("payload #1");
   }
-  // Don't flush, keep data in the producer buffer.
-  // writer->Flush();
+  // Don't manually flush writer, keep data in the producer buffer.
+
   producer->ExpectFlush(writer.get());
   AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
 
@@ -2461,6 +2459,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
 
   // Advance timer, traced should write the data to the 'write_into_file'
   // session output file.
+  // ReadBuffersIntoFile() will implicitly issue a flush.
+  producer->ExpectFlush(writer.get());
   AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
 
   {
@@ -3391,6 +3391,8 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     if (i % (100 / kNumMarkers) == 0) {
       writer->Flush();
       // The snapshot will happen every 100ms
+      // Each ReadBuffersIntoFile() will implicitly issue a flush.
+      producer->ExpectFlush(writer.get());
       AdvanceTimeAndRunUntilIdle(100);
     }
   }
