@@ -57,10 +57,9 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
   context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
       kSymbolsTraceType);
   for (const std::string& raw_bytes : cfg.extra_parsing_descriptors) {
-  context_.descriptor_pool_->AddFromFileDescriptorSet(
-      reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
-      {}, 
-      true);
+    context_.descriptor_pool_->AddFromFileDescriptorSet(
+        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
+        {}, true);
   }
 }
 
