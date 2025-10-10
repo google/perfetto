@@ -27,7 +27,7 @@ import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
 import {Trace} from '../../public/trace';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
-import {NodeBoxLayout} from './query_builder/node_box';
+import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 
