@@ -1759,7 +1759,8 @@ the descriptor and provides methods to interact with the setting:
 **Example:**
 
 ```typescript
-import {App, Setting, SettingDescriptor} from '../../public'; // Adjust path
+import {Setting, SettingDescriptor} from '../../public/settings'; // Adjust path
+import {app} from '../../public/app'; // Adjust path
 import {z} from 'zod';
 import m from 'mithril';
 
@@ -1770,7 +1771,7 @@ const MyComplexObjectSchema = z.object({
 });
 type MyComplexObject = z.infer<typeof MyComplexObjectSchema>;
 
-export default class implements PerfettoPlugin {
+export default class MySettingsPlugin implements PerfettoPlugin {
   static readonly id = 'com.example.MySettingsPlugin';
   private static simpleBooleanSetting: Setting<boolean>;
   private static complexObjectSetting: Setting<MyComplexObject>;
