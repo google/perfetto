@@ -132,7 +132,7 @@ export default class implements PerfettoPlugin {
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
-      const {utid} = it;
+      const {utid, upid} = it;
 
       const threadGroup = new TrackNode({
         uri: `thread${utid}`,
@@ -141,6 +141,7 @@ export default class implements PerfettoPlugin {
         headless: true,
       });
       kernelThreadsGroup.addChildInOrder(threadGroup);
+      this.processGroups.set(upid, threadGroup);
       this.threadGroups.set(utid, threadGroup);
     }
   }
