@@ -41,6 +41,7 @@ import {
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
+import {SharedAsyncDisposable} from '../base/shared_disposable';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -154,16 +155,28 @@ export function metricsFromTableOrSubquery(
 
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
 // data for the widget by querying an `Engine`.
-export class QueryFlamegraph {
+export class QueryFlamegraph implements AsyncDisposable {
   private data?: FlamegraphQueryData;
   private readonly selMonitor = new Monitor([() => this.state.state]);
   private readonly queryLimiter = new AsyncLimiter();
+  private readonly dependencies: ReadonlyArray<
+    SharedAsyncDisposable<AsyncDisposable>
+  >;
 
   constructor(
     private readonly trace: Trace,
     private readonly metrics: ReadonlyArray<QueryFlamegraphMetric>,
     private state: QueryFlamegraphState,
-  ) {}
+    dependencies: ReadonlyArray<AsyncDisposable> = [],
+  ) {
+    this.dependencies = dependencies.map((d) => SharedAsyncDisposable.wrap(d));
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    for (const dependency of this.dependencies ?? []) {
+      await dependency[Symbol.asyncDispose]?.();
+    }
+  }
 
   render() {
     if (this.selMonitor.ifStateChanged()) {
@@ -177,6 +190,15 @@ export class QueryFlamegraph {
       this.data = undefined;
       this.queryLimiter.schedule(async () => {
         this.data = undefined;
+        // Clone all the dependencies to make sure the the are not dropped while
+        // this function is running, adding them to the trash to make sure they
+        // are disposed after this function returns, but note this won't
+        // actually drop the tables unless this class instances have also been
+        // disposed due to the SharedAsyncDisposable logic.
+        await using trash = new AsyncDisposableStack();
+        for (const dependency of this.dependencies ?? []) {
+          trash.use(dependency.clone());
+        }
         this.data = await computeFlamegraphTree(engine, metric, state.state);
       });
     }
