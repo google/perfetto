@@ -337,6 +337,15 @@ function onCssLoaded() {
     defaultValue: 'light',
   });
 
+  AppImpl.instance.settings.register({
+    id: 'track-height-min-px',
+    name: 'Track Height',
+    description:
+      'Minimum height of tracks in the trace viewer page, in pixels.',
+    schema: z.number().int().min(18),
+    defaultValue: 18,
+  });
+
   // Add command to toggle the theme.
   AppImpl.instance.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
