@@ -245,6 +245,7 @@ namespace perfetto::trace_processor::stats {
       "TrackEventRangeOfInterest packet, and track event dropping is "         \
       "enabled."),                                                             \
   F(track_event_tokenizer_errors,         kSingle,  kInfo,     kAnalysis, ""), \
+  F(track_hierarchy_missing_uuid,         kSingle,  kError,    kAnalysis, ""), \
   F(track_event_thread_invalid_end,       kSingle,  kError,    kTrace,         \
       "The end event for a thread track does not match a track event "         \
       "begin event. This can happen on mixed atrace/track_event traces "       \
