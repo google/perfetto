@@ -125,6 +125,52 @@ export function createPerfCallsitesTrack(
   });
 }
 
+export function createSkippedCallsitesTrack(
+  trace: Trace,
+  uri: string,
+  upid?: number,
+  utid?: number,
+  sessionId?: number,
+) {
+  const constraints = [];
+  if (upid !== undefined) {
+    constraints.push(`(upid = ${upid})`);
+  }
+  if (utid !== undefined) {
+    constraints.push(`(utid = ${utid})`);
+  }
+  if (sessionId !== undefined) {
+    constraints.push(`(perf_session_id = ${sessionId})`);
+  }
+  const trackConstraints = constraints.join(' AND ');
+
+  return SliceTrack.create({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        callsiteId: NUM,
+      },
+      src: `
+       SELECT
+          p.id,
+          ts,
+          0 AS callsiteId,
+          upid
+        FROM perf_sample AS p
+        JOIN thread USING (utid)
+        WHERE callsite_id IS NULL
+          AND ${trackConstraints}
+        ORDER BY ts
+      `,
+    }),
+    sliceName: () => 'Perf sample (skipped)',
+    colorizer: (row) => getColorForSample(row.callsiteId),
+  });
+}
+
 function renderDetailsPanel(
   trace: Trace,
   flamegraph: QueryFlamegraph,
