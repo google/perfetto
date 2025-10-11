@@ -423,8 +423,8 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(overrides);
