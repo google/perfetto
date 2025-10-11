@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {classForSpacing, HTMLAttrs, Spacing} from './common';
 
-interface StackAttrs extends HTMLAttrs {
+export interface StackAttrs extends HTMLAttrs {
   readonly orientation?: 'horizontal' | 'vertical';
   readonly fillHeight?: boolean;
   readonly spacing?: Spacing;
