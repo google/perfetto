@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.google.PixelCpmTrace';
@@ -42,18 +43,20 @@ export default class implements PerfettoPlugin {
     for (let groupAdded = false; it.valid(); it.next()) {
       const {trackId, trackName} = it;
       const uri = `/cpm_trace_${trackName}`;
-      const track = await createQueryCounterTrack({
+      const track = CounterTrack.create({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
-             select ts, value
-             from counter
-             where track_id = ${trackId}
-           `,
-          columns: ['ts', 'value'],
-        },
-        columns: {ts: 'ts', value: 'value'},
+        dataset: new SourceDataset({
+          src: 'counter',
+          schema: {
+            ts: LONG,
+            value: NUM,
+          },
+          filter: {
+            col: 'track_id',
+            eq: trackId,
+          },
+        }),
       });
       ctx.tracks.registerTrack({
         uri,
