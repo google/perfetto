@@ -14,9 +14,11 @@
 
 @import "../../../assets/theme";
 @import "./data_explorer.scss";
-@import "./graph.scss";
+@import "./graph/graph.scss";
 @import "./help.scss";
-@import "./node_box.scss";
+@import "./graph/node_box.scss";
+@import "./graph/node_container.scss";
+@import "./graph/node_block.scss";
 @import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
 @import "./nodes/sources/slices_source.scss";

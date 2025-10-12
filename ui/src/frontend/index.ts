@@ -363,11 +363,23 @@ function onCssLoaded() {
       }
 
       return m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(HotkeyContext, {hotkeys, fillHeight: true, autoFocus: true}, [
-          m(OverlayContainer, {fillParent: true}, [
-            m(UiMain, {key: themeSetting.get()}),
-          ]),
-        ]),
+        m(
+          HotkeyContext,
+          {
+            hotkeys,
+            fillHeight: true,
+            // When embedded, hotkeys should be scoped to the context element to
+            // avoid interfering with the parent page. In standalone mode,
+            // document-level binding provides better UX (e.g., PGUP/PGDN scroll
+            // behavior).
+            focusable: false,
+          },
+          [
+            m(OverlayContainer, {fillParent: true}, [
+              m(UiMain, {key: themeSetting.get()}),
+            ]),
+          ],
+        ),
       ]);
     },
   });
@@ -411,8 +423,8 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(overrides);

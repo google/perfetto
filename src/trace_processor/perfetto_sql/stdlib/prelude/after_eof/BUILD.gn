@@ -17,9 +17,15 @@ import("../../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("after_eof") {
   sources = [
     "casts.sql",
+    "core.sql",
+    "counters.sql",
+    "cpu_scheduling.sql",
+    "events.sql",
     "indexes.sql",
+    "memory.sql",
     "slices.sql",
     "tables_views.sql",
+    "tracks.sql",
     "views.sql",
   ]
 }

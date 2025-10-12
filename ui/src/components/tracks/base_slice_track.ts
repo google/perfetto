@@ -420,7 +420,13 @@ export abstract class BaseSliceTrack<
     await this.maybeRequestData(rawSlicesKey);
   }
 
-  render({ctx, size, visibleWindow, timescale}: TrackRenderContext): void {
+  render({
+    ctx,
+    size,
+    visibleWindow,
+    timescale,
+    colors,
+  }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
@@ -638,9 +644,8 @@ export abstract class BaseSliceTrack<
 
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
-      const color = slice.colorScheme;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      ctx.strokeStyle = color.base.setHSL({s: 100, l: 10}).cssString;
+      ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;

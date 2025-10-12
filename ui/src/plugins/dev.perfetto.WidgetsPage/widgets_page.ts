@@ -383,7 +383,12 @@ function ControlledPopup() {
       return m(
         Popup,
         {
-          trigger: m(Button, {label: `${popupOpen ? 'Close' : 'Open'} Popup`}),
+          trigger: m(Button, {
+            label: `${popupOpen ? 'Close' : 'Open'} Popup`,
+            onclick: () => {
+              popupOpen = true;
+            },
+          }),
           isOpen: popupOpen,
           onChange: (shouldOpen: boolean) => (popupOpen = shouldOpen),
         },

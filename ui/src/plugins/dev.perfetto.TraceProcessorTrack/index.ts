@@ -603,7 +603,7 @@ function createSliceFlameGraphPanel(trace: Trace) {
         return undefined;
       }
 
-      return {isLoading: false, content: currentFlamegraph.flamegraph.render()};
+      return {isLoading: false, content: currentFlamegraph.render()};
     },
   };
 }
@@ -611,7 +611,7 @@ function createSliceFlameGraphPanel(trace: Trace) {
 async function computeSliceFlamegraph(
   trace: Trace,
   currentSelection: AreaSelection,
-): Promise<(AsyncDisposable & {flamegraph: QueryFlamegraph}) | undefined> {
+): Promise<QueryFlamegraph | undefined> {
   const trackIds = [];
   for (const trackInfo of currentSelection.tracks) {
     if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
@@ -689,10 +689,12 @@ async function computeSliceFlamegraph(
       },
     ],
   );
-  return {
-    ...iiTable,
-    flamegraph: new QueryFlamegraph(trace, metrics, {
+  return new QueryFlamegraph(
+    trace,
+    metrics,
+    {
       state: Flamegraph.createDefaultState(metrics),
-    }),
-  };
+    },
+    [iiTable],
+  );
 }

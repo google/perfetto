@@ -748,7 +748,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render({ctx, size, timescale, theme}: TrackRenderContext): void {
+  render({ctx, size, timescale, colors}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -894,11 +894,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.fillStyle = colors.COLOR_BACKGROUND;
     ctx.globalAlpha = 0.6;
     ctx.fillRect(0, 0, 42, 18);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = theme.COLOR_TEXT;
+    ctx.fillStyle = colors.COLOR_TEXT;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
 

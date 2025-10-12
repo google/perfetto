@@ -13,15 +13,46 @@
 // limitations under the License.
 
 /**
- * This is a multiselect widgets that allows users to select multiple items from
- * a list of options by typing or clicking rather than just clicking I.e. using
- * checkboxes.
+ * MultiselectInput - A widget for selecting multiple items from a list with
+ * auto-complete.
+ *
+ * This widget provides a text-input-based interface for multi-selection,
+ * combining typing to filter with clicking to select. Selected items appear as
+ * removable chips in the input field.
+ *
+ * Features:
+ * - Type to filter available options
+ * - Click options to toggle selection
+ * - Selected items shown as chips with remove buttons
+ * - Keyboard navigation with arrow keys
+ * - Popup automatically opens on focus, closes on blur
+ *
+ * User Interactions:
+ * - Click anywhere in the input area to focus and open the popup
+ * - Type text to filter the available options
+ * - Click an option in the popup to toggle its selection
+ * - Click the × on a chip to remove that selection
+ * - Click outside the widget or tab away to close the popup
+ *
+ * Keyboard Shortcuts:
+ * - Enter: Toggle selection of the currently highlighted option
+ * - ArrowUp/ArrowDown: Navigate through filtered options
+ * - Backspace (when input empty): Remove the last selected chip
+ * - Escape: Close the popup by blurring the input
+ *
+ * Implementation Details:
+ * - Popup state is tied to input focus (focused = open, blurred = closed)
+ * - Clicking inside the popup prevents input blur via
+ *   mousedown.preventDefault()
+ * - All keyboard handling uses Mithril's event system (no manual event
+ *   listeners)
+ * - Uses controlled mode for the Popup widget (no automatic toggle on trigger
+ *   click)
  */
 
 import m from 'mithril';
 import {HTMLAttrs, Intent} from './common';
 import {Icon} from './icon';
-import {bindEventListener, findRef} from '../base/dom_utils';
 import {Popup, PopupPosition} from './popup';
 import {EmptyState} from './empty_state';
 import {classNames} from '../base/classnames';
@@ -41,16 +72,12 @@ export interface MultiselectInputAttrs extends HTMLAttrs {
   readonly placeholder?: string;
 }
 
-const INPUT_REF = 'input';
-
 export class MultiselectInput
   implements m.ClassComponent<MultiselectInputAttrs>
 {
-  private keyEventHandler?: Disposable;
   private currentTextValue = '';
   private selectedItemIndex = 0;
-  private popupShouldOpen = false;
-  private isFocused = false;
+  private popupIsOpen = false;
 
   view({attrs}: m.CVnode<MultiselectInputAttrs>) {
     const {selectedOptions, placeholder, options, ...htmlAttrs} = attrs;
@@ -61,24 +88,13 @@ export class MultiselectInput
         className: 'pf-multiselect-input__popup',
         position: PopupPosition.Bottom,
         matchWidth: true,
-        onChange: (open: boolean) => {
-          this.popupShouldOpen = open;
-        },
-        // Keep the popup open if the input is focused or the the popup has been
-        // asked to be opened.
-        isOpen: this.popupShouldOpen || this.isFocused,
+        isOpen: this.popupIsOpen,
+        // Disable Popup's built-in close handlers - we manage via input focus/blur
+        closeOnEscape: false,
+        closeOnOutsideClick: false,
         trigger: m(
           '.pf-multiselect-input',
-          {
-            onclick: (ev: Event) => {
-              const target = ev.currentTarget as HTMLElement;
-              const inputElement = findRef(target, INPUT_REF);
-              if (inputElement) {
-                (inputElement as HTMLInputElement).focus();
-              }
-            },
-            ...htmlAttrs,
-          },
+          htmlAttrs,
           // Render the selected options as tags in the text field
           m(
             Stack,
@@ -96,16 +112,60 @@ export class MultiselectInput
             }),
           ),
           m('input', {
-            ref: INPUT_REF,
             value: this.currentTextValue,
             placeholder,
             onfocus: () => {
-              this.isFocused = true;
-              console.log(this.popupShouldOpen, this.isFocused);
+              this.popupIsOpen = true;
             },
             onblur: () => {
-              this.isFocused = false;
-              console.log(this.popupShouldOpen, this.isFocused);
+              this.popupIsOpen = false;
+            },
+            onkeydown: (ev: KeyboardEvent) => {
+              const filteredOptions = this.filterOptions(attrs);
+
+              if (ev.key === 'Escape') {
+                // Blur the input, which will close the popup via onblur
+                (ev.target as HTMLInputElement).blur();
+                ev.preventDefault();
+              } else if (ev.key === 'Enter') {
+                if (filteredOptions.length > 0) {
+                  const option = filteredOptions[this.selectedItemIndex];
+                  const alreadyAdded = selectedOptions.includes(option.key);
+                  if (alreadyAdded) {
+                    attrs.onOptionRemove(option.key);
+                  } else {
+                    attrs.onOptionAdd(option.key);
+                  }
+                  this.currentTextValue = '';
+                }
+                ev.preventDefault();
+              } else if (ev.key === 'ArrowUp') {
+                if (filteredOptions.length > 0) {
+                  this.selectedItemIndex = Math.max(
+                    0,
+                    this.selectedItemIndex - 1,
+                  );
+                }
+                ev.preventDefault();
+              } else if (ev.key === 'ArrowDown') {
+                if (filteredOptions.length > 0) {
+                  this.selectedItemIndex = Math.min(
+                    filteredOptions.length - 1,
+                    this.selectedItemIndex + 1,
+                  );
+                }
+                ev.preventDefault();
+              } else if (ev.key === 'Backspace') {
+                if (
+                  this.currentTextValue === '' &&
+                  selectedOptions.length > 0
+                ) {
+                  attrs.onOptionRemove(
+                    selectedOptions[selectedOptions.length - 1],
+                  );
+                  ev.preventDefault();
+                }
+              }
             },
             oninput: (ev: InputEvent) => {
               const el = ev.target as HTMLInputElement;
@@ -130,56 +190,9 @@ export class MultiselectInput
     return m(
       '.pf-multiselect-input__scroller',
       {
-        oncreate: () => {
-          this.keyEventHandler = bindEventListener(
-            document,
-            'keydown',
-            (ev: KeyboardEvent) => {
-              // We need to trigger a redraw as we're circumventing mithril's
-              // event system here.
-              m.redraw();
-              const filteredOptions = this.filterOptions(attrs);
-              if (ev.key === 'Enter') {
-                if (filteredOptions.length > 0) {
-                  const option = filteredOptions[this.selectedItemIndex];
-                  const alreadyAdded = selectedOptions.includes(option.key);
-                  if (alreadyAdded) {
-                    onOptionRemove(option.key);
-                  } else {
-                    onOptionAdd(option.key);
-                  }
-                  this.currentTextValue = '';
-                }
-              } else if (ev.key === 'ArrowUp') {
-                if (filteredOptions.length > 0) {
-                  this.selectedItemIndex = Math.max(
-                    0,
-                    this.selectedItemIndex - 1,
-                  );
-                }
-                ev.preventDefault();
-              } else if (ev.key === 'ArrowDown') {
-                if (filteredOptions.length > 0) {
-                  this.selectedItemIndex = Math.min(
-                    filteredOptions.length - 1,
-                    this.selectedItemIndex + 1,
-                  );
-                }
-                ev.preventDefault();
-              } else if (ev.key === 'Backspace') {
-                if (
-                  this.currentTextValue === '' &&
-                  selectedOptions.length > 0
-                ) {
-                  onOptionRemove(selectedOptions[selectedOptions.length - 1]);
-                  ev.preventDefault();
-                }
-              }
-            },
-          );
-        },
-        onremove: () => {
-          this.keyEventHandler?.[Symbol.dispose]();
+        onmousedown: (e: MouseEvent) => {
+          // Prevent input from losing focus when clicking inside popup
+          e.preventDefault();
         },
       },
       filtered.map((o, index) => {

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NodeType} from './query_node';
-import {NodeBoxLayout} from './query_builder/node_box';
+import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {ExplorePageState} from './explore_page';

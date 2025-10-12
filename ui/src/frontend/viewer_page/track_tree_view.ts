@@ -49,7 +49,14 @@ import {TrackNode} from '../../public/workspace';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   COLOR_ACCENT,
+  COLOR_BACKGROUND,
+  COLOR_BACKGROUND_SECONDARY,
+  COLOR_BORDER,
   COLOR_BORDER_SECONDARY,
+  COLOR_NEUTRAL,
+  COLOR_TEXT,
+  COLOR_TEXT_MUTED,
+  COLOR_TIMELINE_OVERLAY,
   TRACK_SHELL_WIDTH,
 } from '../css_constants';
 import {renderFlows} from './flow_events_renderer';
@@ -65,6 +72,7 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
+import {CanvasColors} from '../../public/canvas_colors';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -373,6 +381,18 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     this.drawGridLines(ctx, timescale, timelineRect);
 
+    const colors: CanvasColors = {
+      COLOR_BORDER,
+      COLOR_BORDER_SECONDARY,
+      COLOR_BACKGROUND_SECONDARY,
+      COLOR_ACCENT,
+      COLOR_BACKGROUND,
+      COLOR_NEUTRAL,
+      COLOR_TEXT,
+      COLOR_TEXT_MUTED,
+      COLOR_TIMELINE_OVERLAY,
+    };
+
     const tracksOnCanvas = this.drawTracks(
       renderedTracks,
       floatingCanvasRect,
@@ -380,6 +400,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       ctx,
       timelineRect,
       visibleWindow,
+      colors,
     );
 
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
@@ -390,7 +411,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
 
     this.trace.tracks.overlays.forEach((overlay) => {
-      overlay.render(ctx, timescale, size, renderedTracks);
+      overlay.render(ctx, timescale, size, renderedTracks, colors);
     });
 
     const renderTime = performance.now() - start;
@@ -431,6 +452,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     ctx: CanvasRenderingContext2D,
     timelineRect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,
+    colors: CanvasColors,
   ) {
     let tracksOnCanvas = 0;
     for (const trackView of renderedTracks) {
@@ -448,6 +470,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           visibleWindow,
           this.perfStatsEnabled,
           this.trackPerfStats,
+          colors,
         );
         ++tracksOnCanvas;
       }

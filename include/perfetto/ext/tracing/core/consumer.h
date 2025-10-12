@@ -86,6 +86,7 @@ class PERFETTO_EXPORT_COMPONENT Consumer {
     bool success;
     std::string error;
     base::Uuid uuid;  // UUID of the cloned session.
+    bool was_write_into_file;
   };
   virtual void OnSessionCloned(const OnSessionClonedArgs&);
 };

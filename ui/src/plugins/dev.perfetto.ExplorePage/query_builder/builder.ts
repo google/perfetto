@@ -19,7 +19,7 @@ import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query, isAQuery, queryToRun, NodeType} from '../query_node';
 import {ExplorePageHelp} from './help';
 import {NodeExplorer} from './node_explorer';
-import {Graph} from './graph';
+import {Graph} from './graph/graph';
 import {Trace} from 'src/public/trace';
 import {DataExplorer} from './data_explorer';
 import {
@@ -34,7 +34,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {NodeBoxLayout} from './node_box';
+import {NodeBoxLayout} from './graph/node_box';
 
 export interface BuilderAttrs {
   readonly trace: Trace;

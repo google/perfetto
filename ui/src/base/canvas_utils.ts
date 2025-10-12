@@ -21,8 +21,8 @@ export function drawDoubleHeadedArrow(
   y: number,
   length: number,
   showArrowHeads: boolean,
+  color: string,
   width = 2,
-  color = 'black',
 ) {
   ctx.beginPath();
   ctx.lineWidth = width;
