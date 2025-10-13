@@ -40,7 +40,7 @@ import {
   MINIMUM_TRACK_MIN_HEIGHT_PX,
   TRACK_MIN_HEIGHT_SETTING,
 } from './viewer_page/track_view';
-import {renderViewerPage} from './viewer_page/viewer_page';
+import {renderTimelinePage} from './viewer_page/timeline_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
@@ -330,7 +330,7 @@ function onCssLoaded() {
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
+  pages.registerPage({route: '/viewer', render: () => renderTimelinePage()});
   const router = new Router();
   router.onRouteChanged = routeChange;
 
