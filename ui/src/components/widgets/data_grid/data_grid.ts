@@ -208,6 +208,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
   private columnWidths: Map<string, number> = new Map();
+  private hasCalculatedInitialWidths = false;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -289,6 +290,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
+
+    // Calculate initial column widths from first page of data
+    if (
+      !this.hasCalculatedInitialWidths &&
+      dataSource.rows &&
+      dataSource.rows.rows.length > 0
+    ) {
+      this.calculateInitialColumnWidths(
+        columns,
+        dataSource.rows.rows,
+        cellRenderer,
+      );
+      this.hasCalculatedInitialWidths = true;
+    }
 
     // Calculate total pages based on totalRows and rowsPerPage
     const totalRows = dataSource.rows?.totalRows ?? 0;
@@ -701,6 +716,93 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         return undefined;
       }
     });
+  }
+
+  private calculateInitialColumnWidths(
+    columns: ReadonlyArray<ColumnDefinition>,
+    rows: ReadonlyArray<RowDef>,
+    cellRenderer: CellRenderer,
+  ) {
+    // Create off-screen container for measuring with proper grid structure
+    const measureContainer = document.createElement('div');
+    measureContainer.style.position = 'absolute';
+    measureContainer.style.visibility = 'hidden';
+    measureContainer.style.pointerEvents = 'none';
+    measureContainer.style.top = '-9999px';
+    measureContainer.style.left = '-9999px';
+    document.body.appendChild(measureContainer);
+
+    columns.forEach((column) => {
+      const widths: number[] = [];
+
+      // Measure each cell in the column using actual GridDataCell component
+      rows.forEach((row) => {
+        const value = row[column.name];
+        const cellContainer = document.createElement('div');
+
+        // Render GridDataCell without menu items or width constraint
+        const cellVnode = m(
+          GridDataCell,
+          {
+            align: (() => {
+              if (isNumeric(value)) return 'right';
+              if (value === null) return 'center';
+              return 'left';
+            })(),
+            nullish: value === null,
+            width: 'fit-content',
+          },
+          cellRenderer(value, column.name, row),
+        );
+
+        m.render(cellContainer, cellVnode);
+        measureContainer.appendChild(cellContainer);
+
+        // Get the actual cell content width
+        const cellElement = cellContainer.querySelector('.pf-grid__cell');
+        if (cellElement) {
+          widths.push(cellElement.scrollWidth);
+        }
+
+        measureContainer.removeChild(cellContainer);
+      });
+
+      // Measure header width using actual GridHeaderCell component
+      const headerContainer = document.createElement('div');
+      const headerVnode = m(
+        GridHeaderCell,
+        {width: 'fit-content'},
+        column.title ?? column.name,
+      );
+
+      m.render(headerContainer, headerVnode);
+      measureContainer.appendChild(headerContainer);
+
+      const headerElement = headerContainer.querySelector('.pf-grid__cell');
+      const headerWidth = headerElement ? headerElement.scrollWidth : 0;
+
+      measureContainer.removeChild(headerContainer);
+
+      // Calculate 95th percentile of cell widths
+      if (widths.length > 0) {
+        widths.sort((a, b) => a - b);
+        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
+        const width95 = widths[Math.min(percentileIndex, widths.length - 1)];
+
+        // Take the maximum of 95th percentile and header width
+        const finalWidth = Math.max(
+          50,
+          Math.ceil(Math.max(width95, headerWidth)),
+        );
+        this.columnWidths.set(column.name, finalWidth);
+      } else {
+        // If no cell data, just use header width
+        const finalWidth = Math.max(50, Math.ceil(headerWidth));
+        this.columnWidths.set(column.name, finalWidth);
+      }
+    });
+    // Clean up
+    document.body.removeChild(measureContainer);
   }
 }
 
