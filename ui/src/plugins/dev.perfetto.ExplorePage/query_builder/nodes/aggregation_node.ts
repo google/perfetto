@@ -90,6 +90,8 @@ export class AggregationNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
+      groupByColumns: state.groupByColumns ?? [],
+      aggregations: state.aggregations ?? [],
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];

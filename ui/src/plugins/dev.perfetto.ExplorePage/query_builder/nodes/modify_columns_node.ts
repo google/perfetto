@@ -66,15 +66,22 @@ export class ModifyColumnsNode implements QueryNode {
 
   constructor(state: ModifyColumnsState) {
     this.nodeId = nextNodeId();
-    // This node assumes it has only one previous node.
-    this.sourceCols =
-      state.prevNodes.length > 0 ? state.prevNodes[0].finalCols : [];
-    if (state.selectedColumns.length === 0) {
-      state.selectedColumns = newColumnInfoList(this.sourceCols);
-    }
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
-    this.state = state;
+
+    this.state = {
+      ...state,
+      newColumns: state.newColumns ?? [],
+      selectedColumns: state.selectedColumns ?? [],
+    };
+
+    // This node assumes it has only one previous node.
+    this.sourceCols =
+      this.prevNodes.length > 0 ? this.prevNodes[0].finalCols : [];
+
+    if (this.state.selectedColumns.length === 0) {
+      this.state.selectedColumns = newColumnInfoList(this.sourceCols);
+    }
   }
 
   onPrevNodesUpdated() {
