@@ -50,15 +50,18 @@ import {Popup} from '../../widgets/popup';
 import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
 
-const DEFAULT_TRACK_HEIGHT_MIN_PX = 18;
+export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
+export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
+export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
 
 function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
 
   const TRACK_HEIGHT_MIN_PX =
-    (AppImpl.instance.settings.get('track-height-min-px')?.get() as number) ??
-    DEFAULT_TRACK_HEIGHT_MIN_PX;
+    (AppImpl.instance.settings
+      .get(TRACK_MIN_HEIGHT_SETTING)
+      ?.get() as number) ?? DEFAULT_TRACK_MIN_HEIGHT_PX;
 
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
