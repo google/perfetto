@@ -35,6 +35,7 @@ import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {SourceNode} from '../../source_node';
+import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -165,7 +166,7 @@ export class TableSourceNode extends SourceNode {
                   return m(
                     'tr',
                     m('td', col.name),
-                    m('td', col.type.name),
+                    m('td', perfettoSqlTypeToString(col.type)),
                     m('td', col.description),
                   );
                 }),

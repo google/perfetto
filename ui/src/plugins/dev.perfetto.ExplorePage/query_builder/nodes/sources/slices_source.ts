@@ -25,7 +25,6 @@ import protos from '../../../../../protos';
 import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
-import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
 import {createFiltersProto, FilterOperation} from '../../operations/filter';
 import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 import {SourceNode} from '../../source_node';
@@ -231,51 +230,47 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
     {
       name: 'id',
       type: {
-        name: 'ID(slice.id)',
-        shortName: 'id',
-        tableAndColumn: new TableAndColumnImpl('string', 'id'),
+        kind: 'id',
+        source: {
+          table: 'slice',
+          column: 'id',
+        },
       },
     },
     {
       name: 'ts',
       type: {
-        name: 'TIMESTAMP',
-        shortName: 'TIMESTAMP',
+        kind: 'timestamp',
       },
     },
     {
       name: 'dur',
       type: {
-        name: 'DURATION',
-        shortName: 'DURATION',
+        kind: 'duration',
       },
     },
     {
       name: 'slice_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'thread_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'process_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'track_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
   ];
