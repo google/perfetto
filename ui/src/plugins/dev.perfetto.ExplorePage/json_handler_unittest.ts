@@ -26,6 +26,10 @@ import {
   SqlTable,
   SqlType,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
+import {LimitAndOffsetNode} from './query_builder/nodes/dev/limit_and_offset_node';
+import {SortNode} from './query_builder/nodes/dev/sort_node';
+import {columnInfoFromName} from './query_builder/column_info';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -591,5 +595,99 @@ describe('JSON serialization/deserialization', () => {
       expect(filters.length).toBe(1);
       expect(filters[0].column).toBe('new_col');
     }
+  });
+
+  test('serializes and deserializes add columns node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const addColumnsNode = new AddColumnsNode({
+      prevNodes: [tableNode],
+      sqlTable: sqlModules.getTable('slice')!,
+      selectedColumns: ['name'],
+    });
+    tableNode.nextNodes.push(addColumnsNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode
+      .nextNodes[0] as AddColumnsNode;
+    expect(deserializedNode.state.selectedColumns).toEqual(['name']);
+    expect(deserializedNode.state.sqlTable?.name).toEqual('slice');
+  });
+
+  test('serializes and deserializes limit and offset node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const limitAndOffsetNode = new LimitAndOffsetNode({
+      prevNodes: [tableNode],
+      limit: 100,
+      offset: 20,
+    });
+    tableNode.nextNodes.push(limitAndOffsetNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode
+      .nextNodes[0] as LimitAndOffsetNode;
+    expect(deserializedNode.state.limit).toEqual(100);
+    expect(deserializedNode.state.offset).toEqual(20);
+  });
+
+  test('serializes and deserializes sort node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    tableNode.finalCols = [
+      columnInfoFromName('name'),
+      columnInfoFromName('ts'),
+    ];
+
+    const sortNode = new SortNode({
+      prevNodes: [tableNode],
+      sortColNames: ['name', 'ts'],
+    });
+    tableNode.nextNodes.push(sortNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode.nextNodes[0] as SortNode;
+    expect(deserializedNode.state.sortColNames).toEqual(['name', 'ts']);
   });
 });
