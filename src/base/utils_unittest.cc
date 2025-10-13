@@ -351,7 +351,7 @@ TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
       { auto fstream_write = OpenFstream(tmp_path, "wt"); }, "");
 
   ASSERT_DEATH_IF_SUPPORTED(
-      { auto fstream_write = OpenFstream(tmp_path, "w,css=UTF-8"); }, "");
+      { auto fstream_write = OpenFstream(tmp_path, "w,ccs=UTF-8"); }, "");
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
