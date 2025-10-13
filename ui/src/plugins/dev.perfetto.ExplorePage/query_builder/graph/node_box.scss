@@ -108,14 +108,3 @@
 .pf-node-box-port {
   z-index: 1;
 }
-
-.pf-node-box .pf-button {
-  display: none;
-  position: absolute;
-  top: -0.5rem;
-  right: -0.5rem;
-}
-
-.pf-node-box:hover .pf-button {
-  display: flex;
-}

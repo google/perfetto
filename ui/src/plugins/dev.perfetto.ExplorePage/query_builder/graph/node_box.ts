@@ -22,6 +22,8 @@ import {QueryNode, singleNodeOperation} from '../../query_node';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {Chip} from '../../../../widgets/chip';
 import {Icon} from '../../../../widgets/icon';
+import {Callout} from '../../../../widgets/callout';
+import {Intent} from '../../../../widgets/common';
 
 import {NodeContainer} from './node_container';
 
@@ -139,7 +141,7 @@ export function renderFilters(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
-export const NodeBoxContent: m.Component<{node: QueryNode}> = {
+export const NodeBoxContent: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
     const hasCustomTitle = node.state.customTitle !== undefined;
@@ -148,7 +150,10 @@ export const NodeBoxContent: m.Component<{node: QueryNode}> = {
     return m(
       '.pf-node-box__content',
       shouldShowTitle && m('span.pf-node-box__title', node.getTitle()),
+      node.state.comment &&
+        m(Callout, {intent: Intent.None}, node.state.comment),
       m('.pf-node-box__details', node.nodeDetails?.()),
+      renderFilters(attrs),
     );
   },
 };
@@ -193,8 +198,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
           });
         }),
         renderWarningIcon(node),
-        m(NodeBoxContent, {node}),
-        renderFilters(attrs),
+        m(NodeBoxContent, attrs),
         renderContextMenu(attrs),
         node.nextNodes.map((_, i) => {
           const portCount = node.nextNodes.length;

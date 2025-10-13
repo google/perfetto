@@ -45,6 +45,7 @@ export interface ModifyColumnsSerializedState {
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface ModifyColumnsState extends QueryNodeState {
@@ -461,6 +462,7 @@ export class ModifyColumnsNode implements QueryNode {
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 }
