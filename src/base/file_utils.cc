@@ -290,7 +290,7 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
   return fd;
 }
 
-ScopedFstream OpenFstream(const char* path, const char* mode) {
+ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   ScopedFstream file;
   // On Windows fopen interprets filename using the ANSI or OEM codepage but
   // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
@@ -316,7 +316,7 @@ ScopedFstream OpenFstream(const char* path, const char* mode) {
     file.reset(_wfopen(w_path->c_str(), w_mode->c_str()));
   }
 #else
-  file.reset(fopen(path, mode));
+  file.reset(fopen(path.c_str(), mode.c_str()));
 #endif
   return file;
 }
