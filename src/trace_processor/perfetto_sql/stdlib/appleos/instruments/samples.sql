@@ -25,6 +25,8 @@ FROM _callstacks_for_callsites!((
 ORDER BY
   c.id;
 
+CREATE PERFETTO INDEX _appleos_instruments_raw_callstacks_parent_id_idx ON _appleos_instruments_raw_callstacks(parent_id);
+
 -- Table summarising the callstacks captured during all
 -- instruments samples in the trace.
 --

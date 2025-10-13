@@ -117,6 +117,8 @@ ORDER BY
 
 CREATE PERFETTO INDEX _callstack_spc_index ON _callstack_spc_forest(callsite_id);
 
+CREATE PERFETTO INDEX _callstack_spc_parent_index ON _callstack_spc_forest(parent_id);
+
 CREATE PERFETTO MACRO _callstacks_for_stack_profile_samples(
     spc_samples TableOrSubquery
 )
@@ -187,12 +189,11 @@ RETURNS TableOrSubquery AS
       FROM $callstacks
       WHERE parent_id IS NOT NULL
     ),
-    (
-      SELECT p.id, p.self_count AS cumulative_count
-      FROM $callstacks p
-      LEFT JOIN $callstacks c ON c.parent_id = p.id
-      WHERE c.id IS NULL
-    ),
+  (
+    SELECT id, self_count AS cumulative_count
+    FROM $callstacks
+    WHERE id NOT IN (SELECT parent_id FROM $callstacks WHERE parent_id IS NOT NULL)
+  ),
     (cumulative_count),
     (
       WITH agg AS (
