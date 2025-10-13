@@ -356,12 +356,12 @@ TEST(UtilsTest, OpenFstream) {
       ASSERT_EQ(res, 1ul);
     }
     {
-      auto fstream_read = OpenFstream(tmp_path.c_str(), "r");
-      std::string data_read(128, '\0');
-      size_t size = fread(data_read.data(), 1, data_read.size(), *fstream_read);
-      ASSERT_EQ(size, payload.size());
-      data_read.resize(size);
-      ASSERT_EQ(data_read, payload);
+      // If not in binary mode, '\r\n' sequences are translated both read and
+      // write using FILE* api. So we read back data using `ReadFile` (it uses
+      // `open` with O_BINARY flag on Windows) to get the real bytes from disk.
+      std::string actual;
+      ASSERT_TRUE(ReadFile(tmp_path, &actual));
+      ASSERT_EQ(actual, payload);
     }
     ASSERT_EQ(remove(tmp_path.c_str()), 0);
   }
