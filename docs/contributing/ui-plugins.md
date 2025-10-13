@@ -1684,8 +1684,7 @@ interact with the flag's state:
 import {Flag, FlagSettings} from '../../public/featureflag'; // Adjust path as needed
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
-import {PerfettoPlugin} from '../../public/trace';
-
+import {Trace} from '../../public/trace';
 
 export default class MyFeatureFlagPlugin implements PerfettoPlugin {
   static readonly id = 'com.example.MyFeatureFlagPlugin';
@@ -1767,7 +1766,10 @@ the descriptor and provides methods to interact with the setting:
 **Example:**
 
 ```typescript
-import {App, Setting, SettingDescriptor} from '../../public'; // Adjust path
+import {Setting, SettingDescriptor} from '../../public/setting'; // Adjust path as needed
+import {App} from '../../public/app';
+import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
 import {z} from 'zod';
 import m from 'mithril';
 
