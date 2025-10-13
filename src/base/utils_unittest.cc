@@ -384,7 +384,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     TempFile file = TempFile::Create();
     WriteAll(*file, payload.data(), payload.size());
 
-    auto fstream = OpenFstream(file.path().c_str(), "r+");
+    auto fstream = OpenFstream(file.path().c_str(), "r");
     std::string actual(128, '\0');
     size_t bytes_read = fread(actual.data(), 1, actual.size(), *fstream);
     ASSERT_EQ(bytes_read, payload.size());
