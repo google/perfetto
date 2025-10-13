@@ -292,22 +292,16 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
 
 ScopedFstream OpenFstream(const char* path, const char* mode) {
   ScopedFstream file;
-// On Windows fopen interprets filename using the ANSI or OEM codepage but
-// sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
-// filename correctly we use _wfopen and a UTF-16 string on windows.
+  // On Windows fopen interprets filename using the ANSI or OEM codepage but
+  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
+  // filename correctly we use _wfopen and a UTF-16 string on windows.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   std::string s_mode(mode);
-  bool binary_mode = false;
-  for (const char& c : s_mode) {
-    if (c == 'b') {
-      binary_mode = true;
-      break;
-    }
-    if (c == ',')
-      break;
-  }
-  if (!binary_mode)
-    s_mode = 'b' + s_mode;
+  bool is_text_mode = Contains(s_mode, "ccs=") || Contains(s_mode, "t");
+  PERFETTO_CHECK(!is_text_mode);
+  bool is_binary_mode = Contains(s_mode, 'b');
+  if (!is_binary_mode)
+    s_mode += 'b';
 
   auto w_path = ToUtf16(path);
   auto w_mode = ToUtf16(s_mode);
