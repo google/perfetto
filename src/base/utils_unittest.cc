@@ -342,7 +342,7 @@ TEST(UtilsTest, GetFileSize) {
   ASSERT_EQ(maybe_size.value(), payload.size());
 }
 
-// #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
   auto tmp = TempDir::Create();
   std::string tmp_path = tmp.path() + "/temp.txt";
@@ -391,7 +391,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     ASSERT_EQ(actual, payload);
   }
 }
-// #endif
+#endif
 
 }  // namespace
 }  // namespace base
