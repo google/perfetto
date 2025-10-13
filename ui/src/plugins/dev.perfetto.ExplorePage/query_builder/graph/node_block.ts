@@ -59,7 +59,11 @@ export const NodeBlock: m.Component<NodeBlockAttrs> = {
           ),
         ),
         renderWarningIcon(lastNode),
-        renderAddButton({...attrs, node: lastNode}),
+        renderAddButton({
+          ...attrs,
+          node: lastNode,
+          onAddDerivedNode: attrs.onAddDerivedNode,
+        }),
       ),
     );
   },
