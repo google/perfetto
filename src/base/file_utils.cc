@@ -295,8 +295,15 @@ ScopedFstream OpenFstream(const char* path, const char* mode) {
   // On Windows fopen interprets filename using the ANSI or OEM codepage but
   // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
   // filename correctly we use _wfopen and a UTF-16 string on windows.
+  //
+  // On Windows fopen also open files in the text mode by default, but we want
+  // to open them in the binary mode, to avoid silly EOL translations (and to be
+  // consistent with base::OpenFile). So we check the mode first and append 'b'
+  // mode only when it makes sense.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   std::string s_mode(mode);
+  // Windows supports non-standard mode extension that sets encoding in text
+  // mode. If you need to open a FILE* in text mode, use the fopen API directly.
   bool is_text_mode = Contains(s_mode, "ccs=") || Contains(s_mode, "t");
   PERFETTO_CHECK(!is_text_mode);
   bool is_binary_mode = Contains(s_mode, 'b');

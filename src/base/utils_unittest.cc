@@ -342,23 +342,37 @@ TEST(UtilsTest, GetFileSize) {
   ASSERT_EQ(maybe_size.value(), payload.size());
 }
 
-TEST(UtilsTest, OpenFstream) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
+  auto tmp = TempDir::Create();
+  std::string tmp_path = tmp.path() + "/temp.txt";
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      { auto fstream_write = OpenFstream(tmp_path.c_str(), "wt"); }, "");
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      { auto fstream_write = OpenFstream(tmp_path.c_str(), "w,css=UTF-8"); },
+      "");
+}
+
+TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
   auto tmp = TempDir::Create();
   std::string tmp_path = tmp.path() + "/temp.txt";
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
 
-  {
+  for (const char* mode : {"w", "wb"}) {
     {
-      auto fstream_write = OpenFstream(tmp_path.c_str(), "w");
+      auto fstream_write = OpenFstream(tmp_path.c_str(), mode);
       size_t res = fwrite(payload.data(), payload.size(), 1, *fstream_write);
       ASSERT_EQ(res, 1ul);
     }
     {
-      // If not in binary mode, '\r\n' sequences are translated both read and
-      // write using FILE* api. So we read back data using `ReadFile` (it uses
-      // `open` with O_BINARY flag on Windows) to get the real bytes from disk.
+      // If not in binary mode, '\r\n' sequences are translated when both read
+      // and write using FILE* API. So we read back data using `ReadFile` (it
+      // uses `open` with O_BINARY flag on Windows) to get the real bytes from
+      // the disk.
       std::string actual;
       ASSERT_TRUE(ReadFile(tmp_path, &actual));
       ASSERT_EQ(actual, payload);
@@ -366,6 +380,7 @@ TEST(UtilsTest, OpenFstream) {
     ASSERT_EQ(remove(tmp_path.c_str()), 0);
   }
 }
+#endif
 
 }  // namespace
 }  // namespace base
