@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertTrue} from '../base/logging';
+import {assertFalse, assertTrue} from '../base/logging';
 import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
 
 export const ROUTE_PREFIX = '#!';
@@ -72,14 +72,32 @@ export interface Route {
 export class Router {
   private readonly recentChanges: number[] = [];
 
-  // frontend/index.ts calls maybeOpenTraceFromRoute() + redraw here.
-  // This event is decoupled for testing and to avoid circular deps.
-  onRouteChanged: (route: Route) => void = () => {};
+  private running = false;
 
-  constructor() {
+  private static instance: Router | undefined;
+
+  // The onRouteChanged event is decoupled for testing and to avoid circular deps.
+  // frontend/Frontend.ts calls maybeOpenTraceFromRoute() + redraw here.
+  constructor(protected readonly onRouteChanged: (route: Route) => void) {
+    assertFalse(
+      Router.instance !== undefined,
+      'The router has already been created.',
+    );
+    Router.instance = this;
+  }
+
+  start(): Disposable {
+    assertFalse(this.running, 'Router already running');
+    this.running = true;
+
+    const oldOnHashChange = window.onhashchange;
     window.onhashchange = (e: HashChangeEvent) => this.onHashChange(e);
-    const route = Router.parseUrl(window.location.href);
-    this.onRouteChanged(route);
+    return {
+      [Symbol.dispose]: () => {
+        window.onhashchange = oldOnHashChange;
+        this.running = false;
+      },
+    };
   }
 
   private onHashChange(e: HashChangeEvent) {
@@ -88,6 +106,14 @@ export class Router {
     const oldRoute = Router.parseUrl(e.oldURL);
     const newRoute = Router.parseUrl(e.newURL);
 
+    this.handleRouteChange(oldRoute, newRoute, e.newURL);
+  }
+
+  protected handleRouteChange(
+    oldRoute: Route,
+    newRoute: Route,
+    newURL: string,
+  ): void {
     if (
       newRoute.args.local_cache_key === undefined &&
       oldRoute.args.local_cache_key
@@ -116,7 +142,7 @@ export class Router {
       normalizedFragment += `#${newRoute.fragment}`;
     }
 
-    if (!e.newURL.endsWith(normalizedFragment)) {
+    if (!newURL.endsWith(normalizedFragment)) {
       location.replace(normalizedFragment);
       return;
     }
@@ -125,8 +151,21 @@ export class Router {
   }
 
   static navigate(newHash: string) {
+    this.instance?.navigateHash(newHash);
+  }
+
+  navigateHash(newHash: string): void {
     assertTrue(newHash.startsWith(ROUTE_PREFIX));
     window.location.hash = newHash;
+  }
+
+  /** Get the current route. */
+  get route(): Route {
+    return Router.parseFragment(location.hash);
+  }
+
+  static get currentRoute(): Route {
+    return Router.instance?.route ?? this.parseFragment(location.hash);
   }
 
   // Breaks down a fragment into a Route object.

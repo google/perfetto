@@ -14,6 +14,17 @@
 
 import {assertTrue} from './logging';
 
+let servingRoot: string | undefined;
+
+/**
+ * Set the root URL prefix for serving assets.
+ * Useful for embedding applications that cannot rely on the document script.
+ * If not set, it will be derived when needed from the document script.
+ */
+export function setServingRoot(root: string): void {
+  servingRoot = root;
+}
+
 export function fetchWithTimeout(
   input: RequestInfo,
   init: RequestInit,
@@ -74,6 +85,10 @@ export function fetchWithProgress(
  * @returns the directory where the app is served from, e.g. 'v46.0-a2082649b'
  */
 export function getServingRoot() {
+  if (servingRoot !== undefined) {
+    return servingRoot;
+  }
+
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
   const script = document.currentScript as HTMLScriptElement;
@@ -81,10 +96,11 @@ export function getServingRoot() {
   if (script === null) {
     // Can be null in tests.
     assertTrue(typeof jest !== 'undefined');
-    return '';
+    servingRoot = '';
+  } else {
+    servingRoot = script.src;
+    servingRoot = servingRoot.substring(0, servingRoot.lastIndexOf('/') + 1);
   }
 
-  let root = script.src;
-  root = root.substring(0, root.lastIndexOf('/') + 1);
-  return root;
+  return servingRoot;
 }

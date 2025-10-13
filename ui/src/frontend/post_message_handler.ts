@@ -128,7 +128,13 @@ function shouldGracefullyIgnoreMessage(messageEvent: MessageEvent) {
 // possible for the source website to inspect whether the message handler is
 // ready, so the message handler always replies to a 'PING' message with 'PONG',
 // which indicates it is ready to receive a trace.
-export function postMessageHandler(messageEvent: MessageEvent) {
+// An optional `delegate` handles messages not recognized by this handler. If
+// defined, it must return `true` on successfully handling a message, otherwise
+// `false`.
+export function postMessageHandler(
+  messageEvent: MessageEvent,
+  delegate?: (event: MessageEvent) => boolean,
+) {
   if (shouldGracefullyIgnoreMessage(messageEvent)) {
     // This message should not be handled in this handler,
     // because it will be handled elsewhere.
@@ -208,6 +214,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     }
   } else if (messageEvent.data instanceof ArrayBuffer) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
+  } else if (delegate?.(messageEvent) === true) {
+    return;
   } else {
     console.warn(
       'Unknown postMessage() event received. If you are trying to open a ' +
