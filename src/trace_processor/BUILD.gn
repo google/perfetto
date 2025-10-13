@@ -408,6 +408,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../gn:gtest_and_gmock",
       "../../gn:gtest_main",
       "../../gn:jsoncpp",
+      "../../include/perfetto/ext/base",
       "../base:test_support",
     ]
   }
