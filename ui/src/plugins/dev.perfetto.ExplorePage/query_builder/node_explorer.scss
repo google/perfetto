@@ -45,6 +45,15 @@
   i.pf-node-explorer__warning-icon--warning {
     color: var(--pf-color-warning);
   }
+
+  .pf-node-explorer__comment {
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    background-color: var(--pf-color-background);
+    margin-top: 0.5rem;
+    resize: vertical;
+  }
 }
 
 .pf-node-explorer-sql-source {

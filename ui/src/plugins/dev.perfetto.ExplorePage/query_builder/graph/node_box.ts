@@ -22,6 +22,8 @@ import {QueryNode, singleNodeOperation} from '../../query_node';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {Chip} from '../../../../widgets/chip';
 import {Icon} from '../../../../widgets/icon';
+import {Callout} from '../../../../widgets/callout';
+import {Intent} from '../../../../widgets/common';
 
 import {NodeContainer} from './node_container';
 
@@ -49,9 +51,7 @@ export interface NodeBoxAttrs {
   ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddAggregation: (node: QueryNode) => void;
-  readonly onModifyColumns: (node: QueryNode) => void;
-  readonly onAddIntervalIntersect: (node: QueryNode) => void;
+  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -67,6 +67,8 @@ export function renderWarningIcon(node: QueryNode): m.Child {
     title: node.state.issues.getTitle(),
   });
 }
+
+import {nodeRegistry} from '../node_registry';
 
 export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
@@ -94,8 +96,15 @@ export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddAggregation, onModifyColumns, onAddIntervalIntersect} =
-    attrs;
+  const {node, onAddDerivedNode} = attrs;
+  const derivedNodes = nodeRegistry
+    .list()
+    .filter(([_id, descriptor]) => descriptor.type === 'derived');
+
+  if (derivedNodes.length === 0) {
+    return null;
+  }
+
   return m(
     PopupMenu,
     {
@@ -104,17 +113,11 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
         icon: 'add',
       }),
     },
-    m(MenuItem, {
-      label: 'Aggregate',
-      onclick: () => onAddAggregation(node),
-    }),
-    m(MenuItem, {
-      label: 'Modify Columns',
-      onclick: () => onModifyColumns(node),
-    }),
-    m(MenuItem, {
-      label: 'Interval Intersect',
-      onclick: () => onAddIntervalIntersect(node),
+    ...derivedNodes.map(([id, descriptor]) => {
+      return m(MenuItem, {
+        label: descriptor.name,
+        onclick: () => onAddDerivedNode(id, node),
+      });
     }),
   );
 }
@@ -139,7 +142,7 @@ export function renderFilters(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
-export const NodeBoxContent: m.Component<{node: QueryNode}> = {
+export const NodeBoxContent: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
     const hasCustomTitle = node.state.customTitle !== undefined;
@@ -148,7 +151,10 @@ export const NodeBoxContent: m.Component<{node: QueryNode}> = {
     return m(
       '.pf-node-box__content',
       shouldShowTitle && m('span.pf-node-box__title', node.getTitle()),
+      node.state.comment &&
+        m(Callout, {intent: Intent.None}, node.state.comment),
       m('.pf-node-box__details', node.nodeDetails?.()),
+      renderFilters(attrs),
     );
   },
 };
@@ -193,8 +199,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
           });
         }),
         renderWarningIcon(node),
-        m(NodeBoxContent, {node}),
-        renderFilters(attrs),
+        m(NodeBoxContent, attrs),
         renderContextMenu(attrs),
         node.nextNodes.map((_, i) => {
           const portCount = node.nextNodes.length;
