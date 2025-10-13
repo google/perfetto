@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Setting} from '../../public/settings';
-import {SettingsManagerImpl} from '../../core/settings_manager';
+import {SettingImpl, SettingsManagerImpl} from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
@@ -28,7 +28,10 @@ import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {FuzzyFinder} from '../../base/fuzzy';
+import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {CORE_PLUGIN_ID} from '../../core/plugin_manager';
+import {Popup} from '../../widgets/popup';
+import {Box} from '../../widgets/box';
 
 export class SettingsPage implements m.ClassComponent {
   private filterText = '';
@@ -36,17 +39,22 @@ export class SettingsPage implements m.ClassComponent {
   view() {
     const app = AppImpl.instance;
     const settingsManager = app.settings as SettingsManagerImpl;
-    const allSettings = settingsManager.getAllSettings();
     const reloadRequired = settingsManager.isReloadRequired();
-
-    // Filter settings based on the search text
     const isFiltering = this.filterText.trim() !== '';
-    const finder = new FuzzyFinder(allSettings, (s) => {
-      return `${s.name} ${s.description ?? ''}`;
+
+    // Get settings (filtered or all) grouped by plugin
+    const settings = isFiltering
+      ? this.getFilteredSettingsGrouped(settingsManager)
+      : this.getAllSettingsGrouped(settingsManager);
+    const groupedSettings = this.groupSettingsByPlugin(settings);
+
+    // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
+    const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
+      if (a === CORE_PLUGIN_ID) return -1;
+      if (b === CORE_PLUGIN_ID) return 1;
+      return a.localeCompare(b);
     });
-    const filteredSettings = isFiltering
-      ? finder.find(this.filterText)
-      : allSettings.map((item) => ({item, segments: []}));
+
     return m(
       SettingsShell,
       {
@@ -55,11 +63,39 @@ export class SettingsPage implements m.ClassComponent {
         stickyHeaderContent: m(
           Stack,
           {orientation: 'horizontal'},
-          m(Button, {
-            icon: 'restore',
-            label: 'Restore Defaults',
-            onclick: () => settingsManager.resetAll(),
-          }),
+          m(
+            Popup,
+            {
+              trigger: m(Button, {
+                icon: 'restore',
+                label: 'Restore Defaults',
+              }),
+            },
+            m(
+              Box,
+              m(
+                Stack,
+                'Are you sure you want to restore all settings to their default values? This action cannot be undone!',
+                m(
+                  Stack,
+                  {orientation: 'horizontal'},
+                  m(StackAuto),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    variant: ButtonVariant.Filled,
+                    label: 'Cancel',
+                  }),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    intent: Intent.Danger,
+                    variant: ButtonVariant.Filled,
+                    label: 'Restore Defaults',
+                    onclick: () => settingsManager.resetAll(),
+                  }),
+                ),
+              ),
+            ),
+          ),
           reloadRequired &&
             m(Button, {
               icon: 'refresh',
@@ -82,14 +118,68 @@ export class SettingsPage implements m.ClassComponent {
       },
       m(
         '.pf-settings-page',
-        filteredSettings.length === 0
+        groupedSettings.size === 0
           ? this.renderEmptyState(isFiltering)
-          : m(
-              CardStack,
-              filteredSettings.map(({item}) => {
-                return this.renderSettingCard(item);
-              }),
-            ),
+          : sortedPluginIds.map((pluginId) => {
+              const settings = groupedSettings.get(pluginId)!;
+              return this.renderPluginSection(pluginId, settings);
+            }),
+      ),
+    );
+  }
+
+  private getAllSettingsGrouped(settingsManager: SettingsManagerImpl) {
+    return settingsManager
+      .getAllSettings()
+      .map((item) => ({item, segments: []}));
+  }
+
+  private getFilteredSettingsGrouped(settingsManager: SettingsManagerImpl) {
+    const allSettings = settingsManager.getAllSettings();
+    const finder = new FuzzyFinder(allSettings, (s) => {
+      return `${s.name} ${s.description ?? ''}`;
+    });
+    return finder.find(this.filterText);
+  }
+
+  private groupSettingsByPlugin(
+    settings: Array<{item: SettingImpl<unknown>; segments: FuzzySegment[]}>,
+  ) {
+    const app = AppImpl.instance;
+    const grouped = new Map<
+      string,
+      Array<{item: Setting<unknown>; segments: FuzzySegment[]}>
+    >();
+    for (const result of settings) {
+      const setting = result.item;
+      const isCore =
+        setting.pluginId === CORE_PLUGIN_ID ||
+        app.plugins.isCorePlugin(setting.pluginId);
+      const targetGroup = isCore ? CORE_PLUGIN_ID : setting.pluginId;
+
+      const existing = grouped.get(targetGroup) ?? [];
+      existing.push(result);
+      grouped.set(targetGroup, existing);
+    }
+    return grouped;
+  }
+
+  private renderPluginSection(
+    pluginId: string,
+    settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
+  ) {
+    // Display CORE_PLUGIN_ID as "Core" in the UI
+    const displayName = pluginId === CORE_PLUGIN_ID ? 'Core' : pluginId;
+
+    return m(
+      '.pf-settings-page__plugin-section',
+      {key: pluginId},
+      m('h2.pf-settings-page__plugin-title', displayName),
+      m(
+        CardStack,
+        settings.map(({item}) => {
+          return this.renderSettingCard(item);
+        }),
       ),
     );
   }

@@ -16,8 +16,7 @@ import m from 'mithril';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
 import {SqlValue} from '../../../../trace_processor/query_result';
-import {Chip} from '../../../../widgets/chip';
-import {Stack} from '../../../../widgets/stack';
+import {GridFilterChip, GridFilterBar} from '../../../../widgets/grid';
 
 // A filter which can be applied to the table.
 export interface Filter {
@@ -111,14 +110,14 @@ export function areFiltersEqual(
 }
 
 export function renderFilters(filters: Filters): m.Children {
-  return m(Stack, {orientation: 'horizontal'}, [
-    filters.get().map((filter) =>
-      m(Chip, {
-        label: filterTitle(filter),
-        removable: true,
+  return m(GridFilterBar, [
+    filters.get().map((filter) => {
+      const filterText = filterTitle(filter);
+      return m(GridFilterChip, {
+        content: filterText,
         onRemove: () => filters.removeFilter(filter),
-      }),
-    ),
+      });
+    }),
   ]);
 }
 

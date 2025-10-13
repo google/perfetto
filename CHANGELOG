@@ -1,12 +1,18 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * "linux.ftrace": FtraceConfig.denser_generic_event_encoding is now enabled
+      by default (set it explicitly to false to revert to previous encoding,
+      which is now deprecated). This reduces trace size when recording events
+      that aren't know by perfetto at compile time.
   SQL Standard library:
     *
   Trace Processor:
     *
   UI:
-    *
+    * Perf sample callstack tracks: if a trace contains multiple callstack data
+      sources, the thread and process level callstack tracks can now be
+      expanded to see which samples came from which sampling timebase/leader
+      counter.
   SDK:
     *
 

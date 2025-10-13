@@ -43,14 +43,15 @@ export interface AggregationSerializedState {
     isValid?: boolean;
     isEditing?: boolean;
   }[];
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface AggregationNodeState extends QueryNodeState {
   prevNodes?: QueryNode[];
   groupByColumns: ColumnInfo[];
-  readonly aggregations: Aggregation[];
+  aggregations: Aggregation[];
 }
 
 export interface Aggregation {
@@ -89,10 +90,12 @@ export class AggregationNode implements QueryNode {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
+      groupByColumns: state.groupByColumns ?? [],
+      aggregations: state.aggregations ?? [],
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
-    if (!this.state.groupByColumns.length) {
+    if (this.state.groupByColumns.length === 0) {
       this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
     }
   }
@@ -181,7 +184,7 @@ export class AggregationNode implements QueryNode {
     }
 
     if (details.length === 0) {
-      return;
+      return m('div', `No aggregation`);
     }
     return m('.pf-aggregation-node-details', details);
   }
@@ -210,7 +213,7 @@ export class AggregationNode implements QueryNode {
       prevNodes: this.state.prevNodes,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
-      filters: [],
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
       issues: this.state.issues,
@@ -298,6 +301,7 @@ export class AggregationNode implements QueryNode {
       })),
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 

@@ -46,7 +46,7 @@ TEST(ProtoDecoderTest, ReadString) {
   static constexpr char kTestString[] = "test";
   message->AppendString(1, kTestString);
   std::vector<uint8_t> proto = message.SerializeAsArray();
-  TypedProtoDecoder<32, false> decoder(proto.data(), proto.size());
+  TypedProtoDecoder<32> decoder(proto.data(), proto.size());
 
   const auto& field = decoder.Get(1);
   ASSERT_EQ(field.type(), ProtoWireType::kLengthDelimited);
@@ -97,7 +97,7 @@ TEST(ProtoDecoderTest, SingleRepeatedField) {
   HeapBuffered<Message> message;
   message->AppendVarInt(/*field_id=*/2, 10);
   auto data = message.SerializeAsArray();
-  TypedProtoDecoder<2, true> tpd(data.data(), data.size());
+  TypedProtoDecoder<2> tpd(data.data(), data.size());
   auto it = tpd.GetRepeated<int32_t>(/*field_id=*/2);
   EXPECT_TRUE(it);
   EXPECT_EQ(it.field().as_int32(), 10);
@@ -113,7 +113,7 @@ TEST(ProtoDecoderTest, RepeatedVariableLengthField) {
   message->AppendString(1, kTestString);
   message->AppendString(1, kTestString2);
   std::vector<uint8_t> proto = message.SerializeAsArray();
-  TypedProtoDecoder<32, false> decoder(proto.data(), proto.size());
+  TypedProtoDecoder<32> decoder(proto.data(), proto.size());
 
   auto it = decoder.GetRepeated<ConstChars>(1);
   ASSERT_EQ(it->type(), ProtoWireType::kLengthDelimited);
@@ -133,7 +133,7 @@ TEST(ProtoDecoderTest, SingleRepeatedFieldWithExpansion) {
     message->AppendVarInt(/*field_id=*/2, i);
   }
   auto data = message.SerializeAsArray();
-  TypedProtoDecoder<2, true> tpd(data.data(), data.size());
+  TypedProtoDecoder<2> tpd(data.data(), data.size());
   auto it = tpd.GetRepeated<int32_t>(/*field_id=*/2);
   for (int i = 0; i < 2000; i++) {
     EXPECT_TRUE(it);
@@ -145,7 +145,7 @@ TEST(ProtoDecoderTest, SingleRepeatedFieldWithExpansion) {
 
 TEST(ProtoDecoderTest, NoRepeatedField) {
   uint8_t buf[] = {0x01};
-  TypedProtoDecoder<2, true> tpd(buf, 1);
+  TypedProtoDecoder<2> tpd(buf, 1);
   auto it = tpd.GetRepeated<int32_t>(/*field_id=*/1);
   EXPECT_FALSE(it);
   EXPECT_FALSE(tpd.Get(2).valid());
@@ -173,7 +173,7 @@ TEST(ProtoDecoderTest, RepeatedFields) {
   }
   EXPECT_EQ(fields_seen, "1:10;2:20;3:30;1:11;2:21;2:22;");
 
-  TypedProtoDecoder<4, true> tpd(data.data(), data.size());
+  TypedProtoDecoder<4> tpd(data.data(), data.size());
 
   // When parsing with the one-shot decoder and querying the single field id, we
   // should see the last value for each of them, not the first one. This is the
@@ -232,7 +232,7 @@ TEST(ProtoDecoderTest, FixedData) {
 
   for (size_t i = 0; i < perfetto::base::ArraySize(kFieldExpectations); ++i) {
     const FieldExpectation& exp = kFieldExpectations[i];
-    TypedProtoDecoder<999, 0> decoder(
+    TypedProtoDecoder<999> decoder(
         reinterpret_cast<const uint8_t*>(exp.encoded), exp.encoded_size);
 
     auto& field = decoder.Get(exp.id);
@@ -251,8 +251,8 @@ TEST(ProtoDecoderTest, FixedData) {
 
   // Test float and doubles decoding.
   const char buf[] = "\x0d\x00\x00\xa0\x3f\x11\x00\x00\x00\x00\x00\x42\x8f\xc0";
-  TypedProtoDecoder<2, false> decoder(reinterpret_cast<const uint8_t*>(buf),
-                                      sizeof(buf));
+  TypedProtoDecoder<2> decoder(reinterpret_cast<const uint8_t*>(buf),
+                               sizeof(buf));
   EXPECT_FLOAT_EQ(decoder.Get(1).as_float(), 1.25f);
   EXPECT_DOUBLE_EQ(decoder.Get(2).as_double(), -1000.25);
 }
@@ -276,7 +276,7 @@ TEST(ProtoDecoderTest, MoveTypedDecoder) {
 
   // Construct a decoder that uses inline storage (i.e., the fields are stored
   // within the object itself).
-  using Decoder = TypedProtoDecoder<32, false>;
+  using Decoder = TypedProtoDecoder<32>;
   std::unique_ptr<Decoder> decoder(new Decoder(proto.data(), proto.size()));
   ASSERT_GE(reinterpret_cast<uintptr_t>(&decoder->at<1>()),
             reinterpret_cast<uintptr_t>(decoder.get()));
@@ -308,7 +308,7 @@ TEST(ProtoDecoderTest, PackedRepeatedVarint) {
   {
     constexpr int kFieldId =
         pbtest::PackedRepeatedFields::kFieldInt32FieldNumber;
-    TypedProtoDecoder<kFieldId, false> decoder(
+    TypedProtoDecoder<kFieldId> decoder(
         reinterpret_cast<const uint8_t*>(serialized.data()), serialized.size());
     ASSERT_TRUE(decoder.at<kFieldId>().valid());
     bool parse_error = false;
@@ -365,7 +365,7 @@ TEST(ProtoDecoderTest, PackedRepeatedFixed32) {
   {
     constexpr int kFieldId =
         pbtest::PackedRepeatedFields::kFieldFixed32FieldNumber;
-    TypedProtoDecoder<kFieldId, false> decoder(
+    TypedProtoDecoder<kFieldId> decoder(
         reinterpret_cast<const uint8_t*>(serialized.data()), serialized.size());
     bool parse_error = false;
     auto packed_it =
@@ -422,7 +422,7 @@ TEST(ProtoDecoderTest, PackedRepeatedFixed64) {
   {
     constexpr int kFieldId =
         pbtest::PackedRepeatedFields::kFieldSfixed64FieldNumber;
-    TypedProtoDecoder<kFieldId, false> decoder(
+    TypedProtoDecoder<kFieldId> decoder(
         reinterpret_cast<const uint8_t*>(serialized.data()), serialized.size());
     bool parse_error = false;
     auto packed_it =
@@ -583,7 +583,7 @@ TEST(ProtoDecoderTest, BigFieldIds) {
   // Note: field 65535 will be also skipped because this TypedProtoDecoder has
   // a cap on MAX_FIELD_ID = 3.
   {
-    TypedProtoDecoder<3, true> tpd(data.data(), data.size());
+    TypedProtoDecoder<3> tpd(data.data(), data.size());
     EXPECT_EQ(tpd.Get(1).as_int32(), 11);
     EXPECT_EQ(tpd.Get(2).as_int32(), 12);
   }
@@ -635,9 +635,8 @@ TEST(ProtoDecoderTest, RepeatedMaxFieldIdStack) {
   const int kMaxFieldId = PROTOZERO_DECODER_INITIAL_STACK_CAPACITY;
 
   {
-    protozero::TypedProtoDecoder<kMaxFieldId,
-                                 /*HAS_NONPACKED_REPEATED_FIELDS=*/true>
-        decoder(proto.data(), proto.size());
+    protozero::TypedProtoDecoder<kMaxFieldId> decoder(proto.data(),
+                                                      proto.size());
     std::vector<uint64_t> res;
     for (auto it = decoder.GetRepeated<uint64_t>(15); it; it++) {
       res.push_back(*it);

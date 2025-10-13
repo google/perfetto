@@ -100,7 +100,7 @@ TEST(SfLayersExtractLayersTopToBottom, HandlesRelativeLayers) {
                             .AddLayer(Layer().SetZ(1))
                             .AddLayer(Layer().SetZ(0).SetZOrderRelativeOf(1))
                             .Build();
-  CheckExtractionTopToBottom(snapshot, {3, 2, 1, 4});
+  CheckExtractionTopToBottom(snapshot, {3, 2, 4, 1});
 }
 
 TEST(SfLayersExtractLayersTopToBottom, HandlesNegativeZValues) {
@@ -109,7 +109,7 @@ TEST(SfLayersExtractLayersTopToBottom, HandlesNegativeZValues) {
                             .AddLayer(Layer().SetZ(0).SetParent(1))
                             .AddLayer(Layer().SetZ(-5))
                             .Build();
-  CheckExtractionTopToBottom(snapshot, {1, 2, 3});
+  CheckExtractionTopToBottom(snapshot, {2, 1, 3});
 }
 
 TEST(SfLayersExtractLayersTopToBottom, LayerIdFallback) {

@@ -149,9 +149,9 @@ class InstrumentsXmlTokenizer::Impl {
   explicit Impl(TraceProcessorContext* context)
       : context_(context),
         data_(),
+        parser_(XML_ParserCreate(nullptr)),
         stream_(context->sorter->CreateStream(
             std::make_unique<RowParser>(context, data_))) {
-    parser_ = XML_ParserCreate(nullptr);
     XML_SetElementHandler(parser_, ElementStart, ElementEnd);
     XML_SetCharacterDataHandler(parser_, CharacterData);
     XML_SetUserData(parser_, this);

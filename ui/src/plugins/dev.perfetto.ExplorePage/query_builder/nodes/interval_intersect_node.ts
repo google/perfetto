@@ -29,8 +29,9 @@ import {FilterDefinition} from '../../../../components/widgets/data_grid/common'
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
@@ -144,7 +145,7 @@ export class IntervalIntersectNode implements QueryNode {
       prevNodes: this.state.prevNodes,
       allNodes: this.state.allNodes,
       intervalNodes: [...this.state.intervalNodes],
-      filters: [],
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
       onExecute: this.state.onExecute,
@@ -181,6 +182,7 @@ export class IntervalIntersectNode implements QueryNode {
       intervalNodes: this.state.intervalNodes.map((n) => n.nodeId),
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 

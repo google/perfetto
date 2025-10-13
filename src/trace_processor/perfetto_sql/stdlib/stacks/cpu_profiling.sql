@@ -20,6 +20,7 @@ INCLUDE PERFETTO MODULE callstacks.stack_profile;
 --
 -- Currently, this table is backed by the following data sources:
 --  * Linux perf
+--  * Simpleperf proto format
 --  * macOS instruments
 --  * Chrome CPU profiling
 --  * Legacy V8 CPU profiling
