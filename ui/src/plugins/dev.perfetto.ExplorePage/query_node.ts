@@ -46,6 +46,7 @@ export function singleNodeOperation(type: NodeType): boolean {
 export interface QueryNodeState {
   prevNodes?: QueryNode[];
   customTitle?: string;
+  comment?: string;
 
   // Operations
   filters?: FilterDefinition[];

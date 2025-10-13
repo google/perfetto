@@ -45,6 +45,7 @@ export interface AggregationSerializedState {
   }[];
   filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface AggregationNodeState extends QueryNodeState {
@@ -298,6 +299,7 @@ export class AggregationNode implements QueryNode {
       })),
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 
