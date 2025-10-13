@@ -342,17 +342,16 @@ TEST(UtilsTest, GetFileSize) {
   ASSERT_EQ(maybe_size.value(), payload.size());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
   auto tmp = TempDir::Create();
   std::string tmp_path = tmp.path() + "/temp.txt";
 
   ASSERT_DEATH_IF_SUPPORTED(
-      { auto fstream_write = OpenFstream(tmp_path.c_str(), "wt"); }, "");
+      { auto fstream_write = OpenFstream(tmp_path, "wt"); }, "");
 
   ASSERT_DEATH_IF_SUPPORTED(
-      { auto fstream_write = OpenFstream(tmp_path.c_str(), "w,css=UTF-8"); },
-      "");
+      { auto fstream_write = OpenFstream(tmp_path, "w,css=UTF-8"); }, "");
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
@@ -364,7 +363,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
 
   for (const char* mode : {"w", "wb"}) {
     {
-      auto fstream_write = OpenFstream(tmp_path.c_str(), mode);
+      auto fstream_write = OpenFstream(tmp_path, mode);
       size_t res = fwrite(payload.data(), payload.size(), 1, *fstream_write);
       ASSERT_EQ(res, 1ul);
     }
@@ -384,7 +383,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     TempFile file = TempFile::Create();
     WriteAll(*file, payload.data(), payload.size());
 
-    auto fstream = OpenFstream(file.path().c_str(), "r");
+    auto fstream = OpenFstream(file.path(), "r");
     std::string actual(128, '\0');
     size_t bytes_read = fread(actual.data(), 1, actual.size(), *fstream);
     ASSERT_EQ(bytes_read, payload.size());
@@ -392,7 +391,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     ASSERT_EQ(actual, payload);
   }
 }
-#endif
+// #endif
 
 }  // namespace
 }  // namespace base
