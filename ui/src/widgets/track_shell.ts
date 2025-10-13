@@ -326,19 +326,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                   icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
                 })
               : m('.pf-track__title-spacer'),
-            m(TrackTitle, {title: attrs.title}),
-            chips &&
-              m(
-                Stack,
-                {
-                  className: 'pf-track__chips',
-                  spacing: 'small',
-                  orientation: 'horizontal',
-                },
-                chips.map((chip) =>
-                  m(Chip, {label: chip, compact: true, rounded: true}),
-                ),
-              ),
+            m(TrackTitle, {title: attrs.title, chips}),
+
             m(
               ButtonBar,
               {
@@ -461,20 +450,37 @@ function renderCrashButton(error: Error, pluginId: string | undefined) {
 
 interface TrackTitleAttrs {
   readonly title: string;
+  readonly chips?: ReadonlyArray<string>;
 }
 
 class TrackTitle implements m.ClassComponent<TrackTitleAttrs> {
   private readonly trash = new DisposableStack();
 
   view({attrs}: m.Vnode<TrackTitleAttrs>) {
-    return m(
-      MiddleEllipsis,
-      {
-        className: 'pf-track__title',
-        text: attrs.title,
-      },
-      m('.pf-track__title-popup', attrs.title),
-    );
+    const {chips} = attrs;
+
+    return m('.pf-track__title-container', [
+      m(
+        MiddleEllipsis,
+        {
+          className: 'pf-track__title',
+          text: attrs.title,
+        },
+        m('.pf-track__title-popup', attrs.title),
+      ),
+      chips &&
+        m(
+          Stack,
+          {
+            className: 'pf-track__chips',
+            spacing: 'small',
+            orientation: 'horizontal',
+          },
+          chips.map((chip) =>
+            m(Chip, {label: chip, compact: true, rounded: true}),
+          ),
+        ),
+    ]);
   }
 
   oncreate({dom}: m.VnodeDOM<TrackTitleAttrs>) {
