@@ -40,15 +40,4 @@
   &:not(:last-child) {
     border-bottom: 2px solid var(--pf-color-border);
   }
-
-  .pf-button {
-    display: none;
-    position: absolute;
-    top: -0.5rem;
-    right: -0.5rem;
-  }
-
-  &:hover .pf-button {
-    display: flex;
-  }
 }

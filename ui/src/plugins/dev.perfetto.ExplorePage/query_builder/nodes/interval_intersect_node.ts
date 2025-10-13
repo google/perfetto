@@ -31,6 +31,7 @@ export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
   filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
@@ -181,6 +182,7 @@ export class IntervalIntersectNode implements QueryNode {
       intervalNodes: this.state.intervalNodes.map((n) => n.nodeId),
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 

@@ -30,6 +30,8 @@ import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {CORE_PLUGIN_ID} from '../../core/plugin_manager';
+import {Popup} from '../../widgets/popup';
+import {Box} from '../../widgets/box';
 
 export class SettingsPage implements m.ClassComponent {
   private filterText = '';
@@ -61,11 +63,39 @@ export class SettingsPage implements m.ClassComponent {
         stickyHeaderContent: m(
           Stack,
           {orientation: 'horizontal'},
-          m(Button, {
-            icon: 'restore',
-            label: 'Restore Defaults',
-            onclick: () => settingsManager.resetAll(),
-          }),
+          m(
+            Popup,
+            {
+              trigger: m(Button, {
+                icon: 'restore',
+                label: 'Restore Defaults',
+              }),
+            },
+            m(
+              Box,
+              m(
+                Stack,
+                'Are you sure you want to restore all settings to their default values? This action cannot be undone!',
+                m(
+                  Stack,
+                  {orientation: 'horizontal'},
+                  m(StackAuto),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    variant: ButtonVariant.Filled,
+                    label: 'Cancel',
+                  }),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    intent: Intent.Danger,
+                    variant: ButtonVariant.Filled,
+                    label: 'Restore Defaults',
+                    onclick: () => settingsManager.resetAll(),
+                  }),
+                ),
+              ),
+            ),
+          ),
           reloadRequired &&
             m(Button, {
               icon: 'refresh',

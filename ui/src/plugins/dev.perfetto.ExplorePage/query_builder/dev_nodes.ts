@@ -12,23 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+import {nodeRegistry} from './node_registry';
+import {TestNode} from './nodes/dev/test_node';
 
-.pf-node-graph {
-  position: relative;
-  height: 100%;
-  overflow: auto;
-  padding: 0.625rem;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
-  background-color: var(--pf-color-background);
-}
-
-.pf-node-graph__controls {
-  display: flex;
-  position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
-  gap: 0.5rem;
-  z-index: 10;
+export function registerDevNodes() {
+  nodeRegistry.register('test_source', {
+    name: 'Test Source',
+    description: 'A source for testing purposes.',
+    icon: 'bug_report',
+    type: 'source',
+    factory: (state) => new TestNode(state),
+    devOnly: true,
+  });
 }

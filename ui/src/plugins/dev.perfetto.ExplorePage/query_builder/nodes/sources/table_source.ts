@@ -39,6 +39,7 @@ export interface TableSourceSerializedState {
   sqlTable?: string;
   filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface TableSourceState extends QueryNodeState {
@@ -224,6 +225,7 @@ export class TableSourceNode extends SourceNode {
       sqlTable: this.state.sqlTable?.name,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 

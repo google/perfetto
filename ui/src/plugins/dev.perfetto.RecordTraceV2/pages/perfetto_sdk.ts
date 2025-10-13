@@ -50,7 +50,7 @@ function trackEvent(): RecordProbe {
     image: 'rec_atrace.png',
     description:
       'Enables C / C++ / Java annotations (PERFETTO_TE_SLICE_BEGIN(), TRACE_EVENT(), os.PerfettoTrace())',
-    supportedPlatforms: ['ANDROID', 'CHROME', 'CHROME_OS', 'LINUX'],
+    supportedPlatforms: ['ANDROID', 'LINUX'],
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addTrackEventDisabledCategories('*');

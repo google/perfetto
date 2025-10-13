@@ -29,6 +29,8 @@ import {FuzzyFinder} from '../../base/fuzzy';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
+import {Popup} from '../../widgets/popup';
+import {Box} from '../../widgets/box';
 
 enum SortOrder {
   Name = 'name',
@@ -114,19 +116,47 @@ export class PluginsPage implements m.ClassComponent {
           },
           m(
             ButtonBar,
-            m(Button, {
-              icon: 'restore',
-              disabled: !anyNonDefaults,
-              label: 'Restore Defaults',
-              title: anyNonDefaults
-                ? 'Restore all plugins to their default enabled/disabled state'
-                : 'All plugins are in their default state',
-              onclick: () => {
-                for (const plugin of registeredPlugins) {
-                  plugin.enableFlag.reset();
-                }
+            m(
+              Popup,
+              {
+                trigger: m(Button, {
+                  icon: 'restore',
+                  disabled: !anyNonDefaults,
+                  label: 'Restore Defaults',
+                  title: anyNonDefaults
+                    ? 'Restore all plugins to their default enabled/disabled state'
+                    : 'All plugins are in their default state',
+                }),
               },
-            }),
+              m(
+                Box,
+                m(
+                  Stack,
+                  'Are you sure you want to restore all plugins to their default enabled/disabled state? This action cannot be undone!',
+                  m(
+                    Stack,
+                    {orientation: 'horizontal'},
+                    m(StackAuto),
+                    m(Button, {
+                      className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                      variant: ButtonVariant.Filled,
+                      label: 'Cancel',
+                    }),
+                    m(Button, {
+                      className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                      intent: Intent.Danger,
+                      variant: ButtonVariant.Filled,
+                      label: 'Restore Defaults',
+                      onclick: () => {
+                        for (const plugin of registeredPlugins) {
+                          plugin.enableFlag.reset();
+                        }
+                      },
+                    }),
+                  ),
+                ),
+              ),
+            ),
             needsRestart && reloadButton(),
           ),
           m(StackAuto),

@@ -18,7 +18,6 @@ import {
   NodeBoxAttrs,
   NodeBoxContent,
   renderAddButton,
-  renderFilters,
   renderWarningIcon,
 } from './node_box';
 import {QueryNode} from '../../query_node';
@@ -56,12 +55,15 @@ export const NodeBlock: m.Component<NodeBlockAttrs> = {
           m(
             '.pf-node-block__node',
             {onclick: () => onNodeSelected(n)},
-            m(NodeBoxContent, {node: n}),
-            renderFilters({...attrs, node: n}),
+            m(NodeBoxContent, {...attrs, node: n}),
           ),
         ),
         renderWarningIcon(lastNode),
-        renderAddButton({...attrs, node: lastNode}),
+        renderAddButton({
+          ...attrs,
+          node: lastNode,
+          onAddDerivedNode: attrs.onAddDerivedNode,
+        }),
       ),
     );
   },

@@ -21,6 +21,9 @@
   border-radius: 8px;
   background-color: var(--pf-color-background);
   box-shadow: 0 2px 4px var(--pf-color-box-shadow);
+  // Set a max-width to prevent nodes with long comments or details from
+  // becoming excessively wide and breaking the layout.
+  max-width: 300px;
 
   &--selected {
     border-color: var(--pf-color-primary);
@@ -28,5 +31,18 @@
 
   &--dragging {
     opacity: 0.4;
+  }
+
+  // Generic styling for buttons that should appear on hover over any node
+  // container.
+  > .pf-button {
+    display: none;
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+  }
+
+  &:hover > .pf-button {
+    display: flex;
   }
 }

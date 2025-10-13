@@ -171,6 +171,15 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       'article',
       this.selectedView === SelectedView.kModify && [
         node.nodeSpecificModify(attrs.onExecute),
+        m('textarea.pf-node-explorer__comment', {
+          'aria-label': 'Comment',
+          'placeholder': 'Add a comment...',
+          'oninput': (e: InputEvent) => {
+            if (!e.target) return;
+            node.state.comment = (e.target as HTMLTextAreaElement).value;
+          },
+          'value': node.state.comment,
+        }),
       ],
       this.selectedView === SelectedView.kSql &&
         (isAQuery(this.currentQuery)

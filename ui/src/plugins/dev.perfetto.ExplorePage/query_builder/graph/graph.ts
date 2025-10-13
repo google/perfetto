@@ -30,7 +30,8 @@ import {
 } from './node_box';
 import {NodeBlock} from './node_block';
 import {Arrow, Port} from './arrow';
-import {Icon} from '../../../../widgets/icon';
+import {EmptyGraph} from '../empty_graph';
+import {nodeRegistry} from '../node_registry';
 
 const BUTTONS_AREA_WIDTH = 300;
 const BUTTONS_AREA_HEIGHT = 50;
@@ -61,30 +62,6 @@ function getInputPorts(layout: NodeBoxLayout, portCount: number): Port[] {
   return ports;
 }
 
-function keycap(glyph: m.Children): m.Children {
-  return m('.pf-keycap', glyph);
-}
-
-interface SourceCardAttrs {
-  title: string;
-  description: string;
-  icon: string;
-  hotkey: string;
-  onclick: () => void;
-}
-
-const SourceCard: m.Component<SourceCardAttrs> = {
-  view({attrs}) {
-    const {title, description, icon, hotkey, onclick} = attrs;
-    return m(
-      '.pf-source-card',
-      {onclick},
-      m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', title)),
-      m('p', description),
-      m('.pf-source-card-hotkey', keycap(hotkey)),
-    );
-  },
-};
 export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
@@ -92,12 +69,8 @@ export interface GraphAttrs {
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
-  readonly onAddStdlibTableSource: () => void;
-  readonly onAddSlicesSource: () => void;
-  readonly onAddSqlSource: () => void;
-  readonly onAddAggregation: (node: QueryNode) => void;
-  readonly onAddModifyColumns: (node: QueryNode) => void;
-  readonly onAddIntervalIntersect: (node: QueryNode) => void;
+  readonly onAddSourceNode: (id: string) => void;
+  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -105,6 +78,8 @@ export interface GraphAttrs {
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
+  readonly devMode?: boolean;
+  readonly onDevModeChange?: (enabled: boolean) => void;
 }
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
@@ -268,59 +243,29 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   private renderEmptyNodeGraph(attrs: GraphAttrs) {
-    return m(
-      '.pf-node-graph-add-button-container.pf-hero',
-      m('h2.hero-title', 'Welcome to the Explore Page'),
-      m(
-        'p.hero-subtitle',
-        'Build and execute SQL queries on your trace data using a visual ' +
-          'node-based editor. Get started by adding a source node below.',
-      ),
-      m(
-        '.pf-node-graph-add-buttons',
-        m(SourceCard, {
-          title: 'Perfetto Table',
-          description:
-            'Query and explore data from any table in the Perfetto ' +
-            'standard library.',
-          icon: 'table_chart',
-          hotkey: 'T',
-          onclick: attrs.onAddStdlibTableSource,
-        }),
-        m(SourceCard, {
-          title: 'Slices',
-          description: 'Explore all the slices from your trace.',
-          icon: 'bar_chart',
-          hotkey: 'S',
-          onclick: attrs.onAddSlicesSource,
-        }),
-        m(SourceCard, {
-          title: 'Query Node',
-          description:
-            'Start with a custom SQL query to act as a source for ' +
-            'further exploration.',
-          icon: 'code',
-          hotkey: 'Q',
-          onclick: attrs.onAddSqlSource,
-        }),
-      ),
-      m(Button, {
-        label: 'Import',
-        onclick: attrs.onImport,
-        variant: ButtonVariant.Filled,
-        icon: 'file_upload',
-      }),
-      m(Button, {
-        label: 'Import from WITH statement',
-        onclick: attrs.onImportWithStatement,
-        variant: ButtonVariant.Filled,
-        icon: 'code',
-        style: {marginLeft: '8px'},
-      }),
-    );
+    return m(EmptyGraph, {
+      onAddSourceNode: attrs.onAddSourceNode,
+      onImport: attrs.onImport,
+      onImportWithStatement: attrs.onImportWithStatement,
+      devMode: attrs.devMode,
+      onDevModeChange: attrs.onDevModeChange,
+    });
   }
 
   private renderControls(attrs: GraphAttrs) {
+    const menuItems = nodeRegistry
+      .list()
+      .filter(([_id, descriptor]) => descriptor.type === 'source')
+      .map(([id, descriptor]) => {
+        if (descriptor.devOnly && !attrs.devMode) {
+          return null;
+        }
+        return m(MenuItem, {
+          label: descriptor.name,
+          onclick: () => attrs.onAddSourceNode(id),
+        });
+      });
+
     return m(
       '.pf-node-graph__controls',
       m(
@@ -332,18 +277,36 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             variant: ButtonVariant.Filled,
           }),
         },
-        m(MenuItem, {
-          label: 'Explore table',
-          onclick: attrs.onAddStdlibTableSource,
-        }),
-        m(MenuItem, {
-          label: 'Explore slices',
-          onclick: attrs.onAddSlicesSource,
-        }),
-        m(MenuItem, {
-          label: 'Query Node',
-          onclick: attrs.onAddSqlSource,
-        }),
+        menuItems,
+      ),
+      m(Button, {
+        label: 'Export',
+        icon: Icons.Download,
+        variant: ButtonVariant.Minimal,
+        onclick: attrs.onExport,
+        style: {marginLeft: '8px'},
+      }),
+      m(Button, {
+        label: 'Clear All Nodes',
+        icon: Icons.Delete,
+        intent: Intent.Danger,
+        onclick: attrs.onClearAllNodes,
+        style: {marginLeft: '8px'},
+      }),
+    );
+
+    return m(
+      '.pf-node-graph__controls',
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: 'Add Node',
+            icon: Icons.Add,
+            variant: ButtonVariant.Filled,
+          }),
+        },
+        menuItems,
       ),
       m(Button, {
         label: 'Export',
@@ -361,7 +324,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       }),
     );
   }
-
 
   private identifyNodeBlocks(allNodes: QueryNode[]): {
     nodeToBlock: Map<QueryNode, QueryNode[]>;
@@ -418,9 +380,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddAggregation: attrs.onAddAggregation,
-            onModifyColumns: attrs.onAddModifyColumns,
-            onAddIntervalIntersect: attrs.onAddIntervalIntersect,
+            onAddDerivedNode: attrs.onAddDerivedNode,
             onNodeRendered,
             onRemoveFilter: attrs.onRemoveFilter,
           }),
@@ -437,9 +397,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddAggregation: attrs.onAddAggregation,
-            onModifyColumns: attrs.onAddModifyColumns,
-            onAddIntervalIntersect: attrs.onAddIntervalIntersect,
+            onAddDerivedNode: attrs.onAddDerivedNode,
             onNodeRendered,
             onRemoveFilter: attrs.onRemoveFilter,
           }),

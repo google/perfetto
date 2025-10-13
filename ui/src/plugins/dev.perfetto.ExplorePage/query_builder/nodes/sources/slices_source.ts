@@ -35,6 +35,7 @@ export interface SlicesSourceSerializedState {
   track_name?: string;
   filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface SlicesSourceState extends QueryNodeState {
@@ -91,6 +92,7 @@ export class SlicesSourceNode extends SourceNode {
       track_name: this.state.track_name,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 
