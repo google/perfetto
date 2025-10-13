@@ -143,7 +143,7 @@ export class SettingsManagerImpl implements SettingsManager {
 
   getAllSettings(): ReadonlyArray<SettingImpl<unknown>> {
     const settings = Array.from(this.registry.values());
-    settings.sort((a, b) => a.id.localeCompare(b.id));
+    settings.sort((a, b) => a.name.localeCompare(b.name));
     return settings;
   }
 
