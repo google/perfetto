@@ -168,6 +168,7 @@ export default class implements PerfettoPlugin {
               arg_set_id = process.arg_set_id and
               flat_key = 'chrome.process_label'
           ) chromeProcessLabels,
+          ifnull(extract_arg(process.arg_set_id, 'process_sort_index_hint'), 0) as processSortIndexHint,
           case process.name
             when 'Browser' then 3
             when 'Gpu' then 2
@@ -187,6 +188,7 @@ export default class implements PerfettoPlugin {
           slice_count as sliceCount,
           perf_sample_count as perfSampleCount,
           instruments_sample_count as instrumentsSampleCount,
+          ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           ifnull(machine_id, 0) as machine
         from _thread_available_info_summary
         join thread using (utid)
@@ -202,6 +204,7 @@ export default class implements PerfettoPlugin {
           machine
         from processGroups
         order by
+          processSortIndexHint asc,
           chromeProcessRank desc,
           heapProfileAllocationCount desc,
           heapGraphObjectCount desc,
@@ -223,6 +226,7 @@ export default class implements PerfettoPlugin {
           machine
         from threadGroups
         order by
+          threadSortIndexHint asc,
           perfSampleCount desc,
           instrumentsSampleCount desc,
           sumRunningDur desc,
