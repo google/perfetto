@@ -218,7 +218,7 @@ base::StatusOr<PerCpuConfiguration> ParseAuxtraceInfo(
     }
   }
 
-  return std::move(per_cpu_configuration);
+  return base::StatusOr<PerCpuConfiguration>(std::move(per_cpu_configuration));
 }
 
 // ETM data is embedded in the AUX buffers.

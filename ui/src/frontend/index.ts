@@ -35,6 +35,11 @@ import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
+import {
+  DEFAULT_TRACK_MIN_HEIGHT_PX,
+  MINIMUM_TRACK_MIN_HEIGHT_PX,
+  TRACK_MIN_HEIGHT_SETTING,
+} from './viewer_page/track_view';
 import {renderViewerPage} from './viewer_page/viewer_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
@@ -337,6 +342,15 @@ function onCssLoaded() {
     defaultValue: 'light',
   });
 
+  AppImpl.instance.settings.register({
+    id: TRACK_MIN_HEIGHT_SETTING,
+    name: 'Track Height',
+    description:
+      'Minimum height of tracks in the trace viewer page, in pixels.',
+    schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
+    defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
+  });
+
   // Add command to toggle the theme.
   AppImpl.instance.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
@@ -363,11 +377,23 @@ function onCssLoaded() {
       }
 
       return m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(HotkeyContext, {hotkeys, fillHeight: true, autoFocus: true}, [
-          m(OverlayContainer, {fillParent: true}, [
-            m(UiMain, {key: themeSetting.get()}),
-          ]),
-        ]),
+        m(
+          HotkeyContext,
+          {
+            hotkeys,
+            fillHeight: true,
+            // When embedded, hotkeys should be scoped to the context element to
+            // avoid interfering with the parent page. In standalone mode,
+            // document-level binding provides better UX (e.g., PGUP/PGDN scroll
+            // behavior).
+            focusable: false,
+          },
+          [
+            m(OverlayContainer, {fillParent: true}, [
+              m(UiMain, {key: themeSetting.get()}),
+            ]),
+          ],
+        ),
       ]);
     },
   });
@@ -411,8 +437,8 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(overrides);
