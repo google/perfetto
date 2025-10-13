@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/theme";
+@import "../../../../assets/theme";
 
 .pf-node-box {
   display: flex;
-  position: absolute;
   align-items: center;
   gap: 0.375rem;
   padding: 0.625rem 0.75rem;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
-  background-color: var(--pf-color-background);
-  box-shadow: 0 2px 4px var(--pf-color-box-shadow);
   cursor: grab;
   transition:
     border-color 0.2s ease-in-out,
@@ -89,10 +84,6 @@
 
 .pf-node-box__filters {
   margin-top: 0.5rem;
-}
-
-.pf-node-box {
-  position: absolute;
 }
 
 .pf-node-box-add-button {

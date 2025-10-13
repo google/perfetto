@@ -23,7 +23,7 @@ import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {PageHandler} from '../public/page';
 import {Raf} from '../public/raf';
 import {RouteArg, RouteArgs} from '../public/route_schema';
-import {Setting, SettingsManager} from '../public/settings';
+import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
@@ -216,6 +216,7 @@ export class AppImpl implements App {
   readonly initialPluginRouteArgs: RouteArgs;
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
+  private readonly settingsMgrProxy: SettingsManager;
 
   // Invoked by frontend/index.ts.
   static initialize(args: AppInitArgs) {
@@ -257,6 +258,12 @@ export class AppImpl implements App {
           ...pageHandler,
           pluginId,
         });
+      },
+    });
+
+    this.settingsMgrProxy = createProxy(this.appCtx.settingsManager, {
+      register<T>(setting: SettingDescriptor<T>): Setting<T> {
+        return appCtx.settingsManager.register(setting, pluginId);
       },
     });
   }
@@ -306,7 +313,7 @@ export class AppImpl implements App {
   }
 
   get settings(): SettingsManager {
-    return this.appCtx.settingsManager;
+    return this.settingsMgrProxy;
   }
 
   get featureFlags(): FeatureFlagManager {

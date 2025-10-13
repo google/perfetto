@@ -30,6 +30,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_redaction/add_synth_threads_to_process_trees.h"
 #include "src/trace_redaction/broadphase_packet_filter.h"
+#include "src/trace_redaction/collect_clocks.h"
 #include "src/trace_redaction/collect_frame_cookies.h"
 #include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
@@ -168,6 +169,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   redactor->emplace_collect<CollectTimelineEvents>();
   redactor->emplace_collect<CollectFrameCookies>();
   redactor->emplace_collect<CollectSystemInfo>();
+  redactor->emplace_collect<CollectClocks>();
 
   // Add all builders.
   redactor->emplace_build<ReduceFrameCookies>();

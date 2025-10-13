@@ -20,9 +20,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -34,6 +37,25 @@
 namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
+
+// Represents the flow graph with pre-computed adjacency lists.
+struct FlowGraph {
+  base::FlatHashMap<SliceId, std::vector<tables::FlowTable::RowNumber>>
+      outgoing_flows;
+  base::FlatHashMap<SliceId, std::vector<tables::FlowTable::RowNumber>>
+      incoming_flows;
+
+  static FlowGraph Build(const tables::FlowTable& flow_table) {
+    FlowGraph graph;
+    for (uint32_t i = 0; i < flow_table.row_count(); ++i) {
+      tables::FlowTable::RowNumber row(i);
+      auto ref = row.ToRowReference(flow_table);
+      graph.outgoing_flows[ref.slice_out()].push_back(row);
+      graph.incoming_flows[ref.slice_in()].push_back(row);
+    }
+    return graph;
+  }
+};
 
 // Implementation of tables:
 // - DIRECTLY_CONNECTED_FLOW
@@ -62,9 +84,8 @@ class ConnectedFlow : public StaticTableFunction {
     Mode mode_;
     TraceStorage* storage_ = nullptr;
     tables::ConnectedFlowTable table_;
-    tables::FlowTable::ConstCursor outgoing_cursor_;
-    tables::FlowTable::ConstCursor incoming_cursor_;
     tables::SliceTable::ConstCursor descendant_cursor_;
+    std::optional<FlowGraph> cached_flow_graph_;
   };
 
   ConnectedFlow(Mode mode, TraceStorage*);

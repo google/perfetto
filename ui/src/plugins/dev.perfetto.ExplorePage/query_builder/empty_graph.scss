@@ -14,16 +14,6 @@
 
 @import "../../../assets/theme";
 
-.pf-node-graph {
-  position: relative;
-  height: 100%;
-  overflow: auto;
-  padding: 0.625rem;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
-  background-color: var(--pf-color-background);
-}
-
 .pf-node-graph-add-button-container {
   position: absolute;
   top: 50%;
@@ -37,55 +27,28 @@
   display: flex;
   gap: 1rem;
   justify-content: center;
+  margin-bottom: 1rem;
 }
 
-.pf-node-graph__controls {
-  display: flex;
-  position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
-  gap: 0.5rem;
-  z-index: 10;
-}
-
-.pf-hero {
+.pf-empty-graph-hero {
   padding: 2rem;
   margin-bottom: 2rem;
   text-align: center;
   border-radius: 0.5rem;
 
-  .hero-title {
+  .pf-empty-graph-hero__title {
+    font-size: 1.8em;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
     font-size: 1.8em;
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
 
-  .hero-subtitle {
+  .pf-empty-graph-hero__subtitle {
     font-size: 1.1em;
     color: var(--pf-color-text-muted);
   }
-}
-
-.pf-node-box-port {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  background-color: var(--pf-color-border);
-  border-radius: 50%;
-}
-
-.pf-node-box-port-top {
-  top: -5px;
-  left: 50%;
-  margin-left: -5px;
-}
-
-.pf-node-box-port-bottom {
-  bottom: -5px;
-}
-
-.pf-node-box-port-bottom {
-  bottom: -5px;
 }
 
 .pf-source-card {
@@ -97,9 +60,10 @@
   width: 200px;
   text-align: center;
   cursor: pointer;
+  border: 1px solid var(--pf-color-border);
 
   &:hover {
-    background-color: color_hover(transparent);
+    background-color: var(--pf-color-hover-background);
   }
 
   .pf-icon {
@@ -116,4 +80,19 @@
     flex-grow: 1;
     color: var(--pf-color-text-muted);
   }
+}
+
+.pf-keycap {
+  display: inline-block;
+  padding: 0.3em 0.5em;
+  border-radius: 0.3em;
+  border: 1px solid var(--pf-color-border);
+  background-color: var(--pf-color-background);
+  font-size: 0.9em;
+}
+
+.dev-mode-switch {
+  position: absolute;
+  top: 16px;
+  right: 16px;
 }

@@ -14,10 +14,12 @@
 
 import protos from '../../protos';
 import m from 'mithril';
+import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
 import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
+import {Trace} from '../../public/trace';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {
@@ -31,7 +33,6 @@ export enum NodeType {
   kSqlSource,
 
   // Single node operations
-  kSubQuery,
   kAggregation,
   kModifyColumns,
 
@@ -39,13 +40,22 @@ export enum NodeType {
   kIntervalIntersect,
 }
 
+export function singleNodeOperation(type: NodeType): boolean {
+  return type === NodeType.kAggregation || type === NodeType.kModifyColumns;
+}
+
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNodes?: QueryNode[];
   customTitle?: string;
+  comment?: string;
+  sourceCols?: ColumnInfo[];
+  trace?: Trace;
+  sqlModules?: SqlModules;
+  sqlTable?: SqlTable;
 
   // Operations
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
 
   issues?: NodeIssues;
 

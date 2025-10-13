@@ -37,8 +37,9 @@ import {SourceNode} from '../../source_node';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface TableSourceState extends QueryNodeState {
@@ -123,7 +124,7 @@ export class TableSourceNode extends SourceNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      filters: this.state.filters.map((f) => ({...f})),
+      filters: this.state.filters?.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
@@ -187,7 +188,7 @@ export class TableSourceNode extends SourceNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
+    return this.state.customTitle ?? `${this.state.sqlTable?.name}`;
   }
 
   isMaterialised(): boolean {
@@ -224,6 +225,7 @@ export class TableSourceNode extends SourceNode {
       sqlTable: this.state.sqlTable?.name,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 
