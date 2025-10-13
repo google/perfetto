@@ -379,6 +379,18 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     }
     ASSERT_EQ(remove(tmp_path.c_str()), 0);
   }
+
+  {
+    TempFile file = TempFile::Create();
+    WriteAll(*file, payload.data(), payload.size());
+
+    auto fstream = OpenFstream(file.path().c_str(), "r+");
+    std::string actual(128, '\0');
+    size_t bytes_read = fread(actual.data(), 1, actual.size(), *fstream);
+    ASSERT_EQ(bytes_read, payload.size());
+    actual.resize(bytes_read);
+    ASSERT_EQ(actual, payload);
+  }
 }
 #endif
 
