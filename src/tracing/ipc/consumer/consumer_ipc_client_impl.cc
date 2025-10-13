@@ -475,7 +475,8 @@ void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
     consumer_->OnSessionCloned(
         {false,
          "Passing FDs into CloneSession is not supported on Windows",
-         {}});
+         {},
+         false});
     return;
   }
 #endif
