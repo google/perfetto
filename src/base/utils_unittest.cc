@@ -106,7 +106,9 @@ TEST(UtilsTest, PipeBlockingRW) {
 // is a HANDLE.
 TEST(UtilsTest, ReadWritePlatformHandle) {
   auto tmp = TempDir::Create();
-  std::string payload = "foo\nbar\0baz\r\nqux";
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
   std::string tmp_path = tmp.path() + "/temp.txt";
 
   // Write a file using PlatformHandle. Note: the {} blocks are to make sure
@@ -338,6 +340,31 @@ TEST(UtilsTest, GetFileSize) {
   auto maybe_size = GetFileSize(file.path());
   ASSERT_TRUE(maybe_size.has_value());
   ASSERT_EQ(maybe_size.value(), payload.size());
+}
+
+TEST(UtilsTest, OpenFstream) {
+  auto tmp = TempDir::Create();
+  std::string tmp_path = tmp.path() + "/temp.txt";
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
+
+  {
+    {
+      auto fstream_write = OpenFstream(tmp_path.c_str(), "w");
+      size_t res = fwrite(payload.data(), payload.size(), 1, *fstream_write);
+      ASSERT_EQ(res, 1ul);
+    }
+    {
+      auto fstream_read = OpenFstream(tmp_path.c_str(), "r");
+      std::string data_read(128, '\0');
+      size_t size = fread(data_read.data(), 1, data_read.size(), *fstream_read);
+      ASSERT_EQ(size, payload.size());
+      data_read.resize(size);
+      ASSERT_EQ(data_read, payload);
+    }
+    ASSERT_EQ(remove(tmp_path.c_str()), 0);
+  }
 }
 
 }  // namespace
