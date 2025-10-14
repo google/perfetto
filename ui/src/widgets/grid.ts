@@ -14,15 +14,19 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button} from './button';
+import {Chip} from './chip';
+import {HTMLAttrs} from './common';
 import {MenuItem, PopupMenu} from './menu';
-import {MithrilEvent} from '../base/mithril_utils';
+import {PopupPosition} from './popup';
+import {Stack} from './stack';
 
 const COL_WIDTH_MIN_PX = 60;
 const COL_WIDTH_DEFAULT_PX = 100;
 
-export interface GridAttrs {
+export interface GridAttrs extends HTMLAttrs {
   // If true, the grid will fill the height of its parent container.
   readonly fillHeight?: boolean;
   // An optional class name to add to the root element of the grid.
@@ -33,11 +37,12 @@ export interface GridAttrs {
 // `GridHeader` and `GridBody` as children.
 export class Grid implements m.ClassComponent<GridAttrs> {
   view({attrs, children}: m.Vnode<GridAttrs>) {
-    const {fillHeight = false, className} = attrs;
+    const {fillHeight = false, className, ...rest} = attrs;
     return m(
       '.pf-grid',
       {
         className: classNames(fillHeight && 'pf-grid--fill-height', className),
+        ...rest,
       },
       children,
     );
@@ -52,16 +57,16 @@ export class GridHeader implements m.ClassComponent {
 }
 
 // Renders the `<tbody>` element. It will also contain `GridRow` components.
-export class GridBody implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m('.pf-grid__body', children);
+export class GridBody implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.Vnode<HTMLAttrs>) {
+    return m('.pf-grid__body', attrs, children);
   }
 }
 
 // Renders a `<tr>` element. It expects a list of cells.
-export class GridRow implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m('.pf-grid__row', children);
+export class GridRow implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.Vnode<HTMLAttrs>) {
+    return m('.pf-grid__row', attrs, children);
   }
 }
 
@@ -445,10 +450,6 @@ export interface PageControlAttrs {
   firstPageClick(): void;
   lastPageClick(): void;
 }
-
-import {Stack} from './stack';
-import {Chip} from './chip';
-import {PopupPosition} from './popup';
 
 export class PageControl implements m.ClassComponent<PageControlAttrs> {
   view({attrs}: m.Vnode<PageControlAttrs>) {
