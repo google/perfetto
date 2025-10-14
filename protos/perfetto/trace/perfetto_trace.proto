@@ -6901,7 +6901,7 @@ message DisplayState {
 
 message UserList {
   message UserInfo {
-    optional string name = 1;
+    optional string type = 1;
     optional uint64 uid = 2;
   }
 
