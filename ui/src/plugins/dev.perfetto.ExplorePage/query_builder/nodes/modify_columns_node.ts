@@ -108,9 +108,11 @@ export class ModifyColumnsNode implements QueryNode {
     const finalCols = newColumnInfoList(
       this.state.selectedColumns.filter((col) => col.checked),
     );
-    this.state.newColumns.forEach((col) => {
-      finalCols.push(columnInfoFromName(col.name, true));
-    });
+    this.state.newColumns
+      .filter((c) => this.isNewColumnValid(c))
+      .forEach((col) => {
+        finalCols.push(columnInfoFromName(col.name, true));
+      });
     return finalCols;
   }
 
@@ -153,14 +155,16 @@ export class ModifyColumnsNode implements QueryNode {
     // Determine the state of modifications.
     const hasUnselected = this.state.selectedColumns.some((c) => !c.checked);
     const hasAlias = this.state.selectedColumns.some((c) => c.alias);
-    const hasNewColumns = this.state.newColumns.length > 0;
+    const newValidColumns = this.state.newColumns.filter((c) =>
+      this.isNewColumnValid(c),
+    );
 
     // If there are no modifications, show a default message.
-    if (!hasUnselected && !hasAlias && !hasNewColumns) {
+    if (!hasUnselected && !hasAlias && newValidColumns.length === 0) {
       return m('.pf-node-details-message', 'Select all');
     }
 
-    const details: m.Child[] = [];
+    const cards: m.Child[] = [];
 
     // If columns have been unselected or aliased, list the selected ones.
     if (hasUnselected || hasAlias) {
@@ -173,26 +177,26 @@ export class ModifyColumnsNode implements QueryNode {
             return m('div', c.column.name);
           }
         });
-        details.push(m('.pf-node-details-box', ...selectedItems));
+        cards.push(
+          m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
+        );
       }
     }
 
     // If new columns have been added, list them.
-    if (hasNewColumns) {
-      const newItems = this.state.newColumns.map((c) =>
+    if (newValidColumns.length > 0) {
+      const newItems = newValidColumns.map((c) =>
         m('div', `${c.expression} AS ${c.name}`),
       );
-      details.push(
-        m('.pf-node-details-box', m('strong', 'New columns:'), ...newItems),
-      );
+      cards.push(m(Card, {className: 'pf-node-details-card'}, ...newItems));
     }
 
     // If all columns have been deselected, show a specific message.
-    if (details.length === 0) {
+    if (cards.length === 0) {
       return m('.pf-node-details-message', 'All columns deselected');
     }
 
-    return m('.pf-modify-columns-node-details', details);
+    return m(CardStack, cards);
   }
 
   nodeSpecificModify(): m.Child {
