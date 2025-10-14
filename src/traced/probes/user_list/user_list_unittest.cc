@@ -65,7 +65,7 @@ TEST(UserListDataSourceTest, ParseLineProfileNonDebug) {
   EXPECT_EQ(parsed_list.users_size(), 3);
   EXPECT_EQ(parsed_list.users()[0].name(), "SYSTEM");
   EXPECT_EQ(parsed_list.users()[0].uid(), 0u);
-  EXPECT_EQ(parsed_list.users()[1].name(), "PROFILE");
+  EXPECT_EQ(parsed_list.users()[1].type(), "PROFILE");
   EXPECT_EQ(parsed_list.users()[1].uid(), 1u);
 }
 
