@@ -23,5 +23,5 @@ package perfetto.protos;
 message UserListConfig {
   // If not empty, emit info about only the following list of user types
   // (exact match, no regex). Otherwise, emit info about all users.
-  repeated string user_name_filter = 1;
+  repeated string user_type_filter = 1;
 }
