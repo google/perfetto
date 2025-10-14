@@ -14,13 +14,10 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Icon} from '../../../widgets/icon';
-
 import {Switch} from '../../../widgets/switch';
-
-function keycap(glyph: m.Children): m.Children {
-  return m('.pf-keycap', glyph);
-}
+import {nodeRegistry} from './node_registry';
 
 interface SourceCardAttrs {
   title: string;
@@ -38,12 +35,10 @@ const SourceCard: m.Component<SourceCardAttrs> = {
       {onclick},
       m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', title)),
       m('p', description),
-      hotkey ? m('.pf-source-card-hotkey', keycap(hotkey)) : null,
+      hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
     );
   },
 };
-
-import {nodeRegistry} from './node_registry';
 
 export interface EmptyGraphAttrs {
   readonly onAddSourceNode: (id: string) => void;
