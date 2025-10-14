@@ -26,6 +26,14 @@ export interface ColumnDefinition {
   // An optional aggregation for data in this column displayed in the header
   // bar.
   readonly aggregation?: AggregationFunction;
+
+  // Optional extra menu items to add to the header column's context menu.
+  readonly headerMenuItems?: m.Children;
+
+  // Optional function that returns extra menu items to add to each data cell's
+  // context menu. The function receives the cell value and the complete row
+  // data.
+  readonly cellMenuItems?: (value: SqlValue, row: RowDef) => m.Children;
 }
 
 export interface FilterValue {
