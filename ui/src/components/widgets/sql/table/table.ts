@@ -291,7 +291,12 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     if (!this.hasCalculatedInitialWidths && rows.length > 0) {
       columns.forEach((column) => {
         const columnKey = tableColumnId(column);
-        const optimalWidth = this.calculateOptimalColumnWidth(column, rows);
+        const optimalWidth = this.calculateOptimalColumnWidth(
+          column,
+          rows,
+          600, // Initial sizing: cap at 600px
+          true, // Use 95th percentile for initial sizing
+        );
         this.columnWidths.set(columnKey, optimalWidth);
       });
       this.hasCalculatedInitialWidths = true;
@@ -371,6 +376,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                       const optimalWidth = this.calculateOptimalColumnWidth(
                         column,
                         rows,
+                        800, // Double-click: cap at 800px
+                        false, // Use max width (100%) for double-click
                       );
                       this.columnWidths.set(columnKey, optimalWidth);
                       m.redraw();
@@ -420,6 +427,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private calculateOptimalColumnWidth(
     column: TableColumn,
     rows: ReadonlyArray<Row>,
+    maxWidth: number,
+    use95thPercentile: boolean,
   ): number {
     const measureContainer = document.createElement('div');
     measureContainer.style.position = 'absolute';
@@ -461,10 +470,15 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
 
     // Measure header width
+    // Always measure with sort button visible to ensure no ellipsis when sorted
     const headerContainer = document.createElement('div');
     const headerVnode = m(
       GridHeaderCell,
-      {width: 'fit-content'},
+      {
+        width: 'fit-content',
+        sort: 'ASC', // Measure with sort button to ensure adequate width
+        onSort: () => {}, // Dummy callback
+      },
       columnTitle(column),
     );
 
@@ -477,15 +491,28 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     measureContainer.removeChild(headerContainer);
     document.body.removeChild(measureContainer);
 
-    // Calculate 95th percentile of cell widths
+    // Calculate column width based on strategy
     if (widths.length > 0) {
       widths.sort((a, b) => a - b);
-      const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
-      const width95 = widths[Math.min(percentileIndex, widths.length - 1)];
 
-      return Math.max(50, Math.ceil(Math.max(width95, headerWidth)));
+      let contentWidth: number;
+      if (use95thPercentile) {
+        // Use 95th percentile for initial sizing
+        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
+        contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
+      } else {
+        // Use max width for double-click auto-resize
+        contentWidth = widths[widths.length - 1];
+      }
+
+      // Take the maximum of content width and header width, capped at maxWidth
+      return Math.min(
+        maxWidth,
+        Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
+      );
     } else {
-      return Math.max(50, Math.ceil(headerWidth));
+      // If no cell data, just use header width, capped at maxWidth
+      return Math.min(maxWidth, Math.max(50, Math.ceil(headerWidth)));
     }
   }
 }

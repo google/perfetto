@@ -301,6 +301,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         columns,
         dataSource.rows.rows,
         cellRenderer,
+        600, // Initial sizing: cap at 600px
+        true, // Use 95th percentile for initial sizing
       );
       this.hasCalculatedInitialWidths = true;
     }
@@ -430,6 +432,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                           [column],
                           dataSource.rows.rows,
                           cellRenderer,
+                          800, // Double-click: cap at 800px
+                          false, // Use max width (100%) for double-click
                         );
                         m.redraw();
                       }
@@ -732,6 +736,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     columns: ReadonlyArray<ColumnDefinition>,
     rows: ReadonlyArray<RowDef>,
     cellRenderer: CellRenderer,
+    maxWidth: number,
+    use95thPercentile: boolean,
   ) {
     // Create off-screen container for measuring with proper grid structure
     const measureContainer = document.createElement('div');
@@ -778,10 +784,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       });
 
       // Measure header width using actual GridHeaderCell component
+      // Always measure with sort button visible to ensure no ellipsis when sorted
       const headerContainer = document.createElement('div');
       const headerVnode = m(
         GridHeaderCell,
-        {width: 'fit-content'},
+        {
+          width: 'fit-content',
+          sort: 'ASC', // Measure with sort button to ensure adequate width
+          onSort: () => {}, // Dummy callback
+        },
         column.title ?? column.name,
       );
 
@@ -793,21 +804,32 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       measureContainer.removeChild(headerContainer);
 
-      // Calculate 95th percentile of cell widths
+      // Calculate column width based on strategy
       if (widths.length > 0) {
         widths.sort((a, b) => a - b);
-        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
-        const width95 = widths[Math.min(percentileIndex, widths.length - 1)];
 
-        // Take the maximum of 95th percentile and header width
-        const finalWidth = Math.max(
-          50,
-          Math.ceil(Math.max(width95, headerWidth)),
+        let contentWidth: number;
+        if (use95thPercentile) {
+          // Use 95th percentile for initial sizing
+          const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
+          contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
+        } else {
+          // Use max width for double-click auto-resize
+          contentWidth = widths[widths.length - 1];
+        }
+
+        // Take the maximum of content width and header width, capped at maxWidth
+        const finalWidth = Math.min(
+          maxWidth,
+          Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
         );
         this.columnWidths.set(column.name, finalWidth);
       } else {
-        // If no cell data, just use header width
-        const finalWidth = Math.max(50, Math.ceil(headerWidth));
+        // If no cell data, just use header width, capped at maxWidth
+        const finalWidth = Math.min(
+          maxWidth,
+          Math.max(50, Math.ceil(headerWidth)),
+        );
         this.columnWidths.set(column.name, finalWidth);
       }
     });

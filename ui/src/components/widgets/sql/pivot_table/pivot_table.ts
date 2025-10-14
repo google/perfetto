@@ -53,6 +53,46 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     const aggregations = state.getAggregations();
     const extraRowButton = attrs.extraRowButton;
 
+    // Expand the tree to a list of rows to show - MUST be before headers
+    // so that onAutoResize callbacks can reference current nodes
+    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
+
+    // Calculate initial column widths on first render with data
+    if (!this.hasCalculatedInitialWidths && nodes.length > 0) {
+      pivots.forEach((pivot, index) => {
+        const columnKey = `pivot-${pivotId(pivot)}`;
+        const optimalWidth = this.calculateOptimalColumnWidth(
+          columnKey,
+          pivotId(pivot),
+          nodes,
+          (node) => {
+            if (node.isRoot()) return undefined;
+            const value = node.getPivotValue(index);
+            if (value === undefined) return undefined;
+            return pivot.renderCell(value);
+          },
+          600, // Initial sizing: cap at 600px
+          true, // Use 95th percentile for initial sizing
+        );
+        this.columnWidths.set(columnKey, optimalWidth);
+      });
+
+      aggregations.forEach((agg, index) => {
+        const columnKey = `agg-${aggregationId(agg)}`;
+        const optimalWidth = this.calculateOptimalColumnWidth(
+          columnKey,
+          aggregationId(agg),
+          nodes,
+          (node) => agg.column.renderCell(node.getAggregationValue(index)),
+          600, // Initial sizing: cap at 600px
+          true, // Use 95th percentile for initial sizing
+        );
+        this.columnWidths.set(columnKey, optimalWidth);
+      });
+
+      this.hasCalculatedInitialWidths = true;
+    }
+
     const headers = [
       ...pivots.map((pivot, index) => {
         const sorted = state.isSortedByPivot(pivot);
@@ -95,6 +135,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                   if (value === undefined) return undefined;
                   return pivot.renderCell(value);
                 },
+                800, // Double-click: cap at 800px
+                false, // Use max width (100%) for double-click
               );
               this.columnWidths.set(columnKey, optimalWidth);
               m.redraw();
@@ -137,6 +179,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                 aggregationId(agg),
                 nodes,
                 (node) => agg.column.renderCell(node.getAggregationValue(index)),
+                800, // Double-click: cap at 800px
+                false, // Use max width (100%) for double-click
               );
               this.columnWidths.set(columnKey, optimalWidth);
               m.redraw();
@@ -149,41 +193,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
 
     if (extraRowButton) {
       headers.push(m(GridHeaderCell, {key: 'action-button'}));
-    }
-
-    // Expand the tree to a list of rows to show.
-    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
-
-    // Calculate initial column widths on first render with data
-    if (!this.hasCalculatedInitialWidths && nodes.length > 0) {
-      pivots.forEach((pivot, index) => {
-        const columnKey = `pivot-${pivotId(pivot)}`;
-        const optimalWidth = this.calculateOptimalColumnWidth(
-          columnKey,
-          pivotId(pivot),
-          nodes,
-          (node) => {
-            if (node.isRoot()) return undefined;
-            const value = node.getPivotValue(index);
-            if (value === undefined) return undefined;
-            return pivot.renderCell(value);
-          },
-        );
-        this.columnWidths.set(columnKey, optimalWidth);
-      });
-
-      aggregations.forEach((agg, index) => {
-        const columnKey = `agg-${aggregationId(agg)}`;
-        const optimalWidth = this.calculateOptimalColumnWidth(
-          columnKey,
-          aggregationId(agg),
-          nodes,
-          (node) => agg.column.renderCell(node.getAggregationValue(index)),
-        );
-        this.columnWidths.set(columnKey, optimalWidth);
-      });
-
-      this.hasCalculatedInitialWidths = true;
     }
 
     return [
@@ -206,6 +215,10 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                         align: 'right',
                         colspan: pivots.length,
                         thickRightBorder: true,
+                        width: pivots.reduce((sum, pivot) => {
+                          const columnKey = `pivot-${pivotId(pivot)}`;
+                          return sum + (this.columnWidths.get(columnKey) ?? 100);
+                        }, 0),
                       },
                       m('.pf-pivot-table__total-values', 'Total values:'),
                     ),
@@ -460,6 +473,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     headerText: string,
     nodes: PivotTreeNode[],
     getCellContent: (node: PivotTreeNode) => {content: m.Children; isNull?: boolean; isNumerical?: boolean} | undefined,
+    maxWidth: number,
+    use95thPercentile: boolean,
   ): number {
     const measureContainer = document.createElement('div');
     measureContainer.style.position = 'absolute';
@@ -503,10 +518,15 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     });
 
     // Measure header width
+    // Always measure with sort button visible to ensure no ellipsis when sorted
     const headerContainer = document.createElement('div');
     const headerVnode = m(
       GridHeaderCell,
-      {width: 'fit-content'},
+      {
+        width: 'fit-content',
+        sort: 'ASC', // Measure with sort button to ensure adequate width
+        onSort: () => {}, // Dummy callback
+      },
       headerText,
     );
 
@@ -519,15 +539,28 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     measureContainer.removeChild(headerContainer);
     document.body.removeChild(measureContainer);
 
-    // Calculate 95th percentile of cell widths
+    // Calculate column width based on strategy
     if (widths.length > 0) {
       widths.sort((a, b) => a - b);
-      const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
-      const width95 = widths[Math.min(percentileIndex, widths.length - 1)];
 
-      return Math.max(50, Math.ceil(Math.max(width95, headerWidth)));
+      let contentWidth: number;
+      if (use95thPercentile) {
+        // Use 95th percentile for initial sizing
+        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
+        contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
+      } else {
+        // Use max width for double-click auto-resize
+        contentWidth = widths[widths.length - 1];
+      }
+
+      // Take the maximum of content width and header width, capped at maxWidth
+      return Math.min(
+        maxWidth,
+        Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
+      );
     } else {
-      return Math.max(50, Math.ceil(headerWidth));
+      // If no cell data, just use header width, capped at maxWidth
+      return Math.min(maxWidth, Math.max(50, Math.ceil(headerWidth)));
     }
   }
 }
