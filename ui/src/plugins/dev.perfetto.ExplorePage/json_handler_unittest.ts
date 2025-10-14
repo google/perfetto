@@ -29,7 +29,6 @@ import {
 import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/dev/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/dev/sort_node';
-import {columnInfoFromName} from './query_builder/column_info';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -96,8 +95,10 @@ describe('JSON serialization/deserialization', () => {
     const deserializedState = deserializeState(json, trace, sqlModules);
 
     expect(deserializedState.rootNodes.length).toBe(1);
-    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
-    expect(deserializedNode.state.slice_name).toBe('test_slice');
+    const deserializedNode = deserializedState.rootNodes[0];
+    expect((deserializedNode as SlicesSourceNode).state.slice_name).toBe(
+      'test_slice',
+    );
     expect(deserializedNode.prevNodes).toEqual([]);
   });
 
@@ -665,10 +666,6 @@ describe('JSON serialization/deserialization', () => {
       trace,
       sqlModules,
     });
-    tableNode.finalCols = [
-      columnInfoFromName('name'),
-      columnInfoFromName('ts'),
-    ];
 
     const sortNode = new SortNode({
       prevNodes: [tableNode],

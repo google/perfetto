@@ -22,6 +22,7 @@ import {
   createSelectColumnsProto,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
@@ -98,19 +99,20 @@ export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
   readonly prevNodes: QueryNode[] = [];
   showColumns: boolean = false;
-
-  get sourceCols() {
-    return (
-      this.state.sqlTable?.columns.map((c) =>
-        columnInfoFromSqlColumn(c, true),
-      ) ?? []
-    );
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
+  meterialisedAs?: string;
 
   constructor(attrs: TableSourceState) {
     super(attrs);
     this.state = attrs;
     this.state.onchange = attrs.onchange;
+    this.finalCols = createFinalColumns(
+      this.state.sqlTable?.columns.map((c) =>
+        columnInfoFromSqlColumn(c, true),
+      ) ?? [],
+    );
+    this.nextNodes = [];
 
     this.state.filters = attrs.filters ?? [];
   }
@@ -172,7 +174,7 @@ export class TableSourceNode extends SourceNode {
         ),
         m(FilterOperation, {
           filters: this.state.filters,
-          sourceCols: this.sourceCols,
+          sourceCols: this.finalCols,
           onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
             this.state.filters = newFilters as FilterDefinition[];
             this.state.onchange?.();
@@ -205,14 +207,11 @@ export class TableSourceNode extends SourceNode {
     sq.table.moduleName = this.state.sqlTable.includeKey
       ? this.state.sqlTable.includeKey
       : undefined;
-    sq.table.columnNames = this.sourceCols
+    sq.table.columnNames = this.finalCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
+    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
     if (filtersProto) sq.filters = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);

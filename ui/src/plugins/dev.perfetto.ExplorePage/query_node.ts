@@ -49,7 +49,6 @@ export interface QueryNodeState {
   prevNodes?: QueryNode[];
   customTitle?: string;
   comment?: string;
-  sourceCols?: ColumnInfo[];
   trace?: Trace;
   sqlModules?: SqlModules;
   sqlTable?: SqlTable;
@@ -73,9 +72,6 @@ export interface QueryNode {
   prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
 
-  // Columns that are available in the source data.
-  readonly sourceCols: ColumnInfo[];
-
   // Columns that are available after applying all operations.
   readonly finalCols: ColumnInfo[];
 
@@ -91,6 +87,13 @@ export interface QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   isMaterialised(): boolean;
   serializeState(): object;
+  onPrevNodesUpdated?(): void;
+}
+
+export function notifyNextNodes(node: QueryNode) {
+  for (const nextNode of node.nextNodes) {
+    nextNode.onPrevNodesUpdated?.();
+  }
 }
 
 export interface Query {
@@ -119,8 +122,8 @@ export function createSelectColumnsProto(
   return selectedColumns;
 }
 
-export function createFinalColumns(node: QueryNode) {
-  return newColumnInfoList(node.sourceCols, true);
+export function createFinalColumns(sourceCols: ColumnInfo[]) {
+  return newColumnInfoList(sourceCols, true);
 }
 
 function getStructuredQueries(
