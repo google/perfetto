@@ -37,7 +37,7 @@ class TraceWriter;
 
 bool ParseUserListStream(protos::pbzero::UserList* user_list,
                          const base::ScopedFstream& fs,
-                         const std::set<std::string>& user_name_filter);
+                         const std::set<std::string>& user_type_filter);
 
 class UserListDataSource : public ProbesDataSource {
  public:
@@ -53,10 +53,10 @@ class UserListDataSource : public ProbesDataSource {
   ~UserListDataSource() override;
 
  private:
-  // If empty, include all user names. std::set over std::unordered_set as
+  // If empty, include all user types. std::set over std::unordered_set as
   // this should be trivially small (or empty) in practice, and the latter uses
   // ever so slightly more memory.
-  std::set<std::string> user_name_filter_;
+  std::set<std::string> user_type_filter_;
   std::unique_ptr<TraceWriter> writer_;
 };
 

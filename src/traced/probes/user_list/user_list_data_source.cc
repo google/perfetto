@@ -30,14 +30,14 @@ namespace perfetto {
 
 // static
 const ProbesDataSource::Descriptor UserListDataSource::descriptor = {
-    /*name*/ "android.user_list",
+    /*type*/ "android.user_list",
     /*flags*/ Descriptor::kFlagsNone,
     /*fill_descriptor_func*/ nullptr,
 };
 
 bool ParseUserListStream(protos::pbzero::UserList* user_list_packet,
                          const base::ScopedFstream& fs,
-                         const std::set<std::string>& user_name_filter) {
+                         const std::set<std::string>& user_type_filter) {
   bool parsed_fully = true;
   char line[2048];
   while (fgets(line, sizeof(line), *fs) != nullptr) {
@@ -46,12 +46,12 @@ bool ParseUserListStream(protos::pbzero::UserList* user_list_packet,
       parsed_fully = false;
       continue;
     }
-    if (!user_name_filter.empty() &&
-        user_name_filter.count(pkg_struct.name) == 0) {
+    if (!user_type_filter.empty() &&
+        user_type_filter.count(pkg_struct.type) == 0) {
       continue;
     }
     auto* user = user_list_packet->add_users();
-    user->set_name(pkg_struct.name.c_str(), pkg_struct.name.size());
+    user->set_typepe(pkg_struct.type.c_str(), pkg_struct.type.size());
     user->set_uid(pkg_struct.uid);
   }
   return parsed_fully;
@@ -62,8 +62,8 @@ UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
                                        std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {
   UserListConfig::Decoder cfg(ds_config.user_list_config_raw());
-  for (auto name = cfg.user_name_filter(); name; ++name) {
-    user_name_filter_.emplace((*name).ToStdString());
+  for (auto name = cfg.user_type_filter(); type; ++type) {
+    user_type_filter_.emplace((*type).ToStdString());
   }
 }
 
@@ -80,7 +80,7 @@ void UserListDataSource::Start() {
   }
 
   bool parsed_fully =
-      ParseUserListStream(user_list_packet, fs, user_name_filter_);
+      ParseUserListStream(user_list_packet, fs, user_type_filter_);
   if (!parsed_fully)
     user_list_packet->set_parse_error(true);
 

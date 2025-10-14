@@ -23,7 +23,7 @@
 namespace perfetto {
 
 struct User {
-  std::string name;
+  std::string type;
   uint64_t uid = 0;
 };
 

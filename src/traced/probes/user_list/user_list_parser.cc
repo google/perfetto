@@ -28,7 +28,7 @@ bool ReadUserListLine(char* line, User* user) {
   for (base::StringSplitter ss(line, ' '); ss.Next();) {
     switch (idx) {
       case 0:
-        user->name = std::string(ss.cur_token(), ss.cur_token_size());
+        user->type = std::string(ss.cur_token(), ss.cur_token_size());
         break;
       case 1: {
         char* end;
