@@ -75,7 +75,7 @@ TEST(UserListDataSourceTest, ParseLineNonProfileDebug) {
       "PROFILE 10\n";
   User usr;
   ASSERT_TRUE(ReadUserListLine(kLine, &usr));
-  EXPECT_EQ(usr.name, "SYSTEM");
+  EXPECT_EQ(usr.type, "SYSTEM");
   EXPECT_EQ(usr.uid, 0u);
 }
 
