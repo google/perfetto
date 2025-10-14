@@ -135,26 +135,26 @@ $border-3: 2px solid var(--pf-color-border);
     &__btn-container {
       overflow: hidden;
     }
-  }
 
-  th.pf-drag-over {
-    position: relative;
+    &--drag-over {
+      position: relative;
 
-    &::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background-color: var(--pf-color-accent);
-    }
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background-color: var(--pf-color-accent);
+      }
 
-    &--before::after {
-      left: -2px;
-    }
+      &-before::after {
+        left: -2px;
+      }
 
-    &--after::after {
-      right: -2px;
+      &-after::after {
+        right: -2px;
+      }
     }
   }
 
@@ -164,7 +164,6 @@ $border-3: 2px solid var(--pf-color-border);
     width: 9px;
     cursor: col-resize;
     user-select: none;
-    --display-on-hover: flex;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -179,11 +178,9 @@ $border-3: 2px solid var(--pf-color-border);
       &::after {
         content: "";
         position: absolute;
-        top: auto;
-        bottom: auto;
-        height: 16px;
+        top: 0;
+        bottom: 0;
         width: 3px;
-        border-radius: 100px;
         transition: background-color 0.2s;
         background-color: var(--pf-color-accent);
       }
