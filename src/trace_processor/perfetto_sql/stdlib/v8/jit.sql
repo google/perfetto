@@ -148,6 +148,13 @@ SELECT
   col
 FROM __intrinsic_v8_js_function;
 
+-- This index is crucial for the performance of the callstack profiling standard
+-- library (`callstacks.stack_profile`). The library performs a join with the
+-- `_v8_js_code` view on `jit_code_id`. Without this index on the underlying
+-- table, the join becomes a major performance bottleneck, causing long module
+-- import times on traces with V8 data.
+CREATE PERFETTO INDEX _intrinsic_v8_js_code_jit_code_id_index ON __intrinsic_v8_js_code(jit_code_id);
+
 -- Represents a v8 code snippet for a Javascript function. A given function can
 -- have multiple code snippets (e.g. for different compilation tiers, or as the
 -- function moves around the heap).
