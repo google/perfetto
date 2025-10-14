@@ -70,6 +70,8 @@ const DEFAULT_ROWS_PER_PAGE = 50;
 
 type OnFiltersChanged = (filters: ReadonlyArray<FilterDefinition>) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
+type ColumnOrder = ReadonlyArray<string>;
+type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
 type CellRenderer = (
   value: SqlValue,
   columnName: string,
@@ -151,6 +153,39 @@ export interface DataGridAttrs {
   readonly onFiltersChanged?: OnFiltersChanged;
 
   /**
+   * Order of columns to display - can operate in controlled or uncontrolled
+   * mode.
+   *
+   * In controlled mode: Provide this prop along with onColumnOrderChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage order internally.
+   *
+   * Array of column names in the order they should be displayed.
+   * If not provided, columns are displayed in the order given in the columns prop.
+   */
+  readonly columnOrder?: ColumnOrder;
+
+  /**
+   * Initial column order to apply on first load.
+   * This is ignored in controlled mode (i.e. when `columnOrder` is provided).
+   */
+  readonly initialColumnOrder?: ColumnOrder;
+
+  /**
+   * Callback triggered when columns are reordered via drag-and-drop.
+   * Allows parent components to react to reordering changes.
+   * Required for controlled mode - when provided with columnOrder,
+   * the parent component becomes responsible for updating the columnOrder prop.
+   * @param columnOrder The new array of column names in display order
+   */
+  readonly onColumnOrderChanged?: OnColumnOrderChanged;
+
+  /**
+   * Whether to enable column reordering via drag-and-drop.
+   * Default = true if onColumnOrderChanged is provided, false otherwise.
+   */
+  readonly columnReordering?: boolean;
+
+  /**
    * Controls how many rows are displayed per page.
    */
   readonly maxRowsPerPage?: number;
@@ -207,8 +242,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
+  private columnOrder: ColumnOrder = [];
   private columnWidths: Map<string, number> = new Map();
   private hasCalculatedInitialWidths = false;
+  // Track all columns we've ever seen to distinguish hidden vs new columns
+  private seenColumns: Set<string> = new Set();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -219,8 +257,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.filters = attrs.initialFilters;
     }
 
-    // Initialize column widths with a default value
+    // Initialize column order from initial prop or columns array
+    if (attrs.initialColumnOrder) {
+      this.columnOrder = attrs.initialColumnOrder;
+    } else {
+      this.columnOrder = attrs.columns.map((c) => c.name);
+    }
+
+    // Track all initial columns as seen
     attrs.columns.forEach((column) => {
+      this.seenColumns.add(column.name);
       if (!this.columnWidths.has(column.name)) {
         this.columnWidths.set(column.name, 100);
       }
@@ -239,6 +285,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       onFiltersChanged = filters === this.filters
         ? (x) => (this.filters = x)
         : noOp,
+      columnOrder = this.columnOrder,
+      onColumnOrderChanged = columnOrder === this.columnOrder
+        ? (x) => (this.columnOrder = x)
+        : noOp,
+      columnReordering = onColumnOrderChanged !== noOp,
       cellRenderer = renderCell,
       maxRowsPerPage = DEFAULT_ROWS_PER_PAGE,
       showFiltersInToolbar = true,
@@ -265,6 +316,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             this.currentPage = 0;
           };
 
+    // In uncontrolled mode, sync columnOrder with truly new columns
+    // (not hidden columns)
+    if (columnOrder === this.columnOrder) {
+      const newColumns = columns
+        .map((c) => c.name)
+        .filter((name) => !this.seenColumns.has(name));
+
+      if (newColumns.length > 0) {
+        // Add newly seen columns to tracking and order
+        newColumns.forEach((name) => this.seenColumns.add(name));
+        this.columnOrder = [...this.columnOrder, ...newColumns];
+      }
+    }
+
+    // Reorder columns based on columnOrder array
+    const orderedColumns = this.getOrderedColumns(columns, columnOrder);
+
     // Initialize the datasource if required
     let dataSource: DataGridDataSource;
     if (Array.isArray(data)) {
@@ -279,7 +347,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const offset = this.currentPage * maxRowsPerPage;
     const limit = maxRowsPerPage;
     dataSource.notifyUpdate({
-      columns: columns.map((c) => c.name),
+      columns: orderedColumns.map((c) => c.name),
       sorting,
       filters,
       pagination: {
@@ -298,7 +366,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       dataSource.rows.rows.length > 0
     ) {
       this.calculateInitialColumnWidths(
-        columns,
+        orderedColumns,
         dataSource.rows.rows,
         cellRenderer,
         600, // Initial sizing: cap at 600px
@@ -359,7 +427,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             GridHeader,
             m(
               GridRow,
-              columns.map((column) => {
+              orderedColumns.map((column) => {
                 const sort = (() => {
                   if (sorting.direction === 'UNSORTED') {
                     return undefined;
@@ -408,9 +476,89 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
 
+                // Add column visibility options if column reordering is enabled
+                if (columnReordering) {
+                  if (menuItems.length > 0) {
+                    menuItems.push(m(MenuDivider));
+                  }
+
+                  // Hide current column (only if more than 1 visible)
+                  if (orderedColumns.length > 1) {
+                    menuItems.push(
+                      m(MenuItem, {
+                        label: 'Hide column',
+                        icon: Icons.Hide,
+                        onclick: () => {
+                          const newOrder = columnOrder.filter(
+                            (name) => name !== column.name,
+                          );
+                          onColumnOrderChanged(newOrder);
+                        },
+                      }),
+                    );
+                  }
+
+                  const allColumnsShowing = columns.every((col) =>
+                    columnOrder.includes(col.name),
+                  );
+
+                  // Show/hide columns submenu
+                  menuItems.push(
+                    m(
+                      MenuItem,
+                      {
+                        label: 'Manage columns',
+                        icon: 'view_column',
+                      },
+                      [
+                        // Show all
+                        m(MenuItem, {
+                          label: 'Show all',
+                          icon: allColumnsShowing
+                            ? Icons.Checkbox
+                            : Icons.BlankCheckbox,
+                          closePopupOnClick: false,
+                          onclick: () => {
+                            const newOrder = columns.map((c) => c.name);
+                            onColumnOrderChanged(newOrder);
+                          },
+                        }),
+                        m(MenuDivider),
+                        // Individual columns
+                        columns.map((col) => {
+                          const isVisible = columnOrder.includes(col.name);
+                          return m(MenuItem, {
+                            label: col.name,
+                            closePopupOnClick: false,
+                            icon: isVisible
+                              ? Icons.Checkbox
+                              : Icons.BlankCheckbox,
+                            onclick: () => {
+                              if (isVisible) {
+                                // Hide: remove from order (but keep at least 1 column)
+                                if (columnOrder.length > 1) {
+                                  const newOrder = columnOrder.filter(
+                                    (name) => name !== col.name,
+                                  );
+                                  onColumnOrderChanged(newOrder);
+                                }
+                              } else {
+                                // Show: add to end of order
+                                const newOrder = [...columnOrder, col.name];
+                                onColumnOrderChanged(newOrder);
+                              }
+                            },
+                          });
+                        }),
+                      ],
+                    ),
+                  );
+                }
+
                 return m(
                   GridHeaderCell,
                   {
+                    key: column.name,
                     sort,
                     onSort: sortControls
                       ? (direction: SortDirection) => {
@@ -421,6 +569,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         }
                       : undefined,
                     menuItems: menuItems.length > 0 ? menuItems : undefined,
+                    reorderable: columnReordering
+                      ? {handle: 'column'}
+                      : undefined,
+                    onReorder: (from, to, position) => {
+                      if (!columnReordering) return;
+                      const newOrder = this.reorderColumns(
+                        columnOrder,
+                        from,
+                        to,
+                        position,
+                      );
+                      onColumnOrderChanged(newOrder);
+                    },
                     width: this.columnWidths.get(column.name) ?? 100,
                     onResize: (newWidth: number) => {
                       this.columnWidths.set(column.name, newWidth);
@@ -445,7 +606,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             ),
             m(
               GridRow,
-              columns.map((column) => {
+              orderedColumns.map((column) => {
                 return m(
                   GridAggregationCell,
                   {
@@ -470,7 +631,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             m(
               GridBody,
               this.renderTableBody(
-                columns,
+                orderedColumns,
                 dataSource.rows,
                 filters,
                 onFiltersChangedWithReset,
@@ -835,6 +996,52 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     });
     // Clean up
     document.body.removeChild(measureContainer);
+  }
+
+  private getOrderedColumns(
+    columns: ReadonlyArray<ColumnDefinition>,
+    order: ColumnOrder,
+  ): ReadonlyArray<ColumnDefinition> {
+    // Create a map for fast lookup
+    const columnMap = new Map(columns.map((c) => [c.name, c]));
+
+    // Return ONLY columns in the specified order
+    // Columns not in order are considered hidden
+    const ordered = order
+      .map((name) => columnMap.get(name))
+      .filter((c): c is ColumnDefinition => c !== undefined);
+
+    return ordered;
+  }
+
+  private reorderColumns(
+    currentOrder: ColumnOrder,
+    fromKey: string | number | undefined,
+    toKey: string | number | undefined,
+    position: 'before' | 'after',
+  ): ColumnOrder {
+    if (typeof fromKey !== 'string' || typeof toKey !== 'string') {
+      return currentOrder;
+    }
+
+    const newOrder = [...currentOrder];
+    const fromIndex = newOrder.indexOf(fromKey);
+    const toIndex = newOrder.indexOf(toKey);
+
+    if (fromIndex === -1 || toIndex === -1) return currentOrder;
+
+    // Remove from old position
+    newOrder.splice(fromIndex, 1);
+
+    // Calculate new position
+    let insertIndex = toIndex;
+    if (fromIndex < toIndex) insertIndex--;
+    if (position === 'after') insertIndex++;
+
+    // Insert at new position
+    newOrder.splice(insertIndex, 0, fromKey);
+
+    return newOrder;
   }
 }
 
