@@ -142,6 +142,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
 
       return m(Button, {
         className: classNames(
+          'pf-grid__cell__sort-button',
           !sort && 'pf-grid__cell--hint',
           !sort && 'pf-visible-on-hover',
         ),
@@ -270,8 +271,11 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           }
         },
       },
-      m('.pf-grid__cell--stretch.pf-grid__cell--padded', children),
-      m('.pf-grid__cell__btn-container', renderSortButton()),
+      m(
+        '.pf-grid__cell--stretch.pf-grid__cell--horiz',
+        m('.pf-grid__cell--padded.pf-grid__cell--shrink', children),
+        m('.pf-grid__cell__btn-container', renderSortButton()),
+      ),
       // TODO: Could put a spacer in here to push the sort button up to the
       // content and the menu to the right.
       m('.pf-grid__cell__btn-container', renderMenu()),

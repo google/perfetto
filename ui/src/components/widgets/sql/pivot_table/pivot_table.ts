@@ -62,7 +62,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       pivots.forEach((pivot, index) => {
         const columnKey = `pivot-${pivotId(pivot)}`;
         const optimalWidth = this.calculateOptimalColumnWidth(
-          columnKey,
           pivotId(pivot),
           nodes,
           (node) => {
@@ -80,7 +79,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       aggregations.forEach((agg, index) => {
         const columnKey = `agg-${aggregationId(agg)}`;
         const optimalWidth = this.calculateOptimalColumnWidth(
-          columnKey,
           aggregationId(agg),
           nodes,
           (node) => agg.column.renderCell(node.getAggregationValue(index)),
@@ -126,7 +124,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             onAutoResize: () => {
               const optimalWidth = this.calculateOptimalColumnWidth(
-                columnKey,
                 pivotId(pivot),
                 nodes,
                 (node) => {
@@ -175,10 +172,10 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             onAutoResize: () => {
               const optimalWidth = this.calculateOptimalColumnWidth(
-                columnKey,
                 aggregationId(agg),
                 nodes,
-                (node) => agg.column.renderCell(node.getAggregationValue(index)),
+                (node) =>
+                  agg.column.renderCell(node.getAggregationValue(index)),
                 800, // Double-click: cap at 800px
                 false, // Use max width (100%) for double-click
               );
@@ -217,7 +214,9 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                         thickRightBorder: true,
                         width: pivots.reduce((sum, pivot) => {
                           const columnKey = `pivot-${pivotId(pivot)}`;
-                          return sum + (this.columnWidths.get(columnKey) ?? 100);
+                          return (
+                            sum + (this.columnWidths.get(columnKey) ?? 100)
+                          );
                         }, 0),
                       },
                       m('.pf-pivot-table__total-values', 'Total values:'),
@@ -469,10 +468,13 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   }
 
   private calculateOptimalColumnWidth(
-    columnKey: string,
     headerText: string,
     nodes: PivotTreeNode[],
-    getCellContent: (node: PivotTreeNode) => {content: m.Children; isNull?: boolean; isNumerical?: boolean} | undefined,
+    getCellContent: (
+      node: PivotTreeNode,
+    ) =>
+      | {content: m.Children; isNull?: boolean; isNumerical?: boolean}
+      | undefined,
     maxWidth: number,
     use95thPercentile: boolean,
   ): number {

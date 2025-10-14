@@ -101,12 +101,24 @@ $border-3: 2px solid var(--pf-color-border);
       }
     }
 
+    &--shrink {
+      flex-shrink: 1;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    &--horiz {
+      display: flex;
+      flex-direction: row;
+      align-items: baseline;
+    }
+
     &--padded {
       padding: 0.2em 0.4em;
     }
 
     &--stretch {
-      flex: 1;
+      flex-grow: 1;
       text-overflow: ellipsis;
       overflow: hidden;
     }
@@ -134,6 +146,11 @@ $border-3: 2px solid var(--pf-color-border);
 
     &__btn-container {
       overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    &__sort-button {
+      margin-left: -3px;
     }
 
     &--drag-over {
