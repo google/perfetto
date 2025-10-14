@@ -49,7 +49,6 @@ RETURNS TableOrSubquery AS
 );
 
 -- DSU dependency policy
-CREATE PERFETTO FUNCTION _dsu_dep()
-RETURNS INTEGER AS
-SELECT
-  255;
+CREATE PERFETTO MACRO _dsu_dep()
+RETURNS Expr AS
+255;
