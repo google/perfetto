@@ -688,7 +688,7 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 
     // Linux v6.4+: explicit field for whether this is a kernel thread.
     if (proc.has_is_kthread()) {
-      context_->process_tracker->AddArgsTo(upid).AddArg(
+      context_->process_tracker->AddArgsToProcess(upid).AddArg(
           is_kthread_id_, Variadic::Boolean(proc.is_kthread()));
     }
   }
