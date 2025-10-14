@@ -216,6 +216,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
   private state: SqlTableState;
   private columnWidths: Map<string, number> = new Map();
+  private hasCalculatedInitialWidths = false;
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
@@ -285,6 +286,16 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     );
 
     const columns = this.state.getSelectedColumns();
+
+    // Calculate initial column widths on first render with data
+    if (!this.hasCalculatedInitialWidths && rows.length > 0) {
+      columns.forEach((column) => {
+        const columnKey = tableColumnId(column);
+        const optimalWidth = this.calculateOptimalColumnWidth(column, rows);
+        this.columnWidths.set(columnKey, optimalWidth);
+      });
+      this.hasCalculatedInitialWidths = true;
+    }
 
     return [
       m(
@@ -356,6 +367,14 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                       this.columnWidths.set(columnKey, newWidth);
                       m.redraw();
                     },
+                    onAutoResize: () => {
+                      const optimalWidth = this.calculateOptimalColumnWidth(
+                        column,
+                        rows,
+                      );
+                      this.columnWidths.set(columnKey, optimalWidth);
+                      m.redraw();
+                    },
                   },
                   columnTitle(column),
                 );
@@ -396,6 +415,78 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       this.state.getQueryError() !== undefined &&
         m('.query-error', this.state.getQueryError()),
     ];
+  }
+
+  private calculateOptimalColumnWidth(
+    column: TableColumn,
+    rows: ReadonlyArray<Row>,
+  ): number {
+    const measureContainer = document.createElement('div');
+    measureContainer.style.position = 'absolute';
+    measureContainer.style.visibility = 'hidden';
+    measureContainer.style.pointerEvents = 'none';
+    measureContainer.style.top = '-9999px';
+    measureContainer.style.left = '-9999px';
+    document.body.appendChild(measureContainer);
+
+    const widths: number[] = [];
+
+    // Measure each cell in the column
+    rows.forEach((row) => {
+      const {content, isNull, isNumerical} = renderCell(
+        column,
+        row,
+        this.state,
+      );
+      const cellContainer = document.createElement('div');
+      const cellVnode = m(
+        GridDataCell,
+        {
+          align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+          nullish: isNull,
+          width: 'fit-content',
+        },
+        content,
+      );
+
+      m.render(cellContainer, cellVnode);
+      measureContainer.appendChild(cellContainer);
+
+      const cellElement = cellContainer.querySelector('.pf-grid__cell');
+      if (cellElement) {
+        widths.push(cellElement.scrollWidth);
+      }
+
+      measureContainer.removeChild(cellContainer);
+    });
+
+    // Measure header width
+    const headerContainer = document.createElement('div');
+    const headerVnode = m(
+      GridHeaderCell,
+      {width: 'fit-content'},
+      columnTitle(column),
+    );
+
+    m.render(headerContainer, headerVnode);
+    measureContainer.appendChild(headerContainer);
+
+    const headerElement = headerContainer.querySelector('.pf-grid__cell');
+    const headerWidth = headerElement ? headerElement.scrollWidth : 0;
+
+    measureContainer.removeChild(headerContainer);
+    document.body.removeChild(measureContainer);
+
+    // Calculate 95th percentile of cell widths
+    if (widths.length > 0) {
+      widths.sort((a, b) => a - b);
+      const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
+      const width95 = widths[Math.min(percentileIndex, widths.length - 1)];
+
+      return Math.max(50, Math.ceil(Math.max(width95, headerWidth)));
+    } else {
+      return Math.max(50, Math.ceil(headerWidth));
+    }
   }
 }
 

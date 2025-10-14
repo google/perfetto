@@ -424,6 +424,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                       this.columnWidths.set(column.name, newWidth);
                       m.redraw();
                     },
+                    onAutoResize: () => {
+                      if (dataSource.rows) {
+                        this.calculateInitialColumnWidths(
+                          [column],
+                          dataSource.rows.rows,
+                          cellRenderer,
+                        );
+                        m.redraw();
+                      }
+                    },
                   },
                   column.title ?? column.name,
                 );

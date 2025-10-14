@@ -92,6 +92,9 @@ export interface GridHeaderCellAttrs extends m.Attributes {
   ) => void;
   // Callback invoked when the user resizes the column.
   readonly onResize?: (newWidth: number) => void;
+  // Callback invoked when the user double-clicks the resize handle to
+  // auto-size.
+  readonly onAutoResize?: () => void;
   // If true, the cell will have a thick right border, useful for separating
   // groups of columns.
   readonly thickRightBorder?: boolean;
@@ -200,6 +203,11 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           document.addEventListener('mousemove', handleMouseMove);
           document.addEventListener('mouseup', handleMouseUp);
         },
+        ondblclick: (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          attrs.onAutoResize?.();
+        },
       });
     };
 
@@ -216,7 +224,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         className: classNames(
           this.dragOverState.count > 0 && 'pf-grid__cell--drag-over',
           this.dragOverState.count > 0 &&
-            `pf-grid__cell--drag-over--${this.dragOverState.position}`,
+            `pf-grid__cell--drag-over-${this.dragOverState.position}`,
           thickRightBorder && 'pf-grid__cell--thick-right-border',
         ),
         ondragstart: (e: MithrilEvent<DragEvent>) => {
