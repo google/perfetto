@@ -41,6 +41,16 @@ export type PerfettoSqlType =
       };
     };
 
+export class PerfettoSqlTypes {
+  static readonly INT: PerfettoSqlType = {kind: 'int'};
+  static readonly FLOAT: PerfettoSqlType = {kind: 'float'};
+  static readonly STRING: PerfettoSqlType = {kind: 'string'};
+  static readonly BOOLEAN: PerfettoSqlType = {kind: 'boolean'};
+  static readonly TIMESTAMP: PerfettoSqlType = {kind: 'timestamp'};
+  static readonly DURATION: PerfettoSqlType = {kind: 'duration'};
+  static readonly ARG_SET_ID: PerfettoSqlType = {kind: 'arg_set_id'};
+}
+
 const SIMPLE_TYPES = {
   long: 'int',
   int: 'int',

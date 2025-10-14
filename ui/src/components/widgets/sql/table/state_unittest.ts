@@ -19,8 +19,8 @@ import {SqlTableDescription} from './table_description';
 import {StandardColumn, TimestampColumn} from './columns';
 
 const trace = createFakeTraceImpl({allowQueries: true});
-const idColumn = new StandardColumn('id');
-const nameColumn = new StandardColumn('name');
+const idColumn = new StandardColumn('id', undefined);
+const nameColumn = new StandardColumn('name', undefined);
 const tsColumn = new TimestampColumn(trace, 'ts');
 
 const table: SqlTableDescription = {
