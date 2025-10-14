@@ -257,7 +257,7 @@ USER_LIST_TABLE = Table(
         ''',
         group='Misc',
         columns={
-            'name': '''user type name eg. SECONDARY''',
+            'type': '''user type eg. SECONDARY''',
             'uid': '''User id on device''',
         }))
 
