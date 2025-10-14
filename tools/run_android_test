@@ -138,7 +138,7 @@ def Main():
   assert os.path.exists(test_bin)
 
   print('Waiting for device ...')
-   AdbCall('wait-for-device')
+  AdbCall('wait-for-device')
   # WaitForBootCompletion()
   AdbCall('root')
   AdbCall('wait-for-device')
