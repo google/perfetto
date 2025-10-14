@@ -62,7 +62,7 @@ UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
                                        std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {
   UserListConfig::Decoder cfg(ds_config.user_list_config_raw());
-  for (auto name = cfg.user_type_filter(); type; ++type) {
+  for (auto type = cfg.user_type_filter(); type; ++type) {
     user_type_filter_.emplace((*type).ToStdString());
   }
 }
