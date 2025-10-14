@@ -139,7 +139,6 @@ def Main():
 
   print('Waiting for device ...')
   # WaitForBootCompletion()
-  # AdbCall('root')
   AdbCall('wait-for-device')
 
   target_dir = '/data/local/tmp/perfetto_tests'
