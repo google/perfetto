@@ -39,8 +39,8 @@ import {
   DEFAULT_TRACK_MIN_HEIGHT_PX,
   MINIMUM_TRACK_MIN_HEIGHT_PX,
   TRACK_MIN_HEIGHT_SETTING,
-} from './viewer_page/track_view';
-import {renderTimelinePage} from './viewer_page/timeline_page';
+} from './timeline_page/track_view';
+import {renderTimelinePage} from './timeline_page/timeline_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
