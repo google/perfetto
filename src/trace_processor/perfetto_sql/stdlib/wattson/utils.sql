@@ -47,3 +47,9 @@ RETURNS TableOrSubquery AS
     *
   FROM $tab
 );
+
+-- DSU dependency policy
+CREATE PERFETTO FUNCTION _dsu_dep()
+RETURNS INTEGER AS
+SELECT
+  255;
