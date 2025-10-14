@@ -39,8 +39,8 @@ $border-3: 2px solid var(--pf-color-border);
     display: flex;
     flex-direction: column;
     background: var(--pf-color-background);
-    border-bottom: $border-2;
-    align-items: flex-start;
+    border-bottom: $border-1;
+    // align-items: flex-start;
     min-width: 100%;
     position: sticky;
     top: 0;
@@ -51,11 +51,13 @@ $border-3: 2px solid var(--pf-color-border);
     display: flex;
     flex-direction: column;
     min-width: 100%;
+    // align-items: flex-start;
 
     .pf-grid__row {
       &:hover {
         background-color: color_hover(transparent);
       }
+      border-bottom: $border-2;
     }
   }
 
@@ -67,29 +69,27 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__cell {
+    position: relative; // Position absolute children relative to cell.
     display: flex;
     border-right: $border-2;
     align-items: baseline;
-    overflow: hidden;
+    // overflow: hidden;
 
     &.pf-grid__cell--thick-right-border {
       border-right: $border-3;
     }
 
     .pf-visible-on-hover {
-      // visibility: hidden;
       display: none;
 
       &.pf-active {
-        // visibility: visible;
-        display: unset;
+        display: var(--display-on-hover, block);
       }
     }
 
     &:hover {
       .pf-visible-on-hover {
-        // visibility: visible;
-        display: unset;
+        display: var(--display-on-hover, block);
       }
     }
 
@@ -100,33 +100,41 @@ $border-3: 2px solid var(--pf-color-border);
         cursor: grabbing;
       }
     }
-  }
 
-  &__cell--padded {
-    padding: 0.2em 0.4em;
-  }
+    &--padded {
+      padding: 0.2em 0.4em;
+    }
 
-  &__cell--stretch {
-    flex: 1;
-    text-overflow: ellipsis;
-    overflow: hidden;
-  }
+    &--stretch {
+      flex: 1;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
 
-  &__cell--rtl {
-    flex-direction: row-reverse;
-  }
+    &--rtl {
+      flex-direction: row-reverse;
+    }
 
-  &__cell--align-right {
-    text-align: right;
-  }
+    &--align-right {
+      text-align: right;
+    }
 
-  &__cell--align-center {
-    text-align: center;
-  }
+    &--align-center {
+      text-align: center;
+    }
 
-  &__cell--nullish {
-    font-style: italic;
-    color: var(--pf-color-text-muted);
+    &--nullish {
+      font-style: italic;
+      color: var(--pf-color-text-muted);
+    }
+
+    &--hint {
+      color: var(--pf-color-text-hint);
+    }
+
+    &__btn-container {
+      overflow: hidden;
+    }
   }
 
   th.pf-drag-over {
@@ -151,28 +159,34 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__resize-handle {
-    position: relative;
-    width: 8px;
-    height: 12px;
+    position: absolute;
+    float: right;
+    width: 9px;
     cursor: col-resize;
     user-select: none;
+    --display-on-hover: flex;
     display: flex;
     align-items: center;
     justify-content: center;
+    min-width: 9px;
+    right: -5px;
+    z-index: 30;
+    top: 0;
+    bottom: 0;
 
-    &::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background-color: transparent;
-      transition: background-color 0.2s;
-      background-color: var(--pf-color-border);
-    }
-
-    &:active::after {
-      background-color: var(--pf-color-accent);
+    &:hover,
+    &:active {
+      &::after {
+        content: "";
+        position: absolute;
+        top: auto;
+        bottom: auto;
+        height: 16px;
+        width: 3px;
+        border-radius: 100px;
+        transition: background-color 0.2s;
+        background-color: var(--pf-color-accent);
+      }
     }
   }
 }

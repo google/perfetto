@@ -39,7 +39,7 @@ async function clickContextMenu(cell: Locator) {
   await cell.hover();
 
   // Click the button to open the context menu
-  cell.locator('.pf-grid-cell__menu-button').click();
+  cell.locator('.pf-grid__cell__menu-button').click();
 }
 
 async function clickColumnContextMenu(headerName?: string | RegExp) {

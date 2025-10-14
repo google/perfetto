@@ -139,7 +139,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
 
       return m(Button, {
         className: classNames(
-          !sort && 'pf-grid-cell__hint',
+          !sort && 'pf-grid__cell--hint',
           !sort && 'pf-visible-on-hover',
         ),
         rounded: true,
@@ -157,7 +157,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            className: 'pf-visible-on-hover pf-grid-cell__menu-button',
+            className: 'pf-visible-on-hover pf-grid__cell__menu-button',
             icon: Icons.ContextMenuAlt,
             rounded: true,
           }),
@@ -263,10 +263,10 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         },
       },
       m('.pf-grid__cell--stretch.pf-grid__cell--padded', children),
-      renderSortButton(),
+      m('.pf-grid__cell__btn-container', renderSortButton()),
       // TODO: Could put a spacer in here to push the sort button up to the
       // content and the menu to the right.
-      renderMenu(),
+      m('.pf-grid__cell__btn-container', renderMenu()),
       renderResizeHandle(),
     );
   }
