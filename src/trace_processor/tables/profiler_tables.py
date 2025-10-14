@@ -245,9 +245,9 @@ PACKAGE_LIST_TABLE = Table(
 USER_LIST_TABLE = Table(
     python_module=__file__,
     class_name='UserListTable',
-    sql_name='user_list',
+    sql_name='__intrinsic_user_list',
     columns=[
-        C('name', CppString()),
+        C('type', CppString()),
         C('uid', CppInt64()),
     ],
     tabledoc=TableDoc(

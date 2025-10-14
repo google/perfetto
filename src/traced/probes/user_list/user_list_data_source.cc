@@ -51,7 +51,7 @@ bool ParseUserListStream(protos::pbzero::UserList* user_list_packet,
       continue;
     }
     auto* user = user_list_packet->add_users();
-    user->set_typepe(pkg_struct.type.c_str(), pkg_struct.type.size());
+    user->set_type(pkg_struct.type.c_str(), pkg_struct.type.size());
     user->set_uid(pkg_struct.uid);
   }
   return parsed_fully;
