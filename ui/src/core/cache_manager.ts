@@ -25,6 +25,17 @@ const TRACE_CACHE_SIZE = 10;
 
 let LAZY_CACHE: Cache | undefined = undefined;
 
+let cachePrefix = '';
+
+/**
+ * Set a prefix to the keys used to cache data in the local store.
+ * Useful for embedding applications to ensure uniqueness of keys.
+ * By default, there is no prefix.
+ */
+export function setCachePrefix(prefix: string): void {
+  cachePrefix = prefix;
+}
+
 async function getCache(): Promise<Cache | undefined> {
   if (self.caches === undefined) {
     // The browser doesn't support cache storage or the page is opened from
@@ -129,7 +140,7 @@ export async function cacheTrace(
     ],
   ]);
   await deleteStaleEntries();
-  const key = `/_${TRACE_CACHE_NAME}/${traceUuid}`;
+  const key = `${cachePrefix}/_${TRACE_CACHE_NAME}/${traceUuid}`;
   await cachePut(key, new Response(trace, {headers}));
 
   // Verify the file was actually cached, large files can silently fail.
@@ -151,7 +162,9 @@ export async function tryGetTrace(
   traceUuid: string,
 ): Promise<TraceArrayBufferSource | undefined> {
   await deleteStaleEntries();
-  const response = await cacheMatch(`/_${TRACE_CACHE_NAME}/${traceUuid}`);
+  const response = await cacheMatch(
+    `${cachePrefix}/_${TRACE_CACHE_NAME}/${traceUuid}`,
+  );
 
   if (!response) return undefined;
   return {

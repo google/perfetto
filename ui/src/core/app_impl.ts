@@ -322,12 +322,15 @@ export class AppImpl implements App {
     };
   }
 
-  openTraceFromFile(file: File): void {
-    this.openTrace({type: 'FILE', file});
+  openTraceFromFile(file: File, serializedAppState?: SerializedAppState): void {
+    this.openTrace({type: 'FILE', file, serializedAppState});
   }
 
-  openTraceFromMultipleFiles(files: ReadonlyArray<File>): void {
-    this.openTrace({type: 'MULTIPLE_FILES', files});
+  openTraceFromMultipleFiles(
+    files: ReadonlyArray<File>,
+    serializedAppState?: SerializedAppState,
+  ): void {
+    this.openTrace({type: 'MULTIPLE_FILES', files, serializedAppState});
   }
 
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
@@ -341,8 +344,8 @@ export class AppImpl implements App {
     this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
   }
 
-  openTraceFromHttpRpc(): void {
-    this.openTrace({type: 'HTTP_RPC'});
+  openTraceFromHttpRpc(serializedAppState?: SerializedAppState): void {
+    this.openTrace({type: 'HTTP_RPC', serializedAppState});
   }
 
   private async openTrace(src: TraceSource) {

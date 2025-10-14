@@ -36,7 +36,7 @@ export class PageManagerImpl {
 
   // Called by index.ts upon the main frame redraw callback.
   renderPageForCurrentRoute(): m.Children {
-    const route = Router.parseFragment(location.hash);
+    const route = Router.currentRoute;
     this.previousPages.set(route.page, {
       page: route.page,
       subpage: route.subpage,
@@ -63,7 +63,7 @@ export class PageManagerImpl {
 
   // Will return undefined if either: (1) the route does not exist; (2) the
   // route exists, it requires a trace, but there is no trace loaded.
-  private renderPageForRoute(page: string, subpage: string) {
+  renderPageForRoute(page: string, subpage: string): m.Children {
     const handler = this.registry.tryGet(page);
     if (handler === undefined) {
       return undefined;
