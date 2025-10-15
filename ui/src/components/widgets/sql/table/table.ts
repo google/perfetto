@@ -28,6 +28,8 @@ import {
   GridRow,
   renderSortMenuItems,
   SortDirection,
+  measureCells,
+  ColumnToMeasure,
 } from '../../../../widgets/grid';
 
 import {
@@ -430,49 +432,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     maxWidth: number,
     use95thPercentile: boolean,
   ): number {
-    const measureContainer = document.createElement('div');
-    measureContainer.style.position = 'absolute';
-    measureContainer.style.visibility = 'hidden';
-    measureContainer.style.pointerEvents = 'none';
-    measureContainer.style.top = '-9999px';
-    measureContainer.style.left = '-9999px';
-    measureContainer.className = 'pf-grid'; // Pretend this is a grid to get the right styles
-    document.body.appendChild(measureContainer);
-
-    const widths: number[] = [];
-
-    // Measure each cell in the column
-    rows.forEach((row) => {
-      const {content, isNull, isNumerical} = renderCell(
-        column,
-        row,
-        this.state,
-      );
-      const cellContainer = document.createElement('div');
-      const cellVnode = m(
-        GridDataCell,
-        {
-          align: isNull ? 'center' : isNumerical ? 'right' : 'left',
-          nullish: isNull,
-          width: 'fit-content',
-        },
-        content,
-      );
-
-      m.render(cellContainer, cellVnode);
-      measureContainer.appendChild(cellContainer);
-
-      const cellElement = cellContainer.querySelector('.pf-grid__cell');
-      if (cellElement) {
-        widths.push(cellElement.scrollWidth);
-      }
-
-      measureContainer.removeChild(cellContainer);
-    });
-
-    // Measure header width
-    // Always measure with sort button visible to ensure no ellipsis when sorted
-    const headerContainer = document.createElement('div');
     const headerVnode = m(
       GridHeaderCell,
       {
@@ -483,38 +442,32 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       columnTitle(column),
     );
 
-    m.render(headerContainer, headerVnode);
-    measureContainer.appendChild(headerContainer);
-
-    const headerElement = headerContainer.querySelector('.pf-grid__cell');
-    const headerWidth = headerElement ? headerElement.scrollWidth : 0;
-
-    measureContainer.removeChild(headerContainer);
-    document.body.removeChild(measureContainer);
-
-    // Calculate column width based on strategy
-    if (widths.length > 0) {
-      widths.sort((a, b) => a - b);
-
-      let contentWidth: number;
-      if (use95thPercentile) {
-        // Use 95th percentile for initial sizing
-        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
-        contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
-      } else {
-        // Use max width for double-click auto-resize
-        contentWidth = widths[widths.length - 1];
-      }
-
-      // Take the maximum of content width and header width, capped at maxWidth
-      return Math.min(
-        maxWidth,
-        Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
+    const cellVnodes = rows.map((row) => {
+      const {content, isNull, isNumerical} = renderCell(
+        column,
+        row,
+        this.state,
       );
-    } else {
-      // If no cell data, just use header width, capped at maxWidth
-      return Math.min(maxWidth, Math.max(50, Math.ceil(headerWidth)));
-    }
+      return m(
+        GridDataCell,
+        {
+          align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+          nullish: isNull,
+          width: 'fit-content',
+        },
+        content,
+      );
+    });
+
+    const columnToMeasure: ColumnToMeasure = {
+      name: tableColumnId(column),
+      headerVnodes: [headerVnode],
+      dataVnodes: cellVnodes,
+    };
+
+    const percentile = use95thPercentile ? 0.95 : 1.0;
+    const widths = measureCells([columnToMeasure], maxWidth, percentile);
+    return widths.get(tableColumnId(column)) ?? 100;
   }
 }
 

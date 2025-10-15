@@ -33,6 +33,8 @@ import {
   GridHeaderCell,
   GridRow,
   renderSortMenuItems,
+  measureCells,
+  ColumnToMeasure,
 } from '../../../../widgets/grid';
 
 export interface PivotTableAttrs {
@@ -478,51 +480,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     maxWidth: number,
     use95thPercentile: boolean,
   ): number {
-    const measureContainer = document.createElement('div');
-    measureContainer.style.position = 'absolute';
-    measureContainer.style.visibility = 'hidden';
-    measureContainer.style.pointerEvents = 'none';
-    measureContainer.style.top = '-9999px';
-    measureContainer.style.left = '-9999px';
-    measureContainer.className = 'pf-grid'; // Pretend this is a grid to get the right styles
-    document.body.appendChild(measureContainer);
-
-    const widths: number[] = [];
-
-    // Measure each cell in the column
-    nodes.forEach((node) => {
-      const renderedCell = getCellContent(node);
-      if (!renderedCell) return;
-
-      const cellContainer = document.createElement('div');
-      const cellVnode = m(
-        GridDataCell,
-        {
-          align: renderedCell.isNull
-            ? 'center'
-            : renderedCell.isNumerical
-              ? 'right'
-              : 'left',
-          nullish: renderedCell.isNull,
-          width: 'fit-content',
-        },
-        renderedCell.content,
-      );
-
-      m.render(cellContainer, cellVnode);
-      measureContainer.appendChild(cellContainer);
-
-      const cellElement = cellContainer.querySelector('.pf-grid__cell');
-      if (cellElement) {
-        widths.push(cellElement.scrollWidth);
-      }
-
-      measureContainer.removeChild(cellContainer);
-    });
-
-    // Measure header width
-    // Always measure with sort button visible to ensure no ellipsis when sorted
-    const headerContainer = document.createElement('div');
     const headerVnode = m(
       GridHeaderCell,
       {
@@ -533,37 +490,35 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       headerText,
     );
 
-    m.render(headerContainer, headerVnode);
-    measureContainer.appendChild(headerContainer);
+    const cellVnodes = nodes
+      .map((node) => {
+        const renderedCell = getCellContent(node);
+        if (!renderedCell) return undefined;
 
-    const headerElement = headerContainer.querySelector('.pf-grid__cell');
-    const headerWidth = headerElement ? headerElement.scrollWidth : 0;
+        return m(
+          GridDataCell,
+          {
+            align: renderedCell.isNull
+              ? 'center'
+              : renderedCell.isNumerical
+                ? 'right'
+                : 'left',
+            nullish: renderedCell.isNull,
+            width: 'fit-content',
+          },
+          renderedCell.content,
+        );
+      })
+      .filter((vnode) => vnode !== undefined);
 
-    measureContainer.removeChild(headerContainer);
-    document.body.removeChild(measureContainer);
+    const columnToMeasure: ColumnToMeasure = {
+      name: headerText,
+      headerVnodes: [headerVnode],
+      dataVnodes: cellVnodes,
+    };
 
-    // Calculate column width based on strategy
-    if (widths.length > 0) {
-      widths.sort((a, b) => a - b);
-
-      let contentWidth: number;
-      if (use95thPercentile) {
-        // Use 95th percentile for initial sizing
-        const percentileIndex = Math.ceil(widths.length * 0.95) - 1;
-        contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
-      } else {
-        // Use max width for double-click auto-resize
-        contentWidth = widths[widths.length - 1];
-      }
-
-      // Take the maximum of content width and header width, capped at maxWidth
-      return Math.min(
-        maxWidth,
-        Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
-      );
-    } else {
-      // If no cell data, just use header width, capped at maxWidth
-      return Math.min(maxWidth, Math.max(50, Math.ceil(headerWidth)));
-    }
+    const percentile = use95thPercentile ? 0.95 : 1.0;
+    const widths = measureCells([columnToMeasure], maxWidth, percentile);
+    return widths.get(headerText) ?? 100;
   }
 }

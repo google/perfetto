@@ -45,6 +45,8 @@ import {
   GridFilterBar,
   GridFilterChip,
   GridAggregationCell,
+  measureCells,
+  ColumnToMeasure,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
 
@@ -765,28 +767,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     cellRenderer: CellRenderer,
     maxWidth: number,
     percentile: number = 1.0,
-    padding: number = 5, // Extra padding to add to measured width
-  ) {
-    // Create off-screen container for measuring with proper grid structure
-    const measureContainer = document.createElement('div');
-    measureContainer.style.position = 'absolute';
-    measureContainer.style.visibility = 'hidden';
-    measureContainer.style.pointerEvents = 'none';
-    measureContainer.style.top = '-9999px';
-    measureContainer.style.left = '-9999px';
-    measureContainer.className = 'pf-grid'; // Pretend this is a grid to get the right styles
-    document.body.appendChild(measureContainer);
-
-    columns.forEach((column) => {
-      const widths: number[] = [];
-
-      // Measure each cell in the column using actual GridDataCell component
-      rows.forEach((row) => {
+  ): void {
+    const columnsToMeasure: ColumnToMeasure[] = columns.map((column) => {
+      const headerVnode = m(
+        GridHeaderCell,
+        {
+          width: 'fit-content',
+          sort: 'ASC', // Measure with sort button to ensure adequate width
+          onSort: () => {}, // Dummy callback
+        },
+        column.title ?? column.name,
+      );
+      const cellVnodes = rows.map((row) => {
         const value = row[column.name];
-        const cellContainer = document.createElement('div');
-
-        // Render GridDataCell without menu items or width constraint
-        const cellVnode = m(
+        return m(
           GridDataCell,
           {
             align: (() => {
@@ -799,71 +793,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           },
           cellRenderer(value, column.name, row),
         );
-
-        m.render(cellContainer, cellVnode);
-        measureContainer.appendChild(cellContainer);
-
-        // Get the actual cell content width
-        const cellElement = cellContainer.querySelector('.pf-grid__cell');
-        if (cellElement) {
-          widths.push(cellElement.scrollWidth);
-        }
-
-        measureContainer.removeChild(cellContainer);
       });
-
-      // Measure header width using actual GridHeaderCell component
-      // Always measure with sort button visible to ensure no ellipsis when sorted
-      const headerContainer = document.createElement('div');
-      const headerVnode = m(
-        GridHeaderCell,
-        {
-          width: 'fit-content',
-          sort: 'ASC', // Measure with sort button to ensure adequate width
-          onSort: () => {}, // Dummy callback
-        },
-        column.title ?? column.name,
-      );
-
-      m.render(headerContainer, headerVnode);
-      measureContainer.appendChild(headerContainer);
-
-      const headerElement = headerContainer.querySelector('.pf-grid__cell');
-      const headerWidth = headerElement ? headerElement.scrollWidth : 0;
-
-      measureContainer.removeChild(headerContainer);
-
-      // Calculate column width based on strategy
-      if (widths.length > 0) {
-        widths.sort((a, b) => a - b);
-
-        let contentWidth: number;
-        if (percentile < 1.0) {
-          // Use 95th percentile for initial sizing
-          const percentileIndex = Math.ceil(widths.length * percentile) - 1;
-          contentWidth = widths[Math.min(percentileIndex, widths.length - 1)];
-        } else {
-          // Use max width for double-click auto-resize
-          contentWidth = widths[widths.length - 1];
-        }
-
-        // Take the maximum of content width and header width, capped at maxWidth
-        const finalWidth = Math.min(
-          maxWidth,
-          Math.max(50, Math.ceil(Math.max(contentWidth, headerWidth))),
-        );
-        this.columnWidths.set(column.name, finalWidth + padding);
-      } else {
-        // If no cell data, just use header width, capped at maxWidth
-        const finalWidth = Math.min(
-          maxWidth,
-          Math.max(50, Math.ceil(headerWidth)),
-        );
-        this.columnWidths.set(column.name, finalWidth + padding);
-      }
+      return {
+        name: column.name,
+        headerVnodes: [headerVnode],
+        dataVnodes: cellVnodes,
+      };
     });
-    // Clean up
-    document.body.removeChild(measureContainer);
+
+    const widths = measureCells(columnsToMeasure, maxWidth, percentile);
+    widths.forEach((width, columnName) => {
+      this.columnWidths.set(columnName, width);
+    });
   }
 }
 

@@ -507,3 +507,109 @@ export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
     });
   }
 }
+
+export interface ColumnToMeasure {
+  readonly name: string;
+  readonly headerVnodes: ReadonlyArray<m.Children>;
+  readonly dataVnodes: ReadonlyArray<m.Children>;
+}
+
+/**
+ * Measures the optimal width for grid columns based on their content.
+ *
+ * This function creates an off-screen DOM container to measure the actual
+ * rendered width of vnodes, then calculates optimal column widths. Header vnodes
+ * are always fully accommodated, while data vnodes use percentile-based sizing
+ * to avoid outliers making columns too wide.
+ *
+ * @param columns Array of columns to measure, each containing:
+ *                - name: Column identifier
+ *                - headerVnodes: Headers (always fully measured)
+ *                - dataVnodes: Data cells (subject to percentile filtering)
+ * @param maxWidth Maximum allowed width for any column in pixels
+ * @param percentile Percentile to use for data cell width calculation (0.0-1.0).
+ *                   Use 1.0 for maximum width, or lower values (e.g., 0.95)
+ *                   to ignore outliers. Headers always use maximum width.
+ * @param padding Extra padding to add to measured width in pixels
+ * @returns Map of column names to their calculated widths in pixels
+ */
+export function measureCells(
+  columns: ReadonlyArray<ColumnToMeasure>,
+  maxWidth: number,
+  percentile: number = 1.0,
+  padding: number = 5,
+): Map<string, number> {
+  const columnWidths = new Map<string, number>();
+
+  // Create off-screen container for measuring with proper grid structure
+  const measureContainer = document.createElement('div');
+  measureContainer.style.position = 'absolute';
+  measureContainer.style.visibility = 'hidden';
+  measureContainer.style.pointerEvents = 'none';
+  measureContainer.style.top = '-9999px';
+  measureContainer.style.left = '-9999px';
+  measureContainer.className = 'pf-grid'; // Pretend this is a grid to get the right styles
+  document.body.appendChild(measureContainer);
+
+  columns.forEach((column) => {
+    const headerWidths: number[] = [];
+    const dataWidths: number[] = [];
+
+    // Measure header vnodes (always use max)
+    column.headerVnodes.forEach((vnode) => {
+      const container = document.createElement('div');
+      m.render(container, vnode);
+      measureContainer.appendChild(container);
+
+      const cellElement = container.querySelector('.pf-grid__cell');
+      if (cellElement) {
+        headerWidths.push(cellElement.scrollWidth);
+      }
+
+      measureContainer.removeChild(container);
+    });
+
+    // Measure data vnodes (subject to percentile)
+    column.dataVnodes.forEach((vnode) => {
+      const container = document.createElement('div');
+      m.render(container, vnode);
+      measureContainer.appendChild(container);
+
+      const cellElement = container.querySelector('.pf-grid__cell');
+      if (cellElement) {
+        dataWidths.push(cellElement.scrollWidth);
+      }
+
+      measureContainer.removeChild(container);
+    });
+
+    // Calculate column width
+    // Headers always use maximum width
+    const headerWidth =
+      headerWidths.length > 0 ? Math.max(...headerWidths) : 0;
+
+    // Data cells use percentile
+    let dataWidth = 0;
+    if (dataWidths.length > 0) {
+      dataWidths.sort((a, b) => a - b);
+      if (percentile < 1.0) {
+        const percentileIndex = Math.ceil(dataWidths.length * percentile) - 1;
+        dataWidth = dataWidths[Math.min(percentileIndex, dataWidths.length - 1)];
+      } else {
+        dataWidth = dataWidths[dataWidths.length - 1];
+      }
+    }
+
+    // Use the maximum of header and data width, capped at maxWidth
+    const finalWidth = Math.min(
+      maxWidth,
+      Math.max(COL_WIDTH_MIN_PX, Math.ceil(Math.max(headerWidth, dataWidth))),
+    );
+    columnWidths.set(column.name, finalWidth + padding);
+  });
+
+  // Clean up
+  document.body.removeChild(measureContainer);
+
+  return columnWidths;
+}
