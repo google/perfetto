@@ -916,7 +916,7 @@ TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
                         "value_column_specs defined"));
 }
 
-TEST_F(TraceSummaryTest, MetadataBundleBasic) {
+TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
   ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
     metric_spec {
       id: "my_metric"
@@ -929,7 +929,7 @@ TEST_F(TraceSummaryTest, MetadataBundleBasic) {
           column_names: "dur"
         }
       }
-      metadata_specs {
+      interned_dimension_specs {
         key_column_spec { name: "dim" type: STRING }
         data_column_specs { name: "version" type: DOUBLE }
         query {
@@ -956,7 +956,7 @@ TEST_F(TraceSummaryTest, MetadataBundleBasic) {
             column_names: "dur"
           }
         }
-        metadata_specs {
+        interned_dimension_specs {
           key_column_spec {
             name: "dim"
             type: STRING
@@ -988,8 +988,8 @@ TEST_F(TraceSummaryTest, MetadataBundleBasic) {
           double_value: 425.000000
         }
       }
-      metadata_bundles {
-        metadata_spec {
+      interned_dimension_bundles {
+        spec {
           key_column_spec {
             name: "dim"
             type: STRING
@@ -1004,19 +1004,19 @@ TEST_F(TraceSummaryTest, MetadataBundleBasic) {
             }
           }
         }
-        metadata_rows {
-          metadata_values {
+        interned_dimension_rows {
+          interned_dimension_values {
             string_value: "a"
           }
-          metadata_values {
+          interned_dimension_values {
             double_value: 1.000000
           }
         }
-        metadata_rows {
-          metadata_values {
+        interned_dimension_rows {
+          interned_dimension_values {
             string_value: "b"
           }
-          metadata_values {
+          interned_dimension_values {
             double_value: 2.000000
           }
         }
@@ -1025,7 +1025,7 @@ TEST_F(TraceSummaryTest, MetadataBundleBasic) {
   )-"));
 }
 
-TEST_F(TraceSummaryTest, MetadataBundleKeyColumnNotInDimensions) {
+TEST_F(TraceSummaryTest, InternedDimensionBundleKeyColumnNotInDimensions) {
   auto status = RunSummarize(R"(
     metric_spec {
       id: "my_metric"
@@ -1038,16 +1038,17 @@ TEST_F(TraceSummaryTest, MetadataBundleKeyColumnNotInDimensions) {
           column_names: "value"
         }
       }
-      metadata_specs {
+      interned_dimension_specs {
         key_column_spec { name: "other" type: STRING }
         query { sql { sql: "SELECT 'a' as other" } }
       }
     }
   )");
   ASSERT_FALSE(status.ok());
-  EXPECT_THAT(status.status().message(),
-              HasSubstr("Key column 'other' in metadata bundle not found in "
-                        "metric dimensions"));
+  EXPECT_THAT(
+      status.status().message(),
+      HasSubstr("Key column 'other' in interned dimension bundle not found in "
+                "metric dimensions"));
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
