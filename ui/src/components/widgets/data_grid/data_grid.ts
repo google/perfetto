@@ -302,6 +302,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.measureColumns(
         columns,
         dataSource.rows.rows.slice(offset, limit),
+        dataSource.rows.aggregates,
         cellRenderer,
         600, // Initial sizing: cap at 600px
         0.95, // Use 95th percentile for initial sizing
@@ -449,6 +450,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                             firstRowInPage,
                             lastRowInPage,
                           ),
+                          dataSource.rows.aggregates,
                           cellRenderer,
                           10_000, // Double-click: virtually no limit
                           1.0, // Use max width (100%) for double-click
@@ -764,20 +766,42 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private measureColumns(
     columns: ReadonlyArray<ColumnDefinition>,
     rows: ReadonlyArray<RowDef>,
+    aggregates: RowDef | undefined,
     cellRenderer: CellRenderer,
     maxWidth: number,
     percentile: number = 1.0,
   ): void {
     const columnsToMeasure: ColumnToMeasure[] = columns.map((column) => {
-      const headerVnode = m(
-        GridHeaderCell,
-        {
-          width: 'fit-content',
-          sort: 'ASC', // Measure with sort button to ensure adequate width
-          onSort: () => {}, // Dummy callback
-        },
-        column.title ?? column.name,
+      const headerVnodes: m.Children[] = [];
+
+      // Add column header
+      headerVnodes.push(
+        m(
+          GridHeaderCell,
+          {
+            width: 'fit-content',
+            sort: 'ASC', // Measure with sort button to ensure adequate width
+            onSort: () => {}, // Dummy callback
+          },
+          column.title ?? column.name,
+        ),
       );
+
+      // Add aggregation cell if column has aggregation
+      if (column.aggregation && aggregates) {
+        headerVnodes.push(
+          m(
+            GridAggregationCell,
+            {
+              align: 'right', // Assume all aggregates are numeric
+              symbol: aggregationFunIcon(column.aggregation),
+              width: 'fit-content',
+            },
+            cellRenderer(aggregates[column.name], column.name, aggregates),
+          ),
+        );
+      }
+
       const cellVnodes = rows.map((row) => {
         const value = row[column.name];
         return m(
@@ -794,9 +818,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           cellRenderer(value, column.name, row),
         );
       });
+
       return {
         name: column.name,
-        headerVnodes: [headerVnode],
+        headerVnodes,
         dataVnodes: cellVnodes,
       };
     });
