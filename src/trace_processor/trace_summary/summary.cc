@@ -367,8 +367,7 @@ base::Status WriteDimension(
 base::Status WriteInternedDimensionValue(
     const SqlValue& col_value,
     protos::pbzero::TraceMetricV2Spec::DimensionType type,
-    protos::pbzero::TraceMetricV2Bundle::InternedDimensionBundle::
-        InternedDimensionRow::InternedDimensionValue* value) {
+    protos::pbzero::TraceMetricV2Bundle::Row::Dimension* value) {
   if (col_value.is_null()) {
     value->set_null_value();
     return base::OkStatus();
@@ -458,8 +457,8 @@ base::Status ValidateInternedDimensionSpecs(
       return base::ErrStatus(
           "key_column_spec must be specified in interned_dimension_specs");
     }
-    protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::
-        InternedDimensionColumnSpec::Decoder key_col_spec(ms.key_column_spec());
+    protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::ColumnSpec::
+        Decoder key_col_spec(ms.key_column_spec());
     std::string key_column_name = key_col_spec.name().ToStdString();
     if (!interned_dimension_keys.insert(key_column_name).second) {
       return base::ErrStatus(
@@ -484,8 +483,8 @@ base::Status ValidateInternedDimensionSpecs(
     std::set<std::string> all_column_names;
     all_column_names.insert(key_column_name);
     for (auto dcs_it = ms.data_column_specs(); dcs_it; ++dcs_it) {
-      protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::
-          InternedDimensionColumnSpec::Decoder data_col_spec(*dcs_it);
+      protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::ColumnSpec::
+          Decoder data_col_spec(*dcs_it);
       std::string data_col_name = data_col_spec.name().ToStdString();
       if (!all_column_names.insert(data_col_name).second) {
         return base::ErrStatus(
@@ -506,12 +505,10 @@ base::Status WriteInternedDimensionBundles(
   size_t interned_dimension_idx = 0;
   for (auto it = spec.interned_dimension_specs(); it; ++it) {
     protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::Decoder ms(*it);
-    protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::
-        InternedDimensionColumnSpec::Decoder key_col_spec(ms.key_column_spec());
+    protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::ColumnSpec::
+        Decoder key_col_spec(ms.key_column_spec());
     std::string key_column_name = key_col_spec.name().ToStdString();
     auto* interned_dimension_bundle = bundle->add_interned_dimension_bundles();
-    interned_dimension_bundle->set_spec()->AppendRawProtoBytes(
-        ms.begin(), static_cast<size_t>(ms.end() - ms.begin()));
 
     std::string sql = interned_dimension_queries[interned_dimension_idx++];
     auto query_it = processor->ExecuteQuery(sql);
@@ -532,8 +529,8 @@ base::Status WriteInternedDimensionBundles(
         std::pair<uint32_t, protos::pbzero::TraceMetricV2Spec::DimensionType>>
         column_infos;
     for (const auto& col_spec_bytes : col_specs_bytes) {
-      protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::
-          InternedDimensionColumnSpec::Decoder col_spec(col_spec_bytes);
+      protos::pbzero::TraceMetricV2Spec::InternedDimensionSpec::ColumnSpec::
+          Decoder col_spec(col_spec_bytes);
       std::optional<uint32_t> column_index;
       for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
         if (query_it.GetColumnName(i) == col_spec.name().ToStdString()) {
@@ -733,11 +730,8 @@ base::Status CreateQueriesAndComputeMetrics(
       }
     }
     RETURN_IF_ERROR(query_it.Status());
-    for (const auto* metric : value) {
-      protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
-      RETURN_IF_ERROR(WriteInternedDimensionBundles(
-          processor, spec, metric->interned_dimension_queries, bundle));
-    }
+    RETURN_IF_ERROR(WriteInternedDimensionBundles(
+        processor, first_spec, first->interned_dimension_queries, bundle));
   }
   return base::OkStatus();
 }

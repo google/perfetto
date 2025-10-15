@@ -989,21 +989,6 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
         }
       }
       interned_dimension_bundles {
-        spec {
-          key_column_spec {
-            name: "dim"
-            type: STRING
-          }
-          data_column_specs {
-            name: "version"
-            type: DOUBLE
-          }
-          query {
-            sql {
-              sql: "SELECT \'a\' as dim, 1.0 as version UNION ALL SELECT \'b\' as dim, 2.0 as version"
-            }
-          }
-        }
         interned_dimension_rows {
           interned_dimension_values {
             string_value: "a"
