@@ -30,6 +30,7 @@
 
 namespace perfetto::trace_processor {
 
+class DummyMemoryMapping;
 class TraceProcessorContext;
 class VirtualMemoryMapping;
 
@@ -51,6 +52,7 @@ class StackProfileSequenceState final
   std::optional<base::StringView> LookupInternedBuildId(uint64_t iid);
   std::optional<base::StringView> LookupInternedMappingPath(uint64_t iid);
   std::optional<base::StringView> LookupInternedFunctionName(uint64_t iid);
+  std::optional<base::StringView> LookupInternedSourcePath(uint64_t iid);
 
   // Returns `nullptr`if non could be found.
   VirtualMemoryMapping* FindOrInsertMappingImpl(std::optional<UniquePid> upid,
@@ -59,6 +61,7 @@ class StackProfileSequenceState final
                                            uint64_t iid);
 
   TraceProcessorContext* const context_;
+  DummyMemoryMapping* dummy_mapping_for_interned_frames_ = nullptr;
 
   struct OptionalUniquePidAndIid {
     std::optional<UniquePid> upid;

@@ -290,6 +290,8 @@ message TrackEvent {
 
     // Reference to interned Callstack (see InternedData.callstacks).
     // This is the efficient option when callstacks are repeated.
+    //
+    // Note: iids *always* start from 1. A value of 0 is considered "not set".
     uint64 callstack_iid = 56;
   }
 

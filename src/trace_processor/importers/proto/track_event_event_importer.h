@@ -1485,8 +1485,12 @@ class TrackEventEventImporter {
       uint32_t depth = 0;
       for (auto frame_it = callstack.frames(); frame_it; ++frame_it, ++depth) {
         protos::pbzero::TrackEvent::Callstack::Frame::Decoder frame(*frame_it);
+        std::optional<uint32_t> line_number;
+        if (frame.has_line_number()) {
+          line_number = frame.line_number();
+        }
         FrameId frame_id = dummy_mapping->InternDummyFrame(
-            frame.function_name(), frame.source_file());
+            frame.function_name(), frame.source_file(), line_number);
         callsite_id = context_->stack_profile_tracker->InternCallsite(
             callsite_id, frame_id, depth);
       }

@@ -156,10 +156,12 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
  public:
   ~DummyMemoryMapping() override;
 
-  // Interns a frame based solely on function name and source file. This is
-  // useful for profilers that do not emit an address nor a mapping.
+  // Interns a frame based solely on function name, source file, and optionally
+  // line number. This is useful for profilers that do not emit an address nor
+  // a mapping.
   FrameId InternDummyFrame(base::StringView function_name,
-                           base::StringView source_file);
+                           base::StringView source_file,
+                           std::optional<uint32_t> line_number = std::nullopt);
 
  private:
   friend class MappingTracker;
@@ -169,16 +171,19 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
   struct DummyFrameKey {
     StringId function_name_id;
     StringId source_file_id;
+    std::optional<uint32_t> line_number;
 
     bool operator==(const DummyFrameKey& o) const {
       return function_name_id == o.function_name_id &&
-             source_file_id == o.source_file_id;
+             source_file_id == o.source_file_id &&
+             line_number == o.line_number;
     }
 
     struct Hasher {
       size_t operator()(const DummyFrameKey& k) const {
         return static_cast<size_t>(base::FnvHasher::Combine(
-            k.function_name_id.raw_id(), k.source_file_id.raw_id()));
+            k.function_name_id.raw_id(), k.source_file_id.raw_id(),
+            k.line_number.value_or(0)));
       }
     };
   };

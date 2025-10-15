@@ -125,10 +125,12 @@ DummyMemoryMapping::DummyMemoryMapping(TraceProcessorContext* context,
                                        CreateMappingParams params)
     : VirtualMemoryMapping(context, std::move(params)) {}
 
-FrameId DummyMemoryMapping::InternDummyFrame(base::StringView function_name,
-                                             base::StringView source_file) {
+FrameId DummyMemoryMapping::InternDummyFrame(
+    base::StringView function_name,
+    base::StringView source_file,
+    std::optional<uint32_t> line_number) {
   DummyFrameKey key{context()->storage->InternString(function_name),
-                    context()->storage->InternString(source_file)};
+                    context()->storage->InternString(source_file), line_number};
 
   if (FrameId* id = interned_dummy_frames_.Find(key); id) {
     return *id;
@@ -139,7 +141,8 @@ FrameId DummyMemoryMapping::InternDummyFrame(base::StringView function_name,
   tables::SymbolTable::Id symbol_id =
       context()
           ->storage->mutable_symbol_table()
-          ->Insert({symbol_set_id, key.function_name_id, key.source_file_id})
+          ->Insert({symbol_set_id, key.function_name_id, key.source_file_id,
+                    key.line_number})
           .id;
 
   PERFETTO_CHECK(symbol_set_id == symbol_id.value);
