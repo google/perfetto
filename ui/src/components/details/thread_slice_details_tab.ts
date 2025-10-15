@@ -34,14 +34,7 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
-import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-} from '../../widgets/grid';
+import {DataGrid} from '../../components/widgets/data_grid/data_grid';
 import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {assertExists, assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
@@ -288,49 +281,43 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         slice.name === 'ThreadControllerImpl::RunTask' ||
         slice.name === 'ThreadPool_RunTask';
 
+      const rows = inFlows.map((flow, index) => ({
+        id: index,
+        sliceId: flow.begin.sliceId,
+        sliceName: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
+        delay: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+        thread: this.getThreadNameForFlow(flow.begin, !isRunTask),
+      }));
+
       return m(
         Section,
         {title: 'Preceding Flows'},
-        m(
-          Grid,
-          m(
-            GridHeader,
-            m(
-              GridRow,
-              m(GridHeaderCell, 'Slice'),
-              m(GridHeaderCell, 'Delay'),
-              m(GridHeaderCell, 'Thread'),
-            ),
-          ),
-          m(
-            GridBody,
-            inFlows.map((flow) =>
-              m(
-                GridRow,
-                m(
-                  GridDataCell,
-                  m(SliceRef, {
-                    trace: this.trace,
-                    id: asSliceSqlId(flow.begin.sliceId),
-                    name:
-                      flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  m(DurationWidget, {
-                    trace: this.trace,
-                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  this.getThreadNameForFlow(flow.begin, !isRunTask),
-                ),
-              ),
-            ),
-          ),
-        ),
+        m(DataGrid, {
+          columns: [
+            {
+              name: 'sliceName',
+              title: 'Slice',
+            },
+            {name: 'delay', title: 'Delay'},
+            {name: 'thread', title: 'Thread'},
+          ],
+          data: rows,
+          cellRenderer: (value, columnName, row): m.Children => {
+            if (columnName === 'sliceName') {
+              return m(SliceRef, {
+                trace: this.trace,
+                id: asSliceSqlId(row.sliceId as number),
+                name: value as string,
+              });
+            } else if (columnName === 'delay') {
+              return m(DurationWidget, {
+                trace: this.trace,
+                dur: value as bigint,
+              });
+            }
+            return String(value);
+          },
+        }),
       );
     } else {
       return null;
@@ -346,48 +333,43 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         slice.name === 'ThreadPool_PostTask' ||
         slice.name === 'SequenceManager PostTask';
 
+      const rows = outFlows.map((flow, index) => ({
+        id: index,
+        sliceId: flow.end.sliceId,
+        sliceName: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
+        delay: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+        thread: this.getThreadNameForFlow(flow.end, !isPostTask),
+      }));
+
       return m(
         Section,
         {title: 'Following Flows'},
-        m(
-          Grid,
-          m(
-            GridHeader,
-            m(
-              GridRow,
-              m(GridHeaderCell, 'Slice'),
-              m(GridHeaderCell, 'Delay'),
-              m(GridHeaderCell, 'Thread'),
-            ),
-          ),
-          m(
-            GridBody,
-            outFlows.map((flow) =>
-              m(
-                GridRow,
-                m(
-                  GridDataCell,
-                  m(SliceRef, {
-                    trace: this.trace,
-                    id: asSliceSqlId(flow.end.sliceId),
-                    name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  m(DurationWidget, {
-                    trace: this.trace,
-                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  this.getThreadNameForFlow(flow.end, !isPostTask),
-                ),
-              ),
-            ),
-          ),
-        ),
+        m(DataGrid, {
+          columns: [
+            {
+              name: 'sliceName',
+              title: 'Slice',
+            },
+            {name: 'delay', title: 'Delay'},
+            {name: 'thread', title: 'Thread'},
+          ],
+          data: rows,
+          cellRenderer: (value, columnName, row) => {
+            if (columnName === 'sliceName') {
+              return m(SliceRef, {
+                trace: this.trace,
+                id: asSliceSqlId(row.sliceId as number),
+                name: value as string,
+              });
+            } else if (columnName === 'delay') {
+              return m(DurationWidget, {
+                trace: this.trace,
+                dur: value as bigint,
+              });
+            }
+            return String(value);
+          },
+        }),
       );
     } else {
       return null;
