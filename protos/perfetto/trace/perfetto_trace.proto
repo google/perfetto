@@ -13641,10 +13641,15 @@ message Frame {
   // The mapping in which this frame's instruction pointer resides.
   // iid of Mapping.iid.
   //
+  // If set (non-zero), rel_pc MUST also be set. If mapping_id is 0 (not set),
+  // this frame has no associated memory mapping (e.g., symbolized frames
+  // without address information).
+  //
   // Starts from 1, 0 is the same as "not set".
   optional uint64 mapping_id = 3;
 
   // Instruction pointer relative to the start of the mapping.
+  // MUST be set if mapping_id is set (non-zero). Ignored if mapping_id is 0.
   optional uint64 rel_pc = 4;
 
   // Source file path for this frame.

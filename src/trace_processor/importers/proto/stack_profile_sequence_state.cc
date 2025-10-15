@@ -21,8 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -231,6 +229,20 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     function_name = *func;
   }
 
+  // Extract source file and line number (used by both dummy and regular frames)
+  std::optional<base::StringView> source_file;
+  if (decoder->has_source_path_iid()) {
+    source_file = LookupInternedSourcePath(decoder->source_path_iid());
+    if (!source_file) {
+      return std::nullopt;
+    }
+  }
+
+  std::optional<uint32_t> line_number;
+  if (decoder->has_line_number()) {
+    line_number = decoder->line_number();
+  }
+
   // Check if mapping_id is 0, which means this is a "dummy" frame (no real
   // mapping) In this case, we should use the dummy mapping API with source file
   // and line number
@@ -240,19 +252,7 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
       dummy_mapping_for_interned_frames_ =
           &context_->mapping_tracker->CreateDummyMapping("");
     }
-    base::StringView source_file;
-    if (decoder->has_source_path_iid()) {
-      std::optional<base::StringView> src =
-          LookupInternedSourcePath(decoder->source_path_iid());
-      if (!src) {
-        return std::nullopt;
-      }
-      source_file = *src;
-    }
-    std::optional<uint32_t> line_number;
-    if (decoder->has_line_number()) {
-      line_number = decoder->line_number();
-    }
+
     FrameId frame_id = dummy_mapping_for_interned_frames_->InternDummyFrame(
         function_name, source_file, line_number);
     cached_frames_.Insert({upid, iid}, frame_id);
@@ -266,43 +266,10 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     return std::nullopt;
   }
 
-  // Check if we have online symbolization info (source_path_iid and
-  // line_number)
-  std::optional<base::StringView> source_file;
-  std::optional<uint32_t> line_number;
-
-  if (decoder->has_source_path_iid()) {
-    source_file = LookupInternedSourcePath(decoder->source_path_iid());
-    if (!source_file) {
-      return std::nullopt;
-    }
-  }
-
-  if (decoder->has_line_number()) {
-    line_number = decoder->line_number();
-  }
-
-  FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name);
-
-  // If we have source file or line number, create a symbol entry
-  if (source_file || line_number) {
-    uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
-
-    StringId source_file_id = kNullStringId;
-    if (source_file) {
-      source_file_id = context_->storage->InternString(*source_file);
-    }
-
-    StringId function_name_id = context_->storage->InternString(function_name);
-
-    context_->storage->mutable_symbol_table()->Insert(
-        {symbol_set_id, function_name_id, source_file_id, line_number});
-
-    // Update the frame to reference the symbol set
-    context_->storage->mutable_stack_profile_frame_table()
-        ->FindById(frame_id)
-        ->set_symbol_set_id(symbol_set_id);
-  }
+  // InternFrame will create the symbol entry if source_file or line_number is
+  // provided
+  FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name,
+                                          source_file, line_number);
 
   if (!mapping->is_jitted()) {
     cached_frames_.Insert({upid, iid}, frame_id);

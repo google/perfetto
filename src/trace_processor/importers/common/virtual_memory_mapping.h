@@ -76,7 +76,12 @@ class VirtualMemoryMapping {
   // `is_jitted()` same `rel_pc` values can return different mappings (as jitted
   // functions can be created and deleted over time.) So for such mappings the
   // returned `FrameId` should not be cached.
-  FrameId InternFrame(uint64_t rel_pc, base::StringView function_name);
+  // Optionally accepts source_file and line_number for online symbolization.
+  FrameId InternFrame(
+      uint64_t rel_pc,
+      base::StringView function_name,
+      std::optional<base::StringView> source_file = std::nullopt,
+      std::optional<uint32_t> line_number = std::nullopt);
 
   // Returns all frames ever created in this mapping for the given `rel_pc`.
   std::vector<FrameId> FindFrameIds(uint64_t rel_pc) const;
@@ -87,11 +92,21 @@ class VirtualMemoryMapping {
 
   TraceProcessorContext* context() const { return context_; }
 
+  // Helper to create a symbol table entry with source file and/or line number
+  // information. Returns the symbol_set_id that should be stored in the frame.
+  std::optional<uint32_t> CreateSymbol(
+      base::StringView function_name,
+      std::optional<base::StringView> source_file,
+      std::optional<uint32_t> line_number);
+
  private:
   friend class MappingTracker;
 
-  std::pair<FrameId, bool> InternFrameImpl(uint64_t rel_pc,
-                                           base::StringView function_name);
+  std::pair<FrameId, bool> InternFrameImpl(
+      uint64_t rel_pc,
+      base::StringView function_name,
+      std::optional<base::StringView> source_file,
+      std::optional<uint32_t> line_number);
 
   void SetJitCache(JitCache* jit_cache) { jit_cache_ = jit_cache; }
 
@@ -159,9 +174,10 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
   // Interns a frame based solely on function name, source file, and optionally
   // line number. This is useful for profilers that do not emit an address nor
   // a mapping.
-  FrameId InternDummyFrame(base::StringView function_name,
-                           base::StringView source_file,
-                           std::optional<uint32_t> line_number = std::nullopt);
+  FrameId InternDummyFrame(
+      base::StringView function_name,
+      std::optional<base::StringView> source_file = std::nullopt,
+      std::optional<uint32_t> line_number = std::nullopt);
 
  private:
   friend class MappingTracker;
