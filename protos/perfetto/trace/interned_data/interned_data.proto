@@ -56,7 +56,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 44.
+// Next id: 45.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -147,6 +147,37 @@ message InternedData {
 
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
+
+  // Interned callstack metric specifications referenced by
+  // TrackEvent.callstack_metrics.
+  message InternedCallstackMetricSpec {
+    // Interning identifier.
+    optional uint64 iid = 1;
+
+    // Name of the metric, e.g. "CPU Time".
+    optional string name = 2;
+
+    // Human-readable description of the metric.
+    optional string description = 3;
+
+    // TODO(lalitm): this proto should be shared with `MetricUnit` in
+    // `TraceMetricV2Spec`. We should extract it to a common location.
+    enum MetricUnit {
+      UNIT_UNSPECIFIED = 0;
+      // A unitless count of items or events.
+      COUNT = 1;
+      // Time measured in nanoseconds.
+      TIME_NANOS = 2;
+    }
+    oneof unit_type {
+      // Unit of the value. Use this where possible.
+      MetricUnit unit = 4;
+      // Custom unit of the value. Use this when none of the predefined units
+      // apply. This should be a short, human-readable string (e.g. "bytes").
+      string custom_unit = 5;
+    }
+  }
+  repeated InternedCallstackMetricSpec callstack_metric_specs = 44;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
