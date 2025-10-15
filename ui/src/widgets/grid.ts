@@ -585,8 +585,7 @@ export function measureCells(
 
     // Calculate column width
     // Headers always use maximum width
-    const headerWidth =
-      headerWidths.length > 0 ? Math.max(...headerWidths) : 0;
+    const headerWidth = headerWidths.length > 0 ? Math.max(...headerWidths) : 0;
 
     // Data cells use percentile
     let dataWidth = 0;
@@ -594,7 +593,8 @@ export function measureCells(
       dataWidths.sort((a, b) => a - b);
       if (percentile < 1.0) {
         const percentileIndex = Math.ceil(dataWidths.length * percentile) - 1;
-        dataWidth = dataWidths[Math.min(percentileIndex, dataWidths.length - 1)];
+        dataWidth =
+          dataWidths[Math.min(percentileIndex, dataWidths.length - 1)];
       } else {
         dataWidth = dataWidths[dataWidths.length - 1];
       }
