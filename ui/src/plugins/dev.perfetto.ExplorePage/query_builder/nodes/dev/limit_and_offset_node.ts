@@ -18,6 +18,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  ModificationNode,
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
@@ -25,28 +26,28 @@ import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
+  prevNode: QueryNode;
   limit?: number;
   offset?: number;
 }
-
-export class LimitAndOffsetNode implements QueryNode {
+export class LimitAndOffsetNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kModifyColumns;
-  readonly prevNodes?: QueryNode[];
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: LimitAndOffsetNodeState;
 
   constructor(state: LimitAndOffsetNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
     this.state.limit = this.state.limit ?? 10;
     this.state.offset = this.state.offset ?? 0;
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNodes?.[0]?.finalCols ?? [];
+    return this.prevNode.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -99,7 +100,7 @@ export class LimitAndOffsetNode implements QueryNode {
   }
 
   validate(): boolean {
-    return this.prevNodes !== undefined && this.prevNodes.length > 0;
+    return this.prevNode !== undefined;
   }
 
   clone(): QueryNode {
@@ -108,7 +109,7 @@ export class LimitAndOffsetNode implements QueryNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     // TODO(mayzner): Implement this.
-    return this.prevNodes?.[0]?.getStructuredQuery();
+    return this.prevNode.getStructuredQuery();
   }
 
   serializeState(): object {

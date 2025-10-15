@@ -46,6 +46,7 @@ export function singleNodeOperation(type: NodeType): boolean {
 
 // All information required to create a new node.
 export interface QueryNodeState {
+  prevNode?: QueryNode;
   prevNodes?: QueryNode[];
   customTitle?: string;
   comment?: string;
@@ -65,11 +66,10 @@ export interface QueryNodeState {
   hasOperationChanged?: boolean;
 }
 
-export interface QueryNode {
+export interface BaseNode {
   readonly nodeId: string;
   meterialisedAs?: string;
   readonly type: NodeType;
-  prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
 
   // Columns that are available after applying all operations.
@@ -89,6 +89,23 @@ export interface QueryNode {
   serializeState(): object;
   onPrevNodesUpdated?(): void;
 }
+
+export interface SourceNodeInterface extends BaseNode {
+  // No prevNode(s)
+}
+
+export interface ModificationNode extends BaseNode {
+  prevNode: QueryNode;
+}
+
+export interface MultiSourceNode extends BaseNode {
+  prevNodes: QueryNode[];
+}
+
+export type QueryNode =
+  | SourceNodeInterface
+  | ModificationNode
+  | MultiSourceNode;
 
 export function notifyNextNodes(node: QueryNode) {
   for (const nextNode of node.nextNodes) {
@@ -140,11 +157,19 @@ function getStructuredQueries(
       return;
     }
     revStructuredQueries.push(curSq);
-    if (curNode.prevNodes?.[0]) {
-      if (!curNode.prevNodes[0].validate()) {
+
+    let prevNode: QueryNode | undefined;
+    if ('prevNode' in curNode) {
+      prevNode = curNode.prevNode;
+    } else if ('prevNodes' in curNode && curNode.prevNodes.length > 0) {
+      prevNode = curNode.prevNodes[0];
+    }
+
+    if (prevNode) {
+      if (!prevNode.validate()) {
         return;
       }
-      curNode = curNode.prevNodes[0];
+      curNode = prevNode;
     } else {
       curNode = undefined;
     }

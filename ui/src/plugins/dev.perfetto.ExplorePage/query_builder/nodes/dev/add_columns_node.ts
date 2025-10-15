@@ -17,6 +17,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  ModificationNode,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -27,27 +28,31 @@ import {FilterDefinition} from '../../../../../components/widgets/data_grid/comm
 import {MultiselectInput} from '../../../../../widgets/multiselect_input';
 
 export interface AddColumnsNodeState extends QueryNodeState {
+  prevNode?: QueryNode;
   selectedColumns?: string[];
 }
 
-export class AddColumnsNode implements QueryNode {
+export class AddColumnsNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kModifyColumns;
-  readonly prevNodes?: QueryNode[];
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
 
   constructor(state: AddColumnsNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNodes = state.prevNodes;
+    if (state.prevNode === undefined) {
+      throw new Error('AddColumnsNode requires a prevNode');
+    }
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
     this.state.filters = this.state.filters ?? [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNodes?.[0]?.finalCols ?? [];
+    return this.prevNode.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -127,7 +132,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   validate(): boolean {
-    return this.prevNodes !== undefined && this.prevNodes.length > 0;
+    return this.prevNode !== undefined;
   }
 
   clone(): QueryNode {
@@ -135,7 +140,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    return this.prevNodes?.[0]?.getStructuredQuery();
+    return this.prevNode.getStructuredQuery();
   }
 
   serializeState(): object {
@@ -144,5 +149,14 @@ export class AddColumnsNode implements QueryNode {
 
   isMaterialised(): boolean {
     return false;
+  }
+
+  static deserializeState(
+    serializedState: AddColumnsNodeState,
+  ): AddColumnsNodeState {
+    return {
+      ...serializedState,
+      prevNode: undefined as unknown as QueryNode,
+    };
   }
 }
