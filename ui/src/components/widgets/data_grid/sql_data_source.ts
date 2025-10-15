@@ -210,6 +210,10 @@ function filter2Sql(filter: DataGridFilter): string {
       return `${filter.column} IS NULL`;
     case 'is not null':
       return `${filter.column} IS NOT NULL`;
+    case 'in':
+      return `${filter.column} IN (${filter.value.map(sqlValue).join(', ')})`;
+    case 'not in':
+      return `${filter.column} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
     default:
       return '1=1'; // Default to true if unknown operator
   }

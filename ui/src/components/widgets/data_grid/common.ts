@@ -42,12 +42,18 @@ export interface FilterValue {
   readonly value: SqlValue;
 }
 
+export interface FilterIn {
+  readonly column: string;
+  readonly op: 'in' | 'not in';
+  readonly value: ReadonlyArray<SqlValue>;
+}
+
 export interface FilterNull {
   readonly column: string;
   readonly op: 'is null' | 'is not null';
 }
 
-export type DataGridFilter = FilterValue | FilterNull;
+export type DataGridFilter = FilterValue | FilterNull | FilterIn;
 
 export interface SortByColumn {
   readonly column: string;
