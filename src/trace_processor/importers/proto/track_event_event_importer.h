@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -61,6 +62,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
@@ -767,6 +769,7 @@ class TrackEventEventImporter {
         rr->set_thread_instruction_count(*thread_instruction_count_);
       }
       MaybeParseFlowEvents(opt_slice_id.value());
+      ParseCallstack(opt_slice_id.value());
     }
     return base::OkStatus();
   }
@@ -784,6 +787,7 @@ class TrackEventEventImporter {
       return base::OkStatus();
 
     MaybeParseFlowEvents(*opt_slice_id);
+    ParseCallstack(*opt_slice_id);
     auto* thread_slices = storage_->mutable_slice_table();
     auto opt_thread_slice_ref = thread_slices->FindById(*opt_slice_id);
     if (!opt_thread_slice_ref) {
@@ -977,6 +981,7 @@ class TrackEventEventImporter {
       }
     }
     MaybeParseFlowEvents(opt_slice_id.value());
+    ParseCallstack(opt_slice_id.value());
     return base::OkStatus();
   }
 
@@ -1068,6 +1073,7 @@ class TrackEventEventImporter {
       return base::OkStatus();
     }
     MaybeParseFlowEvents(opt_slice_id.value());
+    ParseCallstackMetrics(opt_slice_id.value());
     if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
@@ -1272,13 +1278,6 @@ class TrackEventEventImporter {
                        Variadic::Integer(*legacy_trace_source_id_));
     }
 
-    // Parse callstack if present
-    // For end events, use end_callsite_id key; otherwise use callsite_id key
-    StringId callstack_key = event_.type() == TrackEvent::TYPE_SLICE_END
-                                 ? parser_->end_callsite_id_key_id_
-                                 : parser_->callsite_id_key_id_;
-    log_errors(ParseCallstack(inserter, callstack_key));
-
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
                            /*support_json=*/true);
     int unknown_extensions = 0;
@@ -1470,6 +1469,7 @@ class TrackEventEventImporter {
         return base::ErrStatus("Failed to intern callstack");
       }
       inserter->AddArg(key_id, Variadic::UnsignedInteger(callsite_id->value));
+      callsite_id_ = callsite_id;  // Store for callstack metrics
       return base::OkStatus();
     }
 
@@ -1501,10 +1501,192 @@ class TrackEventEventImporter {
       // Add the final callsite_id as an arg
       if (callsite_id) {
         inserter->AddArg(key_id, Variadic::UnsignedInteger(callsite_id->value));
+        callsite_id_ = callsite_id;  // Store for callstack metrics
       }
       return base::OkStatus();
     }
     return base::OkStatus();
+  }
+
+  void ParseCallstack(SliceId slice_id) {
+    // Parse the callstack and its associated metrics
+    std::optional<CallsiteId> callsite_id;
+
+    // Handle interned callstack via callstack_iid
+    if (event_.has_callstack_iid()) {
+      auto* callstack_decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kCallstacksFieldNumber,
+          protos::pbzero::Callstack>(event_.callstack_iid());
+      if (!callstack_decoder) {
+        context_->storage->IncrementStats(stats::track_event_parser_errors);
+        return;
+      }
+      auto* stack_profile_state =
+          sequence_state_->GetCustomState<StackProfileSequenceState>();
+      if (!stack_profile_state) {
+        context_->storage->IncrementStats(stats::track_event_parser_errors);
+        return;
+      }
+      callsite_id = stack_profile_state->FindOrInsertCallstack(
+          upid_, event_.callstack_iid());
+      if (!callsite_id) {
+        context_->storage->IncrementStats(stats::track_event_parser_errors);
+        return;
+      }
+    }
+    // Handle inline callstack
+    else if (event_.has_callstack()) {
+      protos::pbzero::TrackEvent::Callstack::Decoder callstack(
+          event_.callstack());
+      DummyMemoryMapping* dummy_mapping =
+          parser_->GetOrCreateInlineCallstackDummyMapping();
+
+      uint32_t depth = 0;
+      for (auto frame_it = callstack.frames(); frame_it; ++frame_it, ++depth) {
+        protos::pbzero::TrackEvent::Callstack::Frame::Decoder frame(*frame_it);
+        FrameId frame_id = dummy_mapping->InternDummyFrame(
+            frame.function_name(), frame.source_file());
+        callsite_id = context_->stack_profile_tracker->InternCallsite(
+            callsite_id, frame_id, depth);
+      }
+    }
+
+    // No callstack present, nothing to do
+    if (!callsite_id)
+      return;
+
+    bool is_end = event_.type() == TrackEvent::TYPE_SLICE_END;
+    bool has_metrics = false;
+
+    // Parse callstack metrics from the event
+    for (auto it = event_.callstack_metrics(); it; ++it) {
+      has_metrics = true;
+      protos::pbzero::TrackEvent::CallstackMetric::Decoder metric(*it);
+
+      if (!metric.has_value())
+        continue;
+
+      double value = metric.value();
+      tables::TrackEventCallstackMetricSpecTable::Id metric_spec_id;
+
+      // Handle inline metric_name
+      if (metric.has_metric_name()) {
+        StringId name_id = storage_->InternString(metric.metric_name());
+        // Find or create the spec with this name
+        auto* spec_table =
+            storage_->mutable_track_event_callstack_metric_spec_table();
+        std::optional<uint32_t> existing_spec_id;
+        for (auto spec_it = spec_table->IterateRows(); spec_it; ++spec_it) {
+          if (spec_it.name() == name_id) {
+            existing_spec_id = spec_it.id().value;
+            break;
+          }
+        }
+        if (existing_spec_id) {
+          metric_spec_id =
+              tables::TrackEventCallstackMetricSpecTable::Id(*existing_spec_id);
+        } else {
+          metric_spec_id =
+              spec_table->Insert({name_id, kNullStringId, kNullStringId}).id;
+        }
+      }
+      // Handle interned metric_spec_iid
+      else if (metric.has_metric_spec_iid()) {
+        auto* decoder = sequence_state_->LookupInternedMessage<
+            protos::pbzero::InternedData::kCallstackMetricSpecsFieldNumber,
+            protos::pbzero::InternedCallstackMetricSpec>(
+            metric.metric_spec_iid());
+        if (!decoder) {
+          context_->storage->IncrementStats(stats::track_event_parser_errors);
+          continue;
+        }
+
+        StringId name_id = storage_->InternString(decoder->name());
+        StringId description_id =
+            decoder->has_description()
+                ? storage_->InternString(decoder->description())
+                : kNullStringId;
+
+        // Handle unit field
+        using InternedData = protos::pbzero::InternedData;
+        using MetricUnit =
+            InternedData::InternedCallstackMetricSpec::MetricUnit;
+        StringId unit_id = kNullStringId;
+        if (decoder->has_unit()) {
+          const char* unit_str = nullptr;
+          switch (decoder->unit()) {
+            case MetricUnit::COUNT:
+              unit_str = "count";
+              break;
+            case MetricUnit::TIME_NANOS:
+              unit_str = "ns";
+              break;
+          }
+          if (unit_str) {
+            unit_id = storage_->InternString(unit_str);
+          }
+        } else if (decoder->has_custom_unit()) {
+          unit_id = storage_->InternString(decoder->custom_unit());
+        }
+
+        // Find or create the spec
+        auto* spec_table =
+            storage_->mutable_track_event_callstack_metric_spec_table();
+        std::optional<uint32_t> existing_spec_id;
+        for (auto spec_it = spec_table->IterateRows(); spec_it; ++spec_it) {
+          if (spec_it.name() == name_id &&
+              spec_it.description() == description_id &&
+              spec_it.unit() == unit_id) {
+            existing_spec_id = spec_it.id().value;
+            break;
+          }
+        }
+        if (existing_spec_id) {
+          metric_spec_id =
+              tables::TrackEventCallstackMetricSpecTable::Id(*existing_spec_id);
+        } else {
+          metric_spec_id =
+              spec_table->Insert({name_id, description_id, unit_id}).id;
+        }
+      } else {
+        // No metric name or spec specified, skip
+        continue;
+      }
+
+      // Insert the metric value
+      storage_->mutable_track_event_callstack_metric_table()->Insert(
+          {slice_id, *callsite_id, metric_spec_id, value,
+           static_cast<uint32_t>(is_end)});
+    }
+
+    // If no metrics were specified but we have a callstack, add default
+    // "Samples" metric with value 1.0
+    if (!has_metrics) {
+      StringId samples_id = storage_->InternString("Samples");
+      auto* spec_table =
+          storage_->mutable_track_event_callstack_metric_spec_table();
+
+      // Find or create the "Samples" spec
+      std::optional<uint32_t> samples_spec_id;
+      for (auto spec_it = spec_table->IterateRows(); spec_it; ++spec_it) {
+        if (spec_it.name() == samples_id) {
+          samples_spec_id = spec_it.id().value;
+          break;
+        }
+      }
+      tables::TrackEventCallstackMetricSpecTable::Id metric_spec_id;
+      if (samples_spec_id) {
+        metric_spec_id =
+            tables::TrackEventCallstackMetricSpecTable::Id(*samples_spec_id);
+      } else {
+        metric_spec_id =
+            spec_table->Insert({samples_id, kNullStringId, kNullStringId}).id;
+      }
+
+      storage_->mutable_track_event_callstack_metric_table()->Insert(
+          {slice_id, *callsite_id_, metric_spec_id, 1.0,
+           static_cast<uint32_t>(is_end)});
+    }
   }
 
   TraceProcessorContext* context_;
@@ -1536,6 +1718,9 @@ class TrackEventEventImporter {
   // store it in the slice/track model. To pass the utid through to the json
   // export, we store it in an arg.
   std::optional<UniqueTid> legacy_passthrough_utid_;
+
+  // Callsite ID parsed from callstack field, used for attaching metrics.
+  std::optional<CallsiteId> callsite_id_;
 
   uint32_t packet_sequence_id_;
 };

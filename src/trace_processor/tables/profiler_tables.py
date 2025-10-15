@@ -32,6 +32,7 @@ from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.track_tables import TRACK_TABLE
+from src.trace_processor.tables.slice_tables import SLICE_TABLE
 
 PROFILER_SMAPS_TABLE = Table(
     python_module=__file__,
@@ -1124,6 +1125,111 @@ VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
             'scope': ''''''
         }))
 
+TRACK_EVENT_CALLSTACK_METRIC_SPEC_TABLE = Table(
+    python_module=__file__,
+    class_name='TrackEventCallstackMetricSpecTable',
+    sql_name='__intrinsic_track_event_callstack_metric_spec',
+    columns=[
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'description',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'unit',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Interned specifications for callstack metrics attached to track events.
+          This table stores the metadata (name, description, unit) for metrics
+          that can be associated with callstacks in track events, enabling
+          weighted flamegraph analysis.
+        ''',
+        group='Events',
+        columns={
+            'name':
+                '''Name of the metric (e.g., "CPU Time", "Memory Allocated").''',
+            'description':
+                '''Optional human-readable description of what this metric represents.''',
+            'unit':
+                '''Unit of the metric value. Common values include "TIME_NANOS" for
+                nanoseconds, "COUNT" for dimensionless counts, or custom strings
+                like "bytes" or "milliseconds".'''
+        }))
+
+TRACK_EVENT_CALLSTACK_METRIC_TABLE = Table(
+    python_module=__file__,
+    class_name='TrackEventCallstackMetricTable',
+    sql_name='__intrinsic_track_event_callstack_metric',
+    columns=[
+        C(
+            'slice_id',
+            CppTableId(SLICE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'callsite_id',
+            CppTableId(STACK_PROFILE_CALLSITE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'metric_spec_id',
+            CppTableId(TRACK_EVENT_CALLSTACK_METRIC_SPEC_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'value',
+            CppDouble(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'is_end',
+            CppBool(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Callstack metrics associated with track event slices. Each row
+          represents a metric value (weight) for a callstack at a specific
+          slice's begin or end event. This enables weighted flamegraph analysis
+          where different callstacks can have different importance based on
+          metrics like CPU time, memory usage, or custom weights.
+
+          Note: This is an internal table. Use track_event_callstack_metric
+          from the track_event.callstacks module instead.
+        ''',
+        group='Events',
+        columns={
+            'slice_id':
+                '''The slice (track event) this metric is associated with.''',
+            'callsite_id':
+                '''The callstack this weight applies to.''',
+            'metric_spec_id':
+                '''Reference to the metric specification (always interned).''',
+            'value':
+                '''The numeric value (weight) for this metric.''',
+            'is_end':
+                '''Whether this metric is from the slice's end event (true) or
+                begin event (false). Most metrics are from begin events.'''
+        }))
+
 GPU_COUNTER_GROUP_TABLE = Table(
     python_module=__file__,
     class_name='GpuCounterGroupTable',
@@ -1160,5 +1266,7 @@ ALL_TABLES = [
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,
     SYMBOL_TABLE,
+    TRACK_EVENT_CALLSTACK_METRIC_SPEC_TABLE,
+    TRACK_EVENT_CALLSTACK_METRIC_TABLE,
     VULKAN_MEMORY_ALLOCATIONS_TABLE,
 ]

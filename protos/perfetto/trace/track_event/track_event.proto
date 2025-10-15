@@ -103,7 +103,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 57.
+// Next reserved id: 13 (up to 15). Next id: 58.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -321,6 +321,37 @@ message TrackEvent {
     // frames would be: [main, foo, bar]
     repeated Frame frames = 1;
   }
+
+  // Explicit set of metrics to associate with the callstack referenced in
+  // |callstack_field|.
+  //
+  // Essentially, this is a list of (name, weight) pairs to attach
+  // to the callstack. For example, a metric could be "CPU Time" with a
+  // weight of 5.0 milliseconds, indicating that this callstack was on the CPU
+  // for that duration during the event.
+  //
+  // This allows for richer analysis of callstacks beyond just their occurrence,
+  // enabling metrics like total CPU time spent in each function across all
+  // events, or other custom weights.
+  //
+  // When omitted, Trace Processor automatically add a metric with value 1
+  // named "Samples".
+  message CallstackMetric {
+    oneof weight {
+      // The name of the metric, e.g. "CPU Time". This is a free-form string
+      // that describes what the weight represents.
+      // Use this when you don't need to specify a unit or reuse a weight
+      // definition across events.
+      string metric_name = 3;
+      // The spec for a metric (see InternedCallstackMetricSpec). Use this when
+      // you want to attach a unit to the weight or you care about trace size
+      // and so want to intern the metric spec.
+      uint64 metric_spec_iid = 4;
+    }
+    // The value of the metric to associate with the callstack.
+    optional double value = 1;
+  }
+  repeated CallstackMetric callstack_metrics = 57;
 
   // Debug annotations associated with this event. These are arbitrary key-value
   // pairs that can be used to attach additional information to the event.

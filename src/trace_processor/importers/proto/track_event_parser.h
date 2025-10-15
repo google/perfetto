@@ -127,6 +127,8 @@ class TrackEventParser {
   const StringId legacy_trace_source_id_key_id_;
   const StringId callsite_id_key_id_;
   const StringId end_callsite_id_key_id_;
+  const StringId callstack_weight_key_id_;
+  const StringId end_callstack_weight_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;

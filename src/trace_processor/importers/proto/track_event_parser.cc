@@ -212,6 +212,10 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       callsite_id_key_id_(context_->storage->InternString("callsite_id")),
       end_callsite_id_key_id_(
           context_->storage->InternString("end_callsite_id")),
+      callstack_weight_key_id_(
+          context_->storage->InternString("callstack_weight")),
+      end_callstack_weight_key_id_(
+          context_->storage->InternString("end_callstack_weight")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
