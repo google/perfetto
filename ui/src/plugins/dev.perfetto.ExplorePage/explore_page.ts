@@ -71,7 +71,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  handleAddDerivedNode(
+  async handleAddDerivedNode(
     attrs: ExplorePageAttrs,
     node: QueryNode,
     derivedNodeId: string,
@@ -79,7 +79,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const {state, onStateUpdate} = attrs;
     const descriptor = nodeRegistry.get(derivedNodeId);
     if (descriptor) {
+      let initialState: Partial<QueryNodeState> | null = {};
+      if (descriptor.preCreate) {
+        const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+        if (!sqlModules) return;
+        initialState = await descriptor.preCreate({sqlModules});
+      }
+
+      if (initialState === null) {
+        return;
+      }
+
       const nodeState: QueryNodeState = {
+        ...initialState,
         prevNodes: [node],
       };
 

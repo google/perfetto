@@ -105,8 +105,12 @@ export function serializeState(state: ExplorePageState): string {
     nodeLayouts: Object.fromEntries(state.nodeLayouts),
   };
 
-  const replacer = (_key: string, value: unknown) =>
-    typeof value === 'bigint' ? value.toString() : value;
+  const replacer = (key: string, value: unknown) => {
+    if (key === 'prevNodes' || key === '_trace') {
+      return undefined;
+    }
+    return typeof value === 'bigint' ? value.toString() : value;
+  };
 
   return JSON.stringify(serializedGraph, replacer, 2);
 }
