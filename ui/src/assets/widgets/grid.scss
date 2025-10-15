@@ -76,6 +76,13 @@ $border-3: 2px solid var(--pf-color-border);
       border-right: $border-3;
     }
 
+    // Column container for multi-row header cells
+    &--vertical {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
     .pf-visible-on-hover {
       display: none;
 
@@ -153,7 +160,7 @@ $border-3: 2px solid var(--pf-color-border);
         content: "";
         position: absolute;
         top: 0;
-        bottom: 0;
+        bottom: 0; // Spans full cell height, including sub-rows
         width: 3px;
         background-color: var(--pf-color-accent);
       }

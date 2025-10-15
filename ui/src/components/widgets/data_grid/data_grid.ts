@@ -44,9 +44,9 @@ import {
   SortDirection,
   GridFilterBar,
   GridFilterChip,
-  GridAggregationCell,
   measureCells,
   ColumnToMeasure,
+  GridAggregationCell,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
 
@@ -420,6 +420,30 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   menuItems.push(column.headerMenuItems);
                 }
 
+                // Build sub-rows array for aggregations
+                const subRows: m.Children[] = [];
+                if (hasAggregations && column.aggregation) {
+                  subRows.push(
+                    m(
+                      GridAggregationCell,
+                      {
+                        align: 'right', // Assume all aggregates are numeric
+                        symbol:
+                          column.aggregation &&
+                          aggregationFunIcon(column.aggregation),
+                        width: this.columnWidths.get(column.name),
+                      },
+                      column.aggregation &&
+                        dataSource.rows?.aggregates &&
+                        cellRenderer(
+                          dataSource.rows.aggregates[column.name],
+                          column.name,
+                          dataSource.rows.aggregates,
+                        ),
+                    ),
+                  );
+                }
+
                 return m(
                   GridHeaderCell,
                   {
@@ -458,34 +482,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         m.redraw();
                       }
                     },
+                    subContent: subRows.length > 0 ? subRows : undefined,
                   },
                   column.title ?? column.name,
                 );
               }),
             ),
-            hasAggregations &&
-              m(
-                GridRow,
-                columns.map((column) => {
-                  return m(
-                    GridAggregationCell,
-                    {
-                      align: 'right', // Assume all aggregates are numeric
-                      symbol:
-                        column.aggregation &&
-                        aggregationFunIcon(column.aggregation),
-                      width: this.columnWidths.get(column.name),
-                    },
-                    column.aggregation &&
-                      dataSource.rows?.aggregates &&
-                      cellRenderer(
-                        dataSource.rows.aggregates[column.name],
-                        column.name,
-                        dataSource.rows.aggregates,
-                      ),
-                  );
-                }),
-              ),
           ),
           dataSource.rows &&
             m(
@@ -774,7 +776,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const columnsToMeasure: ColumnToMeasure[] = columns.map((column) => {
       const headerVnodes: m.Children[] = [];
 
-      // Add column header
+      // Build sub-rows for aggregations
+      const subRows: m.Children[] = [];
+      if (column.aggregation && aggregates) {
+        subRows.push(
+          m(
+            '.pf-grid__cell--padded',
+            {
+              className: 'pf-grid__cell--align-right',
+            },
+            aggregationFunIcon(column.aggregation),
+            ' ',
+            cellRenderer(aggregates[column.name], column.name, aggregates),
+          ),
+        );
+      }
+
+      // Add column header with sub-rows
       headerVnodes.push(
         m(
           GridHeaderCell,
@@ -782,25 +800,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             width: 'fit-content',
             sort: 'ASC', // Measure with sort button to ensure adequate width
             onSort: () => {}, // Dummy callback
+            subContent: subRows.length > 0 ? subRows : undefined,
           },
           column.title ?? column.name,
         ),
       );
-
-      // Add aggregation cell if column has aggregation
-      if (column.aggregation && aggregates) {
-        headerVnodes.push(
-          m(
-            GridAggregationCell,
-            {
-              align: 'right', // Assume all aggregates are numeric
-              symbol: aggregationFunIcon(column.aggregation),
-              width: 'fit-content',
-            },
-            cellRenderer(aggregates[column.name], column.name, aggregates),
-          ),
-        );
-      }
 
       const cellVnodes = rows.map((row) => {
         const value = row[column.name];

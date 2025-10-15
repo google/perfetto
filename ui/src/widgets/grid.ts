@@ -101,6 +101,10 @@ export interface GridHeaderCellAttrs extends m.Attributes {
   // If true, the cell will have a thick right border, useful for separating
   // groups of columns.
   readonly thickRightBorder?: boolean;
+  // Optional content to display below the main header content (e.g.,
+  // aggregations). Each sub-row will be rendered in a separate row within the
+  // cell.
+  readonly subContent?: m.Children;
 }
 
 // Renders a `<th>` element, for use inside a `GridRow` within a `GridHeader`.
@@ -129,6 +133,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       onResize,
       thickRightBorder,
       width = COL_WIDTH_DEFAULT_PX,
+      subContent,
       ...rest
     } = attrs;
 
@@ -274,12 +279,22 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           }
         },
       },
-      m(
-        '.pf-grid__cell--stretch.pf-grid__cell--horiz',
-        m('.pf-grid__cell--padded.pf-grid__cell--shrink', children),
-        renderSortButton(),
-      ),
-      renderMenu(),
+      // Column container for vertical stacking
+      m('.pf-grid__cell--vertical.pf-grid__cell--stretch', [
+        // Main header row
+        m(
+          '.pf-grid__cell--stretch.pf-grid__cell--horiz',
+          m(
+            '.pf-grid__cell--stretch.pf-grid__cell--horiz',
+            m('.pf-grid__cell--padded.pf-grid__cell--shrink', children),
+            renderSortButton(),
+          ),
+          renderMenu(),
+        ),
+        // Optional sub-rows
+        subContent,
+      ]),
+      // Resize handle - absolutely positioned to span full cell height
       renderResizeHandle(),
     );
   }

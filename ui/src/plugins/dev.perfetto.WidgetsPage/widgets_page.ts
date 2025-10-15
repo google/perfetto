@@ -1772,17 +1772,17 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           reordering and column level aggregations, but doesn't have any
           opinions about the data or how they should be manipulated.
         `,
+        wide: true,
         renderWidget: ({reorderable, ...rest}) =>
           m(
             '',
-            {style: {height: '400px', width: '400px', overflow: 'hidden'}},
+            {style: {height: '400px', width: '800px', overflow: 'hidden'}},
             m(Grid, rest, [
               m(GridHeader, [
                 m(GridRow, [
                   m(
                     GridHeaderCell,
                     {
-                      width: 100,
                       key: 'id',
                       sort: 'ASC',
                       onSort: () => {},
@@ -1796,12 +1796,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
-                      width: 100,
                       key: 'lang',
                       onSort: () => {},
                       menuItems: [
-                        m(MenuItem, {label: 'Filter nulls'}),
-                        m(MenuItem, {label: 'Show only nulls'}),
+                        m(MenuItem, {label: 'Menu item 1'}),
+                        m(MenuItem, {label: 'Menu item 2'}),
                       ],
                       reorderable: reorderable ? {handle: 'left'} : undefined,
                       thickRightBorder: true,
@@ -1811,13 +1810,20 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
-                      width: 100,
                       key: 'year',
                       aggregation: {
                         left: 'AVG',
                         right: 1998.3,
                       },
                       reorderable: reorderable ? {handle: 'right'} : undefined,
+                      subContent: m(
+                        GridAggregationCell,
+                        {
+                          symbol: 'Spread',
+                          align: 'right',
+                        },
+                        '27',
+                      ),
                     },
                     'Year',
                   ),
@@ -1832,7 +1838,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(
                     GridHeaderCell,
                     {
-                      width: 140,
                       key: 'typing',
                       reorderable: reorderable ? {handle: 'right'} : undefined,
                       onResize: (width) => {
@@ -1842,31 +1847,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                     'Typing',
                   ),
                 ]),
-                // Aggregations go on the next row
-                m(GridRow, [
-                  m(
-                    GridAggregationCell,
-                    {
-                      width: 100,
-                      symbol: 'Σ',
-                      align: 'right',
-                    },
-                    '123',
-                  ),
-                  m(GridAggregationCell, {
-                    width: 100,
-                    thickRightBorder: true,
-                  }),
-                  m(GridAggregationCell, {
-                    width: 100,
-                  }),
-                  m(GridAggregationCell),
-                  m(GridAggregationCell),
-                ]),
               ]),
               m(GridBody, [
                 m(GridRow, [
-                  m(GridDataCell, {width: 100, align: 'right'}, 1),
+                  m(GridDataCell, {align: 'right'}, 1),
                   m(
                     GridDataCell,
                     {
@@ -1883,28 +1867,28 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   m(GridDataCell, 'Static'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {width: 100, align: 'right'}, 2),
+                  m(GridDataCell, {align: 'right'}, 2),
                   m(GridDataCell, {thickRightBorder: true}, 'JavaScript'),
                   m(GridDataCell, {align: 'right'}, 1995),
                   m(GridDataCell, 'Brendan Eich'),
                   m(GridDataCell, 'Dynamic'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {width: 100, align: 'right'}, 3),
+                  m(GridDataCell, {align: 'right'}, 3),
                   m(GridDataCell, {thickRightBorder: true}, 'Python'),
                   m(GridDataCell, {align: 'right'}, 1991),
                   m(GridDataCell, 'Guido van Rossum'),
                   m(GridDataCell, 'Dynamic'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {width: 100, align: 'right'}, 4),
+                  m(GridDataCell, {align: 'right'}, 4),
                   m(GridDataCell, {thickRightBorder: true}, 'Java'),
                   m(GridDataCell, {align: 'right'}, 1995),
                   m(GridDataCell, 'James Gosling'),
                   m(GridDataCell, 'Static'),
                 ]),
                 m(GridRow, [
-                  m(GridDataCell, {width: 100, align: 'right'}, 5),
+                  m(GridDataCell, {align: 'right'}, 5),
                   m(GridDataCell, {thickRightBorder: true}, 'C++'),
                   m(GridDataCell, {align: 'right'}, 1985),
                   m(GridDataCell, 'Bjarne Stroustrup'),
