@@ -18,6 +18,7 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -43,17 +44,19 @@ export interface SqlSourceSerializedState {
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
   trace: Trace;
-  sourceCols?: ColumnInfo[];
 }
 
 export class SqlSourceNode extends SourceNode {
   readonly state: SqlSourceState;
   prevNodes: QueryNode[] = [];
+  finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
+  meterialisedAs?: string;
 
   constructor(attrs: SqlSourceState) {
     super(attrs);
     this.state = attrs;
-    this.state.sourceCols = [];
+    this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
   }
 
@@ -61,13 +64,10 @@ export class SqlSourceNode extends SourceNode {
     return NodeType.kSqlSource;
   }
 
-  get sourceCols() {
-    return this.state.sourceCols ?? [];
-  }
-
   setSourceColumns(columns: string[]) {
-    this.state.sourceCols = columns.map((c) => columnInfoFromName(c));
-    this.finalCols = this.sourceCols;
+    this.finalCols = createFinalColumns(
+      columns.map((c) => columnInfoFromName(c)),
+    );
     m.redraw();
   }
 
@@ -113,7 +113,7 @@ export class SqlSourceNode extends SourceNode {
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
-    sqlProto.columnNames = this.sourceCols.map((c) => c.column.name);
+    sqlProto.columnNames = this.finalCols.map((c) => c.column.name);
 
     for (const prevNode of this.prevNodes) {
       const dependency = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();
