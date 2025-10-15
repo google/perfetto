@@ -175,8 +175,7 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
 
     bool operator==(const DummyFrameKey& o) const {
       return function_name_id == o.function_name_id &&
-             source_file_id == o.source_file_id &&
-             line_number == o.line_number;
+             source_file_id == o.source_file_id && line_number == o.line_number;
     }
 
     struct Hasher {
