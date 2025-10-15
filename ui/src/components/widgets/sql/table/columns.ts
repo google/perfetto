@@ -38,7 +38,10 @@ import {
   renderStandardCell,
 } from './render_cell_utils';
 import {SqlColumn, sqlColumnId, SqlExpression} from './sql_column';
-import {PerfettoSqlType, PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../../../trace_processor/perfetto_sql_type';
 
 function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
