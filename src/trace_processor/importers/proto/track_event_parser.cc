@@ -337,7 +337,7 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
     std::string key = "chrome.process_label[";
     key.append(std::to_string(label_index++));
     key.append("]");
-    context_->process_tracker->AddArgsTo(upid).AddArg(
+    context_->process_tracker->AddArgsToProcess(upid).AddArg(
         chrome_process_label_flat_key_id_,
         context_->storage->InternString(base::StringView(key)),
         Variadic::String(label_id));
@@ -357,7 +357,7 @@ void TrackEventParser::ParseChromeProcessDescriptor(
   context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
 
   ArgsTracker::BoundInserter process_args =
-      context_->process_tracker->AddArgsTo(upid);
+      context_->process_tracker->AddArgsToProcess(upid);
   // For identifying Chrome processes in system traces.
   process_args.AddArg(chrome_process_type_id_, Variadic::String(name_id));
   if (decoder.has_host_app_package_name()) {
