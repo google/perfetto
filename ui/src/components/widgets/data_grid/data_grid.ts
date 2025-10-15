@@ -637,6 +637,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             const value = row[column.name];
             const menuItems: m.Children = [];
 
+            // Always add copy value option
+            menuItems.push(
+              m(MenuItem, {
+                label: 'Copy value',
+                icon: Icons.Copy,
+                onclick: () => {
+                  const textValue = value === null ? 'null' : String(value);
+                  navigator.clipboard.writeText(textValue);
+                },
+              }),
+            );
+
+            // Add separator between copy and filter items
+            if (enableFilters) {
+              menuItems.push(m(MenuDivider));
+            }
+
             if (enableFilters) {
               if (value !== null) {
                 menuItems.push(
