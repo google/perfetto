@@ -39,7 +39,7 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SqlRef} from '../../widgets/sql_ref';
 import {renderSliceArguments} from '../details/slice_args';
-import {ArgsDict, getArgs} from '../sql_utils/args';
+import {Arg, getArgs} from '../sql_utils/args';
 
 export const RAW_PREFIX = 'raw_';
 
@@ -67,7 +67,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
 
   // These are the actual loaded args from the args table assuming an arg_set_id
   // is supplied.
-  private args?: ArgsDict;
+  private args?: Arg[];
 
   // We will try to interpret the arguments as references into well-known
   // tables. These values will be set if the relevant columns exist and
@@ -260,7 +260,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     ]);
   }
 
-  private renderArgsSection(args: ArgsDict) {
+  private renderArgsSection(args: Arg[]) {
     return m(Section, {title: 'Arguments'}, [
       m(Tree, renderArguments(this.trace, args)),
     ]);
