@@ -93,7 +93,8 @@ export default class implements PerfettoPlugin {
        include perfetto module viz.threads;
 
        select utid, upid
-       from _kernel_threads kt join thread t using (utid)
+       from _threads_with_kernel_flag
+       where is_kernel_thread
     `);
 
     const it = result.iter({
