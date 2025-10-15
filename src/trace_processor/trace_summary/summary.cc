@@ -397,17 +397,7 @@ base::Status WriteMetadataValue(
     }
     case protos::pbzero::TraceMetricV2Spec::DimensionType::
         DIMENSION_TYPE_UNSPECIFIED:
-      if (col_value.type == SqlValue::kLong) {
-        value->set_int64_value(col_value.long_value);
-      } else if (col_value.type == SqlValue::kDouble) {
-        value->set_double_value(col_value.double_value);
-      } else if (col_value.type == SqlValue::kString) {
-        value->set_string_value(col_value.string_value);
-      } else if (col_value.type == SqlValue::kBytes) {
-        return base::ErrStatus("Received bytes for metadata column");
-      } else {
-        PERFETTO_FATAL("Null value should have been handled above");
-      }
+      PERFETTO_FATAL("Unspecified type for metadata column");
       break;
   }
   return base::OkStatus();
@@ -530,18 +520,16 @@ base::Status WriteMetadataBundles(
           key_column_name.c_str(), query_it.Status().c_message());
     }
 
-    struct ColumnInfo {
-      uint32_t index;
-      protos::pbzero::TraceMetricV2Spec::DimensionType type;
-    };
-    std::vector<ColumnInfo> column_infos;
-    std::vector<protozero::ConstBytes> col_specs_bytes;
-    col_specs_bytes.push_back(ms.key_column_spec());
+    std::vector<protozero::ConstBytes> metadata_col_specs_bytes;
+    metadata_col_specs_bytes.push_back(ms.key_column_spec());
     for (auto dcs_it = ms.data_column_specs(); dcs_it; ++dcs_it) {
-      col_specs_bytes.push_back(*dcs_it);
+      metadata_col_specs_bytes.push_back(*dcs_it);
     }
 
-    for (const auto& col_spec_bytes : col_specs_bytes) {
+    std::vector<
+        std::pair<uint32_t, protos::pbzero::TraceMetricV2Spec::DimensionType>>
+        column_infos;
+    for (const auto& col_spec_bytes : metadata_col_specs_bytes) {
       protos::pbzero::TraceMetricV2Spec::MetadataSpec::MetadataColumnSpec::
           Decoder col_spec(col_spec_bytes);
       std::optional<uint32_t> column_index;
@@ -557,15 +545,15 @@ base::Status WriteMetadataBundles(
             "with key '%s'",
             col_spec.name().ToStdString().c_str(), key_column_name.c_str());
       }
-      column_infos.push_back(
-          {*column_index,
-           static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
-               col_spec.type())});
+      column_infos.emplace_back(
+          *column_index,
+          static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
+              col_spec.type()));
     }
 
     base::FlatHashMap<uint64_t, bool> seen_keys;
     while (query_it.Next()) {
-      const auto& key_val = query_it.Get(column_infos[0].index);
+      const auto& key_val = query_it.Get(column_infos[0].first);
       base::FnvHasher key_hasher;
       key_hasher.Update(key_val.type);
       if (key_val.is_null()) {
@@ -587,8 +575,8 @@ base::Status WriteMetadataBundles(
       }
       auto* row = metadata_bundle->add_metadata_rows();
       for (const auto& info : column_infos) {
-        const auto& col_value = query_it.Get(info.index);
-        RETURN_IF_ERROR(WriteMetadataValue(col_value, info.type,
+        const auto& col_value = query_it.Get(info.first);
+        RETURN_IF_ERROR(WriteMetadataValue(col_value, info.second,
                                            row->add_metadata_values()));
       }
     }
