@@ -188,15 +188,15 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   correlation_id_str_iid,
                   54);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
-                  VARINT,
-                  uint64_t,
-                  callstack_iid,
-                  37);
-PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
                   perfetto_protos_TrackEvent_Callstack,
                   callstack,
-                  51);
+                  55);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  VARINT,
+                  uint64_t,
+                  callstack_iid,
+                  56);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
                   perfetto_protos_DebugAnnotation,
