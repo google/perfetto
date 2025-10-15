@@ -43,13 +43,16 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -1269,6 +1272,13 @@ class TrackEventEventImporter {
                        Variadic::Integer(*legacy_trace_source_id_));
     }
 
+    // Parse callstack if present
+    // For end events, use end_callsite_id key; otherwise use callsite_id key
+    StringId callstack_key = event_.type() == TrackEvent::TYPE_SLICE_END
+                                 ? parser_->end_callsite_id_key_id_
+                                 : parser_->callsite_id_key_id_;
+    log_errors(ParseCallstack(inserter, callstack_key));
+
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
                            /*support_json=*/true);
     int unknown_extensions = 0;
@@ -1434,6 +1444,58 @@ class TrackEventEventImporter {
 
     inserter->AddArg(parser_->histogram_name_key_id_,
                      Variadic::String(storage_->InternString(decoder->name())));
+    return base::OkStatus();
+  }
+
+  base::Status ParseCallstack(BoundInserter* inserter, StringId key_id) {
+    // Handle interned callstack via callstack_iid
+    if (event_.has_callstack_iid()) {
+      auto* callstack_decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kCallstacksFieldNumber,
+          protos::pbzero::Callstack>(event_.callstack_iid());
+      if (!callstack_decoder) {
+        return base::ErrStatus("TrackEvent with invalid callstack_iid");
+      }
+      // Get or create the callsite from the interned callstack
+      auto* stack_profile_state =
+          sequence_state_->GetCustomState<StackProfileSequenceState>();
+      if (!stack_profile_state) {
+        return base::ErrStatus(
+            "TrackEvent with callstack but no StackProfileSequenceState");
+      }
+      // Pass upid as optional - will work with or without process association
+      auto callsite_id = stack_profile_state->FindOrInsertCallstack(
+          upid_, event_.callstack_iid());
+      if (!callsite_id) {
+        return base::ErrStatus("Failed to intern callstack");
+      }
+      inserter->AddArg(key_id, Variadic::UnsignedInteger(callsite_id->value));
+      return base::OkStatus();
+    }
+
+    // Handle inline callstack
+    // Inline callstacks are simple: just function names and source locations
+    if (event_.has_callstack()) {
+      protos::pbzero::TrackEvent::Callstack::Decoder callstack(
+          event_.callstack());
+      DummyMemoryMapping* dummy_mapping =
+          parser_->GetOrCreateInlineCallstackDummyMapping();
+
+      std::optional<CallsiteId> callsite_id;
+      uint32_t depth = 0;
+      for (auto frame_it = callstack.frames(); frame_it; ++frame_it, ++depth) {
+        protos::pbzero::TrackEvent::Callstack::Frame::Decoder frame(*frame_it);
+        FrameId frame_id = dummy_mapping->InternDummyFrame(
+            frame.function_name(), frame.source_file());
+        callsite_id = context_->stack_profile_tracker->InternCallsite(
+            callsite_id, frame_id, depth);
+      }
+      // Add the final callsite_id as an arg
+      if (callsite_id) {
+        inserter->AddArg(key_id, Variadic::UnsignedInteger(callsite_id->value));
+      }
+      return base::OkStatus();
+    }
     return base::OkStatus();
   }
 

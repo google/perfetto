@@ -76,7 +76,7 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
     std::optional<UniquePid> upid,
     uint64_t iid) {
-  if (auto ptr = cached_mappings_.Find({upid, iid}); ptr) {
+  if (auto* ptr = cached_mappings_.Find({upid, iid}); ptr) {
     return *ptr;
   }
   auto* decoder =
@@ -168,7 +168,7 @@ StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
 }
 
 std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
-    UniquePid upid,
+    std::optional<UniquePid> upid,
     uint64_t iid) {
   if (CallsiteId* id = cached_callstacks_.Find({upid, iid}); id) {
     return *id;
@@ -204,7 +204,7 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
 }
 
 std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
-    UniquePid upid,
+    std::optional<UniquePid> upid,
     uint64_t iid) {
   if (FrameId* id = cached_frames_.Find({upid, iid}); id) {
     return *id;
