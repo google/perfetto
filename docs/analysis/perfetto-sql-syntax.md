@@ -209,7 +209,7 @@ above.
 If only passing around scalar SQL values, functions are generally preferred
 for their clarity. However, for simple constants used many times in a
 performance-sensitive query, a macro can be more efficient as it avoids the
-potential overhead of massive function calls.
+potential overhead of function calls in a large number.
 
 NOTE: Macros are expanded with a pre-processing step *before* any execution
 happens. Expansion is a purely syntatic operation involves replacing the macro
