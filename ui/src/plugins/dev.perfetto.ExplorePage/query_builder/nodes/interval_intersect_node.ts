@@ -49,12 +49,8 @@ export class IntervalIntersectNode implements QueryNode {
   readonly state: IntervalIntersectNodeState;
   meterialisedAs?: string;
 
-  get sourceCols(): ColumnInfo[] {
-    return this.prevNodes[0]?.finalCols ?? this.prevNodes[0]?.sourceCols ?? [];
-  }
-
   get finalCols(): ColumnInfo[] {
-    return newColumnInfoList(this.sourceCols, true);
+    return newColumnInfoList(this.prevNodes[0]?.finalCols ?? [], true);
   }
 
   constructor(state: IntervalIntersectNodeState) {

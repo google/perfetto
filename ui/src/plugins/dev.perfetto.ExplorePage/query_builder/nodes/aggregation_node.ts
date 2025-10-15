@@ -19,6 +19,7 @@ import {
   nextNodeId,
   NodeType,
   createSelectColumnsProto,
+  notifyNextNodes,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {
@@ -70,12 +71,6 @@ export class AggregationNode implements QueryNode {
   readonly state: AggregationNodeState;
   meterialisedAs?: string;
 
-  get sourceCols() {
-    return (
-      this.prevNodes?.[0]?.finalCols ?? this.prevNodes?.[0]?.sourceCols ?? []
-    );
-  }
-
   get finalCols(): ColumnInfo[] {
     const selected = this.state.groupByColumns.filter((c) => c.checked);
     for (const agg of this.state.aggregations) {
@@ -96,12 +91,27 @@ export class AggregationNode implements QueryNode {
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
     if (this.state.groupByColumns.length === 0) {
-      this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
+      this.state.groupByColumns = newColumnInfoList(
+        this.prevNodes?.[0]?.finalCols ?? [],
+        false,
+      );
     }
+    const userOnChange = this.state.onchange;
+    this.state.onchange = () => {
+      notifyNextNodes(this);
+      userOnChange?.();
+    };
+  }
+
+  onPrevNodesUpdated() {
+    this.updateGroupByColumns();
   }
 
   updateGroupByColumns() {
-    const newGroupByColumns = newColumnInfoList(this.sourceCols, false);
+    const newGroupByColumns = newColumnInfoList(
+      this.prevNodes?.[0]?.finalCols ?? [],
+      false,
+    );
     for (const oldCol of this.state.groupByColumns) {
       if (oldCol.checked) {
         const newCol = newGroupByColumns.find((c) => c.name === oldCol.name);
@@ -133,7 +143,9 @@ export class AggregationNode implements QueryNode {
       this.state.issues.queryError = new Error('Previous node is invalid');
       return false;
     }
-    const sourceColNames = new Set(this.sourceCols.map((c) => c.name));
+    const sourceColNames = new Set(
+      (this.prevNodes?.[0]?.finalCols ?? []).map((c) => c.name),
+    );
     const missingCols: string[] = [];
     for (const col of this.state.groupByColumns) {
       if (col.checked && !sourceColNames.has(col.name)) {
@@ -269,7 +281,7 @@ export class AggregationNode implements QueryNode {
   }
 
   resolveColumns() {
-    const sourceCols = this.sourceCols;
+    const sourceCols = this.prevNodes?.[0]?.finalCols ?? [];
     this.state.groupByColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {

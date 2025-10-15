@@ -18,6 +18,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  notifyNextNodes,
 } from '../../query_node';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Card, CardStack} from '../../../../widgets/card';
@@ -61,7 +62,6 @@ export class ModifyColumnsNode implements QueryNode {
   readonly type = NodeType.kModifyColumns;
   prevNodes: QueryNode[] | undefined;
   nextNodes: QueryNode[];
-  sourceCols: ColumnInfo[];
   readonly state: ModifyColumnsState;
 
   constructor(state: ModifyColumnsState) {
@@ -75,22 +75,56 @@ export class ModifyColumnsNode implements QueryNode {
       selectedColumns: state.selectedColumns ?? [],
     };
 
-    // This node assumes it has only one previous node.
-    this.sourceCols =
-      this.prevNodes.length > 0 ? this.prevNodes[0].finalCols : [];
-
     if (this.state.selectedColumns.length === 0) {
-      this.state.selectedColumns = newColumnInfoList(this.sourceCols);
+      this.state.selectedColumns = newColumnInfoList(
+        this.prevNodes !== undefined && this.prevNodes.length > 0
+          ? this.prevNodes[0].finalCols
+          : [],
+      );
     }
+
+    const userOnChange = this.state.onchange;
+    this.state.onchange = () => {
+      notifyNextNodes(this);
+      userOnChange?.();
+    };
+  }
+
+  get finalCols(): ColumnInfo[] {
+    return this.computeFinalCols();
+  }
+
+  private computeFinalCols(): ColumnInfo[] {
+    const finalCols = newColumnInfoList(
+      this.state.selectedColumns.filter((col) => col.checked),
+    );
+    this.state.newColumns
+      .filter((c) => this.isNewColumnValid(c))
+      .forEach((col) => {
+        finalCols.push(columnInfoFromName(col.name, true));
+      });
+    return finalCols;
   }
 
   onPrevNodesUpdated() {
     // This node assumes it has only one previous node.
-    this.sourceCols =
+    const sourceCols =
       this.state.prevNodes.length > 0 ? this.state.prevNodes[0].finalCols : [];
-    if (this.state.selectedColumns.length === 0 && this.sourceCols.length > 0) {
-      this.state.selectedColumns = newColumnInfoList(this.sourceCols);
+
+    const newSelectedColumns = newColumnInfoList(sourceCols);
+
+    // Preserve checked status and aliases for columns that still exist.
+    for (const oldCol of this.state.selectedColumns) {
+      const newCol = newSelectedColumns.find(
+        (c) => c.column.name === oldCol.column.name,
+      );
+      if (newCol) {
+        newCol.checked = oldCol.checked;
+        newCol.alias = oldCol.alias;
+      }
     }
+
+    this.state.selectedColumns = newSelectedColumns;
   }
 
   static deserializeState(
@@ -102,18 +136,6 @@ export class ModifyColumnsNode implements QueryNode {
       ...serializedState,
       prevNodes,
     };
-  }
-
-  get finalCols(): ColumnInfo[] {
-    const finalCols = newColumnInfoList(
-      this.state.selectedColumns.filter((col) => col.checked),
-    );
-    this.state.newColumns
-      .filter((c) => this.isNewColumnValid(c))
-      .forEach((col) => {
-        finalCols.push(columnInfoFromName(col.name, true));
-      });
-    return finalCols;
   }
 
   validate(): boolean {

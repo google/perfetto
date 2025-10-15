@@ -13,31 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  createFinalColumns,
-  NodeType,
-} from '../query_node';
+import {QueryNode, QueryNodeState, NodeType, nextNodeId} from '../query_node';
 import {ColumnInfo} from './column_info';
 import protos from '../../../protos';
 
 export abstract class SourceNode implements QueryNode {
   readonly nodeId: string;
-  prevNodes: QueryNode[] = [];
-  nextNodes: QueryNode[];
-  meterialisedAs?: string;
-
-  abstract readonly sourceCols: ColumnInfo[];
-  finalCols: ColumnInfo[];
-
   readonly state: QueryNodeState;
+  abstract readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
 
   constructor(state: QueryNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.finalCols = createFinalColumns(this);
     this.nextNodes = [];
   }
 
