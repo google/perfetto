@@ -520,16 +520,16 @@ base::Status WriteMetadataBundles(
           key_column_name.c_str(), query_it.Status().c_message());
     }
 
-    std::vector<protozero::ConstBytes> metadata_col_specs_bytes;
-    metadata_col_specs_bytes.push_back(ms.key_column_spec());
+    std::vector<protozero::ConstBytes> col_specs_bytes;
+    col_specs_bytes.push_back(ms.key_column_spec());
     for (auto dcs_it = ms.data_column_specs(); dcs_it; ++dcs_it) {
-      metadata_col_specs_bytes.push_back(*dcs_it);
+      col_specs_bytes.push_back(*dcs_it);
     }
 
     std::vector<
         std::pair<uint32_t, protos::pbzero::TraceMetricV2Spec::DimensionType>>
         column_infos;
-    for (const auto& col_spec_bytes : metadata_col_specs_bytes) {
+    for (const auto& col_spec_bytes : col_specs_bytes) {
       protos::pbzero::TraceMetricV2Spec::MetadataSpec::MetadataColumnSpec::
           Decoder col_spec(col_spec_bytes);
       std::optional<uint32_t> column_index;
@@ -728,8 +728,11 @@ base::Status CreateQueriesAndComputeMetrics(
       }
     }
     RETURN_IF_ERROR(query_it.Status());
-    RETURN_IF_ERROR(WriteMetadataBundles(processor, first_spec,
-                                         first->metadata_queries, bundle));
+    for (const auto* metric : value) {
+      protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
+      RETURN_IF_ERROR(WriteMetadataBundles(processor, spec,
+                                           metric->metadata_queries, bundle));
+    }
   }
   return base::OkStatus();
 }
