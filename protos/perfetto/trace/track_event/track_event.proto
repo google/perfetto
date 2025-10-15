@@ -103,7 +103,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 55.
+// Next reserved id: 13 (up to 15). Next id: 57.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -277,20 +277,20 @@ message TrackEvent {
   // to the event.
   //
   // Two variants are supported:
-  // - callstack_iid: Reference to an interned Callstack in InternedData
-  //   (efficient for repeated callstacks)
   // - callstack: Inline callstack data (simpler when trace size is not a
   //   concern or callstacks are unique)
+  // - callstack_iid: Reference to an interned Callstack in InternedData
+  //   (efficient for repeated callstacks)
   //
   // Only one of these fields should be set.
   oneof callstack_field {
-    // Reference to interned Callstack (see InternedData.callstacks).
-    // This is the efficient option when callstacks are repeated.
-    uint64 callstack_iid = 37;
-
     // Inline callstack data. Use this for simplicity when interning is not
     // needed (e.g., for unique callstacks or when trace size is not critical).
-    Callstack callstack = 51;
+    Callstack callstack = 55;
+
+    // Reference to interned Callstack (see InternedData.callstacks).
+    // This is the efficient option when callstacks are repeated.
+    uint64 callstack_iid = 56;
   }
 
   // Inline callstack for TrackEvents when interning is not needed.
@@ -320,6 +320,16 @@ message TrackEvent {
     repeated Frame frames = 1;
   }
 
+  // Debug annotations associated with this event. These are arbitrary key-value
+  // pairs that can be used to attach additional information to the event.
+  // See DebugAnnotation message for details on supported value types.
+  //
+  // For example, debug annotations can be used to attach a URL or resource
+  // identifier to a network request event. Arrays, dictionaries and full
+  // nested structures (e.g. arrays of dictionaries of dictionaries)
+  // are supported.
+  repeated DebugAnnotation debug_annotations = 4;
+
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
   // ---------------------------------------------------------------------------
@@ -329,10 +339,6 @@ message TrackEvent {
   // fields may change or be removed without notice. For custom/synthetic
   // traces, prefer using the fields above (name, categories, type, flows,
   // correlation_id, callstack, etc.) along with custom debug_annotations.
-
-  // Unstable key/value annotations shown in the trace viewer but not intended
-  // for metrics use.
-  repeated DebugAnnotation debug_annotations = 4;
 
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
