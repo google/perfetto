@@ -916,6 +916,140 @@ TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
                         "value_column_specs defined"));
 }
 
+TEST_F(TraceSummaryTest, MetadataBundleBasic) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
+    metric_spec {
+      id: "my_metric"
+      value: "dur"
+      dimensions_specs { name: "dim" type: STRING }
+      query {
+        sql {
+          sql: "SELECT 'a' as dim, 750.0 as dur UNION ALL SELECT 'b' as dim, 425.0 as dur"
+          column_names: "dim"
+          column_names: "dur"
+        }
+      }
+      metadata_specs {
+        key_column_spec { name: "dim" type: STRING }
+        data_column_specs { name: "version" type: DOUBLE }
+        query {
+          sql {
+            sql: "SELECT 'a' as dim, 1.0 as version UNION ALL SELECT 'b' as dim, 2.0 as version"
+          }
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      specs {
+        id: "my_metric"
+        value: "dur"
+        dimensions_specs {
+          name: "dim"
+          type: STRING
+        }
+        query {
+          sql {
+            sql: "SELECT \'a\' as dim, 750.0 as dur UNION ALL SELECT \'b\' as dim, 425.0 as dur"
+            column_names: "dim"
+            column_names: "dur"
+          }
+        }
+        metadata_specs {
+          key_column_spec {
+            name: "dim"
+            type: STRING
+          }
+          data_column_specs {
+            name: "version"
+            type: DOUBLE
+          }
+          query {
+            sql {
+              sql: "SELECT \'a\' as dim, 1.0 as version UNION ALL SELECT \'b\' as dim, 2.0 as version"
+            }
+          }
+        }
+      }
+      row {
+        dimension {
+          string_value: "a"
+        }
+        values {
+          double_value: 750.000000
+        }
+      }
+      row {
+        dimension {
+          string_value: "b"
+        }
+        values {
+          double_value: 425.000000
+        }
+      }
+      metadata_bundles {
+        metadata_spec {
+          key_column_spec {
+            name: "dim"
+            type: STRING
+          }
+          data_column_specs {
+            name: "version"
+            type: DOUBLE
+          }
+          query {
+            sql {
+              sql: "SELECT \'a\' as dim, 1.0 as version UNION ALL SELECT \'b\' as dim, 2.0 as version"
+            }
+          }
+        }
+        metadata_rows {
+          metadata_values {
+            string_value: "a"
+          }
+          metadata_values {
+            double_value: 1.000000
+          }
+        }
+        metadata_rows {
+          metadata_values {
+            string_value: "b"
+          }
+          metadata_values {
+            double_value: 2.000000
+          }
+        }
+      }
+    }
+  )-"));
+}
+
+TEST_F(TraceSummaryTest, MetadataBundleKeyColumnNotInDimensions) {
+  auto status = RunSummarize(R"(
+    metric_spec {
+      id: "my_metric"
+      value: "value"
+      dimensions_specs { name: "dim" type: STRING }
+      query {
+        sql {
+          sql: "SELECT 'a' as dim, 1.0 as value"
+          column_names: "dim"
+          column_names: "value"
+        }
+      }
+      metadata_specs {
+        key_column_spec { name: "other" type: STRING }
+        query { sql { sql: "SELECT 'a' as other" } }
+      }
+    }
+  )");
+  ASSERT_FALSE(status.ok());
+  EXPECT_THAT(status.status().message(),
+              HasSubstr("Key column 'other' in metadata bundle not found in "
+                        "metric dimensions"));
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 TEST_F(TraceSummaryTest, OutputIsCompressed) {
   TraceSummaryOutputSpec uncompressed_spec;

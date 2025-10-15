@@ -62,6 +62,7 @@ struct Metric {
   std::string id;
   std::string query;
   protozero::ConstBytes spec;
+  std::vector<std::string> metadata_queries;
 };
 
 using perfetto_sql::generator::StructuredQueryGenerator;
@@ -154,6 +155,12 @@ base::Status ExpandMetricTemplates(
                   protos::pbzero::TraceMetricV2Spec::DimensionUniqueness>(
                   tmpl.dimension_uniqueness()));
         }
+
+        for (auto ms_it = tmpl.metadata_specs(); ms_it; ++ms_it) {
+          expanded->add_metadata_specs()->AppendRawProtoBytes(ms_it->data(),
+                                                              ms_it->size());
+        }
+
         synthetic_protos.push_back(expanded.SerializeAsArray());
       }
     }
@@ -357,6 +364,55 @@ base::Status WriteDimension(
   return base::OkStatus();
 }
 
+base::Status WriteMetadataValue(
+    const SqlValue& col_value,
+    protos::pbzero::TraceMetricV2Spec::DimensionType type,
+    protos::pbzero::TraceMetricV2Bundle::MetadataBundle::MetadataRow::
+        MetadataValue* value) {
+  if (col_value.is_null()) {
+    value->set_null_value();
+    return base::OkStatus();
+  }
+  switch (type) {
+    case protos::pbzero::TraceMetricV2Spec::DimensionType::STRING: {
+      if (col_value.type != SqlValue::kString) {
+        return base::ErrStatus("Expected string for metadata column");
+      }
+      value->set_string_value(col_value.string_value);
+      break;
+    }
+    case protos::pbzero::TraceMetricV2Spec::DimensionType::INT64: {
+      if (col_value.type != SqlValue::kLong) {
+        return base::ErrStatus("Expected int64 for metadata column");
+      }
+      value->set_int64_value(col_value.long_value);
+      break;
+    }
+    case protos::pbzero::TraceMetricV2Spec::DimensionType::DOUBLE: {
+      if (col_value.type != SqlValue::kDouble) {
+        return base::ErrStatus("Expected double for metadata column");
+      }
+      value->set_double_value(col_value.double_value);
+      break;
+    }
+    case protos::pbzero::TraceMetricV2Spec::DimensionType::
+        DIMENSION_TYPE_UNSPECIFIED:
+      if (col_value.type == SqlValue::kLong) {
+        value->set_int64_value(col_value.long_value);
+      } else if (col_value.type == SqlValue::kDouble) {
+        value->set_double_value(col_value.double_value);
+      } else if (col_value.type == SqlValue::kString) {
+        value->set_string_value(col_value.string_value);
+      } else if (col_value.type == SqlValue::kBytes) {
+        return base::ErrStatus("Received bytes for metadata column");
+      } else {
+        PERFETTO_FATAL("Null value should have been handled above");
+      }
+      break;
+  }
+  return base::OkStatus();
+}
+
 base::Status VerifyBundleHasConsistentSpecs(
     const std::string& bundle_id,
     const std::vector<const Metric*>& metrics) {
@@ -399,6 +455,146 @@ base::Status VerifyBundleHasConsistentSpecs(
           metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
     }
   }
+  return base::OkStatus();
+}
+
+base::Status ValidateMetadataSpecs(
+    const protos::pbzero::TraceMetricV2Spec::Decoder& spec) {
+  ASSIGN_OR_RETURN(auto dimensions, GetDimensions(spec));
+  std::set<std::string> metadata_keys;
+  for (auto it = spec.metadata_specs(); it; ++it) {
+    protos::pbzero::TraceMetricV2Spec::MetadataSpec::Decoder ms(*it);
+    if (!ms.has_key_column_spec()) {
+      return base::ErrStatus(
+          "key_column_spec must be specified in metadata_specs");
+    }
+    protos::pbzero::TraceMetricV2Spec::MetadataSpec::MetadataColumnSpec::Decoder
+        key_col_spec(ms.key_column_spec());
+    std::string key_column_name = key_col_spec.name().ToStdString();
+    if (!metadata_keys.insert(key_column_name).second) {
+      return base::ErrStatus(
+          "Duplicate key column '%s' found in metadata_specs",
+          key_column_name.c_str());
+    }
+
+    bool key_in_dimensions = false;
+    for (const auto& dim : dimensions) {
+      if (dim.name == key_column_name) {
+        key_in_dimensions = true;
+        break;
+      }
+    }
+    if (!key_in_dimensions) {
+      return base::ErrStatus(
+          "Key column '%s' in metadata bundle not found in metric dimensions",
+          key_column_name.c_str());
+    }
+
+    std::set<std::string> all_column_names;
+    all_column_names.insert(key_column_name);
+    for (auto dcs_it = ms.data_column_specs(); dcs_it; ++dcs_it) {
+      protos::pbzero::TraceMetricV2Spec::MetadataSpec::MetadataColumnSpec::
+          Decoder data_col_spec(*dcs_it);
+      std::string data_col_name = data_col_spec.name().ToStdString();
+      if (!all_column_names.insert(data_col_name).second) {
+        return base::ErrStatus(
+            "Duplicate column name '%s' found in metadata bundle",
+            data_col_name.c_str());
+      }
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status WriteMetadataBundles(
+    TraceProcessor* processor,
+    const protos::pbzero::TraceMetricV2Spec::Decoder& spec,
+    const std::vector<std::string>& metadata_queries,
+    protos::pbzero::TraceMetricV2Bundle* bundle) {
+  RETURN_IF_ERROR(ValidateMetadataSpecs(spec));
+  size_t metadata_idx = 0;
+  for (auto it = spec.metadata_specs(); it; ++it) {
+    protos::pbzero::TraceMetricV2Spec::MetadataSpec::Decoder ms(*it);
+    protos::pbzero::TraceMetricV2Spec::MetadataSpec::MetadataColumnSpec::Decoder
+        key_col_spec(ms.key_column_spec());
+    std::string key_column_name = key_col_spec.name().ToStdString();
+    auto* metadata_bundle = bundle->add_metadata_bundles();
+    metadata_bundle->set_metadata_spec()->AppendRawProtoBytes(
+        ms.begin(), static_cast<size_t>(ms.end() - ms.begin()));
+
+    std::string sql = metadata_queries[metadata_idx++];
+    auto query_it = processor->ExecuteQuery(sql);
+    if (!query_it.Status().ok()) {
+      return base::ErrStatus(
+          "Error while executing query for metadata bundle with key '%s': %s",
+          key_column_name.c_str(), query_it.Status().c_message());
+    }
+
+    struct ColumnInfo {
+      uint32_t index;
+      protos::pbzero::TraceMetricV2Spec::DimensionType type;
+    };
+    std::vector<ColumnInfo> column_infos;
+    std::vector<protozero::ConstBytes> col_specs_bytes;
+    col_specs_bytes.push_back(ms.key_column_spec());
+    for (auto dcs_it = ms.data_column_specs(); dcs_it; ++dcs_it) {
+      col_specs_bytes.push_back(*dcs_it);
+    }
+
+    for (const auto& col_spec_bytes : col_specs_bytes) {
+      protos::pbzero::TraceMetricV2Spec::MetadataSpec::MetadataColumnSpec::
+          Decoder col_spec(col_spec_bytes);
+      std::optional<uint32_t> column_index;
+      for (uint32_t i = 0; i < query_it.ColumnCount(); ++i) {
+        if (query_it.GetColumnName(i) == col_spec.name().ToStdString()) {
+          column_index = i;
+          break;
+        }
+      }
+      if (!column_index) {
+        return base::ErrStatus(
+            "Column '%s' not found in the query result for metadata bundle "
+            "with key '%s'",
+            col_spec.name().ToStdString().c_str(), key_column_name.c_str());
+      }
+      column_infos.push_back(
+          {*column_index,
+           static_cast<protos::pbzero::TraceMetricV2Spec::DimensionType>(
+               col_spec.type())});
+    }
+
+    base::FlatHashMap<uint64_t, bool> seen_keys;
+    while (query_it.Next()) {
+      const auto& key_val = query_it.Get(column_infos[0].index);
+      base::FnvHasher key_hasher;
+      key_hasher.Update(key_val.type);
+      if (key_val.is_null()) {
+      } else if (key_val.type == SqlValue::kLong) {
+        key_hasher.Update(key_val.long_value);
+      } else if (key_val.type == SqlValue::kDouble) {
+        key_hasher.Update(key_val.double_value);
+      } else if (key_val.type == SqlValue::kString) {
+        key_hasher.Update(key_val.string_value);
+      } else {
+        return base::ErrStatus(
+            "Unsupported key type %d for metadata bundle with key column '%s'",
+            static_cast<int>(key_val.type), key_column_name.c_str());
+      }
+      if (!seen_keys.Insert(key_hasher.digest(), true).second) {
+        return base::ErrStatus(
+            "Duplicate key found in metadata bundle with key column '%s'",
+            key_column_name.c_str());
+      }
+      auto* row = metadata_bundle->add_metadata_rows();
+      for (const auto& info : column_infos) {
+        const auto& col_value = query_it.Get(info.index);
+        RETURN_IF_ERROR(WriteMetadataValue(col_value, info.type,
+                                           row->add_metadata_values()));
+      }
+    }
+    RETURN_IF_ERROR(query_it.Status());
+  }
+
   return base::OkStatus();
 }
 
@@ -544,6 +740,8 @@ base::Status CreateQueriesAndComputeMetrics(
       }
     }
     RETURN_IF_ERROR(query_it.Status());
+    RETURN_IF_ERROR(WriteMetadataBundles(processor, first_spec,
+                                         first->metadata_queries, bundle));
   }
   return base::OkStatus();
 }
@@ -679,7 +877,7 @@ base::Status Summarize(TraceProcessor* processor,
           "name. Please use a different id for your metric");
     }
     queries_per_metric.Insert(id, metrics.size());
-    metrics.emplace_back(Metric{id, {}, {}});
+    metrics.emplace_back(Metric{id, {}, {}, {}});
   }
   for (const auto& m : metric_decoders) {
     std::string id = m.id().ToStdString();
@@ -710,6 +908,17 @@ base::Status Summarize(TraceProcessor* processor,
         m.begin(),
         static_cast<size_t>(m.end() - m.begin()),
     };
+    for (auto it = m.metadata_specs(); it; ++it) {
+      protos::pbzero::TraceMetricV2Spec::MetadataSpec::Decoder ms(*it);
+      base::StatusOr<std::string> metadata_query_or =
+          generator.Generate(ms.query().data, ms.query().size);
+      if (!metadata_query_or.ok()) {
+        return base::ErrStatus(
+            "Unable to build metadata query for metric '%s': %s", id.c_str(),
+            metadata_query_or.status().c_message());
+      }
+      metric->metadata_queries.push_back(*metadata_query_or);
+    }
   }
 
   std::optional<std::string> metadata_sql;
