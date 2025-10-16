@@ -76,9 +76,9 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    sliceName: (row) => row.state,
+    sliceName: (row) => row.state || '[Unknown]',
     colorizer: (row): ColorScheme => {
-      const colorForState = colorForThreadState(row.state);
+      const colorForState = colorForThreadState(row.state || '[Unknown]');
       if (row.state.includes('Sleeping') || row.state.includes('Idle')) {
         // For sleeping/idle slices, return a transparent color scheme with
         // transparent text + a subtle gray variant displayed when hovering the
