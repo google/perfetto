@@ -26,9 +26,6 @@ on:
       - main
       - dev/**/*
 
-permissions:
-  pull-requests: read
-
 # If a new commit is pushed, cancel previous jobs for the same PR / branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
