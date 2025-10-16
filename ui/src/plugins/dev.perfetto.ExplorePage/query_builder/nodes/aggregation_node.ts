@@ -20,6 +20,7 @@ import {
   NodeType,
   createSelectColumnsProto,
   notifyNextNodes,
+  ModificationNode,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {
@@ -50,7 +51,7 @@ export interface AggregationSerializedState {
 }
 
 export interface AggregationNodeState extends QueryNodeState {
-  prevNodes?: QueryNode[];
+  prevNode: QueryNode;
   groupByColumns: ColumnInfo[];
   aggregations: Aggregation[];
 }
@@ -63,10 +64,10 @@ export interface Aggregation {
   isEditing?: boolean;
 }
 
-export class AggregationNode implements QueryNode {
+export class AggregationNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kAggregation;
-  readonly prevNodes?: QueryNode[];
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
   meterialisedAs?: string;
@@ -88,11 +89,11 @@ export class AggregationNode implements QueryNode {
       groupByColumns: state.groupByColumns ?? [],
       aggregations: state.aggregations ?? [],
     };
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
     if (this.state.groupByColumns.length === 0) {
       this.state.groupByColumns = newColumnInfoList(
-        this.prevNodes?.[0]?.finalCols ?? [],
+        this.prevNode.finalCols ?? [],
         false,
       );
     }
@@ -109,7 +110,7 @@ export class AggregationNode implements QueryNode {
 
   updateGroupByColumns() {
     const newGroupByColumns = newColumnInfoList(
-      this.prevNodes?.[0]?.finalCols ?? [],
+      this.prevNode.finalCols ?? [],
       false,
     );
     for (const oldCol of this.state.groupByColumns) {
@@ -131,20 +132,13 @@ export class AggregationNode implements QueryNode {
     if (this.state.issues) {
       this.state.issues.queryError = undefined;
     }
-    if (!this.prevNodes || this.prevNodes.length === 0) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
-        'Aggregation node has no previous node',
-      );
-      return false;
-    }
-    if (!this.prevNodes[0].validate()) {
+    if (!this.prevNode.validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
       return false;
     }
     const sourceColNames = new Set(
-      (this.prevNodes?.[0]?.finalCols ?? []).map((c) => c.name),
+      (this.prevNode.finalCols ?? []).map((c) => c.name),
     );
     const missingCols: string[] = [];
     for (const col of this.state.groupByColumns) {
@@ -222,7 +216,7 @@ export class AggregationNode implements QueryNode {
 
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
-      prevNodes: this.state.prevNodes,
+      prevNode: this.state.prevNode,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: this.state.filters ? [...this.state.filters] : undefined,
@@ -239,9 +233,7 @@ export class AggregationNode implements QueryNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
-
-    if (!this.prevNodes || this.prevNodes.length === 0) return;
-    const prevSq = this.prevNodes[0].getStructuredQuery();
+    const prevSq = this.prevNode.getStructuredQuery();
     if (!prevSq) return undefined;
 
     const groupByProto = createGroupByProto(
@@ -281,7 +273,7 @@ export class AggregationNode implements QueryNode {
   }
 
   resolveColumns() {
-    const sourceCols = this.prevNodes?.[0]?.finalCols ?? [];
+    const sourceCols = this.prevNode.finalCols ?? [];
     this.state.groupByColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
@@ -336,6 +328,7 @@ export class AggregationNode implements QueryNode {
     });
     return {
       ...state,
+      prevNode: undefined as unknown as QueryNode,
       groupByColumns,
       aggregations,
     };

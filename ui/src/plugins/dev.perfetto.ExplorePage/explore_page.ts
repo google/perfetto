@@ -92,7 +92,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
       const nodeState: QueryNodeState = {
         ...initialState,
-        prevNodes: [node],
+        prevNode: node,
       };
 
       const newNode = descriptor.factory(nodeState, {
@@ -161,7 +161,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // If the node is a child of another node, remove it from the parent's
     // nextNodes array.
-    if (node.prevNodes) {
+    if ('prevNode' in node) {
+      const childIdx = node.prevNode.nextNodes.indexOf(node);
+      if (childIdx !== -1) {
+        node.prevNode.nextNodes.splice(childIdx, 1);
+      }
+    } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
         const childIdx = prevNode.nextNodes.indexOf(node);
         if (childIdx !== -1) {

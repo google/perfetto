@@ -19,6 +19,8 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
+  MultiSourceNode,
+  nextNodeId,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -29,7 +31,6 @@ import {
   queryHistoryStorage,
 } from '../../../../../components/widgets/query_history';
 import {Trace} from '../../../../../public/trace';
-import {SourceNode} from '../../source_node';
 
 import {ColumnInfo} from '../../column_info';
 import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
@@ -46,7 +47,8 @@ export interface SqlSourceState extends QueryNodeState {
   trace: Trace;
 }
 
-export class SqlSourceNode extends SourceNode {
+export class SqlSourceNode implements MultiSourceNode {
+  readonly nodeId: string;
   readonly state: SqlSourceState;
   prevNodes: QueryNode[] = [];
   finalCols: ColumnInfo[];
@@ -54,10 +56,11 @@ export class SqlSourceNode extends SourceNode {
   meterialisedAs?: string;
 
   constructor(attrs: SqlSourceState) {
-    super(attrs);
+    this.nodeId = nextNodeId();
     this.state = attrs;
     this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
+    this.prevNodes = attrs.prevNodes ?? [];
   }
 
   get type() {
