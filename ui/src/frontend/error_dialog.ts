@@ -56,7 +56,7 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
-  if (err.message.includes('Got no attachements from extension')) {
+  if (err.message.includes('ABT: Got no attachments from extension')) {
     showABTError();
     timeLastReport = now;
     return;
@@ -383,12 +383,12 @@ function showWebUSBError() {
 
 function showABTError() {
   showModal({
-    title: 'A ABT error occurred',
+    title: 'An ABT error occurred',
     content: m(
       'div',
       m(
         'span',
-        `The extension that opened perfetto did not pass a valid trace file, there's nothing much we can do about it`,
+        `The Android Bug Tool (ABT) Chrome extension did not pass a valid file.`,
       ),
     ),
   });
