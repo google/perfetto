@@ -187,6 +187,21 @@ export interface DataGridAttrs {
   readonly onFiltersChanged?: OnFiltersChanged;
 
   /**
+   * This callback is triggered when the user requests a filter to be added
+   * from the UI - for example, by clicking 'Filter out nulls' in a column
+   * header menu, or 'Filter equal to this' in a cell menu.
+   *
+   * This is provided as a convenience to allow the host application to manage
+   * their own filter state outside of the DataGrid if they wish.
+   *
+   * If this is not provided, the grid will still add the filter to the list of
+   * active filters and trigger onFiltersChanged as normal.
+   *
+   * @param filter - The filter to be added.
+   */
+  readonly onFilterAdded?: (filter: FilterDefinition) => void;
+
+  /**
    * Order of columns to display - can operate in controlled or uncontrolled
    * mode.
    *
@@ -322,6 +337,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       className,
+      onFilterAdded,
     } = attrs;
 
     const onFiltersChangedWithReset =
@@ -383,7 +399,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const addFilter =
       onFiltersChangedWithReset === noOp
         ? noOp
-        : (filter: FilterDefinition) => onFiltersChanged([...filters, filter]);
+        : (filter: FilterDefinition) => {
+            onFilterAdded?.(filter);
+            onFiltersChanged([...filters, filter]);
+          };
 
     const sortControls = onSortingChangedWithReset !== noOp;
     const filterControls = onFiltersChangedWithReset !== noOp;
