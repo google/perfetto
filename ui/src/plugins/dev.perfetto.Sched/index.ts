@@ -29,6 +29,7 @@ import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR_NULL,
@@ -258,7 +259,7 @@ export default class SchedPlugin implements PerfettoPlugin {
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
-      tid: NUM_NULL,
+      tid: LONG_NULL,
       threadName: STR_NULL,
       isMainThread: NUM_NULL,
       isKernelThread: NUM,

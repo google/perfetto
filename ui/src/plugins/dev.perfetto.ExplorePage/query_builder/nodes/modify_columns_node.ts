@@ -18,8 +18,13 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  notifyNextNodes,
+  ModificationNode,
 } from '../../query_node';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
+import {Icon} from '../../../../widgets/icon';
 import {TextInput} from '../../../../widgets/text_input';
 import {
   ColumnInfo,
@@ -37,70 +42,94 @@ interface NewColumn {
 }
 
 export interface ModifyColumnsSerializedState {
-  prevNodeIds: string[];
+  prevNodeId: string;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface ModifyColumnsState extends QueryNodeState {
-  prevNodes: QueryNode[];
+  prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
   customTitle?: string;
 }
 
-export class ModifyColumnsNode implements QueryNode {
+export class ModifyColumnsNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kModifyColumns;
-  prevNodes: QueryNode[] | undefined;
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
-  sourceCols: ColumnInfo[];
   readonly state: ModifyColumnsState;
 
   constructor(state: ModifyColumnsState) {
     this.nodeId = nextNodeId();
-    // This node assumes it has only one previous node.
-    this.sourceCols =
-      state.prevNodes.length > 0 ? state.prevNodes[0].finalCols : [];
-    if (state.selectedColumns.length === 0 && this.sourceCols.length > 0) {
-      state.selectedColumns = newColumnInfoList(this.sourceCols);
-    }
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
-    this.state = state;
-  }
 
-  onPrevNodesUpdated() {
-    // This node assumes it has only one previous node.
-    this.sourceCols =
-      this.state.prevNodes.length > 0 ? this.state.prevNodes[0].finalCols : [];
-    if (this.state.selectedColumns.length === 0 && this.sourceCols.length > 0) {
-      this.state.selectedColumns = newColumnInfoList(this.sourceCols);
+    this.state = {
+      ...state,
+      newColumns: state.newColumns ?? [],
+      selectedColumns: state.selectedColumns ?? [],
+    };
+
+    if (this.state.selectedColumns.length === 0) {
+      this.state.selectedColumns = newColumnInfoList(this.prevNode.finalCols);
     }
-  }
 
-  static deserializeState(
-    nodes: Map<string, QueryNode>,
-    serializedState: ModifyColumnsSerializedState,
-  ): ModifyColumnsState {
-    const prevNodes = serializedState.prevNodeIds.map((id) => nodes.get(id)!);
-    return {
-      ...serializedState,
-      prevNodes,
+    const userOnChange = this.state.onchange;
+    this.state.onchange = () => {
+      notifyNextNodes(this);
+      userOnChange?.();
     };
   }
 
   get finalCols(): ColumnInfo[] {
+    return this.computeFinalCols();
+  }
+
+  private computeFinalCols(): ColumnInfo[] {
     const finalCols = newColumnInfoList(
       this.state.selectedColumns.filter((col) => col.checked),
     );
-    this.state.newColumns.forEach((col) => {
-      finalCols.push(columnInfoFromName(col.name, true));
-    });
+    this.state.newColumns
+      .filter((c) => this.isNewColumnValid(c))
+      .forEach((col) => {
+        finalCols.push(columnInfoFromName(col.name, true));
+      });
     return finalCols;
+  }
+
+  onPrevNodesUpdated() {
+    // This node assumes it has only one previous node.
+    const sourceCols = this.state.prevNode.finalCols;
+
+    const newSelectedColumns = newColumnInfoList(sourceCols);
+
+    // Preserve checked status and aliases for columns that still exist.
+    for (const oldCol of this.state.selectedColumns) {
+      const newCol = newSelectedColumns.find(
+        (c) => c.column.name === oldCol.column.name,
+      );
+      if (newCol) {
+        newCol.checked = oldCol.checked;
+        newCol.alias = oldCol.alias;
+      }
+    }
+
+    this.state.selectedColumns = newSelectedColumns;
+  }
+
+  static deserializeState(
+    serializedState: ModifyColumnsSerializedState,
+  ): ModifyColumnsState {
+    return {
+      ...serializedState,
+      prevNode: undefined as unknown as QueryNode,
+    };
   }
 
   validate(): boolean {
@@ -138,137 +167,263 @@ export class ModifyColumnsNode implements QueryNode {
     return this.state.customTitle ?? 'Modify Columns';
   }
 
+  nodeDetails(): m.Child {
+    // Determine the state of modifications.
+    const hasUnselected = this.state.selectedColumns.some((c) => !c.checked);
+    const hasAlias = this.state.selectedColumns.some((c) => c.alias);
+    const newValidColumns = this.state.newColumns.filter((c) =>
+      this.isNewColumnValid(c),
+    );
+
+    // If there are no modifications, show a default message.
+    if (!hasUnselected && !hasAlias && newValidColumns.length === 0) {
+      return m('.pf-node-details-message', 'Select all');
+    }
+
+    const cards: m.Child[] = [];
+
+    // If columns have been unselected or aliased, list the selected ones.
+    if (hasUnselected || hasAlias) {
+      const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
+      if (selectedCols.length > 0) {
+        const selectedItems = selectedCols.map((c) => {
+          if (c.alias) {
+            return m('div', `${c.column.name} AS ${c.alias}`);
+          } else {
+            return m('div', c.column.name);
+          }
+        });
+        cards.push(
+          m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
+        );
+      }
+    }
+
+    // If new columns have been added, list them.
+    if (newValidColumns.length > 0) {
+      const newItems = newValidColumns.map((c) =>
+        m('div', `${c.expression} AS ${c.name}`),
+      );
+      cards.push(m(Card, {className: 'pf-node-details-card'}, ...newItems));
+    }
+
+    // If all columns have been deselected, show a specific message.
+    if (cards.length === 0) {
+      return m('.pf-node-details-message', 'All columns deselected');
+    }
+
+    return m(CardStack, cards);
+  }
+
   nodeSpecificModify(): m.Child {
     return m(
-      'div',
+      'div.pf-modify-columns-node',
       m(
-        'div.pf-column-list',
-        this.state.selectedColumns.map((col, index) =>
-          m(
-            '.pf-column',
-            {
-              draggable: true,
-              ondragstart: (e: DragEvent) => {
-                e.dataTransfer!.setData('text/plain', index.toString());
-              },
-              ondragover: (e: DragEvent) => {
-                e.preventDefault();
-              },
-              ondrop: (e: DragEvent) => {
-                e.preventDefault();
-                const from = parseInt(
-                  e.dataTransfer!.getData('text/plain'),
-                  10,
-                );
-                const to = index;
-                const [removed] = this.state.selectedColumns.splice(from, 1);
-                this.state.selectedColumns.splice(to, 0, removed);
-              },
-            },
-            m(Checkbox, {
-              checked: col.checked,
-              label: col.column.name,
-              onchange: (e) => {
-                col.checked = (e.target as HTMLInputElement).checked;
-              },
-            }),
-            m(TextInput, {
-              oninput: (e: Event) => {
-                col.alias = (e.target as HTMLInputElement).value;
-              },
-              placeholder: 'alias',
-              value: col.alias ? col.alias : '',
-            }),
-          ),
-        ),
-      ),
-      this.state.newColumns.map((col, index) =>
+        CardStack,
         m(
-          '.pf-column',
-          {
-            draggable: true,
-            ondragstart: (e: DragEvent) => {
-              e.dataTransfer!.setData(
-                'text/plain',
-                (this.state.selectedColumns.length + index).toString(),
-              );
-            },
-            ondragover: (e: DragEvent) => {
-              e.preventDefault();
-            },
-            ondrop: (e: DragEvent) => {
-              e.preventDefault();
-              const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
-              const to = this.state.selectedColumns.length + index;
-              if (from < this.state.selectedColumns.length) {
-                const [removed] = this.state.selectedColumns.splice(from, 1);
-                this.state.newColumns.splice(
-                  to - this.state.selectedColumns.length,
-                  0,
-                  {
-                    expression: removed.column.name,
-                    name: removed.alias || '',
-                  },
-                );
-              } else {
-                const [removed] = this.state.newColumns.splice(
-                  from - this.state.selectedColumns.length,
-                  1,
-                );
-                this.state.newColumns.splice(
-                  to - this.state.selectedColumns.length,
-                  0,
-                  removed,
-                );
-              }
-            },
-          },
-          m(TextInput, {
-            oninput: (e: Event) => {
-              col.expression = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'expression',
-            value: col.expression,
-          }),
-          m(TextInput, {
-            oninput: (e: Event) => {
-              col.name = (e.target as HTMLInputElement).value;
-            },
-            placeholder: 'name',
-            value: col.name,
-          }),
+          Card,
+          m('h2.pf-columns-box-title', 'Selected Columns'),
           m(
-            'button',
-            {
-              onclick: () => {
-                this.state.newColumns.splice(index, 1);
-              },
-            },
-            'Remove',
+            'div.pf-column-list',
+            this.state.selectedColumns.map((col, index) =>
+              this.renderSelectedColumn(col, index),
+            ),
           ),
         ),
+        m(
+          Card,
+          this.state.newColumns.map((col, index) =>
+            this.renderNewColumn(col, index),
+          ),
+          this.renderAddColumnButton(),
+        ),
       ),
+      this.renderFilterOperation(),
+    );
+  }
+
+  private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
+    return m(
+      '.pf-column',
+      {
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
+          const to = index;
+
+          const newSelectedColumns = [...this.state.selectedColumns];
+          const [removed] = newSelectedColumns.splice(from, 1);
+          newSelectedColumns.splice(to, 0, removed);
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.onchange?.();
+        },
+      },
       m(
-        'button.pf-add-column-button',
+        'span.pf-drag-handle',
         {
-          onclick: () => {
-            this.state.newColumns.push({
-              expression: '',
-              name: '',
-            });
+          draggable: true,
+          ondragstart: (e: DragEvent) => {
+            e.dataTransfer!.setData('text/plain', index.toString());
           },
         },
-        'Add column',
+        '☰',
       ),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          this.state.filters = newFilters as FilterDefinition[];
+      m(Checkbox, {
+        checked: col.checked,
+        label: col.column.name,
+        onchange: (e) => {
+          const newSelectedColumns = [...this.state.selectedColumns];
+          newSelectedColumns[index] = {
+            ...newSelectedColumns[index],
+            checked: (e.target as HTMLInputElement).checked,
+          };
+          this.state.selectedColumns = newSelectedColumns;
           this.state.onchange?.();
         },
       }),
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const newSelectedColumns = [...this.state.selectedColumns];
+          newSelectedColumns[index] = {
+            ...newSelectedColumns[index],
+            alias: (e.target as HTMLInputElement).value,
+          };
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.onchange?.();
+        },
+        placeholder: 'alias',
+        value: col.alias ? col.alias : '',
+      }),
     );
+  }
+
+  private isNewColumnValid(col: NewColumn): boolean {
+    return col.expression.trim() !== '' && col.name.trim() !== '';
+  }
+
+  private renderNewColumn(col: NewColumn, index: number): m.Child {
+    const isValid = this.isNewColumnValid(col);
+
+    return m(
+      '.pf-column',
+      {
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
+          const to = this.state.selectedColumns.length + index;
+
+          const newSelectedColumns = [...this.state.selectedColumns];
+          const newNewColumns = [...this.state.newColumns];
+
+          if (from < this.state.selectedColumns.length) {
+            const [removed] = newSelectedColumns.splice(from, 1);
+            newNewColumns.splice(to - this.state.selectedColumns.length, 0, {
+              expression: removed.column.name,
+              name: removed.alias || '',
+            });
+          } else {
+            const [removed] = newNewColumns.splice(
+              from - this.state.selectedColumns.length,
+              1,
+            );
+            newNewColumns.splice(
+              to - this.state.selectedColumns.length,
+              0,
+              removed,
+            );
+          }
+          this.state.selectedColumns = newSelectedColumns;
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+      },
+      m(
+        'span.pf-drag-handle',
+        {
+          draggable: true,
+          ondragstart: (e: DragEvent) => {
+            e.dataTransfer!.setData(
+              'text/plain',
+              (this.state.selectedColumns.length + index).toString(),
+            );
+          },
+        },
+        '☰',
+      ),
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const newNewColumns = [...this.state.newColumns];
+          newNewColumns[index] = {
+            ...newNewColumns[index],
+            expression: (e.target as HTMLInputElement).value,
+          };
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+        placeholder: 'expression',
+        value: col.expression,
+      }),
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const newNewColumns = [...this.state.newColumns];
+          newNewColumns[index] = {
+            ...newNewColumns[index],
+            name: (e.target as HTMLInputElement).value,
+          };
+          this.state.newColumns = newNewColumns;
+          this.state.onchange?.();
+        },
+        placeholder: 'name',
+        value: col.name,
+      }),
+      !isValid && m(Icon, {icon: 'warning'}),
+      m(
+        'button',
+        {
+          onclick: () => {
+            const newNewColumns = [...this.state.newColumns];
+            newNewColumns.splice(index, 1);
+            this.state.newColumns = newNewColumns;
+            this.state.onchange?.();
+          },
+        },
+        m(Icon, {icon: 'close'}),
+      ),
+    );
+  }
+
+  private renderAddColumnButton(): m.Child {
+    return m(Button, {
+      label: 'Add column',
+      variant: ButtonVariant.Outlined,
+      onclick: () => {
+        this.state.newColumns = [
+          ...this.state.newColumns,
+          {
+            expression: '',
+            name: '',
+          },
+        ];
+        this.state.onchange?.();
+      },
+    });
+  }
+
+  private renderFilterOperation(): m.Child {
+    return m(FilterOperation, {
+      filters: this.state.filters,
+      sourceCols: this.finalCols,
+      onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
+        this.state.filters = newFilters as FilterDefinition[];
+        this.state.onchange?.();
+      },
+    });
   }
 
   clone(): QueryNode {
@@ -300,9 +455,8 @@ export class ModifyColumnsNode implements QueryNode {
       }
     }
 
-    if (!this.prevNodes || this.prevNodes.length === 0) return;
     // This node assumes it has only one previous node.
-    const prevSq = this.prevNodes[0].getStructuredQuery();
+    const prevSq = this.prevNode.getStructuredQuery();
     if (!prevSq) return;
 
     prevSq.selectColumns = selectColumns;
@@ -328,12 +482,16 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   serializeState(): ModifyColumnsSerializedState {
+    if (this.prevNode === undefined) {
+      throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');
+    }
     return {
-      prevNodeIds: this.prevNodes!.map((node) => node.nodeId),
+      prevNodeId: this.prevNode.nodeId,
       newColumns: this.state.newColumns,
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 }

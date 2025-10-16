@@ -12,26 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-column-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.pf-modify-columns-node {
+  .pf-node-details-box {
+    border: 1px solid var(--pf-border-color);
+    border-radius: 4px;
+    padding: 8px;
+    margin-top: 8px;
+  }
 
-.pf-column {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  .pf-node-details-box strong {
+    display: block;
+    margin-bottom: 4px;
+  }
 
-  &[draggable="true"] {
+  .pf-node-details-box div {
+    font-size: 0.8em;
+    padding: 2px 0;
+  }
+
+  .pf-node-details-message {
+    font-style: italic;
+    color: var(--pf-text-color-light);
+  }
+
+  .pf-columns-box-title {
+    font-size: 1.2em;
+    font-weight: 500;
+    margin: 0 0 1rem 0;
+  }
+
+  .pf-column {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 1px 0;
+  }
+
+  .pf-drag-handle {
+    opacity: 0;
     cursor: grab;
+    transition: opacity 0.2s ease-in-out;
   }
 
-  .pf-text-input {
-    width: 100px;
+  .pf-column:hover .pf-drag-handle {
+    opacity: 1;
   }
 }
 
-.pf-add-column-button {
-  margin-top: 8px;
+.pf-node-details-card {
+  padding: 4px;
+  font-size: 0.8em;
 }

@@ -16,25 +16,22 @@ import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {Builder} from './query_builder/builder';
-import {QueryNode} from './query_node';
-import {
-  TableSourceNode,
-  modalForTableSelection,
-} from './query_builder/nodes/sources/table_source';
-import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
-import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
-import {AggregationNode} from './query_builder/nodes/aggregation_node';
-import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
+import {QueryNode, QueryNodeState} from './query_node';
 import {Trace} from '../../public/trace';
-import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
-import {NodeBoxLayout} from './query_builder/node_box';
+
+import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
+import {registerCoreNodes} from './query_builder/core_nodes';
+import {nodeRegistry} from './query_builder/node_registry';
+
+registerCoreNodes();
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, NodeBoxLayout>;
+  devMode?: boolean;
 }
 
 interface ExplorePageAttrs {
@@ -50,120 +47,110 @@ interface ExplorePageAttrs {
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
-    attrs.onStateUpdate({
-      ...attrs.state,
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
       selectedNode: node,
-    });
+    }));
   }
 
   private deselectNode(attrs: ExplorePageAttrs) {
-    attrs.onStateUpdate({
-      ...attrs.state,
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
       selectedNode: undefined,
-    });
+    }));
   }
 
-  async handleAddStdlibTableSource(attrs: ExplorePageAttrs) {
-    const {trace, state, onStateUpdate} = attrs;
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) {
+  private async handleDevModeChange(attrs: ExplorePageAttrs, enabled: boolean) {
+    if (enabled) {
+      const {registerDevNodes} = await import('./query_builder/dev_nodes');
+      registerDevNodes();
+    }
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      devMode: enabled,
+    }));
+  }
+
+  async handleAddDerivedNode(
+    attrs: ExplorePageAttrs,
+    node: QueryNode,
+    derivedNodeId: string,
+  ) {
+    const {state, onStateUpdate} = attrs;
+    const descriptor = nodeRegistry.get(derivedNodeId);
+    if (descriptor) {
+      let initialState: Partial<QueryNodeState> | null = {};
+      if (descriptor.preCreate) {
+        const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+        if (!sqlModules) return;
+        initialState = await descriptor.preCreate({sqlModules});
+      }
+
+      if (initialState === null) {
+        return;
+      }
+
+      const nodeState: QueryNodeState = {
+        ...initialState,
+        prevNode: node,
+      };
+
+      const newNode = descriptor.factory(nodeState, {
+        allNodes: state.rootNodes,
+      });
+      node.nextNodes.push(newNode);
+      onStateUpdate((currentState) => ({
+        ...currentState,
+        selectedNode: newNode,
+      }));
+    }
+  }
+
+  private async handleAddSourceNode(attrs: ExplorePageAttrs, id: string) {
+    const descriptor = nodeRegistry.get(id);
+    if (!descriptor) return;
+
+    let initialState: Partial<QueryNodeState> | null = {};
+
+    if (descriptor.preCreate) {
+      const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+      if (!sqlModules) return;
+      initialState = await descriptor.preCreate({sqlModules});
+    }
+
+    if (initialState === null) {
       return;
     }
 
-    const selection = await modalForTableSelection(sqlModules);
+    const newNode = descriptor.factory(
+      {
+        ...initialState,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
 
-    if (selection) {
-      const newNode = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: selection.sqlTable,
-      });
-      onStateUpdate({
-        ...state,
-        rootNodes: [...state.rootNodes, newNode],
-        selectedNode: newNode,
-      });
-    }
-  }
-
-  handleAddAggregation(attrs: ExplorePageAttrs, node: QueryNode) {
-    const {state, onStateUpdate} = attrs;
-    const newNode = new AggregationNode({
-      prevNodes: [node],
-      groupByColumns: [],
-      aggregations: [],
-    });
-    node.nextNodes.push(newNode);
-    onStateUpdate({
-      ...state,
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
       selectedNode: newNode,
-    });
-  }
-
-  handleAddModifyColumns(attrs: ExplorePageAttrs, node: QueryNode) {
-    const {state, onStateUpdate} = attrs;
-    const newNode = new ModifyColumnsNode({
-      prevNodes: [node],
-      newColumns: [],
-      selectedColumns: [],
-    });
-    node.nextNodes.push(newNode);
-    onStateUpdate({
-      ...state,
-      selectedNode: newNode,
-    });
-  }
-
-  handleAddIntervalIntersect(attrs: ExplorePageAttrs, node: QueryNode) {
-    const {state, onStateUpdate} = attrs;
-    const newNode = new IntervalIntersectNode({
-      prevNodes: [node],
-      allNodes: state.rootNodes,
-      intervalNodes: [],
-    });
-    node.nextNodes.push(newNode);
-    onStateUpdate({
-      ...state,
-      selectedNode: newNode,
-    });
-  }
-
-  handleAddSlicesSource(attrs: ExplorePageAttrs) {
-    const {state, onStateUpdate} = attrs;
-    const newNode = new SlicesSourceNode({});
-    onStateUpdate({
-      ...state,
-      rootNodes: [...state.rootNodes, newNode],
-      selectedNode: newNode,
-    });
-  }
-
-  handleAddSqlSource(attrs: ExplorePageAttrs) {
-    const {state, onStateUpdate} = attrs;
-    const newNode = new SqlSourceNode({
-      trace: attrs.trace,
-    });
-    onStateUpdate({
-      ...state,
-      rootNodes: [...state.rootNodes, newNode],
-      selectedNode: newNode,
-    });
+    }));
   }
 
   handleClearAllNodes(attrs: ExplorePageAttrs) {
-    attrs.onStateUpdate({
-      ...attrs.state,
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
       rootNodes: [],
       selectedNode: undefined,
-    });
+    }));
   }
 
   handleDuplicateNode(attrs: ExplorePageAttrs, node: QueryNode) {
-    const {state, onStateUpdate} = attrs;
-    onStateUpdate({
-      ...state,
-      rootNodes: [...state.rootNodes, node.clone()],
-    });
+    const {onStateUpdate} = attrs;
+    onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, node.clone()],
+    }));
   }
 
   handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
@@ -174,7 +161,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // If the node is a child of another node, remove it from the parent's
     // nextNodes array.
-    if (node.prevNodes) {
+    if ('prevNode' in node) {
+      const childIdx = node.prevNode.nextNodes.indexOf(node);
+      if (childIdx !== -1) {
+        node.prevNode.nextNodes.splice(childIdx, 1);
+      }
+    } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
         const childIdx = prevNode.nextNodes.indexOf(node);
         if (childIdx !== -1) {
@@ -187,11 +179,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newSelectedNode =
       state.selectedNode === node ? undefined : state.selectedNode;
 
-    onStateUpdate({
-      ...state,
+    onStateUpdate((currentState) => ({
+      ...currentState,
       rootNodes: newRootNodes,
       selectedNode: newSelectedNode,
-    });
+    }));
   }
 
   handleExport(state: ExplorePageState, trace: Trace) {
@@ -235,16 +227,22 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     ) {
       return;
     }
+
+    // Handle source node creation shortcuts
+    for (const [id, descriptor] of nodeRegistry.list()) {
+      if (
+        descriptor.type === 'source' &&
+        descriptor.hotkey &&
+        event.key.toLowerCase() === descriptor.hotkey.toLowerCase()
+      ) {
+        this.handleAddSourceNode(attrs, id);
+        event.preventDefault(); // Prevent default browser actions for this key
+        return;
+      }
+    }
+
+    // Handle other shortcuts
     switch (event.key) {
-      case 'q':
-        this.handleAddSqlSource(attrs);
-        break;
-      case 't':
-        this.handleAddStdlibTableSource(attrs);
-        break;
-      case 's':
-        this.handleAddSlicesSource(attrs);
-        break;
       case 'i':
         this.handleImport(attrs);
         break;
@@ -292,11 +290,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         rootNodes: state.rootNodes,
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
+        devMode: state.devMode,
+        onDevModeChange: (enabled) => this.handleDevModeChange(attrs, enabled),
         onRootNodeCreated: (node) => {
-          attrs.onStateUpdate({
-            ...state,
-            rootNodes: [...state.rootNodes, node],
-          });
+          attrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            rootNodes: [...currentState.rootNodes, node],
+            selectedNode: node,
+          }));
         },
         onNodeSelected: (node) => {
           if (node) this.selectNode(attrs, node);
@@ -312,9 +313,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             };
           });
         },
-        onAddStdlibTableSource: () => this.handleAddStdlibTableSource(attrs),
-        onAddSlicesSource: () => this.handleAddSlicesSource(attrs),
-        onAddSqlSource: () => this.handleAddSqlSource(attrs),
+        onAddSourceNode: (id) => {
+          this.handleAddSourceNode(attrs, id);
+        },
+        onAddDerivedNode: (id) => {
+          if (state.selectedNode) {
+            this.handleAddDerivedNode(attrs, state.selectedNode, id);
+          }
+        },
         onClearAllNodes: () => this.handleClearAllNodes(attrs),
         onDuplicateNode: () => {
           if (state.selectedNode) {
@@ -324,21 +330,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onDeleteNode: () => {
           if (state.selectedNode) {
             this.handleDeleteNode(attrs, state.selectedNode);
-          }
-        },
-        onAddAggregationNode: () => {
-          if (state.selectedNode) {
-            this.handleAddAggregation(attrs, state.selectedNode);
-          }
-        },
-        onAddModifyColumnsNode: () => {
-          if (state.selectedNode) {
-            this.handleAddModifyColumns(attrs, state.selectedNode);
-          }
-        },
-        onAddIntervalIntersectNode: () => {
-          if (state.selectedNode) {
-            this.handleAddIntervalIntersect(attrs, state.selectedNode);
           }
         },
         onImport: () => this.handleImport(attrs),
@@ -351,7 +342,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               node.state.filters.splice(filterIndex, 1);
             }
           }
-          attrs.onStateUpdate({...state});
+          attrs.onStateUpdate((currentState) => ({...currentState}));
         },
       }),
     );

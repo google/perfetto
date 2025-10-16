@@ -30,6 +30,7 @@ import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {RequiredField} from '../../base/utils';
+import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
@@ -40,29 +41,27 @@ import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {
-  COLOR_ACCENT,
-  COLOR_BACKGROUND,
-  COLOR_BACKGROUND_SECONDARY,
-  COLOR_BORDER,
-  COLOR_BORDER_SECONDARY,
-  COLOR_NEUTRAL,
-  COLOR_TEXT,
-  COLOR_TEXT_MUTED,
-} from '../css_constants';
+import {COLOR_ACCENT} from '../css_constants';
 import {calculateResolution} from './resolution';
 import {Trace} from '../../public/trace';
 import {Anchor, linkify} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
-import {Theme} from '../../public/theme';
+import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
 
-const TRACK_HEIGHT_MIN_PX = 18;
+export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
+export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
+export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
 
 function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
+
+  const TRACK_HEIGHT_MIN_PX =
+    (AppImpl.instance.settings
+      .get(TRACK_MIN_HEIGHT_SETTING)
+      ?.get() as number) ?? DEFAULT_TRACK_MIN_HEIGHT_PX;
 
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
@@ -268,6 +267,7 @@ export class TrackView {
     visibleWindow: HighPrecisionTimeSpan,
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
+    colors: CanvasColors,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
@@ -301,17 +301,6 @@ export class TrackView {
       return;
     }
 
-    const theme: Theme = {
-      COLOR_BORDER,
-      COLOR_BORDER_SECONDARY,
-      COLOR_BACKGROUND_SECONDARY,
-      COLOR_ACCENT,
-      COLOR_BACKGROUND,
-      COLOR_NEUTRAL,
-      COLOR_TEXT,
-      COLOR_TEXT_MUTED,
-    };
-
     const start = performance.now();
     node.uri &&
       renderer?.render({
@@ -321,7 +310,7 @@ export class TrackView {
         resolution: maybeNewResolution.value,
         ctx,
         timescale,
-        theme,
+        colors,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);

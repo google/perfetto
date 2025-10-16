@@ -35,39 +35,39 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-export function renderViewerPage() {
+export function renderTimelinePage() {
   // Only render if a trace is loaded
   const trace = AppImpl.instance.trace;
   if (trace) {
-    return m(ViewerPage, {trace});
+    return m(TimelinePage, {trace});
   } else {
     return undefined;
   }
 }
 
-interface ViewerPageAttrs {
+interface TimelinePageAttrs {
   readonly trace: TraceImpl;
 }
 
-class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
+class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
   private timelineBounds?: Rect2D;
 
-  view({attrs}: m.CVnode<ViewerPageAttrs>) {
+  view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
     return m(
-      '.pf-viewer-page',
+      '.pf-timeline-page',
       m(
         TabPanel,
         {trace},
         OVERVIEW_PANEL_FLAG.get() &&
           m(Minimap, {
             trace,
-            className: 'pf-viewer-page__overview',
+            className: 'pf-timeline-page__overview',
           }),
         m(TimelineHeader, {
           trace,
-          className: 'pf-viewer-page__header',
+          className: 'pf-timeline-page__header',
           // There are three independent canvases on this page which we could
           // use keep track of the timeline width, but we use the header one
           // because it's always rendered.
@@ -79,14 +79,14 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
           trace.workspace.pinnedTracks.length > 0 &&
             m(TrackTreeView, {
               trace,
-              className: 'pf-viewer-page__pinned-track-tree',
+              className: 'pf-timeline-page__pinned-track-tree',
               rootNode: trace.workspace.pinnedTracksNode,
               canReorderNodes: true,
               scrollToNewTracks: true,
             }),
           m(TrackTreeView, {
             trace,
-            className: 'pf-viewer-page__scrolling-track-tree',
+            className: 'pf-timeline-page__scrolling-track-tree',
             rootNode: trace.workspace.tracks,
             canReorderNodes: trace.workspace.userEditable,
             canRemoveNodes: trace.workspace.userEditable,
@@ -97,7 +97,7 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<ViewerPageAttrs>) {
+  oncreate(vnode: m.VnodeDOM<TimelinePageAttrs>) {
     const {attrs, dom} = vnode;
 
     // Handles WASD keybindings to pan & zoom
@@ -127,7 +127,7 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
     this.onupdate(vnode);
   }
 
-  onupdate({attrs}: m.VnodeDOM<ViewerPageAttrs>) {
+  onupdate({attrs}: m.VnodeDOM<TimelinePageAttrs>) {
     // TODO(stevegolton): It's assumed that the TrackStacks will call into
     // trace.tracks.getTrackRenderer() in their view() functions which will mark
     // track renderers as used. We call flushOldTracks() here as it's guaranteed

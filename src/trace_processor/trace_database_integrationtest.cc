@@ -112,13 +112,9 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
                          size_t min_chunk_size = 512,
                          size_t max_chunk_size = kMaxChunkSize) {
     EXPECT_LE(min_chunk_size, max_chunk_size);
-    std::string flags = base::kFopenReadFlag;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    flags += "b";  // Open in binary (untranslated) mode.
-#endif
-    base::ScopedFstream f(
-        fopen(base::GetTestDataPath(std::string("test/data/") + name).c_str(),
-              flags.c_str()));
+    base::ScopedFstream f = base::OpenFstream(
+        base::GetTestDataPath(std::string("test/data/") + name),
+        base::kFopenReadFlag);
     std::minstd_rand0 rnd_engine(0);
     std::uniform_int_distribution<size_t> dist(min_chunk_size, max_chunk_size);
     while (!feof(*f)) {

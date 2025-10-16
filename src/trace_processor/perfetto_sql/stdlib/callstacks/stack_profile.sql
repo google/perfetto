@@ -115,7 +115,15 @@ LEFT JOIN _callstack_spc_raw_forest AS p
 ORDER BY
   c._auto_id;
 
+-- This index is used to efficiently join the callstack forest with the
+-- sample data on callsite_id. This is a key operation in the
+-- _callstacks_for_callsites and _callstacks_for_stack_profile_samples macros.
 CREATE PERFETTO INDEX _callstack_spc_index ON _callstack_spc_forest(callsite_id);
+
+-- This index is necessary to optimize the leaf-finding query in
+-- _callstacks_self_to_cumulative. Without this index, the anti-join on
+-- parent_id can be very slow on large traces.
+CREATE PERFETTO INDEX _callstack_spc_parent_index ON _callstack_spc_forest(parent_id);
 
 CREATE PERFETTO MACRO _callstacks_for_stack_profile_samples(
     spc_samples TableOrSubquery
@@ -187,12 +195,11 @@ RETURNS TableOrSubquery AS
       FROM $callstacks
       WHERE parent_id IS NOT NULL
     ),
-    (
-      SELECT p.id, p.self_count AS cumulative_count
-      FROM $callstacks p
-      LEFT JOIN $callstacks c ON c.parent_id = p.id
-      WHERE c.id IS NULL
-    ),
+  (
+    SELECT id, self_count AS cumulative_count
+    FROM $callstacks
+    WHERE id NOT IN (SELECT parent_id FROM $callstacks WHERE parent_id IS NOT NULL)
+  ),
     (cumulative_count),
     (
       WITH agg AS (

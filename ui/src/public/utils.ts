@@ -23,7 +23,7 @@ export function getTrackName(
     processName: string | null;
     pid: number | null;
     threadName: string | null;
-    tid: number | null;
+    tid: number | bigint | null;
     upid: number | null;
     userName: string | null;
     uid: number | null;
