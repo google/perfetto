@@ -218,7 +218,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
   private state: SqlTableState;
   private columnWidths: Map<string, number> = new Map();
-  private hasCalculatedInitialWidths = false;
+  private autoSizedColumns: Set<string> = new Set();
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
@@ -289,19 +289,22 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     const columns = this.state.getSelectedColumns();
 
-    // Calculate initial column widths on first render with data
-    if (!this.hasCalculatedInitialWidths && rows.length > 0) {
+    // Auto-size any new columns that haven't been sized yet
+    if (rows.length > 0) {
       columns.forEach((column) => {
         const columnKey = tableColumnId(column);
-        const optimalWidth = this.measureColumns(
-          column,
-          rows,
-          600, // Initial sizing: cap at 600px
-          true, // Use 95th percentile for initial sizing
-        );
-        this.columnWidths.set(columnKey, optimalWidth);
+        // Only auto-size columns we haven't seen before
+        if (!this.autoSizedColumns.has(columnKey)) {
+          const optimalWidth = this.measureColumns(
+            column,
+            rows,
+            600, // Initial sizing: cap at 600px
+            true, // Use 95th percentile for initial sizing
+          );
+          this.columnWidths.set(columnKey, optimalWidth);
+          this.autoSizedColumns.add(columnKey);
+        }
       });
-      this.hasCalculatedInitialWidths = true;
     }
 
     return [

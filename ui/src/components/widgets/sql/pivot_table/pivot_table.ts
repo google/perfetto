@@ -46,7 +46,8 @@ export interface PivotTableAttrs {
 
 export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   private columnWidths: Map<string, number> = new Map();
-  private hasCalculatedInitialWidths = false;
+  private previousPivotCount = 0;
+  private previousAggregationCount = 0;
 
   view({attrs}: m.CVnode<PivotTableAttrs>) {
     const state = attrs.state;
@@ -59,9 +60,14 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     // so that onAutoResize callbacks can reference current nodes
     const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
 
-    // Calculate initial column widths on first render with data
-    if (!this.hasCalculatedInitialWidths && nodes.length > 0) {
-      pivots.forEach((pivot, index) => {
+    // Auto-size only newly added pivot columns
+    if (nodes.length > 0 && pivots.length > this.previousPivotCount) {
+      for (
+        let index = this.previousPivotCount;
+        index < pivots.length;
+        index++
+      ) {
+        const pivot = pivots[index];
         const columnKey = `pivot-${pivotId(pivot)}`;
         const optimalWidth = this.calculateOptimalColumnWidth(
           pivotId(pivot),
@@ -76,9 +82,21 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           true, // Use 95th percentile for initial sizing
         );
         this.columnWidths.set(columnKey, optimalWidth);
-      });
+      }
+      this.previousPivotCount = pivots.length;
+    }
 
-      aggregations.forEach((agg, index) => {
+    // Auto-size only newly added aggregation columns
+    if (
+      nodes.length > 0 &&
+      aggregations.length > this.previousAggregationCount
+    ) {
+      for (
+        let index = this.previousAggregationCount;
+        index < aggregations.length;
+        index++
+      ) {
+        const agg = aggregations[index];
         const columnKey = `agg-${aggregationId(agg)}`;
         const optimalWidth = this.calculateOptimalColumnWidth(
           aggregationId(agg),
@@ -88,9 +106,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           true, // Use 95th percentile for initial sizing
         );
         this.columnWidths.set(columnKey, optimalWidth);
-      });
-
-      this.hasCalculatedInitialWidths = true;
+      }
+      this.previousAggregationCount = aggregations.length;
     }
 
     const headers = [
