@@ -494,6 +494,34 @@ base::Status ValidateInternedDimensionSpecs(
   return base::OkStatus();
 }
 
+base::Status HashKeyAndInsert(const SqlValue& key_val,
+                              base::StringView key_column_name,
+                              base::FlatHashMap<uint64_t, bool>& seen_keys) {
+  base::FnvHasher key_hasher;
+  key_hasher.Update(key_val.type);
+  if (key_val.is_null()) {
+  } else if (key_val.type == SqlValue::kLong) {
+    key_hasher.Update(key_val.long_value);
+  } else if (key_val.type == SqlValue::kDouble) {
+    key_hasher.Update(key_val.double_value);
+  } else if (key_val.type == SqlValue::kString) {
+    key_hasher.Update(key_val.string_value);
+  } else {
+    return base::ErrStatus(
+        "Unsupported key type %d for interned dimension bundle with key "
+        "column '%.*s'",
+        static_cast<int>(key_val.type),
+        static_cast<int>(key_column_name.size()), key_column_name.data());
+  }
+  if (!seen_keys.Insert(key_hasher.digest(), true).second) {
+    return base::ErrStatus(
+        "Duplicate key found in interned dimension bundle with key column "
+        "'%.*s'",
+        static_cast<int>(key_column_name.size()), key_column_name.data());
+  }
+  return base::OkStatus();
+}
+
 base::Status WriteInternedDimensionBundles(
     TraceProcessor* processor,
     const TraceMetricV2Spec::Decoder& spec,
@@ -553,28 +581,7 @@ base::Status WriteInternedDimensionBundles(
     base::FlatHashMap<uint64_t, bool> seen_keys;
     while (query_it.Next()) {
       const auto& key_val = query_it.Get(column_infos[0].first);
-      base::FnvHasher key_hasher;
-      key_hasher.Update(key_val.type);
-      if (key_val.is_null()) {
-      } else if (key_val.type == SqlValue::kLong) {
-        key_hasher.Update(key_val.long_value);
-      } else if (key_val.type == SqlValue::kDouble) {
-        key_hasher.Update(key_val.double_value);
-      } else if (key_val.type == SqlValue::kString) {
-        key_hasher.Update(key_val.string_value);
-      } else {
-        return base::ErrStatus(
-            "Unsupported key type %d for interned dimension bundle with key "
-            "column '%.*s'",
-            static_cast<int>(key_val.type),
-            static_cast<int>(key_column_name.size()), key_column_name.data());
-      }
-      if (!seen_keys.Insert(key_hasher.digest(), true).second) {
-        return base::ErrStatus(
-            "Duplicate key found in interned dimension bundle with key column "
-            "'%.*s'",
-            static_cast<int>(key_column_name.size()), key_column_name.data());
-      }
+      RETURN_IF_ERROR(HashKeyAndInsert(key_val, key_column_name, seen_keys));
       auto* row = interned_dimension_bundle->add_interned_dimension_rows();
       RETURN_IF_ERROR(WriteInternedDimensionValue(
           query_it.Get(column_infos[0].first), column_infos[0].second,
