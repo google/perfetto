@@ -68,8 +68,8 @@ interface LogEntries {
   offset: number;
   machineIds: number[];
   timestamps: time[];
-  pids: number[];
-  tids: number[];
+  pids: bigint[];
+  tids: bigint[];
   priorities: number[];
   tags: string[];
   messages: string[];
@@ -209,8 +209,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         cells: [
           ...(hasMachineIds ? [machineIds[i]] : []),
           m(Timestamp, {trace, ts}),
-          pids[i],
-          tids[i],
+          String(pids[i]),
+          String(tids[i]),
           priorityLetter || '?',
           tags[i],
           ...(hasProcessNames ? [processNames[i]] : []),
@@ -453,8 +453,8 @@ async function updateLogEntries(
 
   const it = rowsResult.iter({
     ts: LONG,
-    pid: NUM,
-    tid: NUM,
+    pid: LONG,
+    tid: LONG,
     prio: NUM,
     tag: STR,
     msg: STR,
