@@ -342,32 +342,42 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
       if (it.name === NATIVEMODULE_INVOKE && it.key === 'debug.arg0') {
         const sliceName = it.stringValue || '';
         const startJSB = traceIdToJSBMap.get(it.id);
-        startJSB.firstArg = sliceName;
+        if (startJSB !== undefined) {
+          startJSB.firstArg = sliceName;
+        }
       } else if (
         it.name === NATIVEMODULE_NETWORK_REQUEST &&
         it.key === 'debug.url'
       ) {
         const startJSB = traceIdToJSBMap.get(it.id);
-        startJSB.url = it.stringValue;
-        startJSB.firstArg = 'NetworkRequest';
+        if (startJSB !== undefined) {
+          startJSB.url = it.stringValue;
+          startJSB.firstArg = 'NetworkRequest';
+        }
       } else if (it.name === NATIVEMODULE_INVOKE && it.key === 'debug.arg1') {
         const arg1 = stringToJsonObject(it.stringValue as string);
         if (arg1.data !== undefined && arg1.data.url !== undefined) {
           const startJSB = traceIdToJSBMap.get(it.id);
-          startJSB.url = arg1.data.url;
+          if (startJSB !== undefined) {
+            startJSB.url = arg1.data.url;
+          }
         }
       } else if (
         it.name === NATIVEMODULE_INVOKE &&
         it.key === 'debug.module_name'
       ) {
         const startJSB = traceIdToJSBMap.get(it.id);
-        startJSB.moduleName = it.stringValue;
+        if (startJSB !== undefined) {
+          startJSB.moduleName = it.stringValue;
+        }
       } else if (
         it.name === NATIVEMODULE_INVOKE &&
         it.key === 'debug.method_name'
       ) {
         const startJSB = traceIdToJSBMap.get(it.id);
-        startJSB.methodName = it.stringValue;
+        if (startJSB !== undefined) {
+          startJSB.methodName = it.stringValue;
+        }
       }
     }
     const sortedJsb = Array.from(traceIdToJSBMap.keys())

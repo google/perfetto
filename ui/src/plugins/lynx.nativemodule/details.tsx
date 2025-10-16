@@ -36,7 +36,7 @@ import {
 } from '../../lynx_perf/constants';
 import {NativeModuleSection} from './types';
 import {querySliceRelatedFlows} from '../../lynx_perf/flow_utils';
-import {isSyncNativeModule} from './utils';
+import {isSpecialNativeModule} from './utils';
 import {Flow, FlowPoint} from '../../core/flow_types';
 import NativeModuleDataManager from './native_module_data_manager';
 import {AppImpl} from '../../core/app_impl';
@@ -143,7 +143,7 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
       NATIVEMODULE_PLATFORM_METHOD_END,
       flows,
     );
-    if (isSyncNativeModule(flows)) {
+    if (isSpecialNativeModule(flows)) {
       const invokecCallbackEnd = this.findSectionTs(
         NATIVEMODULE_CALLBACK_INVOKE_END,
         flows,
@@ -267,11 +267,15 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
     }
     const jsValueToPubValue = await this.getDescendantsWithSpecificName("JSValueToPubValue", nativeModuleInvoke.sliceId);
     const pubValueToJSValue = await this.getDescendantsWithSpecificName("PubValueToJSValue", nativeModuleCallback.sliceId);
-    const callPlatformImplementation = await this.getDescendantsWithSpecificName("CallPlatformImplementation", nativeModuleInvoke.sliceId);
+    let callPlatformImplementation = await this.getDescendantsWithSpecificName("CallPlatformImplementation", nativeModuleInvoke.sliceId);
+    if (!callPlatformImplementation) {
+      // 'Network::SendNetworkRequest' intercepts the standard platform implementation flow; it is handled specially here.
+      callPlatformImplementation = await this.getDescendantsWithSpecificName("Network::SendNetworkRequest", nativeModuleInvoke.sliceId);
+    }
     if (jsValueToPubValue === undefined || pubValueToJSValue === undefined || callPlatformImplementation === undefined) {
       return sections;
     }
-     if (isSyncNativeModule(flows)) {
+     if (isSpecialNativeModule(flows)) {
       sections.push({
         beginTs: Number(nativeModuleInvoke.sliceStartTs),
         endTs: jsValueToPubValue.ts + jsValueToPubValue.dur,

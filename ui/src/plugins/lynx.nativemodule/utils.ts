@@ -18,17 +18,49 @@
 
 import {Flow} from '../../core/flow_types';
 import {
-  LYNX_BACKGROUND_THREAD_NAME,
   NATIVEMODULE_CALL,
   NATIVEMODULE_NETWORK_REQUEST,
   DEPRECATED_NATIVEMODULE_CALL,
+  NATIVEMODULE_CALLBACK_INVOKE_END,
+  NATIVEMODULE_PLATFORM_METHOD_END,
+  NATIVEMODULE_INVOKE,
+  NATIVEMODULE_CALLBACK,
 } from '../../lynx_perf/constants';
 
-export function isSyncNativeModule(flows: Flow[]) {
+export function isSpecialNativeModule(flows: Flow[]) {
+  // We validate special native modules according to the following rules:
+  // 1. For deprecated timing native module traces, the deprecated callback's end time must be later than the platform method's end time.
+  // 2. For non-timing native module traces, the callback's end time must be later than the native module's invoke end time.
+
+  let deprecatedCallbackCallEnd = 0;
+  let deprecatedPlatformMethodEnd = 0;
+  let nativeModuleInvokeEnd = 0;
+  let nativeModuleCallbackEnd = 0;
   for (const flow of flows) {
-    if (!flow.begin.threadName.includes(LYNX_BACKGROUND_THREAD_NAME)) {
-      return false;
+    if (flow.begin.sliceName === NATIVEMODULE_CALLBACK_INVOKE_END) {
+      deprecatedCallbackCallEnd = Number(flow.begin.sliceEndTs);
     }
+    if (flow.begin.sliceName === NATIVEMODULE_PLATFORM_METHOD_END) {
+      deprecatedPlatformMethodEnd = Number(flow.begin.sliceEndTs);
+    }
+    if (flow.begin.sliceName === NATIVEMODULE_INVOKE) {
+      nativeModuleInvokeEnd = Number(flow.begin.sliceEndTs);
+    }
+    if (flow.end.sliceName === NATIVEMODULE_CALLBACK) {
+      nativeModuleCallbackEnd = Number(flow.end.sliceEndTs);
+    }
+  }
+  if (
+    deprecatedCallbackCallEnd > deprecatedPlatformMethodEnd &&
+    deprecatedPlatformMethodEnd > 0
+  ) {
+    return false;
+  }
+  if (
+    nativeModuleCallbackEnd > nativeModuleInvokeEnd &&
+    nativeModuleInvokeEnd > 0
+  ) {
+    return false;
   }
   return true;
 }
