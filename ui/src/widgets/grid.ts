@@ -369,24 +369,7 @@ export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
       ...rest
     } = attrs;
 
-    const renderMenu = () => {
-      return (
-        Boolean(menuItems) &&
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              className: 'pf-grid__menu-button pf-visible-on-hover',
-              icon: Icons.ContextMenuAlt,
-              rounded: true,
-            }),
-          },
-          menuItems,
-        )
-      );
-    };
-
-    return m(
+    const cell = m(
       '.pf-grid__cell',
       {
         ...rest,
@@ -399,20 +382,31 @@ export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
           width: typeof width === 'number' ? `${width}px` : width,
         },
       },
-      [
-        m(
-          '.pf-grid__cell--padded.pf-grid__cell--stretch',
-          {
-            className: classNames(
-              align && `pf-grid__cell--align-${align}`,
-              nullish && 'pf-grid__cell--nullish',
-            ),
-          },
-          children,
-        ),
-        renderMenu(),
-      ],
+      m(
+        '.pf-grid__cell--padded.pf-grid__cell--stretch',
+        {
+          className: classNames(
+            align && `pf-grid__cell--align-${align}`,
+            nullish && 'pf-grid__cell--nullish',
+          ),
+        },
+        children,
+      ),
     );
+
+    if (Boolean(menuItems)) {
+      return m(
+        PopupMenu,
+        {
+          trigger: cell,
+          contextMenu: true,
+          popupPosition: PopupPosition.Bottom,
+        },
+        menuItems,
+      );
+    } else {
+      return cell;
+    }
   }
 }
 
@@ -454,6 +448,7 @@ export interface PageControlAttrs {
 
 import {Stack} from './stack';
 import {Chip} from './chip';
+import {PopupPosition} from './popup';
 
 export class PageControl implements m.ClassComponent<PageControlAttrs> {
   view({attrs}: m.Vnode<PageControlAttrs>) {

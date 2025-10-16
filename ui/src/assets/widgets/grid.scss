@@ -72,6 +72,10 @@ $border-3: 2px solid var(--pf-color-border);
     align-items: baseline;
     border-right: $border-2;
 
+    &[active] {
+      background-color: color_active(transparent);
+    }
+
     &.pf-grid__cell--thick-right-border {
       border-right: $border-3;
     }
