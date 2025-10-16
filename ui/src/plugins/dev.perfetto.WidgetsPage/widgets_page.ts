@@ -2150,7 +2150,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                 {name: 'ucpu', title: 'CPU'},
                 {name: 'io_wait', title: 'IO Wait'},
               ],
-              maxRowsPerPage: 10,
             });
           } else {
             return 'Load a trace to start';

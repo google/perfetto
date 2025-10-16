@@ -52,4 +52,10 @@
   &__loading {
     flex: none;
   }
+
+  &__puck {
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+  }
 }

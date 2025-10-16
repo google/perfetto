@@ -40,7 +40,6 @@ import {
   GridHeaderCell,
   GridRow,
   renderSortMenuItems,
-  PageControl,
   SortDirection,
   GridFilterBar,
   GridFilterChip,
@@ -49,8 +48,8 @@ import {
   GridAggregationCell,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
-
-const DEFAULT_ROWS_PER_PAGE = 50;
+import {VirtualScrollHelper} from '../../../widgets/virtual_scroll_helper';
+import {exists} from '../../../base/utils';
 
 /**
  * DataGrid is designed to be a flexible and efficient data viewing and analysis
@@ -188,11 +187,6 @@ export interface DataGridAttrs {
   readonly columnReordering?: boolean;
 
   /**
-   * Controls how many rows are displayed per page.
-   */
-  readonly maxRowsPerPage?: number;
-
-  /**
    * Optional custom cell renderer function.
    * Allows customization of how cell values are displayed.
    * @param value The raw value from the data source
@@ -238,10 +232,11 @@ export interface DataGridAttrs {
   readonly className?: string;
 }
 
+const ROW_HEIGHT = 24;
+const MAX_COLS_TO_MEASURE = 50;
+
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
-  private currentPage = 0;
-
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
   private columnOrder: ColumnOrder = [];
@@ -293,7 +288,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         : noOp,
       columnReordering = onColumnOrderChanged !== noOp,
       cellRenderer = renderCell,
-      maxRowsPerPage = DEFAULT_ROWS_PER_PAGE,
       showFiltersInToolbar = true,
       fillHeight = false,
       showResetButton = false,
@@ -307,7 +301,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? noOp
         : (filter: ReadonlyArray<FilterDefinition>) => {
             onFiltersChanged(filter);
-            this.currentPage = 0;
           };
 
     const onSortingChangedWithReset =
@@ -315,7 +308,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? noOp
         : (sorting: Sorting) => {
             onSortingChanged(sorting);
-            this.currentPage = 0;
           };
 
     // In uncontrolled mode, sync columnOrder with truly new columns
@@ -346,20 +338,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     }
 
     // Work out the offset and limit and update the datasource
-    const offset = this.currentPage * maxRowsPerPage;
-    const limit = maxRowsPerPage;
-    dataSource.notifyUpdate({
-      columns: orderedColumns.map((c) => c.name),
-      sorting,
-      filters,
-      pagination: {
-        offset,
-        limit,
-      },
-      aggregates: columns
-        .filter((c) => c.aggregation)
-        .map((c) => ({col: c.name, func: c.aggregation!})),
-    });
+    if (this.loadBounds) {
+      dataSource.notifyUpdate({
+        columns: orderedColumns.map((c) => c.name),
+        sorting,
+        filters,
+        pagination: {
+          offset: this.loadBounds.rowStart,
+          limit: this.loadBounds.rowEnd - this.loadBounds.rowStart,
+        },
+        aggregates: columns
+          .filter((c) => c.aggregation)
+          .map((c) => ({col: c.name, func: c.aggregation!})),
+      });
+    }
 
     // Calculate initial column widths from first page of data
     if (
@@ -369,22 +361,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     ) {
       this.measureColumns(
         orderedColumns,
-        dataSource.rows.rows.slice(offset, limit),
+        dataSource.rows.rows.slice(0, MAX_COLS_TO_MEASURE), // Only use the first X rows for measurement
         dataSource.rows.aggregates,
         cellRenderer,
         600, // Initial sizing: cap at 600px
         0.95, // Use 95th percentile for initial sizing
       );
       this.hasCalculatedInitialWidths = true;
-    }
-
-    // Calculate total pages based on totalRows and rowsPerPage
-    const totalRows = dataSource.rows?.totalRows ?? 0;
-    const totalPages = Math.max(1, Math.ceil(totalRows / maxRowsPerPage));
-
-    // Ensure current page doesn't exceed total pages
-    if (this.currentPage >= totalPages && totalPages > 0) {
-      this.currentPage = Math.max(0, totalPages - 1);
     }
 
     const addFilter =
@@ -406,13 +389,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
       },
       this.renderTableToolbar(
-        totalPages,
-        totalRows,
         filters,
         sorting,
         onSortingChangedWithReset,
         onFiltersChangedWithReset,
-        maxRowsPerPage,
         showFiltersInToolbar,
         showResetButton,
         toolbarItemsLeft,
@@ -426,215 +406,213 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         Grid,
         {
           className: 'pf-data-grid__table',
+          ref: 'scroll-container',
         },
-        [
+        m(
+          GridHeader,
           m(
-            GridHeader,
-            m(
-              GridRow,
-              orderedColumns.map((column) => {
-                const sort = (() => {
-                  if (sorting.direction === 'UNSORTED') {
-                    return undefined;
-                  } else if (sorting.column === column.name) {
-                    return sorting.direction;
-                  } else {
-                    return undefined;
-                  }
-                })();
+            GridRow,
+            orderedColumns.map((column) => {
+              const sort = (() => {
+                if (sorting.direction === 'UNSORTED') {
+                  return undefined;
+                } else if (sorting.column === column.name) {
+                  return sorting.direction;
+                } else {
+                  return undefined;
+                }
+              })();
 
-                const menuItems: m.Children = [];
-                sortControls &&
-                  menuItems.push(
-                    renderSortMenuItems(sort, (direction) => {
-                      if (direction) {
-                        onSortingChangedWithReset({
-                          column: column.name,
-                          direction: direction,
-                        });
-                      } else {
-                        onSortingChangedWithReset({
-                          direction: 'UNSORTED',
-                        });
-                      }
-                    }),
-                  );
+              const menuItems: m.Children = [];
+              sortControls &&
+                menuItems.push(
+                  renderSortMenuItems(sort, (direction) => {
+                    if (direction) {
+                      onSortingChangedWithReset({
+                        column: column.name,
+                        direction: direction,
+                      });
+                    } else {
+                      onSortingChangedWithReset({
+                        direction: 'UNSORTED',
+                      });
+                    }
+                  }),
+                );
 
-                if (filterControls && sortControls && menuItems.length > 0) {
+              if (filterControls && sortControls && menuItems.length > 0) {
+                menuItems.push(m(MenuDivider));
+              }
+
+              if (filterControls) {
+                menuItems.push(
+                  m(MenuItem, {
+                    label: 'Filter out nulls',
+                    onclick: () => {
+                      addFilter({column: column.name, op: 'is not null'});
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Only show nulls',
+                    onclick: () => {
+                      addFilter({column: column.name, op: 'is null'});
+                    },
+                  }),
+                );
+              }
+
+              if (Boolean(column.headerMenuItems)) {
+                if (menuItems.length > 0) {
+                  menuItems.push(m(MenuDivider));
+                }
+                menuItems.push(column.headerMenuItems);
+              }
+
+              // Add column visibility options if column reordering is enabled
+              if (columnReordering) {
+                if (menuItems.length > 0) {
                   menuItems.push(m(MenuDivider));
                 }
 
-                if (filterControls) {
+                // Hide current column (only if more than 1 visible)
+                if (orderedColumns.length > 1) {
                   menuItems.push(
                     m(MenuItem, {
-                      label: 'Filter out nulls',
+                      label: 'Hide column',
+                      icon: Icons.Hide,
                       onclick: () => {
-                        addFilter({column: column.name, op: 'is not null'});
-                      },
-                    }),
-                    m(MenuItem, {
-                      label: 'Only show nulls',
-                      onclick: () => {
-                        addFilter({column: column.name, op: 'is null'});
+                        const newOrder = columnOrder.filter(
+                          (name) => name !== column.name,
+                        );
+                        onColumnOrderChanged(newOrder);
                       },
                     }),
                   );
                 }
 
-                if (Boolean(column.headerMenuItems)) {
-                  if (menuItems.length > 0) {
-                    menuItems.push(m(MenuDivider));
-                  }
-                  menuItems.push(column.headerMenuItems);
-                }
+                const allColumnsShowing = columns.every((col) =>
+                  columnOrder.includes(col.name),
+                );
 
-                // Add column visibility options if column reordering is enabled
-                if (columnReordering) {
-                  if (menuItems.length > 0) {
-                    menuItems.push(m(MenuDivider));
-                  }
-
-                  // Hide current column (only if more than 1 visible)
-                  if (orderedColumns.length > 1) {
-                    menuItems.push(
+                // Show/hide columns submenu
+                menuItems.push(
+                  m(
+                    MenuItem,
+                    {
+                      label: 'Manage columns',
+                      icon: 'view_column',
+                    },
+                    [
+                      // Show all
                       m(MenuItem, {
-                        label: 'Hide column',
-                        icon: Icons.Hide,
+                        label: 'Show all',
+                        icon: allColumnsShowing
+                          ? Icons.Checkbox
+                          : Icons.BlankCheckbox,
+                        closePopupOnClick: false,
                         onclick: () => {
-                          const newOrder = columnOrder.filter(
-                            (name) => name !== column.name,
-                          );
+                          const newOrder = columns.map((c) => c.name);
                           onColumnOrderChanged(newOrder);
                         },
                       }),
-                    );
-                  }
-
-                  const allColumnsShowing = columns.every((col) =>
-                    columnOrder.includes(col.name),
-                  );
-
-                  // Show/hide columns submenu
-                  menuItems.push(
-                    m(
-                      MenuItem,
-                      {
-                        label: 'Manage columns',
-                        icon: 'view_column',
-                      },
-                      [
-                        // Show all
-                        m(MenuItem, {
-                          label: 'Show all',
-                          icon: allColumnsShowing
+                      m(MenuDivider),
+                      // Individual columns
+                      columns.map((col) => {
+                        const isVisible = columnOrder.includes(col.name);
+                        return m(MenuItem, {
+                          label: col.name,
+                          closePopupOnClick: false,
+                          icon: isVisible
                             ? Icons.Checkbox
                             : Icons.BlankCheckbox,
-                          closePopupOnClick: false,
                           onclick: () => {
-                            const newOrder = columns.map((c) => c.name);
-                            onColumnOrderChanged(newOrder);
-                          },
-                        }),
-                        m(MenuDivider),
-                        // Individual columns
-                        columns.map((col) => {
-                          const isVisible = columnOrder.includes(col.name);
-                          return m(MenuItem, {
-                            label: col.name,
-                            closePopupOnClick: false,
-                            icon: isVisible
-                              ? Icons.Checkbox
-                              : Icons.BlankCheckbox,
-                            onclick: () => {
-                              if (isVisible) {
-                                // Hide: remove from order (but keep at least 1 column)
-                                if (columnOrder.length > 1) {
-                                  const newOrder = columnOrder.filter(
-                                    (name) => name !== col.name,
-                                  );
-                                  onColumnOrderChanged(newOrder);
-                                }
-                              } else {
-                                // Show: add to end of order
-                                const newOrder = [...columnOrder, col.name];
+                            if (isVisible) {
+                              // Hide: remove from order (but keep at least 1 column)
+                              if (columnOrder.length > 1) {
+                                const newOrder = columnOrder.filter(
+                                  (name) => name !== col.name,
+                                );
                                 onColumnOrderChanged(newOrder);
                               }
-                            },
-                          });
-                        }),
-                      ],
-                    ),
-                  );
-                }
+                            } else {
+                              // Show: add to end of order
+                              const newOrder = [...columnOrder, col.name];
+                              onColumnOrderChanged(newOrder);
+                            }
+                          },
+                        });
+                      }),
+                    ],
+                  ),
+                );
+              }
 
-                // Build sub-rows array for aggregations
-                const subRows: m.Children[] = [];
-                if (hasAggregations && column.aggregation) {
-                  subRows.push(
-                    m(
-                      GridAggregationCell,
-                      {
-                        align: 'right', // Assume all aggregates are numeric
-                        symbol:
-                          column.aggregation &&
-                          aggregationFunIcon(column.aggregation),
-                        width: this.columnWidths.get(column.name),
-                      },
-                      column.aggregation &&
-                        dataSource.rows?.aggregates &&
-                        cellRenderer(
-                          dataSource.rows.aggregates[column.name],
-                          column.name,
-                          dataSource.rows.aggregates,
-                        ),
-                    ),
-                  );
-                }
+              // Build sub-rows array for aggregations
+              const subRows: m.Children[] = [];
+              if (hasAggregations && column.aggregation) {
+                subRows.push(
+                  m(
+                    GridAggregationCell,
+                    {
+                      align: 'right', // Assume all aggregates are numeric
+                      symbol:
+                        column.aggregation &&
+                        aggregationFunIcon(column.aggregation),
+                      width: this.columnWidths.get(column.name),
+                    },
+                    column.aggregation &&
+                      dataSource.rows?.aggregates &&
+                      cellRenderer(
+                        dataSource.rows.aggregates[column.name],
+                        column.name,
+                        dataSource.rows.aggregates,
+                      ),
+                  ),
+                );
+              }
 
-                return m(
-                  GridHeaderCell,
-                  {
-                    key: column.name,
-                    sort,
-                    onSort: sortControls
-                      ? (direction: SortDirection) => {
-                          onSortingChangedWithReset({
-                            column: column.name,
-                            direction,
-                          });
-                        }
-                      : undefined,
-                    menuItems: menuItems.length > 0 ? menuItems : undefined,
-                    reorderable: columnReordering
-                      ? {handle: 'column'}
-                      : undefined,
-                    onReorder: (from, to, position) => {
-                      if (!columnReordering) return;
-                      const newOrder = this.reorderColumns(
-                        columnOrder,
-                        from,
-                        to,
-                        position,
-                      );
-                      onColumnOrderChanged(newOrder);
-                    },
-                    width: this.columnWidths.get(column.name),
-                    onResize: (newWidth: number) => {
-                      this.columnWidths.set(column.name, newWidth);
-                      m.redraw();
-                    },
-                    onAutoResize: () => {
-                      // Measure the columns based on the current page of data
-                      const rowOffset = dataSource.rows?.rowOffset ?? 0;
-                      const firstRowInPage = offset - rowOffset;
-                      const lastRowInPage = offset + limit - rowOffset;
-                      if (dataSource.rows) {
+              return m(
+                GridHeaderCell,
+                {
+                  key: column.name,
+                  sort,
+                  onSort: sortControls
+                    ? (direction: SortDirection) => {
+                        onSortingChangedWithReset({
+                          column: column.name,
+                          direction,
+                        });
+                      }
+                    : undefined,
+                  menuItems: menuItems.length > 0 ? menuItems : undefined,
+                  reorderable: columnReordering
+                    ? {handle: 'column'}
+                    : undefined,
+                  onReorder: (from, to, position) => {
+                    if (!columnReordering) return;
+                    const newOrder = this.reorderColumns(
+                      columnOrder,
+                      from,
+                      to,
+                      position,
+                    );
+                    onColumnOrderChanged(newOrder);
+                  },
+                  width: this.columnWidths.get(column.name) ?? 100,
+                  onResize: (newWidth: number) => {
+                    this.columnWidths.set(column.name, newWidth);
+                    m.redraw();
+                  },
+                  onAutoResize: () => {
+                    if (dataSource.rows) {
+                      // Work out which rows are actually visible in the current viewport
+                      if (this.renderBounds) {
+                        const {rowStart, rowEnd} = this.renderBounds;
+                        const start = rowStart - dataSource.rows.rowOffset;
+                        const end = rowEnd - dataSource.rows.rowOffset;
                         this.measureColumns(
                           [column],
-                          dataSource.rows.rows.slice(
-                            firstRowInPage,
-                            lastRowInPage,
-                          ),
+                          dataSource.rows.rows.slice(start, end), // Only use currently rendered rows for measurement
                           dataSource.rows.aggregates,
                           cellRenderer,
                           10_000, // Double-click: virtually no limit
@@ -642,46 +620,99 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         );
                         m.redraw();
                       }
-                    },
-                    subContent: subRows.length > 0 ? subRows : undefined,
+                    }
                   },
-                  column.title ?? column.name,
-                );
-              }),
-            ),
+                  subContent: subRows.length > 0 ? subRows : undefined,
+                },
+                column.title ?? column.name,
+              );
+            }),
           ),
-          dataSource.rows &&
-            m(
-              GridBody,
-              this.renderTableBody(
+        ),
+        m(
+          GridBody,
+          {
+            style: {
+              minHeight:
+                dataSource.rows?.totalRows !== undefined
+                  ? `${dataSource.rows.totalRows * ROW_HEIGHT}px` // Include header rows?
+                  : undefined,
+            },
+            ref: 'slider',
+          },
+          m(
+            '.pf-data-grid__puck', // A little shim that contains the visible rows and slides up and down the the user scrolls.
+            {
+              style: {
+                transform: `translateY(${
+                  this.renderBounds?.rowStart !== undefined
+                    ? this.renderBounds.rowStart * ROW_HEIGHT
+                    : 0
+                }px)`,
+              },
+            },
+            dataSource.rows &&
+              this.renderRows(
                 orderedColumns,
                 dataSource.rows,
                 filters,
                 onFiltersChangedWithReset,
                 cellRenderer,
-                maxRowsPerPage,
               ),
-            ),
-        ],
+          ),
+        ),
       ),
     );
   }
 
+  private renderBounds?: {rowStart: number; rowEnd: number};
+  private loadBounds?: {rowStart: number; rowEnd: number};
+
+  // private requestData?: (offset: number, limit: number) => void;
+
+  oncreate(vnode: m.VnodeDOM<DataGridAttrs, this>) {
+    const scrollContainer: HTMLElement = (
+      vnode.dom as HTMLElement
+    ).querySelector('[ref="scroll-container"]')!;
+    const slider: HTMLElement = (vnode.dom as HTMLElement).querySelector(
+      '[ref="slider"]',
+    )!;
+
+    new VirtualScrollHelper(slider, scrollContainer, [
+      {
+        overdrawPx: 500,
+        tolerancePx: 100,
+        callback: (rect) => {
+          const rowStart = Math.floor(rect.top / ROW_HEIGHT);
+          const rowCount = Math.ceil(rect.height / ROW_HEIGHT);
+          this.renderBounds = {rowStart, rowEnd: rowStart + rowCount};
+          m.redraw();
+        },
+      },
+      {
+        overdrawPx: 2000,
+        tolerancePx: 200,
+        callback: (rect) => {
+          const rowStart = Math.floor(rect.top / ROW_HEIGHT);
+          const rowEnd = Math.ceil(rect.bottom / ROW_HEIGHT);
+          this.loadBounds = {rowStart, rowEnd};
+          m.redraw();
+        },
+      },
+    ]);
+  }
+
   private renderTableToolbar(
-    totalPages: number,
-    totalRows: number,
     filters: ReadonlyArray<FilterDefinition>,
     sorting: Sorting,
     onSortingChanged: OnSortingChanged,
     onFiltersChanged: OnFiltersChanged,
-    maxRowsPerPage: number,
     showFilters: boolean,
     showResetButton: boolean,
     toolbarItemsLeft: m.Children,
     toolbarItemsRight: m.Children,
   ) {
     if (
-      totalPages === 1 &&
       filters.length === 0 &&
       !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
       showResetButton === false
@@ -713,37 +744,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     const newFilters = filters.filter((f) => f !== filter);
                     this.filters = newFilters;
                     onFiltersChanged(newFilters);
-                    this.currentPage = 0;
                   },
                 });
               }),
             ]),
         ]),
-        m(PageControl, {
-          from: this.currentPage * maxRowsPerPage + 1,
-          to: Math.min((this.currentPage + 1) * maxRowsPerPage, totalRows),
-          of: totalRows,
-          firstPageClick: () => {
-            if (this.currentPage !== 0) {
-              this.currentPage = 0;
-            }
-          },
-          prevPageClick: () => {
-            if (this.currentPage > 0) {
-              this.currentPage -= 1;
-            }
-          },
-          nextPageClick: () => {
-            if (this.currentPage < totalPages - 1) {
-              this.currentPage += 1;
-            }
-          },
-          lastPageClick: () => {
-            if (this.currentPage < totalPages - 1) {
-              this.currentPage = Math.max(0, totalPages - 1);
-            }
-          },
-        }),
         toolbarItemsRight,
       ]),
     ]);
@@ -757,190 +762,182 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     }
   }
 
-  private renderTableBody(
+  private renderRows(
     columns: ReadonlyArray<ColumnDefinition>,
     rowData: DataSourceResult,
     filters: ReadonlyArray<FilterDefinition>,
     onFilterChange: OnFiltersChanged,
     cellRenderer: CellRenderer,
-    maxRowsPerPage: number,
   ): m.Children {
-    const {rows, totalRows, rowOffset} = rowData;
+    const {rows, rowOffset} = rowData;
 
-    // Create array for all potential rows on the current page
-    const startIndex = this.currentPage * maxRowsPerPage;
-    const endIndex = Math.min(startIndex + maxRowsPerPage, totalRows);
-    const displayRowCount = Math.max(0, endIndex - startIndex);
+    if (this.renderBounds === undefined) {
+      return undefined;
+    }
+
+    const {rowStart, rowEnd} = this.renderBounds;
+    const displayRowCount = rowEnd - rowStart;
+
     const enableFilters = onFilterChange !== noOp;
 
     // Generate array of indices for rows that should be displayed
     const indices = Array.from(
       {length: displayRowCount},
-      (_, i) => startIndex + i,
+      (_, i) => rowStart + i,
     );
 
     const addFilter = (x: FilterDefinition) => onFilterChange([...filters, x]);
 
-    return indices.map((rowIndex) => {
-      // Calculate the relative index within the available rows array
-      const relativeIndex = rowIndex - rowOffset;
-      // Check if this index is valid for the available rows
-      const row =
-        relativeIndex >= 0 && relativeIndex < rows.length
-          ? rows[relativeIndex]
-          : undefined;
+    return indices
+      .map((rowIndex) => {
+        // Calculate the relative index within the available rows array
+        const relativeIndex = rowIndex - rowOffset;
+        // Check if this index is valid for the available rows
+        const row =
+          relativeIndex >= 0 && relativeIndex < rows.length
+            ? rows[relativeIndex]
+            : undefined;
 
-      if (row) {
-        // Return a populated row if data is available
-        return m(
-          GridRow,
-          columns.map((column) => {
-            const value = row[column.name];
-            const menuItems: m.Children = [];
-
-            // Always add copy value option
-            menuItems.push(
-              m(MenuItem, {
-                label: 'Copy value',
-                icon: Icons.Copy,
-                onclick: () => {
-                  const textValue = value === null ? 'null' : String(value);
-                  navigator.clipboard.writeText(textValue);
-                },
-              }),
-            );
-
-            // Add separator between copy and filter items
-            if (enableFilters) {
-              menuItems.push(m(MenuDivider));
-            }
-
-            if (enableFilters) {
-              if (value !== null) {
-                menuItems.push(
-                  m(MenuItem, {
-                    label: 'Filter equal to this',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: '=',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter not equal to this',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: '!=',
-                        value: value,
-                      });
-                    },
-                  }),
-                );
-              }
-
-              if (isNumeric(value)) {
-                menuItems.push(
-                  m(MenuItem, {
-                    label: 'Filter greater than this',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: '>',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter greater than or equal to this',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: '>=',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter less than this',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: '<',
-                        value: value,
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Filter less than or equal to this',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: '<=',
-                        value: value,
-                      });
-                    },
-                  }),
-                );
-              }
-
-              if (value === null) {
-                menuItems.push(
-                  m(MenuItem, {
-                    label: 'Filter out nulls',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: 'is not null',
-                      });
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Only show nulls',
-                    onclick: () => {
-                      addFilter({
-                        column: column.name,
-                        op: 'is null',
-                      });
-                    },
-                  }),
-                );
-              }
-            }
-
-            if (column.cellMenuItems !== undefined) {
-              const extraItems = column.cellMenuItems(value, row);
-              if (extraItems !== undefined) {
-                if (menuItems.length > 0) {
-                  menuItems.push(m(MenuDivider));
-                }
-                menuItems.push(extraItems);
-              }
-            }
-
-            return m(
-              GridDataCell,
-              {
-                menuItems: menuItems.length > 0 ? menuItems : undefined,
-                align: (() => {
-                  if (isNumeric(value)) return 'right';
-                  if (value === null) return 'center';
-                  return 'left';
-                })(),
-                nullish: value === null,
-                width: this.columnWidths.get(column.name),
+        if (row) {
+          // Return a populated row if data is available
+          return m(
+            GridRow,
+            {
+              key: rowIndex,
+              style: {
+                minHeight: `${ROW_HEIGHT}px`,
               },
-              cellRenderer(value, column.name, row),
-            );
-          }),
-        );
-      } else {
-        // Return an empty placeholder row if data is not available
-        return undefined;
-      }
-    });
+            },
+            columns.map((column) => {
+              const value = row[column.name];
+              const menuItems: m.Children = [];
+
+              if (enableFilters) {
+                if (value !== null) {
+                  menuItems.push(
+                    m(MenuItem, {
+                      label: 'Filter equal to this',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: '=',
+                          value: value,
+                        });
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Filter not equal to this',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: '!=',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
+
+                if (isNumeric(value)) {
+                  menuItems.push(
+                    m(MenuItem, {
+                      label: 'Filter greater than this',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: '>',
+                          value: value,
+                        });
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Filter greater than or equal to this',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: '>=',
+                          value: value,
+                        });
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Filter less than this',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: '<',
+                          value: value,
+                        });
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Filter less than or equal to this',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: '<=',
+                          value: value,
+                        });
+                      },
+                    }),
+                  );
+                }
+
+                if (value === null) {
+                  menuItems.push(
+                    m(MenuItem, {
+                      label: 'Filter out nulls',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: 'is not null',
+                        });
+                      },
+                    }),
+                    m(MenuItem, {
+                      label: 'Only show nulls',
+                      onclick: () => {
+                        addFilter({
+                          column: column.name,
+                          op: 'is null',
+                        });
+                      },
+                    }),
+                  );
+                }
+              }
+
+              if (column.cellMenuItems !== undefined) {
+                const extraItems = column.cellMenuItems(value, row);
+                if (extraItems !== undefined) {
+                  if (menuItems.length > 0) {
+                    menuItems.push(m(MenuDivider));
+                  }
+                  menuItems.push(extraItems);
+                }
+              }
+
+              return m(
+                GridDataCell,
+                {
+                  menuItems: menuItems.length > 0 ? menuItems : undefined,
+                  align: (() => {
+                    if (isNumeric(value)) return 'right';
+                    if (value === null) return 'center';
+                    return 'left';
+                  })(),
+                  nullish: value === null,
+                  width: this.columnWidths.get(column.name),
+                },
+                cellRenderer(value, column.name, row),
+              );
+            }),
+          );
+        } else {
+          return undefined;
+        }
+      })
+      .filter(exists);
   }
 
   private measureColumns(
