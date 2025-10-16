@@ -33,8 +33,11 @@ import {
   newColumnInfoList,
 } from '../column_info';
 import protos from '../../../../protos';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
-import {createFiltersProto, FilterOperation} from '../operations/filter';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../operations/filter';
 
 class SwitchComponent
   implements
@@ -358,7 +361,7 @@ export interface ModifyColumnsSerializedState {
   prevNodeId: string;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }
@@ -367,7 +370,7 @@ export interface ModifyColumnsState extends QueryNodeState {
   prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
 }
 
@@ -919,8 +922,8 @@ export class ModifyColumnsNode implements ModificationNode {
     return m(FilterOperation, {
       filters: this.state.filters,
       sourceCols: this.finalCols,
-      onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-        this.state.filters = newFilters as FilterDefinition[];
+      onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+        this.state.filters = [...newFilters];
         this.state.onchange?.();
       },
     });

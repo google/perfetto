@@ -36,7 +36,7 @@ import {
   AggregationFunction,
   ColumnDefinition,
   DataGridDataSource,
-  FilterDefinition,
+  DataGridFilter,
   RowDef,
   Sorting,
 } from './common';
@@ -102,7 +102,7 @@ export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
  * (uncontrolled mode).
  */
 
-type OnFiltersChanged = (filters: ReadonlyArray<FilterDefinition>) => void;
+type OnFiltersChanged = (filters: ReadonlyArray<DataGridFilter>) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
 type ColumnOrder = ReadonlyArray<string>;
 type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
@@ -169,13 +169,13 @@ export interface DataGridAttrs {
    * Each filter contains a column name, operator, and comparison value. If not
    * provided, defaults to an empty array (no filters initially applied).
    */
-  readonly filters?: ReadonlyArray<FilterDefinition>;
+  readonly filters?: ReadonlyArray<DataGridFilter>;
 
   /**
    * Initial filters to apply to the grid on first load.
    * This is ignored in controlled mode (i.e. when `filters` is provided).
    */
-  readonly initialFilters?: ReadonlyArray<FilterDefinition>;
+  readonly initialFilters?: ReadonlyArray<DataGridFilter>;
 
   /**
    * Callback triggered when filters are added or removed.
@@ -199,7 +199,7 @@ export interface DataGridAttrs {
    *
    * @param filter - The filter to be added.
    */
-  readonly onFilterAdded?: (filter: FilterDefinition) => void;
+  readonly onFilterAdded?: (filter: DataGridFilter) => void;
 
   /**
    * Order of columns to display - can operate in controlled or uncontrolled
@@ -283,7 +283,7 @@ export interface DataGridAttrs {
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
   private sorting: Sorting = {direction: 'UNSORTED'};
-  private filters: ReadonlyArray<FilterDefinition> = [];
+  private filters: ReadonlyArray<DataGridFilter> = [];
   private columnOrder: ColumnOrder = [];
   // Track all columns we've ever seen to distinguish hidden vs new columns
   private seenColumns: Set<string> = new Set();
@@ -343,7 +343,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const onFiltersChangedWithReset =
       onFiltersChanged === noOp
         ? noOp
-        : (filter: ReadonlyArray<FilterDefinition>) => {
+        : (filter: ReadonlyArray<DataGridFilter>) => {
             onFiltersChanged(filter);
           };
 
@@ -399,7 +399,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const addFilter =
       onFiltersChangedWithReset === noOp
         ? noOp
-        : (filter: FilterDefinition) => {
+        : (filter: DataGridFilter) => {
             onFilterAdded?.(filter);
             onFiltersChanged([...filters, filter]);
           };
@@ -794,7 +794,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private renderTableToolbar(
-    filters: ReadonlyArray<FilterDefinition>,
+    filters: ReadonlyArray<DataGridFilter>,
     sorting: Sorting,
     onSortingChanged: OnSortingChanged,
     onFiltersChanged: OnFiltersChanged,
@@ -845,7 +845,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     ]);
   }
 
-  private formatFilter(filter: FilterDefinition) {
+  private formatFilter(filter: DataGridFilter) {
     if ('value' in filter) {
       return `${filter.column} ${filter.op} ${filter.value}`;
     } else {

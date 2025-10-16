@@ -142,7 +142,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
-          filters: [], // We don't actually want the datagrid to display or apply any filters to the datasource itself, so we define this but fix it as an empty array
+          // We don't actually want the datagrid to display or apply any filters
+          // to the datasource itself, so we define this but fix it as an empty
+          // array.
+          filters: [],
           onFilterAdded: (filter) => {
             // Add the filter to the node
             attrs.node.state.filters = [
