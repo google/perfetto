@@ -1018,6 +1018,85 @@ class GenericKernelParser(TestSuite):
             """"Invalid order of generic task state events. Should never happen."
         """))
 
+  def test_error_stats_context_switch_parallel_task_state_events(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_RUNNING
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_RUNNABLE
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          name,
+          severity,
+          source,
+          value,
+          description
+        from stats
+        where name = "generic_task_state_invalid_order"
+        """,
+        out=Csv(
+            """
+        "name","severity","source","value","description"
+        "generic_task_state_invalid_order","error","analysis",1,""" +
+            """"Invalid order of generic task state events. Should never happen."
+        """))
+
+  def test_error_stats_non_context_switch_parallel_task_state_events(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_DEAD
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_DESTROYED
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          name,
+          severity,
+          source,
+          value,
+          description
+        from stats
+        where name = "generic_task_state_invalid_order"
+        """,
+        out=Csv(
+            """
+        "name","severity","source","value","description"
+        "generic_task_state_invalid_order","error","analysis",1,""" +
+            """"Invalid order of generic task state events. Should never happen."
+        """))
+
   def test_thread_state_gap_between_state_change(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
