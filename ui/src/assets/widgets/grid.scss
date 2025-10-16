@@ -148,11 +148,6 @@ $border-3: 2px solid var(--pf-color-border);
       color: var(--pf-color-text-hint);
     }
 
-    &__btn-container {
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-
     &--drag-over {
       position: relative;
 
