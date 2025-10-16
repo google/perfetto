@@ -105,10 +105,10 @@ export interface PopupAttrs {
   fitContent?: boolean;
   // If true, the popup will appear when the trigger is on right clicked rather
   // than when it's left clicked.
-  contextMenu?: boolean;
+  isContextMenu?: boolean;
   // If true, position the popup at the cursor location rather than the trigger
-  // element. When omitted with contextMenu=true, defaults to true. When omitted
-  // with contextMenu=false, defaults to false.
+  // element. When omitted with isContextMenu=true, defaults to true. When omitted
+  // with isContextMenu=false, defaults to false.
   positionAtCursor?: boolean;
 }
 
@@ -141,7 +141,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onChange = () => {},
       closeOnEscape = true,
       closeOnOutsideClick = true,
-      contextMenu = false,
+      isContextMenu = false,
     } = attrs;
 
     // Detect if we're in controlled mode (parent provides isOpen prop)
@@ -153,7 +153,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     this.closeOnOutsideClick = closeOnOutsideClick;
 
     return [
-      this.renderTrigger(trigger, isOpen, isControlled, contextMenu),
+      this.renderTrigger(trigger, isOpen, isControlled, isContextMenu),
       isOpen && this.renderPopup(attrs, children),
     ];
   }
@@ -163,7 +163,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     trigger: m.Vnode<any, any>,
     isOpen: boolean,
     isControlled: boolean,
-    contextMenu: boolean,
+    isContextMenu: boolean,
   ): m.Children {
     const baseAttrs = {
       ...trigger.attrs,
@@ -174,7 +174,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     // In controlled mode, don't override the trigger's onclick.
     // Let the parent handle opening/closing via the isOpen prop.
     if (!isControlled) {
-      if (contextMenu) {
+      if (isContextMenu) {
         // For context menus, right-click opens at cursor, left-click closes
         baseAttrs.oncontextmenu = (e: MouseEvent) => {
           if (this.triggerElement) {
@@ -352,11 +352,11 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       offset = 0,
       edgeOffset = 0,
       positionAtCursor: explicitPositionAtCursor,
-      contextMenu = false,
+      isContextMenu = false,
     } = attrs;
 
     // Smart default: context menus default to cursor positioning
-    const positionAtCursor = explicitPositionAtCursor ?? contextMenu;
+    const positionAtCursor = explicitPositionAtCursor ?? isContextMenu;
 
     let matchWidthModifier: Modifier<'sameWidth', {}>[];
     if (matchWidth) {
