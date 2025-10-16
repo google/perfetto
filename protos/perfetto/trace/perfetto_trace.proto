@@ -6513,7 +6513,7 @@ message LayerProto {
   optional BorderSettings border_settings = 66;
 
   // "True" corner radii of the layer computed by SurfaceFlinger.
-  optional float effective_radii = 67;
+  optional CornerRadiiProto effective_radii = 67;
 }
 
 message PositionProto {
