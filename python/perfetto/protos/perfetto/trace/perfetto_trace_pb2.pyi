@@ -2596,13 +2596,21 @@ class BluetoothTraceEvent(_message.Message):
     def __init__(self, packet_type: _Optional[_Union[BluetoothTracePacketType, str]] = ..., count: _Optional[int] = ..., length: _Optional[int] = ..., duration: _Optional[int] = ..., op_code: _Optional[int] = ..., event_code: _Optional[int] = ..., subevent_code: _Optional[int] = ..., connection_handle: _Optional[int] = ...) -> None: ...
 
 class BlurRegion(_message.Message):
-    __slots__ = ["alpha", "blur_radius", "bottom", "corner_radius_bl", "corner_radius_br", "corner_radius_tl", "corner_radius_tr", "left", "right", "top"]
+    __slots__ = ["alpha", "blur_radius", "bottom", "corner_radius_bl", "corner_radius_blx", "corner_radius_bly", "corner_radius_br", "corner_radius_brx", "corner_radius_bry", "corner_radius_tl", "corner_radius_tlx", "corner_radius_tly", "corner_radius_tr", "corner_radius_trx", "corner_radius_try", "left", "right", "top"]
     ALPHA_FIELD_NUMBER: _ClassVar[int]
     BLUR_RADIUS_FIELD_NUMBER: _ClassVar[int]
     BOTTOM_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BLX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BLY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_BL_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BRX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BRY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_BR_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TLX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TLY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_TL_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TRX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TRY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_TR_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -2611,13 +2619,21 @@ class BlurRegion(_message.Message):
     blur_radius: int
     bottom: int
     corner_radius_bl: int
+    corner_radius_blx: float
+    corner_radius_bly: float
     corner_radius_br: float
+    corner_radius_brx: float
+    corner_radius_bry: float
     corner_radius_tl: int
+    corner_radius_tlx: float
+    corner_radius_tly: float
     corner_radius_tr: int
+    corner_radius_trx: float
+    corner_radius_try: float
     left: int
     right: int
     top: int
-    def __init__(self, blur_radius: _Optional[int] = ..., corner_radius_tl: _Optional[int] = ..., corner_radius_tr: _Optional[int] = ..., corner_radius_bl: _Optional[int] = ..., corner_radius_br: _Optional[float] = ..., alpha: _Optional[float] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ...) -> None: ...
+    def __init__(self, blur_radius: _Optional[int] = ..., corner_radius_tl: _Optional[int] = ..., corner_radius_tr: _Optional[int] = ..., corner_radius_bl: _Optional[int] = ..., corner_radius_br: _Optional[float] = ..., corner_radius_tlx: _Optional[float] = ..., corner_radius_tly: _Optional[float] = ..., corner_radius_trx: _Optional[float] = ..., corner_radius_try: _Optional[float] = ..., corner_radius_blx: _Optional[float] = ..., corner_radius_bly: _Optional[float] = ..., corner_radius_brx: _Optional[float] = ..., corner_radius_bry: _Optional[float] = ..., alpha: _Optional[float] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ...) -> None: ...
 
 class BorderSettings(_message.Message):
     __slots__ = ["color", "stroke_width"]
