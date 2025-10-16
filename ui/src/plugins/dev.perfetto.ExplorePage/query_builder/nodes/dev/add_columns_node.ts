@@ -28,13 +28,13 @@ import {FilterDefinition} from '../../../../../components/widgets/data_grid/comm
 import {MultiselectInput} from '../../../../../widgets/multiselect_input';
 
 export interface AddColumnsNodeState extends QueryNodeState {
-  prevNode?: QueryNode;
+  prevNode: QueryNode;
   selectedColumns?: string[];
 }
 
 export class AddColumnsNode implements ModificationNode {
   readonly nodeId: string;
-  readonly type = NodeType.kModifyColumns;
+  readonly type = NodeType.kAddColumns;
   readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AddColumnsNodeState;
@@ -42,9 +42,6 @@ export class AddColumnsNode implements ModificationNode {
   constructor(state: AddColumnsNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    if (state.prevNode === undefined) {
-      throw new Error('AddColumnsNode requires a prevNode');
-    }
     this.prevNode = state.prevNode;
     this.nextNodes = [];
     this.state.filters = this.state.filters ?? [];

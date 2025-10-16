@@ -32,7 +32,7 @@ export interface SortNodeState extends QueryNodeState {
 
 export class SortNode implements ModificationNode {
   readonly nodeId: string;
-  readonly type = NodeType.kModifyColumns;
+  readonly type = NodeType.kSort;
   readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: SortNodeState;
@@ -159,5 +159,12 @@ export class SortNode implements ModificationNode {
 
   isMaterialised(): boolean {
     return false;
+  }
+
+  static deserializeState(state: SortNodeState): SortNodeState {
+    return {
+      ...state,
+      prevNode: undefined as unknown as QueryNode,
+    };
   }
 }

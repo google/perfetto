@@ -42,6 +42,15 @@ import {
 import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {
+  AddColumnsNode,
+  AddColumnsNodeState,
+} from './query_builder/nodes/dev/add_columns_node';
+import {
+  LimitAndOffsetNode,
+  LimitAndOffsetNodeState,
+} from './query_builder/nodes/dev/limit_and_offset_node';
+import {SortNode, SortNodeState} from './query_builder/nodes/dev/sort_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -49,7 +58,10 @@ type SerializedNodeState =
   | SqlSourceSerializedState
   | AggregationSerializedState
   | ModifyColumnsSerializedState
-  | IntervalIntersectSerializedState;
+  | IntervalIntersectSerializedState
+  | AddColumnsNodeState
+  | LimitAndOffsetNodeState
+  | SortNodeState;
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -171,6 +183,16 @@ function createNodeInstance(
           state as ModifyColumnsSerializedState,
         ),
       );
+    case NodeType.kAddColumns:
+      return new AddColumnsNode(
+        AddColumnsNode.deserializeState(state as AddColumnsNodeState),
+      );
+    case NodeType.kLimitAndOffset:
+      return new LimitAndOffsetNode(
+        LimitAndOffsetNode.deserializeState(state as LimitAndOffsetNodeState),
+      );
+    case NodeType.kSort:
+      return new SortNode(SortNode.deserializeState(state as SortNodeState));
     case NodeType.kIntervalIntersect:
       const nodeState: IntervalIntersectNodeState = {
         ...(state as IntervalIntersectSerializedState),

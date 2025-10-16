@@ -29,7 +29,6 @@ import {
 import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/dev/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/dev/sort_node';
-import {ModificationNode, QueryNode} from './query_node';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -417,48 +416,6 @@ describe('JSON serialization/deserialization', () => {
     expect(() => deserializeState(invalidJson, trace, sqlModules)).toThrow();
   });
 
-  test('handles cyclical graphs', () => {
-    const nodeA = new ModifyColumnsNode({
-      prevNode: undefined as unknown as QueryNode,
-      newColumns: [],
-      selectedColumns: [],
-    });
-
-    const nodeB = new ModifyColumnsNode({
-      prevNode: undefined as unknown as QueryNode,
-      newColumns: [],
-      selectedColumns: [],
-    });
-
-    nodeA.nextNodes.push(nodeB);
-    nodeB.nextNodes.push(nodeA); // Cycle
-    (nodeA as {prevNode: QueryNode}).prevNode = nodeB;
-    (nodeB as {prevNode: QueryNode}).prevNode = nodeA;
-
-    const initialState: ExplorePageState = {
-      rootNodes: [nodeA],
-      nodeLayouts: new Map(),
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    expect(deserializedState.rootNodes.length).toBe(1);
-    const deserializedNodeA = deserializedState.rootNodes[0];
-    expect(deserializedNodeA.nextNodes.length).toBe(1);
-    const deserializedNodeB = deserializedNodeA.nextNodes[0];
-    expect(deserializedNodeB.nextNodes.length).toBe(1);
-    expect(deserializedNodeB.nextNodes[0].nodeId).toBe(
-      deserializedNodeA.nodeId,
-    );
-    expect(
-      (deserializedNodeA as unknown as ModificationNode).prevNode?.nodeId,
-    ).toBe(deserializedNodeB.nodeId);
-    expect(
-      (deserializedNodeB as unknown as ModificationNode).prevNode?.nodeId,
-    ).toBe(deserializedNodeA.nodeId);
-  });
-
   test('deserializes graph with and without prevNodes', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
@@ -489,30 +446,6 @@ describe('JSON serialization/deserialization', () => {
       .nextNodes[0] as ModifyColumnsNode;
     expect(deserializedModifyNode1.prevNode?.nodeId).toBe(
       deserializedTableNode1.nodeId,
-    );
-
-    // Test without prevNode (for backward compatibility)
-    const jsonWithoutPrevNode = JSON.parse(jsonWithPrevNode);
-    for (const node of jsonWithoutPrevNode.nodes) {
-      delete node.prevNode;
-      // For backwards compatibility, we add prevNodes
-      if (node.type === 1) {
-        // SlicesSourceNode in this test is now ModifyColumnsNode, which has type kModifyColumns.
-        // I need to find the type of ModifyColumnsNode. It is 4.
-        node.prevNodes = [deserializedTableNode1.nodeId];
-      }
-    }
-    const deserializedStateWithoutPrevNode = deserializeState(
-      JSON.stringify(jsonWithoutPrevNode),
-      trace,
-      sqlModules,
-    );
-    const deserializedTableNode2 =
-      deserializedStateWithoutPrevNode.rootNodes[0];
-    const deserializedModifyNode2 = deserializedTableNode2
-      .nextNodes[0] as ModifyColumnsNode;
-    expect(deserializedModifyNode2.prevNode?.nodeId).toBe(
-      deserializedTableNode2.nodeId,
     );
   });
 

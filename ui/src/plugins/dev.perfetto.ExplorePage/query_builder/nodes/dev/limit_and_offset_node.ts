@@ -32,7 +32,7 @@ export interface LimitAndOffsetNodeState extends QueryNodeState {
 }
 export class LimitAndOffsetNode implements ModificationNode {
   readonly nodeId: string;
-  readonly type = NodeType.kModifyColumns;
+  readonly type = NodeType.kLimitAndOffset;
   readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: LimitAndOffsetNodeState;
@@ -118,5 +118,14 @@ export class LimitAndOffsetNode implements ModificationNode {
 
   isMaterialised(): boolean {
     return false;
+  }
+
+  static deserializeState(
+    state: LimitAndOffsetNodeState,
+  ): LimitAndOffsetNodeState {
+    return {
+      ...state,
+      prevNode: undefined as unknown as QueryNode,
+    };
   }
 }

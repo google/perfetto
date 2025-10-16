@@ -35,13 +35,25 @@ export enum NodeType {
   // Single node operations
   kAggregation,
   kModifyColumns,
+  kAddColumns,
+  kLimitAndOffset,
+  kSort,
 
   // Multi node operations
   kIntervalIntersect,
 }
 
 export function singleNodeOperation(type: NodeType): boolean {
-  return type === NodeType.kAggregation || type === NodeType.kModifyColumns;
+  switch (type) {
+    case NodeType.kAggregation:
+    case NodeType.kModifyColumns:
+    case NodeType.kAddColumns:
+    case NodeType.kLimitAndOffset:
+    case NodeType.kSort:
+      return true;
+    default:
+      return false;
+  }
 }
 
 // All information required to create a new node.
