@@ -21,6 +21,7 @@ $kAddColumns-color: #c5cae9;
 $kLimitAndOffset-color: #b2dfdb;
 $kSort-color: #fff9c4;
 $kIntervalIntersect-color: #ffecb3;
+$kUnion-color: #b2ebf2;
 $other-color: #f0f4c3;
 
 @mixin set-node-color($node-type) {
@@ -42,6 +43,8 @@ $other-color: #f0f4c3;
     background-color: $kSort-color;
   } @else if $node-type == "kIntervalIntersect" {
     background-color: $kIntervalIntersect-color;
+  } @else if $node-type == "kUnion" {
+    background-color: $kUnion-color;
   } @else {
     background-color: $other-color;
   }

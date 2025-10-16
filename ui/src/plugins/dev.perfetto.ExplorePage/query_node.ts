@@ -41,6 +41,7 @@ export enum NodeType {
 
   // Multi node operations
   kIntervalIntersect,
+  kUnion,
 }
 
 export function singleNodeOperation(type: NodeType): boolean {

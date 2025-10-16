@@ -62,6 +62,10 @@
     @include set-node-color("kIntervalIntersect");
   }
 
+  &.kUnion {
+    @include set-node-color("kUnion");
+  }
+
   &:hover {
     border-color: #bdbdbd;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -145,4 +149,20 @@
 
 .pf-exp-node-box-port {
   z-index: 1;
+}
+
+.pf-node-box__bottom-port {
+  position: absolute;
+  bottom: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background-color: var(--pf-color-primary);
+  display: none;
+}
+
+.pf-node-box:hover .pf-node-box__bottom-port {
+  display: block;
 }

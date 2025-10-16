@@ -33,6 +33,8 @@ import {Arrow, Port} from './arrow';
 import {EmptyGraph} from '../empty_graph';
 import {nodeRegistry} from '../node_registry';
 
+import {findOverlappingNode, isMultiSourceNode, isOverlapping} from '../utils';
+
 const BUTTONS_AREA_WIDTH = 300;
 const BUTTONS_AREA_HEIGHT = 50;
 
@@ -62,6 +64,28 @@ function getInputPorts(layout: NodeBoxLayout, portCount: number): Port[] {
   return ports;
 }
 
+function getBottomPort(layout: NodeBoxLayout): Port {
+  return {
+    x: layout.x + (layout.width ?? DEFAULT_NODE_WIDTH) / 2,
+    y: layout.y + (layout.height ?? NODE_HEIGHT),
+  };
+}
+
+export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
+  const allNodes: QueryNode[] = [];
+  for (const root of rootNodes) {
+    const queue: QueryNode[] = [root];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      allNodes.push(curr);
+      for (const child of curr.nextNodes) {
+        queue.push(child);
+      }
+    }
+  }
+  return allNodes;
+}
+
 export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
@@ -70,7 +94,7 @@ export interface GraphAttrs {
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
   readonly onAddSourceNode: (id: string) => void;
-  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -98,6 +122,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   // node. This is used to prevent the node from jumping to the cursor's
   // position when the drag starts.
   private dragOffset?: {x: number; y: number};
+  private dragNodeOriginalLayout?: NodeBoxLayout;
+  private dragBlockOffsets?: Map<QueryNode, {x: number; y: number}>;
+  private revertDrag: boolean = false;
 
   oncreate({dom, attrs}: m.VnodeDOM<GraphAttrs>) {
     const box = dom as HTMLElement;
@@ -109,41 +136,90 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         const dragNodeLayout = this.resolvedNodeLayouts.get(this.dragNode);
         if (dragNodeLayout && this.dragOffset) {
           const rect = box.getBoundingClientRect();
-          const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
-          const h = dragNodeLayout.height ?? NODE_HEIGHT;
           // To provide real-time feedback to the user, we continuously update
           // the node's position during the drag operation. This allows the
           // connecting arrows to follow the node smoothly.
           const x = event.clientX - rect.left - this.dragOffset.x;
           const y = event.clientY - rect.top - this.dragOffset.y;
-          this.resolvedNodeLayouts.set(this.dragNode, {
-            ...dragNodeLayout,
-            x: Math.max(0, Math.min(x, rect.width - w)),
-            y: Math.max(0, Math.min(y, rect.height - h)),
-          });
+
+          if (this.dragBlockOffsets) {
+            for (const [node, offset] of this.dragBlockOffsets.entries()) {
+              const layout = this.resolvedNodeLayouts.get(node);
+              if (!layout) continue;
+              const nodeW = layout.width ?? DEFAULT_NODE_WIDTH;
+              const nodeH = layout.height ?? NODE_HEIGHT;
+              this.resolvedNodeLayouts.set(node, {
+                ...layout,
+                x: Math.max(0, Math.min(x + offset.x, rect.width - nodeW)),
+                y: Math.max(0, Math.min(y + offset.y, rect.height - nodeH)),
+              });
+            }
+          } else {
+            const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
+            const h = dragNodeLayout.height ?? NODE_HEIGHT;
+            this.resolvedNodeLayouts.set(this.dragNode, {
+              ...dragNodeLayout,
+              x: Math.max(0, Math.min(x, rect.width - w)),
+              y: Math.max(0, Math.min(y, rect.height - h)),
+            });
+          }
           m.redraw();
         }
       }
     };
 
     box.ondrop = (event) => {
-      this.onDrop(event, box, attrs);
+      this.onDrop(event, box);
     };
 
     box.ondragend = () => {
+      if (this.dragNode && this.revertDrag) {
+        attrs.onNodeLayoutChange(
+          this.dragNode.nodeId,
+          this.dragNodeOriginalLayout!,
+        );
+        this.revertDrag = false;
+      }
       if (this.dragNode) {
         this.dragNode = undefined;
         this.dragOffset = undefined;
+        this.dragNodeOriginalLayout = undefined;
+        this.dragBlockOffsets = undefined;
         m.redraw();
       }
     };
   }
 
-  private onDrop = (event: DragEvent, box: HTMLElement, attrs: GraphAttrs) => {
+  private onDrop = (event: DragEvent, box: HTMLElement) => {
     event.preventDefault();
-    if (!this.dragNode) return;
+    if (!this.dragNode || !this.attrs) return;
+    const attrs = this.attrs;
     const dragNodeLayout = this.resolvedNodeLayouts.get(this.dragNode);
     if (!dragNodeLayout) return;
+
+    // Check for drop on node body
+    const overlappingNode = findOverlappingNode(
+      dragNodeLayout,
+      this.resolvedNodeLayouts,
+      this.dragNode,
+    );
+    if (overlappingNode && isMultiSourceNode(overlappingNode)) {
+      let newPrevNode = this.dragNode;
+      if (!overlappingNode.prevNodes.includes(newPrevNode)) {
+        const {nodeToBlock} = this.identifyNodeBlocks(
+          getAllNodes(attrs.rootNodes),
+        );
+        const block = nodeToBlock.get(newPrevNode);
+        if (!block) throw new Error('Could not find block for node.');
+        newPrevNode = block[block.length - 1];
+        overlappingNode.prevNodes.push(newPrevNode);
+        newPrevNode.nextNodes.push(overlappingNode);
+        overlappingNode.onPrevNodesUpdated?.();
+      }
+      this.revertDrag = true;
+      m.redraw();
+      return;
+    }
 
     const rect = box.getBoundingClientRect();
     const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
@@ -161,7 +237,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     };
 
     const otherLayouts = [...this.resolvedNodeLayouts.entries()]
-      .filter(([node, _]) => node !== this.dragNode)
+      .filter(([node, _]) => {
+        if (this.dragBlockOffsets) {
+          return !this.dragBlockOffsets.has(node);
+        }
+        return node !== this.dragNode;
+      })
       .map(([, layout]) => layout);
 
     const allLayouts = [...otherLayouts, buttonsReservedArea];
@@ -178,11 +259,26 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       rect,
     );
 
-    attrs.onNodeLayoutChange(this.dragNode.nodeId, {
-      ...newLayout,
-      width: w,
-      height: h,
-    });
+    if (this.dragBlockOffsets) {
+      for (const [node, offset] of this.dragBlockOffsets.entries()) {
+        const layout = this.resolvedNodeLayouts.get(node);
+        if (!layout) continue;
+        const nodeW = layout.width ?? DEFAULT_NODE_WIDTH;
+        const nodeH = layout.height ?? NODE_HEIGHT;
+        attrs.onNodeLayoutChange(node.nodeId, {
+          x: newLayout.x + offset.x,
+          y: newLayout.y + offset.y,
+          width: nodeW,
+          height: nodeH,
+        });
+      }
+    } else {
+      attrs.onNodeLayoutChange(this.dragNode.nodeId, {
+        ...newLayout,
+        width: w,
+        height: h,
+      });
+    }
     m.redraw();
   };
 
@@ -193,7 +289,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   ) => {
     if (!this.attrs) return;
 
-    const allNodes = this.getAllNodes(this.attrs.rootNodes);
+    const allNodes = getAllNodes(this.attrs.rootNodes);
     this.resolvedNodeLayouts = new Map<QueryNode, NodeBoxLayout>();
     for (const node of allNodes) {
       const layout = this.attrs.nodeLayouts.get(node.nodeId);
@@ -203,6 +299,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     }
 
     this.dragNode = node;
+    this.dragNodeOriginalLayout = {...layout};
     const nodeElem = event.currentTarget as HTMLElement;
 
     this.resolvedNodeLayouts.set(node, {
@@ -210,6 +307,25 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       width: nodeElem.offsetWidth,
       height: nodeElem.offsetHeight,
     });
+
+    this.dragBlockOffsets = undefined;
+    const {nodeToBlock} = this.identifyNodeBlocks(allNodes);
+    const block = nodeToBlock.get(node);
+    if (block && block.length > 1) {
+      const dragNodeLayout = this.resolvedNodeLayouts.get(node);
+      if (dragNodeLayout) {
+        this.dragBlockOffsets = new Map();
+        for (const blockNode of block) {
+          const blockNodeLayout = this.resolvedNodeLayouts.get(blockNode);
+          if (blockNodeLayout) {
+            this.dragBlockOffsets.set(blockNode, {
+              x: blockNodeLayout.x - dragNodeLayout.x,
+              y: blockNodeLayout.y - dragNodeLayout.y,
+            });
+          }
+        }
+      }
+    }
 
     // To prevent the node from jumping to the cursor's position when a drag
     // starts, we calculate the initial offset of the cursor from the
@@ -227,21 +343,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     }
   };
 
-  private getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-    const allNodes: QueryNode[] = [];
-    for (const root of rootNodes) {
-      const queue: QueryNode[] = [root];
-      while (queue.length > 0) {
-        const curr = queue.shift()!;
-        allNodes.push(curr);
-        for (const child of curr.nextNodes) {
-          queue.push(child);
-        }
-      }
-    }
-    return allNodes;
-  }
-
   private renderEmptyNodeGraph(attrs: GraphAttrs) {
     return m(EmptyGraph, {
       onAddSourceNode: attrs.onAddSourceNode,
@@ -253,7 +354,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   private renderControls(attrs: GraphAttrs) {
-    const menuItems = nodeRegistry
+    const sourceMenuItems = nodeRegistry
       .list()
       .filter(([_id, descriptor]) => descriptor.type === 'source')
       .map(([id, descriptor]) => {
@@ -266,34 +367,32 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         });
       });
 
-    return m(
-      '.pf-exp-node-graph__controls',
-      m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            label: 'Add Node',
-            icon: Icons.Add,
-            variant: ButtonVariant.Filled,
-          }),
-        },
-        menuItems,
-      ),
-      m(Button, {
+    const operationMenuItems = nodeRegistry
+      .list()
+      .filter(([_id, descriptor]) => descriptor.type === 'multisource')
+      .map(([id, descriptor]) => {
+        if (descriptor.devOnly && !attrs.devMode) {
+          return null;
+        }
+        return m(MenuItem, {
+          label: descriptor.name,
+          onclick: () => attrs.onAddSourceNode(id),
+        });
+      });
+
+    const moreMenuItems = [
+      m(MenuItem, {
         label: 'Export',
         icon: Icons.Download,
-        variant: ButtonVariant.Minimal,
         onclick: attrs.onExport,
-        style: {marginLeft: '8px'},
       }),
-      m(Button, {
+      m(MenuItem, {
         label: 'Clear All Nodes',
         icon: Icons.Delete,
         intent: Intent.Danger,
         onclick: attrs.onClearAllNodes,
-        style: {marginLeft: '8px'},
       }),
-    );
+    ];
 
     return m(
       '.pf-exp-node-graph__controls',
@@ -301,31 +400,40 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            label: 'Add Node',
+            label: 'Add Source',
             icon: Icons.Add,
             variant: ButtonVariant.Filled,
           }),
         },
-        menuItems,
+        sourceMenuItems,
       ),
-      m(Button, {
-        label: 'Export',
-        icon: Icons.Download,
-        variant: ButtonVariant.Minimal,
-        onclick: attrs.onExport,
-        style: {marginLeft: '8px'},
-      }),
-      m(Button, {
-        label: 'Clear All Nodes',
-        icon: Icons.Delete,
-        intent: Intent.Danger,
-        onclick: attrs.onClearAllNodes,
-        style: {marginLeft: '8px'},
-      }),
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: 'Add Operation',
+            icon: Icons.Add,
+            variant: ButtonVariant.Filled,
+            style: {marginLeft: '8px'},
+          }),
+        },
+        operationMenuItems,
+      ),
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            icon: Icons.ContextMenuAlt,
+            variant: ButtonVariant.Minimal,
+            style: {marginLeft: '8px'},
+          }),
+        },
+        moreMenuItems,
+      ),
     );
   }
 
-  private identifyNodeBlocks(allNodes: QueryNode[]): {
+  public identifyNodeBlocks(allNodes: QueryNode[]): {
     nodeToBlock: Map<QueryNode, QueryNode[]>;
     renderedAsPartOfBlock: Set<QueryNode>;
   } {
@@ -343,11 +451,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         currentNode = currentNode.nextNodes[0];
         block.push(currentNode);
       }
-      if (block.length > 1) {
-        nodeToBlock.set(node, block);
-        for (const blockNode of block) {
-          renderedAsPartOfBlock.add(blockNode);
-        }
+      nodeToBlock.set(node, block);
+      for (const blockNode of block) {
+        renderedAsPartOfBlock.add(blockNode);
       }
     }
     return {nodeToBlock, renderedAsPartOfBlock};
@@ -380,7 +486,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddDerivedNode: attrs.onAddDerivedNode,
+            onAddOperationNode: attrs.onAddOperationNode,
             onNodeRendered,
             onRemoveFilter: attrs.onRemoveFilter,
           }),
@@ -397,7 +503,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddDerivedNode: attrs.onAddDerivedNode,
+            onAddOperationNode: attrs.onAddOperationNode,
             onNodeRendered,
             onRemoveFilter: attrs.onRemoveFilter,
           }),
@@ -421,12 +527,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       const lastNodeInGroup = block ? block[block.length - 1] : node;
 
       for (const nextNode of lastNodeInGroup.nextNodes) {
-        const from = this.resolvedNodeLayouts.get(lastNodeInGroup);
+        const from = this.resolvedNodeLayouts.get(node);
         const to = this.resolvedNodeLayouts.get(nextNode);
         if (from && to) {
-          const fromPort = getOutputPorts(from, 1)[0];
-          const toPort = getInputPorts(to, 1)[0];
-          children.push(m(Arrow, {from: fromPort, to: toPort}));
+          if (
+            isMultiSourceNode(nextNode) &&
+            nextNode.prevNodes.includes(lastNodeInGroup)
+          ) {
+            const fromPort = getBottomPort(from);
+            const toPort = getInputPorts(to, 1)[0];
+            children.push(m(Arrow, {from: fromPort, to: toPort}));
+          } else {
+            const fromPort = getOutputPorts(from, 1)[0];
+            const toPort = getInputPorts(to, 1)[0];
+            children.push(m(Arrow, {from: fromPort, to: toPort}));
+          }
         }
       }
     }
@@ -452,7 +567,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       }
     };
 
-    const allNodes = this.getAllNodes(rootNodes);
+    const allNodes = getAllNodes(rootNodes);
 
     // Prune layouts for nodes that no longer exist.
     if (!this.dragNode) {
@@ -582,27 +697,6 @@ function findNonOverlappingLayout(
   newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
 
   return newLayout;
-}
-
-// This is a standard axis-aligned bounding box (AABB) collision detection
-// algorithm. It checks if two rectangles are overlapping by comparing their
-// positions and dimensions.
-function isOverlapping(
-  layout1: NodeBoxLayout,
-  layout2: NodeBoxLayout,
-  padding: number,
-): boolean {
-  const w1 = layout1.width ?? DEFAULT_NODE_WIDTH;
-  const h1 = layout1.height ?? NODE_HEIGHT;
-  const w2 = layout2.width ?? DEFAULT_NODE_WIDTH;
-  const h2 = layout2.height ?? NODE_HEIGHT;
-
-  return (
-    layout1.x < layout2.x + w2 + padding &&
-    layout1.x + w1 + padding > layout2.x &&
-    layout1.y < layout2.y + h2 + padding &&
-    layout1.y + h1 + padding > layout2.y
-  );
 }
 
 // When a new node is added to the graph, we need to find a suitable position
