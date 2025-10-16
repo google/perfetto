@@ -15,7 +15,12 @@
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
-import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
@@ -131,8 +136,8 @@ export default class implements PerfettoPlugin {
     const it = result.iter({
       upid: NUM_NULL,
       utid: NUM_NULL,
-      pid: NUM_NULL,
-      tid: NUM_NULL,
+      pid: LONG_NULL,
+      tid: LONG_NULL,
       hasSched: NUM_NULL,
       isDebuggable: NUM_NULL,
       isBootImageProfiling: NUM_NULL,
