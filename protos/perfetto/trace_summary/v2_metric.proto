@@ -328,6 +328,8 @@ message TraceMetricV2Spec {
   // reason do not work for you.
   optional string bundle_id = 7;
 
+  // !!! THIS IS AN ADVANCED FEATURE !!!
+  //
   // Specification for a interned dimension associated with this metric.
   // For a given dimension, there can only be one interned dimension attached to
   // it.
@@ -367,19 +369,19 @@ message TraceMetricV2Spec {
     //
     // Next id: 3
     message ColumnSpec {
-      // The name of the column (e.g. name, version_code, etc.).
+      // The name of the column (e.g. name, version_code, etc.). Required.
       optional string name = 1;
-      // The type of the column. If specified, this must match the SQL type
-      // of the column.
+      // The type of the column. Required.
+      // This must match the SQL type of the column.
       optional DimensionType type = 2;
     }
 
     // Spec for column in |dimensions_spec| which acts as key for this
-    // interned dimension.
+    // interned dimension. Required.
     optional ColumnSpec key_column_spec = 1;
-    // The data columns of the interned dimension query's output.
+    // The data columns of the interned dimension query's output. Required.
     repeated ColumnSpec data_column_specs = 2;
-    // The query to run to obtain interned dimension.
+    // The query to run to obtain interned dimension. Required.
     optional PerfettoSqlStructuredQuery query = 3;
   }
   repeated InternedDimensionSpec interned_dimension_specs = 11;
@@ -602,7 +604,7 @@ message TraceMetricV2Bundle {
   repeated TraceMetricV2Spec specs = 3;
 
   // !!! THIS IS AN ADVANCED FEATURE !!!
-  // Most beginner users do not need to care about this proto.
+  // Most users do not need to care about this proto.
   //
   // A bundle of interned dimension rows associated with one of template's
   // interned dimension specs.
@@ -636,18 +638,18 @@ message TraceMetricV2Bundle {
   //   specs: { ... }
   //   interned_dimension_bundles {
   //     interned_dimension_rows {
-  //       interned_dimension_values {
+  //       key_dimension_value {
   //         string_value: "com.foo"
   //       }
-  //       interned_dimension_values {
+  //       data_dimension_values {
   //         int64_value: 100
   //       }
   //     }
   //     interned_dimension_rows {
-  //       interned_dimension_values {
+  //       key_dimension_value {
   //         string_value: "com.bar"
   //       }
-  //       interned_dimension_values {
+  //       data_dimension_values {
   //         int64_value: 200
   //       }
   //     }
@@ -660,10 +662,12 @@ message TraceMetricV2Bundle {
     // A row of interned dimension, with values for columns specified in
     // |column_specs|.
     //
-    // Next id: 2
+    // Next id: 3
     message InternedDimensionRow {
-      // The values in the row.
-      repeated TraceMetricV2Bundle.Row.Dimension interned_dimension_values = 1;
+      // The key value in the row.
+      optional TraceMetricV2Bundle.Row.Dimension key_dimension_value = 1;
+      // The data values in the row.
+      repeated TraceMetricV2Bundle.Row.Dimension data_dimension_values = 2;
     }
     repeated InternedDimensionRow interned_dimension_rows = 2;
   }

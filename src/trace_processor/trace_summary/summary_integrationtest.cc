@@ -990,18 +990,18 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
       }
       interned_dimension_bundles {
         interned_dimension_rows {
-          interned_dimension_values {
+          key_dimension_value {
             string_value: "a"
           }
-          interned_dimension_values {
+          data_dimension_values {
             double_value: 1.000000
           }
         }
         interned_dimension_rows {
-          interned_dimension_values {
+          key_dimension_value {
             string_value: "b"
           }
-          interned_dimension_values {
+          data_dimension_values {
             double_value: 2.000000
           }
         }
