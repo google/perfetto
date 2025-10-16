@@ -19,6 +19,7 @@ import {
   nextNodeId,
   NodeType,
   notifyNextNodes,
+  ModificationNode,
 } from '../../query_node';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Card, CardStack} from '../../../../widgets/card';
@@ -41,7 +42,7 @@ interface NewColumn {
 }
 
 export interface ModifyColumnsSerializedState {
-  prevNodeIds: string[];
+  prevNodeId: string;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
@@ -50,23 +51,23 @@ export interface ModifyColumnsSerializedState {
 }
 
 export interface ModifyColumnsState extends QueryNodeState {
-  prevNodes: QueryNode[];
+  prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
   customTitle?: string;
 }
 
-export class ModifyColumnsNode implements QueryNode {
+export class ModifyColumnsNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kModifyColumns;
-  prevNodes: QueryNode[] | undefined;
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: ModifyColumnsState;
 
   constructor(state: ModifyColumnsState) {
     this.nodeId = nextNodeId();
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
 
     this.state = {
@@ -76,11 +77,7 @@ export class ModifyColumnsNode implements QueryNode {
     };
 
     if (this.state.selectedColumns.length === 0) {
-      this.state.selectedColumns = newColumnInfoList(
-        this.prevNodes !== undefined && this.prevNodes.length > 0
-          ? this.prevNodes[0].finalCols
-          : [],
-      );
+      this.state.selectedColumns = newColumnInfoList(this.prevNode.finalCols);
     }
 
     const userOnChange = this.state.onchange;
@@ -108,8 +105,7 @@ export class ModifyColumnsNode implements QueryNode {
 
   onPrevNodesUpdated() {
     // This node assumes it has only one previous node.
-    const sourceCols =
-      this.state.prevNodes.length > 0 ? this.state.prevNodes[0].finalCols : [];
+    const sourceCols = this.state.prevNode.finalCols;
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
@@ -128,13 +124,11 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   static deserializeState(
-    nodes: Map<string, QueryNode>,
     serializedState: ModifyColumnsSerializedState,
   ): ModifyColumnsState {
-    const prevNodes = serializedState.prevNodeIds.map((id) => nodes.get(id)!);
     return {
       ...serializedState,
-      prevNodes,
+      prevNode: undefined as unknown as QueryNode,
     };
   }
 
@@ -461,9 +455,8 @@ export class ModifyColumnsNode implements QueryNode {
       }
     }
 
-    if (!this.prevNodes || this.prevNodes.length === 0) return;
     // This node assumes it has only one previous node.
-    const prevSq = this.prevNodes[0].getStructuredQuery();
+    const prevSq = this.prevNode.getStructuredQuery();
     if (!prevSq) return;
 
     prevSq.selectColumns = selectColumns;
@@ -489,8 +482,11 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   serializeState(): ModifyColumnsSerializedState {
+    if (this.prevNode === undefined) {
+      throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');
+    }
     return {
-      prevNodeIds: this.prevNodes!.map((node) => node.nodeId),
+      prevNodeId: this.prevNode.nodeId,
       newColumns: this.state.newColumns,
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,

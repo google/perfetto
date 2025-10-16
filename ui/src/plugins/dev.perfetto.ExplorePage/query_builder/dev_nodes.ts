@@ -13,11 +13,17 @@
 // limitations under the License.
 
 import {nodeRegistry} from './node_registry';
-import {AddColumnsNode} from './nodes/dev/add_columns_node';
+import {
+  AddColumnsNode,
+  AddColumnsNodeState,
+} from './nodes/dev/add_columns_node';
 import {modalForTableSelection} from './nodes/sources/table_source';
 import {TestNode} from './nodes/dev/test_node';
-import {LimitAndOffsetNode} from './nodes/dev/limit_and_offset_node';
-import {SortNode} from './nodes/dev/sort_node';
+import {
+  LimitAndOffsetNode,
+  LimitAndOffsetNodeState,
+} from './nodes/dev/limit_and_offset_node';
+import {SortNode, SortNodeState} from './nodes/dev/sort_node';
 
 export function registerDevNodes() {
   nodeRegistry.register('test_source', {
@@ -28,12 +34,13 @@ export function registerDevNodes() {
     factory: (state) => new TestNode(state),
     devOnly: true,
   });
+
   nodeRegistry.register('add_columns_node', {
     name: 'Add Columns',
     description: 'Adds new columns.',
     icon: 'add_box',
     type: 'derived',
-    factory: (state) => new AddColumnsNode(state),
+    factory: (state) => new AddColumnsNode(state as AddColumnsNodeState),
     preCreate: async ({sqlModules}) => {
       const table = await modalForTableSelection(sqlModules);
       if (table === undefined) {
@@ -45,20 +52,23 @@ export function registerDevNodes() {
     },
     devOnly: true,
   });
+
   nodeRegistry.register('limit_and_offset_node', {
     name: 'Limit and Offset',
     description: 'Limits number of rows and offsets them.',
     icon: 'filter_list',
     type: 'derived',
-    factory: (state) => new LimitAndOffsetNode(state),
+    factory: (state) =>
+      new LimitAndOffsetNode(state as LimitAndOffsetNodeState),
     devOnly: true,
   });
+
   nodeRegistry.register('sort_node', {
     name: 'Sort',
     description: 'Sorts by a column.',
     icon: 'sort',
     type: 'derived',
-    factory: (state) => new SortNode(state),
+    factory: (state) => new SortNode(state as SortNodeState),
     devOnly: true,
   });
 }

@@ -13,11 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, QueryNodeState, NodeType, nextNodeId} from '../query_node';
+import {
+  QueryNode,
+  QueryNodeState,
+  NodeType,
+  nextNodeId,
+  SourceNodeInterface,
+} from '../query_node';
 import {ColumnInfo} from './column_info';
 import protos from '../../../protos';
 
-export abstract class SourceNode implements QueryNode {
+export abstract class SourceNode implements SourceNodeInterface {
   readonly nodeId: string;
   readonly state: QueryNodeState;
   abstract readonly finalCols: ColumnInfo[];
