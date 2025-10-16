@@ -66,6 +66,8 @@ export function translateState(
     case 'Transition':
     case 'Stand By':
     case 'Waiting':
+    case 'Ready':
+    case 'Terminated':
       return state;
   }
 
