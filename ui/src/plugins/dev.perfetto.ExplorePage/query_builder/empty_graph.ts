@@ -80,14 +80,14 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
         }),
       ),
       m(
-        '.pf-node-graph-add-button-container.pf-empty-graph-hero',
+        '.pf-exp-node-graph-add-button-container.pf-empty-graph-hero',
         m('h2.pf-empty-graph-hero__title', 'Welcome to the Explore Page'),
         m(
           'p.pf-empty-graph-hero__subtitle',
           'Build and execute SQL queries on your trace data using a visual ' +
             'node-based editor. Get started by adding a source node below.',
         ),
-        m('.pf-node-graph-add-buttons', sourceNodes),
+        m('.pf-exp-node-graph-add-buttons', sourceNodes),
         m(Button, {
           label: 'Import',
           onclick: attrs.onImport,

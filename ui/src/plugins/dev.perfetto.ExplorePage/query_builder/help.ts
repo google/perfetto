@@ -41,7 +41,7 @@ export class ExplorePageHelp implements m.ClassComponent<ExplorePageHelpAttrs> {
 
   private renderGettingStarted() {
     return m(
-      '.pf-getting-started',
+      '.pf-exp-getting-started',
       m(
         CardStack,
         {direction: 'horizontal'},

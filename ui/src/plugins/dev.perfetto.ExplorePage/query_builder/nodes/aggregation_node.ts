@@ -34,6 +34,7 @@ import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
+import {Card} from '../../../../widgets/card';
 import {NodeIssues} from '../node_issues';
 
 export interface AggregationSerializedState {
@@ -579,15 +580,15 @@ class AggregationOperationComponent
       ];
     };
 
-    return m('.pf-exp-query-operations', [
-      m(
-        '.pf-exp-section',
+    return m(
+      '.pf-exp-query-operations',
+      m(Card, {}, [
         m(
           '.pf-exp-operations-container',
           selectGroupByColumns(),
           m('.pf-exp-aggregations-list', aggregationsList()),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 }

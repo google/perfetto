@@ -177,7 +177,7 @@ export class ModifyColumnsNode implements ModificationNode {
 
     // If there are no modifications, show a default message.
     if (!hasUnselected && !hasAlias && newValidColumns.length === 0) {
-      return m('.pf-node-details-message', 'Select all');
+      return m('.pf-exp-node-details-message', 'Select all');
     }
 
     const cards: m.Child[] = [];
@@ -194,7 +194,7 @@ export class ModifyColumnsNode implements ModificationNode {
           }
         });
         cards.push(
-          m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
+          m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
         );
       }
     }
@@ -204,12 +204,15 @@ export class ModifyColumnsNode implements ModificationNode {
       const newItems = newValidColumns.map((c) =>
         m('div', `${c.expression} AS ${c.name}`),
       );
-      cards.push(m(Card, {className: 'pf-node-details-card'}, ...newItems));
+      if (!hasUnselected && !hasAlias) {
+        cards.push(m('span', '+'));
+      }
+      cards.push(m(Card, {className: 'pf-exp-node-details-card'}, ...newItems));
     }
 
     // If all columns have been deselected, show a specific message.
     if (cards.length === 0) {
-      return m('.pf-node-details-message', 'All columns deselected');
+      return m('.pf-exp-node-details-message', 'All columns deselected');
     }
 
     return m(CardStack, cards);

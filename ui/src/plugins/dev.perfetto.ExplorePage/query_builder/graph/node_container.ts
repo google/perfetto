@@ -40,8 +40,8 @@ export const NodeContainer: m.Component<NodeContainerAttrs> = {
     const {layout, onNodeDragStart, isSelected, node} = attrs;
 
     const boxClass = classNames(
-      'pf-node-container',
-      isSelected && 'pf-node-container--selected',
+      'pf-exp-node-container',
+      isSelected && 'pf-exp-node-container--selected',
     );
 
     const boxStyle = {
@@ -50,7 +50,7 @@ export const NodeContainer: m.Component<NodeContainerAttrs> = {
     };
 
     return m(
-      '.pf-node-container',
+      '.pf-exp-node-container',
       {
         class: boxClass,
         style: boxStyle,
