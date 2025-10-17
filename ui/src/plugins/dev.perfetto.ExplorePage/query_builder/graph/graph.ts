@@ -267,7 +267,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       });
 
     return m(
-      '.pf-node-graph__controls',
+      '.pf-exp-node-graph__controls',
       m(
         PopupMenu,
         {
@@ -296,7 +296,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     );
 
     return m(
-      '.pf-node-graph__controls',
+      '.pf-exp-node-graph__controls',
       m(
         PopupMenu,
         {
@@ -508,7 +508,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     }
 
     return m(
-      '.pf-node-graph',
+      '.pf-exp-node-graph',
       {
         tabindex: 0,
         onclick: (e: MouseEvent) => {

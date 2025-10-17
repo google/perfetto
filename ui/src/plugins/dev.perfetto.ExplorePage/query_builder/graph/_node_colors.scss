@@ -1,0 +1,48 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+$kTable-color: #ffcdd2;
+$kSimpleSlices-color: #c8e6c9;
+$kSqlSource-color: #b3e5fc;
+$kAggregation-color: #f8bbd0;
+$kModifyColumns-color: #d1c4e9;
+$kAddColumns-color: #c5cae9;
+$kLimitAndOffset-color: #b2dfdb;
+$kSort-color: #fff9c4;
+$kIntervalIntersect-color: #ffecb3;
+$other-color: #f0f4c3;
+
+@mixin set-node-color($node-type) {
+  @if $node-type == "kTable" {
+    background-color: $kTable-color;
+  } @else if $node-type == "kSimpleSlices" {
+    background-color: $kSimpleSlices-color;
+  } @else if $node-type == "kSqlSource" {
+    background-color: $kSqlSource-color;
+  } @else if $node-type == "kAggregation" {
+    background-color: $kAggregation-color;
+  } @else if $node-type == "kModifyColumns" {
+    background-color: $kModifyColumns-color;
+  } @else if $node-type == "kAddColumns" {
+    background-color: $kAddColumns-color;
+  } @else if $node-type == "kLimitAndOffset" {
+    background-color: $kLimitAndOffset-color;
+  } @else if $node-type == "kSort" {
+    background-color: $kSort-color;
+  } @else if $node-type == "kIntervalIntersect" {
+    background-color: $kIntervalIntersect-color;
+  } @else {
+    background-color: $other-color;
+  }
+}

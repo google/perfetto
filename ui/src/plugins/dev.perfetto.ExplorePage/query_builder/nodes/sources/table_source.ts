@@ -66,7 +66,7 @@ export function modalForTableSelection(
       title: 'Choose a table',
       content: () => {
         return m(
-          '.pf-node-explorer-help',
+          '.pf-exp-node-explorer-help',
           m(TableList, {
             sqlModules,
             onTableClick: (tableName: string) => {

@@ -22,6 +22,7 @@ import {
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
+import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
@@ -147,7 +148,7 @@ export class SlicesSourceNode extends SourceNode {
     return m(
       '',
       m(
-        '.pf-slice-source-box',
+        Card,
         m(
           '.pf-slice-source-label',
           m('span', 'Slice name'),
