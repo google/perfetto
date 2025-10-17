@@ -90,8 +90,10 @@ base::Status PrunePerfEvents::OnPerfSample(
     protos::pbzero::TracePacket* message) const {
   protos::pbzero::PerfSample::Decoder decoder(perf_sample_field.as_bytes());
   if (!decoder.has_pid()) {
-    // PID is required to compute belongs-to process relationship
-    return base::ErrStatus("PrunePerfEvents: missing field (PerfSample::kPid)");
+    // PID is required to compute belongs-to process relationship, however,
+    // it is possible for samples with data loss to not have a PID.
+    // Skip those samples and continue redaction.
+    return base::OkStatus();
   }
   int32_t pid = static_cast<int32_t>(decoder.pid());
 
@@ -115,7 +117,6 @@ base::Status PrunePerfEvents::OnPerfSample(
 
   ASSIGN_OR_RETURN(trace_ts,
                    context.clock_converter.ConvertToTrace(clock_id, ts));
-
   if (filter_->Includes(context, trace_ts, pid)) {
     proto_util::AppendField(perf_sample_field, message);
   }
