@@ -1,3 +1,4 @@
+bundle_id: "max_duration_ms"
 row {
 values {
 double_value: 54300.0
