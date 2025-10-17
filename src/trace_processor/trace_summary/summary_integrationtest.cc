@@ -295,6 +295,7 @@ TEST_F(TraceSummaryTest, GroupedBasic) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -346,6 +347,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
   ASSERT_TRUE(status_or_output.ok());
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "my_metric"
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -434,6 +436,7 @@ TEST_F(TraceSummaryTest, GroupedMultipleGroups) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group_a"
       specs {
         id: "metric_a"
         value: "value"
@@ -445,6 +448,7 @@ TEST_F(TraceSummaryTest, GroupedMultipleGroups) {
   )"));
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group_b"
       specs {
         id: "metric_b"
         value: "value"
@@ -476,6 +480,7 @@ TEST_F(TraceSummaryTest, GroupedNullValues) {
   ASSERT_TRUE(status_or_output.ok());
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "my_metric"
         value: "value"
@@ -511,6 +516,7 @@ TEST_F(TraceSummaryTest, GroupedMixedGrouping) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value"
@@ -522,6 +528,7 @@ TEST_F(TraceSummaryTest, GroupedMixedGrouping) {
   )"));
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "metric_b"
       specs {
         id: "metric_b"
         value: "value"
@@ -589,6 +596,7 @@ TEST_F(TraceSummaryTest, GroupedEmptyGroupId) {
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "metric_a"
       specs {
         id: "metric_a"
         value: "value"
@@ -619,6 +627,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
   )"));
   EXPECT_THAT(output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "my_metric_value_a"
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -637,6 +646,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
   )"));
   EXPECT_THAT(output, HasSubstrIgnoringWhitespace(R"(
     metric_bundles {
+      bundle_id: "my_metric_value_b"
       specs {
         id: "my_metric_value_b"
         value: "value_b"
@@ -688,6 +698,7 @@ TEST_F(TraceSummaryTest, GroupedAllNullValuesAreSkipped) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -759,6 +770,7 @@ TEST_F(TraceSummaryTest, GroupedOneNullValueIsNotSkipped) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -815,6 +827,7 @@ TEST_F(TraceSummaryTest, GroupedSingleNullValueIsSkipped) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "group"
       specs {
         id: "metric_a"
         value: "value_a"
@@ -857,6 +870,7 @@ TEST_F(TraceSummaryTest, TemplateSpecWithUnitAndPolarity) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "my_metric"
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -944,6 +958,7 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
   )"));
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
+      bundle_id: "my_metric"
       specs {
         id: "my_metric_dur"
         value: "dur"

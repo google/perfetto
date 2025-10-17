@@ -617,6 +617,7 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
 
     const std::string& bundle_id = it.key();
     auto* bundle = summary->add_metric_bundles();
+    bundle->set_bundle_id(bundle_id);
     for (const Metric* metric : value) {
       bundle->add_specs()->AppendRawProtoBytes(metric->spec.data,
                                                metric->spec.size);
