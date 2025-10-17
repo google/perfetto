@@ -103,7 +103,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 55.
+// Next reserved id: 13 (up to 15). Next id: 57.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -272,13 +272,75 @@ message TrackEvent {
     uint64 correlation_id_str_iid = 54;
   }
 
+  // Callstack associated with this event. This captures the program stack at
+  // the time the event occurred, useful for understanding what code path led
+  // to the event.
+  //
+  // Two variants are supported:
+  // - callstack: Inline callstack data (simpler when trace size is not a
+  //   concern or callstacks are unique)
+  // - callstack_iid: Reference to an interned Callstack in InternedData
+  //   (efficient for repeated callstacks)
+  //
+  // Only one of these fields should be set.
+  oneof callstack_field {
+    // Inline callstack data. Use this for simplicity when interning is not
+    // needed (e.g., for unique callstacks or when trace size is not critical).
+    Callstack callstack = 55;
+
+    // Reference to interned Callstack (see InternedData.callstacks).
+    // This is the efficient option when callstacks are repeated.
+    //
+    // Note: iids *always* start from 1. A value of 0 is considered "not set".
+    uint64 callstack_iid = 56;
+  }
+
+  // Inline callstack for TrackEvents when interning is not needed.
+  // This is a simplified version of the profiling Callstack/Frame messages,
+  // designed for cases where trace size is not critical or callstacks are
+  // unique.
+  //
+  // Use this for simple callstacks with function names and source locations.
+  // For binary/library information (mappings, build IDs, relative PCs), use
+  // interned callstacks via callstack_iid instead.
+  message Callstack {
+    // Frame within an inline callstack.
+    message Frame {
+      // Function name, e.g., "malloc" or "std::vector<int>::push_back"
+      optional string function_name = 1;
+
+      // Optional: Source file path, e.g., "/src/foo.cc"
+      optional string source_file = 2;
+
+      // Optional: Line number in the source file
+      optional uint32 line_number = 3;
+    }
+
+    // Frames of this callstack, ordered from bottom (outermost) to top
+    // (innermost). For example, if main() calls foo() which calls bar(), the
+    // frames would be: [main, foo, bar]
+    repeated Frame frames = 1;
+  }
+
+  // Debug annotations associated with this event. These are arbitrary key-value
+  // pairs that can be used to attach additional information to the event.
+  // See DebugAnnotation message for details on supported value types.
+  //
+  // For example, debug annotations can be used to attach a URL or resource
+  // identifier to a network request event. Arrays, dictionaries and full
+  // nested structures (e.g. arrays of dictionaries of dictionaries)
+  // are supported.
+  repeated DebugAnnotation debug_annotations = 4;
+
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
   // ---------------------------------------------------------------------------
-
-  // Unstable key/value annotations shown in the trace viewer but not intended
-  // for metrics use.
-  repeated DebugAnnotation debug_annotations = 4;
+  //
+  // NOTE: The fields below this point are NOT part of the stable public API.
+  // They are primarily intended for internal use by Chrome and Android. These
+  // fields may change or be removed without notice. For custom/synthetic
+  // traces, prefer using the fields above (name, categories, type, flows,
+  // correlation_id, callstack, etc.) along with custom debug_annotations.
 
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
