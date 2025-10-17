@@ -105,6 +105,7 @@ source_set("integrationtests") {
     "filter_task_rename_integrationtest.cc",
     "process_thread_timeline_integrationtest.cc",
     "prune_package_list_integrationtest.cc",
+    "prune_perf_events_integrationtest.cc",
     "redact_sched_events_integrationtest.cc",
     "reduce_threads_in_process_trees_integrationtest.cc",
     "scrub_process_stats_integrationtest.cc",
