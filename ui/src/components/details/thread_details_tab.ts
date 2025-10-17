@@ -27,7 +27,7 @@ export class ThreadDetailsTab implements Tab {
   // TODO(altimin): Ideally, we would not require the tid to be passed in, but
   // fetch it from the underlying data instead. See comment in ProcessDetailsTab
   // for more details.
-  constructor(private args: {trace: Trace; utid: Utid; tid?: number}) {
+  constructor(private args: {trace: Trace; utid: Utid; tid?: bigint}) {
     this.data = new Details(args.trace, 'thread', args.utid, {
       'tid': d.Value('tid'),
       'Name': d.Value('name'),

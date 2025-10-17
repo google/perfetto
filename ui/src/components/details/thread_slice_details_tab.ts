@@ -57,11 +57,11 @@ interface ContextMenuItem {
   run(slice: SliceDetails, trace: Trace): void;
 }
 
-function getTidFromSlice(slice: SliceDetails): number | undefined {
+function getTidFromSlice(slice: SliceDetails): bigint | undefined {
   return slice.thread?.tid;
 }
 
-function getPidFromSlice(slice: SliceDetails): number | undefined {
+function getPidFromSlice(slice: SliceDetails): bigint | undefined {
   return slice.process?.pid;
 }
 

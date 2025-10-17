@@ -16,7 +16,13 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {assertExists, assertTrue} from '../../base/logging';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -189,8 +195,8 @@ export default class implements PerfettoPlugin {
       trackIds: STR,
       orderId: NUM,
       threadName: STR_NULL,
-      tid: NUM_NULL,
-      pid: NUM_NULL,
+      tid: LONG_NULL,
+      pid: LONG_NULL,
       processName: STR_NULL,
     });
     const processGroupsPlugin = ctx.plugins.getPlugin(

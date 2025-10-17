@@ -35,21 +35,33 @@ export enum NodeType {
   // Single node operations
   kAggregation,
   kModifyColumns,
+  kAddColumns,
+  kLimitAndOffset,
+  kSort,
 
   // Multi node operations
   kIntervalIntersect,
 }
 
 export function singleNodeOperation(type: NodeType): boolean {
-  return type === NodeType.kAggregation || type === NodeType.kModifyColumns;
+  switch (type) {
+    case NodeType.kAggregation:
+    case NodeType.kModifyColumns:
+    case NodeType.kAddColumns:
+    case NodeType.kLimitAndOffset:
+    case NodeType.kSort:
+      return true;
+    default:
+      return false;
+  }
 }
 
 // All information required to create a new node.
 export interface QueryNodeState {
+  prevNode?: QueryNode;
   prevNodes?: QueryNode[];
   customTitle?: string;
   comment?: string;
-  sourceCols?: ColumnInfo[];
   trace?: Trace;
   sqlModules?: SqlModules;
   sqlTable?: SqlTable;
@@ -66,15 +78,11 @@ export interface QueryNodeState {
   hasOperationChanged?: boolean;
 }
 
-export interface QueryNode {
+export interface BaseNode {
   readonly nodeId: string;
   meterialisedAs?: string;
   readonly type: NodeType;
-  prevNodes?: QueryNode[];
   nextNodes: QueryNode[];
-
-  // Columns that are available in the source data.
-  readonly sourceCols: ColumnInfo[];
 
   // Columns that are available after applying all operations.
   readonly finalCols: ColumnInfo[];
@@ -91,6 +99,30 @@ export interface QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   isMaterialised(): boolean;
   serializeState(): object;
+  onPrevNodesUpdated?(): void;
+}
+
+export interface SourceNodeInterface extends BaseNode {
+  // No prevNode(s)
+}
+
+export interface ModificationNode extends BaseNode {
+  prevNode: QueryNode;
+}
+
+export interface MultiSourceNode extends BaseNode {
+  prevNodes: QueryNode[];
+}
+
+export type QueryNode =
+  | SourceNodeInterface
+  | ModificationNode
+  | MultiSourceNode;
+
+export function notifyNextNodes(node: QueryNode) {
+  for (const nextNode of node.nextNodes) {
+    nextNode.onPrevNodesUpdated?.();
+  }
 }
 
 export interface Query {
@@ -119,8 +151,8 @@ export function createSelectColumnsProto(
   return selectedColumns;
 }
 
-export function createFinalColumns(node: QueryNode) {
-  return newColumnInfoList(node.sourceCols, true);
+export function createFinalColumns(sourceCols: ColumnInfo[]) {
+  return newColumnInfoList(sourceCols, true);
 }
 
 function getStructuredQueries(
@@ -137,11 +169,19 @@ function getStructuredQueries(
       return;
     }
     revStructuredQueries.push(curSq);
-    if (curNode.prevNodes?.[0]) {
-      if (!curNode.prevNodes[0].validate()) {
+
+    let prevNode: QueryNode | undefined;
+    if ('prevNode' in curNode) {
+      prevNode = curNode.prevNode;
+    } else if ('prevNodes' in curNode && curNode.prevNodes.length > 0) {
+      prevNode = curNode.prevNodes[0];
+    }
+
+    if (prevNode) {
+      if (!prevNode.validate()) {
         return;
       }
-      curNode = curNode.prevNodes[0];
+      curNode = prevNode;
     } else {
       curNode = undefined;
     }

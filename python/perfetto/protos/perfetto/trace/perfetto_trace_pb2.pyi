@@ -2596,13 +2596,21 @@ class BluetoothTraceEvent(_message.Message):
     def __init__(self, packet_type: _Optional[_Union[BluetoothTracePacketType, str]] = ..., count: _Optional[int] = ..., length: _Optional[int] = ..., duration: _Optional[int] = ..., op_code: _Optional[int] = ..., event_code: _Optional[int] = ..., subevent_code: _Optional[int] = ..., connection_handle: _Optional[int] = ...) -> None: ...
 
 class BlurRegion(_message.Message):
-    __slots__ = ["alpha", "blur_radius", "bottom", "corner_radius_bl", "corner_radius_br", "corner_radius_tl", "corner_radius_tr", "left", "right", "top"]
+    __slots__ = ["alpha", "blur_radius", "bottom", "corner_radius_bl", "corner_radius_blx", "corner_radius_bly", "corner_radius_br", "corner_radius_brx", "corner_radius_bry", "corner_radius_tl", "corner_radius_tlx", "corner_radius_tly", "corner_radius_tr", "corner_radius_trx", "corner_radius_try", "left", "right", "top"]
     ALPHA_FIELD_NUMBER: _ClassVar[int]
     BLUR_RADIUS_FIELD_NUMBER: _ClassVar[int]
     BOTTOM_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BLX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BLY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_BL_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BRX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_BRY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_BR_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TLX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TLY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_TL_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TRX_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADIUS_TRY_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_TR_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -2611,13 +2619,21 @@ class BlurRegion(_message.Message):
     blur_radius: int
     bottom: int
     corner_radius_bl: int
+    corner_radius_blx: float
+    corner_radius_bly: float
     corner_radius_br: float
+    corner_radius_brx: float
+    corner_radius_bry: float
     corner_radius_tl: int
+    corner_radius_tlx: float
+    corner_radius_tly: float
     corner_radius_tr: int
+    corner_radius_trx: float
+    corner_radius_try: float
     left: int
     right: int
     top: int
-    def __init__(self, blur_radius: _Optional[int] = ..., corner_radius_tl: _Optional[int] = ..., corner_radius_tr: _Optional[int] = ..., corner_radius_bl: _Optional[int] = ..., corner_radius_br: _Optional[float] = ..., alpha: _Optional[float] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ...) -> None: ...
+    def __init__(self, blur_radius: _Optional[int] = ..., corner_radius_tl: _Optional[int] = ..., corner_radius_tr: _Optional[int] = ..., corner_radius_bl: _Optional[int] = ..., corner_radius_br: _Optional[float] = ..., corner_radius_tlx: _Optional[float] = ..., corner_radius_tly: _Optional[float] = ..., corner_radius_trx: _Optional[float] = ..., corner_radius_try: _Optional[float] = ..., corner_radius_blx: _Optional[float] = ..., corner_radius_bly: _Optional[float] = ..., corner_radius_brx: _Optional[float] = ..., corner_radius_bry: _Optional[float] = ..., alpha: _Optional[float] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ...) -> None: ...
 
 class BorderSettings(_message.Message):
     __slots__ = ["color", "stroke_width"]
@@ -11094,7 +11110,7 @@ class LayerCreationArgs(_message.Message):
     def __init__(self, layer_id: _Optional[int] = ..., name: _Optional[str] = ..., flags: _Optional[int] = ..., parent_id: _Optional[int] = ..., mirror_from_id: _Optional[int] = ..., add_to_root: bool = ..., layer_stack_to_mirror: _Optional[int] = ...) -> None: ...
 
 class LayerProto(_message.Message):
-    __slots__ = ["active_buffer", "app_id", "background_blur_radius", "background_blur_scale", "barrier_layer", "blur_regions", "border_settings", "bounds", "box_shadow_settings", "buffer_transform", "children", "client_drawn_corner_radii", "color", "color_transform", "corner_radii", "corner_radius", "corner_radius_crop", "crop", "curr_frame", "damage_region", "dataspace", "destination_frame", "effective_scaling_mode", "effective_transform", "final_crop", "flags", "hwc_composition_type", "hwc_crop", "hwc_frame", "hwc_transform", "id", "input_window_info", "invalidate", "is_opaque", "is_protected", "is_relative_of", "is_trusted_overlay", "layer_stack", "metadata", "name", "original_id", "owner_uid", "parent", "pixel_format", "position", "queued_frames", "refresh_pending", "relatives", "requested_color", "requested_corner_radii", "requested_corner_radius", "requested_position", "requested_transform", "screen_bounds", "shadow_radius", "size", "source_bounds", "system_content_priority", "transform", "transparent_region", "trusted_overlay", "type", "visible_region", "window_type", "z", "z_order_relative_of"]
+    __slots__ = ["active_buffer", "app_id", "background_blur_radius", "background_blur_scale", "barrier_layer", "blur_regions", "border_settings", "bounds", "box_shadow_settings", "buffer_transform", "children", "client_drawn_corner_radii", "color", "color_transform", "corner_radii", "corner_radius", "corner_radius_crop", "crop", "curr_frame", "damage_region", "dataspace", "destination_frame", "effective_radii", "effective_scaling_mode", "effective_transform", "final_crop", "flags", "hwc_composition_type", "hwc_crop", "hwc_frame", "hwc_transform", "id", "input_window_info", "invalidate", "is_opaque", "is_protected", "is_relative_of", "is_trusted_overlay", "layer_stack", "metadata", "name", "original_id", "owner_uid", "parent", "pixel_format", "position", "queued_frames", "refresh_pending", "relatives", "requested_color", "requested_corner_radii", "requested_corner_radius", "requested_position", "requested_transform", "screen_bounds", "shadow_radius", "size", "source_bounds", "system_content_priority", "transform", "transparent_region", "trusted_overlay", "type", "visible_region", "window_type", "z", "z_order_relative_of"]
     class MetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -11124,6 +11140,7 @@ class LayerProto(_message.Message):
     DAMAGE_REGION_FIELD_NUMBER: _ClassVar[int]
     DATASPACE_FIELD_NUMBER: _ClassVar[int]
     DESTINATION_FRAME_FIELD_NUMBER: _ClassVar[int]
+    EFFECTIVE_RADII_FIELD_NUMBER: _ClassVar[int]
     EFFECTIVE_SCALING_MODE_FIELD_NUMBER: _ClassVar[int]
     EFFECTIVE_TRANSFORM_FIELD_NUMBER: _ClassVar[int]
     FINAL_CROP_FIELD_NUMBER: _ClassVar[int]
@@ -11190,6 +11207,7 @@ class LayerProto(_message.Message):
     damage_region: RegionProto
     dataspace: str
     destination_frame: RectProto
+    effective_radii: CornerRadiiProto
     effective_scaling_mode: int
     effective_transform: TransformProto
     final_crop: RectProto
@@ -11234,7 +11252,7 @@ class LayerProto(_message.Message):
     window_type: int
     z: int
     z_order_relative_of: int
-    def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., children: _Optional[_Iterable[int]] = ..., relatives: _Optional[_Iterable[int]] = ..., type: _Optional[str] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., visible_region: _Optional[_Union[RegionProto, _Mapping]] = ..., damage_region: _Optional[_Union[RegionProto, _Mapping]] = ..., layer_stack: _Optional[int] = ..., z: _Optional[int] = ..., position: _Optional[_Union[PositionProto, _Mapping]] = ..., requested_position: _Optional[_Union[PositionProto, _Mapping]] = ..., size: _Optional[_Union[SizeProto, _Mapping]] = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., final_crop: _Optional[_Union[RectProto, _Mapping]] = ..., is_opaque: bool = ..., invalidate: bool = ..., dataspace: _Optional[str] = ..., pixel_format: _Optional[str] = ..., color: _Optional[_Union[ColorProto, _Mapping]] = ..., requested_color: _Optional[_Union[ColorProto, _Mapping]] = ..., flags: _Optional[int] = ..., transform: _Optional[_Union[TransformProto, _Mapping]] = ..., requested_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., parent: _Optional[int] = ..., z_order_relative_of: _Optional[int] = ..., active_buffer: _Optional[_Union[ActiveBufferProto, _Mapping]] = ..., queued_frames: _Optional[int] = ..., refresh_pending: bool = ..., hwc_frame: _Optional[_Union[RectProto, _Mapping]] = ..., hwc_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., hwc_transform: _Optional[int] = ..., window_type: _Optional[int] = ..., app_id: _Optional[int] = ..., hwc_composition_type: _Optional[_Union[HwcCompositionType, str]] = ..., is_protected: bool = ..., curr_frame: _Optional[int] = ..., barrier_layer: _Optional[_Iterable[_Union[BarrierLayerProto, _Mapping]]] = ..., buffer_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., effective_scaling_mode: _Optional[int] = ..., corner_radius: _Optional[float] = ..., metadata: _Optional[_Mapping[int, str]] = ..., effective_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., source_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., screen_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., input_window_info: _Optional[_Union[InputWindowInfoProto, _Mapping]] = ..., corner_radius_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., shadow_radius: _Optional[float] = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., is_relative_of: bool = ..., background_blur_radius: _Optional[int] = ..., owner_uid: _Optional[int] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., is_trusted_overlay: bool = ..., requested_corner_radius: _Optional[float] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., original_id: _Optional[int] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., requested_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., system_content_priority: _Optional[int] = ..., box_shadow_settings: _Optional[_Union[BoxShadowSettings, _Mapping]] = ..., border_settings: _Optional[_Union[BorderSettings, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., children: _Optional[_Iterable[int]] = ..., relatives: _Optional[_Iterable[int]] = ..., type: _Optional[str] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., visible_region: _Optional[_Union[RegionProto, _Mapping]] = ..., damage_region: _Optional[_Union[RegionProto, _Mapping]] = ..., layer_stack: _Optional[int] = ..., z: _Optional[int] = ..., position: _Optional[_Union[PositionProto, _Mapping]] = ..., requested_position: _Optional[_Union[PositionProto, _Mapping]] = ..., size: _Optional[_Union[SizeProto, _Mapping]] = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., final_crop: _Optional[_Union[RectProto, _Mapping]] = ..., is_opaque: bool = ..., invalidate: bool = ..., dataspace: _Optional[str] = ..., pixel_format: _Optional[str] = ..., color: _Optional[_Union[ColorProto, _Mapping]] = ..., requested_color: _Optional[_Union[ColorProto, _Mapping]] = ..., flags: _Optional[int] = ..., transform: _Optional[_Union[TransformProto, _Mapping]] = ..., requested_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., parent: _Optional[int] = ..., z_order_relative_of: _Optional[int] = ..., active_buffer: _Optional[_Union[ActiveBufferProto, _Mapping]] = ..., queued_frames: _Optional[int] = ..., refresh_pending: bool = ..., hwc_frame: _Optional[_Union[RectProto, _Mapping]] = ..., hwc_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., hwc_transform: _Optional[int] = ..., window_type: _Optional[int] = ..., app_id: _Optional[int] = ..., hwc_composition_type: _Optional[_Union[HwcCompositionType, str]] = ..., is_protected: bool = ..., curr_frame: _Optional[int] = ..., barrier_layer: _Optional[_Iterable[_Union[BarrierLayerProto, _Mapping]]] = ..., buffer_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., effective_scaling_mode: _Optional[int] = ..., corner_radius: _Optional[float] = ..., metadata: _Optional[_Mapping[int, str]] = ..., effective_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., source_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., screen_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., input_window_info: _Optional[_Union[InputWindowInfoProto, _Mapping]] = ..., corner_radius_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., shadow_radius: _Optional[float] = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., is_relative_of: bool = ..., background_blur_radius: _Optional[int] = ..., owner_uid: _Optional[int] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., is_trusted_overlay: bool = ..., requested_corner_radius: _Optional[float] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., original_id: _Optional[int] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., requested_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., system_content_priority: _Optional[int] = ..., box_shadow_settings: _Optional[_Union[BoxShadowSettings, _Mapping]] = ..., border_settings: _Optional[_Union[BorderSettings, _Mapping]] = ..., effective_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ...) -> None: ...
 
 class LayerState(_message.Message):
     __slots__ = ["alpha", "api", "auto_refresh", "background_blur_radius", "background_blur_scale", "bg_color_alpha", "bg_color_dataspace", "blur_regions", "border_settings", "box_shadow_settings", "buffer_crop", "buffer_data", "change_frame_rate_strategy", "client_drawn_corner_radii", "color", "color_space_agnostic", "color_transform", "corner_radii", "corner_radius", "crop", "destination_frame", "drop_input_mode", "fixed_transform_hint", "flags", "frame_number", "frame_rate", "frame_rate_compatibility", "frame_rate_selection_priority", "h", "has_sideband_stream", "is_trusted_overlay", "layer_id", "layer_stack", "mask", "matrix", "parent_id", "relative_parent_id", "shadow_radius", "system_content_priority", "transform", "transform_to_display_inverse", "transparent_region", "trusted_overlay", "w", "what", "window_info_handle", "x", "y", "z"]
