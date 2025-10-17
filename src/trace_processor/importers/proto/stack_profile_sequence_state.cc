@@ -77,8 +77,7 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
     std::optional<UniquePid> upid,
     uint64_t iid) {
-  VirtualMemoryMapping** ptr = cached_mappings_.Find({upid, iid});
-  if (ptr) {
+  if (VirtualMemoryMapping** ptr = cached_mappings_.Find({upid, iid}); ptr) {
     return *ptr;
   }
   auto* decoder =

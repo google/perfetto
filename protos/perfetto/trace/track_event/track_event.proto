@@ -513,6 +513,8 @@ message TrackEvent {
   }
 
   optional LegacyEvent legacy_event = 6;
+
+  reserved 51;
 }
 
 // Default values for fields of all TrackEvents on the same packet sequence.
