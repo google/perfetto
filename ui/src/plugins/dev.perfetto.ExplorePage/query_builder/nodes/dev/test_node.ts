@@ -13,20 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, QueryNodeState, NodeType} from '../../../query_node';
+import {
+  QueryNode,
+  QueryNodeState,
+  NodeType,
+  createFinalColumns,
+} from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
 import {SourceNode} from '../../source_node';
 
 export class TestNode extends SourceNode {
   isDevNode = true;
-
-  get sourceCols(): ColumnInfo[] {
-    return [];
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
 
   constructor(state: QueryNodeState) {
     super(state);
+    this.finalCols = createFinalColumns([]);
+    this.nextNodes = [];
   }
 
   get type(): NodeType {

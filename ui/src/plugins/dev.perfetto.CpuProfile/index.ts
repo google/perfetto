@@ -53,7 +53,6 @@ export default class implements PerfettoPlugin {
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
-      tid: NUM_NULL,
       threadName: STR_NULL,
     });
     for (; it.valid(); it.next()) {

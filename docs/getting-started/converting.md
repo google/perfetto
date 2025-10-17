@@ -1119,13 +1119,140 @@ JOIN track ON slice.track_id = track.id
 WHERE track.name = 'Nested Debug Annotations';
 ```
 
+## {#callstacks} Attaching Callstacks to Events
+
+Callstacks (also known as stack traces or backtraces) show the sequence of
+function calls that led to a particular event. Adding callstacks to your trace
+events can be invaluable for understanding the code paths that triggered
+specific operations.
+
+There are two different ways to associate a callstack to an event:
+
+1. **Inline callstacks**: Embed stack frames directly in each event with
+   function names and optional source locations. This is simple and requires no
+   setup, making it ideal when trace size is not a concern or callstacks are
+   unique.
+2. **Interned callstacks**: Define the callstack structure once and reference
+   it by ID from multiple events. This is much more efficient when callstacks repeat
+   frequently or when you need binary/mapping information for symbolization.
+
+This guide covers inline callstacks, which are perfect for getting started. For
+repeated callstacks or when you need binary mapping information, use
+[interned callstacks](/docs/reference/synthetic-track-event.md#callstacks)
+instead.
+
+### Python Example
+
+Each frame includes a function name, and optionally a source file and line
+number.
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    # Define a unique ID for this sequence of packets
+    TRUSTED_PACKET_SEQUENCE_ID = 7001
+
+    # Define a unique UUID for your custom track
+    CALLSTACK_TRACK_UUID = 98765432
+
+    def emit_track_event(
+        ts,
+        event_type,
+        name=None,
+        frames=None,
+    ):
+        """Helper to write a TrackEvent with an optional inline callstack."""
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = CALLSTACK_TRACK_UUID
+        if name is not None:
+            packet.track_event.name = name
+        if frames:
+            for function, source, line in frames:
+                frame = packet.track_event.callstack.frames.add()
+                frame.function_name = function
+                if source:
+                    frame.source_file = source
+                if line is not None:
+                    frame.line_number = line
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 1. Define the Custom Track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = CALLSTACK_TRACK_UUID
+    packet.track_descriptor.name = "Operations with Callstacks"
+
+    # 2. Create a slice with an inline callstack
+    emit_track_event(
+        ts=3000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="ProcessRequest",
+        frames=[
+            ("main", "/src/app.cc", 42),
+            ("HandleIncomingRequests", "/src/server.cc", 128),
+            ("ProcessRequest", "/src/request_handler.cc", 256),
+        ],
+    )
+
+    # End the slice with a callstack captured at slice completion
+    emit_track_event(
+        ts=3500,
+        event_type=TrackEvent.TYPE_SLICE_END,
+        frames=[
+            ("main", None, None),
+            ("HandleIncomingRequests", None, None),
+            ("FinalizeRequest", "/src/request_handler.cc", 512),
+        ],
+    )
+
+    # 3. Another slice with a minimal callstack (just function names)
+    emit_track_event(
+        ts=4000,
+        event_type=TrackEvent.TYPE_SLICE_BEGIN,
+        name="AllocateMemory",
+        frames=[
+            ("main", None, None),
+            ("HandleIncomingRequests", None, None),
+            ("AllocateMemory", None, None),
+        ],
+    )
+
+    # End the slice
+    emit_track_event(
+        ts=4200,
+        event_type=TrackEvent.TYPE_SLICE_END,
+    )
+```
+
+</details>
+
+NOTE: Frames are ordered from outermost (bottom of stack, e.g.,
+`main()`) to innermost (top of stack, where the event occurred).
+
+When you provide a callstack on the slice end event, Trace Processor stores it
+separately from the begin callstack (under the `end_callsite_id` argument in the
+`slice` table). This is handy for quickly comparing entry/exit stacks.
+
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Inline Callstacks](/docs/images/converting-inline-callstacks.png)
+
+Note that you can also do an "area selection" (AKA box selection) to get a
+flamegraph of the callstacks:
+
+![Inline Callstacks Area Select](/docs/images/inline-callstacks-flamegraph.png)
+
 ## Next Steps
 
-You've now seen how to convert various types of custom timestamped data into
-Perfetto traces using Python and the `TrackEvent` protobuf. With these
-techniques, you can represent simple activities, nested operations, asynchronous
-events, counters, flows, create organized track hierarchies, and add debug
-annotations to your events.
+You've now seen how to convert custom timestamped data into Perfetto traces
+using Python and `TrackEvent`. With these techniques, you can represent slices,
+counters, flows, track hierarchies, debug annotations, and callstacks.
 
 Once you have your custom data in the Perfetto trace format (`.pftrace` file),
 you can:

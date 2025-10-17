@@ -54,7 +54,7 @@ interface Data extends TrackData {
 }
 
 export interface Config {
-  pidForColor: number;
+  pidForColor: bigint | number;
   upid: number | null;
   utid: number | null;
 }
@@ -337,10 +337,8 @@ export class ProcessSchedulingTrack implements TrackRenderer {
     this.utidHoveredInThisTrack = utid;
     this.countHoveredInThisTrack = count;
     const threadInfo = this.threads.get(utid);
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = utid;
-    this.trace.timeline.hoveredPid = pid;
+    this.trace.timeline.hoveredPid = threadInfo?.pid;
 
     // Trigger redraw to update tooltip
     m.redraw();

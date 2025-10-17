@@ -191,8 +191,13 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
           class: conditionalClasses,
           onclick: () => onNodeSelected(node),
         },
-        node.prevNodes?.map((_, i) => {
-          const portCount = node.prevNodes ? node.prevNodes.length : 0;
+        ('prevNode' in node
+          ? [node.prevNode]
+          : 'prevNodes' in node
+            ? node.prevNodes
+            : []
+        ).map((_, i, arr) => {
+          const portCount = arr.length;
           const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
           return m('.pf-node-box-port.pf-node-box-port-top', {
             style: {left},

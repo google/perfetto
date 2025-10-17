@@ -18,6 +18,7 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
@@ -48,16 +49,18 @@ export interface SlicesSourceState extends QueryNodeState {
 
 export class SlicesSourceNode extends SourceNode {
   readonly state: SlicesSourceState;
-
-  get sourceCols() {
-    return slicesSourceNodeColumns(true);
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
+  meterialisedAs?: string;
+  prevNodes: QueryNode[] = [];
 
   constructor(attrs: SlicesSourceState) {
     super(attrs);
     this.state = attrs;
     this.state.onchange = attrs.onchange;
+    this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
     this.nextNodes = [];
+    this.prevNodes = [];
   }
 
   get type() {
@@ -110,10 +113,7 @@ export class SlicesSourceNode extends SourceNode {
 
     sq.simpleSlices = ss;
 
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
+    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
     if (filtersProto) sq.filters = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);
@@ -215,7 +215,7 @@ export class SlicesSourceNode extends SourceNode {
       ),
       m(FilterOperation, {
         filters: this.state.filters,
-        sourceCols: this.sourceCols,
+        sourceCols: this.finalCols,
         onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
           this.state.filters = newFilters as FilterDefinition[];
           this.state.onchange?.();

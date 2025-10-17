@@ -21,7 +21,7 @@ export function getTrackName(
     name: string | null;
     utid: number | null;
     processName: string | null;
-    pid: number | null;
+    pid: number | bigint | null;
     threadName: string | null;
     tid: number | bigint | null;
     upid: number | null;

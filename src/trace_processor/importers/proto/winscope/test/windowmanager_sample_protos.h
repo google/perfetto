@@ -174,6 +174,24 @@ class WindowManagerSampleProtos {
     return entry.SerializeAsString();
   }
 
+  static std::string HierarchyWithTaskContainerFallback() {
+    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+
+    auto* root = AddRoot(&entry);
+
+    auto* task = root->add_children()->set_task();
+    auto* task_fragment = task->set_task_fragment();
+    auto* window_container = task_fragment->set_window_container();
+    auto* identifier = window_container->set_identifier();
+    identifier->set_hash_code(2);
+    identifier->set_title("child - Task");
+
+    auto* task_window_container = task->set_window_container();
+    AddGrandchild(task_window_container);
+
+    return entry.SerializeAsString();
+  }
+
   static std::string HierarchyWithActivityRecord() {
     protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
 

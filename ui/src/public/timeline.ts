@@ -50,7 +50,7 @@ export interface Timeline {
   highlightedSliceId: number | undefined;
 
   hoveredUtid: number | undefined;
-  hoveredPid: number | undefined;
+  hoveredPid: bigint | undefined;
 
   // This value defines the time of the origin of the time axis in trace time.
   // Depending on the timestamp format setting, this value can change:

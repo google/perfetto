@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {maybeMachineLabel} from '../../public/utils';
 
 function stripPathFromExecutable(path: string) {
@@ -26,7 +26,10 @@ function stripPathFromExecutable(path: string) {
   }
 }
 
-function getThreadDisplayName(threadName: string | undefined, tid: number) {
+function getThreadDisplayName(
+  threadName: string | undefined,
+  tid: bigint | number,
+) {
   if (threadName) {
     return `${stripPathFromExecutable(threadName)} ${tid}`;
   } else {
@@ -341,7 +344,7 @@ export default class implements PerfettoPlugin {
 
     const it = result.iter({
       utid: NUM,
-      tid: NUM,
+      tid: LONG,
       upid: NUM,
       threadName: STR_NULL,
     });

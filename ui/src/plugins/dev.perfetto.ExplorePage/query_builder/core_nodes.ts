@@ -101,7 +101,6 @@ export function registerCoreNodes() {
         ...state,
         prevNodes: state.prevNodes ?? [],
         allNodes: context.allNodes,
-        intervalNodes: [],
       };
       return new IntervalIntersectNode(fullState);
     },

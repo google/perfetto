@@ -71,10 +71,18 @@ message InputWindowInfoProto {
 
 message BlurRegion {
   optional uint32 blur_radius = 1;
-  optional uint32 corner_radius_tl = 2;
-  optional uint32 corner_radius_tr = 3;
-  optional uint32 corner_radius_bl = 4;
-  optional float corner_radius_br = 5;
+  optional uint32 corner_radius_tl = 2 [deprecated = true];
+  optional uint32 corner_radius_tr = 3 [deprecated = true];
+  optional uint32 corner_radius_bl = 4 [deprecated = true];
+  optional float corner_radius_br = 5 [deprecated = true];
+  optional float corner_radius_tlx = 11;
+  optional float corner_radius_tly = 12;
+  optional float corner_radius_trx = 13;
+  optional float corner_radius_try = 14;
+  optional float corner_radius_blx = 15;
+  optional float corner_radius_bly = 16;
+  optional float corner_radius_brx = 17;
+  optional float corner_radius_bry = 18;
   optional float alpha = 6;
   optional int32 left = 7;
   optional int32 top = 8;

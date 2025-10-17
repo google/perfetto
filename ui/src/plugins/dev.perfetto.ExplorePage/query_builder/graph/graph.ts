@@ -628,19 +628,26 @@ function findNextAvailablePosition(
 
   const allLayouts = [...layouts, buttonsReservedArea];
 
+  let predecessor: QueryNode | undefined;
+  if ('prevNode' in node) {
+    predecessor = node.prevNode;
+  } else if ('prevNodes' in node && node.prevNodes.length > 0) {
+    predecessor = node.prevNodes[0];
+  }
+
   // If the node is a nextNode (e.g., an aggregation or sub-query), it should
   // be added below the previous node.
-  if (node.prevNodes && node.prevNodes.length > 0) {
-    const prevLayout = nodeLayouts.get(node.prevNodes[0]);
+  if (predecessor) {
+    const prevLayout = nodeLayouts.get(predecessor);
     if (prevLayout) {
       let x = prevLayout.x;
       let y = prevLayout.y + (prevLayout.height ?? h) + PADDING * 2;
       // Try to place the new node below the previous node, shifted by the
       // number of siblings.
-      if (node.prevNodes[0].nextNodes.length > 1) {
+      if (predecessor.nextNodes.length > 1) {
         x +=
-          (node.prevNodes[0].nextNodes.indexOf(node) -
-            (node.prevNodes[0].nextNodes.length - 1) / 2) *
+          (predecessor.nextNodes.indexOf(node) -
+            (predecessor.nextNodes.length - 1) / 2) *
           (w + PADDING);
       }
       while (true) {
