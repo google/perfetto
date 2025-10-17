@@ -18,12 +18,13 @@
 
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
 #include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
+#include "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -34,10 +35,12 @@ WindowManagerParser::WindowManagerParser(WinscopeContext* context)
       args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
 
 void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
-  auto snapshot_id = InsertSnapshotRow(timestamp, blob);
+  protos::pbzero::WindowManagerTraceEntry::Decoder entry_decoder(blob);
 
-  auto window_containers = hierarchy_walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(blob));
+  auto snapshot_id = InsertSnapshotRow(timestamp, entry_decoder);
+
+  auto window_containers =
+      hierarchy_walker_.ExtractWindowContainers(entry_decoder);
   if (!window_containers.ok()) {
     context_->trace_processor_context_->storage->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
@@ -49,17 +52,22 @@ void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
 
 tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
     int64_t timestamp,
-    protozero::ConstBytes blob) {
+    protos::pbzero::WindowManagerTraceEntry::Decoder& entry_decoder) {
+  const auto pruned_entry_proto =
+      windowmanager_proto_clone::CloneEntryProtoPruningChildren(entry_decoder);
+  protozero::ConstBytes pruned_proto_bytes{pruned_entry_proto.data(),
+                                           pruned_entry_proto.size()};
+
   auto* trace_processor_context = context_->trace_processor_context_;
   tables::WindowManagerTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  protos::pbzero::WindowManagerTraceEntry::Decoder entry(blob);
+  row.base64_proto_id =
+      trace_processor_context->storage->mutable_string_pool()
+          ->InternString(base::StringView(base::Base64Encode(
+              pruned_proto_bytes.data, pruned_proto_bytes.size)))
+          .raw_id();
   protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
-      entry.window_manager_service());
+      entry_decoder.window_manager_service());
   row.focused_display_id = static_cast<uint32_t>(service.focused_display_id());
   auto row_id = trace_processor_context->storage->mutable_windowmanager_table()
                     ->Insert(row)
@@ -69,7 +77,7 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
   auto inserter = tracker.AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
   base::Status status =
-      args_parser_.ParseMessage(blob,
+      args_parser_.ParseMessage(pruned_proto_bytes,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::WindowManagerTable::Name()),
                                 nullptr /* parse all fields */, writer);
