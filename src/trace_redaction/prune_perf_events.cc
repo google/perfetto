@@ -90,7 +90,15 @@ base::Status PrunePerfEvents::OnPerfSample(
     protos::pbzero::TracePacket* message) const {
   protos::pbzero::PerfSample::Decoder decoder(perf_sample_field.as_bytes());
   if (!decoder.has_pid()) {
-    // PID is required to compute belongs-to process relationship
+    // PID is required to compute belongs-to process relationship, however,
+    // it is possible for samples to not have a PID such as data loss
+    // and profiler global information packets. So, we should make sure
+    // any service events (non-pid packets) are retained for the proper working
+    // of the profiler. When new service events are added, we should make sure
+    // to include them here so the redactor accounts for them.
+    if (decoder.has_kernel_records_lost() || decoder.has_producer_event()) {
+      return base::OkStatus();
+    }
     return base::ErrStatus("PrunePerfEvents: missing field (PerfSample::kPid)");
   }
   int32_t pid = static_cast<int32_t>(decoder.pid());
@@ -115,7 +123,6 @@ base::Status PrunePerfEvents::OnPerfSample(
 
   ASSIGN_OR_RETURN(trace_ts,
                    context.clock_converter.ConvertToTrace(clock_id, ts));
-
   if (filter_->Includes(context, trace_ts, pid)) {
     proto_util::AppendField(perf_sample_field, message);
   }
