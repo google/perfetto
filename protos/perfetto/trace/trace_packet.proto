@@ -39,6 +39,7 @@ import "protos/perfetto/trace/android/protolog.proto";
 import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
+import "protos/perfetto/trace/android/user_list.proto";
 import "protos/perfetto/trace/android/winscope_extensions.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
@@ -111,7 +112,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 123.
+// Next id: 124.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -267,6 +268,8 @@ message TracePacket {
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
+
+    UserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

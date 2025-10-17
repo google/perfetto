@@ -314,6 +314,10 @@ namespace perfetto::trace_processor::stats {
   F(metatrace_overruns,                   kSingle,  kError,    kTrace,    ""), \
   F(packages_list_has_parse_errors,       kSingle,  kError,    kTrace,    ""), \
   F(packages_list_has_read_errors,        kSingle,  kError,    kTrace,    ""), \
+  F(user_list_parse_errors,       kSingle,  kError,    kTrace,                 \
+        "Errors occurred while parsing the user.list file content."),          \
+  F(user_list_read_errors,        kSingle,  kError,    kTrace,                 \
+        "Failed to open or read the user.list file on the device."),           \
   F(game_intervention_has_parse_errors,   kSingle,  kError,    kTrace,         \
        "One or more parsing errors occurred. This could result from "          \
        "unknown game more or intervention added to the file to be parsed."),   \
