@@ -667,7 +667,7 @@ message TraceMetricV2Bundle {
       // The key value in the row.
       optional TraceMetricV2Bundle.Row.Dimension key_dimension_value = 1;
       // The data values in the row.
-      repeated TraceMetricV2Bundle.Row.Dimension data_dimension_values = 2;
+      repeated TraceMetricV2Bundle.Row.Dimension interned_dimension_values = 2;
     }
     repeated InternedDimensionRow interned_dimension_rows = 2;
   }

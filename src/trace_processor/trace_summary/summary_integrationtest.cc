@@ -918,15 +918,17 @@ TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
 
 TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
   ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
-    metric_spec {
-      id: "my_metric"
-      value: "dur"
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "dur"
+      value_columns: "count"
       dimensions_specs { name: "dim" type: STRING }
       query {
         sql {
-          sql: "SELECT 'a' as dim, 750.0 as dur UNION ALL SELECT 'b' as dim, 425.0 as dur"
+          sql: "SELECT 'a' as dim, 750.0 as dur, 3.0 as count UNION ALL SELECT 'b' as dim, 425.0 as dur, 4.0 as count"
           column_names: "dim"
           column_names: "dur"
+          column_names: "count"
         }
       }
       interned_dimension_specs {
@@ -943,7 +945,7 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
   EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
     metric_bundles {
       specs {
-        id: "my_metric"
+        id: "my_metric_dur"
         value: "dur"
         dimensions_specs {
           name: "dim"
@@ -951,11 +953,45 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
         }
         query {
           sql {
-            sql: "SELECT \'a\' as dim, 750.0 as dur UNION ALL SELECT \'b\' as dim, 425.0 as dur"
+            sql: "SELECT \'a\' as dim, 750.0 as dur, 3.0 as count UNION ALL SELECT \'b\' as dim, 425.0 as dur, 4.0 as count"
             column_names: "dim"
             column_names: "dur"
+            column_names: "count"
           }
         }
+        bundle_id: "my_metric"
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim"
+            type: STRING
+          }
+          data_column_specs {
+            name: "version"
+            type: DOUBLE
+          }
+          query {
+            sql {
+              sql: "SELECT \'a\' as dim, 1.0 as version UNION ALL SELECT \'b\' as dim, 2.0 as version"
+            }
+          }
+        }
+      }
+      specs {
+        id: "my_metric_count"
+        value: "count"
+        dimensions_specs {
+          name: "dim"
+          type: STRING
+        }
+        query {
+          sql {
+            sql: "SELECT \'a\' as dim, 750.0 as dur, 3.0 as count UNION ALL SELECT \'b\' as dim, 425.0 as dur, 4.0 as count"
+            column_names: "dim"
+            column_names: "dur"
+            column_names: "count"
+          }
+        }
+        bundle_id: "my_metric"
         interned_dimension_specs {
           key_column_spec {
             name: "dim"
@@ -979,6 +1015,9 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
         values {
           double_value: 750.000000
         }
+        values {
+          double_value: 3.000000
+        }
       }
       row {
         dimension {
@@ -987,13 +1026,16 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
         values {
           double_value: 425.000000
         }
+        values {
+          double_value: 4.000000
+        }
       }
       interned_dimension_bundles {
         interned_dimension_rows {
           key_dimension_value {
             string_value: "a"
           }
-          data_dimension_values {
+          interned_dimension_values {
             double_value: 1.000000
           }
         }
@@ -1001,7 +1043,7 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
           key_dimension_value {
             string_value: "b"
           }
-          data_dimension_values {
+          interned_dimension_values {
             double_value: 2.000000
           }
         }

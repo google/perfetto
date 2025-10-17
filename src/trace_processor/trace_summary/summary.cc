@@ -590,7 +590,7 @@ base::Status WriteInternedDimensionBundles(
         const auto& info = column_infos[i];
         const auto& col_value = query_it.Get(info.first);
         RETURN_IF_ERROR(WriteInternedDimensionValue(
-            col_value, info.second, row->add_data_dimension_values()));
+            col_value, info.second, row->add_interned_dimension_values()));
       }
     }
     RETURN_IF_ERROR(query_it.Status());
@@ -737,10 +737,9 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
       }
     }
     RETURN_IF_ERROR(query_it.Status());
-    for (const auto* metric : value) {
-      protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
+    if (!first->interned_dimension_queries.empty()) {
       RETURN_IF_ERROR(WriteInternedDimensionBundles(
-          processor, spec, metric->interned_dimension_queries, bundle));
+          processor, first_spec, first->interned_dimension_queries, bundle));
     }
   }
   return base::OkStatus();
