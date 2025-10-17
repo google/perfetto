@@ -13,37 +13,39 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
+import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
+import {asSliceSqlId} from '../../components/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
-import {STR} from '../../trace_processor/query_result';
 
 export class ScreenshotDetailsPanel implements TrackEventDetailsPanel {
-  private imageData?: string;
+  private sliceDetails?: SliceDetails;
 
   constructor(private readonly engine: Engine) {}
 
   async load(selection: TrackEventSelection) {
-    this.imageData = (
-      await this.engine.query(`
-      select extract_arg(arg_set_id, 'screenshot.jpg_image') as image_data
-      from slice
-      where id = ${selection.eventId}
-    `)
-    ).firstRow({
-      image_data: STR,
-    }).image_data;
+    this.sliceDetails = await getSlice(
+      this.engine,
+      asSliceSqlId(selection.eventId),
+    );
   }
 
   render() {
-    if (!exists(this.imageData)) {
+    if (
+      !exists(this.sliceDetails) ||
+      !exists(this.sliceDetails.args) ||
+      this.sliceDetails.args.length == 0
+    ) {
       return m('h2', 'Loading Screenshot');
     }
+    assertTrue(this.sliceDetails.args[0].key == 'screenshot.jpg_image');
     return m(
       '.pf-screenshot-panel',
       m('img', {
-        src: 'data:image/png;base64, ' + this.imageData,
+        src: 'data:image/png;base64, ' + this.sliceDetails.args[0].displayValue,
       }),
     );
   }

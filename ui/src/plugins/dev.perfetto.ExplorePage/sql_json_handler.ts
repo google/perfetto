@@ -243,6 +243,9 @@ export function createGraphFromSql(sql: string): string {
     for (const dep of parsedNode.dependencies) {
       const depNode = nodeMap.get(dep)!;
       depNode.nextNodes.push(node.nodeId);
+      if (!node.prevNodes) {
+        node.prevNodes = [];
+      }
       node.prevNodes.push(depNode.nodeId);
     }
     if (parsedNode.dependencies.length === 0) {

@@ -30,7 +30,7 @@ export class ProcessDetailsTab implements Tab {
   // However, the only place which creates `ProcessDetailsTab` currently is `renderProcessRef`,
   // which already has `pid` available (note that Details is already fetching the data, including
   // the `pid` from the trace processor, but it doesn't expose it for now).
-  constructor(private args: {trace: Trace; upid: Upid; pid?: number}) {
+  constructor(private args: {trace: Trace; upid: Upid; pid?: bigint}) {
     this.data = new Details(args.trace, 'process', args.upid, {
       'pid': d.Value('pid'),
       'Name': d.Value('name'),

@@ -18,6 +18,7 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  ModificationNode,
 } from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
@@ -25,13 +26,14 @@ import {Card} from '../../../../../widgets/card';
 import {MultiselectInput} from '../../../../../widgets/multiselect_input';
 
 export interface SortNodeState extends QueryNodeState {
+  prevNode: QueryNode;
   sortColNames?: string[];
 }
 
-export class SortNode implements QueryNode {
+export class SortNode implements ModificationNode {
   readonly nodeId: string;
-  readonly type = NodeType.kModifyColumns;
-  readonly prevNodes?: QueryNode[];
+  readonly type = NodeType.kSort;
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: SortNodeState;
   sortCols: ColumnInfo[];
@@ -39,7 +41,7 @@ export class SortNode implements QueryNode {
   constructor(state: SortNodeState) {
     this.nodeId = nextNodeId();
     this.state = state;
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
     this.state.sortColNames = this.state.sortColNames ?? [];
     this.sortCols = this.resolveSortCols();
@@ -56,7 +58,7 @@ export class SortNode implements QueryNode {
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNodes?.[0]?.finalCols ?? [];
+    return this.prevNode?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -136,8 +138,7 @@ export class SortNode implements QueryNode {
 
   validate(): boolean {
     return (
-      this.prevNodes !== undefined &&
-      this.prevNodes.length > 0 &&
+      this.prevNode !== undefined &&
       this.sortCols !== undefined &&
       this.sortCols.length > 0
     );
@@ -149,7 +150,7 @@ export class SortNode implements QueryNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     // TODO(mayzner): Implement this.
-    return this.prevNodes?.[0]?.getStructuredQuery();
+    return this.prevNode?.getStructuredQuery();
   }
 
   serializeState(): object {
@@ -158,5 +159,12 @@ export class SortNode implements QueryNode {
 
   isMaterialised(): boolean {
     return false;
+  }
+
+  static deserializeState(state: SortNodeState): SortNodeState {
+    return {
+      ...state,
+      prevNode: undefined as unknown as QueryNode,
+    };
   }
 }

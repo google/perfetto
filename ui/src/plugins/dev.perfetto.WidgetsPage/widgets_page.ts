@@ -1024,6 +1024,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
           closeOnEscape: true,
           closeOnOutsideClick: true,
+          isContextMenu: false,
+          positionAtCursor: false,
         },
       }),
       m(WidgetShowcase, {
@@ -1201,6 +1203,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             PopupPosition.Bottom,
             Object.values(PopupPosition),
           ),
+          isContextMenu: false,
+          positionAtCursor: false,
         },
       }),
       m(WidgetShowcase, {
