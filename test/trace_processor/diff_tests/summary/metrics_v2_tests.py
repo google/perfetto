@@ -391,6 +391,7 @@ class SummaryMetricsV2(TestSuite):
               }
         '''),
         out=Csv("""
+          bundle_id: "p99_duration"
           row {
             values {
               double_value: 99.1
