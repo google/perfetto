@@ -149,13 +149,13 @@ function proceduralColorScheme(seed: string): ColorScheme {
   }
 }
 
-export function colorForTid(tid: number): ColorScheme {
+export function colorForTid(tid: bigint | number): ColorScheme {
   return materialColorScheme(tid.toString());
 }
 
 export function colorForThread(thread?: {
-  pid?: number;
-  tid: number;
+  pid?: bigint;
+  tid: bigint;
 }): ColorScheme {
   if (thread === undefined) {
     return GRAY;

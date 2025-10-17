@@ -1024,6 +1024,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
           closeOnEscape: true,
           closeOnOutsideClick: true,
+          isContextMenu: false,
+          positionAtCursor: false,
         },
       }),
       m(WidgetShowcase, {
@@ -1201,6 +1203,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             PopupPosition.Bottom,
             Object.values(PopupPosition),
           ),
+          isContextMenu: false,
+          positionAtCursor: false,
         },
       }),
       m(WidgetShowcase, {
@@ -2017,6 +2021,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                 name: 'id',
                 title: 'ID',
                 aggregation: aggregation ? 'COUNT' : undefined,
+                headerMenuItems: m(MenuItem, {
+                  label: 'Log column name',
+                  icon: 'info',
+                  onclick: () => console.log('Column: id'),
+                }),
               },
               {name: 'ts', title: 'Timestamp'},
               {
@@ -2024,7 +2033,25 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                 aggregation: aggregation ? 'SUM' : undefined,
                 title: 'Duration',
               },
-              {name: 'name', title: 'Name'},
+              {
+                name: 'name',
+                title: 'Name',
+                cellMenuItems: (value, row) => [
+                  m(MenuItem, {
+                    label: `Copy "${value}"`,
+                    icon: 'content_copy',
+                    onclick: () => {
+                      navigator.clipboard.writeText(String(value));
+                      console.log(`Copied: ${value}`);
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: `Log full row`,
+                    icon: 'bug_report',
+                    onclick: () => console.log('Row:', row),
+                  }),
+                ],
+              },
               {name: 'data', title: 'Data'},
               {name: 'maybe_null', title: 'Maybe Null?'},
               {name: 'category', title: 'Category'},

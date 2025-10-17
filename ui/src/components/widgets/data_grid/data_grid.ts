@@ -382,6 +382,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   );
                 }
 
+                if (Boolean(column.headerMenuItems)) {
+                  if (menuItems.length > 0) {
+                    menuItems.push(m(MenuDivider));
+                  }
+                  menuItems.push(column.headerMenuItems);
+                }
+
                 return m(
                   GridHeaderCell,
                   {
@@ -654,6 +661,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     },
                   }),
                 );
+              }
+            }
+
+            if (column.cellMenuItems !== undefined) {
+              const extraItems = column.cellMenuItems(value, row);
+              if (extraItems !== undefined) {
+                if (menuItems.length > 0) {
+                  menuItems.push(m(MenuDivider));
+                }
+                menuItems.push(extraItems);
               }
             }
 

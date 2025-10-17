@@ -194,6 +194,20 @@ SELECT
   *
 FROM __intrinsic_thread;
 
+-- Android users.
+--
+-- NOTE: sorted by Android user id
+CREATE PERFETTO VIEW android_users (
+  -- Android user id
+  id ID,
+  -- User type
+  type STRING
+) AS
+SELECT
+  uid AS id,
+  type
+FROM __intrinsic_user_list;
+
 -- Contains information of processes seen during the trace.
 CREATE PERFETTO VIEW process (
   -- The id of the process. Prefer using `upid` instead.

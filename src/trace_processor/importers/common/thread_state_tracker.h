@@ -121,6 +121,9 @@ class ThreadStateTracker : public Destructible {
            prev_row_numbers_for_thread_[utid].has_value();
   }
 
+  std::optional<tables::ThreadStateTable::RowReference> GetLastRowRef(
+      UniqueTid utid);
+
   tables::ThreadStateTable::RowReference RowNumToRef(
       tables::ThreadStateTable::RowNumber row_number) {
     return row_number.ToRowReference(storage_->mutable_thread_state_table());
