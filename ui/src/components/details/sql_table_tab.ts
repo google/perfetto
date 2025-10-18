@@ -36,6 +36,7 @@ import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
 import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {Stack} from '../../widgets/stack';
+import {isQuantativeType} from '../../trace_processor/perfetto_sql_type';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -150,9 +151,15 @@ class LegacySqlTableTab implements Tab {
   }
 
   private tableMenuItems(column: TableColumn) {
-    return [
+    return m(
+      MenuItem,
+      {
+        label: 'Analyze',
+        icon: Icons.Analyze,
+      },
       m(MenuItem, {
         label: 'Pivot',
+        icon: Icons.Pivot,
         onclick: () => {
           const state = new PivotTableState({
             pivots: [column],
@@ -169,6 +176,7 @@ class LegacySqlTableTab implements Tab {
       }),
       m(MenuItem, {
         label: 'Add bar chart',
+        icon: Icons.Chart,
         onclick: () => {
           const state = new SqlBarChartState({
             trace: this.state.trace,
@@ -183,23 +191,25 @@ class LegacySqlTableTab implements Tab {
           this.bar_charts.push(state);
         },
       }),
-      m(MenuItem, {
-        label: 'Add histogram',
-        onclick: () => {
-          const state = new SqlHistogramState({
-            trace: this.state.trace,
-            sqlSource: this.state.config.name,
-            column: column.column,
-            filters: this.state.filters,
-          });
-          this.selected = {
-            kind: 'histogram',
-            state,
-          };
-          this.histograms.push(state);
-        },
-      }),
-    ];
+      (column.type === undefined ? true : isQuantativeType(column.type)) &&
+        m(MenuItem, {
+          label: 'Add histogram',
+          icon: Icons.Chart,
+          onclick: () => {
+            const state = new SqlHistogramState({
+              trace: this.state.trace,
+              sqlSource: this.state.config.name,
+              column: column.column,
+              filters: this.state.filters,
+            });
+            this.selected = {
+              kind: 'histogram',
+              state,
+            };
+            this.histograms.push(state);
+          },
+        }),
+    );
   }
 
   render() {
