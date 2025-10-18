@@ -23,6 +23,7 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {
   escapeQuery,
   escapeSearchQuery,
+  escapeRegexQuery,
 } from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {
@@ -32,6 +33,7 @@ import {
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {Button} from '../../widgets/button';
+import {Checkbox} from '../../widgets/checkbox';
 import {TextInput} from '../../widgets/text_input';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
 import {classNames} from '../../base/classnames';
@@ -44,6 +46,7 @@ const ROW_H = 20;
 export interface LogFilteringCriteria {
   minimumLevel: number;
   tags: string[];
+  isTagRegex: boolean;
   textEntry: string;
   hideNonMatching: boolean;
   machineExcludeList: number[];
@@ -346,20 +349,32 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
           });
         },
       }),
-      m(TagInput, {
-        placeholder: 'Filter by tag...',
-        tags: attrs.store.state.tags,
-        onTagAdd: (tag) => {
-          attrs.store.edit((draft) => {
-            draft.tags.push(tag);
-          });
-        },
-        onTagRemove: (index) => {
-          attrs.store.edit((draft) => {
-            draft.tags.splice(index, 1);
-          });
-        },
-      }),
+      m('div', {style: "display: flex; align-items: center; margin-bottom: 4px; gap: 8px;"},
+        m(Checkbox, {
+          label: 'Tag Regex',
+          checked: attrs.store.state.isTagRegex,
+          onchange: (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            attrs.store.edit((draft) => {
+              draft.isTagRegex = target.checked;
+            });
+          },
+        }),
+        m(TagInput, {
+          placeholder: 'Filter by tag...',
+          tags: attrs.store.state.tags,
+          onTagAdd: (tag) => {
+            attrs.store.edit((draft) => {
+              draft.tags.push(tag);
+            });
+          },
+          onTagRemove: (index) => {
+            attrs.store.edit((draft) => {
+              draft.tags.splice(index, 1);
+            });
+          },
+        })
+      ),
       m(LogTextWidget, {
         trace: attrs.trace,
         onChange: (text) => {
@@ -512,7 +527,14 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
       left join process using(upid)
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
-    selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    if (filter.isTagRegex) {
+      const tagGlobClauses = filter.tags.map(pattern =>
+        `tag glob ${escapeRegexQuery(pattern)}`
+      );
+      selectedRows += ` and (${tagGlobClauses.join(' OR ')})`;
+    } else {
+      selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+    }
   }
   if (filter.machineExcludeList.length) {
     selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;
