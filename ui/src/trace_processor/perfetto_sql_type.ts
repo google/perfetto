@@ -18,20 +18,7 @@ import {errResult, okResult, Result} from '../base/result';
 // https://perfetto.dev/docs/analysis/perfetto-sql-syntax#types
 export type PerfettoSqlType =
   | SimpleType
-  | {
-      kind: 'id';
-      source?: {
-        table: string;
-        column: string;
-      };
-    }
-  | {
-      kind: 'joinid';
-      source: {
-        table: string;
-        column: string;
-      };
-    };
+  | PerfettoSqlIdType;
 
 type SimpleType = {
   kind:
@@ -44,6 +31,52 @@ type SimpleType = {
     | 'duration'
     | 'arg_set_id';
 };
+
+type PerfettoSqlIdType = {
+  kind: 'id' | 'joinid';
+  source: {
+    table: string;
+    column: string;
+  };
+};
+
+export function isIdType(type: PerfettoSqlType): type is PerfettoSqlIdType {
+  return type.kind === 'id' || type.kind === 'joinid';
+}
+
+export function typesEqual(lhs: PerfettoSqlType, rhs: PerfettoSqlType) {
+  if (isIdType(lhs) && isIdType(rhs)) {
+    if (
+      lhs.source?.column !== rhs.source?.column ||
+      lhs.source?.table !== rhs.source?.table
+    ) {
+      return false;
+    }
+  }
+  if (lhs.kind !== rhs.kind) {
+    return false;
+  }
+  return true;
+}
+
+export function underlyingSqlType(type: PerfettoSqlType) {
+  switch (type.kind) {
+    case 'int':
+    case 'boolean':
+    case 'duration':
+    case 'timestamp':
+    case 'id':
+    case 'joinid':
+    case 'arg_set_id':
+      return 'INTEGER';
+    case 'double':
+      return 'REAL';
+    case 'bytes':
+      return 'BYTES';
+    case 'string':
+      return 'TEXT';
+  }
+}
 
 export function isQuantitativeType(type: PerfettoSqlType) {
   switch (type.kind) {
@@ -85,34 +118,26 @@ const SIMPLE_TYPES: Record<string, SimpleType['kind']> = {
   argsetid: 'arg_set_id',
 };
 
-export function parsePerfettoSqlTypeFromString(
-  typeString: string,
-): Result<PerfettoSqlType> {
-  const value = typeString.toLowerCase();
+export function parsePerfettoSqlTypeFromString(args: {
+  type: string;
+  table: string;
+  column: string;
+}): Result<PerfettoSqlType> {
+  const value = args.type.toLowerCase();
   const maybeSimpleType = SIMPLE_TYPES[value];
   if (maybeSimpleType !== undefined) {
     return okResult({
       kind: maybeSimpleType,
     });
   }
-  // ID:
   if (value === 'id') {
     return okResult({
       kind: 'id',
+      source: {
+        table: args.table,
+        column: args.column,
+      },
     });
-  }
-  // ID(table.column):
-  {
-    const match = value.match(/^id\(([^.]+)\.([^)]+)\)$/);
-    if (match) {
-      return okResult({
-        kind: 'id',
-        source: {
-          table: match[1],
-          column: match[2],
-        },
-      });
-    }
   }
   // JOINID(table.column):
   {
@@ -127,7 +152,20 @@ export function parsePerfettoSqlTypeFromString(
       });
     }
   }
-  return errResult(`Unknown type: ${typeString}`);
+  // ID(table.column):
+  {
+    const match = value.match(/^id\(([^.]+)\.([^)]+)\)$/);
+    if (match) {
+      return okResult({
+        kind: 'id',
+        source: {
+          table: match[1],
+          column: match[2],
+        },
+      });
+    }
+  }
+  return errResult(`Unknown type: ${args.type}`);
 }
 
 export function perfettoSqlTypeToString(type?: PerfettoSqlType): string {

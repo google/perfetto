@@ -32,7 +32,12 @@ import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
-import {RenderedCell, TableColumn, TableManager} from './table_column';
+import {
+  RenderedCell,
+  TableColumn,
+  TableManager,
+  TableColumnSource,
+} from './table_column';
 import {
   getStandardContextMenuItems,
   renderStandardCell,
@@ -52,45 +57,65 @@ function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
 }
 
 export type ColumnParams = {
-  alias?: string;
   startsHidden?: boolean;
-  title?: string;
+  origin?: TableColumnSource;
 };
 
-export type StandardColumnParams = ColumnParams;
+abstract class ColumnBase implements TableColumn {
+  public readonly origin?: TableColumnSource;
 
-export interface IdColumnParams {
-  // Whether this column is a primary key (ID) for this table or whether it's a reference
-  // to another table's primary key.
-  type?: 'id' | 'joinid';
-  // Whether the column is guaranteed not to have null values.
-  // (this will allow us to upgrage the joins on this column to more performant INNER JOINs).
-  notNull?: boolean;
-}
-
-export class StandardColumn implements TableColumn {
   constructor(
     public readonly column: SqlColumn,
     public readonly type: PerfettoSqlType | undefined,
-    private params?: StandardColumnParams,
-  ) {}
-
-  renderCell(value: SqlValue, tableManager?: TableManager) {
-    return renderStandardCell(value, this.column, tableManager);
+    private readonly params: ColumnParams,
+  ) {
+    this.origin = params.origin;
   }
+
+  abstract renderCell(
+    value: SqlValue,
+    tableManager?: TableManager,
+    supportingValues?: {} | undefined,
+  ): RenderedCell;
 
   initialColumns(): TableColumn[] {
     return this.params?.startsHidden ? [] : [this];
   }
 }
 
-export class TimestampColumn implements TableColumn {
-  public readonly type = PerfettoSqlTypes.TIMESTAMP;
+export type StandardColumnParams = ColumnParams;
 
+export interface IdColumnParams {
+  // Whether this column is a primary key (ID) for this table or whether it's a reference
+  // to another table's primary key.
+  idType?: 'id' | 'joinid';
+  // Whether the column is guaranteed not to have null values.
+  // (this will allow us to upgrage the joins on this column to more performant INNER JOINs).
+  notNull?: boolean;
+}
+
+export class StandardColumn extends ColumnBase {
+  constructor(
+    column: SqlColumn,
+    type: PerfettoSqlType | undefined,
+    params: StandardColumnParams = {},
+  ) {
+    super(column, type, params);
+  }
+
+  renderCell(value: SqlValue, tableManager?: TableManager) {
+    return renderStandardCell(value, this.column, tableManager);
+  }
+}
+
+export class TimestampColumn extends ColumnBase {
   constructor(
     public readonly trace: Trace,
-    public readonly column: SqlColumn,
-  ) {}
+    column: SqlColumn,
+    params: ColumnParams = {},
+  ) {
+    super(column, PerfettoSqlTypes.TIMESTAMP, params);
+  }
 
   renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
@@ -113,13 +138,14 @@ export class TimestampColumn implements TableColumn {
   }
 }
 
-export class DurationColumn implements TableColumn {
-  public readonly type = PerfettoSqlTypes.DURATION;
-
+export class DurationColumn extends ColumnBase {
   constructor(
     public readonly trace: Trace,
-    public column: SqlColumn,
-  ) {}
+    column: SqlColumn,
+    params: ColumnParams = {},
+  ) {
+    super(column, PerfettoSqlTypes.DURATION, params);
+  }
 
   renderCell(value: SqlValue, tableManager?: TableManager) {
     if (typeof value === 'number') {
@@ -143,18 +169,23 @@ export class DurationColumn implements TableColumn {
   }
 }
 
-export class SliceIdColumn implements TableColumn {
-  public readonly type: PerfettoSqlType;
-
+export class SliceIdColumn extends ColumnBase {
+  readonly idType: 'id' | 'joinid';
   constructor(
     public readonly trace: Trace,
-    public readonly column: SqlColumn,
-    private params?: IdColumnParams,
+    column: SqlColumn,
+    params?: IdColumnParams & ColumnParams,
   ) {
-    this.type = {
-      kind: params?.type === 'id' ? 'id' : 'joinid',
-      source: {table: 'slice', column: 'id'},
-    };
+    const idType = params?.idType ?? 'joinid';
+    super(
+      column,
+      {
+        kind: idType,
+        source: {table: 'slice', column: 'id'},
+      },
+      params || {},
+    );
+    this.idType = idType;
   }
 
   renderCell(value: SqlValue, manager?: TableManager): RenderedCell {
@@ -177,7 +208,7 @@ export class SliceIdColumn implements TableColumn {
   }
 
   listDerivedColumns() {
-    if (this.params?.type === 'id') return undefined;
+    if (this.idType === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
         ['ts', new TimestampColumn(this.trace, this.getChildColumn('ts'))],
@@ -207,16 +238,18 @@ export class SliceIdColumn implements TableColumn {
   }
 }
 
-export class SchedIdColumn implements TableColumn {
-  public readonly type: PerfettoSqlType = {
-    kind: 'joinid',
-    source: {table: 'sched', column: 'id'},
-  };
-
+export class SchedIdColumn extends ColumnBase {
   constructor(
     public readonly trace: Trace,
-    public readonly column: SqlColumn,
-  ) {}
+    column: SqlColumn,
+    params: ColumnParams = {},
+  ) {
+    const type: PerfettoSqlType = {
+      kind: 'joinid',
+      source: {table: 'sched', column: 'id'},
+    };
+    super(column, type, params);
+  }
 
   renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
@@ -241,18 +274,23 @@ export class SchedIdColumn implements TableColumn {
   }
 }
 
-export class ThreadStateIdColumn implements TableColumn {
-  public readonly type: PerfettoSqlType = {
-    kind: 'joinid',
-    source: {table: 'thread_state', column: 'id'},
-  };
-
+export class ThreadStateIdColumn extends ColumnBase {
   constructor(
     public readonly trace: Trace,
-    public readonly column: SqlColumn,
-  ) {}
+    column: SqlColumn,
+    params: ColumnParams = {},
+  ) {
+    super(
+      column,
+      {
+        kind: 'joinid',
+        source: {table: 'thread_state', column: 'id'},
+      },
+      params,
+    );
+  }
 
-  renderCell(value: SqlValue, manager?: TableManager) {
+  override renderCell(value: SqlValue, manager?: TableManager) {
     const id = value;
 
     if (!manager || id === null) {
@@ -275,21 +313,28 @@ export class ThreadStateIdColumn implements TableColumn {
   }
 }
 
-export class ThreadIdColumn implements TableColumn {
-  public readonly type: PerfettoSqlType;
-
+export class ThreadIdColumn extends ColumnBase {
+  private readonly idType: 'id' | 'joinid';
+  private readonly notNull: boolean;
   constructor(
     public readonly trace: Trace,
-    public readonly column: SqlColumn,
-    private params?: IdColumnParams,
+    column: SqlColumn,
+    params?: IdColumnParams & ColumnParams,
   ) {
-    this.type = {
-      kind: params?.type === 'id' ? 'id' : 'joinid',
-      source: {table: 'thread', column: 'id'},
-    };
+    const idType = params?.idType ?? 'joinid';
+    super(
+      column,
+      {
+        kind: idType,
+        source: {table: 'thread', column: 'id'},
+      },
+      params || {},
+    );
+    this.idType = idType;
+    this.notNull = params?.notNull ?? false;
   }
 
-  renderCell(value: SqlValue, manager?: TableManager) {
+  override renderCell(value: SqlValue, manager?: TableManager) {
     const utid = value;
 
     if (!manager || utid === null) {
@@ -313,7 +358,7 @@ export class ThreadIdColumn implements TableColumn {
   }
 
   listDerivedColumns() {
-    if (this.params?.type === 'id') return undefined;
+    if (this.idType === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
         [
@@ -361,24 +406,31 @@ export class ThreadIdColumn implements TableColumn {
         table: 'thread',
         joinOn: {id: this.column},
         // If the column is guaranteed not to have null values, we can use an INNER JOIN.
-        innerJoin: this.params?.notNull === true,
+        innerJoin: this.notNull,
       },
     };
   }
 }
 
-export class ProcessIdColumn implements TableColumn {
-  public readonly type: PerfettoSqlType;
-
+export class ProcessIdColumn extends ColumnBase {
+  private readonly idType: 'id' | 'joinid';
+  private readonly notNull: boolean;
   constructor(
     public readonly trace: Trace,
-    public readonly column: SqlColumn,
-    private params?: IdColumnParams,
+    column: SqlColumn,
+    params?: IdColumnParams & ColumnParams,
   ) {
-    this.type = {
-      kind: params?.type === 'id' ? 'id' : 'joinid',
-      source: {table: 'process', column: 'id'},
-    };
+    const idType = params?.idType ?? 'joinid';
+    super(
+      column,
+      {
+        kind: idType,
+        source: {table: 'process', column: 'id'},
+      },
+      params || {},
+    );
+    this.idType = idType;
+    this.notNull = params?.notNull ?? false;
   }
 
   renderCell(value: SqlValue, manager?: TableManager) {
@@ -405,7 +457,7 @@ export class ProcessIdColumn implements TableColumn {
   }
 
   listDerivedColumns() {
-    if (this.params?.type === 'id') return undefined;
+    if (this.idType === 'id') return undefined;
     return async () =>
       new Map<string, TableColumn>([
         [
@@ -456,51 +508,61 @@ export class ProcessIdColumn implements TableColumn {
         table: 'process',
         joinOn: {id: this.column},
         // If the column is guaranteed not to have null values, we can use an INNER JOIN.
-        innerJoin: this.params?.notNull === true,
+        innerJoin: this.notNull,
       },
     };
   }
 }
 
-class ArgColumn implements TableColumn<{type: SqlColumn}> {
-  public readonly column: SqlColumn;
-  public readonly type: PerfettoSqlType | undefined = undefined;
+class ArgColumn extends ColumnBase implements TableColumn<{type: SqlColumn}> {
   private id: string;
 
   constructor(
     private argSetId: SqlColumn,
     private key: string,
+    params: ColumnParams = {},
   ) {
-    this.id = `${sqlColumnId(this.argSetId)}[${this.key}]`;
-    this.column = new SqlExpression(
+    const id = `${sqlColumnId(argSetId)}[${key}]`;
+    const column = new SqlExpression(
       (cols: string[]) => `COALESCE(${cols[0]}, ${cols[1]}, ${cols[2]})`,
       [
-        this.getRawColumn('string_value'),
-        this.getRawColumn('int_value'),
-        this.getRawColumn('real_value'),
+        ArgColumn.getRawColumnImpl('string_value', argSetId, key, id),
+        ArgColumn.getRawColumnImpl('int_value', argSetId, key, id),
+        ArgColumn.getRawColumnImpl('real_value', argSetId, key, id),
       ],
-      this.id,
+      id,
     );
+    super(column, undefined, params);
+    this.id = id;
   }
 
   supportingColumns() {
     return {type: this.getRawColumn('value_type')};
   }
 
-  private getRawColumn(
+  private static getRawColumnImpl(
     type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'value_type',
+    argSetId: SqlColumn,
+    key: string,
+    id: string,
   ): SqlColumn {
     return {
       column: type,
       source: {
         table: 'args',
         joinOn: {
-          arg_set_id: this.argSetId,
-          key: `${sqliteString(this.key)}`,
+          arg_set_id: argSetId,
+          key: `${sqliteString(key)}`,
         },
       },
-      id: `${this.id}.${type.replace(/_value$/g, '')}`,
+      id: `${id}.${type.replace(/_value$/g, '')}`,
     };
+  }
+
+  private getRawColumn(
+    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'value_type',
+  ) {
+    return ArgColumn.getRawColumnImpl(type, this.argSetId, this.key, this.id);
   }
 
   renderCell(
@@ -541,10 +603,13 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
   }
 }
 
-export class ArgSetIdColumn implements TableColumn {
-  public readonly type = PerfettoSqlTypes.ARG_SET_ID;
-
-  constructor(public readonly column: SqlColumn) {}
+export class ArgSetIdColumn extends ColumnBase {
+  constructor(
+    public readonly column: SqlColumn,
+    params: ColumnParams = {},
+  ) {
+    super(column, PerfettoSqlTypes.ARG_SET_ID, params);
+  }
 
   renderCell(value: SqlValue, tableManager: TableManager) {
     return renderStandardCell(value, this.column, tableManager);

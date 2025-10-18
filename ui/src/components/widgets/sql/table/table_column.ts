@@ -35,6 +35,11 @@ export interface TableColumnParams {
   startsHidden?: boolean;
 }
 
+export interface TableColumnSource {
+  kind: 'cast';
+  source: TableColumn;
+}
+
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
 export interface TableColumn<
@@ -42,6 +47,8 @@ export interface TableColumn<
 > {
   readonly column: SqlColumn;
   readonly type: PerfettoSqlType | undefined;
+  // An original column this column might have been derived from.
+  readonly origin?: TableColumnSource;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.

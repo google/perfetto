@@ -25,51 +25,52 @@ import {
   ThreadStateIdColumn,
   TimestampColumn,
 } from './columns';
-import {TableColumn} from './table_column';
+import {SqlColumn} from './sql_column';
+import {TableColumn, TableColumnSource} from './table_column';
 
 export function createTableColumn(args: {
   trace: Trace;
-  table: string;
-  column: string;
+  column: SqlColumn;
   type?: PerfettoSqlType;
+  origin?: TableColumnSource;
 }): TableColumn {
   if (args.type?.kind === 'timestamp') {
-    return new TimestampColumn(args.trace, args.column);
+    return new TimestampColumn(args.trace, args.column, {origin: args.origin});
   }
   if (args.type?.kind === 'duration') {
-    return new DurationColumn(args.trace, args.column);
+    return new DurationColumn(args.trace, args.column, {origin: args.origin});
   }
   if (args.type?.kind === 'arg_set_id') {
-    return new ArgSetIdColumn(args.column);
+    return new ArgSetIdColumn(args.column, {origin: args.origin});
   }
-  if (args.type?.kind === 'id') {
-    switch (args.table.toLowerCase()) {
-      case 'slice':
-        return new SliceIdColumn(args.trace, args.column, {type: 'id'});
-      case 'thread':
-        return new ThreadIdColumn(args.trace, args.column, {type: 'id'});
-      case 'process':
-        return new ProcessIdColumn(args.trace, args.column, {type: 'id'});
-      case 'thread_state':
-        return new ThreadStateIdColumn(args.trace, args.column);
-      case 'sched':
-        return new SchedIdColumn(args.trace, args.column);
+  if (args.type?.kind === 'id' || args.type?.kind === 'joinid') {
+    if (args.type.source.column === 'id') {
+      switch (args.type.source?.table.toLowerCase()) {
+        case 'slice':
+          return new SliceIdColumn(args.trace, args.column, {
+            idType: 'id',
+            origin: args.origin,
+          });
+        case 'thread':
+          return new ThreadIdColumn(args.trace, args.column, {
+            idType: 'id',
+            origin: args.origin,
+          });
+        case 'process':
+          return new ProcessIdColumn(args.trace, args.column, {
+            idType: 'id',
+            origin: args.origin,
+          });
+        case 'thread_state':
+          return new ThreadStateIdColumn(args.trace, args.column, {
+            origin: args.origin,
+          });
+        case 'sched':
+          return new SchedIdColumn(args.trace, args.column, {
+            origin: args.origin,
+          });
+      }
     }
-    return new StandardColumn(args.column, args.type);
   }
-  if (args.type?.kind === 'joinid' && args.type.source.column === 'id') {
-    switch (args.type.source.table.toLowerCase()) {
-      case 'slice':
-        return new SliceIdColumn(args.trace, args.column);
-      case 'thread':
-        return new ThreadIdColumn(args.trace, args.column);
-      case 'process':
-        return new ProcessIdColumn(args.trace, args.column);
-      case 'thread_state':
-        return new ThreadStateIdColumn(args.trace, args.column);
-      case 'sched':
-        return new SchedIdColumn(args.trace, args.column);
-    }
-  }
-  return new StandardColumn(args.column, args.type);
+  return new StandardColumn(args.column, args.type, {origin: args.origin});
 }

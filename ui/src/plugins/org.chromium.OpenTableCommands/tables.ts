@@ -31,7 +31,7 @@ export function getThreadTable(trace: Trace): SqlTableDescription {
   return {
     name: 'thread',
     columns: [
-      new ThreadIdColumn(trace, 'utid', {type: 'id'}),
+      new ThreadIdColumn(trace, 'utid', {idType: 'id'}),
       new StandardColumn('tid', PerfettoSqlTypes.INT),
       new StandardColumn('name', PerfettoSqlTypes.STRING),
       new TimestampColumn(trace, 'start_ts'),
@@ -46,7 +46,7 @@ export function getProcessTable(trace: Trace): SqlTableDescription {
   return {
     name: 'process',
     columns: [
-      new ProcessIdColumn(trace, 'upid', {type: 'id'}),
+      new ProcessIdColumn(trace, 'upid', {idType: 'id'}),
       new StandardColumn('pid', PerfettoSqlTypes.INT),
       new StandardColumn('name', PerfettoSqlTypes.STRING),
       new TimestampColumn(trace, 'start_ts'),
@@ -69,7 +69,7 @@ export function getSliceTable(trace: Trace): SqlTableDescription {
     name: '_viz_slices_for_ui_table',
     displayName: 'Slices',
     columns: [
-      new SliceIdColumn(trace, 'id', {notNull: true, type: 'id'}),
+      new SliceIdColumn(trace, 'id', {notNull: true, idType: 'id'}),
       new TimestampColumn(trace, 'ts'),
       new DurationColumn(trace, 'dur'),
       new StandardColumn('category', PerfettoSqlTypes.STRING),
