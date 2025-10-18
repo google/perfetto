@@ -44,6 +44,9 @@ import {
   SortDirection,
   GridFilterBar,
   GridFilterChip,
+  measureCells,
+  ColumnToMeasure,
+  GridAggregationCell,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
 
@@ -206,6 +209,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
+  private columnWidths: Map<string, number> = new Map();
+  private hasCalculatedInitialWidths = false;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -215,6 +220,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialFilters) {
       this.filters = attrs.initialFilters;
     }
+
+    // Initialize column widths with a default value
+    attrs.columns.forEach((column) => {
+      if (!this.columnWidths.has(column.name)) {
+        this.columnWidths.set(column.name, 100);
+      }
+    });
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -281,6 +293,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
 
+    // Calculate initial column widths from first page of data
+    if (
+      !this.hasCalculatedInitialWidths &&
+      dataSource.rows &&
+      dataSource.rows.rows.length > 0
+    ) {
+      this.measureColumns(
+        columns,
+        dataSource.rows.rows.slice(offset, limit),
+        dataSource.rows.aggregates,
+        cellRenderer,
+        600, // Initial sizing: cap at 600px
+        0.95, // Use 95th percentile for initial sizing
+      );
+      this.hasCalculatedInitialWidths = true;
+    }
+
     // Calculate total pages based on totalRows and rowsPerPage
     const totalRows = dataSource.rows?.totalRows ?? 0;
     const totalPages = Math.max(1, Math.ceil(totalRows / maxRowsPerPage));
@@ -297,6 +326,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const sortControls = onSortingChangedWithReset !== noOp;
     const filterControls = onFiltersChangedWithReset !== noOp;
+
+    const hasAggregations = columns.some((c) => c.aggregation !== undefined);
 
     return m(
       '.pf-data-grid',
@@ -389,6 +420,30 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   menuItems.push(column.headerMenuItems);
                 }
 
+                // Build sub-rows array for aggregations
+                const subRows: m.Children[] = [];
+                if (hasAggregations && column.aggregation) {
+                  subRows.push(
+                    m(
+                      GridAggregationCell,
+                      {
+                        align: 'right', // Assume all aggregates are numeric
+                        symbol:
+                          column.aggregation &&
+                          aggregationFunIcon(column.aggregation),
+                        width: this.columnWidths.get(column.name),
+                      },
+                      column.aggregation &&
+                        dataSource.rows?.aggregates &&
+                        cellRenderer(
+                          dataSource.rows.aggregates[column.name],
+                          column.name,
+                          dataSource.rows.aggregates,
+                        ),
+                    ),
+                  );
+                }
+
                 return m(
                   GridHeaderCell,
                   {
@@ -402,19 +457,32 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         }
                       : undefined,
                     menuItems: menuItems.length > 0 ? menuItems : undefined,
-                    aggregation: column.aggregation &&
-                      dataSource.rows?.aggregates && {
-                        left: m(
-                          'span',
-                          {title: column.aggregation},
-                          aggregationFunIcon(column.aggregation),
-                        ),
-                        right: cellRenderer(
-                          dataSource.rows.aggregates[column.name],
-                          column.name,
+                    width: this.columnWidths.get(column.name),
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(column.name, newWidth);
+                      m.redraw();
+                    },
+                    onAutoResize: () => {
+                      // Measure the columns based on the current page of data
+                      const rowOffset = dataSource.rows?.rowOffset ?? 0;
+                      const firstRowInPage = offset - rowOffset;
+                      const lastRowInPage = offset + limit - rowOffset;
+                      if (dataSource.rows) {
+                        this.measureColumns(
+                          [column],
+                          dataSource.rows.rows.slice(
+                            firstRowInPage,
+                            lastRowInPage,
+                          ),
                           dataSource.rows.aggregates,
-                        ),
-                      },
+                          cellRenderer,
+                          10_000, // Double-click: virtually no limit
+                          1.0, // Use max width (100%) for double-click
+                        );
+                        m.redraw();
+                      }
+                    },
+                    subContent: subRows.length > 0 ? subRows : undefined,
                   },
                   column.title ?? column.name,
                 );
@@ -569,6 +637,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             const value = row[column.name];
             const menuItems: m.Children = [];
 
+            // Always add copy value option
+            menuItems.push(
+              m(MenuItem, {
+                label: 'Copy value',
+                icon: Icons.Copy,
+                onclick: () => {
+                  const textValue = value === null ? 'null' : String(value);
+                  navigator.clipboard.writeText(textValue);
+                },
+              }),
+            );
+
+            // Add separator between copy and filter items
+            if (enableFilters) {
+              menuItems.push(m(MenuDivider));
+            }
+
             if (enableFilters) {
               if (value !== null) {
                 menuItems.push(
@@ -683,7 +768,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   if (value === null) return 'center';
                   return 'left';
                 })(),
-                isMissing: value === null,
+                nullish: value === null,
+                width: this.columnWidths.get(column.name),
               },
               cellRenderer(value, column.name, row),
             );
@@ -693,6 +779,77 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         // Return an empty placeholder row if data is not available
         return undefined;
       }
+    });
+  }
+
+  private measureColumns(
+    columns: ReadonlyArray<ColumnDefinition>,
+    rows: ReadonlyArray<RowDef>,
+    aggregates: RowDef | undefined,
+    cellRenderer: CellRenderer,
+    maxWidth: number,
+    percentile: number = 1.0,
+  ): void {
+    const columnsToMeasure: ColumnToMeasure[] = columns.map((column) => {
+      const headerVnodes: m.Children[] = [];
+
+      // Build sub-rows for aggregations
+      const subRows: m.Children[] = [];
+      if (column.aggregation && aggregates) {
+        subRows.push(
+          m(
+            '.pf-grid__cell--padded',
+            {
+              className: 'pf-grid__cell--align-right',
+            },
+            aggregationFunIcon(column.aggregation),
+            ' ',
+            cellRenderer(aggregates[column.name], column.name, aggregates),
+          ),
+        );
+      }
+
+      // Add column header with sub-rows
+      headerVnodes.push(
+        m(
+          GridHeaderCell,
+          {
+            width: 'fit-content',
+            sort: 'ASC', // Measure with sort button to ensure adequate width
+            onSort: () => {}, // Dummy callback
+            subContent: subRows.length > 0 ? subRows : undefined,
+          },
+          column.title ?? column.name,
+        ),
+      );
+
+      const cellVnodes = rows.map((row) => {
+        const value = row[column.name];
+        return m(
+          GridDataCell,
+          {
+            align: (() => {
+              if (isNumeric(value)) return 'right';
+              if (value === null) return 'center';
+              return 'left';
+            })(),
+            nullish: value === null,
+            width: 'fit-content',
+          },
+          cellRenderer(value, column.name, row),
+        );
+      });
+
+      return {
+        name: column.name,
+        headerVnodes,
+        dataVnodes: cellVnodes,
+      };
+    });
+
+    const widths = measureCells(columnsToMeasure, maxWidth, percentile);
+    widths.forEach((width, columnName) => {
+      this.columnWidths.set(columnName, width);
     });
   }
 }

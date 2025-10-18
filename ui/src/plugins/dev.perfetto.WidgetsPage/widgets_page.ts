@@ -81,6 +81,7 @@ import {TabStrip} from '../../widgets/tabs';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {
   Grid,
+  GridAggregationCell,
   GridBody,
   GridDataCell,
   GridHeader,
@@ -1771,10 +1772,11 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           reordering and column level aggregations, but doesn't have any
           opinions about the data or how they should be manipulated.
         `,
+        wide: true,
         renderWidget: ({reorderable, ...rest}) =>
           m(
             '',
-            {style: {height: '400px', width: '400px', overflow: 'hidden'}},
+            {style: {height: '400px', width: '800px', overflow: 'hidden'}},
             m(Grid, rest, [
               m(GridHeader, [
                 m(GridRow, [
@@ -1784,11 +1786,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                       key: 'id',
                       sort: 'ASC',
                       onSort: () => {},
-                      aggregation: {
-                        left: 'Σ',
-                        right: 15,
+                      // reorderable: reorderable ? {handle: 'left'} : undefined,
+                      onResize: (width) => {
+                        console.log('Resize!', width);
                       },
-                      reorderable: reorderable ? {handle: 'left'} : undefined,
                     },
                     'ID',
                   ),
@@ -1798,8 +1799,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                       key: 'lang',
                       onSort: () => {},
                       menuItems: [
-                        m(MenuItem, {label: 'Filter nulls'}),
-                        m(MenuItem, {label: 'Show only nulls'}),
+                        m(MenuItem, {label: 'Menu item 1'}),
+                        m(MenuItem, {label: 'Menu item 2'}),
                       ],
                       reorderable: reorderable ? {handle: 'left'} : undefined,
                       thickRightBorder: true,
@@ -1815,6 +1816,14 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                         right: 1998.3,
                       },
                       reorderable: reorderable ? {handle: 'right'} : undefined,
+                      subContent: m(
+                        GridAggregationCell,
+                        {
+                          symbol: 'Spread',
+                          align: 'right',
+                        },
+                        '27',
+                      ),
                     },
                     'Year',
                   ),
@@ -1831,6 +1840,9 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                     {
                       key: 'typing',
                       reorderable: reorderable ? {handle: 'right'} : undefined,
+                      onResize: (width) => {
+                        console.log('Resize!', width);
+                      },
                     },
                     'Typing',
                   ),

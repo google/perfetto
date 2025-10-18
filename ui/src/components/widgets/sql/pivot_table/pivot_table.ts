@@ -33,6 +33,8 @@ import {
   GridHeaderCell,
   GridRow,
   renderSortMenuItems,
+  measureCells,
+  ColumnToMeasure,
 } from '../../../../widgets/grid';
 
 export interface PivotTableAttrs {
@@ -43,6 +45,10 @@ export interface PivotTableAttrs {
 }
 
 export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
+  private columnWidths: Map<string, number> = new Map();
+  private previousPivotCount = 0;
+  private previousAggregationCount = 0;
+
   view({attrs}: m.CVnode<PivotTableAttrs>) {
     const state = attrs.state;
     const data = state.getData();
@@ -50,13 +56,69 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     const aggregations = state.getAggregations();
     const extraRowButton = attrs.extraRowButton;
 
+    // Expand the tree to a list of rows to show - MUST be before headers
+    // so that onAutoResize callbacks can reference current nodes
+    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
+
+    // Auto-size only newly added pivot columns
+    if (nodes.length > 0 && pivots.length > this.previousPivotCount) {
+      for (
+        let index = this.previousPivotCount;
+        index < pivots.length;
+        index++
+      ) {
+        const pivot = pivots[index];
+        const columnKey = `pivot-${pivotId(pivot)}`;
+        const optimalWidth = this.calculateOptimalColumnWidth(
+          pivotId(pivot),
+          nodes,
+          (node) => {
+            if (node.isRoot()) return undefined;
+            const value = node.getPivotValue(index);
+            if (value === undefined) return undefined;
+            return pivot.renderCell(value);
+          },
+          600, // Initial sizing: cap at 600px
+          true, // Use 95th percentile for initial sizing
+        );
+        this.columnWidths.set(columnKey, optimalWidth);
+      }
+      this.previousPivotCount = pivots.length;
+    }
+
+    // Auto-size only newly added aggregation columns
+    if (
+      nodes.length > 0 &&
+      aggregations.length > this.previousAggregationCount
+    ) {
+      for (
+        let index = this.previousAggregationCount;
+        index < aggregations.length;
+        index++
+      ) {
+        const agg = aggregations[index];
+        const columnKey = `agg-${aggregationId(agg)}`;
+        const optimalWidth = this.calculateOptimalColumnWidth(
+          aggregationId(agg),
+          nodes,
+          (node) => agg.column.renderCell(node.getAggregationValue(index)),
+          600, // Initial sizing: cap at 600px
+          true, // Use 95th percentile for initial sizing
+        );
+        this.columnWidths.set(columnKey, optimalWidth);
+      }
+      this.previousAggregationCount = aggregations.length;
+    }
+
     const headers = [
       ...pivots.map((pivot, index) => {
         const sorted = state.isSortedByPivot(pivot);
+        const columnKey = `pivot-${pivotId(pivot)}`;
+        const width = this.columnWidths.get(columnKey) ?? 100;
         return m(
           GridHeaderCell,
           {
-            key: `pivot-${pivotId(pivot)}`,
+            key: columnKey,
             reorderable: {handle: 'pivot'},
             onReorder: (from, to, position) => {
               const fromIndex = pivots.findIndex(
@@ -74,15 +136,38 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             onSort: (direction) => state.sortByPivot(pivot, direction),
             menuItems: this.renderPivotColumnMenu(attrs, pivot, index),
             thickRightBorder: index === pivots.length - 1,
+            width,
+            onResize: (newWidth: number) => {
+              this.columnWidths.set(columnKey, newWidth);
+              m.redraw();
+            },
+            onAutoResize: () => {
+              const optimalWidth = this.calculateOptimalColumnWidth(
+                pivotId(pivot),
+                nodes,
+                (node) => {
+                  if (node.isRoot()) return undefined;
+                  const value = node.getPivotValue(index);
+                  if (value === undefined) return undefined;
+                  return pivot.renderCell(value);
+                },
+                800, // Double-click: cap at 800px
+                false, // Use max width (100%) for double-click
+              );
+              this.columnWidths.set(columnKey, optimalWidth);
+              m.redraw();
+            },
           },
           pivotId(pivot),
         );
       }),
       ...aggregations.map((agg, index) => {
+        const columnKey = `agg-${aggregationId(agg)}`;
+        const width = this.columnWidths.get(columnKey) ?? 100;
         return m(
           GridHeaderCell,
           {
-            key: `agg-${aggregationId(agg)}`,
+            key: columnKey,
             reorderable: {handle: 'aggregation'},
             onReorder: (from, to, position) => {
               const fromIndex = aggregations.findIndex(
@@ -99,6 +184,23 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             sort: state.isSortedByAggregation(agg),
             onSort: (direction) => state.sortByAggregation(agg, direction),
             menuItems: this.renderAggregationColumnMenu(attrs, agg, index),
+            width,
+            onResize: (newWidth: number) => {
+              this.columnWidths.set(columnKey, newWidth);
+              m.redraw();
+            },
+            onAutoResize: () => {
+              const optimalWidth = this.calculateOptimalColumnWidth(
+                aggregationId(agg),
+                nodes,
+                (node) =>
+                  agg.column.renderCell(node.getAggregationValue(index)),
+                800, // Double-click: cap at 800px
+                false, // Use max width (100%) for double-click
+              );
+              this.columnWidths.set(columnKey, optimalWidth);
+              m.redraw();
+            },
           },
           aggregationId(agg),
         );
@@ -108,9 +210,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     if (extraRowButton) {
       headers.push(m(GridHeaderCell, {key: 'action-button'}));
     }
-
-    // Expand the tree to a list of rows to show.
-    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
 
     return [
       m(
@@ -132,6 +231,12 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                         align: 'right',
                         colspan: pivots.length,
                         thickRightBorder: true,
+                        width: pivots.reduce((sum, pivot) => {
+                          const columnKey = `pivot-${pivotId(pivot)}`;
+                          return (
+                            sum + (this.columnWidths.get(columnKey) ?? 100)
+                          );
+                        }, 0),
                       },
                       m('.pf-pivot-table__total-values', 'Total values:'),
                     ),
@@ -172,6 +277,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                       // make it clear to the user that there are some values.
                       status === 'hidden_behind_collapsed' && '...',
                     ];
+                    const columnKey = `pivot-${pivotId(pivots[index])}`;
+                    const width = this.columnWidths.get(columnKey) ?? 100;
                     return m(
                       GridDataCell,
                       {
@@ -181,7 +288,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                           : renderedCell?.isNumerical
                             ? 'right'
                             : 'left',
-                        isMissing: renderedCell?.isNull,
+                        nullish: renderedCell?.isNull,
+                        width,
                       },
                       content,
                     );
@@ -191,6 +299,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                 const renderedCell = agg.column.renderCell(
                   node.getAggregationValue(index),
                 );
+                const columnKey = `agg-${aggregationId(agg)}`;
+                const width = this.columnWidths.get(columnKey) ?? 100;
                 return m(
                   GridDataCell,
                   {
@@ -199,7 +309,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                       : renderedCell?.isNumerical
                         ? 'right'
                         : 'left',
-                    isMissing: renderedCell?.isNull,
+                    nullish: renderedCell?.isNull,
+                    width,
                   },
                   renderedCell.content,
                 );
@@ -373,5 +484,58 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       ),
     );
     return menuItems;
+  }
+
+  private calculateOptimalColumnWidth(
+    headerText: string,
+    nodes: PivotTreeNode[],
+    getCellContent: (
+      node: PivotTreeNode,
+    ) =>
+      | {content: m.Children; isNull?: boolean; isNumerical?: boolean}
+      | undefined,
+    maxWidth: number,
+    use95thPercentile: boolean,
+  ): number {
+    const headerVnode = m(
+      GridHeaderCell,
+      {
+        width: 'fit-content',
+        sort: 'ASC', // Measure with sort button to ensure adequate width
+        onSort: () => {}, // Dummy callback
+      },
+      headerText,
+    );
+
+    const cellVnodes = nodes
+      .map((node) => {
+        const renderedCell = getCellContent(node);
+        if (!renderedCell) return undefined;
+
+        return m(
+          GridDataCell,
+          {
+            align: renderedCell.isNull
+              ? 'center'
+              : renderedCell.isNumerical
+                ? 'right'
+                : 'left',
+            nullish: renderedCell.isNull,
+            width: 'fit-content',
+          },
+          renderedCell.content,
+        );
+      })
+      .filter((vnode) => vnode !== undefined);
+
+    const columnToMeasure: ColumnToMeasure = {
+      name: headerText,
+      headerVnodes: [headerVnode],
+      dataVnodes: cellVnodes,
+    };
+
+    const percentile = use95thPercentile ? 0.95 : 1.0;
+    const widths = measureCells([columnToMeasure], maxWidth, percentile);
+    return widths.get(headerText) ?? 100;
   }
 }

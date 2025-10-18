@@ -28,6 +28,8 @@ import {
   GridRow,
   renderSortMenuItems,
   SortDirection,
+  measureCells,
+  ColumnToMeasure,
 } from '../../../../widgets/grid';
 
 import {
@@ -215,6 +217,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
   private state: SqlTableState;
+  private columnWidths: Map<string, number> = new Map();
+  private autoSizedColumns: Set<string> = new Set();
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
@@ -285,6 +289,24 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     const columns = this.state.getSelectedColumns();
 
+    // Auto-size any new columns that haven't been sized yet
+    if (rows.length > 0) {
+      columns.forEach((column) => {
+        const columnKey = tableColumnId(column);
+        // Only auto-size columns we haven't seen before
+        if (!this.autoSizedColumns.has(columnKey)) {
+          const optimalWidth = this.measureColumns(
+            column,
+            rows,
+            600, // Initial sizing: cap at 600px
+            true, // Use 95th percentile for initial sizing
+          );
+          this.columnWidths.set(columnKey, optimalWidth);
+          this.autoSizedColumns.add(columnKey);
+        }
+      });
+    }
+
     return [
       m(
         Grid,
@@ -331,6 +353,9 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                   }),
                 ];
 
+                const columnKey = tableColumnId(column);
+                const width = this.columnWidths.get(columnKey) ?? 100;
+
                 return m(
                   GridHeaderCell,
                   {
@@ -346,6 +371,21 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                         const toIndex = position === 'before' ? to : to + 1;
                         this.state.moveColumn(from, toIndex);
                       }
+                    },
+                    width,
+                    onResize: (newWidth: number) => {
+                      this.columnWidths.set(columnKey, newWidth);
+                      m.redraw();
+                    },
+                    onAutoResize: () => {
+                      const optimalWidth = this.measureColumns(
+                        column,
+                        rows,
+                        800, // Double-click: cap at 800px
+                        false, // Use max width (100%) for double-click
+                      );
+                      this.columnWidths.set(columnKey, optimalWidth);
+                      m.redraw();
                     },
                   },
                   columnTitle(column),
@@ -364,12 +404,16 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                     row,
                     this.state,
                   );
+                  const columnKey = tableColumnId(col);
+                  const width = this.columnWidths.get(columnKey) ?? 100;
+
                   return m(
                     GridDataCell,
                     {
                       menuItems: menu,
                       align: isNull ? 'center' : isNumerical ? 'right' : 'left',
-                      isMissing: isNull,
+                      nullish: isNull,
+                      width,
                     },
                     content,
                   );
@@ -383,6 +427,50 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       this.state.getQueryError() !== undefined &&
         m('.query-error', this.state.getQueryError()),
     ];
+  }
+
+  private measureColumns(
+    column: TableColumn,
+    rows: ReadonlyArray<Row>,
+    maxWidth: number,
+    use95thPercentile: boolean,
+  ): number {
+    const headerVnode = m(
+      GridHeaderCell,
+      {
+        width: 'fit-content',
+        sort: 'ASC', // Measure with sort button to ensure adequate width
+        onSort: () => {}, // Dummy callback
+      },
+      columnTitle(column),
+    );
+
+    const cellVnodes = rows.map((row) => {
+      const {content, isNull, isNumerical} = renderCell(
+        column,
+        row,
+        this.state,
+      );
+      return m(
+        GridDataCell,
+        {
+          align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+          nullish: isNull,
+          width: 'fit-content',
+        },
+        content,
+      );
+    });
+
+    const columnToMeasure: ColumnToMeasure = {
+      name: tableColumnId(column),
+      headerVnodes: [headerVnode],
+      dataVnodes: cellVnodes,
+    };
+
+    const percentile = use95thPercentile ? 0.95 : 1.0;
+    const widths = measureCells([columnToMeasure], maxWidth, percentile);
+    return widths.get(tableColumnId(column)) ?? 100;
   }
 }
 
