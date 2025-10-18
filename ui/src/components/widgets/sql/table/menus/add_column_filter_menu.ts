@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MenuItem} from '../../../../widgets/menu';
-import {Form} from '../../../../widgets/form';
-import {TextInput} from '../../../../widgets/text_input';
-import {SqlValue} from '../../../../trace_processor/query_result';
+import {MenuItem} from '../../../../../widgets/menu';
+import {Form} from '../../../../../widgets/form';
+import {TextInput} from '../../../../../widgets/text_input';
+import {SqlValue} from '../../../../../trace_processor/query_result';
 import {
   isQuantativeType,
   PerfettoSqlType,
-} from '../../../../trace_processor/perfetto_sql_type';
-import {SqlTableState} from './state';
-import {TableColumn} from './table_column';
-import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
-import {Result, errResult, okResult} from '../../../../base/result';
+} from '../../../../../trace_processor/perfetto_sql_type';
+import {SqlTableState} from '../state';
+import {TableColumn} from '../table_column';
+import {sqlValueToSqliteString} from '../../../../../trace_processor/sql_utils';
+import {Result, errResult, okResult} from '../../../../../base/result';
 
 type FilterParams = {
   op: string;

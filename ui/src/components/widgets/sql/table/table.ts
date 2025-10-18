@@ -38,8 +38,9 @@ import {
   tableColumnId,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
-import {SelectColumnMenu} from './select_column_menu';
-import {renderColumnFilterOptions} from './add_column_filter_menu';
+import {SelectColumnMenu} from './menus/select_column_menu';
+import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
+import {renderCastColumnMenu} from './menus/cast_column_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -152,10 +153,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
   }
 
-  renderColumnFilterOptions(c: TableColumn): m.Children {
-    return renderColumnFilterOptions(c, this.state);
-  }
-
   getAdditionalColumnMenuItems(
     addColumnMenuItems?: (
       column: TableColumn,
@@ -200,6 +197,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
               GridRow,
               columns.map((column, i) => {
                 const sorted = this.state.isSortedBy(column);
+                const origin = column.origin;
                 const menuItems: m.Children = [
                   renderSortMenuItems(sorted, (direction) =>
                     this.state.sortBy({column, direction}),
@@ -211,10 +209,22 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                       icon: Icons.Hide,
                       onclick: () => this.state.hideColumnAtIndex(i),
                     }),
+                  origin?.kind === 'cast' &&
+                    m(MenuItem, {
+                      label: 'Remove cast',
+                      icon: Icons.Undo,
+                      onclick: () =>
+                        this.state.replaceColumnAtIndex(i, origin.source),
+                    }),
+                  m(
+                    MenuItem,
+                    {label: 'Cast', icon: Icons.Change},
+                    renderCastColumnMenu(column, i, this.state),
+                  ),
                   m(
                     MenuItem,
                     {label: 'Add filter', icon: Icons.Filter},
-                    this.renderColumnFilterOptions(column),
+                    renderColumnFilterOptions(column, this.state),
                   ),
                   additionalColumnMenuItems &&
                     additionalColumnMenuItems[

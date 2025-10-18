@@ -405,13 +405,23 @@ export class SqlTableState {
   hideColumnAtIndex(index: number) {
     const column = this.columns[index];
     this.columns.splice(index, 1);
-    // We can only filter by the visibile columns to avoid confusing the user,
+    this.willRemoveColumn(column);
+    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
+    this.reload({offset: 'keep'});
+  }
+
+  replaceColumnAtIndex(index: number, column: TableColumn) {
+    this.willRemoveColumn(this.columns[index]);
+    this.columns[index] = column;
+    this.reload({offset: 'keep'});
+  }
+
+  private willRemoveColumn(column: TableColumn) {
+    // We can only filter by the visible columns to avoid confusing the user,
     // so we remove order by clauses that refer to the hidden column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) !== tableColumnId(column),
     );
-    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
-    this.reload({offset: 'keep'});
   }
 
   moveColumn(fromIndex: number, toIndex: number) {
