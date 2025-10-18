@@ -34,25 +34,43 @@ test('PerfettoSqlType.ParseSimpleTypes', () => {
 
   for (const [rawInput, expectedKind] of Object.entries(TEST_CASES)) {
     for (const input of [rawInput, rawInput.toUpperCase()]) {
-      expect(parsePerfettoSqlTypeFromString(input)).toEqual(
-        okResult({kind: expectedKind}),
-      );
+      expect(
+        parsePerfettoSqlTypeFromString({
+          type: input,
+          table: 'my_table',
+          column: 'my_column',
+        }),
+      ).toEqual(okResult({kind: expectedKind}));
     }
   }
 });
 
 test('PerfettoSqlType.ParseIdTypes', () => {
-  expect(parsePerfettoSqlTypeFromString('id')).toEqual(
+  const parse = (type: string) =>
+    parsePerfettoSqlTypeFromString({
+      type,
+      table: 'my_table',
+      column: 'my_column',
+    });
+  expect(parse('id')).toEqual(
     okResult({
       kind: 'id',
+      source: {
+        table: 'my_table',
+        column: 'my_column',
+      },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('ID')).toEqual(
+  expect(parse('ID')).toEqual(
     okResult({
       kind: 'id',
+      source: {
+        table: 'my_table',
+        column: 'my_column',
+      },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('id(slice.id)')).toEqual(
+  expect(parse('id(slice.id)')).toEqual(
     okResult({
       kind: 'id',
       source: {
@@ -61,7 +79,7 @@ test('PerfettoSqlType.ParseIdTypes', () => {
       },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('ID(thread.utid)')).toEqual(
+  expect(parse('ID(thread.utid)')).toEqual(
     okResult({
       kind: 'id',
       source: {
@@ -70,7 +88,7 @@ test('PerfettoSqlType.ParseIdTypes', () => {
       },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('Id(counter.id)')).toEqual(
+  expect(parse('Id(counter.id)')).toEqual(
     okResult({
       kind: 'id',
       source: {
@@ -79,7 +97,7 @@ test('PerfettoSqlType.ParseIdTypes', () => {
       },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('joinid(slice.id)')).toEqual(
+  expect(parse('joinid(slice.id)')).toEqual(
     okResult({
       kind: 'joinid',
       source: {
@@ -88,7 +106,7 @@ test('PerfettoSqlType.ParseIdTypes', () => {
       },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('JOINID(thread.utid)')).toEqual(
+  expect(parse('JOINID(thread.utid)')).toEqual(
     okResult({
       kind: 'joinid',
       source: {
@@ -97,7 +115,7 @@ test('PerfettoSqlType.ParseIdTypes', () => {
       },
     }),
   );
-  expect(parsePerfettoSqlTypeFromString('JoinId(process_table.upid)')).toEqual(
+  expect(parse('JoinId(process_table.upid)')).toEqual(
     okResult({
       kind: 'joinid',
       source: {
@@ -109,17 +127,19 @@ test('PerfettoSqlType.ParseIdTypes', () => {
 });
 
 test('PerfettoSqlType.ParseUnknownTypes', () => {
-  expect(parsePerfettoSqlTypeFromString('unknown')).toEqual(
-    errResult('Unknown type: unknown'),
-  );
+  const parse = (type: string) =>
+    parsePerfettoSqlTypeFromString({
+      type,
+      table: 'my_table',
+      column: 'my_column',
+    });
+  expect(parse('unknown')).toEqual(errResult('Unknown type: unknown'));
 
-  expect(parsePerfettoSqlTypeFromString('notavalidtype')).toEqual(
+  expect(parse('notavalidtype')).toEqual(
     errResult('Unknown type: notavalidtype'),
   );
 
-  expect(parsePerfettoSqlTypeFromString('')).toEqual(
-    errResult('Unknown type: '),
-  );
+  expect(parse('')).toEqual(errResult('Unknown type: '));
 });
 
 test('PerfettoSqlType.ToString', () => {
@@ -131,7 +151,6 @@ test('PerfettoSqlType.ToString', () => {
   expect(perfettoSqlTypeToString({kind: 'timestamp'})).toBe('TIMESTAMP');
   expect(perfettoSqlTypeToString({kind: 'duration'})).toBe('DURATION');
   expect(perfettoSqlTypeToString({kind: 'arg_set_id'})).toBe('ARG_SET_ID');
-  expect(perfettoSqlTypeToString({kind: 'id'})).toBe('ID');
   expect(
     perfettoSqlTypeToString({
       kind: 'id',
