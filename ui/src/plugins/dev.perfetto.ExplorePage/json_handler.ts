@@ -291,6 +291,7 @@ export function deserializeState(
         }
       }
     }
+
     if (serializedNode.type === NodeType.kIntervalIntersect) {
       const intervalNode = node as IntervalIntersectNode;
       if (intervalNode.prevNodes.length > 0) {
