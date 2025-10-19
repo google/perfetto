@@ -93,7 +93,12 @@ export function tableColumnId(column: TableColumn): string {
 }
 
 export function tableColumnAlias(column: TableColumn): string {
-  return tableColumnId(column).replace(/[^a-zA-Z0-9_]/g, '__');
+  return tableColumnId(column).replace(/[^a-zA-Z0-9_]/g, (char) => {
+    if (char === '_') {
+      return '__';
+    }
+    return '_' + char.charCodeAt(0);
+  });
 }
 
 export function columnTitle(column: TableColumn): string {
