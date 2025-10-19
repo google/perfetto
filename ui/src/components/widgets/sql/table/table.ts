@@ -16,7 +16,6 @@ import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {sqliteString} from '../../../../base/string_utils';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
@@ -30,14 +29,8 @@ import {
   SortDirection,
 } from '../../../../widgets/grid';
 
-import {
-  LegacySqlTableFilterOptions,
-  LegacySqlTableFilterLabel,
-} from './render_cell_utils';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {Form} from '../../../../widgets/form';
-import {TextInput} from '../../../../widgets/text_input';
 import {
   RenderedCell,
   TableColumn,
@@ -46,6 +39,7 @@ import {
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './select_column_menu';
+import {renderColumnFilterOptions} from './add_column_filter_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -126,91 +120,6 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
   }
 }
 
-interface ColumnFilterAttrs {
-  filterOption: LegacySqlTableFilterLabel;
-  columns: SqlColumn[];
-  state: SqlTableState;
-}
-
-// Separating out an individual column filter into a class
-// so that we can store the raw input value.
-class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
-  // Holds the raw string value from the filter text input element
-  private inputValue: string;
-
-  constructor() {
-    this.inputValue = '';
-  }
-
-  view({attrs}: m.Vnode<ColumnFilterAttrs>) {
-    const {filterOption, columns, state} = attrs;
-
-    const {op, requiresParam} = LegacySqlTableFilterOptions[filterOption];
-
-    return m(
-      MenuItem,
-      {
-        label: filterOption,
-        // Filter options that do not need an input value will filter the
-        // table directly when clicking on the menu item
-        // (ex: IS NULL or IS NOT NULL)
-        onclick: !requiresParam
-          ? () => {
-              state.filters.addFilter({
-                op: (cols) => `${cols[0]} ${op}`,
-                columns,
-              });
-            }
-          : undefined,
-      },
-      // All non-null filter options will have a submenu that allows
-      // the user to enter a value into textfield and filter using
-      // the Filter button.
-      requiresParam &&
-        m(
-          Form,
-          {
-            onSubmit: () => {
-              // Convert the string extracted from
-              // the input text field into the correct data type for
-              // filtering. The order in which each data type is
-              // checked matters: string, number (floating), and bigint.
-              if (this.inputValue === '') return;
-
-              let filterValue: SqlValue;
-
-              if (Number.isNaN(Number.parseFloat(this.inputValue))) {
-                filterValue = sqliteString(this.inputValue);
-              } else if (
-                !Number.isInteger(Number.parseFloat(this.inputValue))
-              ) {
-                filterValue = Number(this.inputValue);
-              } else {
-                filterValue = BigInt(this.inputValue);
-              }
-
-              state.filters.addFilter({
-                op: (cols) => `${cols[0]} ${op} ${filterValue}`,
-                columns,
-              });
-            },
-            submitLabel: 'Filter',
-          },
-          m(TextInput, {
-            id: 'column_filter_value',
-            ref: 'COLUMN_FILTER_VALUE',
-            autofocus: true,
-            oninput: (e: InputEvent) => {
-              if (!e.target) return;
-
-              this.inputValue = (e.target as HTMLInputElement).value;
-            },
-          }),
-        ),
-    );
-  }
-}
-
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
@@ -243,16 +152,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
   }
 
-  renderColumnFilterOptions(
-    c: TableColumn,
-  ): m.Vnode<ColumnFilterAttrs, unknown>[] {
-    return Object.keys(LegacySqlTableFilterOptions).map((label) =>
-      m(ColumnFilter, {
-        filterOption: label as LegacySqlTableFilterLabel,
-        columns: [c.column],
-        state: this.state,
-      }),
-    );
+  renderColumnFilterOptions(c: TableColumn): m.Children {
+    return renderColumnFilterOptions(c, this.state);
   }
 
   getAdditionalColumnMenuItems(
