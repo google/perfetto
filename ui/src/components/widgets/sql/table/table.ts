@@ -39,6 +39,7 @@ import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
 import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';
+import {renderTransformColumnMenu} from './menus/transform_column_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -202,11 +203,18 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             icon: Icons.Undo,
             onclick: () => this.state.replaceColumnAtIndex(i, origin.source),
           }),
+        origin?.kind === 'transform' &&
+          m(MenuItem, {
+            label: 'Remove transform',
+            icon: Icons.Undo,
+            onclick: () => this.state.replaceColumnAtIndex(i, origin.source),
+          }),
         m(
           MenuItem,
           {label: 'Cast', icon: Icons.Change},
           renderCastColumnMenu(column, i, this.state),
         ),
+        renderTransformColumnMenu(column, i, this.state),
         m(
           MenuItem,
           {label: 'Add filter', icon: Icons.Filter},

@@ -36,7 +36,7 @@ export interface TableColumnParams {
 }
 
 export interface TableColumnSource {
-  kind: 'cast';
+  kind: 'cast' | 'transform';
   source: TableColumn;
 }
 
