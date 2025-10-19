@@ -97,7 +97,7 @@ class ParametrizedColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
                 : okResult(this.autoDetectValue(this.inputValue));
 
             if (!parseResult.ok) {
-              // Do not submit form if the input is not valid.
+              // Form should not be submitted if the input is not valid.
               e.stopPropagation();
               this.error = true;
               m.redraw();
