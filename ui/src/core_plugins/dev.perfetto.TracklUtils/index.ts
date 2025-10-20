@@ -606,6 +606,6 @@ async function resolveTracksFromSliceQuery(
   }
   const resolved = await ctx.selection.resolveSqlEvents('slice', sliceIds);
   return resolved
-    .map((event) => event && ctx.workspace.getTrackByUri(event.trackUri))
+    .map((event) => ctx.workspace.getTrackByUri(event.trackUri))
     .filter((track) => track !== undefined);
 }
