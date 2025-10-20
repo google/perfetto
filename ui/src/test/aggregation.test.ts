@@ -45,17 +45,22 @@ test('sched', async () => {
     exact: true,
   });
   await hdr.hover();
+
+  // Press the sort button to sort ascending.
   hdr.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png');
 
+  // Press the button again to sort descending.
   hdr.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png');
 
-  const hdrCount = await page.getByRole('columnheader', {
+  const hdrCount = page.getByRole('columnheader', {
     name: 'occurrences',
     exact: true,
   });
   await hdrCount.hover();
+
+  // Press the sort button to sort ascending on this column.
   hdrCount.getByRole('button', {name: 'Sort column'}).click();
   await pth.waitForIdleAndScreenshot('sort-by-occurrences.png');
 });
