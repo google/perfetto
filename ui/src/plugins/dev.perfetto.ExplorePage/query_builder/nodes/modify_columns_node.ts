@@ -119,10 +119,10 @@ class SwitchComponent
     return m(
       Card,
       m(
-        '.switch-component',
+        '.pf-exp-switch-component',
         m('div', `SWITCH ON ${column.switchOn}`),
         m(
-          '.switch-default-row',
+          '.pf-exp-switch-default-row',
           'Default ',
           m(TextInput, {
             placeholder: 'default value',
@@ -134,7 +134,7 @@ class SwitchComponent
         ),
         ...(column.cases || []).map((c, i) =>
           m(
-            '.switch-case',
+            '.pf-exp-switch-case',
             'WHEN ',
             m(TextInput, {
               placeholder: 'is equal to',
@@ -248,10 +248,10 @@ class IfComponent
     return m(
       Card,
       m(
-        '.if-component',
+        '.pf-exp-if-component',
         (column.clauses || []).map((c, i) =>
           m(
-            '.if-clause',
+            '.pf-exp-if-clause',
             i === 0 ? 'IF ' : 'ELSE IF',
             m(TextInput, {
               placeholder: 'condition',
@@ -278,7 +278,7 @@ class IfComponent
 
         hasElse &&
           m(
-            '.else-clause',
+            '.pf-exp-else-clause',
             'ELSE ',
             m(TextInput, {
               placeholder: 'value',
@@ -290,7 +290,7 @@ class IfComponent
           ),
 
         m(
-          '.if-buttons',
+          '.pf-exp-if-buttons',
           !hasElse &&
             m(Button, {
               label: 'Add ELSE IF',
@@ -552,13 +552,16 @@ export class ModifyColumnsNode implements ModificationNode {
           cards.push(
             m(
               Card,
-              {className: 'pf-exp-node-details-card pf-switch-details-card'},
+              {
+                className:
+                  'pf-exp-node-details-card pf-exp-switch-details-card',
+              },
               m(
-                'div.pf-switch-expression',
+                'div.pf-exp-switch-expression',
                 m('div', `SWITCH ON ${c.switchOn}`),
                 ...cases,
               ),
-              m('div.pf-switch-alias', `AS ${c.name}`),
+              m('div.pf-exp-switch-alias', `AS ${c.name}`),
             ),
           );
         }
@@ -582,9 +585,9 @@ export class ModifyColumnsNode implements ModificationNode {
           cards.push(
             m(
               Card,
-              {className: 'pf-exp-node-details-card pf-if-details-card'},
-              m('div.pf-if-expression', ...clauses),
-              m('div.pf-if-alias', `AS ${c.name}`),
+              {className: 'pf-exp-node-details-card pf-exp-if-details-card'},
+              m('div.pf-exp-if-expression', ...clauses),
+              m('div.pf-exp-if-alias', `AS ${c.name}`),
             ),
           );
         }
@@ -620,7 +623,7 @@ export class ModifyColumnsNode implements ModificationNode {
             this.renderNewColumn(col, index),
           ),
           m(
-            'div.pf-modify-columns-node-buttons',
+            'div.pf-exp-modify-columns-node-buttons',
             this.renderAddColumnButton(),
             this.renderAddSwitchButton(),
             this.renderAddIfButton(),
@@ -763,7 +766,7 @@ export class ModifyColumnsNode implements ModificationNode {
     if (col.type === 'switch') {
       return commonWrapper([
         m(
-          '.switch-component-wrapper',
+          '.pf-exp-switch-component-wrapper',
           {style: 'flex-grow: 1'},
           m(SwitchComponent, {
             column: col,
@@ -796,7 +799,7 @@ export class ModifyColumnsNode implements ModificationNode {
     if (col.type === 'if') {
       return commonWrapper([
         m(
-          '.if-component-wrapper',
+          '.pf-exp-if-component-wrapper',
           {style: 'flex-grow: 1'},
           m(IfComponent, {
             column: col,

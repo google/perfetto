@@ -53,24 +53,24 @@
     opacity: 1;
   }
 
-  .pf-modify-columns-node-buttons {
+  .pf-exp-modify-columns-node-buttons {
     display: flex;
     gap: 8px;
   }
 
-  .switch-component {
+  .pf-exp-switch-component {
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
 
-  .switch-case {
+  .pf-exp-switch-case {
     display: flex;
     align-items: center;
     gap: 8px;
   }
 
-  .switch-default-row {
+  .pf-exp-switch-default-row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -82,53 +82,53 @@
   font-size: var(--pf-exp-font-size-sm);
 }
 
-.pf-switch-details-card {
+.pf-exp-switch-details-card {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
 }
 
-.pf-switch-expression {
+.pf-exp-switch-expression {
   font-family: var(--pf-font-family-monospace);
 }
 
-.pf-switch-alias {
+.pf-exp-switch-alias {
   font-family: var(--pf-font-family-monospace);
   font-style: italic;
   color: var(--pf-text-color-light);
 }
 
-.if-component {
+.pf-exp-if-component {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.if-clause,
-.else-clause {
+.pf-exp-if-clause,
+.pf-exp-else-clause {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.if-buttons {
+.pf-exp-if-buttons {
   display: flex;
   gap: 8px;
 }
 
-.pf-if-details-card {
+.pf-exp-if-details-card {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
 }
 
-.pf-if-expression {
+.pf-exp-if-expression {
   font-family: var(--pf-font-family-monospace);
 }
 
-.pf-if-alias {
+.pf-exp-if-alias {
   font-family: var(--pf-font-family-monospace);
   font-style: italic;
   color: var(--pf-text-color-light);
