@@ -497,3 +497,47 @@ class ProcessTracking(TestSuite):
         618,1,"kworker/R"
         710,0,"/usr/sbin/apache2 -k start"
         """))
+
+  # perfetto v50+: "cmdline_is_comm" is used to name the main thread of a
+  # process.
+  def test_cmdline_is_comm_for_kthreads(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 1088821452006028
+          incremental_state_cleared: true
+          process_tree {
+            processes {
+              pid: 27
+              ppid: 2
+              cmdline: "ksoftirqd/1"
+              uid: 0
+              cmdline_is_comm: true
+            }
+            processes {
+              pid: 28
+              ppid: 2
+              cmdline: "kworker/1:0-sock_diag_events"
+              uid: 0
+              cmdline_is_comm: true
+            }
+            collection_end_timestamp: 1088821520810204
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+          previous_packet_dropped: true
+        }
+        """),
+        query="""
+        select tid, pid, t.name as thread_name, p.name as process_name
+        from thread t join process p using (upid)
+        where pid in (27, 28)
+        order by pid asc;
+        """,
+        out=Csv("""
+        "tid","pid","thread_name","process_name"
+        27,27,"ksoftirqd/1","ksoftirqd/1"
+        28,28,"kworker/1:0","kworker/1:0"
+        """))

@@ -67,14 +67,14 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     renderMenu: () => m.Child,
   ): m.Child {
     return m(
-      '.pf-node-explorer__title-row',
+      '.pf-exp-node-explorer__title-row',
       m(
         '.title',
         !node.validate() &&
           m(Icon, {
             icon: Icons.Warning,
             filled: true,
-            className: classNames('pf-node-explorer__warning-icon--error'),
+            className: classNames('pf-exp-node-explorer__warning-icon--error'),
             title: `Invalid node: \n${node.state.issues?.getTitle() ?? ''}`,
           }),
         m(TextInput, {
@@ -171,6 +171,15 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       'article',
       this.selectedView === SelectedView.kModify && [
         node.nodeSpecificModify(attrs.onExecute),
+        m('textarea.pf-exp-node-explorer__comment', {
+          'aria-label': 'Comment',
+          'placeholder': 'Add a comment...',
+          'oninput': (e: InputEvent) => {
+            if (!e.target) return;
+            node.state.comment = (e.target as HTMLTextAreaElement).value;
+          },
+          'value': node.state.comment,
+        }),
       ],
       this.selectedView === SelectedView.kSql &&
         (isAQuery(this.currentQuery)
@@ -223,8 +232,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     };
 
     return m(
-      `.pf-node-explorer${
-        node instanceof SqlSourceNode ? '.pf-node-explorer-sql-source' : ''
+      `.pf-exp-node-explorer${
+        node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
       }`,
       this.renderTitleRow(node, attrs, renderModeMenu),
       this.renderContent(node, attrs),

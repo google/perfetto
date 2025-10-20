@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -649,8 +650,12 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
                    ThreadNamePriority::kTraceProcessorConstant);
 }
 
-ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {
-  return args_tracker_.AddArgsTo(upid);
+ArgsTracker::BoundInserter ProcessTracker::AddArgsToProcess(UniquePid upid) {
+  return args_tracker_.AddArgsToProcess(upid);
+}
+
+ArgsTracker::BoundInserter ProcessTracker::AddArgsToThread(UniqueTid utid) {
+  return args_tracker_.AddArgsToThread(utid);
 }
 
 void ProcessTracker::NotifyEndOfFile() {
