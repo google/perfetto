@@ -26,7 +26,6 @@ import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {Stack, StackAuto} from '../../../widgets/stack';
 import {
-  CellAlignment,
   renderSortMenuItems,
   Grid,
   GridColumn,
@@ -66,30 +65,21 @@ export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
   }
 }
 
-export interface GridAggregationCellAttrs extends m.Attributes {
-  readonly align?: CellAlignment;
+export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
 }
 
-export class GridAggregationCell
-  implements m.ClassComponent<GridAggregationCellAttrs>
-{
-  view({attrs, children}: m.Vnode<GridAggregationCellAttrs>) {
-    const {className, align, symbol, ...rest} = attrs;
+export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
+  view({attrs, children}: m.Vnode<AggregationCellAttrs>) {
+    const {className, symbol, ...rest} = attrs;
     return m(
-      '.pf-data-grid__aggregation',
+      '.pf-aggr-cell',
       {
         ...rest,
         className: classNames(className),
       },
-      symbol,
-      m(
-        '.pf-grid__cell--stretch',
-        {
-          className: classNames(align && `pf-grid__cell--align-${align}`),
-        },
-        children,
-      ),
+      m('.pf-aggr-cell__symbol', symbol),
+      m('.pf-aggr-cell__content', children),
     );
   }
 }
@@ -534,9 +524,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       const subContent =
         column.aggregation && dataSource.rows?.aggregates
           ? m(
-              GridAggregationCell,
+              AggregationCell,
               {
-                align: 'right',
                 symbol: aggregationFunIcon(column.aggregation),
               },
               cellRenderer(

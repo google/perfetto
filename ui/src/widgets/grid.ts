@@ -83,7 +83,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       return m(Button, {
         className: classNames(
           'pf-grid-header-cell__sort-button',
-          !sort && 'pf-grid__cell--hint',
+          !sort && 'pf-grid-cell--hint',
           !sort && 'pf-visible-on-hover',
         ),
         ariaLabel: 'Sort column',
@@ -544,7 +544,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
     // Now read the actual widths (this will cause a reflow)
     // Find all the cells in this column (header + data rows)
-    const allCells = gridClone.querySelectorAll(`.pf-grid__cell--border-right`); // TODO pick a better selector for this
+    const allCells = gridClone.querySelectorAll(`.pf-grid__cell-container`); // TODO pick a better selector for this
 
     // Only continue if we have more cells than just the header
     if (allCells.length <= columns.length) {
@@ -627,7 +627,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
               const columnId = this.getColumnId(column.key);
 
               return m(
-                '.pf-grid__cell--border-right',
+                '.pf-grid__cell-container',
                 {
                   'style': {
                     width: `var(--pf-grid-col-${columnId})`,
@@ -636,7 +636,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
                   'data-column-id': columnId,
                   'className': classNames(
                     column.thickRightBorder &&
-                      'pf-grid__cell--border-right-thick',
+                      'pf-grid__cell-container--border-right-thick',
                   ),
                 },
                 children,
@@ -670,7 +670,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           const columnId = this.getColumnId(column.key);
 
           return m(
-            '.pf-grid__cell--border-right',
+            '.pf-grid__cell-container',
             {
               'style': {
                 width: `var(--pf-grid-col-${columnId})`,
@@ -678,7 +678,8 @@ export class Grid implements m.ClassComponent<GridAttrs> {
               'role': 'cell',
               'data-column-id': columnId,
               'className': classNames(
-                column.thickRightBorder && 'pf-grid__cell--border-right-thick',
+                column.thickRightBorder &&
+                  'pf-grid__cell-container--border-right-thick',
               ),
             },
             children,
@@ -706,7 +707,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
           // Find the nearest header cell to get the starting width
           const headerCell = (e.currentTarget as HTMLElement).closest(
-            '.pf-grid__cell',
+            '.pf-grid__cell-container',
           );
 
           if (!headerCell) return;
@@ -762,7 +763,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     };
 
     return m(
-      '.pf-grid__cell.pf-grid__cell--border-right',
+      '.pf-grid__cell-container',
       {
         'role': 'columnheader',
         'ariaLabel': column.key,
@@ -773,10 +774,11 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         },
         'draggable': column.reorderable !== undefined,
         'className': classNames(
-          column.thickRightBorder && 'pf-grid__cell--border-right-thick',
-          dragOverState.count > 0 && 'pf-grid__cell--drag-over',
+          column.thickRightBorder &&
+            'pf-grid__cell-container--border-right-thick',
+          dragOverState.count > 0 && 'pf-grid__cell-container--drag-over',
           dragOverState.count > 0 &&
-            `pf-grid__cell--drag-over-${dragOverState.position}`,
+            `pf-grid__cell-container--drag-over-${dragOverState.position}`,
         ),
         'ondragstart': (e: MithrilEvent<DragEvent>) => {
           if (!reorderHandle) return;

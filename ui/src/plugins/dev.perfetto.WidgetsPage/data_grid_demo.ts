@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/data_grid/data_grid';
 import {MenuItem} from '../../widgets/menu';
-import {renderWidgetShowcase} from './widget_utils';
+import {renderWidgetShowcase} from './widget_page_utils';
 import {languages} from './sample_data';
 
 export function renderDataGridDemo() {

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Grid, GridCell, GridHeaderCell, GridRow} from '../../widgets/grid';
-import {renderWidgetShowcase} from './widget_utils';
+import {renderWidgetShowcase} from './widget_page_utils';
 import {languages} from './sample_data';
 
 export function VirtualGridDemo() {

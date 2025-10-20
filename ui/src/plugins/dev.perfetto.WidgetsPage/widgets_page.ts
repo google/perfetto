@@ -72,7 +72,11 @@ import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 import {TabStrip} from '../../widgets/tabs';
 import {CodeSnippet} from '../../widgets/code_snippet';
-import {EnumOption, renderWidgetShowcase, WidgetShowcase} from './widget_utils';
+import {
+  EnumOption,
+  renderWidgetShowcase,
+  WidgetShowcase,
+} from './widget_page_utils';
 import {renderGridDemo} from './grid_demo';
 import {renderDataGridDemo} from './data_grid_demo';
 

@@ -84,6 +84,10 @@ $border-3: 2px solid var(--pf-color-border);
     color: var(--pf-color-text-muted);
   }
 
+  &--hint {
+    color: var(--pf-color-text-hint);
+  }
+
   &__content-wrapper {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -138,22 +142,10 @@ $border-3: 2px solid var(--pf-color-border);
     flex-direction: row;
   }
 
-  &__cell {
-    position: relative; // Position absolute children relative to cell.
-    // display: flex;
+  &__cell-container {
+    position: relative;
     align-items: baseline;
-    // border-right: $border-2;
-
-    &[active] {
-      background-color: color_active(transparent);
-    }
-
-    // Column container for multi-row header cells
-    &--vertical {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-    }
+    border-right: $border-2;
 
     &[draggable="true"] {
       cursor: grab;
@@ -163,55 +155,8 @@ $border-3: 2px solid var(--pf-color-border);
       }
     }
 
-    &--border-right {
-      border-right: $border-2;
-    }
-
     &--border-right-thick {
       border-right: $border-3;
-    }
-
-    &--shrink {
-      flex-shrink: 1;
-      text-overflow: ellipsis;
-      overflow: hidden;
-    }
-
-    &--horiz {
-      display: flex;
-      flex-direction: row;
-      align-items: baseline;
-    }
-
-    &--padded {
-      padding: 0.3em 0.5em;
-    }
-
-    &--stretch {
-      flex-grow: 1;
-      text-overflow: ellipsis;
-      overflow: hidden;
-    }
-
-    &--rtl {
-      flex-direction: row-reverse;
-    }
-
-    &--align-right {
-      text-align: right;
-    }
-
-    &--align-center {
-      text-align: center;
-    }
-
-    &--nullish {
-      font-style: italic;
-      color: var(--pf-color-text-muted);
-    }
-
-    &--hint {
-      color: var(--pf-color-text-hint);
     }
 
     &--drag-over {
@@ -264,10 +209,6 @@ $border-3: 2px solid var(--pf-color-border);
       }
     }
   }
-}
-
-.pf-drag-over > * {
-  pointer-events: none;
 }
 
 .pf-grid-filter {
