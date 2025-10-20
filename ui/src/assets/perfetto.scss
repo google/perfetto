@@ -25,6 +25,7 @@
 @import "perf_monitor";
 @import "help_modal";
 @import "theme_provider";
+@import "timeline_toolbar";
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
@@ -50,6 +51,7 @@
 @import "widgets/form";
 @import "widgets/grid_layout";
 @import "widgets/grid";
+@import "widgets/hotkey_context";
 @import "widgets/hotkey";
 @import "widgets/icon";
 @import "widgets/linear_progress";

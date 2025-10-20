@@ -1,23 +1,24 @@
 wattson_app_startup_threads {
   metric_version: 4
   power_model_version: 1
+  is_crude_estimate: false
   period_info {
     period_id: 1
     task_info {
-      estimated_mws: 196.221298
-      estimated_mw: 509.485138
-      idle_transitions_mws: 1.573007
-      total_mws: 197.794296
+      estimated_mws: 196.221603
+      estimated_mw: 509.485962
+      idle_transitions_mws: 1.580213
+      total_mws: 197.801819
       thread_name: "roid.calculator"
       process_name: "com.google.android.calculator"
       thread_id: 5612
       process_id: 5612
     }
     task_info {
-      estimated_mws: 114.336426
-      estimated_mw: 296.872528
-      idle_transitions_mws: 0.254755
-      total_mws: 114.591179
+      estimated_mws: 114.336357
+      estimated_mw: 296.872345
+      idle_transitions_mws: 0.255703
+      total_mws: 114.592056
       thread_name: "Jit thread pool"
       process_name: "com.google.android.calculator"
       thread_id: 5620
@@ -26,38 +27,38 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 77.371140
       estimated_mw: 200.892807
-      idle_transitions_mws: 0.309887
-      total_mws: 77.681030
+      idle_transitions_mws: 0.312485
+      total_mws: 77.683624
       thread_name: "surfaceflinger"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 569
       process_id: 569
     }
     task_info {
-      estimated_mws: 76.271172
-      estimated_mw: 198.036774
-      idle_transitions_mws: -26.771505
-      total_mws: 49.499668
+      estimated_mws: 76.305161
+      estimated_mw: 198.125000
+      idle_transitions_mws: -26.876284
+      total_mws: 49.428875
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
       process_id: 0
     }
     task_info {
-      estimated_mws: 71.124947
-      estimated_mw: 184.674683
-      idle_transitions_mws: 0.352592
-      total_mws: 71.477539
+      estimated_mws: 71.125168
+      estimated_mw: 184.675247
+      idle_transitions_mws: 0.353971
+      total_mws: 71.479141
       thread_name: "RenderThread"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2948
       process_id: 2397
     }
     task_info {
-      estimated_mws: 56.998028
-      estimated_mw: 147.994370
-      idle_transitions_mws: 0.512389
-      total_mws: 57.510414
+      estimated_mws: 56.997871
+      estimated_mw: 147.993973
+      idle_transitions_mws: 0.513466
+      total_mws: 57.511337
       thread_name: "s.nexuslauncher"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2397
@@ -66,18 +67,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 55.566673
       estimated_mw: 144.277893
-      idle_transitions_mws: 4.041617
-      total_mws: 59.608292
+      idle_transitions_mws: 4.055409
+      total_mws: 59.622082
       thread_name: "Measurement Wor"
       process_name: "com.google.android.calculator"
       thread_id: 5651
       process_id: 5612
     }
     task_info {
-      estimated_mws: 47.709087
-      estimated_mw: 123.875809
+      estimated_mws: 47.708897
+      estimated_mw: 123.875313
       idle_transitions_mws: 0.000000
-      total_mws: 47.709087
+      total_mws: 47.708897
       thread_name: "HeapTaskDaemon"
       process_name: "com.google.android.gms"
       thread_id: 2893
@@ -86,8 +87,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 41.150433
       estimated_mw: 106.846375
-      idle_transitions_mws: 0.180941
-      total_mws: 41.331371
+      idle_transitions_mws: 0.182939
+      total_mws: 41.333370
       thread_name: "RenderThread"
       process_name: "com.google.android.calculator"
       thread_id: 5636
@@ -96,18 +97,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 33.849621
       estimated_mw: 87.889954
-      idle_transitions_mws: 0.079375
-      total_mws: 33.928997
+      idle_transitions_mws: 0.079804
+      total_mws: 33.929424
       thread_name: "binder:572_2"
       process_name: "/vendor/bin/hw/android.hardware.graphics.composer@2.4-service"
       thread_id: 572
       process_id: 572
     }
     task_info {
-      estimated_mws: 23.528126
-      estimated_mw: 61.090363
-      idle_transitions_mws: 1.178403
-      total_mws: 24.706528
+      estimated_mws: 23.528143
+      estimated_mw: 61.090412
+      idle_transitions_mws: 1.183555
+      total_mws: 24.711699
       thread_name: "binder:1300_3"
       process_name: "system_server"
       thread_id: 1524
@@ -116,8 +117,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 22.956224
       estimated_mw: 59.605438
-      idle_transitions_mws: 0.387850
-      total_mws: 23.344074
+      idle_transitions_mws: 0.389931
+      total_mws: 23.346157
       thread_name: "android.anim"
       process_name: "system_server"
       thread_id: 1435
@@ -134,20 +135,20 @@ wattson_app_startup_threads {
       process_id: 571
     }
     task_info {
-      estimated_mws: 19.162983
-      estimated_mw: 49.756348
-      idle_transitions_mws: 0.868309
-      total_mws: 20.031292
+      estimated_mws: 19.163008
+      estimated_mw: 49.756413
+      idle_transitions_mws: 0.868926
+      total_mws: 20.031933
       thread_name: "binder:2457_4"
       process_name: "com.google.android.gms.persistent"
       thread_id: 2794
       process_id: 2457
     }
     task_info {
-      estimated_mws: 18.845314
-      estimated_mw: 48.931526
+      estimated_mws: 18.845310
+      estimated_mw: 48.931519
       idle_transitions_mws: 0.155993
-      total_mws: 19.001307
+      total_mws: 19.001303
       thread_name: "RenderEngine"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 613
@@ -156,8 +157,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 18.284193
       estimated_mw: 47.474586
-      idle_transitions_mws: 0.718078
-      total_mws: 19.002272
+      idle_transitions_mws: 0.720077
+      total_mws: 19.004271
       thread_name: "binder:1300_C"
       process_name: "system_server"
       thread_id: 2164
@@ -166,18 +167,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 15.431142
       estimated_mw: 40.066689
-      idle_transitions_mws: 0.072813
-      total_mws: 15.503955
+      idle_transitions_mws: 0.072963
+      total_mws: 15.504105
       thread_name: "Jit thread pool"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2421
       process_id: 2397
     }
     task_info {
-      estimated_mws: 13.793907
-      estimated_mw: 35.815636
-      idle_transitions_mws: 0.755747
-      total_mws: 14.549654
+      estimated_mws: 13.794111
+      estimated_mw: 35.816166
+      idle_transitions_mws: 0.757874
+      total_mws: 14.551985
       thread_name: "binder:1300_E"
       process_name: "system_server"
       thread_id: 2167
@@ -186,8 +187,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 13.600082
       estimated_mw: 35.312374
-      idle_transitions_mws: 0.579440
-      total_mws: 14.179521
+      idle_transitions_mws: 0.579914
+      total_mws: 14.179995
       thread_name: "Primes-init-1"
       process_name: "com.google.android.calculator"
       thread_id: 5629
@@ -196,8 +197,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 13.094599
       estimated_mw: 33.999897
-      idle_transitions_mws: 0.398097
-      total_mws: 13.492695
+      idle_transitions_mws: 0.399754
+      total_mws: 13.494352
       thread_name: "binder:569_5"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 2636
@@ -216,38 +217,38 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 12.585597
       estimated_mw: 32.678284
-      idle_transitions_mws: 0.376838
-      total_mws: 12.962435
+      idle_transitions_mws: 0.378658
+      total_mws: 12.964255
       thread_name: "android.display"
       process_name: "system_server"
       thread_id: 1434
       process_id: 1300
     }
     task_info {
-      estimated_mws: 9.818557
-      estimated_mw: 25.493711
-      idle_transitions_mws: 0.165245
-      total_mws: 9.983802
+      estimated_mws: 9.818483
+      estimated_mw: 25.493519
+      idle_transitions_mws: 0.166358
+      total_mws: 9.984840
       thread_name: "lowpool[6]"
       process_name: "com.google.android.gms.persistent"
       thread_id: 3342
       process_id: 2457
     }
     task_info {
-      estimated_mws: 9.798307
-      estimated_mw: 25.441133
-      idle_transitions_mws: 0.160226
-      total_mws: 9.958534
+      estimated_mws: 9.798332
+      estimated_mw: 25.441198
+      idle_transitions_mws: 0.161986
+      total_mws: 9.960318
       thread_name: "binder:569_2"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 610
       process_id: 569
     }
     task_info {
-      estimated_mws: 9.507706
-      estimated_mw: 24.686592
+      estimated_mws: 9.507719
+      estimated_mw: 24.686625
       idle_transitions_mws: 0.006287
-      total_mws: 9.513993
+      total_mws: 9.514006
       thread_name: "lowpool[0]"
       process_name: "id.gms.unstable"
       thread_id: 3816
@@ -256,28 +257,28 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 9.489377
       estimated_mw: 24.639002
-      idle_transitions_mws: 0.724386
-      total_mws: 10.213763
+      idle_transitions_mws: 0.728249
+      total_mws: 10.217626
       thread_name: "binder:2457_A"
       process_name: "com.google.android.gms.persistent"
       thread_id: 5028
       process_id: 2457
     }
     task_info {
-      estimated_mws: 8.557384
-      estimated_mw: 22.219097
-      idle_transitions_mws: 0.049832
-      total_mws: 8.607216
+      estimated_mws: 8.557365
+      estimated_mw: 22.219048
+      idle_transitions_mws: 0.050003
+      total_mws: 8.607368
       thread_name: "HeapTaskDaemon"
       process_name: "com.google.android.calculator"
       thread_id: 5621
       process_id: 5612
     }
     task_info {
-      estimated_mws: 8.216615
-      estimated_mw: 21.334295
+      estimated_mws: 8.216230
+      estimated_mw: 21.333298
       idle_transitions_mws: 0.153422
-      total_mws: 8.370037
+      total_mws: 8.369652
       thread_name: "BckgrndExec HP"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 666
@@ -286,8 +287,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 7.978084
       estimated_mw: 20.714956
-      idle_transitions_mws: 0.114214
-      total_mws: 8.092298
+      idle_transitions_mws: 0.115823
+      total_mws: 8.093907
       thread_name: "binder:2397_2"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2429
@@ -306,18 +307,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 7.688028
       estimated_mw: 19.961830
-      idle_transitions_mws: 0.408424
-      total_mws: 8.096452
+      idle_transitions_mws: 0.410910
+      total_mws: 8.098938
       thread_name: "binder:1300_12"
       process_name: "system_server"
       thread_id: 4988
       process_id: 1300
     }
     task_info {
-      estimated_mws: 7.453927
-      estimated_mw: 19.353992
-      idle_transitions_mws: 0.111905
-      total_mws: 7.565832
+      estimated_mws: 7.453922
+      estimated_mw: 19.353977
+      idle_transitions_mws: 0.112242
+      total_mws: 7.566164
       thread_name: "binder:1300_8"
       process_name: "system_server"
       thread_id: 2144
@@ -326,18 +327,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 6.835090
       estimated_mw: 17.747190
-      idle_transitions_mws: 0.324255
-      total_mws: 7.159344
+      idle_transitions_mws: 0.327733
+      total_mws: 7.162822
       thread_name: "fonts"
       process_name: "com.google.android.calculator"
       thread_id: 5630
       process_id: 5612
     }
     task_info {
-      estimated_mws: 6.581700
-      estimated_mw: 17.089270
+      estimated_mws: 6.581702
+      estimated_mw: 17.089273
       idle_transitions_mws: 0.002653
-      total_mws: 6.584353
+      total_mws: 6.584355
       thread_name: "Jit thread pool"
       process_name: "viders.calendar"
       thread_id: 4894
@@ -346,8 +347,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 6.363919
       estimated_mw: 16.523806
-      idle_transitions_mws: 0.641154
-      total_mws: 7.005074
+      idle_transitions_mws: 0.646716
+      total_mws: 7.010635
       thread_name: "mali-cmar-backe"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2984
@@ -376,8 +377,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 5.849154
       estimated_mw: 15.187225
-      idle_transitions_mws: 0.139243
-      total_mws: 5.988397
+      idle_transitions_mws: 0.139436
+      total_mws: 5.988590
       thread_name: "android.io"
       process_name: "system_server"
       thread_id: 1432
@@ -386,18 +387,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 5.345982
       estimated_mw: 13.880749
-      idle_transitions_mws: 0.324756
-      total_mws: 5.670738
+      idle_transitions_mws: 0.328108
+      total_mws: 5.674090
       thread_name: "decon0_kthread"
       process_name: "decon0_kthread"
       thread_id: 306
       process_id: 306
     }
     task_info {
-      estimated_mws: 5.225981
-      estimated_mw: 13.569169
-      idle_transitions_mws: 0.395880
-      total_mws: 5.621861
+      estimated_mws: 5.226015
+      estimated_mw: 13.569256
+      idle_transitions_mws: 0.398561
+      total_mws: 5.624576
       thread_name: "binder:2457_3"
       process_name: "com.google.android.gms.persistent"
       thread_id: 2470
@@ -406,18 +407,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 5.189985
       estimated_mw: 13.475705
-      idle_transitions_mws: 0.099516
-      total_mws: 5.289501
+      idle_transitions_mws: 0.099691
+      total_mws: 5.289676
       thread_name: "android.hardwar"
       process_name: "/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr"
       thread_id: 668
       process_id: 668
     }
     task_info {
-      estimated_mws: 5.123273
-      estimated_mw: 13.302489
-      idle_transitions_mws: 0.185883
-      total_mws: 5.309156
+      estimated_mws: 5.123366
+      estimated_mw: 13.302731
+      idle_transitions_mws: 0.186504
+      total_mws: 5.309870
       thread_name: "app"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 654
@@ -434,10 +435,10 @@ wattson_app_startup_threads {
       process_id: 1977
     }
     task_info {
-      estimated_mws: 4.842485
-      estimated_mw: 12.573427
-      idle_transitions_mws: 0.155745
-      total_mws: 4.998230
+      estimated_mws: 4.842550
+      estimated_mw: 12.573597
+      idle_transitions_mws: 0.155788
+      total_mws: 4.998338
       thread_name: "writer"
       process_name: "/vendor/bin/hw/android.hardware.audio.service"
       thread_id: 2868
@@ -454,20 +455,20 @@ wattson_app_startup_threads {
       process_id: 1977
     }
     task_info {
-      estimated_mws: 4.398962
-      estimated_mw: 11.421829
-      idle_transitions_mws: 0.524892
-      total_mws: 4.923855
+      estimated_mws: 4.398959
+      estimated_mw: 11.421821
+      idle_transitions_mws: 0.525805
+      total_mws: 4.924765
       thread_name: "mali_jd_thread"
       process_name: "mali_jd_thread"
       thread_id: 396
       process_id: 396
     }
     task_info {
-      estimated_mws: 4.322871
-      estimated_mw: 11.224259
+      estimated_mws: 4.322862
+      estimated_mw: 11.224235
       idle_transitions_mws: 0.000000
-      total_mws: 4.322871
+      total_mws: 4.322862
       thread_name: "main"
       process_name: "zygote64"
       thread_id: 837
@@ -476,18 +477,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 3.753922
       estimated_mw: 9.746993
-      idle_transitions_mws: 0.178781
-      total_mws: 3.932703
+      idle_transitions_mws: 0.178816
+      total_mws: 3.932739
       thread_name: "binder:1977_5"
       process_name: "com.android.systemui"
       thread_id: 2187
       process_id: 1977
     }
     task_info {
-      estimated_mws: 3.618765
-      estimated_mw: 9.396061
+      estimated_mws: 3.618782
+      estimated_mw: 9.396104
       idle_transitions_mws: 0.010327
-      total_mws: 3.629092
+      total_mws: 3.629109
       thread_name: "logcat"
       process_name: "logcat"
       thread_id: 1236
@@ -506,18 +507,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 3.363599
       estimated_mw: 8.733525
-      idle_transitions_mws: 0.161435
-      total_mws: 3.525033
+      idle_transitions_mws: 0.162825
+      total_mws: 3.526423
       thread_name: "appSf"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 655
       process_id: 569
     }
     task_info {
-      estimated_mws: 3.337431
-      estimated_mw: 8.665581
-      idle_transitions_mws: 0.187275
-      total_mws: 3.524706
+      estimated_mws: 3.337391
+      estimated_mw: 8.665478
+      idle_transitions_mws: 0.187341
+      total_mws: 3.524732
       thread_name: "logd.writer"
       process_name: "/system/bin/logd"
       thread_id: 511
@@ -534,10 +535,10 @@ wattson_app_startup_threads {
       process_id: 1977
     }
     task_info {
-      estimated_mws: 3.077156
-      estimated_mw: 7.989783
+      estimated_mws: 3.077041
+      estimated_mw: 7.989484
       idle_transitions_mws: 0.237241
-      total_mws: 3.314397
+      total_mws: 3.314282
       thread_name: "mali-cmar-backe"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 648
@@ -566,38 +567,38 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 2.855229
       estimated_mw: 7.413552
-      idle_transitions_mws: 0.116171
-      total_mws: 2.971400
+      idle_transitions_mws: 0.116408
+      total_mws: 2.971637
       thread_name: "AsyncTask #1"
       process_name: "com.google.android.calculator"
       thread_id: 5649
       process_id: 5612
     }
     task_info {
-      estimated_mws: 2.605608
-      estimated_mw: 6.765414
-      idle_transitions_mws: 0.174746
-      total_mws: 2.780354
+      estimated_mws: 2.605549
+      estimated_mw: 6.765262
+      idle_transitions_mws: 0.175262
+      total_mws: 2.780811
       thread_name: "TimerDispatch"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 652
       process_id: 569
     }
     task_info {
-      estimated_mws: 2.528610
-      estimated_mw: 6.565492
+      estimated_mws: 2.528607
+      estimated_mw: 6.565483
       idle_transitions_mws: 0.028575
-      total_mws: 2.557185
+      total_mws: 2.557182
       thread_name: "android.ui"
       process_name: "system_server"
       thread_id: 1431
       process_id: 1300
     }
     task_info {
-      estimated_mws: 2.482516
-      estimated_mw: 6.445810
-      idle_transitions_mws: 0.167345
-      total_mws: 2.649862
+      estimated_mws: 2.482533
+      estimated_mw: 6.445853
+      idle_transitions_mws: 0.167865
+      total_mws: 2.650398
       thread_name: "highpool[4]"
       process_name: "com.google.android.gms.persistent"
       thread_id: 3222
@@ -606,18 +607,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 2.480940
       estimated_mw: 6.441717
-      idle_transitions_mws: 0.106262
-      total_mws: 2.587202
+      idle_transitions_mws: 0.106404
+      total_mws: 2.587344
       thread_name: "logd.reader.per"
       process_name: "/system/bin/logd"
       thread_id: 1258
       process_id: 504
     }
     task_info {
-      estimated_mws: 2.402629
-      estimated_mw: 6.238384
-      idle_transitions_mws: 0.222957
-      total_mws: 2.625586
+      estimated_mws: 2.402613
+      estimated_mw: 6.238342
+      idle_transitions_mws: 0.223242
+      total_mws: 2.625855
       thread_name: "simpleperf"
       process_name: "simpleperf"
       thread_id: 5559
@@ -636,8 +637,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 2.256125
       estimated_mw: 5.857989
-      idle_transitions_mws: 0.163782
-      total_mws: 2.419907
+      idle_transitions_mws: 0.164150
+      total_mws: 2.420275
       thread_name: "AudioOut_D"
       process_name: "/system/bin/audioserver"
       thread_id: 1538
@@ -674,10 +675,10 @@ wattson_app_startup_threads {
       process_id: 5612
     }
     task_info {
-      estimated_mws: 2.170449
-      estimated_mw: 5.635533
+      estimated_mws: 2.170300
+      estimated_mw: 5.635146
       idle_transitions_mws: 0.024924
-      total_mws: 2.195373
+      total_mws: 2.195224
       thread_name: "servicemanager"
       process_name: "/system/bin/servicemanager"
       thread_id: 506
@@ -696,8 +697,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 2.079776
       estimated_mw: 5.400102
-      idle_transitions_mws: 0.069757
-      total_mws: 2.149532
+      idle_transitions_mws: 0.069886
+      total_mws: 2.149662
       thread_name: "RenderThread"
       process_name: "com.google.android.calculator"
       thread_id: 5655
@@ -714,20 +715,20 @@ wattson_app_startup_threads {
       process_id: 1300
     }
     task_info {
-      estimated_mws: 1.985104
-      estimated_mw: 5.154288
-      idle_transitions_mws: 0.193445
-      total_mws: 2.178550
+      estimated_mws: 1.985035
+      estimated_mw: 5.154108
+      idle_transitions_mws: 0.193949
+      total_mws: 2.178984
       thread_name: "kworker/u17:1"
       process_name: "kworker/u17:1"
       thread_id: 209
       process_id: 209
     }
     task_info {
-      estimated_mws: 1.899652
-      estimated_mw: 4.932412
+      estimated_mws: 1.899637
+      estimated_mw: 4.932373
       idle_transitions_mws: 0.000000
-      total_mws: 1.899652
+      total_mws: 1.899637
       thread_name: "ReferenceQueueD"
       process_name: "com.google.android.gms"
       thread_id: 2909
@@ -744,10 +745,10 @@ wattson_app_startup_threads {
       process_id: 835
     }
     task_info {
-      estimated_mws: 1.833206
-      estimated_mw: 4.759886
+      estimated_mws: 1.833480
+      estimated_mw: 4.760600
       idle_transitions_mws: 0.164514
-      total_mws: 1.997720
+      total_mws: 1.997995
       thread_name: "kworker/6:2H"
       process_name: "kworker/6:2H"
       thread_id: 428
@@ -794,10 +795,10 @@ wattson_app_startup_threads {
       process_id: 5612
     }
     task_info {
-      estimated_mws: 1.659759
-      estimated_mw: 4.309535
+      estimated_mws: 1.659887
+      estimated_mw: 4.309867
       idle_transitions_mws: 0.052234
-      total_mws: 1.711993
+      total_mws: 1.712121
       thread_name: "FinalizerDaemon"
       process_name: "com.google.android.gms"
       thread_id: 2910
@@ -806,8 +807,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.513260
       estimated_mw: 3.929153
-      idle_transitions_mws: 0.437298
-      total_mws: 1.950558
+      idle_transitions_mws: 0.441253
+      total_mws: 1.954513
       thread_name: "GPU completion"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 5610
@@ -816,8 +817,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.501622
       estimated_mw: 3.898934
-      idle_transitions_mws: 0.130928
-      total_mws: 1.632549
+      idle_transitions_mws: 0.131130
+      total_mws: 1.632752
       thread_name: "SharedPreferenc"
       process_name: "com.google.android.calculator"
       thread_id: 5633
@@ -826,8 +827,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.497486
       estimated_mw: 3.888197
-      idle_transitions_mws: 0.026798
-      total_mws: 1.524284
+      idle_transitions_mws: 0.027313
+      total_mws: 1.524799
       thread_name: "binder:1300_11"
       process_name: "system_server"
       thread_id: 2366
@@ -836,8 +837,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.471782
       estimated_mw: 3.821456
-      idle_transitions_mws: 0.091345
-      total_mws: 1.563127
+      idle_transitions_mws: 0.092089
+      total_mws: 1.563872
       thread_name: "ImageWallpaper"
       process_name: "com.android.systemui"
       thread_id: 2218
@@ -846,8 +847,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.470812
       estimated_mw: 3.818938
-      idle_transitions_mws: 0.224055
-      total_mws: 1.694867
+      idle_transitions_mws: 0.224642
+      total_mws: 1.695454
       thread_name: "RE Completion"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 5606
@@ -864,10 +865,10 @@ wattson_app_startup_threads {
       process_id: 1300
     }
     task_info {
-      estimated_mws: 1.447111
-      estimated_mw: 3.757398
+      estimated_mws: 1.447112
+      estimated_mw: 3.757402
       idle_transitions_mws: 0.000000
-      total_mws: 1.447111
+      total_mws: 1.447112
       thread_name: "RenderThread"
       process_name: "com.google.android.setupwizard"
       thread_id: 4076
@@ -896,8 +897,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.365317
       estimated_mw: 3.545023
-      idle_transitions_mws: 0.019134
-      total_mws: 1.384451
+      idle_transitions_mws: 0.019489
+      total_mws: 1.384806
       thread_name: "lmkd"
       process_name: "/system/bin/lmkd"
       thread_id: 505
@@ -906,8 +907,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.224218
       estimated_mw: 3.178660
-      idle_transitions_mws: 0.196824
-      total_mws: 1.421042
+      idle_transitions_mws: 0.197128
+      total_mws: 1.421346
       thread_name: "mali_apc_thread"
       process_name: "mali_apc_thread"
       thread_id: 395
@@ -916,8 +917,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.182721
       estimated_mw: 3.070915
-      idle_transitions_mws: 0.010105
-      total_mws: 1.192826
+      idle_transitions_mws: 0.010262
+      total_mws: 1.192984
       thread_name: "RenderThread"
       process_name: "com.android.systemui"
       thread_id: 5614
@@ -956,8 +957,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 1.094323
       estimated_mw: 2.841390
-      idle_transitions_mws: 0.124600
-      total_mws: 1.218923
+      idle_transitions_mws: 0.124720
+      total_mws: 1.219043
       thread_name: "f2fs_ckpt-254:5"
       process_name: "f2fs_ckpt-254:54"
       thread_id: 636
@@ -974,20 +975,20 @@ wattson_app_startup_threads {
       process_id: 2457
     }
     task_info {
-      estimated_mws: 1.034049
-      estimated_mw: 2.684891
-      idle_transitions_mws: 0.226843
-      total_mws: 1.260892
+      estimated_mws: 1.033997
+      estimated_mw: 2.684756
+      idle_transitions_mws: 0.227868
+      total_mws: 1.261865
       thread_name: "GPU completion"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 5632
       process_id: 569
     }
     task_info {
-      estimated_mws: 1.030649
-      estimated_mw: 2.676063
-      idle_transitions_mws: 0.116997
-      total_mws: 1.147646
+      estimated_mws: 1.030685
+      estimated_mw: 2.676156
+      idle_transitions_mws: 0.117407
+      total_mws: 1.148092
       thread_name: "rcuog/4"
       process_name: "rcuog/4"
       thread_id: 51
@@ -1004,10 +1005,10 @@ wattson_app_startup_threads {
       process_id: 1977
     }
     task_info {
-      estimated_mws: 1.023525
-      estimated_mw: 2.657566
-      idle_transitions_mws: 0.097379
-      total_mws: 1.120904
+      estimated_mws: 1.023504
+      estimated_mw: 2.657509
+      idle_transitions_mws: 0.097613
+      total_mws: 1.121117
       thread_name: "rcuog/0"
       process_name: "rcuog/0"
       thread_id: 15
@@ -1016,8 +1017,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.996890
       estimated_mw: 2.588406
-      idle_transitions_mws: 0.032938
-      total_mws: 1.029827
+      idle_transitions_mws: 0.033140
+      total_mws: 1.030030
       thread_name: "binder:1977_4"
       process_name: "com.android.systemui"
       thread_id: 2032
@@ -1054,10 +1055,10 @@ wattson_app_startup_threads {
       process_id: 1300
     }
     task_info {
-      estimated_mws: 0.883092
-      estimated_mw: 2.292932
-      idle_transitions_mws: 0.108459
-      total_mws: 0.991551
+      estimated_mws: 0.882534
+      estimated_mw: 2.291485
+      idle_transitions_mws: 0.109158
+      total_mws: 0.991692
       thread_name: "sugov:6"
       process_name: "sugov:6"
       thread_id: 515
@@ -1076,8 +1077,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.840371
       estimated_mw: 2.182008
-      idle_transitions_mws: 0.129116
-      total_mws: 0.969486
+      idle_transitions_mws: 0.129236
+      total_mws: 0.969607
       thread_name: "system_server"
       process_name: "system_server"
       thread_id: 1397
@@ -1096,8 +1097,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.797559
       estimated_mw: 2.070848
-      idle_transitions_mws: 0.316048
-      total_mws: 1.113607
+      idle_transitions_mws: 0.320206
+      total_mws: 1.117765
       thread_name: "rcu_preempt"
       process_name: "rcu_preempt"
       thread_id: 14
@@ -1146,8 +1147,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.722168
       estimated_mw: 1.875097
-      idle_transitions_mws: 0.011668
-      total_mws: 0.733836
+      idle_transitions_mws: 0.012458
+      total_mws: 0.734627
       thread_name: "rcuop/2"
       process_name: "rcuop/2"
       thread_id: 37
@@ -1236,8 +1237,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.658388
       estimated_mw: 1.709494
-      idle_transitions_mws: 0.101154
-      total_mws: 0.759543
+      idle_transitions_mws: 0.101366
+      total_mws: 0.759755
       thread_name: "InputDispatcher"
       process_name: "system_server"
       thread_id: 1829
@@ -1316,8 +1317,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.633227
       estimated_mw: 1.644164
-      idle_transitions_mws: 0.067476
-      total_mws: 0.700704
+      idle_transitions_mws: 0.067691
+      total_mws: 0.700918
       thread_name: "binder:2397_5"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 3331
@@ -1334,10 +1335,10 @@ wattson_app_startup_threads {
       process_id: 5612
     }
     task_info {
-      estimated_mws: 0.623276
-      estimated_mw: 1.618325
+      estimated_mws: 0.623256
+      estimated_mw: 1.618273
       idle_transitions_mws: 0.000000
-      total_mws: 0.623276
+      total_mws: 0.623256
       thread_name: "migration/2"
       process_name: "migration/2"
       thread_id: 33
@@ -1354,20 +1355,20 @@ wattson_app_startup_threads {
       process_id: 5612
     }
     task_info {
-      estimated_mws: 0.618076
-      estimated_mw: 1.604823
+      estimated_mws: 0.618120
+      estimated_mw: 1.604937
       idle_transitions_mws: 0.000000
-      total_mws: 0.618076
+      total_mws: 0.618120
       thread_name: "migration/1"
       process_name: "migration/1"
       thread_id: 26
       process_id: 26
     }
     task_info {
-      estimated_mws: 0.611639
-      estimated_mw: 1.588110
-      idle_transitions_mws: 0.039358
-      total_mws: 0.650997
+      estimated_mws: 0.611625
+      estimated_mw: 1.588074
+      idle_transitions_mws: 0.039698
+      total_mws: 0.651323
       thread_name: "kworker/u16:3"
       process_name: "kworker/u16:3"
       thread_id: 90
@@ -1376,8 +1377,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.590714
       estimated_mw: 1.533780
-      idle_transitions_mws: 0.081445
-      total_mws: 0.672160
+      idle_transitions_mws: 0.081580
+      total_mws: 0.672295
       thread_name: "DisplayHints"
       process_name: "/vendor/bin/hw/android.hardware.graphics.composer@2.4-service"
       thread_id: 604
@@ -1414,40 +1415,40 @@ wattson_app_startup_threads {
       process_id: 2457
     }
     task_info {
-      estimated_mws: 0.556289
-      estimated_mw: 1.444396
-      idle_transitions_mws: 0.082947
-      total_mws: 0.639236
-      thread_name: "sugov:0"
-      process_name: "sugov:0"
-      thread_id: 513
-      process_id: 513
-    }
-    task_info {
       estimated_mws: 0.556265
       estimated_mw: 1.444333
-      idle_transitions_mws: 0.012362
-      total_mws: 0.568627
+      idle_transitions_mws: 0.012748
+      total_mws: 0.569013
       thread_name: "rcuop/4"
       process_name: "rcuop/4"
       thread_id: 52
       process_id: 52
     }
     task_info {
+      estimated_mws: 0.556082
+      estimated_mw: 1.443858
+      idle_transitions_mws: 0.083518
+      total_mws: 0.639600
+      thread_name: "sugov:0"
+      process_name: "sugov:0"
+      thread_id: 513
+      process_id: 513
+    }
+    task_info {
       estimated_mws: 0.554901
       estimated_mw: 1.440790
-      idle_transitions_mws: 0.011582
-      total_mws: 0.566482
+      idle_transitions_mws: 0.011946
+      total_mws: 0.566847
       thread_name: "binder:5612_4"
       process_name: "com.google.android.calculator"
       thread_id: 5656
       process_id: 5612
     }
     task_info {
-      estimated_mws: 0.553744
-      estimated_mw: 1.437785
-      idle_transitions_mws: 0.039268
-      total_mws: 0.593012
+      estimated_mws: 0.553759
+      estimated_mw: 1.437827
+      idle_transitions_mws: 0.039487
+      total_mws: 0.593247
       thread_name: "kworker/u16:4"
       process_name: "kworker/u16:4"
       thread_id: 291
@@ -1506,8 +1507,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.505300
       estimated_mw: 1.312003
-      idle_transitions_mws: 0.006410
-      total_mws: 0.511710
+      idle_transitions_mws: 0.006474
+      total_mws: 0.511775
       thread_name: "binder:943_1"
       process_name: "/system/bin/audioserver"
       thread_id: 993
@@ -1536,8 +1537,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.497475
       estimated_mw: 1.291685
-      idle_transitions_mws: 0.045915
-      total_mws: 0.543390
+      idle_transitions_mws: 0.046280
+      total_mws: 0.543755
       thread_name: "kworker/5:3H"
       process_name: "kworker/5:3H"
       thread_id: 915
@@ -1596,28 +1597,28 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.458185
       estimated_mw: 1.189670
-      idle_transitions_mws: 0.012782
-      total_mws: 0.470967
+      idle_transitions_mws: 0.013013
+      total_mws: 0.471198
       thread_name: "UiThreadHelper"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2477
       process_id: 2397
     }
     task_info {
-      estimated_mws: 0.455262
-      estimated_mw: 1.182081
-      idle_transitions_mws: 0.024251
-      total_mws: 0.479513
+      estimated_mws: 0.455223
+      estimated_mw: 1.181978
+      idle_transitions_mws: 0.024787
+      total_mws: 0.480010
       thread_name: "binder:556_3"
       process_name: "/system/bin/hw/android.system.suspend-service"
       thread_id: 580
       process_id: 556
     }
     task_info {
-      estimated_mws: 0.431859
-      estimated_mw: 1.121313
+      estimated_mws: 0.431869
+      estimated_mw: 1.121341
       idle_transitions_mws: 0.017992
-      total_mws: 0.449850
+      total_mws: 0.449861
       thread_name: ".gms.persistent"
       process_name: "com.google.android.gms.persistent"
       thread_id: 2457
@@ -1656,8 +1657,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.421404
       estimated_mw: 1.094168
-      idle_transitions_mws: 0.030327
-      total_mws: 0.451731
+      idle_transitions_mws: 0.030338
+      total_mws: 0.451742
       thread_name: "binder:1977_A"
       process_name: "com.android.systemui"
       thread_id: 5029
@@ -1674,20 +1675,20 @@ wattson_app_startup_threads {
       process_id: 1372
     }
     task_info {
-      estimated_mws: 0.399307
-      estimated_mw: 1.036794
-      idle_transitions_mws: 0.063589
-      total_mws: 0.462896
+      estimated_mws: 0.399009
+      estimated_mw: 1.036020
+      idle_transitions_mws: 0.063742
+      total_mws: 0.462751
       thread_name: "sugov:4"
       process_name: "sugov:4"
       thread_id: 514
       process_id: 514
     }
     task_info {
-      estimated_mws: 0.397968
-      estimated_mw: 1.033316
+      estimated_mws: 0.397978
+      estimated_mw: 1.033343
       idle_transitions_mws: 0.000000
-      total_mws: 0.397968
+      total_mws: 0.397978
       thread_name: "binder:2321_8"
       process_name: "com.android.phone"
       thread_id: 2862
@@ -1734,20 +1735,20 @@ wattson_app_startup_threads {
       process_id: 943
     }
     task_info {
-      estimated_mws: 0.381567
-      estimated_mw: 0.990731
-      idle_transitions_mws: 0.074562
-      total_mws: 0.456129
+      estimated_mws: 0.381589
+      estimated_mw: 0.990789
+      idle_transitions_mws: 0.075141
+      total_mws: 0.456730
       thread_name: "binder:2457_B"
       process_name: "com.google.android.gms.persistent"
       thread_id: 5426
       process_id: 2457
     }
     task_info {
-      estimated_mws: 0.375088
-      estimated_mw: 0.973910
-      idle_transitions_mws: 0.013127
-      total_mws: 0.388216
+      estimated_mws: 0.375093
+      estimated_mw: 0.973922
+      idle_transitions_mws: 0.013176
+      total_mws: 0.388269
       thread_name: "CachedAppOptimi"
       process_name: "system_server"
       thread_id: 1809
@@ -1806,8 +1807,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.343904
       estimated_mw: 0.892942
-      idle_transitions_mws: 0.011028
-      total_mws: 0.354932
+      idle_transitions_mws: 0.011242
+      total_mws: 0.355147
       thread_name: "ConnectivitySer"
       process_name: "system_server"
       thread_id: 1882
@@ -1904,10 +1905,10 @@ wattson_app_startup_threads {
       process_id: 853
     }
     task_info {
-      estimated_mws: 0.275966
-      estimated_mw: 0.716541
+      estimated_mws: 0.276019
+      estimated_mw: 0.716679
       idle_transitions_mws: 0.001454
-      total_mws: 0.277420
+      total_mws: 0.277473
       thread_name: "kworker/u16:8"
       process_name: "kworker/u16:8"
       thread_id: 3618
@@ -1936,8 +1937,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.265205
       estimated_mw: 0.688601
-      idle_transitions_mws: 0.209956
-      total_mws: 0.475161
+      idle_transitions_mws: 0.213037
+      total_mws: 0.478242
       thread_name: "perf_mon_update"
       process_name: "perf_mon_update_client_task"
       thread_id: 137
@@ -2036,8 +2037,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.242012
       estimated_mw: 0.628380
-      idle_transitions_mws: 0.020373
-      total_mws: 0.262385
+      idle_transitions_mws: 0.020614
+      total_mws: 0.262626
       thread_name: "kworker/1:4H"
       process_name: "kworker/1:4H"
       thread_id: 1378
@@ -2054,10 +2055,10 @@ wattson_app_startup_threads {
       process_id: 18
     }
     task_info {
-      estimated_mws: 0.234065
-      estimated_mw: 0.607746
+      estimated_mws: 0.234107
+      estimated_mw: 0.607856
       idle_transitions_mws: 0.006186
-      total_mws: 0.240251
+      total_mws: 0.240293
       thread_name: "rcuop/0"
       process_name: "rcuop/0"
       thread_id: 16
@@ -2066,18 +2067,18 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.230800
       estimated_mw: 0.599268
-      idle_transitions_mws: 0.019451
-      total_mws: 0.250251
+      idle_transitions_mws: 0.019600
+      total_mws: 0.250400
       thread_name: "kworker/4:55"
       process_name: "kworker/4:55"
       thread_id: 1506
       process_id: 1506
     }
     task_info {
-      estimated_mws: 0.230234
-      estimated_mw: 0.597798
+      estimated_mws: 0.230105
+      estimated_mw: 0.597463
       idle_transitions_mws: 0.004393
-      total_mws: 0.234626
+      total_mws: 0.234497
       thread_name: "binder:943_2"
       process_name: "/system/bin/audioserver"
       thread_id: 994
@@ -2134,10 +2135,10 @@ wattson_app_startup_threads {
       process_id: 5612
     }
     task_info {
-      estimated_mws: 0.210722
-      estimated_mw: 0.547135
-      idle_transitions_mws: 0.007234
-      total_mws: 0.217955
+      estimated_mws: 0.210732
+      estimated_mw: 0.547163
+      idle_transitions_mws: 0.007298
+      total_mws: 0.218030
       thread_name: "WifiHandlerThre"
       process_name: "system_server"
       thread_id: 1869
@@ -2146,8 +2147,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.210294
       estimated_mw: 0.546024
-      idle_transitions_mws: 0.022072
-      total_mws: 0.232366
+      idle_transitions_mws: 0.022280
+      total_mws: 0.232574
       thread_name: "kworker/3:4"
       process_name: "kworker/3:4"
       thread_id: 197
@@ -2214,10 +2215,10 @@ wattson_app_startup_threads {
       process_id: 569
     }
     task_info {
-      estimated_mws: 0.183121
-      estimated_mw: 0.475470
+      estimated_mws: 0.183208
+      estimated_mw: 0.475695
       idle_transitions_mws: 0.038883
-      total_mws: 0.222003
+      total_mws: 0.222090
       thread_name: "pool-5-thread-1"
       process_name: "system_server"
       thread_id: 1810
@@ -2226,8 +2227,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.180981
       estimated_mw: 0.469914
-      idle_transitions_mws: 0.013882
-      total_mws: 0.194863
+      idle_transitions_mws: 0.014314
+      total_mws: 0.195295
       thread_name: "m.test.scenario"
       process_name: "android.platform.test.scenario"
       thread_id: 5365
@@ -2236,8 +2237,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.173693
       estimated_mw: 0.450990
-      idle_transitions_mws: 0.016354
-      total_mws: 0.190047
+      idle_transitions_mws: 0.017126
+      total_mws: 0.190819
       thread_name: "roidJUnitRunner"
       process_name: "android.platform.test.scenario"
       thread_id: 5378
@@ -2246,8 +2247,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.167402
       estimated_mw: 0.434657
-      idle_transitions_mws: 0.050550
-      total_mws: 0.217952
+      idle_transitions_mws: 0.051158
+      total_mws: 0.218560
       thread_name: "kworker/6:1"
       process_name: "kworker/6:1"
       thread_id: 88
@@ -2326,8 +2327,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.136111
       estimated_mw: 0.353409
-      idle_transitions_mws: 0.027209
-      total_mws: 0.163319
+      idle_transitions_mws: 0.027329
+      total_mws: 0.163440
       thread_name: "kworker/2:1"
       process_name: "kworker/2:1"
       thread_id: 131
@@ -2346,8 +2347,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.132416
       estimated_mw: 0.343817
-      idle_transitions_mws: 0.010550
-      total_mws: 0.142967
+      idle_transitions_mws: 0.010755
+      total_mws: 0.143172
       thread_name: "PowerManagerSer"
       process_name: "system_server"
       thread_id: 1573
@@ -2674,10 +2675,10 @@ wattson_app_startup_threads {
       process_id: 5612
     }
     task_info {
-      estimated_mws: 0.082872
-      estimated_mw: 0.215175
+      estimated_mws: 0.082864
+      estimated_mw: 0.215156
       idle_transitions_mws: 0.004511
-      total_mws: 0.087383
+      total_mws: 0.087375
       thread_name: "pool-4-thread-1"
       process_name: "system_server"
       thread_id: 1788
@@ -2866,8 +2867,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.065202
       estimated_mw: 0.169295
-      idle_transitions_mws: 0.021009
-      total_mws: 0.086211
+      idle_transitions_mws: 0.021184
+      total_mws: 0.086386
       thread_name: "kworker/1:3"
       process_name: "kworker/1:3"
       thread_id: 150
@@ -2876,8 +2877,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.064781
       estimated_mw: 0.168204
-      idle_transitions_mws: 0.011250
-      total_mws: 0.076031
+      idle_transitions_mws: 0.011442
+      total_mws: 0.076223
       thread_name: "com.google.usf."
       process_name: "com.google.usf.non_wake_up"
       thread_id: 1358
@@ -2926,8 +2927,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.060509
       estimated_mw: 0.157110
-      idle_transitions_mws: 0.020838
-      total_mws: 0.081347
+      idle_transitions_mws: 0.020996
+      total_mws: 0.081504
       thread_name: "mali-mem-purge"
       process_name: "com.google.android.apps.nexuslauncher"
       thread_id: 2975
@@ -3516,8 +3517,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.014504
       estimated_mw: 0.037659
-      idle_transitions_mws: 0.016485
-      total_mws: 0.030989
+      idle_transitions_mws: 0.016740
+      total_mws: 0.031244
       thread_name: "ksoftirqd/0"
       process_name: "ksoftirqd/0"
       thread_id: 13
@@ -3736,8 +3737,8 @@ wattson_app_startup_threads {
     task_info {
       estimated_mws: 0.012009
       estimated_mw: 0.031182
-      idle_transitions_mws: 0.002337
-      total_mws: 0.014347
+      idle_transitions_mws: 0.003174
+      total_mws: 0.015183
       thread_name: "mali_event_thre"
       process_name: "mali_event_thread"
       thread_id: 397

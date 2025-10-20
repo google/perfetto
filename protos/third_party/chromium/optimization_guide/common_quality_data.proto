@@ -215,8 +215,8 @@ message AnnotatedPageContent {
   // The interaction information for the page--the subtree represented by the
   // AnnotatedPageContent. This is for top-level interactions, such as the mouse
   // position and focused element, for which there can only be one unique value
-  // for the entire page. Includes interaction information for the main frame
-  // and embedded iframes.
+  // for the entire page.
+  // Currently this is only tracked for the main frame.
   PageInteractionInfo page_interaction_info = 4 [features = { field_presence: EXPLICIT }];
 
   // The rect of the viewport for the tab. i.e., screenshot dimensions.
@@ -254,7 +254,7 @@ message ContentNode {
   ContentAttributes content_attributes = 2 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 28
+// Next ID: 29
 message ContentAttributes {
   oneof content_data {
     // Only set if attribute_type is CONTENT_ATTRIBUTE_TEXT.
@@ -344,6 +344,9 @@ message ContentAttributes {
   // Only populated for ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.
   AXRole aria_role = 26 [features = { field_presence: EXPLICIT }];
 
+  // Whether the content node is from an ad.
+  bool is_ad_related = 28 [features = { field_presence: EXPLICIT }];
+
   reserved 5, 6, 7, 17, 18, 1, 22;
 }
 
@@ -355,12 +358,22 @@ message ContentAttributes {
 //
 // Only populated for ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.
 message Geometry {
-  // The bounding box of the content node, in the page coordinate system. This
-  // roughly corresponds to the element's local box used for hit testing.
+  // The bounding box of the content node mapped to the viewport ignoring any
+  // ancestor clips (including the viewport clip). This can be thought of as the
+  // where the element would be relative to the viewport if it "popped out" of
+  // the page and was painted on top of all the content. A few use-case for this
+  // are:
+  //
+  // - If empty, this implies the node is not hit-testable, even once
+  //   scrolled onscreen.
+  // - The rect's origin indicates whether whether it starts above or below the
+  //   viewport. A negative y-coordinate means the node's content starts above
+  //   the viewport.
   BoundingRect outer_bounding_box = 1 [features = { field_presence: EXPLICIT }];
 
-  // Denotes which subset of this node is visible, in the page coordinate
-  // system. If the content is offscreen, this field will be empty.
+  // The bounding box of the content node relative to the viewport including all
+  // ancestor clipping. These are the element bounds visible to the user and
+  // hit-testable in the DOM.
   BoundingRect visible_bounding_box = 2 [features = { field_presence: EXPLICIT }];
 
   // Whether the content node is fixed or sticky position. This may suggest
@@ -832,8 +845,9 @@ message TableRowData {
 
 // Represents the interaction information for the page. This is for top-level
 // interactions, such as the mouse position and focused element, for which
-// there can only be one unique value. Includes interaction information for
-// the main frame and embedded iframes.
+// there can only be one unique value.
+// Currently this is only tracked for the main frame. The IDs correspond to the
+// DOM node IDs of the content nodes in the main frame.
 // Next ID: 4
 message PageInteractionInfo {
   // The content node ID of the content node that is currently focused.
@@ -876,9 +890,13 @@ message FormData {
   // changes dynamically.
   // Only set during data collection, not in prediction requests.
   uint64 form_signature = 4 [features = { field_presence: EXPLICIT }];
+
+  // The action URL of the form, if present. This is the resolved value
+  // including the final origin.
+  string action_url = 5 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 14
+// Next ID: 15
 message FormFieldData {
   // The name for the field.
   string field_name = 1 [features = { field_presence: EXPLICIT }];
@@ -928,10 +946,12 @@ message FormFieldData {
   // The text of the elements denoted by the aria-labelledby attribute of field
   // or the value of its aria-label attribute, with priority given to the
   // aria-labelledby attribute.
-  // TODO(crbug.com/389631485): The client doesn't set this for model requests at the
-  // moment. But it can and should be used for inference since it is contained
-  // in the metadata pipeline.
   string aria_label = 13 [features = { field_presence: EXPLICIT }];
+
+  // The text of the elements denoted by the aria-describedby attribute of field
+  // or the value of its aria-description attribute, with priority given to the
+  // aria-describedby attribute.
+  string aria_description = 14 [features = { field_presence: EXPLICIT }];
 }
 
 message TableRow {
@@ -996,6 +1016,33 @@ message Coordinate {
   int32 x = 1 [features = { field_presence: EXPLICIT }];
 
   int32 y = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// A meta tag (https://developer.mozilla.org/en-US/docs/Wecrbug.com/HTML/Element/meta).
+// Next ID: 3
+message MetaTag {
+  // The name attribute of the meta tag.
+  string name = 1 [features = { field_presence: EXPLICIT }];
+
+  // The content attribute of the meta tag.
+  string content = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Metadata about a frame.
+// Next ID: 3
+message FrameMetadata {
+  // The URL of the frame.
+  string url = 1 [features = { field_presence: EXPLICIT }];
+
+  repeated MetaTag meta_tags = 2;
+}
+
+// Metadata (URL and meta tags) from page content. Includes data from meta tags
+// for all frames on this page.
+// Next ID: 2
+message PageMetadata {
+  // The main frame is the first entry in the array.
+  repeated FrameMetadata frame_metadata = 1;
 }
 
 // Selection text affinity, part of the a11y snapshot.
@@ -1903,7 +1950,7 @@ enum ContentAttributeType {
 }
 
 // The reason why a node is clickable.
-// Next ID: 12
+// Next ID: 14
 enum ClickabilityReason {
   // The node is a native form control.
   CLICKABILITY_REASON_CLICKABLE_CONTROL = 0;
@@ -1912,8 +1959,9 @@ enum ClickabilityReason {
   CLICKABILITY_REASON_CLICK_HANDLER = 1;
 
   // The node has mouse event handlers like mouseup, mousedown, mouseover and
-  // mouseenter.
-  CLICKABILITY_REASON_MOUSE_EVENTS = 2;
+  // mouseenter. Deprecated in favor of
+  // CLICKABILITY_REASON_MOUSE_CLICK and CLICKABILITY_REASON_MOUSE_HOVER.
+  CLICKABILITY_REASON_MOUSE_EVENTS = 2 [deprecated = true];
 
   // The node has keyboard event handlers like keydown, keypress, keyup.
   CLICKABILITY_REASON_KEY_EVENTS = 3;
@@ -1947,6 +1995,12 @@ enum ClickabilityReason {
   // The node has autocomplete, as indicated by the same-named attribute or
   // aria-autocomplete.
   CLICKABILITY_REASON_AUTOCOMPLETE = 11;
+
+  // The node has mouse event handlers like mouseup and mousedown.
+  CLICKABILITY_REASON_MOUSE_CLICK = 12;
+
+  // The node has mouse event handlers like mouseover and mouseenter.
+  CLICKABILITY_REASON_MOUSE_HOVER = 13;
 }
 
 // Next ID: 5

@@ -26,7 +26,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        trackInfo?.tags?.kind === COUNTER_TRACK_KIND &&
+        trackInfo?.tags?.kinds?.includes(COUNTER_TRACK_KIND) &&
         trackInfo?.tags?.type === 'entity_state'
       ) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
@@ -63,7 +63,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
               state_name,
               count,
               (last - first) / 1e6 AS delta_value,
-              ROUND((last - first)/(${durationSec} * 1e9) * 100, 2) AS rate_percent
+              (last - first)/(${durationSec} * 1e9) AS rate_percent
             FROM aggregated
             GROUP BY track_id, entity_name, state_name
         `;

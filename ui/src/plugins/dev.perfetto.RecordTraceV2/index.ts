@@ -19,6 +19,7 @@ import {AdbWebusbTargetProvider} from './adb/webusb/adb_webusb_target_provider';
 import {ChromeExtensionTargetProvider} from './chrome/chrome_extension_target_provider';
 import {advancedRecordSection} from './pages/advanced';
 import {androidRecordSection} from './pages/android';
+import {perfettoSDKRecordSection} from './pages/perfetto_sdk';
 import {bufferConfigPage} from './pages/buffer_config_page';
 import {chromeRecordSection} from './pages/chrome';
 import {instructionsPage} from './pages/instructions_page';
@@ -28,6 +29,7 @@ import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
 import {stackSamplingRecordSection} from './pages/stack_sampling';
+import {networkRecordSection} from './pages/network';
 import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
@@ -54,6 +56,16 @@ export default class implements PerfettoPlugin {
           app,
           getRecordingManager: () => this.getRecordingManager(app),
         });
+      },
+    });
+    app.commands.registerCommand({
+      id: 'dev.perfetto.RecordTraceV2.disconnectTarget',
+      name: 'Disconnect the current device',
+      callback: () => {
+        const recMgr = this.getRecordingManager(app);
+        if (recMgr.currentTarget) {
+          recMgr.currentTarget.disconnect();
+        }
       },
     });
   }
@@ -84,7 +96,9 @@ export default class implements PerfettoPlugin {
         powerRecordSection(),
         memoryRecordSection(),
         androidRecordSection(),
+        perfettoSDKRecordSection(),
         stackSamplingRecordSection(),
+        networkRecordSection(),
         advancedRecordSection(),
       );
       recMgr.restorePluginStateFromLocalstorage();

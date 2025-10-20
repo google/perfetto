@@ -37,8 +37,11 @@ import {
   FlamegraphState,
   FlamegraphView,
   FlamegraphOptionalAction,
+  FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
+import {sqliteString} from '../base/string_utils';
+import {SharedAsyncDisposable} from '../base/shared_disposable';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -47,8 +50,9 @@ export interface QueryFlamegraphColumn {
   // The human readable name describing the contents of the column.
   readonly displayName: string;
 
-  // Whether the name should be displayed in the UI.
-  readonly isVisible?: boolean;
+  // Function that determines whether the property should be displayed for a
+  // given node.
+  readonly isVisible?: (value: string) => boolean;
 }
 
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
@@ -103,6 +107,13 @@ export interface QueryFlamegraphMetric {
   // Examples include showing a table of objects from a class reference
   // hierarchy.
   readonly optionalRootActions?: ReadonlyArray<FlamegraphOptionalAction>;
+
+  // Optional marker to be displayed on flamegraph nodes. Marker appears as
+  // a visual indicator (small dot) on the left side of nodes and is shown
+  // in the tooltip.
+  //
+  // Examples include marking inlined functions, optimized code, etc.
+  readonly optionalMarker?: FlamegraphOptionalMarker;
 }
 
 export interface QueryFlamegraphState {
@@ -144,16 +155,28 @@ export function metricsFromTableOrSubquery(
 
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
 // data for the widget by querying an `Engine`.
-export class QueryFlamegraph {
+export class QueryFlamegraph implements AsyncDisposable {
   private data?: FlamegraphQueryData;
   private readonly selMonitor = new Monitor([() => this.state.state]);
   private readonly queryLimiter = new AsyncLimiter();
+  private readonly dependencies: ReadonlyArray<
+    SharedAsyncDisposable<AsyncDisposable>
+  >;
 
   constructor(
     private readonly trace: Trace,
     private readonly metrics: ReadonlyArray<QueryFlamegraphMetric>,
     private state: QueryFlamegraphState,
-  ) {}
+    dependencies: ReadonlyArray<AsyncDisposable> = [],
+  ) {
+    this.dependencies = dependencies.map((d) => SharedAsyncDisposable.wrap(d));
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    for (const dependency of this.dependencies ?? []) {
+      await dependency[Symbol.asyncDispose]?.();
+    }
+  }
 
   render() {
     if (this.selMonitor.ifStateChanged()) {
@@ -167,6 +190,15 @@ export class QueryFlamegraph {
       this.data = undefined;
       this.queryLimiter.schedule(async () => {
         this.data = undefined;
+        // Clone all the dependencies to make sure the the are not dropped while
+        // this function is running, adding them to the trash to make sure they
+        // are disposed after this function returns, but note this won't
+        // actually drop the tables unless this class instances have also been
+        // disposed due to the SharedAsyncDisposable logic.
+        await using trash = new AsyncDisposableStack();
+        for (const dependency of this.dependencies ?? []) {
+          trash.use(dependency.clone());
+        }
         this.data = await computeFlamegraphTree(engine, metric, state.state);
       });
     }
@@ -190,6 +222,7 @@ async function computeFlamegraphTree(
     aggregatableProperties,
     optionalNodeActions,
     optionalRootActions,
+    optionalMarker,
   }: QueryFlamegraphMetric,
   {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
@@ -220,7 +253,8 @@ async function computeFlamegraphTree(
   const matchingColumns = ['name', ...unaggCols];
   const matchExpr = (x: string) =>
     matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') like '${makeSqlFilter(x)}' escape '\\')`,
+      (c) =>
+        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
     );
 
   const showStackFilter =
@@ -450,13 +484,26 @@ async function computeFlamegraphTree(
     for (const a of [...agg, ...unagg]) {
       const r = it.get(a.name);
       if (r !== null) {
+        const value = r as string;
         properties.set(a.name, {
           displayName: a.displayName,
-          value: r as string,
-          isVisible: a.isVisible ?? true,
+          value,
+          isVisible: a.isVisible ? a.isVisible(value) : true,
         });
       }
     }
+
+    // Evaluate marker
+    let marker: string | undefined;
+    if (
+      optionalMarker &&
+      optionalMarker.isVisible(
+        new Map([...properties].map(([k, v]) => [k, v.value])),
+      )
+    ) {
+      marker = optionalMarker.name;
+    }
+
     nodes.push({
       id: it.id,
       parentId: it.parentId,
@@ -468,6 +515,7 @@ async function computeFlamegraphTree(
       xStart: it.xStart,
       xEnd: it.xEnd,
       properties,
+      marker,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;
@@ -519,7 +567,7 @@ function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
       case 'ONE_OR_SUMMARY':
         return `
           ${x.name} || IIF(
-            COUNT() = 1,
+            COUNT(DISTINCT ${x.name}) = 1,
             '',
             ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
           ) AS ${x.name}

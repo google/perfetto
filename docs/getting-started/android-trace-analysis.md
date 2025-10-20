@@ -86,11 +86,13 @@ will jump straight to that slice.
 
 Demonstrates:
 
-- Fetching `process_name`, `upid` and `uid`. This data is used to get process level metrics from other tables
+- Fetching `process_name`, `upid` and `uid`. This data is used to get process
+  level metrics from other tables
 - Using UPID for getting process specific metrics from other tables
 - Using `GLOB` for regex based queries
 
-Knowing details like process name, package name or UPID come in handy as they serve as a basis for many other queries in Perfetto.
+Knowing details like process name, package name or UPID come in handy as they
+serve as a basis for many other queries in Perfetto.
 
 ```sql
 INCLUDE PERFETTO MODULE android.process_metadata;
@@ -103,15 +105,25 @@ SELECT
 FROM android_process_metadata
 WHERE process_name GLOB '*Camera*'; -- GLOB search is case sensitive
 ```
+
 Result:
 
 ![](/docs/images/analysis-cookbook-process-metadata.png)
 
-**Note:** In case you don’t see the expected process, it may be happening because `GLOB` search is case sensitive.  So if you are not sure about your process name, it is worth doing `select upid, process_name, package_name, uid from android_process_metadata` to find the UPID of your process.
+**Note:** In case you don’t see the expected process, it may be happening
+because `GLOB` search is case sensitive. So if you are not sure about your
+process name, it is worth doing
+`select upid, process_name, package_name, uid from android_process_metadata` to
+find the UPID of your process.
 
+**UPID** is the unique process ID which remains constant throughout the duration
+of the trace as opposed to the PID (process ID) which can change. Many
+[standard library tables](https://perfetto.dev/docs/analysis/stdlib-docs) in
+Perfetto such as `android_lmk_events`, `cpu_cycles_per_process` etc use UPID to
+point to processes. This comes in handy specially when you need data filtered
+against your process. UPID is also useful for performing `JOIN` operations with
+other tables. Example for getting the cold start reason for GoogleCamera:
 
-**UPID** is the unique process ID which remains constant throughout the duration of the trace as opposed to the PID (process ID) which can change.
-Many [standard library tables](https://perfetto.dev/docs/analysis/stdlib-docs) in Perfetto such as `android_lmk_events`,  `cpu_cycles_per_process` etc use UPID to point to processes. This comes in handy specially when you need data filtered against your process. UPID is also useful for performing `JOIN` operations with other tables. Example for getting the cold start reason for GoogleCamera:
 ```sql
 INCLUDE PERFETTO MODULE android.app_process_starts;
 INCLUDE PERFETTO MODULE time.conversion;
@@ -127,7 +139,11 @@ FROM android_app_process_starts
 WHERE upid = 844;
 ```
 
-**UID** is the Android app User ID is also useful. In cases where a `package_name` does **not** exist, standard library tables are populated in the format `uid=$X`. For example, `android_network_packets`. Example for getting network bytes transmitted for a process:
+**UID** is the Android app User ID is also useful. In cases where a
+`package_name` does **not** exist, standard library tables are populated in the
+format `uid=$X`. For example, `android_network_packets`. Example for getting
+network bytes transmitted for a process:
+
 ```sql
 include perfetto module android.network_packets;
 
@@ -136,6 +152,59 @@ SELECT
 FROM android_network_packets
 WHERE package_name = 'uid=12332';
 ```
+
+## Querying memory usage {#memory-metrics}
+
+Demonstrates:
+
+- Using Perfetto standard library modules for memory analysis
+- Querying memory usage per process
+- Finding peak memory usage during a trace
+
+Android provides comprehensive memory tracking through various metrics including
+RSS (Resident Set Size), swap usage, and oom_score_adj
+([OOM-killer adjustment scores](https://man7.org/linux/man-pages/man5/proc_pid_oom_score_adj.5.html),
+a measure of process importance). The `android.memory.process` module provides
+standardized tables for analyzing memory consumption patterns.
+
+To query memory usage for a specific process like SystemUI:
+
+```sql
+INCLUDE PERFETTO MODULE android.memory.process;
+
+SELECT *
+FROM memory_oom_score_with_rss_and_swap_per_process
+WHERE process_name GLOB 'com.android.systemui*';
+```
+
+### Finding peak memory usage
+
+To compute the peak memory usage for a process during the trace, use the `MAX`
+aggregation. We highly recommend using `anon_rss_and_swap` as the primary metric
+as it captures most failure conditions of "my app is using a lot of memory".
+Note it doesn't track file/shmem, so if those are important to you, you should
+use those metrics as well:
+
+```sql
+INCLUDE PERFETTO MODULE android.memory.process;
+
+SELECT
+  process_name,
+  -- Recommended: Anonymous memory + swap is the best indicator of app memory
+  -- pressure
+  MAX(anon_rss_and_swap) / 1024.0 AS peak_anon_rss_and_swap_mb,
+  -- FYI: Other memory metrics for additional context
+  MAX(anon_rss) / 1024.0 AS peak_anon_rss_mb,
+  MAX(file_rss) / 1024.0 AS peak_file_rss_mb,
+  MAX(swap) / 1024.0 AS peak_swap_mb
+FROM memory_oom_score_with_rss_and_swap_per_process
+WHERE process_name GLOB 'com.android.systemui*'
+GROUP BY process_name;
+```
+
+**Note:** For comprehensive documentation on available memory tables and
+metrics, refer to the
+[Android Memory Process module documentation](https://perfetto.dev/docs/analysis/stdlib-docs#android-memory-process).
 
 ## Find top causes for uninterruptible sleep
 
@@ -374,7 +443,9 @@ assigned to different groups:
 
 ## State of background jobs
 
-Use `android_job_scheduler_states` table in Perfetto to collect job duration and error metrics for jobs to identify whether background jobs are running as expected.
+Use `android_job_scheduler_states` table in Perfetto to collect job duration and
+error metrics for jobs to identify whether background jobs are running as
+expected.
 
 Demonstrates:
 
@@ -383,9 +454,17 @@ Demonstrates:
 - Including Perfetto modules for SQL queries
 - Converting duration to milliseconds using `time_to_ms` function
 
-JobScheduler is an Android system service that helps apps schedule background tasks (like data syncs or file downloads) efficiently. In Android development, *Background jobs* generally refer to any work that an application needs to perform without directly interacting with the user interface. This could include tasks like syncing data with a server, downloading files, processing images, sending analytics, or performing database operations.
+JobScheduler is an Android system service that helps apps schedule background
+tasks (like data syncs or file downloads) efficiently. In Android development,
+_Background jobs_ generally refer to any work that an application needs to
+perform without directly interacting with the user interface. This could include
+tasks like syncing data with a server, downloading files, processing images,
+sending analytics, or performing database operations.
 
-To collect data for background jobs in `android_job_scheduler_states` table, you will need the following snippet in your Perfetto configuration when recording traces:
+To collect data for background jobs in `android_job_scheduler_states` table, you
+will need the following snippet in your Perfetto configuration when recording
+traces:
+
 ```
 data_sources {
   config {
@@ -413,9 +492,15 @@ WHERE package_name = 'com.google.android.adservices.api'
 GROUP BY job_name, job_id, internal_stop_reason, package_name;
 ```
 
-Long durations, frequent errors and retries indicate issues within your background jobs themselves (e.g., bugs in your code, unhandled exceptions, incorrect data processing). They can lead to increased resource consumption, battery drain and data usage on the user's device.
+Long durations, frequent errors and retries indicate issues within your
+background jobs themselves (e.g., bugs in your code, unhandled exceptions,
+incorrect data processing). They can lead to increased resource consumption,
+battery drain and data usage on the user's device.
 
-Long queue times mean your background jobs are waiting too long to execute. This can have downstream effects. For instance, if a job is responsible for syncing user data, long queue times could lead to stale information being displayed to the user or a delay in critical updates.
+Long queue times mean your background jobs are waiting too long to execute. This
+can have downstream effects. For instance, if a job is responsible for syncing
+user data, long queue times could lead to stale information being displayed to
+the user or a delay in critical updates.
 
 Result
 
@@ -423,7 +508,9 @@ Result
 
 ## Get CPU Utilization and processing information
 
-To collect data related to events on CPU and utilization, you will need the following snippet in your Perfetto configuration when recording traces:
+To collect data related to events on CPU and utilization, you will need the
+following snippet in your Perfetto configuration when recording traces:
+
 ```
 data_sources {
   config {
@@ -471,7 +558,12 @@ data_sources {
 
 ### Process Level CPU utilization
 
-CPU utilization for an Android device refers to the percentage of time the device's CPU is actively working to execute instructions and run programs. CPU utilization can be measured using CPU cycles which is directly proportional to the time taken by the CPU to complete a task. High CPU utilization by a specific Android process indicates that it is demanding a significant portion of the CPU's processing power.
+CPU utilization for an Android device refers to the percentage of time the
+device's CPU is actively working to execute instructions and run programs. CPU
+utilization can be measured using CPU cycles which is directly proportional to
+the time taken by the CPU to complete a task. High CPU utilization by a specific
+Android process indicates that it is demanding a significant portion of the
+CPU's processing power.
 
 ```sql
 INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
@@ -495,6 +587,7 @@ Result:
 ### Slice Level CPU utilisation
 
 To see cpu utilisation for an interesting slice, use the following query:
+
 ```sql
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
@@ -507,6 +600,7 @@ GROUP BY slice_name;
 ```
 
 Or to check slice utilization for all the slices of your process:
+
 ```sql
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
@@ -526,9 +620,12 @@ Result:
 
 ### The number of times cpu exits idle state
 
-When the CPU is idle, it enters a low-power state to conserve energy. Wake-ups disrupt this state, forcing the CPU to ramp up its activity and consume more power.
+When the CPU is idle, it enters a low-power state to conserve energy. Wake-ups
+disrupt this state, forcing the CPU to ramp up its activity and consume more
+power.
 
 The number of times cpu exits idle state during the trace duration:
+
 ```sql
 select
   COUNT(*) as num_idle_exits
@@ -539,17 +636,24 @@ WHERE t.name = 'cpuidle'
 AND value = 4294967295;
 ```
 
-Value 4294967295 (0xffffffff) represents [back to not-idle](https://perfetto.dev/docs/data-sources/cpu-freq#sql).
+Value 4294967295 (0xffffffff) represents
+[back to not-idle](https://perfetto.dev/docs/data-sources/cpu-freq#sql).
 
-When a process wakes the CPU from idle state excessively, it can have the following adverse effects:
+When a process wakes the CPU from idle state excessively, it can have the
+following adverse effects:
+
 1. Battery drain: Frequent wake-ups can significantly drain the battery
-2. Latency: Waking up the CPU from idle introduces latency, as it takes time for the CPU to transition from a low-power state to an active state.
-3. Context Switching: Each wake-up might involve context switching, where the CPU has to save the state of the current task and load the state of the new task, further adding to the overhead.
-
+2. Latency: Waking up the CPU from idle introduces latency, as it takes time for
+   the CPU to transition from a low-power state to an active state.
+3. Context Switching: Each wake-up might involve context switching, where the
+   CPU has to save the state of the current task and load the state of the new
+   task, further adding to the overhead.
 
 ### Number of events scheduled on the cpu by your process
 
-To see if your process's threads are being evenly distributed across available CPU cores you can check the number of events scheduled on the cpu by your process per cpu core:
+To see if your process's threads are being evenly distributed across available
+CPU cores you can check the number of events scheduled on the cpu by your
+process per cpu core:
 
 ```sql
 SELECT

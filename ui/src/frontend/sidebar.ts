@@ -42,7 +42,6 @@ import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
 import {SidebarMenuItemInternal} from '../core/sidebar_manager';
 import {exists, getOrCreate} from '../base/utils';
-import {copyToClipboard} from '../base/clipboard';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
@@ -483,6 +482,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     }
     return m(
       'li',
+      {key: item.id}, // This is to work around a mithril bug (b/449784590).
       m(
         'a',
         {
@@ -583,27 +583,31 @@ function registerTraceMenuItems(trace: TraceImpl) {
   traceTitle &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
+      sortOrder: 1,
       text: traceTitle,
-      href: trace.traceInfo.traceUrl,
-      action: () => copyToClipboard(trace.traceInfo.traceUrl),
-      tooltip: 'Click to copy the URL',
+      action: () => {
+        // Do nothing (we need to supply an action to override the href).
+      },
       cssClass: 'pf-sidebar__trace-file-name',
     });
   trace.sidebar.addMenuItem({
     section: 'current_trace',
-    text: 'Show timeline',
+    sortOrder: 10,
+    text: 'Timeline',
     href: '#!/viewer',
     icon: 'line_style',
   });
   AppImpl.instance.isInternalUser &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
+      sortOrder: 50,
       text: 'Share',
       action: async () => await shareTrace(trace),
       icon: 'share',
     });
   trace.sidebar.addMenuItem({
     section: 'current_trace',
+    sortOrder: 51,
     text: 'Download',
     action: () => downloadTrace(trace),
     icon: 'file_download',

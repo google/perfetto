@@ -25,9 +25,9 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -155,11 +155,12 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                              "UNKNOWN_SEVERITY") /* must be last */}},
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
-void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
+void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
   GpuCounterEvent::Decoder event(blob);
-
+  if (!event.has_counter_descriptor()) {
+    return;
+  }
   GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
-  // Add counter spec to ID map.
   for (auto it = descriptor.specs(); it; ++it) {
     GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
     if (!spec.has_counter_id()) {
@@ -180,7 +181,7 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       StringId unit_id = kNullStringId;
       if (spec.has_numerator_units() || spec.has_denominator_units()) {
         char buffer[1024];
-        base::StringWriter unit(buffer, sizeof(buffer));
+        base::FixedStringWriter unit(buffer, sizeof(buffer));
         for (auto number = spec.numerator_units(); number; ++number) {
           if (unit.pos()) {
             unit.AppendChar(':');
@@ -229,7 +230,10 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
     }
   }
+}
 
+void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
+  GpuCounterEvent::Decoder event(blob);
   for (auto it = event.counters(); it; ++it) {
     GpuCounterEvent::GpuCounter::Decoder counter(*it);
     if (counter.has_counter_id() &&
@@ -345,7 +349,7 @@ StringId GpuEventParser::ParseRenderSubpasses(
     return kNullStringId;
   }
   char buf[256];
-  base::StringWriter writer(buf, sizeof(buf));
+  base::FixedStringWriter writer(buf, sizeof(buf));
   uint32_t bit_index = 0;
   bool first = true;
   for (auto it = event.render_subpass_index_mask(); it; ++it) {

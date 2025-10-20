@@ -18,10 +18,7 @@ import {clamp} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {
-  DatasetSliceTrack,
-  renderTooltip,
-} from '../../components/tracks/dataset_slice_track';
+import {SliceTrack, renderTooltip} from '../../components/tracks/slice_track';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -53,6 +50,7 @@ const schema = {
   category: STR_NULL,
   correlation_id: STR_NULL,
   arg_set_id: NUM_NULL,
+  parent_id: NUM_NULL,
 };
 
 export async function createTraceProcessorSliceTrack({
@@ -62,7 +60,7 @@ export async function createTraceProcessorSliceTrack({
   trackIds,
   detailsPanel,
 }: TraceProcessorSliceTrackAttrs) {
-  return new DatasetSliceTrack({
+  return SliceTrack.create({
     trace,
     uri,
     dataset: await getDataset(trace.engine, trackIds),
@@ -117,7 +115,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           track_id,
           category,
           extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id
+          arg_set_id,
+          parent_id
         from slice
       `,
       filter: {
@@ -154,7 +153,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           track_id,
           category,
           extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id
+          arg_set_id,
+          parent_id
         from slice
         join ${tableName} d using (id)
       `,

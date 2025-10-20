@@ -27,7 +27,10 @@ extern "C" {
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h"
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash.h"
 
+// SQLite tokenizer configuration constants
+// These constants must match the values used in SQLite's tokenizer
 #define SQLITE_ASCII 1
+#define SQLITE_DIGIT_SEPARATOR '_'
 
 const unsigned char sqlite3CtypeMap[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 00..07    ........ */

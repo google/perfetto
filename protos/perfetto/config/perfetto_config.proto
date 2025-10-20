@@ -46,6 +46,7 @@ message GpuCounterDescriptor {
     // Includes counters relating to caching and bandwidth.
     MEMORY = 5;
     COMPUTE = 6;
+    RAY_TRACING = 7;
   }
 
   message GpuCounterSpec {
@@ -1017,7 +1018,10 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }
+
 // End of protos/perfetto/config/etw/etw_config.proto
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
@@ -1031,7 +1035,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 38
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1168,6 +1172,11 @@ message FtraceConfig {
   // If true, use self-describing proto messages when writing events not known
   // at compile time (aka generic events). Each event bundle will have a set of
   // serialised proto descriptors for events within that bundle.
+  //
+  // Default if unset:
+  // * v53+: true
+  // * before v53: false
+  //
   // Added in: perfetto v50.
   optional bool denser_generic_event_encoding = 32;
 
@@ -1284,6 +1293,83 @@ message FtraceConfig {
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
+
+  // =================================================
+  // Exclusive single-tenant features: HERE BE DRAGONS
+  // =================================================
+  // The features below are considered "advanced" and require an exclusive
+  // tracing session (as of Android 25Q3+ and Perfetto v52).
+  //
+  // These features directly manipulate the kernel's global ftrace state and
+  // are incompatible with concurrent ftrace sessions. They are only enabled
+  // if included in the *first* ftrace data source configured. Subsequent
+  // ftrace data sources (even those not using advanced features) will be
+  // rejected while a session with these features is active.
+  //
+  // To run the session in exclusive mode, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+
+  // Filter ftrace events by Thread ID (TID).
+  // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  repeated uint32 tids_to_trace = 35;
+
+  // Tracefs options to set directly in the tracefs instance. This is a very
+  // niche feature since almost all of the options deal with formatting textual
+  // output (the /trace file), which perfetto doesn't use.
+  //
+  // The options with a known use-case:
+  // * event-fork: when using `tids_to_trace` above, the kernel will
+  //   automatically add newly spawned descendant threads to the set of TIDs.
+  //
+  // Full list of options is available at
+  // https://docs.kernel.org/trace/ftrace.html#trace-options.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  message TracefsOption {
+    enum State {
+      STATE_UNKNOWN = 0;
+      STATE_ENABLED = 1;
+      STATE_DISABLED = 2;
+    }
+    // The name of the tracefs option as found in tracefs/trace_options (without
+    // the "no" prefix).
+    optional string name = 1;
+    optional State state = 2;
+  }
+  repeated TracefsOption tracefs_options = 36;
+
+  // This mask restricts tracing to a specific set of CPUs using a
+  // comma-separated hex mask. Each hex number (up to 8 digits) represents a
+  // 32-bit chunk of the CPU mask.
+  //
+  // The chunks are ordered from high CPUs to low CPUs (left to right):
+  //    - Rightmost chunk: CPUs 0-31
+  //    - 2nd chunk from right: CPUs 32-63
+  //    - ...and so on.
+  //
+  // Example (assuming NR_CPUS=128, requiring 4 chunks):
+  // The full mask would be in the format: "chunk3,chunk2,chunk1,chunk0"
+  // where chunk3 maps to CPUs 96-127, chunk2 to 64-95, chunk1 to 32-63, and
+  // chunk0 to 0-31.
+  //    - "ffffffff,0,0,0": Enables CPUs 96-127 only.
+  //    - "f,ff": Enables CPUs 0-7 (from "ff") and CPUs 32-35 (from "f").
+  //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional string tracing_cpumask = 37;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
@@ -1820,7 +1906,7 @@ message PerfEvents {
   // The primary event to count. If recording multiple events, this
   // counter is the "group leader".
   // Commented from the perspective of its use in |PerfEventConfig|.
-  // Next id: 12
+  // Next id: 13
   message Timebase {
     // How often to snapshot the counter, along with any follower events and
     // any additional sampled data such as callstacks.
@@ -1868,6 +1954,12 @@ message PerfEvents {
       Tracepoint tracepoint = 3;
       RawEvent raw_event = 5;
     }
+
+    // Optional modifiers for the event. Modelled after the perftool's
+    // https://man7.org/linux/man-pages/man1/perf-list.1.html#EVENT_MODIFIERS
+    // Currently supported: count scoping such as :u, :k, :uk, ...
+    // Modifiers can differ between the timebase and followers.
+    repeated EventModifier modifiers = 12;
 
     // If set, samples will be timestamped with the given clock.
     // If unset, the clock is chosen by the implementation.
@@ -1968,18 +2060,31 @@ message PerfEvents {
     PERF_CLOCK_MONOTONIC_RAW = 3;
     PERF_CLOCK_BOOTTIME = 4;
   }
+
+  enum EventModifier {
+    UNKNOWN_EVENT_MODIFIER = 0;
+    // count only while in userspace
+    EVENT_MODIFIER_COUNT_USERSPACE = 1;
+    // count only while in kernel
+    EVENT_MODIFIER_COUNT_KERNEL = 2;
+    // count only while in hypervisor
+    EVENT_MODIFIER_COUNT_HYPERVISOR = 3;
+  }
 }
 
 // Additional events associated with a leader.
-// Configuration is similar to Timebase event. Because data acquisition is
-// driven by the leader there is no option to configure the clock or the
-// frequency.
+// See https://man7.org/linux/man-pages/man1/perf-list.1.html#LEADER_SAMPLING
 message FollowerEvent {
   oneof event {
     PerfEvents.Counter counter = 1;
     PerfEvents.Tracepoint tracepoint = 2;
     PerfEvents.RawEvent raw_event = 3;
   }
+  // Modifiers can differ between the timebase and followers.
+  repeated PerfEvents.EventModifier modifiers = 5;
+  // Optional arbitrary name for the event, to identify it in the parsed
+  // trace. Does *not* affect the profiling itself. If unset, the trace
+  // parser will choose a suitable name.
   optional string name = 4;
 }
 
@@ -3853,6 +3958,13 @@ message TrackEventConfig {
   // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
   // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
+
+  // When enable_thread_time_sampling is true, and this is specified, thread
+  // time is sampled only if the elapsed wall time >
+  // `thread_time_subsampling_ns`. Otherwise, thread time is considered nil.
+  // Effectively, this means thread time will have a leeway of
+  // `thread_time_subsampling_ns` and won't be emitted for shorter events.
+  optional uint64 thread_time_subsampling_ns = 10;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
   // When true, event_names wrapped in perfetto::DynamicString will be filtered

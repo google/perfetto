@@ -4079,6 +4079,7 @@ packet {
       elapsed_realtime_nanos: 558884171862
       where: "WindowAnimator"
       window_manager_service {
+        focused_display_id: 2
         policy {
           orientation: SCREEN_ORIENTATION_UNSPECIFIED
           screen_on_fully: true

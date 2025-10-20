@@ -27,7 +27,7 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
   probe(area: AreaSelection) {
     const selectedCpus: number[] = [];
     for (const trackInfo of area.tracks) {
-      trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND &&
+      trackInfo?.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND) &&
         exists(trackInfo.tags.cpu) &&
         selectedCpus.push(trackInfo.tags.cpu);
     }
@@ -71,9 +71,9 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
             GROUP BY upid
           ),
           secondary AS (
-            SELECT pid,
-              ROUND(100 * (total_mws) / (SUM(total_mws) OVER()), 3)
-                AS percent_of_total_energy
+            SELECT
+              pid,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
             FROM base
             GROUP BY pid
           )

@@ -98,7 +98,7 @@ export interface Dataset<T extends DatasetSchema = DatasetSchema> {
    *
    * @param schema - The schema to test against.
    */
-  implements(schema: DatasetSchema): boolean;
+  implements<T extends DatasetSchema>(schema: T): this is Dataset<T>;
 }
 
 /**
@@ -157,12 +157,12 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
   query(schema?: DatasetSchema) {
     schema = schema ?? this.schema;
     const cols = Object.keys(schema);
-    const selectSql = `select ${cols.join(', ')} from (${this.src})`;
+    const selectSql = `SELECT ${cols.join(', ')} FROM (${this.src})`;
     const filterSql = this.filterQuery();
     if (filterSql === undefined) {
       return selectSql;
     }
-    return `${selectSql} where ${filterSql}`;
+    return `${selectSql} WHERE ${filterSql}`;
   }
 
   optimize() {
@@ -170,7 +170,7 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
     return this;
   }
 
-  implements(required: DatasetSchema) {
+  implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
     return Object.entries(required).every(([name, required]) => {
       return name in this.schema && checkExtends(required, this.schema[name]);
     });
@@ -184,7 +184,7 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
     if ('eq' in this.filter) {
       return `${this.filter.col} = ${sqlValueToSqliteString(this.filter.eq)}`;
     } else if ('in' in this.filter) {
-      return `${this.filter.col} in (${sqlValueToSqliteString(this.filter.in)})`;
+      return `${this.filter.col} IN (${sqlValueToSqliteString(this.filter.in)})`;
     } else {
       assertUnreachable(this.filter);
     }
@@ -199,12 +199,28 @@ export class SourceDataset<T extends DatasetSchema = DatasetSchema>
 const MAX_SUBQUERIES_PER_UNION = 500;
 
 /**
+ * Classes are useless in TypeScript so we need to provide a factory function
+ * helper which provides the correct typing for the resultant union dataset
+ * based on the input datasets.
+ *
+ * @param datasets - The datasets to union together.
+ * @returns - A new union dataset representing the union of the input datasets.
+ */
+export function createUnionDataset<T extends readonly Dataset[]>(
+  datasets: T,
+): UnionDataset<T[number]['schema']> {
+  return new UnionDataset(datasets);
+}
+
+/**
  * A dataset that represents the union of multiple datasets.
  */
-export class UnionDataset implements Dataset {
+export class UnionDataset<T extends DatasetSchema = DatasetSchema>
+  implements Dataset<T>
+{
   constructor(readonly union: ReadonlyArray<Dataset>) {}
 
-  get schema(): DatasetSchema {
+  get schema(): T {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
     let unionSchema: Record<string, SqlValue> | undefined = undefined;
@@ -226,7 +242,8 @@ export class UnionDataset implements Dataset {
         unionSchema = newSch;
       }
     });
-    return unionSchema ?? {};
+    const result = unionSchema ?? {};
+    return result as T;
   }
 
   query(schema?: DatasetSchema): string {
@@ -267,7 +284,7 @@ export class UnionDataset implements Dataset {
     return sql;
   }
 
-  optimize(): Dataset {
+  optimize(): Dataset<T> {
     // Recursively optimize each dataset of this union
     const optimizedUnion = this.union.map((ds) => ds.optimize());
 
@@ -317,13 +334,13 @@ export class UnionDataset implements Dataset {
     const finalUnion = [...mergedSrcSets, ...otherDatasets];
 
     if (finalUnion.length === 1) {
-      return finalUnion[0];
+      return finalUnion[0] as Dataset<T>;
     } else {
       return new UnionDataset(finalUnion);
     }
   }
 
-  implements(required: DatasetSchema) {
+  implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
     return Object.entries(required).every(([name, required]) => {
       return name in this.schema && checkExtends(required, this.schema[name]);
     });

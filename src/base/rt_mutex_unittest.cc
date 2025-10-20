@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/ext/base/rt_mutex.h"
+#include "perfetto/ext/base/flags.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -35,6 +36,10 @@ using RtMutexTestTypes = testing::Types<std::mutex
                                         ,
                                         internal::RtPosixMutex
 #endif
+#if PERFETTO_HAS_RT_FUTEX()
+                                        ,
+                                        internal::RtFutex
+#endif
                                         >;
 
 class NameGenerator {
@@ -46,6 +51,10 @@ class NameGenerator {
 #if PERFETTO_HAS_POSIX_RT_MUTEX()
     if constexpr (std::is_same_v<T, internal::RtPosixMutex>)
       return "RtPosix";
+#endif
+#if PERFETTO_HAS_RT_FUTEX()
+    if constexpr (std::is_same_v<T, internal::RtFutex>)
+      return "RtFutex";
 #endif
   }
 };

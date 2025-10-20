@@ -94,6 +94,7 @@ from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
+from diff_tests.parser.pprof.tests_pprof import PprofParser
 from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -108,6 +109,7 @@ from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfil
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
+from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
@@ -123,7 +125,9 @@ from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
 from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
+from diff_tests.stdlib.prelude.unhex import UnHex
 from diff_tests.stdlib.android.memory import AndroidMemory
+from diff_tests.stdlib.android.network_packets import AndroidNetworkPackets
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
@@ -144,6 +148,7 @@ from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
+from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
@@ -217,6 +222,7 @@ def fetch_all_diff_tests(
       ProfilingLlvmSymbolizer,
       SchedParser,
       Simpleperf,
+      SimpleperfProtoParser,
       StdlibSched,
       Smoke,
       SmokeComputeMetrics,
@@ -252,6 +258,7 @@ def fetch_all_diff_tests(
       ArtHprofParser,
       ArtMethodParser,
       PerfTextParser,
+      PprofParser,
   ]
 
   metrics_tests = [
@@ -279,9 +286,11 @@ def fetch_all_diff_tests(
 
   stdlib_tests = [
       AndroidMemory,
+      AndroidNetworkPackets,
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
+      ArgsFunctions,
       CpuClusters,
       Battery,
       DesktopMode,
@@ -299,6 +308,7 @@ def fetch_all_diff_tests(
       Memory,
       PreludeMathFunctions,
       HeapGraph,
+      UnHex,
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,

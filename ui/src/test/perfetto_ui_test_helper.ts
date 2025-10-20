@@ -23,6 +23,7 @@ import path from 'path';
 import {IdleDetectorWindow} from '../frontend/idle_detector_interface';
 import {assertExists} from '../base/logging';
 import {Size2D} from '../base/geom';
+import {AppImpl} from '../core/app_impl';
 
 // Define the locators for elements you always want to mask.
 const GLOBAL_MASKS: ((page: Page) => Locator)[] = [
@@ -120,6 +121,12 @@ export class PerfettoTestHelper {
     await this.page.evaluate(
       (arg) => self.app.commands.runCommand(arg.cmdId, ...arg.args),
       {cmdId, args},
+    );
+  }
+
+  async disableOmniboxPrompt() {
+    await this.page.evaluate(() =>
+      (self.app as AppImpl).omnibox.disablePrompts(),
     );
   }
 

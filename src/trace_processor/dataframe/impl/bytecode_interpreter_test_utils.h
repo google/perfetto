@@ -75,8 +75,13 @@ struct Fetcher : ValueFetcher {
   uint32_t i = 0;
 };
 
-inline std::string FixNegativeAndDecimal(const std::string& str) {
-  return base::ReplaceAll(base::ReplaceAll(str, ".", "_"), "-", "neg_");
+inline std::string FixNegativeAndDecimalAndDouble(const std::string& str) {
+  std::vector<std::string> replace_with_underscore = {".", "(", ")"};
+  std::string result = str;
+  for (const auto& to_replace : replace_with_underscore) {
+    result = base::ReplaceAll(result, to_replace, "_");
+  }
+  return base::ReplaceAll(result, "-", "neg_");
 }
 
 inline std::string ValToString(const FilterValue& value) {
@@ -85,11 +90,11 @@ inline std::string ValToString(const FilterValue& value) {
       return "nullptr";
     case base::variant_index<FilterValue, int64_t>(): {
       auto res = base::unchecked_get<int64_t>(value);
-      return FixNegativeAndDecimal(std::to_string(res));
+      return FixNegativeAndDecimalAndDouble(std::to_string(res));
     }
     case base::variant_index<FilterValue, double>(): {
       auto res = base::unchecked_get<double>(value);
-      return FixNegativeAndDecimal(std::to_string(res));
+      return FixNegativeAndDecimalAndDouble(std::to_string(res));
     }
     case base::variant_index<FilterValue, const char*>():
       return {base::unchecked_get<const char*>(value)};
@@ -128,23 +133,24 @@ inline std::string ResultToString(const CastFilterValueResult& res) {
                                CastFilterValueResult::Id>(): {
         const auto& id =
             base::unchecked_get<CastFilterValueResult::Id>(res.value);
-        return "Id_" + FixNegativeAndDecimal(std::to_string(id.value));
+        return "Id_" + FixNegativeAndDecimalAndDouble(std::to_string(id.value));
       }
       case base::variant_index<CastFilterValueResult::Value, uint32_t>(): {
         const auto& uint32 = base::unchecked_get<uint32_t>(res.value);
-        return "Uint32_" + FixNegativeAndDecimal(std::to_string(uint32));
+        return "Uint32_" +
+               FixNegativeAndDecimalAndDouble(std::to_string(uint32));
       }
       case base::variant_index<CastFilterValueResult::Value, int32_t>(): {
         const auto& int32 = base::unchecked_get<int32_t>(res.value);
-        return "Int32_" + FixNegativeAndDecimal(std::to_string(int32));
+        return "Int32_" + FixNegativeAndDecimalAndDouble(std::to_string(int32));
       }
       case base::variant_index<CastFilterValueResult::Value, int64_t>(): {
         const auto& int64 = base::unchecked_get<int64_t>(res.value);
-        return "Int64_" + FixNegativeAndDecimal(std::to_string(int64));
+        return "Int64_" + FixNegativeAndDecimalAndDouble(std::to_string(int64));
       }
       case base::variant_index<CastFilterValueResult::Value, double>(): {
         const auto& d = base::unchecked_get<double>(res.value);
-        return "Double_" + FixNegativeAndDecimal(std::to_string(d));
+        return "Double_" + FixNegativeAndDecimalAndDouble(std::to_string(d));
       }
       case base::variant_index<CastFilterValueResult::Value, const char*>(): {
         return base::unchecked_get<const char*>(res.value);

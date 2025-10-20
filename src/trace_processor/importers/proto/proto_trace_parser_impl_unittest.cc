@@ -117,7 +117,6 @@ using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IgnoreResult;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::InvokeArgument;
 using ::testing::NiceMock;
 using ::testing::Pointwise;
@@ -270,7 +269,9 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    clock_ = new ClockTracker(&context_);
+    std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_);
+    clock_ = new ClockTracker(std::move(clock_tracker_listener));
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(

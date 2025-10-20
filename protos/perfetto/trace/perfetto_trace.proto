@@ -46,6 +46,7 @@ message GpuCounterDescriptor {
     // Includes counters relating to caching and bandwidth.
     MEMORY = 5;
     COMPUTE = 6;
+    RAY_TRACING = 7;
   }
 
   message GpuCounterSpec {
@@ -1017,7 +1018,10 @@ message EtwConfig {
   repeated string scheduler_provider_events = 2;
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
+  // Provides events relating to file I/O.
+  repeated string file_provider_events = 4;
 }
+
 // End of protos/perfetto/config/etw/etw_config.proto
 
 // Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
@@ -1031,7 +1035,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 38
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1168,6 +1172,11 @@ message FtraceConfig {
   // If true, use self-describing proto messages when writing events not known
   // at compile time (aka generic events). Each event bundle will have a set of
   // serialised proto descriptors for events within that bundle.
+  //
+  // Default if unset:
+  // * v53+: true
+  // * before v53: false
+  //
   // Added in: perfetto v50.
   optional bool denser_generic_event_encoding = 32;
 
@@ -1284,6 +1293,83 @@ message FtraceConfig {
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
+
+  // =================================================
+  // Exclusive single-tenant features: HERE BE DRAGONS
+  // =================================================
+  // The features below are considered "advanced" and require an exclusive
+  // tracing session (as of Android 25Q3+ and Perfetto v52).
+  //
+  // These features directly manipulate the kernel's global ftrace state and
+  // are incompatible with concurrent ftrace sessions. They are only enabled
+  // if included in the *first* ftrace data source configured. Subsequent
+  // ftrace data sources (even those not using advanced features) will be
+  // rejected while a session with these features is active.
+  //
+  // To run the session in exclusive mode, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+
+  // Filter ftrace events by Thread ID (TID).
+  // This writes the TIDs to `/sys/kernel/tracing/set_event_pid`.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  repeated uint32 tids_to_trace = 35;
+
+  // Tracefs options to set directly in the tracefs instance. This is a very
+  // niche feature since almost all of the options deal with formatting textual
+  // output (the /trace file), which perfetto doesn't use.
+  //
+  // The options with a known use-case:
+  // * event-fork: when using `tids_to_trace` above, the kernel will
+  //   automatically add newly spawned descendant threads to the set of TIDs.
+  //
+  // Full list of options is available at
+  // https://docs.kernel.org/trace/ftrace.html#trace-options.
+  //
+  // Note: this is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  message TracefsOption {
+    enum State {
+      STATE_UNKNOWN = 0;
+      STATE_ENABLED = 1;
+      STATE_DISABLED = 2;
+    }
+    // The name of the tracefs option as found in tracefs/trace_options (without
+    // the "no" prefix).
+    optional string name = 1;
+    optional State state = 2;
+  }
+  repeated TracefsOption tracefs_options = 36;
+
+  // This mask restricts tracing to a specific set of CPUs using a
+  // comma-separated hex mask. Each hex number (up to 8 digits) represents a
+  // 32-bit chunk of the CPU mask.
+  //
+  // The chunks are ordered from high CPUs to low CPUs (left to right):
+  //    - Rightmost chunk: CPUs 0-31
+  //    - 2nd chunk from right: CPUs 32-63
+  //    - ...and so on.
+  //
+  // Example (assuming NR_CPUS=128, requiring 4 chunks):
+  // The full mask would be in the format: "chunk3,chunk2,chunk1,chunk0"
+  // where chunk3 maps to CPUs 96-127, chunk2 to 64-95, chunk1 to 32-63, and
+  // chunk0 to 0-31.
+  //    - "ffffffff,0,0,0": Enables CPUs 96-127 only.
+  //    - "f,ff": Enables CPUs 0-7 (from "ff") and CPUs 32-35 (from "f").
+  //
+  // Note: This is an exclusive feature, see:
+  // https://perfetto.dev/docs/learning-more/android#exclusive-tracing-sessions.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional string tracing_cpumask = 37;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
@@ -1820,7 +1906,7 @@ message PerfEvents {
   // The primary event to count. If recording multiple events, this
   // counter is the "group leader".
   // Commented from the perspective of its use in |PerfEventConfig|.
-  // Next id: 12
+  // Next id: 13
   message Timebase {
     // How often to snapshot the counter, along with any follower events and
     // any additional sampled data such as callstacks.
@@ -1868,6 +1954,12 @@ message PerfEvents {
       Tracepoint tracepoint = 3;
       RawEvent raw_event = 5;
     }
+
+    // Optional modifiers for the event. Modelled after the perftool's
+    // https://man7.org/linux/man-pages/man1/perf-list.1.html#EVENT_MODIFIERS
+    // Currently supported: count scoping such as :u, :k, :uk, ...
+    // Modifiers can differ between the timebase and followers.
+    repeated EventModifier modifiers = 12;
 
     // If set, samples will be timestamped with the given clock.
     // If unset, the clock is chosen by the implementation.
@@ -1968,18 +2060,31 @@ message PerfEvents {
     PERF_CLOCK_MONOTONIC_RAW = 3;
     PERF_CLOCK_BOOTTIME = 4;
   }
+
+  enum EventModifier {
+    UNKNOWN_EVENT_MODIFIER = 0;
+    // count only while in userspace
+    EVENT_MODIFIER_COUNT_USERSPACE = 1;
+    // count only while in kernel
+    EVENT_MODIFIER_COUNT_KERNEL = 2;
+    // count only while in hypervisor
+    EVENT_MODIFIER_COUNT_HYPERVISOR = 3;
+  }
 }
 
 // Additional events associated with a leader.
-// Configuration is similar to Timebase event. Because data acquisition is
-// driven by the leader there is no option to configure the clock or the
-// frequency.
+// See https://man7.org/linux/man-pages/man1/perf-list.1.html#LEADER_SAMPLING
 message FollowerEvent {
   oneof event {
     PerfEvents.Counter counter = 1;
     PerfEvents.Tracepoint tracepoint = 2;
     PerfEvents.RawEvent raw_event = 3;
   }
+  // Modifiers can differ between the timebase and followers.
+  repeated PerfEvents.EventModifier modifiers = 5;
+  // Optional arbitrary name for the event, to identify it in the parsed
+  // trace. Does *not* affect the profiling itself. If unset, the trace
+  // parser will choose a suitable name.
   optional string name = 4;
 }
 
@@ -3854,6 +3959,13 @@ message TrackEventConfig {
   // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
+  // When enable_thread_time_sampling is true, and this is specified, thread
+  // time is sampled only if the elapsed wall time >
+  // `thread_time_subsampling_ns`. Otherwise, thread time is considered nil.
+  // Effectively, this means thread time will have a leeway of
+  // `thread_time_subsampling_ns` and won't be emitted for shorter events.
+  optional uint64 thread_time_subsampling_ns = 10;
+
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.
@@ -5503,6 +5615,8 @@ message FrameTimelineEvent {
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
     JANK_DROPPED = 1024;
+    JANK_NON_ANIMATING = 2048;
+    JANK_APP_RESYNCED_JITTER = 4096;
   };
 
   // Specifies the severity of a jank.
@@ -5590,6 +5704,15 @@ message FrameTimelineEvent {
     optional PredictionType prediction_type = 10;
     optional bool is_buffer = 11;
     optional JankSeverityType jank_severity_type = 12;
+    optional float present_delay_millis = 13;
+    optional float vsync_resynced_jitter_millis = 14;
+    optional float jank_severity_score = 15;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 16;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 17;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -5636,6 +5759,15 @@ message FrameTimelineEvent {
     optional int32 jank_type = 7;
     optional PredictionType prediction_type = 8;
     optional JankSeverityType jank_severity_type = 9;
+
+    optional float present_delay_millis = 10;
+    optional float jank_severity_score = 11;
+
+    // experimental value for jank_type. Do not consider in jank analysis.
+    optional int32 jank_type_experimental = 12;
+
+    // experimental value for present_type. Do not consider in jank analysis.
+    optional PresentType present_type_experimental = 13;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
@@ -7511,6 +7643,65 @@ message MemInfoEtwEvent {
   optional uint64 commit_page_count = 13;
 }
 
+// Proto definition based on the `FileIo_Create` class definition.
+message FileIoCreateEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint32 ttid = 3;
+  optional uint32 create_options = 4;
+  optional uint32 file_attributes = 5;
+  optional uint32 share_access = 6;
+  optional string open_path = 7;
+}
+
+// Proto definition based on the `FileIo_DirEnum` class definition.
+message FileIoDirEnumEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint32 ttid = 4;
+  optional uint32 length = 5;
+  optional uint32 info_class = 6;
+  optional uint32 file_index = 7;
+  optional string file_name = 8;
+}
+
+// Proto definition based on the `FileIo_Info` class definition.
+message FileIoInfoEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+}
+
+// Proto definition based on the `FileIo_ReadWrite` class definition.
+message FileIoReadWriteEtwEvent {
+  optional uint64 offset = 1;
+  optional uint64 irp_ptr = 2;
+  optional uint64 file_object = 3;
+  optional uint64 file_key = 4;
+  optional uint32 ttid = 5;
+  optional uint32 io_size = 6;
+  optional uint32 io_flags = 7;
+}
+
+// Proto definition based on the `FileIo_SimpleOp` class definition.
+message FileIoSimpleOpEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint32 ttid = 4;
+}
+
+// Proto definition based on the `FileIo_OpEnd` class definition.
+message FileIoOpEndEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 extra_info = 2;
+  optional uint32 nt_status = 3;
+}
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -7524,6 +7715,12 @@ message EtwTraceEvent {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
     MemInfoEtwEvent mem_info = 6;
+    FileIoCreateEtwEvent file_io_create = 7;
+    FileIoDirEnumEtwEvent file_io_dir_enum = 8;
+    FileIoInfoEtwEvent file_io_info = 9;
+    FileIoReadWriteEtwEvent file_io_read_write = 10;
+    FileIoSimpleOpEtwEvent file_io_simple_op = 11;
+    FileIoOpEndEtwEvent file_io_op_end = 12;
   }
 }
 
@@ -9855,6 +10052,40 @@ message DrmRunJobFtraceEvent {
 }
 message DrmSchedProcessJobFtraceEvent {
   optional uint64 fence = 1;
+}
+message DrmSchedJobAddDepFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+  optional uint64 ctx = 3;
+  optional uint64 seqno = 4;
+}
+message DrmSchedJobDoneFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+}
+message DrmSchedJobQueueFtraceEvent {
+  optional string name = 1;
+  optional uint32 job_count = 2;
+  optional int32 hw_job_count = 3;
+  optional string dev = 4;
+  optional uint64 fence_context = 5;
+  optional uint64 fence_seqno = 6;
+  optional uint64 client_id = 7;
+}
+message DrmSchedJobRunFtraceEvent {
+  optional string name = 1;
+  optional uint32 job_count = 2;
+  optional int32 hw_job_count = 3;
+  optional string dev = 4;
+  optional uint64 fence_context = 5;
+  optional uint64 fence_seqno = 6;
+  optional uint64 client_id = 7;
+}
+message DrmSchedJobUnschedulableFtraceEvent {
+  optional uint64 fence_context = 1;
+  optional uint64 fence_seqno = 2;
+  optional uint64 ctx = 3;
+  optional uint64 seqno = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
@@ -12541,6 +12772,11 @@ message FtraceEvent {
     HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
         589;
     HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
+    DrmSchedJobAddDepFtraceEvent drm_sched_job_add_dep = 591;
+    DrmSchedJobDoneFtraceEvent drm_sched_job_done = 592;
+    DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
+    DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
+    DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
   }
 }
 
@@ -12634,6 +12870,9 @@ message FtraceStats {
   // Atrace errors (even non-fatal ones) are reported here. A typical example is
   // one or more atrace categories not available on the device.
   optional string atrace_errors = 5;
+
+  // Error message due to exclusivity violation of a single-tenant feature.
+  optional string exclusive_feature_error = 13;
 
   // Ftrace events requested by the config but not present on device.
   repeated string unknown_ftrace_events = 6;
@@ -12814,7 +13053,10 @@ message FtraceEventBundle {
   message GenericEventDescriptor {
     // submessage id within FtraceEvent described by |event_descriptor|.
     optional int32 field_id = 1;
-    // serialised DescriptorProto
+    // optional: the event's group, e.g. "sched" for "sched/sched_switch".
+    // The event name itself is in |event_descriptor.name|.
+    optional string group_name = 3;
+    // serialised DescriptorProto.
     optional bytes event_descriptor = 2;
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;
@@ -12908,6 +13150,51 @@ message GenericKernelTaskRenameEvent {
   optional string comm = 2;
 }
 
+// Metadata about the processes and threads in the trace.
+// The main goal of this proto is to provide a generic kernel
+// implementation a mechanism to outline its process structure.
+message GenericKernelProcessTree {
+  // Representation of a thread.
+  message Thread {
+    // Thread id.
+    optional int64 tid = 1;
+
+    // Id of the parent process.
+    optional int64 pid = 2;
+
+    // The command name of the thread.
+    optional string comm = 3;
+
+    // True if thread is the main thread.
+    optional bool is_main_thread = 4;
+  }
+
+  // Representation of a process.
+  message Process {
+    // Process id.
+    optional int64 pid = 1;
+
+    // Parent process id.
+    optional int64 ppid = 2;
+
+    // The command line of the process.
+    // If the cmdline has spaces in it, then we use the characters from
+    // position 0 to the first instance of the space char (' ') as the name
+    // of the process. If no spaces are present, then the entire cmdline is
+    // used as the name.
+    optional string cmdline = 3;
+  }
+
+  // List of processes and threads in the kernel. These lists are incremental
+  // and not exhaustive. A process and its threads might show up separately in
+  // different ProcessTree messages. A thread might not show up at all, if
+  // no sched switch activity was detected, for instance:
+  // #0 { processes: [{pid: 10, ...}], threads: [{tid: 11, pid: 10}] }
+  // #1 { threads: [{tid: 12, pid: 10}] }
+  // #2 { processes: [{pid: 20, ...}], threads: [{tid: 13, pid: 10}] }
+  repeated Process processes = 1;
+  repeated Thread threads = 2;
+}
 
 // End of protos/perfetto/trace/generic_kernel/generic_task.proto
 
@@ -17019,7 +17306,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 122.
+// Next id: 123.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17170,6 +17457,7 @@ message TracePacket {
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
     GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
     GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+    GenericKernelProcessTree generic_kernel_process_tree = 122;
 
     CpuPerUidData cpu_per_uid_data = 119;
 

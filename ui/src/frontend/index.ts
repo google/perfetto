@@ -64,6 +64,7 @@ import {
   CommandInvocation,
   commandInvocationArraySchema,
 } from '../core/command_manager';
+import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -280,6 +281,7 @@ function main() {
   const app = AppImpl.instance;
   tryLoadIsInternalUserScript(app).then(() => {
     app.analytics.initialize(app.isInternalUser);
+    app.notifyOnExtrasLoadingCompleted();
   });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
@@ -347,12 +349,39 @@ function onCssLoaded() {
 
   // Mount the main mithril component. This also forces a sync render pass.
   raf.mount(document.body, {
-    view: () =>
-      m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillParent: true}, [
-          m(UiMain, {key: themeSetting.get()}),
-        ]),
-      ]),
+    view: () => {
+      const app = AppImpl.instance;
+      const commands = app.commands;
+      const hotkeys: HotkeyConfig[] = [];
+      for (const {id, defaultHotkey} of commands.commands) {
+        if (defaultHotkey) {
+          hotkeys.push({
+            callback: () => commands.runCommand(id),
+            hotkey: defaultHotkey,
+          });
+        }
+      }
+
+      return m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
+        m(
+          HotkeyContext,
+          {
+            hotkeys,
+            fillHeight: true,
+            // When embedded, hotkeys should be scoped to the context element to
+            // avoid interfering with the parent page. In standalone mode,
+            // document-level binding provides better UX (e.g., PGUP/PGDN scroll
+            // behavior).
+            focusable: false,
+          },
+          [
+            m(OverlayContainer, {fillParent: true}, [
+              m(UiMain, {key: themeSetting.get()}),
+            ]),
+          ],
+        ),
+      ]);
+    },
   });
 
   if (

@@ -1039,6 +1039,15 @@ void PerfettoCmd::OnConnect() {
       args.clone_trigger_boot_time_ns = snapshot_trigger_info_->boot_time_ns;
       args.clone_trigger_delay_ms = snapshot_trigger_info_->trigger_delay_ms;
     }
+
+    if (trace_out_stream_) {
+      // We always send the file descriptor to the traced, because perfetto_cmd
+      // doesn't know if the session to clone is 'write_into_file' session.
+      // traced decides weither it writes the cloned buffers to this file
+      // descriptor or send them to the perfetto_cmd.
+      args.output_file_fd = base::ScopedFile(dup(fileno(*trace_out_stream_)));
+    }
+
     consumer_endpoint_->CloneSession(std::move(args));
     return;
   }
@@ -1168,9 +1177,8 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
   // and we don't want to log anything after that.
   LogUploadEvent(PerfettoStatsdAtom::kOnTracingDisabled);
 
-  if (trace_config_->write_into_file()) {
-    // If write_into_file == true, at this point the passed file contains
-    // already all the packets.
+  if (trace_config_->write_into_file() || cloned_session_was_write_into_file_) {
+    // At this point the passed file already contains all the packets.
     return FinalizeTraceAndExit();
   }
 
@@ -1353,6 +1361,8 @@ void PerfettoCmd::OnSessionCloned(const OnSessionClonedArgs& args) {
     LogUploadEvent(PerfettoStatsdAtom::kCmdOnTriggerSessionClone,
                    snapshot_trigger_info_->trigger_name);
   }
+
+  cloned_session_was_write_into_file_ = args.was_write_into_file;
   ReadbackTraceDataAndQuit(full_error);
 }
 
@@ -1435,7 +1445,7 @@ NAME                                     PRODUCER                     DETAILS
     }
     const size_t kCatsShortLen = 40;
     if (!query_service_long_ && cats.length() > kCatsShortLen) {
-      cats = cats.substr(0, kCatsShortLen);
+      cats.resize(kCatsShortLen);
       cats.append("... (use --long to expand)");
     }
     printf("%s\n", cats.c_str());
@@ -1664,7 +1674,7 @@ void PerfettoCmd::CloneAllBugreportTraces(
   // There are two TaskRunners here, nested into each other:
   // 1) The "outer" ThreadTaskRunner, created by `thd`. This will see only one
   //    task ever, which is "run perfetto_cmd until completion".
-  // 2) Internally PerfettoCmd creates its own UnixTaskRunner, which creates
+  // 2) Internally PerfettoCmd creates its own TaskRunner impl, which creates
   //    a nested TaskRunner that takes control of the execution. This returns
   //    only once TaskRunner::Quit() is called, in its epilogue.
   auto done_count = std::make_shared<std::atomic<size_t>>(num_sessions);

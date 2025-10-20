@@ -619,6 +619,22 @@ class TraceStorage {
     return &heap_graph_reference_table_;
   }
 
+  const tables::AggregateProfileTable& aggregate_profile_table() const {
+    return aggregate_profile_table_;
+  }
+
+  tables::AggregateProfileTable* mutable_aggregate_profile_table() {
+    return &aggregate_profile_table_;
+  }
+
+  const tables::AggregateSampleTable& aggregate_sample_table() const {
+    return aggregate_sample_table_;
+  }
+
+  tables::AggregateSampleTable* mutable_aggregate_sample_table() {
+    return &aggregate_sample_table_;
+  }
+
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
       const {
     return vulkan_memory_allocations_table_;
@@ -875,6 +891,15 @@ class TraceStorage {
   }
   tables::WindowManagerTable* mutable_windowmanager_table() {
     return &windowmanager_table_;
+  }
+
+  const tables::WindowManagerWindowContainerTable&
+  windowmanager_windowcontainer_table() const {
+    return windowmanager_windowcontainer_table_;
+  }
+  tables::WindowManagerWindowContainerTable*
+  mutable_windowmanager_windowcontainer_table() {
+    return &windowmanager_windowcontainer_table_;
   }
 
   const tables::WindowManagerShellTransitionsTable&
@@ -1165,6 +1190,8 @@ class TraceStorage {
   tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_};
   tables::HeapGraphClassTable heap_graph_class_table_{&string_pool_};
   tables::HeapGraphReferenceTable heap_graph_reference_table_{&string_pool_};
+  tables::AggregateProfileTable aggregate_profile_table_{&string_pool_};
+  tables::AggregateSampleTable aggregate_sample_table_{&string_pool_};
 
   tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
       &string_pool_};
@@ -1231,6 +1258,8 @@ class TraceStorage {
   tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{
       &string_pool_};
   tables::WindowManagerTable windowmanager_table_{&string_pool_};
+  tables::WindowManagerWindowContainerTable
+      windowmanager_windowcontainer_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable

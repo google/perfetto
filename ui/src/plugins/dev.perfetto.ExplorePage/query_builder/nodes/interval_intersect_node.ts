@@ -25,11 +25,18 @@ import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
 import {Select} from '../../../../widgets/select';
 import {NodeIssues} from '../node_issues';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+
+export interface IntervalIntersectSerializedState {
+  intervalNodes: string[];
+  filters: FilterDefinition[];
+  customTitle?: string;
+}
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
   readonly prevNodes: QueryNode[];
   readonly allNodes: QueryNode[];
-  readonly intervalNodes: QueryNode[];
+  intervalNodes: QueryNode[];
   onExecute?: () => void;
 }
 
@@ -39,6 +46,7 @@ export class IntervalIntersectNode implements QueryNode {
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: IntervalIntersectNodeState;
+  meterialisedAs?: string;
 
   get sourceCols(): ColumnInfo[] {
     return this.prevNodes[0]?.finalCols ?? this.prevNodes[0]?.sourceCols ?? [];
@@ -124,9 +132,10 @@ export class IntervalIntersectNode implements QueryNode {
     return this.state.customTitle ?? 'Interval Intersect';
   }
 
-  nodeSpecificModify(): m.Child {
+  nodeSpecificModify(onExecute?: () => void): m.Child {
     return m(IntervalIntersectComponent, {
       node: this,
+      onExecute,
     });
   }
 
@@ -143,6 +152,9 @@ export class IntervalIntersectNode implements QueryNode {
     return new IntervalIntersectNode(stateCopy);
   }
 
+  isMaterialised(): boolean {
+    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
+  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -162,6 +174,26 @@ export class IntervalIntersectNode implements QueryNode {
     sq.intervalIntersect.intervalIntersect =
       intervalSqs as protos.PerfettoSqlStructuredQuery[];
     return sq;
+  }
+
+  serializeState(): IntervalIntersectSerializedState {
+    return {
+      intervalNodes: this.state.intervalNodes.map((n) => n.nodeId),
+      filters: this.state.filters,
+      customTitle: this.state.customTitle,
+    };
+  }
+
+  static deserializeState(
+    nodes: Map<string, QueryNode>,
+    state: IntervalIntersectSerializedState,
+  ): {intervalNodes: QueryNode[]} {
+    const intervalNodes = state.intervalNodes
+      .map((id) => nodes.get(id))
+      .filter((node): node is QueryNode => node !== undefined);
+    return {
+      intervalNodes,
+    };
   }
 }
 

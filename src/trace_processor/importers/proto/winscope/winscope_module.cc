@@ -53,7 +53,8 @@ WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
       shell_transitions_parser_(&context_),
       protolog_parser_(&context_),
       android_input_event_parser_(context),
-      viewcapture_parser_(context) {
+      viewcapture_parser_(&context_),
+      windowmanager_parser_(&context_) {
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber);
@@ -146,7 +147,7 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
   } else if (field =
                  decoder.Get(WinscopeExtensionsImpl::kWindowmanagerFieldNumber);
              field.valid()) {
-    ParseWindowManagerData(timestamp, field.as_bytes());
+    windowmanager_parser_.Parse(timestamp, field.as_bytes());
   }
 }
 
@@ -232,33 +233,6 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
   if (!status.ok()) {
     trace_processor_context->storage->IncrementStats(
         stats::winscope_inputmethod_service_parse_errors);
-  }
-}
-
-void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
-                                            protozero::ConstBytes blob) {
-  auto* trace_processor_context = context_.trace_processor_context_;
-  tables::WindowManagerTable::Row row;
-  row.ts = timestamp;
-  row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  auto rowId = trace_processor_context->storage->mutable_windowmanager_table()
-                   ->Insert(row)
-                   .id;
-
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
-  base::Status status =
-      args_parser_.ParseMessage(blob,
-                                *util::winscope_proto_mapping::GetProtoName(
-                                    tables::WindowManagerTable::Name()),
-                                nullptr /* parse all fields */, writer);
-  if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
-        stats::winscope_windowmanager_parse_errors);
   }
 }
 

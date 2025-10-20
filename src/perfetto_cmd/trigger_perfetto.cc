@@ -19,7 +19,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/getopt.h"
-#include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/traced/traced.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/trigger_producer.h"
@@ -87,7 +87,7 @@ int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
   }
 
   bool finished_with_success = false;
-  base::UnixTaskRunner task_runner;
+  base::MaybeLockFreeTaskRunner task_runner;
   TriggerProducer producer(
       &task_runner,
       [&task_runner, &finished_with_success](bool success) {

@@ -461,6 +461,9 @@ namespace perfetto::trace_processor::stats {
   F(winscope_protolog_view_config_collision,                                   \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Got a viewer config collision!"),                                       \
+  F(winscope_protolog_param_mismatch,                                          \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Message had mismatching parameters!"),                                  \
   F(winscope_viewcapture_parse_errors,                                         \
                                           kSingle,  kError,    kAnalysis,      \
       "ViewCapture packet has unknown fields, which results in some "          \
@@ -569,7 +572,14 @@ namespace perfetto::trace_processor::stats {
   F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace,     \
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
-      "Linux kernel documentation for causes of this and potential fixes.")
+      "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace,   \
+      "One or more simpleperf samples were dropped because their callchain "   \
+      "entries referenced a file_id that has no corresponding File record in " \
+      "the simpleperf proto. This typically happens when the simpleperf data " \
+      "is incomplete or truncated, or due to a bug in simpleperf. Try "        \
+      "re-recording the profile and ensure the file is not truncated. If "     \
+      "this occurs consistently, please report it to the simpleperf team.")
 // clang-format on
 
 enum Type {

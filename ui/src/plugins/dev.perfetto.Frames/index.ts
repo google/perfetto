@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -24,19 +26,39 @@ import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
 } from './frame_selection_aggregator';
+import {Setting} from '../../public/settings';
+import {z} from 'zod';
 
 // Build a standardized URI for a frames track
-function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
+function makeUri(
+  upid: number,
+  kind: 'expected_frames' | 'actual_frames' | 'actual_frames_experimental',
+) {
   return `/process_${upid}/${kind}`;
 }
 
-export default class implements PerfettoPlugin {
+export default class Frames implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static showExperimentalJankClassification: Setting<boolean>;
+
+  static onActivate(app: App): void {
+    Frames.showExperimentalJankClassification = app.settings.register({
+      id: `${app.pluginId}#showExperimentalJankClassification`,
+      name: 'show experimental jank classificaiton track (alpha)',
+      description: 'Use alternative method to classify jank. Not recommented.',
+      schema: z.boolean(),
+      defaultValue: false,
+      requiresReload: true,
+    });
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
-    this.addActualFrames(ctx);
+    this.addActualFrames(ctx, false);
+    if (Frames.showExperimentalJankClassification.get()) {
+      this.addActualFrames(ctx, true);
+    }
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new FrameSelectionAggregator(), 10),
     );
@@ -79,6 +101,7 @@ export default class implements PerfettoPlugin {
         uri,
         renderer: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
+          kinds: [SLICE_TRACK_KIND],
           trackIds,
           upid,
         },
@@ -95,7 +118,10 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  async addActualFrames(ctx: Trace): Promise<void> {
+  async addActualFrames(
+    ctx: Trace,
+    useExperimentalTrack: boolean,
+  ): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       with summary as (
@@ -126,14 +152,27 @@ export default class implements PerfettoPlugin {
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const maxDepth = it.maxDepth;
 
-      const uri = makeUri(upid, 'actual_frames');
+      const uriKind = useExperimentalTrack
+        ? 'actual_frames_experimental'
+        : 'actual_frames';
+      const trackKinds = [SLICE_TRACK_KIND];
+      if (!useExperimentalTrack) {
+        trackKinds.push(ACTUAL_FRAMES_SLICE_TRACK_KIND);
+      }
+      const uri = makeUri(upid, uriKind);
       ctx.tracks.registerTrack({
         uri,
-        renderer: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
+        renderer: createActualFramesTrack(
+          ctx,
+          uri,
+          maxDepth,
+          trackIds,
+          useExperimentalTrack,
+        ),
         tags: {
           upid,
           trackIds,
-          kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
+          kinds: trackKinds,
         },
       });
       const group = ctx.plugins

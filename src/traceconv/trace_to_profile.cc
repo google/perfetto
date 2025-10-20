@@ -98,7 +98,7 @@ int TraceToProfile(
     std::vector<uint64_t> timestamps,
     ConversionMode conversion_mode,
     uint64_t conversion_flags,
-    std::string dirname_prefix,
+    const std::string& dirname_prefix,
     std::function<std::string(const SerializedProfile&)> filename_fn) {
   std::vector<SerializedProfile> profiles;
   trace_processor::Config config;
@@ -140,7 +140,7 @@ int TraceToProfile(
 int TraceToHeapProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
-                       std::vector<uint64_t> timestamps,
+                       const std::vector<uint64_t>& timestamps,
                        bool annotate_frames) {
   int file_idx = 0;
   auto filename_fn = [&file_idx](const SerializedProfile& profile) {
@@ -156,7 +156,7 @@ int TraceToHeapProfile(std::istream* input,
 int TraceToPerfProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
-                       std::vector<uint64_t> timestamps,
+                       const std::vector<uint64_t>& timestamps,
                        bool annotate_frames) {
   int file_idx = 0;
   auto filename_fn = [&file_idx](const SerializedProfile& profile) {

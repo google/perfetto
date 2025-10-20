@@ -46,6 +46,8 @@ constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
 constexpr char kTarPosixMagic[] = {'u', 's', 't', 'a', 'r', '\0'};
 constexpr char kTarGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
 constexpr size_t kTarMagicOffset = 257;
+constexpr char kSimpleperfMagic[] = {'S', 'I', 'M', 'P', 'L',
+                                     'E', 'P', 'E', 'R', 'F'};
 
 constexpr uint8_t kTracePacketTag =
     protozero::proto_utils::MakeTagLengthDelimited(
@@ -105,6 +107,71 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+bool IsPprofProfile(const uint8_t* data, size_t size) {
+  // Minimum size to parse a protobuf tag and small varint
+  constexpr size_t kMinPprofSize = 10;
+  if (size < kMinPprofSize) {
+    return false;
+  }
+
+  const uint8_t* ptr = data;
+  const uint8_t* const end = ptr + size;
+
+  // Check if first field is sample_type (field 1, length-delimited)
+  uint64_t tag;
+  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr) {
+    return false;
+  }
+
+  constexpr uint64_t kSampleTypeTag =
+      protozero::proto_utils::MakeTagLengthDelimited(1);
+
+  if (tag != kSampleTypeTag) {
+    return false;
+  }
+
+  // Parse the length of the sample_type field
+  uint64_t sample_type_length;
+  const uint8_t* len_next =
+      protozero::proto_utils::ParseVarInt(next, end, &sample_type_length);
+  if (len_next == next ||
+      sample_type_length > static_cast<uint64_t>(end - len_next)) {
+    return false;
+  }
+
+  // Look inside the sample_type field for pprof ValueType structure
+  // In pprof: ValueType has field 1 (type) and field 2 (unit) as varints (wire
+  // type 0)
+  // In Perfetto: field 1 would contain length-delimited data (wire type 2)
+  const uint8_t* value_type_ptr = len_next;
+  const uint8_t* value_type_end = len_next + sample_type_length;
+
+  // Parse the first ValueType message
+  if (value_type_ptr >= value_type_end) {
+    return false;
+  }
+
+  // Check for field 1 (type) as varint
+  uint64_t inner_tag;
+  const uint8_t* inner_next = protozero::proto_utils::ParseVarInt(
+      value_type_ptr, value_type_end, &inner_tag);
+  if (inner_next == value_type_ptr) {
+    return false;
+  }
+
+  // Use proto_utils to create proper field tags for pprof ValueType fields:
+  // Field 1 (type) and Field 2 (unit) are both varints in pprof format
+  constexpr uint64_t kValueTypeTypeFieldTag =
+      protozero::proto_utils::MakeTagVarInt(1);
+  constexpr uint64_t kValueTypeUnitFieldTag =
+      protozero::proto_utils::MakeTagVarInt(2);
+
+  // Accept either field 1 (type) or field 2 (unit) as evidence of pprof format
+  return inner_tag == kValueTypeTypeFieldTag ||
+         inner_tag == kValueTypeUnitFieldTag;
+}
+
 }  // namespace
 
 const char* TraceTypeToString(TraceType trace_type) {
@@ -129,6 +196,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "zip";
     case kPerfDataTraceType:
       return "perf";
+    case kPprofTraceType:
+      return "pprof";
     case kInstrumentsXmlTraceType:
       return "instruments_xml";
     case kAndroidLogcatTraceType:
@@ -145,6 +214,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "art_hprof";
     case kPerfTextTraceType:
       return "perf_text";
+    case kSimpleperfProtoTraceType:
+      return "simpleperf_proto";
     case kUnknownTraceType:
       return "unknown";
     case kTarTraceType:
@@ -172,6 +243,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kPerfMagic)) {
     return kPerfDataTraceType;
+  }
+  if (MatchesMagic(data, size, kSimpleperfMagic)) {
+    return kSimpleperfProtoTraceType;
   }
 
   if (MatchesMagic(data, size, kZipMagic)) {
@@ -256,6 +330,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (IsProtoTraceWithSymbols(data, size))
     return kSymbolsTraceType;
+
+  if (IsPprofProfile(data, size))
+    return kPprofTraceType;
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;

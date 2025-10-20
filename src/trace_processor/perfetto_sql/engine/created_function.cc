@@ -17,23 +17,61 @@
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
 #include <queue>
 #include <stack>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/variant.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/sql_argument.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
+
+void ReturnSqlValue(sqlite3_context* ctx, const SqlValue& value) {
+  switch (value.type) {
+    case SqlValue::Type::kNull:
+      sqlite::utils::ReturnNullFromFunction(ctx);
+      break;
+    case SqlValue::Type::kLong:
+      sqlite::result::Long(ctx, value.long_value);
+      break;
+    case SqlValue::Type::kDouble:
+      sqlite::result::Double(ctx, value.double_value);
+      break;
+    case SqlValue::Type::kString:
+      sqlite::result::RawString(ctx, value.string_value, -1,
+                                sqlite::result::kSqliteTransient);
+      break;
+    case SqlValue::Type::kBytes:
+      sqlite::result::RawBytes(ctx, value.bytes_value,
+                               static_cast<int>(value.bytes_count),
+                               sqlite::result::kSqliteTransient);
+      break;
+  }
+}
 
 base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
                              sqlite3* db,
@@ -111,7 +149,7 @@ struct StoredSqlValue {
   using Data =
       std::variant<int64_t, double, OwnedString, OwnedBytes, std::nullptr_t>;
 
-  StoredSqlValue(SqlValue value) {
+  explicit StoredSqlValue(SqlValue value) {
     switch (value.type) {
       case SqlValue::Type::kNull:
         data = nullptr;
@@ -126,7 +164,7 @@ struct StoredSqlValue {
         data = std::make_unique<std::string>(value.string_value);
         break;
       case SqlValue::Type::kBytes:
-        const uint8_t* ptr = static_cast<const uint8_t*>(value.bytes_value);
+        const auto* ptr = static_cast<const uint8_t*>(value.bytes_value);
         data = std::make_unique<std::vector<uint8_t>>(ptr,
                                                       ptr + value.bytes_count);
         break;
@@ -134,18 +172,21 @@ struct StoredSqlValue {
   }
 
   SqlValue AsSqlValue() {
-    if (std::holds_alternative<std::nullptr_t>(data)) {
-      return SqlValue();
-    } else if (std::holds_alternative<int64_t>(data)) {
-      return SqlValue::Long(std::get<int64_t>(data));
-    } else if (std::holds_alternative<double>(data)) {
-      return SqlValue::Double(std::get<double>(data));
-    } else if (std::holds_alternative<OwnedString>(data)) {
-      const auto& str_ptr = std::get<OwnedString>(data);
-      return SqlValue::String(str_ptr->c_str());
-    } else if (std::holds_alternative<OwnedBytes>(data)) {
-      const auto& bytes_ptr = std::get<OwnedBytes>(data);
-      return SqlValue::Bytes(bytes_ptr->data(), bytes_ptr->size());
+    switch (data.index()) {
+      case base::variant_index<Data, std::nullptr_t>():
+        return {};
+      case base::variant_index<Data, int64_t>():
+        return SqlValue::Long(base::unchecked_get<int64_t>(data));
+      case base::variant_index<Data, double>():
+        return SqlValue::Double(base::unchecked_get<double>(data));
+      case base::variant_index<Data, OwnedString>(): {
+        const auto& str_ptr = base::unchecked_get<OwnedString>(data);
+        return SqlValue::String(str_ptr->c_str());
+      }
+      case base::variant_index<Data, OwnedBytes>(): {
+        const auto& bytes_ptr = base::unchecked_get<OwnedBytes>(data);
+        return SqlValue::Bytes(bytes_ptr->data(), bytes_ptr->size());
+      }
     }
     // GCC doesn't realize that the switch is exhaustive.
     PERFETTO_CHECK(false);
@@ -286,7 +327,7 @@ class RecursiveCallUnroller {
         memoizer_(memoizer) {}
 
   // Whether we should just return null due to us being in the "first pass".
-  enum class FunctionCallState {
+  enum class FunctionCallState : uint8_t {
     kIgnoreDueToFirstPass,
     kEvaluate,
   };
@@ -399,14 +440,14 @@ class RecursiveCallUnroller {
   Memoizer& memoizer_;
 
   // Current state of the evaluation.
-  enum class State {
+  enum class State : uint8_t {
     kComputingFirstPass,
     kComputingSecondPass,
   };
   State state_ = State::kComputingFirstPass;
 
   // A state of evaluation of a given argument.
-  enum class ArgState {
+  enum class ArgState : uint8_t {
     kScheduled,
     kEvaluating,
     kEvaluated,
@@ -423,7 +464,7 @@ class RecursiveCallUnroller {
 // This class is used to store the state of a CREATE_FUNCTION call.
 // It is used to store the state of the function across multiple invocations
 // of the function (e.g. when the function is called recursively).
-class State : public CreatedFunction::Context {
+class State : public CreatedFunction::UserData {
  public:
   explicit State(PerfettoSqlEngine* engine) : engine_(engine) {}
   ~State() override;
@@ -576,74 +617,87 @@ class State : public CreatedFunction::Context {
 
 State::~State() = default;
 
-std::unique_ptr<CreatedFunction::Context> CreatedFunction::MakeContext(
+std::unique_ptr<CreatedFunction::UserData> CreatedFunction::MakeContext(
     PerfettoSqlEngine* engine) {
   return std::make_unique<State>(engine);
 }
 
-bool CreatedFunction::IsValid(Context* ctx) {
+bool CreatedFunction::IsValid(UserData* ctx) {
   return static_cast<State*>(ctx)->is_valid();
 }
 
-void CreatedFunction::Reset(Context* ctx, PerfettoSqlEngine* engine) {
-  ctx->~Context();
+void CreatedFunction::Reset(UserData* ctx, PerfettoSqlEngine* engine) {
+  ctx->~UserData();
   new (ctx) State(engine);
 }
 
-base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
-                                  size_t argc,
-                                  sqlite3_value** argv,
-                                  SqlValue& out,
-                                  Destructors&) {
-  State* state = static_cast<State*>(ctx);
+void CreatedFunction::Step(sqlite3_context* ctx,
+                           int argc,
+                           sqlite3_value** argv) {
+  auto* state = static_cast<State*>(CreatedFunction::GetUserData(ctx));
+
+  // RAII cleanup to ensure PopStackEntry is called
+  struct ScopedCleanup {
+    State* state;
+    ~ScopedCleanup() { state->PopStackEntry(); }
+  };
+  ScopedCleanup scoped_cleanup{state};
 
   // Enter the function and ensure that we have a statement allocated.
-  RETURN_IF_ERROR(state->PushStackEntry());
+  if (auto status = state->PushStackEntry(); !status.ok()) {
+    return sqlite::utils::SetError(ctx, status.c_message());
+  }
 
-  if (argc != state->prototype().arguments.size()) {
-    return base::ErrStatus(
-        "%s: invalid number of args; expected %zu, received %zu",
-        state->prototype().function_name.c_str(),
-        state->prototype().arguments.size(), argc);
+  size_t expected_argc = state->prototype().arguments.size();
+  if (static_cast<size_t>(argc) != expected_argc) {
+    return sqlite::utils::SetError(
+        ctx, base::ErrStatus(
+                 "%s: invalid number of args; expected %zu, received %d",
+                 state->prototype().function_name.c_str(), expected_argc, argc)
+                 .c_message());
   }
 
   // Type check all the arguments.
-  for (size_t i = 0; i < argc; ++i) {
+  for (size_t i = 0; i < expected_argc; ++i) {
     sqlite3_value* arg = argv[i];
     sql_argument::Type type = state->prototype().arguments[i].type();
     base::Status status = sqlite::utils::TypeCheckSqliteValue(
         arg, sql_argument::TypeToSqlValueType(type),
         sql_argument::TypeToHumanFriendlyString(type));
     if (!status.ok()) {
-      return base::ErrStatus("%s[arg=%s]: argument %zu %s",
-                             state->prototype().function_name.c_str(),
-                             sqlite3_value_text(arg), i, status.c_message());
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("%s[arg=%s]: argument %zu %s",
+                               state->prototype().function_name.c_str(),
+                               sqlite3_value_text(arg), i, status.c_message())
+                   .c_message());
     }
   }
 
   std::optional<Memoizer::MemoizedArgs> memoized_args =
-      Memoizer::AsMemoizedArgs(argc, argv);
+      Memoizer::AsMemoizedArgs(size_t(argc), argv);
 
   if (memoized_args) {
-    // If we are in the middle of an recursive calls unrolling, we might want to
-    // ignore the function invocation. See the comment in RecursiveCallUnroller
-    // for more details.
-    base::StatusOr<RecursiveCallUnroller::FunctionCallState> unroll_state =
-        state->OnFunctionCall(*memoized_args);
-    RETURN_IF_ERROR(unroll_state.status());
+    // Handle recursive call unrolling
+    auto unroll_state = state->OnFunctionCall(*memoized_args);
+    if (!unroll_state.ok()) {
+      return sqlite::utils::SetError(ctx, unroll_state.status().c_message());
+    }
     if (*unroll_state ==
         RecursiveCallUnroller::FunctionCallState::kIgnoreDueToFirstPass) {
-      // Return NULL.
-      return base::OkStatus();
+      return sqlite::utils::ReturnNullFromFunction(ctx);
     }
 
-    RETURN_IF_ERROR(state->UnrollRecursiveCallIfNeeded(*memoized_args));
+    if (auto status = state->UnrollRecursiveCallIfNeeded(*memoized_args);
+        !status.ok()) {
+      return sqlite::utils::SetError(ctx, status.c_message());
+    }
 
-    std::optional<SqlValue> memoized_value =
-        state->memoizer().GetMemoizedValue(*memoized_args);
-    if (memoized_value) {
-      out = *memoized_value;
-      return base::OkStatus();
+    // Check for memoized value
+    if (auto memoized_value =
+            state->memoizer().GetMemoizedValue(*memoized_args)) {
+      SqlValue out = *memoized_value;
+      ReturnSqlValue(ctx, out);
+      return;
     }
   }
 
@@ -660,33 +714,38 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
         }
       });
 
-  RETURN_IF_ERROR(
-      BindArguments(state->CurrentStatement(), state->prototype(), argc, argv));
+  // Bind arguments and execute the user's SQL
+  if (auto status = BindArguments(state->CurrentStatement(), state->prototype(),
+                                  size_t(argc), argv);
+      !status.ok()) {
+    return sqlite::utils::SetError(ctx, status.c_message());
+  }
+
   auto result = EvaluateScalarStatement(state->CurrentStatement(),
                                         state->engine()->sqlite_engine()->db(),
                                         state->prototype());
-  RETURN_IF_ERROR(result.status());
-  out = result.value();
+  if (!result.ok()) {
+    return sqlite::utils::SetError(ctx, result.status().c_message());
+  }
+
+  SqlValue out = result.value();
   state->ScheduleEmptyStatementValidation(state->CurrentStatement());
 
   if (memoized_args) {
     state->memoizer().Memoize(*memoized_args, out);
   }
 
-  return base::OkStatus();
+  // Return the result directly
+  ReturnSqlValue(ctx, out);
+
+  // Verify post-conditions
+  if (auto verify_status = state->ValidateEmptyStatements();
+      !verify_status.ok()) {
+    sqlite::utils::SetError(ctx, verify_status.c_message());
+  }
 }
 
-void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
-  // Clear the statement.
-  static_cast<State*>(ctx)->PopStackEntry();
-}
-
-base::Status CreatedFunction::VerifyPostConditions(
-    CreatedFunction::Context* ctx) {
-  return static_cast<State*>(ctx)->ValidateEmptyStatements();
-}
-
-base::Status CreatedFunction::Prepare(CreatedFunction::Context* ctx,
+base::Status CreatedFunction::Prepare(CreatedFunction::UserData* ctx,
                                       FunctionPrototype prototype,
                                       sql_argument::Type return_type,
                                       SqlSource source) {
@@ -700,9 +759,8 @@ base::Status CreatedFunction::Prepare(CreatedFunction::Context* ctx,
   return state->PrepareStatement();
 }
 
-base::Status CreatedFunction::EnableMemoization(Context* ctx) {
+base::Status CreatedFunction::EnableMemoization(UserData* ctx) {
   return static_cast<State*>(ctx)->EnableMemoization();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -1,7 +1,7 @@
 # UI Automation
 
-This page covers how to automate common Perfetto UI tasks to speed up your
-trace analysis workflow using commands, startup commands, and macros.
+This page covers how to automate common Perfetto UI tasks to speed up your trace
+analysis workflow using commands, startup commands, and macros.
 
 ## Commands System Overview
 
@@ -82,6 +82,10 @@ values:
   IDs
 - **Wrong argument types**: All arguments must be strings, even numbers
 - **Wrong argument count**: Each command expects a specific number of arguments
+- **Module dependency errors**: If your debug track query uses Perfetto modules
+  (e.g., `android.screen_state`), you must include a `RunQuery` command with the
+  module include statement before the debug track command. The module include
+  must come first in the command sequence.
 
 ## Startup Command Examples
 
@@ -111,8 +115,50 @@ This startup command creates a debug track showing thread scheduling latency:
   {
     "id": "dev.perfetto.AddDebugSliceTrack",
     "args": [
-      "SELECT ts, thread.name as thread_name, dur as value FROM thread_state JOIN thread USING(utid) WHERE state = 'R' AND dur > 1000000",
+      "SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = 'R' AND dur > 1000000",
       "Long Scheduling Delays (>1ms)"
+    ]
+  }
+]
+```
+
+### Debug tracks using Perfetto modules
+
+When your query uses Perfetto modules (like `android.screen_state` or
+`android.memory.lmk`), you must include the module first as a separate command.
+**Important: The module include command must come before the query that uses
+it.**
+
+```json
+[
+  {
+    "id": "dev.perfetto.RunQuery",
+    "args": ["include perfetto module android.screen_state"]
+  },
+  {
+    "id": "dev.perfetto.AddDebugSliceTrack",
+    "args": [
+      "SELECT ts, dur FROM android_screen_state WHERE simple_screen_state = 'on'",
+      "Screen On Events"
+    ]
+  }
+]
+```
+
+Another example with memory LMK events:
+
+```json
+[
+  {
+    "id": "dev.perfetto.RunQuery",
+    "args": ["include perfetto module android.memory.lmk"]
+  },
+  {
+    "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
+    "args": [
+      "SELECT ts, process_name as name, 0 as dur FROM android_lmk_events",
+      "name",
+      "LMK Events by Process"
     ]
   }
 ]
@@ -152,7 +198,7 @@ This comprehensive startup configuration prepares the UI for system analysis:
   {
     "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
     "args": [
-      "SELECT ts, blocked_function as name, dur as value FROM thread_state WHERE state = 'D' AND blocked_function IS NOT NULL",
+      "SELECT ts, blocked_function as name, dur FROM thread_state WHERE state = 'D' AND blocked_function IS NOT NULL",
       "name",
       "Blocking Functions"
     ]
@@ -217,7 +263,7 @@ This macro helps identify performance bottlenecks:
     {
       "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
       "args": [
-        "SELECT ts, thread.name as thread_name, dur as value FROM thread_state JOIN thread USING (utid) WHERE state IN ('R', 'D+') AND dur > 5000000",
+        "SELECT ts, 'blocked' as name, thread.name as thread_name, dur FROM thread_state JOIN thread USING (utid) WHERE state IN ('R', 'D+') AND dur > 5000000",
         "thread_name",
         "Long Waits (>5ms)"
       ]
@@ -237,7 +283,7 @@ the trace opens in the UI:
   --app com.example.app \
   --ui-startup-commands '[
     {"id":"dev.perfetto.PinTracksByRegex","args":[".*CPU.*"]},
-    {"id":"dev.perfetto.AddDebugSliceTrackWithPivot","args":["SELECT ts, thread.name as thread, dur as value FROM thread_state JOIN thread USING(utid) WHERE state = \"R\"","thread","Runnable Time"]}
+    {"id":"dev.perfetto.AddDebugSliceTrackWithPivot","args":["SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = \"R\"","thread","Runnable Time"]}
   ]'
 ```
 

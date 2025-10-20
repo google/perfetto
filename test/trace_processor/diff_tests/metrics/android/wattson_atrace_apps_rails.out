@@ -1,60 +1,61 @@
 wattson_atrace_apps_rails {
   metric_version: 4
   power_model_version: 1
+  is_crude_estimate: false
   period_info {
     period_id: 1
     period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand"
     period_dur: 772195598
     cpu_subsystem {
-      estimated_mw: 1233.104736
-      estimated_mws: 952.198059
+      estimated_mw: 1234.192993
+      estimated_mws: 953.038391
       policy0 {
-        estimated_mw: 250.520294
-        estimated_mws: 193.450668
+        estimated_mw: 250.760544
+        estimated_mws: 193.636185
         cpu0 {
-          estimated_mw: 70.852661
-          estimated_mws: 54.712109
+          estimated_mw: 70.918816
+          estimated_mws: 54.763195
         }
         cpu1 {
-          estimated_mw: 57.287117
-          estimated_mws: 44.236858
+          estimated_mw: 57.343323
+          estimated_mws: 44.280262
         }
         cpu2 {
-          estimated_mw: 65.459419
-          estimated_mws: 50.547478
+          estimated_mw: 65.523491
+          estimated_mws: 50.596951
         }
         cpu3 {
-          estimated_mw: 56.921093
-          estimated_mws: 43.954220
+          estimated_mw: 56.974907
+          estimated_mws: 43.995773
         }
       }
       policy4 {
-        estimated_mw: 280.262299
-        estimated_mws: 216.417297
+        estimated_mw: 280.509552
+        estimated_mws: 216.608246
         cpu4 {
-          estimated_mw: 155.180649
-          estimated_mws: 119.829811
+          estimated_mw: 155.323669
+          estimated_mws: 119.940254
         }
         cpu5 {
-          estimated_mw: 125.081642
-          estimated_mws: 96.587494
+          estimated_mw: 125.185883
+          estimated_mws: 96.667984
         }
       }
       policy6 {
-        estimated_mw: 676.220337
-        estimated_mws: 522.174377
+        estimated_mw: 676.806274
+        estimated_mws: 522.626831
         cpu6 {
-          estimated_mw: 329.806854
-          estimated_mws: 254.675400
+          estimated_mw: 330.095917
+          estimated_mws: 254.898605
         }
         cpu7 {
-          estimated_mw: 346.413483
-          estimated_mws: 267.498962
+          estimated_mw: 346.710388
+          estimated_mws: 267.728241
         }
       }
       dsu_scu {
-        estimated_mw: 26.101835
-        estimated_mws: 20.155722
+        estimated_mw: 26.116619
+        estimated_mws: 20.167139
       }
     }
     gpu_subsystem {
@@ -67,55 +68,55 @@ wattson_atrace_apps_rails {
     period_name: "NOTIFICATION_SHADE_QS_EXPAND_COLLAPSE"
     period_dur: 1151760987
     cpu_subsystem {
-      estimated_mw: 696.477783
-      estimated_mws: 802.175903
+      estimated_mw: 697.068665
+      estimated_mws: 802.856506
       policy0 {
-        estimated_mw: 165.649933
-        estimated_mws: 190.789124
+        estimated_mw: 165.823425
+        estimated_mws: 190.988953
         cpu0 {
-          estimated_mw: 48.725693
-          estimated_mws: 56.120350
+          estimated_mw: 48.765965
+          estimated_mws: 56.166733
         }
         cpu1 {
-          estimated_mw: 31.208870
-          estimated_mws: 35.945160
+          estimated_mw: 31.243738
+          estimated_mws: 35.985321
         }
         cpu2 {
-          estimated_mw: 38.233845
-          estimated_mws: 44.036251
+          estimated_mw: 38.279736
+          estimated_mws: 44.089108
         }
         cpu3 {
-          estimated_mw: 47.481522
-          estimated_mws: 54.687366
+          estimated_mw: 47.533981
+          estimated_mws: 54.747784
         }
       }
       policy4 {
-        estimated_mw: 92.173676
-        estimated_mws: 106.162048
+        estimated_mw: 92.241051
+        estimated_mws: 106.239639
         cpu4 {
-          estimated_mw: 48.958031
-          estimated_mws: 56.387951
+          estimated_mw: 48.992100
+          estimated_mws: 56.427189
         }
         cpu5 {
-          estimated_mw: 43.215649
-          estimated_mws: 49.774097
+          estimated_mw: 43.248951
+          estimated_mws: 49.812454
         }
       }
       policy6 {
-        estimated_mw: 419.226593
-        estimated_mws: 482.848846
+        estimated_mw: 419.566406
+        estimated_mws: 483.240204
         cpu6 {
-          estimated_mw: 201.942230
-          estimated_mws: 232.589188
+          estimated_mw: 202.108459
+          estimated_mws: 232.780640
         }
         cpu7 {
-          estimated_mw: 217.284378
-          estimated_mws: 250.259674
+          estimated_mw: 217.457932
+          estimated_mws: 250.459564
         }
       }
       dsu_scu {
-        estimated_mw: 19.427547
-        estimated_mws: 22.375891
+        estimated_mw: 19.437809
+        estimated_mws: 22.387711
       }
     }
     gpu_subsystem {
@@ -128,55 +129,55 @@ wattson_atrace_apps_rails {
     period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse"
     period_dur: 1154167847
     cpu_subsystem {
-      estimated_mw: 694.803406
-      estimated_mws: 801.919739
+      estimated_mw: 695.389343
+      estimated_mws: 802.596008
       policy0 {
-        estimated_mw: 165.332123
-        estimated_mws: 190.821030
+        estimated_mw: 165.504059
+        estimated_mws: 191.019470
         cpu0 {
-          estimated_mw: 48.661800
-          estimated_mws: 56.163887
+          estimated_mw: 48.701500
+          estimated_mws: 56.209705
         }
         cpu1 {
-          estimated_mw: 31.152369
-          estimated_mws: 35.955063
+          estimated_mw: 31.187157
+          estimated_mws: 35.995213
         }
         cpu2 {
-          estimated_mw: 38.160988
-          estimated_mws: 44.044186
+          estimated_mw: 38.206776
+          estimated_mws: 44.097034
         }
         cpu3 {
-          estimated_mw: 47.356968
-          estimated_mws: 54.657890
+          estimated_mw: 47.408630
+          estimated_mws: 54.717518
         }
       }
       policy4 {
-        estimated_mw: 91.779922
-        estimated_mws: 105.929436
+        estimated_mw: 91.844696
+        estimated_mws: 106.004196
         cpu4 {
-          estimated_mw: 48.801167
-          estimated_mws: 56.324738
+          estimated_mw: 48.833939
+          estimated_mws: 56.362564
         }
         cpu5 {
-          estimated_mw: 42.978756
-          estimated_mws: 49.604698
+          estimated_mw: 43.010761
+          estimated_mws: 49.641636
         }
       }
       policy6 {
-        estimated_mw: 418.298065
-        estimated_mws: 482.786194
+        estimated_mw: 418.637146
+        estimated_mws: 483.177551
         cpu6 {
-          estimated_mw: 201.521103
-          estimated_mws: 232.589188
+          estimated_mw: 201.686981
+          estimated_mws: 232.780640
         }
         cpu7 {
-          estimated_mw: 216.776962
-          estimated_mws: 250.197006
+          estimated_mw: 216.950165
+          estimated_mws: 250.396912
         }
       }
       dsu_scu {
-        estimated_mw: 19.393267
-        estimated_mws: 22.383085
+        estimated_mw: 19.403425
+        estimated_mws: 22.394810
       }
     }
     gpu_subsystem {
@@ -189,55 +190,55 @@ wattson_atrace_apps_rails {
     period_name: "NOTIFICATION_SHADE_QS_EXPAND_COLLAPSE"
     period_dur: 846661499
     cpu_subsystem {
-      estimated_mw: 870.381042
-      estimated_mws: 736.918091
+      estimated_mw: 871.339966
+      estimated_mws: 737.730042
       policy0 {
-        estimated_mw: 190.878937
-        estimated_mws: 161.609848
+        estimated_mw: 191.166718
+        estimated_mws: 161.853500
         cpu0 {
-          estimated_mw: 70.831482
-          estimated_mws: 59.970287
+          estimated_mw: 70.914536
+          estimated_mws: 60.040607
         }
         cpu1 {
-          estimated_mw: 44.999454
-          estimated_mws: 38.099308
+          estimated_mw: 45.073124
+          estimated_mws: 38.161678
         }
         cpu2 {
-          estimated_mw: 34.030231
-          estimated_mws: 28.812088
+          estimated_mw: 34.099480
+          estimated_mws: 28.870718
         }
         cpu3 {
-          estimated_mw: 41.017761
-          estimated_mws: 34.728161
+          estimated_mw: 41.079578
+          estimated_mws: 34.780499
         }
       }
       policy4 {
-        estimated_mw: 75.011116
-        estimated_mws: 63.509026
+        estimated_mw: 75.104965
+        estimated_mws: 63.588482
         cpu4 {
-          estimated_mw: 35.900501
-          estimated_mws: 30.395571
+          estimated_mw: 35.947311
+          estimated_mws: 30.435205
         }
         cpu5 {
-          estimated_mw: 39.110619
-          estimated_mws: 33.113453
+          estimated_mw: 39.157654
+          estimated_mws: 33.153278
         }
       }
       policy6 {
-        estimated_mw: 576.711548
-        estimated_mws: 488.279480
+        estimated_mw: 577.268372
+        estimated_mws: 488.750916
         cpu6 {
-          estimated_mw: 298.166168
-          estimated_mws: 252.445816
+          estimated_mw: 298.444000
+          estimated_mws: 252.681046
         }
         cpu7 {
-          estimated_mw: 278.545410
-          estimated_mws: 235.833664
+          estimated_mw: 278.824371
+          estimated_mws: 236.069855
         }
       }
       dsu_scu {
-        estimated_mw: 27.779402
-        estimated_mws: 23.519751
+        estimated_mw: 27.799925
+        estimated_mws: 23.537127
       }
     }
     gpu_subsystem {

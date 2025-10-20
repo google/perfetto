@@ -204,6 +204,17 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // When set to true, trace processor will perform additional runtime checks
   // to catch additional classes of SQL errors.
   bool enable_extra_checks = false;
+
+  // A list of additional protobuf descriptors used to extend trace processor's
+  // parsing capabilities at runtime, for instance to parse custom Android
+  // statsd atoms.
+  //
+  // Each string in this vector should be a raw, serialized
+  // `proto2::FileDescriptorSet` proto.
+  //
+  // When provided, these descriptors allow trace processor to parse custom
+  // protobuf messages that are not compiled into Perfetto
+  std::vector<std::string> extra_parsing_descriptors;
 };
 
 // Represents a dynamically typed value returned by SQL.
@@ -334,7 +345,14 @@ struct TraceSummaryOutputSpec {
     // Indicates that the ouput is `TraceSummary` encoded as a text protobuf.
     kTextProto,
   };
+  enum class Compression : uint8_t {
+    // Indicates that the output is not compressed.
+    kNone,
+    // Indicates that the output is compressed using zlib.
+    kZlib,
+  };
   Format format;
+  Compression compression = Compression::kNone;
 };
 
 // A struct wrapping the bytes of a `TraceSummarySpec` instance.

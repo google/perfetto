@@ -278,6 +278,53 @@ void GenericKernelParser::ParseGenericTaskRenameEvent(
       utid, comm, ThreadNamePriority::kGenericKernelTask);
 }
 
+void GenericKernelParser::ParseGenericProcessTree(protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelProcessTree::Decoder process_tree(data);
+  ProcessTracker* process_tracker = context_->process_tracker.get();
+
+  for (auto it = process_tree.processes(); it; ++it) {
+    protos::pbzero::GenericKernelProcessTree::Process::Decoder proc(*it);
+    if (!proc.has_cmdline())
+      continue;
+    const int64_t pid = proc.pid();
+    const int64_t ppid = proc.ppid();
+    base::StringView cmdline = proc.cmdline();
+    base::StringView name = cmdline;
+
+    // Use argv0 as name if cmdline has spaces in it.
+    size_t delim_pos = name.find(' ');
+    if (delim_pos != base::StringView::npos) {
+      name = name.substr(0, delim_pos);
+    }
+
+    auto pupid = process_tracker->GetOrCreateProcessWithoutMainThread(ppid);
+    auto upid = process_tracker->GetOrCreateProcessWithoutMainThread(pid);
+
+    upid = process_tracker->UpdateProcessWithParent(
+        upid, pupid, /*associate_main_thread*/ false);
+    process_tracker->SetProcessMetadata(upid, name, cmdline);
+  }
+
+  for (auto it = process_tree.threads(); it; ++it) {
+    protos::pbzero::GenericKernelProcessTree::Thread::Decoder thread(*it);
+    const int64_t pid = thread.pid();
+    const int64_t tid = thread.tid();
+    const bool is_main_thread = thread.is_main_thread();
+
+    auto upid = process_tracker->GetOrCreateProcessWithoutMainThread(pid);
+
+    auto utid = process_tracker->GetOrCreateThreadWithParent(tid, upid, false);
+
+    process_tracker->SetMainThread(utid, is_main_thread);
+
+    if (thread.has_comm()) {
+      StringId comm_id = context_->storage->InternString(thread.comm());
+      process_tracker->UpdateThreadName(utid, comm_id,
+                                        ThreadNamePriority::kProcessTree);
+    }
+  }
+}
+
 void GenericKernelParser::ParseGenericCpuFrequencyEvent(
     int64_t ts,
     protozero::ConstBytes data) {

@@ -82,6 +82,15 @@
   }
 }
 
+.pf-node-box__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.pf-node-box__filters {
+  margin-top: 0.5rem;
+}
+
 .pf-node-box {
   position: absolute;
 }

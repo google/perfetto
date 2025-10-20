@@ -16,15 +16,16 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {HTMLAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
-import {Spinner} from './spinner';
 import {Button} from './button';
 
-interface CommonAttrs extends HTMLAttrs {
+export interface ChipAttrs extends HTMLAttrs {
+  // Chips require a label.
+  readonly label: string;
+  // Chips can have an optional icon.
+  readonly icon?: string;
   // Use minimal padding, reducing the overall size of the chip by a few px.
   // Defaults to false.
   readonly compact?: boolean;
-  // Optional right icon.
-  readonly rightIcon?: string;
   // List of space separated class names forwarded to the icon.
   readonly className?: string;
   // Show loading spinner instead of icon.
@@ -45,41 +46,24 @@ interface CommonAttrs extends HTMLAttrs {
   readonly onRemove?: () => void;
 }
 
-interface IconChipAttrs extends CommonAttrs {
-  // Icon chips require an icon.
-  icon: string;
-}
-
-interface LabelChipAttrs extends CommonAttrs {
-  // Label chips require a label.
-  label: string;
-  // Label chips can have an optional icon.
-  icon?: string;
-}
-
-export type ChipAttrs = LabelChipAttrs | IconChipAttrs;
-
 export class Chip implements m.ClassComponent<ChipAttrs> {
   view({attrs}: m.CVnode<ChipAttrs>) {
     const {
       icon,
       compact,
-      rightIcon,
       className,
       iconFilled,
       intent = Intent.None,
       rounded,
       removable,
       onRemove,
+      label,
       ...htmlAttrs
     } = attrs;
-
-    const label = 'label' in attrs ? attrs.label : undefined;
 
     const classes = classNames(
       compact && 'pf-compact',
       classForIntent(intent),
-      icon && !label && 'pf-icon-only',
       className,
       rounded && 'pf-chip--rounded',
     );
@@ -90,14 +74,13 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
         ...htmlAttrs,
         className: classes,
       },
-      this.renderIcon(attrs),
-      rightIcon &&
+      icon &&
         m(Icon, {
-          className: 'pf-right-icon',
-          icon: rightIcon,
+          className: 'pf-chip__icon',
+          icon: icon,
           filled: iconFilled,
         }),
-      label || '\u200B', // Zero width space keeps chip in-flow
+      m('span.pf-chip__label', label),
       removable &&
         m(Button, {
           compact: true,
@@ -106,17 +89,5 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
           onclick: () => onRemove?.(),
         }),
     );
-  }
-
-  private renderIcon(attrs: ChipAttrs): m.Children {
-    const {icon, iconFilled} = attrs;
-    const className = 'pf-left-icon';
-    if (attrs.loading) {
-      return m(Spinner, {className});
-    } else if (icon) {
-      return m(Icon, {className, icon, filled: iconFilled});
-    } else {
-      return undefined;
-    }
   }
 }

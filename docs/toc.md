@@ -125,6 +125,7 @@
     - [Android](#)
 
       - [Boot Tracing](case-studies/android-boot-tracing.md)
+      - [OutOfMemoryError](case-studies/android-outofmemoryerror.md)
       - [Android Version Notes](reference/android-version-notes.md)
 
     - [Linux](#)
@@ -136,6 +137,7 @@
 
       - [perfetto cmdline](reference/perfetto-cli.md)
       - [heap_profile cmdline](reference/heap_profile-cli.md)
+      - [tracebox](reference/tracebox.md)
 
   - [Advanced Trace Analysis](#)
 
@@ -175,6 +177,7 @@
     - [Python release process](contributing/python-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
+    - [SQLite upgrade guide](contributing/sqlite-upgrade-guide.md)
 
     - [Design documents](#)
       - [API and ABI surface](design-docs/api-and-abi.md)
@@ -183,7 +186,10 @@
       - [Security model](design-docs/security-model.md)
       - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
       - [Batch Trace Processor](design-docs/batch-trace-processor.md)
+      - [Trace Processor Architecture](design-docs/trace-processor-architecture.md)
       - [Heapprofd design](design-docs/heapprofd-design.md)
       - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
       - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
       - [Perfetto CI](design-docs/continuous-integration.md)
+      - [LockFreeTaskRunner](design-docs/lock-free-task-runner.md)
+

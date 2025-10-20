@@ -177,15 +177,14 @@ class GeneratorImpl {
       RepeatedString group_by,
       RepeatedProto aggregates,
       RepeatedProto select_cols);
-  static base::StatusOr<std::string> SelectColumnsNoAggregates(
+  base::StatusOr<std::string> SelectColumnsNoAggregates(
       RepeatedProto select_columns);
 
   // Helpers.
   static base::StatusOr<std::string> OperatorToString(
       StructuredQuery::Filter::Operator op);
   static base::StatusOr<std::string> AggregateToString(
-      StructuredQuery::GroupBy::Aggregate::Op op,
-      protozero::ConstChars column_name);
+      const StructuredQuery::GroupBy::Aggregate::Decoder&);
 
   // Index of the current query we are processing in the `state_` vector.
   size_t state_index_ = 0;
@@ -228,6 +227,10 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
 
 base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
   StructuredQuery::Decoder q(state_[state_index_].bytes);
+
+  for (auto it = q.referenced_modules(); it; ++it) {
+    referenced_modules_.Insert(it->as_std_string(), nullptr);
+  }
 
   // Warning: do *not* keep a reference to elements in `state_` across any of
   // these functions: `state_` can be modified by them.
@@ -528,8 +531,13 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
   if (select_cols) {
     for (auto it = select_cols; it; ++it) {
       StructuredQuery::SelectColumn::Decoder select(*it);
-      std::string selected_col_name = select.column_name().ToStdString();
-      output.Insert(select.column_name().ToStdString(),
+      std::string selected_col_name;
+      if (select.has_column_name_or_expression()) {
+        selected_col_name = select.column_name_or_expression().ToStdString();
+      } else {
+        selected_col_name = select.column_name().ToStdString();
+      }
+      output.Insert(selected_col_name,
                     select.has_alias()
                         ? std::make_optional(select.alias().ToStdString())
                         : std::nullopt);
@@ -572,11 +580,7 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
     if (!sql.empty()) {
       sql += ", ";
     }
-    ASSIGN_OR_RETURN(
-        std::string agg,
-        AggregateToString(static_cast<StructuredQuery::GroupBy::Aggregate::Op>(
-                              aggregate.op()),
-                          aggregate.column_name()));
+    ASSIGN_OR_RETURN(std::string agg, AggregateToString(aggregate));
     if (o->has_value()) {
       sql += agg + " AS " + o->value();
     } else {
@@ -597,11 +601,17 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsNoAggregates(
     if (!sql.empty()) {
       sql += ", ";
     }
-    if (column.has_alias()) {
-      sql += column.column_name().ToStdString() + " AS " +
-             column.alias().ToStdString();
+    std::string col_expr;
+    if (column.has_column_name_or_expression()) {
+      col_expr = column.column_name_or_expression().ToStdString();
     } else {
-      sql += column.column_name().ToStdString();
+      col_expr = column.column_name().ToStdString();
+    }
+
+    if (column.has_alias()) {
+      sql += col_expr + " AS " + column.alias().ToStdString();
+    } else {
+      sql += col_expr;
     }
   }
   return sql;
@@ -635,9 +645,20 @@ base::StatusOr<std::string> GeneratorImpl::OperatorToString(
 }
 
 base::StatusOr<std::string> GeneratorImpl::AggregateToString(
-    StructuredQuery::GroupBy::Aggregate::Op op,
-    protozero::ConstChars raw_column_name) {
-  std::string column_name = raw_column_name.ToStdString();
+    const StructuredQuery::GroupBy::Aggregate::Decoder& aggregate) {
+  auto op =
+      static_cast<StructuredQuery::GroupBy::Aggregate::Op>(aggregate.op());
+
+  if (op == StructuredQuery::GroupBy::Aggregate::COUNT &&
+      !aggregate.has_column_name()) {
+    return std::string("COUNT(*)");
+  }
+
+  if (!aggregate.has_column_name()) {
+    return base::ErrStatus("Column name not specified for aggregation");
+  }
+  std::string column_name = aggregate.column_name().ToStdString();
+
   switch (op) {
     case StructuredQuery::GroupBy::Aggregate::COUNT:
       return "COUNT(" + column_name + ")";
@@ -651,6 +672,12 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
       return "AVG(" + column_name + ")";
     case StructuredQuery::GroupBy::Aggregate::MEDIAN:
       return "PERCENTILE(" + column_name + ", 50)";
+    case StructuredQuery::GroupBy::Aggregate::PERCENTILE:
+      if (!aggregate.has_percentile()) {
+        return base::ErrStatus("Percentile not specified for aggregation");
+      }
+      return "PERCENTILE(" + column_name + ", " +
+             std::to_string(aggregate.percentile()) + ")";
     case StructuredQuery::GroupBy::Aggregate::DURATION_WEIGHTED_MEAN:
       return "SUM(cast_double!(" + column_name +
              " * dur)) / cast_double!(SUM(dur))";

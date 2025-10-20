@@ -1,13 +1,14 @@
 wattson_markers_threads {
   metric_version: 4
   power_model_version: 1
+  is_crude_estimate: false
   period_info {
     period_id: 1
     task_info {
-      estimated_mws: 15.334200
-      estimated_mw: 7.546771
-      idle_transitions_mws: -7.870787
-      total_mws: 7.463413
+      estimated_mws: 15.334088
+      estimated_mw: 7.546716
+      idle_transitions_mws: -7.871111
+      total_mws: 7.462976
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -46,8 +47,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 4.008062
       estimated_mw: 1.972580
-      idle_transitions_mws: 0.515101
-      total_mws: 4.523164
+      idle_transitions_mws: 0.515141
+      total_mws: 4.523203
       thread_name: ".wearable.sysui"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 2710
@@ -56,8 +57,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.779144
       estimated_mw: 0.875611
-      idle_transitions_mws: 0.797607
-      total_mws: 2.576752
+      idle_transitions_mws: 0.797645
+      total_mws: 2.576789
       thread_name: "crtc_commit:80"
       process_name: "crtc_commit:80"
       thread_id: 300
@@ -66,8 +67,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.436500
       estimated_mw: 0.706977
-      idle_transitions_mws: 0.125747
-      total_mws: 1.562247
+      idle_transitions_mws: 0.125751
+      total_mws: 1.562251
       thread_name: "binder:2710_E"
       process_name: "com.google.android.wearable.sysui"
       thread_id: 6515
@@ -76,8 +77,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.262685
       estimated_mw: 0.621434
-      idle_transitions_mws: 0.390284
-      total_mws: 1.652969
+      idle_transitions_mws: 0.390293
+      total_mws: 1.652978
       thread_name: "TimerDispatch"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 819
@@ -86,8 +87,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.242919
       estimated_mw: 0.611706
-      idle_transitions_mws: 0.354291
-      total_mws: 1.597210
+      idle_transitions_mws: 0.354292
+      total_mws: 1.597211
       thread_name: "kworker/u8:4"
       process_name: "kworker/u8:4"
       thread_id: 11407
@@ -106,8 +107,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.194117
       estimated_mw: 0.587688
-      idle_transitions_mws: 0.471840
-      total_mws: 1.665957
+      idle_transitions_mws: 0.471878
+      total_mws: 1.665995
       thread_name: "kworker/u8:5"
       process_name: "kworker/u8:5"
       thread_id: 10610
@@ -116,8 +117,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.132809
       estimated_mw: 0.557515
-      idle_transitions_mws: 0.115116
-      total_mws: 1.247925
+      idle_transitions_mws: 0.115118
+      total_mws: 1.247927
       thread_name: "binder:742_2"
       process_name: "/system/bin/surfaceflinger"
       thread_id: 791
@@ -126,8 +127,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 1.065350
       estimated_mw: 0.524315
-      idle_transitions_mws: 1.216566
-      total_mws: 2.281916
+      idle_transitions_mws: 1.216606
+      total_mws: 2.281956
       thread_name: "rcu_preempt"
       process_name: "rcu_preempt"
       thread_id: 14
@@ -166,8 +167,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.795573
       estimated_mw: 0.391544
-      idle_transitions_mws: 0.275514
-      total_mws: 1.071087
+      idle_transitions_mws: 0.275544
+      total_mws: 1.071117
       thread_name: "kgsl_dispatcher"
       process_name: "kgsl_dispatcher"
       thread_id: 122
@@ -176,8 +177,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.716028
       estimated_mw: 0.352395
-      idle_transitions_mws: 0.485688
-      total_mws: 1.201716
+      idle_transitions_mws: 0.485697
+      total_mws: 1.201725
       thread_name: "irq/33-4520300."
       process_name: "irq/33-4520300."
       thread_id: 307
@@ -216,8 +217,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.463990
       estimated_mw: 0.228354
-      idle_transitions_mws: 0.206787
-      total_mws: 0.670777
+      idle_transitions_mws: 0.206791
+      total_mws: 0.670781
       thread_name: "rcuog/0"
       process_name: "rcuog/0"
       thread_id: 15
@@ -246,8 +247,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.271999
       estimated_mw: 0.133865
-      idle_transitions_mws: 0.166489
-      total_mws: 0.438488
+      idle_transitions_mws: 0.166529
+      total_mws: 0.438528
       thread_name: "rcuog/2"
       process_name: "rcuog/2"
       thread_id: 40
@@ -316,8 +317,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.104195
       estimated_mw: 0.051280
-      idle_transitions_mws: 0.330365
-      total_mws: 0.434559
+      idle_transitions_mws: 0.330410
+      total_mws: 0.434605
       thread_name: "kworker/2:0"
       process_name: "kworker/2:0"
       thread_id: 11444
@@ -326,8 +327,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.095284
       estimated_mw: 0.046894
-      idle_transitions_mws: 0.041776
-      total_mws: 0.137060
+      idle_transitions_mws: 0.041788
+      total_mws: 0.137072
       thread_name: "rcuop/2"
       process_name: "rcuop/2"
       thread_id: 41
@@ -346,8 +347,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.076505
       estimated_mw: 0.037652
-      idle_transitions_mws: 0.081632
-      total_mws: 0.158136
+      idle_transitions_mws: 0.081635
+      total_mws: 0.158140
       thread_name: "rcuop/1"
       process_name: "rcuop/1"
       thread_id: 32
@@ -556,8 +557,8 @@ wattson_markers_threads {
     task_info {
       estimated_mws: 0.011023
       estimated_mw: 0.005425
-      idle_transitions_mws: 0.001868
-      total_mws: 0.012891
+      idle_transitions_mws: 0.001876
+      total_mws: 0.012899
       thread_name: "irq/26-4744000."
       process_name: "irq/26-4744000."
       thread_id: 112

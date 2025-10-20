@@ -131,7 +131,7 @@ def update_manifest(git_revision, tool_name, archs):
 
   with open(out_file + '.tmp', 'w') as f:
     f.write(content)
-  os.rename(out_file + '.tmp', out_file)
+  os.replace(out_file + '.tmp', out_file)
   os.chmod(out_file, 0o755)
 
 

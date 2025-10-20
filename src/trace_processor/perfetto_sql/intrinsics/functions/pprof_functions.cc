@@ -16,11 +16,9 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 
-#include <stdlib.h>
-#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
@@ -30,12 +28,10 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
@@ -88,14 +84,9 @@ class AggregateContext {
   }
 
   void Final(sqlite3_context* ctx) {
-    // TODO(carlscab): A lot of copies are happening here.
     std::string profile_proto = builder_.Build();
-
-    std::unique_ptr<uint8_t[], base::FreeDeleter> data(
-        static_cast<uint8_t*>(malloc(profile_proto.size())));
-    memcpy(data.get(), profile_proto.data(), profile_proto.size());
-    return sqlite::result::RawBytes(
-        ctx, data.release(), static_cast<int>(profile_proto.size()), free);
+    return sqlite::result::TransientBytes(
+        ctx, profile_proto.data(), static_cast<int>(profile_proto.size()));
   }
 
  private:
@@ -123,7 +114,7 @@ class AggregateContext {
 
       sample_types.push_back({type->AsString(), units->AsString()});
     }
-    return std::move(sample_types);
+    return sample_types;
   }
 
   AggregateContext(TraceProcessorContext* tp_context,
@@ -211,7 +202,7 @@ struct ProfileBuilder {
 
 base::Status PprofFunctions::Register(PerfettoSqlEngine& engine,
                                       TraceProcessorContext* context) {
-  return engine.RegisterSqliteAggregateFunction<ProfileBuilder>(context);
+  return engine.RegisterAggregateFunction<ProfileBuilder>(context);
 }
 
 }  // namespace perfetto::trace_processor

@@ -61,12 +61,24 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         case '%':
           break;
         case 'd': {
+          if (sint64_params_itr == sint64_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           base::StackString<32> param("%" PRId64, *sint64_params_itr);
           formatted_message.append(param.c_str());
           ++sint64_params_itr;
           break;
         }
         case 'o': {
+          if (sint64_params_itr == sint64_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           base::StackString<32> param(
               "%" PRIo64, static_cast<uint64_t>(*sint64_params_itr));
           formatted_message.append(param.c_str());
@@ -74,6 +86,12 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
           break;
         }
         case 'x': {
+          if (sint64_params_itr == sint64_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           base::StackString<32> param(
               "%" PRIx64, static_cast<uint64_t>(*sint64_params_itr));
           formatted_message.append(param.c_str());
@@ -81,29 +99,59 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
           break;
         }
         case 'f': {
+          if (double_params_itr == double_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           base::StackString<32> param("%f", *double_params_itr);
           formatted_message.append(param.c_str());
           ++double_params_itr;
           break;
         }
         case 'e': {
+          if (double_params_itr == double_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           base::StackString<32> param("%e", *double_params_itr);
           formatted_message.append(param.c_str());
           ++double_params_itr;
           break;
         }
         case 'g': {
+          if (double_params_itr == double_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           base::StackString<32> param("%g", *double_params_itr);
           formatted_message.append(param.c_str());
           ++double_params_itr;
           break;
         }
         case 's': {
+          if (str_params_itr == string_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           formatted_message.append(*str_params_itr);
           ++str_params_itr;
           break;
         }
         case 'b': {
+          if (boolean_params_itr == boolean_params.end()) {
+            context_->storage->IncrementStats(
+                stats::winscope_protolog_param_mismatch);
+            formatted_message.append("[MISSING_PARAM]");
+            break;
+          }
           formatted_message.append(*boolean_params_itr ? "true" : "false");
           ++boolean_params_itr;
           break;
@@ -118,6 +166,13 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
       formatted_message.push_back(message[i]);
       i += 1;
     }
+  }
+
+  if (sint64_params_itr != sint64_params.end() ||
+      double_params_itr != double_params.end() ||
+      boolean_params_itr != boolean_params.end() ||
+      str_params_itr != string_params.end()) {
+    context_->storage->IncrementStats(stats::winscope_protolog_param_mismatch);
   }
 
   return DecodedMessage{tracked_message->level, group->tag, formatted_message,

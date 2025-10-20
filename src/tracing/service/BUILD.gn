@@ -48,8 +48,9 @@ source_set("service") {
     "packet_stream_validator.h",
     "random.cc",
     "random.h",
-    "trace_buffer.cc",
     "trace_buffer.h",
+    "trace_buffer_v1.cc",
+    "trace_buffer_v1.h",
     "tracing_service_impl.cc",
     "tracing_service_impl.h",
   ]
@@ -103,7 +104,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
-    "trace_buffer_unittest.cc",
+    "trace_buffer_v1_unittest.cc",
   ]
 
   if (enable_perfetto_zlib) {
