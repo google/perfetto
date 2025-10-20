@@ -17,6 +17,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {Trace} from '../../../../public/trace';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {Filters} from './filters';
+import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
 export interface TableManager {
@@ -34,12 +35,20 @@ export interface TableColumnParams {
   startsHidden?: boolean;
 }
 
+export interface TableColumnSource {
+  kind: 'cast' | 'transform';
+  source: TableColumn;
+}
+
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
 export interface TableColumn<
   SupportingColumns extends {[key: string]: SqlColumn} = {},
 > {
   readonly column: SqlColumn;
+  readonly type: PerfettoSqlType | undefined;
+  // An original column this column might have been derived from.
+  readonly origin?: TableColumnSource;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.

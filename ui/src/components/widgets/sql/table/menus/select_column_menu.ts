@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TableColumn, TableManager, tableColumnId} from './table_column';
-import {MenuDivider, MenuItem} from '../../../../widgets/menu';
-import {raf} from '../../../../core/raf_scheduler';
-import {uuidv4} from '../../../../base/uuid';
-import {hasModKey, modKey} from '../../../../base/hotkeys';
-import {TextInput} from '../../../../widgets/text_input';
-import {Spinner} from '../../../../widgets/spinner';
+import {TableColumn, TableManager, tableColumnId} from '../table_column';
+import {MenuDivider, MenuItem} from '../../../../../widgets/menu';
+import {raf} from '../../../../../core/raf_scheduler';
+import {uuidv4} from '../../../../../base/uuid';
+import {hasModKey, modKey} from '../../../../../base/hotkeys';
+import {TextInput} from '../../../../../widgets/text_input';
+import {Spinner} from '../../../../../widgets/spinner';
 
 export type SelectColumnMenuAttrs = {
   columns:
