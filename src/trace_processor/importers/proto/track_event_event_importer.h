@@ -803,8 +803,7 @@ class TrackEventEventImporter {
       }
     }
     std::optional<int64_t> tic = slice_ref.thread_instruction_count();
-    if (tic) {
-      PERFETTO_DCHECK(event_data_->thread_instruction_count);
+    if (tic && thread_instruction_count_) {
       slice_ref.set_thread_instruction_delta(
           *event_data_->thread_instruction_count - *tic);
     }
