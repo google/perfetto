@@ -138,7 +138,10 @@ message FtraceEventBundle {
   message GenericEventDescriptor {
     // submessage id within FtraceEvent described by |event_descriptor|.
     optional int32 field_id = 1;
-    // serialised DescriptorProto
+    // optional: the event's group, e.g. "sched" for "sched/sched_switch".
+    // The event name itself is in |event_descriptor.name|.
+    optional string group_name = 3;
+    // serialised DescriptorProto.
     optional bytes event_descriptor = 2;
   }
   repeated GenericEventDescriptor generic_event_descriptors = 11;

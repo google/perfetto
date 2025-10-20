@@ -22,6 +22,7 @@ import {
   createSelectColumnsProto,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
@@ -37,8 +38,9 @@ import {SourceNode} from '../../source_node';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface TableSourceState extends QueryNodeState {
@@ -64,7 +66,7 @@ export function modalForTableSelection(
       title: 'Choose a table',
       content: () => {
         return m(
-          '.pf-node-explorer-help',
+          '.pf-exp-node-explorer-help',
           m(TableList, {
             sqlModules,
             onTableClick: (tableName: string) => {
@@ -97,19 +99,20 @@ export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
   readonly prevNodes: QueryNode[] = [];
   showColumns: boolean = false;
-
-  get sourceCols() {
-    return (
-      this.state.sqlTable?.columns.map((c) =>
-        columnInfoFromSqlColumn(c, true),
-      ) ?? []
-    );
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
+  meterialisedAs?: string;
 
   constructor(attrs: TableSourceState) {
     super(attrs);
     this.state = attrs;
     this.state.onchange = attrs.onchange;
+    this.finalCols = createFinalColumns(
+      this.state.sqlTable?.columns.map((c) =>
+        columnInfoFromSqlColumn(c, true),
+      ) ?? [],
+    );
+    this.nextNodes = [];
 
     this.state.filters = attrs.filters ?? [];
   }
@@ -123,7 +126,7 @@ export class TableSourceNode extends SourceNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      filters: this.state.filters.map((f) => ({...f})),
+      filters: this.state.filters?.map((f) => ({...f})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
@@ -171,7 +174,7 @@ export class TableSourceNode extends SourceNode {
         ),
         m(FilterOperation, {
           filters: this.state.filters,
-          sourceCols: this.sourceCols,
+          sourceCols: this.finalCols,
           onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
             this.state.filters = newFilters as FilterDefinition[];
             this.state.onchange?.();
@@ -187,7 +190,7 @@ export class TableSourceNode extends SourceNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
+    return this.state.customTitle ?? `${this.state.sqlTable?.name}`;
   }
 
   isMaterialised(): boolean {
@@ -204,14 +207,11 @@ export class TableSourceNode extends SourceNode {
     sq.table.moduleName = this.state.sqlTable.includeKey
       ? this.state.sqlTable.includeKey
       : undefined;
-    sq.table.columnNames = this.sourceCols
+    sq.table.columnNames = this.finalCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(
-      this.state.filters,
-      this.sourceCols,
-    );
+    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
     if (filtersProto) sq.filters = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);
@@ -224,6 +224,7 @@ export class TableSourceNode extends SourceNode {
       sqlTable: this.state.sqlTable?.name,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 

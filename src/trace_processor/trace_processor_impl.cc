@@ -71,6 +71,7 @@
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
+#include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
@@ -257,7 +258,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
     new_package.modules.Insert(module_name_and_sql.first,
                                {module_name_and_sql.second, false});
   }
-  return std::move(new_package);
+  return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
 
 class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
@@ -519,6 +520,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       ->reader_registry
       ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
           kPerfTextTraceType);
+  context()
+      ->reader_registry->RegisterTraceReader<
+          simpleperf_proto_importer::SimpleperfProtoTokenizer>(
+          kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
 

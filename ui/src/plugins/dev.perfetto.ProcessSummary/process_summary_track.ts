@@ -38,7 +38,7 @@ interface Data extends TrackData {
 }
 
 export interface Config {
-  pidForColor: number;
+  pidForColor: number | bigint;
   upid: number | null;
   utid: number | null;
 }

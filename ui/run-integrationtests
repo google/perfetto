@@ -31,8 +31,8 @@ def main():
       '--rebaseline', '-r', action='store_true', help='Rebaseline screenshots')
   parser.add_argument('--out', help='out directory')
   parser.add_argument('--no-build', action='store_true')
-  parser.add_argument(
-      '--workers', help='Number of playwright workers to use')
+  parser.add_argument('--no-depscheck', action='store_true')
+  parser.add_argument('--workers', help='Number of playwright workers to use')
   parser.add_argument('filters', nargs='*')
   args = parser.parse_args()
 
@@ -58,6 +58,8 @@ def main():
     dev_server_args += ['--out', out_rel_path]
   if args.no_build:
     dev_server_args += ['--no-build']
+  if args.no_depscheck:
+    dev_server_args += ['--no-depscheck']
   env['DEV_SERVER_ARGS'] = ' '.join(dev_server_args)
   os.chdir(UI_DIR)
   os.execve(cmd[0], cmd, env)

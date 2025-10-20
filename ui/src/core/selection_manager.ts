@@ -226,10 +226,10 @@ export class SelectionManagerImpl implements SelectionManager {
     return this.detailsPanels.get(this._selection);
   }
 
-  async resolveSqlEvent(
+  async resolveSqlEvents(
     sqlTableName: string,
     id: number,
-  ): Promise<{eventId: number; trackUri: string} | undefined> {
+  ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>> {
     // This function:
     // 1. Find the list of tracks whose rootTableName is the same as the one we
     //    are looking for
@@ -240,6 +240,7 @@ export class SelectionManagerImpl implements SelectionManager {
     // One flaw of this approach is that.
     const groups = new Map<string, [SourceDataset, Track][]>();
     const tracksWithNoFilter: [SourceDataset, Track][] = [];
+    const matches: {eventId: number; trackUri: string}[] = [];
 
     this.trackManager
       .getAllTracks()
@@ -267,7 +268,7 @@ export class SelectionManagerImpl implements SelectionManager {
       const query = `select id from (${dataset.query()}) where id = ${id}`;
       const result = await this.engine.query(query);
       if (result.numRows() > 0) {
-        return {eventId: id, trackUri: track.uri};
+        matches.push({eventId: id, trackUri: track.uri});
       }
     }
 
@@ -290,43 +291,42 @@ export class SelectionManagerImpl implements SelectionManager {
       const query = `select * from (${union.query(schema)}) where id = ${id}`;
       const result = await this.engine.query(query);
 
+      const getTrackFromFilterValue = function (value: SqlValue) {
+        let trackUri = map.get(value);
+
+        // If that didn't work, try converting the value to a number if it's a
+        // bigint. Unless specified as a NUM type, any integers on the wire will
+        // be parsed as a bigint to avoid losing precision.
+        if (trackUri === undefined && typeof value === 'bigint') {
+          trackUri = map.get(Number(value));
+        }
+        return trackUri;
+      };
+
       const row = result.iter(schema);
-      const value = row.get(colName);
-
-      let trackUri = map.get(value);
-
-      // If that didn't work, try converting the value to a number if it's a
-      // bigint. Unless specified as a NUM type, any integers on the wire will
-      // be parsed as a bigint to avoid losing precision.
-      if (trackUri === undefined && typeof value === 'bigint') {
-        trackUri = map.get(Number(value));
-      }
-
-      if (trackUri) {
-        return {eventId: id, trackUri};
+      for (; row.valid(); row.next()) {
+        const value = row.get(colName);
+        const trackUri = getTrackFromFilterValue(value);
+        if (trackUri) {
+          matches.push({eventId: id, trackUri});
+        }
       }
     }
 
-    return undefined;
+    return matches;
   }
 
-  async resolveSqlEvents(
+  async resolveSqlEvent(
     sqlTableName: string,
-    ids: number[],
-  ): Promise<({eventId: number; trackUri: string} | undefined)[]> {
-    // TODO: Implement actual batch lookup and remove resolveSqlEvent.
-    return Promise.all(ids.map((id) => this.resolveSqlEvent(sqlTableName, id)));
+    id: number,
+  ): Promise<{eventId: number; trackUri: string} | undefined> {
+    const matches = await this.resolveSqlEvents(sqlTableName, id);
+    return matches[0];
   }
 
-  selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void {
-    this.resolveSqlEvents(sqlTableName, [id]).then((selection) => {
-      selection[0] &&
-        this.selectTrackEvent(
-          selection[0].trackUri,
-          selection[0].eventId,
-          opts,
-        );
-    });
+  async selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts) {
+    const event = await this.resolveSqlEvent(sqlTableName, id);
+    event && this.selectTrackEvent(event.trackUri, event.eventId, opts);
   }
 
   private setSelection(selection: Selection, opts?: SelectionOpts) {

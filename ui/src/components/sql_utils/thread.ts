@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../../trace_processor/engine';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {LONG, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {fromNumNull} from '../../trace_processor/sql_utils';
 import {ProcessInfo, getProcessInfo, getProcessName} from './process';
 import {Upid, Utid} from './core_types';
@@ -23,7 +23,7 @@ import {Upid, Utid} from './core_types';
 
 export interface ThreadInfo {
   utid: Utid;
-  tid?: number;
+  tid?: bigint;
   name?: string;
   process?: ProcessInfo;
 }
@@ -38,7 +38,7 @@ export async function getThreadInfo(
         FROM thread
         WHERE utid = ${utid};
     `)
-  ).iter({tid: NUM, name: STR_NULL, upid: NUM_NULL});
+  ).iter({tid: LONG, name: STR_NULL, upid: NUM_NULL});
   if (!it.valid()) {
     return {
       utid,
@@ -55,7 +55,7 @@ export async function getThreadInfo(
 
 function getDisplayName(
   name: string | undefined,
-  id: number | undefined,
+  id: bigint | number | undefined,
 ): string | undefined {
   if (name === undefined) {
     return id === undefined ? undefined : `${id}`;
@@ -65,7 +65,7 @@ function getDisplayName(
 
 export function getThreadName(info?: {
   name?: string;
-  tid?: number;
+  tid?: bigint;
 }): string | undefined {
   return getDisplayName(info?.name, info?.tid);
 }

@@ -17,7 +17,6 @@ import {DisposableStack} from '../base/disposable_stack';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
-import {Icons} from '../base/semantic_icons';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {AppImpl} from '../core/app_impl';
@@ -26,11 +25,10 @@ import {featureFlags} from '../core/feature_flags';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
-import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {LinearProgress} from '../widgets/linear_progress';
-import {maybeRenderFullscreenModalDialog, showModal} from '../widgets/modal';
+import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 import {initCssConstants} from './css_constants';
 import {toggleHelp} from './help_modal';
@@ -102,7 +100,6 @@ export class UiMainPerTrace implements m.ClassComponent {
     // commands or anything in this state as they will be useless.
     if (trace === undefined) return;
     document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
-    this.maybeShowJsonWarning();
   }
 
   private renderOmnibox(): m.Children {
@@ -425,47 +422,5 @@ export class UiMainPerTrace implements m.ClassComponent {
       }
       AppImpl.instance.omnibox.clearFocusFlag();
     }
-  }
-
-  private async maybeShowJsonWarning() {
-    // Show warning if the trace is in JSON format.
-    const isJsonTrace = this.trace?.traceInfo.traceType === 'json';
-    const SHOWN_JSON_WARNING_KEY = 'shownJsonWarning';
-
-    if (
-      !isJsonTrace ||
-      window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) === 'true' ||
-      AppImpl.instance.embeddedMode
-    ) {
-      // When in embedded mode, the host app will control which trace format
-      // it passes to Perfetto, so we don't need to show this warning.
-      return;
-    }
-
-    // Save that the warning has been shown. Value is irrelevant since only
-    // the presence of key is going to be checked.
-    window.localStorage.setItem(SHOWN_JSON_WARNING_KEY, 'true');
-
-    showModal({
-      title: 'Warning',
-      content: m(
-        'div',
-        m(
-          'span',
-          'Perfetto UI features are limited for JSON traces. ',
-          'We recommend recording ',
-          m(
-            Anchor,
-            {
-              href: 'https://perfetto.dev/docs/quickstart/chrome-tracing',
-              icon: Icons.ExternalLink,
-            },
-            'proto-format traces',
-          ),
-          ' from Chrome.',
-        ),
-        m('br'),
-      ),
-    });
   }
 }

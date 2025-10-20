@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NodeType} from './query_node';
-import {NodeBoxLayout} from './query_builder/node_box';
+import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {ExplorePageState} from './explore_page';
@@ -243,6 +243,9 @@ export function createGraphFromSql(sql: string): string {
     for (const dep of parsedNode.dependencies) {
       const depNode = nodeMap.get(dep)!;
       depNode.nextNodes.push(node.nodeId);
+      if (!node.prevNodes) {
+        node.prevNodes = [];
+      }
       node.prevNodes.push(depNode.nodeId);
     }
     if (parsedNode.dependencies.length === 0) {

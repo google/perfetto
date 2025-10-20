@@ -368,6 +368,22 @@ TEST_F(WindowManagerHierarchyWalkerTest, TaskNameOverride) {
       });
 }
 
+TEST_F(WindowManagerHierarchyWalkerTest, TaskWindowContainerFallback) {
+  auto containers = walker_.ExtractWindowContainers(
+      protos::pbzero::WindowManagerTraceEntry::Decoder(
+          WindowManagerSampleProtos::HierarchyWithTaskContainerFallback()));
+
+  CheckWindowContainers(
+      containers,
+      {
+          {"root", 1, std::nullopt, std::nullopt, false, std::nullopt,
+           "RootWindowContainer", std::nullopt},
+          {"child - Task", 2, 1, 0, false, std::nullopt, "Task", std::nullopt},
+          {"grandchild - WindowContainer", 3, 2, 0, false, std::nullopt,
+           "WindowContainer", std::nullopt},
+      });
+}
+
 TEST_F(WindowManagerHierarchyWalkerTest, WindowStateNameOverrides) {
   auto containers = walker_.ExtractWindowContainers(
       protos::pbzero::WindowManagerTraceEntry::Decoder(

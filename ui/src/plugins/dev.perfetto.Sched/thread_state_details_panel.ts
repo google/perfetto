@@ -212,7 +212,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
     id: SchedSqlId | undefined,
   ): m.Children {
     if (!state) {
-      return null;
+      return '[Unknown]';
     }
     if (id === undefined || cpu === undefined) {
       return state;
