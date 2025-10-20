@@ -66,7 +66,7 @@ export const NodeBlock: m.Component<NodeBlockAttrs> = {
         renderAddButton({
           ...attrs,
           node: lastNode,
-          onAddDerivedNode: attrs.onAddDerivedNode,
+          onAddOperationNode: attrs.onAddOperationNode,
         }),
       ),
     );

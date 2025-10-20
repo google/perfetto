@@ -21,28 +21,43 @@ $kAddColumns-color: #c5cae9;
 $kLimitAndOffset-color: #b2dfdb;
 $kSort-color: #fff9c4;
 $kIntervalIntersect-color: #ffecb3;
+$kUnion-color: #b2ebf2;
 $other-color: #f0f4c3;
 
 @mixin set-node-color($node-type) {
   @if $node-type == "kTable" {
-    background-color: $kTable-color;
+    background-color: color-mix(in srgb, $kTable-color, transparent 50%);
   } @else if $node-type == "kSimpleSlices" {
-    background-color: $kSimpleSlices-color;
+    background-color: color-mix(in srgb, $kSimpleSlices-color, transparent 50%);
   } @else if $node-type == "kSqlSource" {
-    background-color: $kSqlSource-color;
+    background-color: color-mix(in srgb, $kSqlSource-color, transparent 50%);
   } @else if $node-type == "kAggregation" {
-    background-color: $kAggregation-color;
+    background-color: color-mix(in srgb, $kAggregation-color, transparent 50%);
   } @else if $node-type == "kModifyColumns" {
-    background-color: $kModifyColumns-color;
+    background-color: color-mix(
+      in srgb,
+      $kModifyColumns-color,
+      transparent 50%
+    );
   } @else if $node-type == "kAddColumns" {
-    background-color: $kAddColumns-color;
+    background-color: color-mix(in srgb, $kAddColumns-color, transparent 50%);
   } @else if $node-type == "kLimitAndOffset" {
-    background-color: $kLimitAndOffset-color;
+    background-color: color-mix(
+      in srgb,
+      $kLimitAndOffset-color,
+      transparent 50%
+    );
   } @else if $node-type == "kSort" {
-    background-color: $kSort-color;
+    background-color: color-mix(in srgb, $kSort-color, transparent 50%);
   } @else if $node-type == "kIntervalIntersect" {
-    background-color: $kIntervalIntersect-color;
+    background-color: color-mix(
+      in srgb,
+      $kIntervalIntersect-color,
+      transparent 50%
+    );
+  } @else if $node-type == "kUnion" {
+    background-color: color-mix(in srgb, $kUnion-color, transparent 50%);
   } @else {
-    background-color: $other-color;
+    background-color: color-mix(in srgb, $other-color, transparent 50%);
   }
 }

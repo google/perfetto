@@ -74,7 +74,7 @@ export function registerCoreNodes() {
     name: 'Aggregation',
     description: 'Group and aggregate data from the source node.',
     icon: 'functions',
-    type: 'derived',
+    type: 'modification',
     factory: (state) => new AggregationNode(state as AggregationNodeState),
   });
 
@@ -82,7 +82,7 @@ export function registerCoreNodes() {
     name: 'Modify Columns',
     description: 'Select, rename, and add new columns to the data.',
     icon: 'edit',
-    type: 'derived',
+    type: 'modification',
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
   });
 
@@ -90,7 +90,7 @@ export function registerCoreNodes() {
     name: 'Interval Intersect',
     description: 'Intersect the intervals with another table.',
     icon: 'timeline',
-    type: 'derived',
+    type: 'multisource',
     factory: (state, context) => {
       if (!context) {
         throw new Error(
