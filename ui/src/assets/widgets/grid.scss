@@ -22,6 +22,7 @@ $border-3: 2px solid var(--pf-color-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: 100%;
 
   &__main-content {
     display: flex;
