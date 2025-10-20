@@ -25,6 +25,11 @@ FROM _callstacks_for_callsites!((
 ORDER BY
   c.id;
 
+-- This index is added to optimize the creation of the
+-- appleos_instruments_samples_summary_tree table by speeding up the
+-- leaf-finding query in _callstacks_self_to_cumulative.
+CREATE PERFETTO INDEX _appleos_instruments_raw_callstacks_parent_id_idx ON _appleos_instruments_raw_callstacks(parent_id);
+
 -- Table summarising the callstacks captured during all
 -- instruments samples in the trace.
 --

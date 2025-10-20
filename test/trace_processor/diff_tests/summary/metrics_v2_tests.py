@@ -106,6 +106,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values: {
               double_value: 37351104642.0
@@ -154,6 +155,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values: {
               double_value: 37351104642.0
@@ -203,6 +205,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "preamble_view_metric"
           row {
             values: {
               double_value: 37351104642.0
@@ -252,6 +255,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "preamble_view_metric"   
           row {
             values: {
               double_value: 37351104642.0
@@ -298,6 +302,7 @@ class SummaryMetricsV2(TestSuite):
           }
         '''),
         out=Csv("""
+          bundle_id: "memory_per_process"
           row {
             values {
               double_value: 37351104642.0
@@ -391,6 +396,7 @@ class SummaryMetricsV2(TestSuite):
               }
         '''),
         out=Csv("""
+          bundle_id: "p99_duration"
           row {
             values {
               double_value: 99.1

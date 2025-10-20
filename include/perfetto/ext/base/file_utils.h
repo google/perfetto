@@ -73,7 +73,7 @@ ssize_t WriteAllHandle(PlatformHandle, const void* buf, size_t count);
 ScopedFile OpenFile(const std::string& path,
                     int flags,
                     FileOpenMode = kFileModeInvalid);
-ScopedFstream OpenFstream(const char* path, const char* mode);
+ScopedFstream OpenFstream(const std::string& path, const std::string& mode);
 
 // This is an alias for close(). It's to avoid leaking windows.h in headers.
 // Exported because ScopedFile is used in the /include/ext API by Chromium

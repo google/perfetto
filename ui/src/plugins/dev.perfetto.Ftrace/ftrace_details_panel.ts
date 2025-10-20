@@ -15,19 +15,25 @@
 import m from 'mithril';
 import {Time} from '../../base/time';
 import {renderArguments} from '../../components/details/args';
-import {ArgsDict, getArgs} from '../../components/sql_utils/args';
-import {asArgSetId} from '../../components/sql_utils/core_types';
+import {Arg} from '../../components/sql_utils/args';
+import {asArgId} from '../../components/sql_utils/core_types';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {NUM_NULL} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 
 export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
-  private args?: ArgsDict;
+  private args?: ReadonlyArray<Arg>;
 
   constructor(
     readonly trace: Trace,
@@ -95,17 +101,40 @@ export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
 
   private async loadArgs() {
     const queryRes = await this.trace.engine.query(`
-      SELECT arg_set_id
+      SELECT
+        args.id as id,
+        flat_key as flatKey,
+        key,
+        int_value as intValue,
+        string_value as stringValue,
+        real_value as realValue,
+        value_type as valueType,
+        display_value as displayValue
       FROM ftrace_event
+      JOIN args USING(arg_set_id)
       WHERE ftrace_event.id = ${this.row.id}
     `);
 
     const it = queryRes.iter({
-      arg_set_id: NUM_NULL,
+      id: NUM,
+      flatKey: STR,
+      key: STR,
+      intValue: LONG_NULL,
+      stringValue: STR_NULL,
+      realValue: NUM_NULL,
+      valueType: STR,
+      displayValue: STR_NULL,
     });
 
-    if (it.valid() && it.arg_set_id !== null) {
-      this.args = await getArgs(this.trace.engine, asArgSetId(it.arg_set_id));
+    const args: Arg[] = [];
+    for (; it.valid(); it.next()) {
+      args.push({
+        id: asArgId(it.id),
+        flatKey: it.flatKey,
+        key: it.key,
+        displayValue: it.displayValue ?? 'NULL',
+      });
     }
+    this.args = args;
   }
 }

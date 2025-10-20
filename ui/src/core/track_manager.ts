@@ -126,7 +126,7 @@ export class TrackManagerImpl implements TrackManager {
     return this.tracks.tryGet(uri)?.desc;
   }
 
-  // This is only called by the viewer_page.ts.
+  // This is only called by the timeline_page.ts.
   getTrackFSM(uri: string): TrackWithFSM | undefined {
     // Search for a cached version of this track,
     const trackFsm = this.tracks.tryGet(uri);

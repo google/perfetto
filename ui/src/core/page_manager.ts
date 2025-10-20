@@ -46,7 +46,7 @@ export class PageManagerImpl {
     // avoid calling their view functions. This makes sure DOM state such as
     // scrolling position is retained between page flips, which can be handy
     // when quickly switching between pages that have long scrolling content
-    // such as the viewer page.
+    // such as the timeline page.
     return Array.from(this.previousPages.entries())
       .map(([key, {page, subpage}]) => {
         const maybeRenderedPage = this.renderPageForRoute(page, subpage);

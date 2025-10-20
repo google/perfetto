@@ -184,8 +184,18 @@ base::Status ProtoToArgsParser::ParseMessage(
         continue;
       }
 
-      // Packed fields need to be handled specially because
-      if (field_descriptor->is_packed()) {
+      // Detect packed fields based on the serialized wire type instead of the
+      // descriptor flag to tolerate proto/descriptor mismatches.
+      using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+      using PWT = protozero::proto_utils::ProtoWireType;
+      const auto descriptor_type = field_descriptor->type();
+      const bool is_length_delimited = field.type() == PWT::kLengthDelimited;
+      const bool looks_packed =
+          field_descriptor->is_repeated() && is_length_delimited &&
+          descriptor_type != FieldDescriptorProto::TYPE_MESSAGE &&
+          descriptor_type != FieldDescriptorProto::TYPE_STRING &&
+          descriptor_type != FieldDescriptorProto::TYPE_BYTES;
+      if (looks_packed) {
         RETURN_IF_ERROR(ParsePackedField(
             *field_descriptor, item.repeated_field_index, field, delegate));
         continue;

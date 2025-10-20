@@ -18,7 +18,7 @@ import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button} from '../../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {QueryNode, singleNodeOperation} from '../../query_node';
+import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import {Chip} from '../../../../widgets/chip';
 import {Icon} from '../../../../widgets/icon';
@@ -51,7 +51,7 @@ export interface NodeBoxAttrs {
   ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -59,7 +59,7 @@ export interface NodeBoxAttrs {
 export function renderWarningIcon(node: QueryNode): m.Child {
   if (!node.state.issues || !node.state.issues.hasIssues()) return null;
 
-  const iconClasses = classNames('pf-node-box__warning-icon');
+  const iconClasses = classNames('pf-exp-node-box__warning-icon');
 
   return m(Icon, {
     className: iconClasses,
@@ -69,6 +69,7 @@ export function renderWarningIcon(node: QueryNode): m.Child {
 }
 
 import {nodeRegistry} from '../node_registry';
+import {isMultiSourceNode} from '../utils';
 
 export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
@@ -96,12 +97,12 @@ export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddDerivedNode} = attrs;
-  const derivedNodes = nodeRegistry
+  const {node, onAddOperationNode} = attrs;
+  const operationNodes = nodeRegistry
     .list()
-    .filter(([_id, descriptor]) => descriptor.type === 'derived');
+    .filter(([_id, descriptor]) => descriptor.type === 'modification');
 
-  if (derivedNodes.length === 0) {
+  if (operationNodes.length === 0) {
     return null;
   }
 
@@ -109,14 +110,14 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     PopupMenu,
     {
       trigger: m(Icon, {
-        className: 'pf-node-box-add-button',
+        className: 'pf-exp-node-box-add-button',
         icon: 'add',
       }),
     },
-    ...derivedNodes.map(([id, descriptor]) => {
+    ...operationNodes.map(([id, descriptor]) => {
       return m(MenuItem, {
         label: descriptor.name,
-        onclick: () => onAddDerivedNode(id, node),
+        onclick: () => onAddOperationNode(id, node),
       });
     }),
   );
@@ -127,7 +128,7 @@ export function renderFilters(attrs: NodeBoxAttrs): m.Child {
   if (!node.state.filters || node.state.filters.length === 0) return null;
 
   return m(
-    '.pf-node-box__filters',
+    '.pf-exp-node-box__filters',
     node.state.filters?.map((filter) => {
       const label =
         'value' in filter
@@ -149,11 +150,11 @@ export const NodeBoxContent: m.Component<NodeBoxAttrs> = {
     const shouldShowTitle = !singleNodeOperation(node.type) || hasCustomTitle;
 
     return m(
-      '.pf-node-box__content',
-      shouldShowTitle && m('span.pf-node-box__title', node.getTitle()),
+      '.pf-exp-node-box__content',
+      shouldShowTitle && m('span.pf-exp-node-box__title', node.getTitle()),
       node.state.comment &&
         m(Callout, {intent: Intent.None}, node.state.comment),
-      m('.pf-node-box__details', node.nodeDetails?.()),
+      m('.pf-exp-node-box__details', node.nodeDetails?.()),
       renderFilters(attrs),
     );
   },
@@ -171,9 +172,10 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     } = attrs;
 
     const conditionalClasses = classNames(
-      !node.validate() && 'pf-node-box__invalid',
-      node.state.issues?.queryError && 'pf-node-box__invalid-query',
-      node.state.issues?.responseError && 'pf-node-box__invalid-response',
+      !node.validate() && 'pf-exp-node-box__invalid',
+      node.state.issues?.queryError && 'pf-exp-node-box__invalid-query',
+      node.state.issues?.responseError && 'pf-exp-node-box__invalid-response',
+      NodeType[node.type],
     );
 
     return m(
@@ -186,15 +188,20 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         onNodeRendered,
       },
       m(
-        '.pf-node-box',
+        '.pf-exp-node-box',
         {
           class: conditionalClasses,
           onclick: () => onNodeSelected(node),
         },
-        node.prevNodes?.map((_, i) => {
-          const portCount = node.prevNodes ? node.prevNodes.length : 0;
+        ('prevNode' in node
+          ? [node.prevNode]
+          : 'prevNodes' in node
+            ? node.prevNodes
+            : []
+        ).map((_, i, arr) => {
+          const portCount = arr.length;
           const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
-          return m('.pf-node-box-port.pf-node-box-port-top', {
+          return m('.pf-exp-node-box-port.pf-exp-node-box-port-top', {
             style: {left},
           });
         }),
@@ -204,11 +211,12 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         node.nextNodes.map((_, i) => {
           const portCount = node.nextNodes.length;
           const left = `calc(${((i + 1) * 100) / (portCount + 1)}% - 5px)`;
-          return m('.pf-node-box-port.pf-node-box-port-bottom', {
+          return m('.pf-exp-node-box-port.pf-exp-node-box-port-bottom', {
             style: {left},
           });
         }),
         renderAddButton(attrs),
+        isMultiSourceNode(node) && m('.pf-node-box__bottom-port'),
       ),
     );
   },

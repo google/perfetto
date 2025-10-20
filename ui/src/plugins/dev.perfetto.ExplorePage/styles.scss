@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
 @import "./query_builder/builder.scss";
 
 .pf-explore-page {
+  --pf-exp-font-size-sm: 0.9em;
+  --pf-exp-font-size-md: 1.1em;
+  --pf-exp-font-size-lg: 1.8em;
+
   height: 100%;
   position: relative;
   overflow: auto;

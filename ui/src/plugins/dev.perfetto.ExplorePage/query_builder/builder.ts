@@ -50,7 +50,7 @@ export interface BuilderAttrs {
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
-  readonly onAddDerivedNode: (id: string) => void;
+  readonly onAddOperationNode: (id: string) => void;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
@@ -171,7 +171,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAddSourceNode: attrs.onAddSourceNode,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onAddDerivedNode: attrs.onAddDerivedNode,
+          onAddOperationNode: attrs.onAddOperationNode,
           devMode: attrs.devMode,
           onDevModeChange: attrs.onDevModeChange,
           onDeleteNode: (node: QueryNode) => {

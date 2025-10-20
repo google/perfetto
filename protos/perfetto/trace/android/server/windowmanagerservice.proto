@@ -468,6 +468,7 @@ message WindowStateProto {
   optional RectProto dim_bounds = 49;
   optional int32 buffer_seq_id = 50;
   optional int32 sync_seq_id = 51;
+  optional int32 animating_types = 52;
 }
 
 // represents RemoteInsetsControlTarget

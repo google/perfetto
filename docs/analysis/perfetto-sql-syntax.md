@@ -199,12 +199,17 @@ is inspired by the macros in Rust.
 
 The following are recommended uses of macros:
 - Passing tables as arguments to a "function-like" snippet of SQL.
+- Defining simple constants for performance-sensitive queries.
 
 Macros are powerful but also dangerous if used incorrectly, making debugging
 extremely difficult. For this reason, it's recommended that they are used
 sparingly when they are needed and only for the recommended uses described
-above. If only passing around scalar SQL values, use functions as discussed
 above.
+
+If only passing around scalar SQL values, functions are generally preferred
+for their clarity. However, for simple constants used many times in a
+performance-sensitive query, a macro can be more efficient as it avoids the
+potential overhead of function calls in a large number.
 
 NOTE: Macros are expanded with a pre-processing step *before* any execution
 happens. Expansion is a purely syntatic operation involves replacing the macro

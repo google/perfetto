@@ -15,7 +15,12 @@
 import {TrackData} from '../../components/tracks/track_data';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
 import {
   createProcessInstrumentsSamplesProfileTrack,
@@ -86,7 +91,7 @@ export default class implements PerfettoPlugin {
     for (
       const it = tResult.iter({
         utid: NUM,
-        tid: NUM,
+        tid: LONG,
         threadName: STR_NULL,
         upid: NUM_NULL,
       });

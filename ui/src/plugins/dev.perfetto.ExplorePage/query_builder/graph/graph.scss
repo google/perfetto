@@ -14,7 +14,7 @@
 
 @import "../../../../assets/theme";
 
-.pf-node-graph {
+.pf-exp-node-graph {
   position: relative;
   height: 100%;
   overflow: auto;
@@ -24,7 +24,7 @@
   background-color: var(--pf-color-background);
 }
 
-.pf-node-graph__controls {
+.pf-exp-node-graph__controls {
   display: flex;
   position: absolute;
   top: 0.625rem;

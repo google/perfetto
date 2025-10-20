@@ -15839,6 +15839,7 @@ filegroup {
         "src/trace_redaction/process_thread_timeline.cc",
         "src/trace_redaction/proto_util.cc",
         "src/trace_redaction/prune_package_list.cc",
+        "src/trace_redaction/prune_perf_events.cc",
         "src/trace_redaction/redact_ftrace_events.cc",
         "src/trace_redaction/redact_process_events.cc",
         "src/trace_redaction/redact_sched_events.cc",

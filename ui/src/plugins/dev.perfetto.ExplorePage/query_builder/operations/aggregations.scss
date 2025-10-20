@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
 
 .pf-exp-multi-select-container {
   display: flex;
@@ -21,12 +21,8 @@
   gap: 1rem;
 
   label {
-    font-size: 1.1em;
+    font-size: var(--pf-exp-font-size-md);
     font-weight: 600;
-  }
-
-  .pf-exp-multiselect-input {
-    flex: 1;
   }
 }
 
@@ -52,7 +48,4 @@
 
 .pf-exp-aggregation-editor {
   @extend .pf-exp-editor;
-  padding: 1rem;
-  border-radius: 6px;
-  border: 1px solid var(--pf-color-border);
 }

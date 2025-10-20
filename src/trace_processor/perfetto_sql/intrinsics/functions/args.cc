@@ -15,6 +15,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/util/args_utils.h"
@@ -42,18 +43,30 @@ void WriteVariadic(const Variadic& v,
     case Variadic::Type::kReal:
       std::move(writer).WriteDouble(v.real_value);
       break;
-    case Variadic::Type::kString:
-      std::move(writer).WriteString(storage->GetString(v.string_value).c_str());
+    case Variadic::Type::kString: {
+      if (v.string_value.is_null()) {
+        std::move(writer).WriteNull();
+        break;
+      }
+      NullTermStringView str = storage->GetString(v.string_value);
+      std::move(writer).WriteString(str.c_str());
       break;
+    }
     case Variadic::Type::kPointer: {
       std::move(writer).WriteString(base::Uint64ToHexString(v.pointer_value));
       break;
     }
-    case Variadic::Type::kJson:
+    case Variadic::Type::kJson: {
       // For JSON values, we need to parse and reconstruct them properly
       // For now, just treat as string
-      std::move(writer).WriteString(storage->GetString(v.json_value).c_str());
+      if (v.json_value.is_null()) {
+        std::move(writer).WriteNull();
+        break;
+      }
+      NullTermStringView str = storage->GetString(v.json_value);
+      std::move(writer).WriteString(str.c_str());
       break;
+    }
   }
 }
 
@@ -150,9 +163,15 @@ void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     case Variadic::Type::kPointer:
       return sqlite::result::Long(ctx, *rr.int_value());
     case Variadic::Type::kJson:
-    case Variadic::Type::kString:
-      return sqlite::result::StaticString(
-          ctx, storage->GetString(rr.string_value()).c_str());
+    case Variadic::Type::kString: {
+      auto opt_string_id = rr.string_value();
+      if (!opt_string_id.has_value() || opt_string_id->is_null()) {
+        sqlite::result::Null(ctx);
+        return;
+      }
+      NullTermStringView value = storage->GetString(*opt_string_id);
+      return sqlite::result::StaticString(ctx, value.c_str());
+    }
     case Variadic::Type::kReal:
       return sqlite::result::Double(ctx, *rr.real_value());
     case Variadic::Type::kNull:

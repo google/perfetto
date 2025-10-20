@@ -18,6 +18,7 @@ import {
   FilterValue,
 } from '../../../../components/widgets/data_grid/common';
 import {Button} from '../../../../widgets/button';
+import {Card} from '../../../../widgets/card';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
 import {Select} from '../../../../widgets/select';
@@ -105,8 +106,9 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           });
 
-    return m('.pf-exp-query-operations', [
-      m('.pf-exp-section', [
+    return m(
+      '.pf-exp-query-operations',
+      m(Card, {}, [
         m(
           '.pf-exp-filters-header',
           m('h2.pf-exp-filters-title', 'Filters'),
@@ -184,9 +186,9 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           }),
         ),
-        editor && m('.pf-exp-filter-editor-box', editor),
+        editor && m('.pf-exp-editor-box', editor),
       ]),
-    ]);
+    );
   }
 }
 
@@ -225,7 +227,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
     });
 
     return m(
-      '.pf-exp-filter-editor',
+      '.pf-exp-editor',
       {className: isValid ? 'is-valid' : 'is-invalid'},
       [
         m(

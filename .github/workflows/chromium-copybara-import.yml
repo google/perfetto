@@ -22,14 +22,14 @@ on:
 
 permissions:
   pull-requests: write  # Required to edit PR body and read PR data
-  contents: write       # Required to enable auto-merge
+  contents: read        # Required to read commit history
 
 jobs:
-  include-git-origin-rev-id-and-enable-auto-merge:
+  include-git-origin-rev-id:
     runs-on: ubuntu-latest
     if: github.head_ref == 'dev/copybara/chromium_tmp'
     steps:
-      - name: Include GitOrigin-RevId in Copybara PR body and enable auto-merge
+      - name: Include GitOrigin-RevId in Copybara PR body
         uses: actions/github-script@v6
         with:
           script: |
@@ -76,62 +76,23 @@ jobs:
               console.log("PR body already contains the GitOrigin-RevId.");
             }
 
-            // STEP 3: Enable auto-merge and set the commit message.
-            console.log("Attempting to enable auto-merge with commit message...");
-            try {
-              const mutation = `
-                mutation EnableAutoMerge($pullRequestId: ID!, $commitHeadline: String!, $commitBody: String!) {
-                  enablePullRequestAutoMerge(input: {
-                    pullRequestId: $pullRequestId,
-                    commitHeadline: $commitHeadline,
-                    commitBody: $commitBody,
-                    mergeMethod: SQUASH
-                  }) {
-                    pullRequest {
-                      id # We only need to know it succeeded, so we ask for the ID.
-                    }
-                  }
-                }`;
-              await github.graphql(mutation, {
-                pullRequestId: pr.node_id,
-                commitHeadline: pr.title,
-                commitBody: prBodyWithRevId
-              });
-            } catch (error) {
-              core.setFailed(`Failed to enable auto-merge: ${error.message}`);
-              return;
-            }
-            console.log("Auto-merge enabled.");
-
-            // STEP 4: Verify that the scheduled merge commit message includes the GitOrigin-RevId.
-            console.log("Verifying scheduled merge commit message...");
-            try {
-              const query = `
-                query GetAutoMergeMessage($pullRequestId: ID!) {
-                  node(id: $pullRequestId) {
-                    ... on PullRequest {
-                      autoMergeRequest {
-                        commitHeadline
-                        commitBody
-                      }
-                    }
-                  }
-                }`;
-              const result = await github.graphql(query, { pullRequestId: pr.node_id });
-              const { commitHeadline, commitBody } = result.node.autoMergeRequest;
-              const fullScheduledMessage = `${commitHeadline}\n\n${commitBody}`;
-              if (fullScheduledMessage.includes(revId)) {
-                console.log(`Verification successful: The scheduled merge commit message contains "${revId}".`);
-              } else {
-                const errorLines = [
-                  `Verification FAILED: The scheduled merge commit message does not contain "${revId}".`,
-                  'The scheduled message was:',
+            // STEP 3: Verify that the merge commit will contain GitOrigin-RevId.
+            console.log("Verifying that the merge commit will contain GitOrigin-RevId...");
+            const { data: updatedPr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+            const defaultMergeCommitMessage = `${updatedPr.title}\n\n${updatedPr.body}`;
+            if (defaultMergeCommitMessage.includes(revId)) {
+              console.log(`Verification successful: The default merge commit message contains "${revId}".`);
+            } else {
+              const errorLines = [
+                  `Verification FAILED: The default merge commit message does not contain "${revId}".`,
+                  'The default merge commit message is:',
                   '---',
-                  fullScheduledMessage,
+                  defaultMergeCommitMessage,
                   '---'
-                ];
-                core.setFailed(errorLines.join('\n'));
-              }
-            } catch (error) {
-              core.setFailed(`Failed to verify the scheduled merge commit message: ${error.message}`);
+              ];
+              core.setFailed(errorLines.join('\n'));
             }

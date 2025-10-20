@@ -7,12 +7,22 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Added support for parsing process_sort_index and thread_sort_index
+      metadata from JSON traces. These are stored as process_sort_index_hint
+      and thread_sort_index_hint in the args table for processes and threads.
+    * Added an `arg_set_id` column to the thread table. Queries joining
+      `thread` with other tables now need to disambiguate the column or they
+      may fail with "ambiguous column name: arg_set_id". Qualify the column
+      with the table name (e.g. `slice.arg_set_id` or `counter.arg_set_id`) to
+      resolve this.
   UI:
     * Perf sample callstack tracks: if a trace contains multiple callstack data
       sources, the thread and process level callstack tracks can now be
       expanded to see which samples came from which sampling timebase/leader
       counter.
+    * Added support for sorting processes and threads using sort_index hints
+      from JSON traces. Processes and threads with lower sort index values
+      will appear first in the UI.
   SDK:
     *
 

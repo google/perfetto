@@ -45,6 +45,7 @@ class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
 class TrackEventEventImporter;
+class DummyMemoryMapping;
 
 class TrackEventParser {
  public:
@@ -71,6 +72,7 @@ class TrackEventParser {
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
   void AddActiveProcess(int64_t packet_timestamp, int32_t pid);
+  DummyMemoryMapping* GetOrCreateInlineCallstackDummyMapping();
 
   // Reflection-based proto TrackEvent field parser.
   util::ProtoToArgsParser args_parser_;
@@ -123,10 +125,13 @@ class TrackEventParser {
   const StringId event_name_key_id_;
   const StringId correlation_id_key_id_;
   const StringId legacy_trace_source_id_key_id_;
+  const StringId callsite_id_key_id_;
+  const StringId end_callsite_id_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
+  DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor

@@ -14,7 +14,7 @@
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {time} from '../base/time';
-import {calculateResolution} from '../frontend/viewer_page/resolution';
+import {calculateResolution} from '../frontend/timeline_page/resolution';
 import {
   MinimapContentProvider,
   MinimapManager,
