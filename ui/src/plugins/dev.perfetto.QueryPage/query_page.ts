@@ -37,7 +37,6 @@ import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {Icon} from '../../widgets/icon';
 import {
   CopyHelper,
   CopyToClipboardButton,

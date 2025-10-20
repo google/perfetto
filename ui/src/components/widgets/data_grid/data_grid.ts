@@ -563,6 +563,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               : undefined,
             menuItems: menuItems.length > 0 ? menuItems : undefined,
             subContent,
+            label: column.name,
           },
           column.title ?? column.name,
         ),

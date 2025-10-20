@@ -68,10 +68,10 @@ export interface GridHeaderCellAttrs extends m.Attributes {
 
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
   view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
-    const {sort, onSort, menuItems, subContent, ...rest} = attrs;
+    const {sort, onSort, menuItems, subContent, ...htmlAttrs} = attrs;
 
     const renderSortButton = () => {
-      if (!onSort) return null;
+      if (!onSort) return undefined;
 
       const nextDirection: SortDirection = (() => {
         if (!sort) return 'ASC';
@@ -82,10 +82,11 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
 
       return m(Button, {
         className: classNames(
-          'pf-grid__cell__sort-button',
+          'pf-grid-header-cell__sort-button',
           !sort && 'pf-grid__cell--hint',
           !sort && 'pf-visible-on-hover',
         ),
+        ariaLabel: 'Sort column',
         rounded: true,
         icon: sort === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
         onclick: (e: MouseEvent) => {
@@ -96,14 +97,15 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     };
 
     const renderMenu = () => {
-      if (menuItems === undefined) return null;
+      if (menuItems === undefined) return undefined;
       return m(
         PopupMenu,
         {
           trigger: m(Button, {
-            className: 'pf-visible-on-hover pf-grid__cell__menu-button',
+            className: 'pf-visible-on-hover pf-grid-header-cell__menu-button',
             icon: Icons.ContextMenuAlt,
             rounded: true,
+            ariaLabel: 'Column menu',
           }),
         },
         menuItems,
@@ -111,24 +113,23 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     };
 
     return m(
-      '.pf-grid__cell.pf-grid__cell--stretch',
-      {...rest},
-      m('.pf-grid__cell--vertical.pf-grid__cell--stretch', [
+      '.pf-grid-header-cell',
+      {
+        ...htmlAttrs,
+      },
+      [
         m(
-          '.pf-grid__cell--stretch.pf-grid__cell--horiz',
+          '.pf-grid-header-cell__main-content',
           m(
-            '.pf-grid__cell--stretch.pf-grid__cell--horiz',
-            m('.pf-grid__cell--padded.pf-grid__cell--shrink', children),
+            '.pf-grid-header-cell__title',
+            m('.pf-grid-header-cell__title-wrapper', children),
             renderSortButton(),
           ),
           renderMenu(),
         ),
         subContent !== undefined &&
-          m(
-            '.pf-grid__cell--stretch.pf-grid__cell--horiz.pf-grid__cell--padded',
-            subContent,
-          ),
-      ]),
+          m('.pf-grid-header-cell__sub-content', subContent),
+      ],
     );
   }
 }
@@ -152,18 +153,17 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
     } = attrs;
 
     const cell = m(
-      '.pf-grid__cell.pf-grid__cell--stretch',
+      '.pf-grid-cell',
       {
         ...rest,
         className: classNames(
           className,
-          align === 'right' && 'pf-grid__cell--rtl',
-          align && `pf-grid__cell--align-${align}`,
-          padding && 'pf-grid__cell--padded',
-          nullish && 'pf-grid__cell--nullish',
+          align && `pf-grid-cell--align-${align}`,
+          padding && 'pf-grid-cell--padded',
+          nullish && 'pf-grid-cell--nullish',
         ),
       },
-      children,
+      m('.pf-grid-cell__content-wrapper', children),
     );
 
     if (Boolean(menuItems)) {
@@ -399,11 +399,15 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       {
         className: classNames(fillHeight && 'pf-grid--fill-height', className),
         ref: 'scroll-container',
+        role: 'table',
       },
       m(
         '.pf-grid__header',
         m(
           '.pf-grid__row',
+          {
+            role: 'row',
+          },
           columns.map((column) => {
             return this.renderHeaderCell(column, attrs.onColumnReorder);
           }),
@@ -611,7 +615,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             '.pf-grid__row',
             {
               key: rowIndex,
-              // className: row.className,
+              role: 'row',
               style: {
                 height: `${rowHeight}px`,
               },
@@ -628,6 +632,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
                   'style': {
                     width: `var(--pf-grid-col-${columnId})`,
                   },
+                  'role': 'cell',
                   'data-column-id': columnId,
                   'className': classNames(
                     column.thickRightBorder &&
@@ -656,7 +661,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         '.pf-grid__row',
         {
           key: rowIndex,
-          // className: row.className,
+          role: 'row',
           onmouseenter: onRowHover ? () => onRowHover(rowIndex) : undefined,
           onmouseleave: onRowOut,
         },
@@ -670,6 +675,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
               'style': {
                 width: `var(--pf-grid-col-${columnId})`,
               },
+              'role': 'cell',
               'data-column-id': columnId,
               'className': classNames(
                 column.thickRightBorder && 'pf-grid__cell--border-right-thick',
@@ -758,6 +764,8 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     return m(
       '.pf-grid__cell.pf-grid__cell--border-right',
       {
+        'role': 'columnheader',
+        'ariaLabel': column.key,
         'data-column-id': columnId,
         'key': column.key,
         'style': {
