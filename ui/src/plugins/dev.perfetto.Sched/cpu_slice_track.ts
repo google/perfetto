@@ -338,7 +338,7 @@ export class CpuSliceTrack implements TrackRenderer {
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
-        if (threadInfo.pid !== undefined && threadInfo.pid !== 0) {
+        if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
           if (procName.startsWith('/')) {
             // Remove folder paths from name
@@ -426,11 +426,11 @@ export class CpuSliceTrack implements TrackRenderer {
     }
     this.utidHoveredInThisTrack = hoveredUtid;
     this.countHoveredInThisTrack = hoveredCount;
-    const threadInfo = exists(hoveredUtid) && this.threads.get(hoveredUtid);
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
+    const threadInfo = exists(hoveredUtid)
+      ? this.threads.get(hoveredUtid)
+      : undefined;
     this.trace.timeline.hoveredUtid = hoveredUtid;
-    this.trace.timeline.hoveredPid = hoveredPid;
+    this.trace.timeline.hoveredPid = threadInfo?.pid;
 
     // Trigger redraw to update tooltip
     m.redraw();

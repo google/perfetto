@@ -62,10 +62,12 @@ export function translateState(
     case 'Created':
     case 'Running':
     case 'Initialized':
-    case 'Deferred Ready':
+    case 'DeferredReady':
     case 'Transition':
-    case 'Stand By':
+    case 'Standby':
     case 'Waiting':
+    case 'Ready':
+    case 'Terminated':
       return state;
   }
 

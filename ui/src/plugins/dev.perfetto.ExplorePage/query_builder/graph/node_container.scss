@@ -13,24 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
 
-.pf-node-container {
+.pf-exp-node-container {
+  @extend .pf-exp-node;
   position: absolute;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 8px;
-  background-color: var(--pf-color-background);
-  box-shadow: 0 2px 4px var(--pf-color-box-shadow);
-  // Set a max-width to prevent nodes with long comments or details from
-  // becoming excessively wide and breaking the layout.
-  max-width: 300px;
 
   &--selected {
-    border-color: var(--pf-color-primary);
+    @extend .pf-exp-node--selected;
   }
 
   &--dragging {
-    opacity: 0.4;
+    @extend .pf-exp-node--dragging;
   }
 
   // Generic styling for buttons that should appear on hover over any node

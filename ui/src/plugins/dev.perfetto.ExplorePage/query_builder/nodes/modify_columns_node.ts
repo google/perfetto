@@ -18,6 +18,8 @@ import {
   QueryNodeState,
   nextNodeId,
   NodeType,
+  notifyNextNodes,
+  ModificationNode,
 } from '../../query_node';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Card, CardStack} from '../../../../widgets/card';
@@ -40,7 +42,7 @@ interface NewColumn {
 }
 
 export interface ModifyColumnsSerializedState {
-  prevNodeIds: string[];
+  prevNodeId: string;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
@@ -49,24 +51,23 @@ export interface ModifyColumnsSerializedState {
 }
 
 export interface ModifyColumnsState extends QueryNodeState {
-  prevNodes: QueryNode[];
+  prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: FilterDefinition[];
   customTitle?: string;
 }
 
-export class ModifyColumnsNode implements QueryNode {
+export class ModifyColumnsNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kModifyColumns;
-  prevNodes: QueryNode[] | undefined;
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
-  sourceCols: ColumnInfo[];
   readonly state: ModifyColumnsState;
 
   constructor(state: ModifyColumnsState) {
     this.nodeId = nextNodeId();
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
 
     this.state = {
@@ -75,43 +76,60 @@ export class ModifyColumnsNode implements QueryNode {
       selectedColumns: state.selectedColumns ?? [],
     };
 
-    // This node assumes it has only one previous node.
-    this.sourceCols =
-      this.prevNodes.length > 0 ? this.prevNodes[0].finalCols : [];
-
     if (this.state.selectedColumns.length === 0) {
-      this.state.selectedColumns = newColumnInfoList(this.sourceCols);
+      this.state.selectedColumns = newColumnInfoList(this.prevNode.finalCols);
     }
-  }
 
-  onPrevNodesUpdated() {
-    // This node assumes it has only one previous node.
-    this.sourceCols =
-      this.state.prevNodes.length > 0 ? this.state.prevNodes[0].finalCols : [];
-    if (this.state.selectedColumns.length === 0 && this.sourceCols.length > 0) {
-      this.state.selectedColumns = newColumnInfoList(this.sourceCols);
-    }
-  }
-
-  static deserializeState(
-    nodes: Map<string, QueryNode>,
-    serializedState: ModifyColumnsSerializedState,
-  ): ModifyColumnsState {
-    const prevNodes = serializedState.prevNodeIds.map((id) => nodes.get(id)!);
-    return {
-      ...serializedState,
-      prevNodes,
+    const userOnChange = this.state.onchange;
+    this.state.onchange = () => {
+      notifyNextNodes(this);
+      userOnChange?.();
     };
   }
 
   get finalCols(): ColumnInfo[] {
+    return this.computeFinalCols();
+  }
+
+  private computeFinalCols(): ColumnInfo[] {
     const finalCols = newColumnInfoList(
       this.state.selectedColumns.filter((col) => col.checked),
     );
-    this.state.newColumns.forEach((col) => {
-      finalCols.push(columnInfoFromName(col.name, true));
-    });
+    this.state.newColumns
+      .filter((c) => this.isNewColumnValid(c))
+      .forEach((col) => {
+        finalCols.push(columnInfoFromName(col.name, true));
+      });
     return finalCols;
+  }
+
+  onPrevNodesUpdated() {
+    // This node assumes it has only one previous node.
+    const sourceCols = this.state.prevNode.finalCols;
+
+    const newSelectedColumns = newColumnInfoList(sourceCols);
+
+    // Preserve checked status and aliases for columns that still exist.
+    for (const oldCol of this.state.selectedColumns) {
+      const newCol = newSelectedColumns.find(
+        (c) => c.column.name === oldCol.column.name,
+      );
+      if (newCol) {
+        newCol.checked = oldCol.checked;
+        newCol.alias = oldCol.alias;
+      }
+    }
+
+    this.state.selectedColumns = newSelectedColumns;
+  }
+
+  static deserializeState(
+    serializedState: ModifyColumnsSerializedState,
+  ): ModifyColumnsState {
+    return {
+      ...serializedState,
+      prevNode: undefined as unknown as QueryNode,
+    };
   }
 
   validate(): boolean {
@@ -153,14 +171,16 @@ export class ModifyColumnsNode implements QueryNode {
     // Determine the state of modifications.
     const hasUnselected = this.state.selectedColumns.some((c) => !c.checked);
     const hasAlias = this.state.selectedColumns.some((c) => c.alias);
-    const hasNewColumns = this.state.newColumns.length > 0;
+    const newValidColumns = this.state.newColumns.filter((c) =>
+      this.isNewColumnValid(c),
+    );
 
     // If there are no modifications, show a default message.
-    if (!hasUnselected && !hasAlias && !hasNewColumns) {
-      return m('.pf-node-details-message', 'Select all');
+    if (!hasUnselected && !hasAlias && newValidColumns.length === 0) {
+      return m('.pf-exp-node-details-message', 'Select all');
     }
 
-    const details: m.Child[] = [];
+    const cards: m.Child[] = [];
 
     // If columns have been unselected or aliased, list the selected ones.
     if (hasUnselected || hasAlias) {
@@ -173,26 +193,29 @@ export class ModifyColumnsNode implements QueryNode {
             return m('div', c.column.name);
           }
         });
-        details.push(m('.pf-node-details-box', ...selectedItems));
+        cards.push(
+          m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
+        );
       }
     }
 
     // If new columns have been added, list them.
-    if (hasNewColumns) {
-      const newItems = this.state.newColumns.map((c) =>
+    if (newValidColumns.length > 0) {
+      const newItems = newValidColumns.map((c) =>
         m('div', `${c.expression} AS ${c.name}`),
       );
-      details.push(
-        m('.pf-node-details-box', m('strong', 'New columns:'), ...newItems),
-      );
+      if (!hasUnselected && !hasAlias) {
+        cards.push(m('span', '+'));
+      }
+      cards.push(m(Card, {className: 'pf-exp-node-details-card'}, ...newItems));
     }
 
     // If all columns have been deselected, show a specific message.
-    if (details.length === 0) {
-      return m('.pf-node-details-message', 'All columns deselected');
+    if (cards.length === 0) {
+      return m('.pf-exp-node-details-message', 'All columns deselected');
     }
 
-    return m('.pf-modify-columns-node-details', details);
+    return m(CardStack, cards);
   }
 
   nodeSpecificModify(): m.Child {
@@ -435,9 +458,8 @@ export class ModifyColumnsNode implements QueryNode {
       }
     }
 
-    if (!this.prevNodes || this.prevNodes.length === 0) return;
     // This node assumes it has only one previous node.
-    const prevSq = this.prevNodes[0].getStructuredQuery();
+    const prevSq = this.prevNode.getStructuredQuery();
     if (!prevSq) return;
 
     prevSq.selectColumns = selectColumns;
@@ -463,8 +485,11 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   serializeState(): ModifyColumnsSerializedState {
+    if (this.prevNode === undefined) {
+      throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');
+    }
     return {
-      prevNodeIds: this.prevNodes!.map((node) => node.nodeId),
+      prevNodeId: this.prevNode.nodeId,
       newColumns: this.state.newColumns,
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,

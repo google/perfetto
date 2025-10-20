@@ -133,7 +133,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     );
 
     return m(
-      '.pf-table-list',
+      '.pf-exp-table-list',
       m(SearchBar, {
         query: attrs.searchQuery,
         onQueryChange: attrs.onSearchQueryChange,

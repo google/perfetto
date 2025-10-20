@@ -20,7 +20,7 @@ import {raf} from '../../../../core/raf_scheduler';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {ArgsDict, getArgs} from '../../../sql_utils/args';
+import {Arg, getArgs} from '../../../sql_utils/args';
 import {asArgSetId} from '../../../sql_utils/core_types';
 import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
@@ -432,7 +432,7 @@ interface Data {
   // Source statements for the arg sets.
   argSetExpressions: string[];
   // Fetched arg sets.
-  argSets: (ArgsDict | Err)[];
+  argSets: (Arg[] | Err)[];
 
   // Source statements for the SQL references.
   sqlIdRefs: {tableName: string; idExpression: string}[];
@@ -508,7 +508,7 @@ class DataController {
     for (const argSetIndex of this.argSets) {
       const argSetId = data.values[argSetIndex];
       if (argSetId === null) {
-        data.argSets.push({});
+        data.argSets.push([]);
       } else if (typeof argSetId !== 'number' && typeof argSetId !== 'bigint') {
         data.argSets.push(
           new Err(

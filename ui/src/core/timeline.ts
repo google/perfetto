@@ -37,7 +37,7 @@ export class TimelineImpl implements Timeline {
   // tracks and the process summary tracks. We should just make this a local
   // property of the cpu slice tracks and ignore them in the process tracks.
   private _hoveredUtid?: number;
-  private _hoveredPid?: number;
+  private _hoveredPid?: bigint;
 
   // This is used to mark the timeline of the area that is currently being
   // selected.

@@ -197,7 +197,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
-    const onViewerPage =
+    const onTimelinePage =
       Router.parseUrl(window.location.href).page === '/viewer';
 
     return m(DataGrid, {
@@ -213,7 +213,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         if (
           name === 'id' &&
           sliceId !== undefined &&
-          onViewerPage &&
+          onTimelinePage &&
           isSliceish(row)
         ) {
           return m(

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
 
 .pf-exp-filters-header {
   display: flex;
@@ -20,24 +20,8 @@
   gap: 1rem;
 
   .pf-exp-filters-title {
-    font-size: 1.2em;
+    font-size: var(--pf-exp-font-size-md);
     font-weight: 500;
     margin: 0;
   }
-
-  .pf-text-input {
-    flex: 1;
-  }
-}
-
-.pf-exp-filter-editor-box {
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 6px;
-  background-color: transparent;
-  border: 1px solid var(--pf-color-border);
-}
-
-.pf-exp-filter-editor {
-  @extend .pf-exp-editor;
 }

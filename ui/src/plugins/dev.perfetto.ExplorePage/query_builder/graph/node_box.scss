@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
+@import "node_colors";
 
-.pf-node-box {
+.pf-exp-node-box {
+  @extend .pf-exp-node;
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -24,17 +26,53 @@
     border-color 0.2s ease-in-out,
     box-shadow 0.2s ease-in-out;
 
+  &.kTable {
+    @include set-node-color("kTable");
+  }
+
+  &.kSimpleSlices {
+    @include set-node-color("kSimpleSlices");
+  }
+
+  &.kSqlSource {
+    @include set-node-color("kSqlSource");
+  }
+
+  &.kAggregation {
+    @include set-node-color("kAggregation");
+  }
+
+  &.kModifyColumns {
+    @include set-node-color("kModifyColumns");
+  }
+
+  &.kAddColumns {
+    @include set-node-color("kAddColumns");
+  }
+
+  &.kLimitAndOffset {
+    @include set-node-color("kLimitAndOffset");
+  }
+
+  &.kSort {
+    @include set-node-color("kSort");
+  }
+
+  &.kIntervalIntersect {
+    @include set-node-color("kIntervalIntersect");
+  }
+
   &:hover {
     border-color: #bdbdbd;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 
   &__selected {
+    @extend .pf-exp-node--selected;
     border-width: 2px;
-    border-color: var(--pf-color-primary);
     box-shadow: 0 0 12px
       color-mix(in srgb, var(--pf-color-primary) 30%, transparent);
-    .pf-node-box__warning-icon {
+    .pf-exp-node-box__warning-icon {
       border-width: 2px;
     }
   }
@@ -77,16 +115,16 @@
   }
 }
 
-.pf-node-box__content {
+.pf-exp-node-box__content {
   display: flex;
   flex-direction: column;
 }
 
-.pf-node-box__filters {
+.pf-exp-node-box__filters {
   margin-top: 0.5rem;
 }
 
-.pf-node-box-add-button {
+.pf-exp-node-box-add-button {
   position: absolute;
   bottom: -0.5rem;
   right: -0.5rem;
@@ -99,12 +137,12 @@
   align-items: center;
   justify-content: center;
 
-  .pf-node-box:hover &,
-  .pf-node-box__selected & {
+  .pf-exp-node-box:hover &,
+  .pf-exp-node-box__selected & {
     display: flex;
   }
 }
 
-.pf-node-box-port {
+.pf-exp-node-box-port {
   z-index: 1;
 }

@@ -14,13 +14,10 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {Icon} from '../../../widgets/icon';
-
 import {Switch} from '../../../widgets/switch';
-
-function keycap(glyph: m.Children): m.Children {
-  return m('.pf-keycap', glyph);
-}
+import {nodeRegistry} from './node_registry';
 
 interface SourceCardAttrs {
   title: string;
@@ -38,12 +35,10 @@ const SourceCard: m.Component<SourceCardAttrs> = {
       {onclick},
       m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', title)),
       m('p', description),
-      hotkey ? m('.pf-source-card-hotkey', keycap(hotkey)) : null,
+      hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
     );
   },
 };
-
-import {nodeRegistry} from './node_registry';
 
 export interface EmptyGraphAttrs {
   readonly onAddSourceNode: (id: string) => void;
@@ -85,14 +80,14 @@ export class EmptyGraph implements m.ClassComponent<EmptyGraphAttrs> {
         }),
       ),
       m(
-        '.pf-node-graph-add-button-container.pf-empty-graph-hero',
+        '.pf-exp-node-graph-add-button-container.pf-empty-graph-hero',
         m('h2.pf-empty-graph-hero__title', 'Welcome to the Explore Page'),
         m(
           'p.pf-empty-graph-hero__subtitle',
           'Build and execute SQL queries on your trace data using a visual ' +
             'node-based editor. Get started by adding a source node below.',
         ),
-        m('.pf-node-graph-add-buttons', sourceNodes),
+        m('.pf-exp-node-graph-add-buttons', sourceNodes),
         m(Button, {
           label: 'Import',
           onclick: attrs.onImport,

@@ -38,7 +38,8 @@ std::string FilterToText(FilterUtil& filter,
                          std::optional<std::string> bytecode = {}) {
   std::string tmp_path = perfetto::base::TempFile::Create().path();
   {
-    perfetto::base::ScopedFstream tmp_stream(fopen(tmp_path.c_str(), "wb"));
+    perfetto::base::ScopedFstream tmp_stream(
+        perfetto::base::OpenFstream(tmp_path, "w"));
     PERFETTO_CHECK(!!tmp_stream);
     filter.set_print_stream_for_testing(*tmp_stream);
     filter.PrintAsText(bytecode);

@@ -40,7 +40,7 @@ const MIN_NORMAL_SCHED_PRIORITY = 100;
 
 function getDisplayName(
   name: string | undefined,
-  id: number | undefined,
+  id: bigint | number | undefined,
 ): string | undefined {
   if (name === undefined) {
     return id === undefined ? undefined : `${id}`;

@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../../assets/theme";
+@import "../../common";
 
 .pf-stdlib-table-node {
   .pf-details-box {
-    border: 1px solid var(--pf-color-border);
-    border-radius: 0.5rem;
     padding: 1rem;
-    background-color: var(--pf-color-background);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     margin-bottom: 1rem;
   }

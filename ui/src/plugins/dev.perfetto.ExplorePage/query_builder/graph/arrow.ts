@@ -28,7 +28,7 @@ export const Arrow: m.Component<ArrowAttrs> = {
   view({attrs}) {
     const {from, to} = attrs;
     return m(
-      'svg.pf-node-graph-arrow',
+      'svg.pf-exp-node-graph-arrow',
       {
         style: {
           position: 'absolute',

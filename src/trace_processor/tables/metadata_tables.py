@@ -310,6 +310,13 @@ THREAD_TABLE = Table(
             CppOptional(CppTableId(MACHINE_TABLE)),
             cpp_access=CppAccess.READ,
         ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='thread',),
     tabledoc=TableDoc(
@@ -366,6 +373,9 @@ THREAD_TABLE = Table(
                 '''
                   Machine identifier, non-null for threads on a remote machine.
                 ''',
+            'arg_set_id':
+                ColumnDoc(
+                    'Extra args for this thread.', joinable='args.arg_set_id'),
         },
     ),
 )

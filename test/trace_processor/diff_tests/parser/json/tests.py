@@ -1169,6 +1169,210 @@ class JsonParser(TestSuite):
           "write",1750244461563845000,167000,"write","legacy_async_process_slice"
         """))
 
+  def test_json_sort_index_hints(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "ph": "M",
+            "pid": 30,
+            "tid": 0,
+            "ts": 100,
+            "name": "process_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": -2 }
+          },
+          {
+            "ph": "M",
+            "pid": 30,
+            "tid": 31,
+            "ts": 110,
+            "name": "thread_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 5 }
+          },
+          {
+            "ph": "M",
+            "pid": 40,
+            "tid": 0,
+            "ts": 120,
+            "name": "process_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 10 }
+          },
+          {
+            "ph": "X",
+            "pid": 30,
+            "tid": 31,
+            "ts": 200,
+            "dur": 100,
+            "name": "Event1"
+          }
+        ]'''),
+        query='''
+          SELECT
+            process.pid,
+            thread.tid,
+            extract_arg(process.arg_set_id, 'process_sort_index_hint') as process_hint,
+            extract_arg(thread.arg_set_id, 'thread_sort_index_hint') as thread_hint
+          FROM thread
+          JOIN process USING (upid)
+          ORDER BY process.pid, thread.tid
+        ''',
+        out=Csv("""
+          "pid","tid","process_hint","thread_hint"
+          0,0,"[NULL]","[NULL]"
+          30,30,-2,"[NULL]"
+          30,31,-2,5
+          40,40,10,"[NULL]"
+        """))
+
+  def test_json_sort_index_ordering(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "ph": "M",
+            "pid": 10,
+            "tid": 10,
+            "ts": 100,
+            "name": "process_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 100 }
+          },
+          {
+            "ph": "M",
+            "pid": 20,
+            "tid": 20,
+            "ts": 110,
+            "name": "process_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 50 }
+          },
+          {
+            "ph": "M",
+            "pid": 30,
+            "tid": 30,
+            "ts": 120,
+            "name": "process_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 200 }
+          },
+          {
+            "ph": "M",
+            "pid": 40,
+            "tid": 40,
+            "ts": 130,
+            "name": "process_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": -5 }
+          },
+          {
+            "ph": "M",
+            "pid": 10,
+            "tid": 11,
+            "ts": 200,
+            "name": "thread_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 10 }
+          },
+          {
+            "ph": "M",
+            "pid": 10,
+            "tid": 12,
+            "ts": 210,
+            "name": "thread_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 20 }
+          },
+          {
+            "ph": "M",
+            "pid": 10,
+            "tid": 13,
+            "ts": 220,
+            "name": "thread_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": 5 }
+          },
+          {
+            "ph": "M",
+            "pid": 10,
+            "tid": 14,
+            "ts": 230,
+            "name": "thread_sort_index",
+            "cat": "__metadata",
+            "args": { "sort_index": -3 }
+          },
+          {
+            "ph": "X",
+            "pid": 10,
+            "tid": 11,
+            "ts": 1000,
+            "dur": 100,
+            "name": "Event1"
+          },
+          {
+            "ph": "X",
+            "pid": 20,
+            "tid": 20,
+            "ts": 2000,
+            "dur": 100,
+            "name": "Event2"
+          },
+          {
+            "ph": "X",
+            "pid": 30,
+            "tid": 30,
+            "ts": 3000,
+            "dur": 100,
+            "name": "Event3"
+          },
+          {
+            "ph": "X",
+            "pid": 40,
+            "tid": 40,
+            "ts": 4000,
+            "dur": 100,
+            "name": "Event4"
+          }
+        ]'''),
+        query='''
+          WITH process_ordering AS (
+            SELECT
+              process.pid,
+              ifnull(extract_arg(process.arg_set_id, 'process_sort_index_hint'), 0) as process_hint
+            FROM process
+            ORDER BY
+              process_hint asc,
+              process.pid asc
+          ),
+          thread_ordering AS (
+            SELECT
+              thread.tid,
+              thread.upid,
+              ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as thread_hint
+            FROM thread
+            WHERE upid = (SELECT upid FROM process WHERE pid = 10)
+            ORDER BY
+              thread_hint asc,
+              thread.tid asc
+          )
+          SELECT 'process' as type, pid as id, process_hint as hint FROM process_ordering
+          UNION ALL
+          SELECT 'thread' as type, tid as id, thread_hint as hint FROM thread_ordering
+        ''',
+        out=Csv("""
+          "type","id","hint"
+          "process",40,-5
+          "process",0,0
+          "process",20,50
+          "process",10,100
+          "process",30,200
+          "thread",14,-3
+          "thread",10,0
+          "thread",13,5
+          "thread",11,10
+          "thread",12,20
+        """))
+
   def test_json_pid_tid_zero(self):
     return DiffTestBlueprint(
         trace=Json('''

@@ -20,8 +20,9 @@ import {
   renderAddButton,
   renderWarningIcon,
 } from './node_box';
-import {QueryNode} from '../../query_node';
+import {NodeType, QueryNode} from '../../query_node';
 import {NodeContainer} from './node_container';
+import {classNames} from '../../../../base/classnames';
 
 export interface NodeBlockAttrs extends Omit<NodeBoxAttrs, 'node'> {
   nodes: QueryNode[];
@@ -50,11 +51,14 @@ export const NodeBlock: m.Component<NodeBlockAttrs> = {
         onNodeRendered,
       },
       m(
-        '.pf-node-block',
+        '.pf-exp-node-block',
         nodes.map((n) =>
           m(
-            '.pf-node-block__node',
-            {onclick: () => onNodeSelected(n)},
+            '.pf-exp-node-block__node',
+            {
+              class: classNames(NodeType[n.type]),
+              onclick: () => onNodeSelected(n),
+            },
             m(NodeBoxContent, {...attrs, node: n}),
           ),
         ),

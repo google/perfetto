@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
 
 .pf-aggregation-node-details {
   padding-top: 5px;
-  font-size: 0.8em;
+  font-size: var(--pf-exp-font-size-sm);
   color: var(--pf-color-text-lighter);
 }
