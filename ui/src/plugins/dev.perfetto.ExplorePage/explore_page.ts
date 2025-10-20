@@ -71,7 +71,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  async handleAddDerivedNode(
+  async handleAddOperationNode(
     attrs: ExplorePageAttrs,
     node: QueryNode,
     derivedNodeId: string,
@@ -316,9 +316,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onAddSourceNode: (id) => {
           this.handleAddSourceNode(attrs, id);
         },
-        onAddDerivedNode: (id) => {
+        onAddOperationNode: (id) => {
           if (state.selectedNode) {
-            this.handleAddDerivedNode(attrs, state.selectedNode, id);
+            this.handleAddOperationNode(attrs, state.selectedNode, id);
           }
         },
         onClearAllNodes: () => this.handleClearAllNodes(attrs),

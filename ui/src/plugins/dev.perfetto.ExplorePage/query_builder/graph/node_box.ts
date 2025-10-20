@@ -51,7 +51,7 @@ export interface NodeBoxAttrs {
   ) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
@@ -69,6 +69,7 @@ export function renderWarningIcon(node: QueryNode): m.Child {
 }
 
 import {nodeRegistry} from '../node_registry';
+import {isMultiSourceNode} from '../utils';
 
 export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
   const {node, onDuplicateNode, onDeleteNode} = attrs;
@@ -96,12 +97,12 @@ export function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
 }
 
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
-  const {node, onAddDerivedNode} = attrs;
-  const derivedNodes = nodeRegistry
+  const {node, onAddOperationNode} = attrs;
+  const operationNodes = nodeRegistry
     .list()
-    .filter(([_id, descriptor]) => descriptor.type === 'derived');
+    .filter(([_id, descriptor]) => descriptor.type === 'modification');
 
-  if (derivedNodes.length === 0) {
+  if (operationNodes.length === 0) {
     return null;
   }
 
@@ -113,10 +114,10 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
         icon: 'add',
       }),
     },
-    ...derivedNodes.map(([id, descriptor]) => {
+    ...operationNodes.map(([id, descriptor]) => {
       return m(MenuItem, {
         label: descriptor.name,
-        onclick: () => onAddDerivedNode(id, node),
+        onclick: () => onAddOperationNode(id, node),
       });
     }),
   );
@@ -215,6 +216,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
           });
         }),
         renderAddButton(attrs),
+        isMultiSourceNode(node) && m('.pf-node-box__bottom-port'),
       ),
     );
   },

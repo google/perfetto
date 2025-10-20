@@ -38,8 +38,8 @@ export interface NodeDescriptor {
   // The keyboard shortcut for this node.
   hotkey?: string;
 
-  // Whether this node is a source or derived node.
-  type: 'source' | 'derived';
+  // Whether this node is a source, modification or a multi-source node.
+  type: 'source' | 'modification' | 'multisource';
 
   // An optional, async function that runs before the node is created.
   // It can be used for interactive setup, like showing a modal.
