@@ -104,7 +104,7 @@ export interface SelectionManager {
   resolveSqlEvents(
     sqlTableName: string,
     ids: number[],
-  ): Promise<({eventId: number; trackUri: string} | undefined)[]>;
+  ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>>;
 
   /**
    * Select a track event via a sql table name + id.
