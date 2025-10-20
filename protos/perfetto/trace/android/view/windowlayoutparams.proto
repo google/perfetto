@@ -86,4 +86,7 @@ message WindowLayoutParamsProto {
       [(.perfetto.protos.typedef) =
            "android.view.WindowInsets.Side.InsetsSide"];
   optional bool fit_ignore_visibility = 33;
+  optional uint32 forcibly_shown_types = 34
+      [(.perfetto.protos.typedef) =
+           "android.view.WindowInsets.Type.InsetsType"];
 }
