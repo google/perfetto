@@ -97,9 +97,12 @@ base::Status PrunePerfEvents::OnPerfSample(
     // of the profiler. When new service events are added, we should make sure
     // to include them here so the redactor accounts for them.
     if (decoder.has_kernel_records_lost() || decoder.has_producer_event()) {
+      proto_util::AppendField(perf_sample_field, message);
       return base::OkStatus();
+    } else {
+      return base::ErrStatus(
+          "PrunePerfEvents: missing field (PerfSample::kPid)");
     }
-    return base::ErrStatus("PrunePerfEvents: missing field (PerfSample::kPid)");
   }
   int32_t pid = static_cast<int32_t>(decoder.pid());
 
