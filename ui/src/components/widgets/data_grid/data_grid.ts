@@ -322,9 +322,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? (x) => (this.sorting = x)
         : noOp,
       filters = this.filters,
-      onFiltersChanged = filters === this.filters
-        ? (x) => (this.filters = x)
-        : noOp,
+      onFiltersChanged,
+      onFilterAdded,
       columnOrder = this.columnOrder,
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
@@ -337,15 +336,29 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       className,
-      onFilterAdded,
     } = attrs;
 
-    const onFiltersChangedWithReset =
-      onFiltersChanged === noOp
-        ? noOp
-        : (filter: ReadonlyArray<DataGridFilter>) => {
-            onFiltersChanged(filter);
-          };
+    const filtersUncontrolled = filters === this.filters;
+
+    // Enable filter controls if one of the following is true:
+    // - Filter state is not controlled
+    // - onFiltersChanged is provided
+    // - onFilterAdded is provided
+    const enableFilterControls = Boolean(
+      filtersUncontrolled || onFiltersChanged || onFilterAdded,
+    );
+
+    const changeFilters = (x: ReadonlyArray<DataGridFilter>) => {
+      if (filtersUncontrolled) {
+        this.filters = x;
+      }
+      onFiltersChanged?.(x);
+    };
+
+    const addFilter = (filter: DataGridFilter) => {
+      onFilterAdded?.(filter);
+      changeFilters([...filters, filter]);
+    };
 
     const onSortingChangedWithReset =
       onSortingChanged === noOp
@@ -396,16 +409,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
 
-    const addFilter =
-      onFiltersChangedWithReset === noOp
-        ? noOp
-        : (filter: DataGridFilter) => {
-            onFilterAdded?.(filter);
-            onFiltersChanged([...filters, filter]);
-          };
-
     const sortControls = onSortingChangedWithReset !== noOp;
-    const filterControls = onFiltersChangedWithReset !== noOp;
+    const filterControls = enableFilterControls;
 
     // Build VirtualGrid columns with all DataGrid features
     const virtualGridColumns = orderedColumns.map((column) => {
@@ -750,7 +755,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         filters,
         sorting,
         onSortingChangedWithReset,
-        onFiltersChangedWithReset,
+        changeFilters,
         showFiltersInToolbar,
         showResetButton,
         toolbarItemsLeft,
