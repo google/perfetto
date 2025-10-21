@@ -37,7 +37,6 @@ import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {Icon} from '../../widgets/icon';
 import {
   CopyHelper,
   CopyToClipboardButton,
@@ -228,9 +227,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           data: dataSource,
           columns: queryResult.columns.map((c) => ({name: c})),
           toolbarItemsLeft: m(
-            'span.pf-query-page__elapsed-time',
-            {title: `This query returned in ${queryTimeString}`},
-            [m(Icon, {icon: 'timer'}), ' ', queryTimeString],
+            'span.pf-query-page__results-summary',
+            `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
           ),
           toolbarItemsRight: [
             this.renderCopyButton(queryResult),

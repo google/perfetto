@@ -948,9 +948,10 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
       interned_dimension_specs {
         key_column_spec { name: "dim" type: STRING }
         data_column_specs { name: "version" type: DOUBLE }
+        data_column_specs { name: "is_kernel" type: BOOLEAN }
         query {
           sql {
-            sql: "SELECT 'a' as dim, 1.0 as version UNION ALL SELECT 'b' as dim, 2.0 as version"
+            sql: "SELECT 'a' as dim, 1.0 as version, false as is_kernel UNION ALL SELECT 'b' as dim, 2.0 as version, true as is_kernel"
           }
         }
       }
@@ -984,9 +985,13 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
             name: "version"
             type: DOUBLE
           }
+          data_column_specs { 
+            name: "is_kernel" 
+            type: BOOLEAN 
+          }
           query {
             sql {
-              sql: "SELECT \'a\' as dim, 1.0 as version UNION ALL SELECT \'b\' as dim, 2.0 as version"
+               sql: "SELECT \'a\' as dim, 1.0 as version, false as is_kernel UNION ALL SELECT \'b\' as dim, 2.0 as version, true as is_kernel"
             }
           }
         }
@@ -1016,9 +1021,13 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
             name: "version"
             type: DOUBLE
           }
+          data_column_specs { 
+            name: "is_kernel" 
+            type: BOOLEAN 
+          }
           query {
             sql {
-              sql: "SELECT \'a\' as dim, 1.0 as version UNION ALL SELECT \'b\' as dim, 2.0 as version"
+               sql: "SELECT \'a\' as dim, 1.0 as version, false as is_kernel UNION ALL SELECT \'b\' as dim, 2.0 as version, true as is_kernel"
             }
           }
         }
@@ -1053,6 +1062,9 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
           interned_dimension_values {
             double_value: 1.000000
           }
+          interned_dimension_values {
+            bool_value: false
+          }
         }
         interned_dimension_rows {
           key_dimension_value {
@@ -1060,6 +1072,9 @@ TEST_F(TraceSummaryTest, InternedDimensionBundleBasic) {
           }
           interned_dimension_values {
             double_value: 2.000000
+          }
+          interned_dimension_values {
+            bool_value: true
           }
         }
       }

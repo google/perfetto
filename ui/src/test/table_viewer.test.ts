@@ -21,35 +21,24 @@ let pth: PerfettoTestHelper;
 let page: Page;
 
 // Locate the header cell with the given column name.
-function locateHeaderCells(headerName?: string | RegExp): Locator {
-  return page.locator('.pf-grid th', {hasText: headerName});
+function locateHeaderCells(label?: string): Locator {
+  return page.getByRole('columnheader', {name: label, exact: true});
 }
 
 // Locate the data cells, optionally filtered by text.
-function locateDataCells(text?: string | RegExp): Locator {
-  return page.locator('.pf-grid td', {
-    hasText: text,
-  });
+function locateDataCells(label?: string): Locator {
+  return page.getByRole('cell', {name: label, exact: true});
 }
 
-// Given a cell (header or data), hover over it and click the context menu
-// button.
-async function clickContextMenu(cell: Locator) {
-  // Hover over the cell to reveal the menu button
-  await cell.hover();
-
-  // Click the button to open the context menu
-  cell.locator('.pf-grid-cell__menu-button').click();
-}
-
-async function clickColumnContextMenu(headerName?: string | RegExp) {
+async function clickColumnContextMenu(headerName?: string) {
   const cell = locateHeaderCells(headerName);
-  await clickContextMenu(cell);
+  await cell.hover(); // Hover to reveal the menu button.
+  cell.getByRole('button', {name: 'Column menu'}).click();
 }
 
-async function clickCellContextMenu(text?: string | RegExp) {
+async function clickCellContextMenu(text?: string) {
   const cell = locateDataCells(text).nth(0);
-  await clickContextMenu(cell);
+  await cell.click({button: 'right'});
 }
 
 test.beforeEach(async ({browser}, _testInfo) => {
@@ -66,7 +55,7 @@ test('slices with same name', async () => {
     .locator('.pf-details-shell a.pf-anchor', {hasText: sliceName})
     .click();
   await pth.clickMenuItem('Slices with the same name');
-  await clickColumnContextMenu(/^id/);
+  await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`);
 });
@@ -77,7 +66,7 @@ test('Table interactions', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.slice');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu(/^id/);
+  await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`slices-table.png`);
 
@@ -88,7 +77,7 @@ test('Table interactions', async () => {
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  clickColumnContextMenu(/^dur/);
+  clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`slices-table-sorted.png`);
 
@@ -99,7 +88,7 @@ test('Table interactions', async () => {
   await pth.waitForIdleAndScreenshot(`slices-table-filter1.png`);
 
   // Filter to thread-only slices by clicking on the second NULL value.
-  await clickCellContextMenu('NULL');
+  await clickCellContextMenu('null');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('is not null');
   await pth.waitForIdleAndScreenshot(`slices-table-filter2.png`);
@@ -111,14 +100,14 @@ test('Table interactions', async () => {
   await pth.waitForIdleAndScreenshot(`slices-table-filter3.png`);
 
   // Add argument.
-  await clickColumnContextMenu(/^name/);
+  await clickColumnContextMenu('name');
   await pth.clickMenuItem('Add column');
   await pth.clickMenuItem('arg_set_id');
   await pth.clickMenuItem('chrome_latency_info.trace_id');
   await pth.waitForIdleAndScreenshot(`slices-table-add-argument.png`);
 
   // Sort by argument.
-  await clickColumnContextMenu('chrome_latency_info.trace_id');
+  await clickColumnContextMenu('arg_set_id[chrome_latency_info.trace_id]');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`slices-table-sort-by-argument.png`);
 
@@ -141,13 +130,13 @@ test('Go to slice', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.slice');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu(/^id/);
+  await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu(/^dur/);
+  await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
@@ -167,18 +156,18 @@ test('Go to thread_state', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.thread_state');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu(/^id/);
+  await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu(/^dur/);
+  await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Filter out sleeps.
-  await clickCellContextMenu(/^S/);
+  await clickCellContextMenu('S');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('not equals');
   await pth.waitForIdleAndScreenshot(`filtered.png`);
@@ -202,13 +191,13 @@ test('Go to sched', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.sched');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu(/^id/);
+  await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu(/^dur/);
+  await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
@@ -237,13 +226,13 @@ test('Go to process', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.process');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu(/^upid/);
+  await clickColumnContextMenu('upid');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu(/^name/);
+  await clickColumnContextMenu('name');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
@@ -259,13 +248,13 @@ test('Go to thread', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.thread');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu(/^utid/);
+  await clickColumnContextMenu('utid');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu(/^name/);
+  await clickColumnContextMenu('name');
   await pth.clickMenuItem('Sort: highest first');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 

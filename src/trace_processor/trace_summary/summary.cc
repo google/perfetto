@@ -338,6 +338,26 @@ base::Status WriteDimension(
       dimension->set_double_value(dim_value);
       break;
     }
+    case TraceMetricV2Spec::BOOLEAN: {
+      if (dimension_value.type != SqlValue::kLong) {
+        return base::ErrStatus(
+            "Expected bool for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
+            dimension_value.type);
+      }
+      if (dimension_value.long_value != 0 && dimension_value.long_value != 1) {
+        return base::ErrStatus(
+            "Expected bool 0 or 1 for dimension '%s' in metric or bundle '%s', "
+            "got %" PRId64,
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
+            dimension_value.long_value);
+      }
+      bool dim_value = dimension_value.long_value != 0;
+      hasher->Update(dim_value);
+      dimension->set_bool_value(dim_value);
+      break;
+    }
     case TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED:
       if (dimension_value.type == SqlValue::kLong) {
         int64_t dim_value = dimension_value.long_value;
@@ -392,6 +412,18 @@ base::Status WriteInternedDimensionValue(
         return base::ErrStatus("Expected double for interned dimension column");
       }
       value->set_double_value(col_value.double_value);
+      break;
+    }
+    case TraceMetricV2Spec::DimensionType::BOOLEAN: {
+      if (col_value.type != SqlValue::kLong) {
+        return base::ErrStatus("Expected bool for interned dimension column");
+      }
+      if (col_value.long_value != 0 && col_value.long_value != 1) {
+        return base::ErrStatus(
+            "Expected bool 0 or 1 for interned dimension column, got %" PRId64,
+            col_value.long_value);
+      }
+      value->set_bool_value(col_value.long_value != 0);
       break;
     }
     case TraceMetricV2Spec::DimensionType::DIMENSION_TYPE_UNSPECIFIED:
