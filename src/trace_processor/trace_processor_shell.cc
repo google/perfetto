@@ -69,6 +69,7 @@
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/read_trace_internal.h"
+#include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -1754,12 +1755,13 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
   return base::OkStatus();
 }
 
-base::Status MaybeWriteMetatrace(const std::string& metatrace_path) {
+base::Status MaybeWriteMetatrace(TraceProcessor* trace_processor,
+                                 const std::string& metatrace_path) {
   if (metatrace_path.empty()) {
     return base::OkStatus();
   }
   std::vector<uint8_t> serialized;
-  RETURN_IF_ERROR(g_tp->DisableAndReadMetatrace(&serialized));
+  RETURN_IF_ERROR(trace_processor->DisableAndReadMetatrace(&serialized));
 
   auto file = base::OpenFile(metatrace_path, O_CREAT | O_RDWR | O_TRUNC, 0600);
   if (!file)
@@ -1938,7 +1940,8 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
 #if PERFETTO_HAS_SIGNAL_H()
   // Set up interrupt signal to allow the user to abort query.
-  signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
+  static TraceProcessor* g_tp_for_signal_handler = tp.get();
+  signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
@@ -2013,7 +2016,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     base::Status status = RunQueriesFromFile(options.query_file_path, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
   }
@@ -2022,7 +2025,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     base::Status status = RunQueries(options.query_string, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
   }
@@ -2034,6 +2037,11 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.enable_httpd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+    Rpc rpc(std::move(tp), !options.trace_file_path.empty());
+
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+
 #if PERFETTO_HAS_SIGNAL_H()
     if (options.metatrace_path.empty()) {
       // Restore the default signal handler to allow the user to terminate
@@ -2043,16 +2051,14 @@ base::Status TraceProcessorMain(int argc, char** argv) {
       // Write metatrace to file before exiting.
       static std::string* metatrace_path = &options.metatrace_path;
       signal(SIGINT, [](int) {
-        MaybeWriteMetatrace(*metatrace_path);
+        MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
+                            *metatrace_path);
         exit(1);
       });
     }
 #endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
     RunHttpRPCServer(
-        /*preloaded_instance=*/std::move(tp),
-        /*is_preloaded_eof=*/!options.trace_file_path.empty(),
+        /*rpc=*/rpc,
         /*listen_ip=*/options.listen_ip,
         /*port_number=*/options.port_number,
         /*additional_cors_origins=*/options.additional_cors_origins);
@@ -2063,7 +2069,15 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.enable_stdiod) {
-    return RunStdioRpcServer(std::move(tp), !options.trace_file_path.empty());
+    Rpc rpc(std::move(tp), !options.trace_file_path.empty());
+#if PERFETTO_HAS_SIGNAL_H()
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+    g_tp_for_signal_handler = nullptr;
+    signal(SIGINT, [](int) {
+      g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
+    });
+#endif
+    return RunStdioRpcServer(rpc);
   }
 
   if (options.launch_shell) {
@@ -2074,7 +2088,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
   }
 
-  RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
 
   return base::OkStatus();
 }
