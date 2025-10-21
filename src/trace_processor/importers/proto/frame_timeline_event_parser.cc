@@ -84,6 +84,10 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Dropped Frame");
   if (jank_type & FrameTimelineEvent::JANK_NON_ANIMATING)
     jank_reasons.emplace_back("Non Animating");
+  if (jank_type & FrameTimelineEvent::JANK_NO_APP_FRAMES)
+    jank_reasons.emplace_back("No App Frames");
+  if (jank_type & FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
+    jank_reasons.emplace_back("Display not ON");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -96,6 +100,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
 bool DisplayFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
+      jank_type == FrameTimelineEvent::JANK_NO_APP_FRAMES ||
+      jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
 
@@ -111,7 +117,8 @@ bool DisplayFrameJanky(int32_t jank_type) {
 bool SurfaceFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE ||
-      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING)
+      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING |
+          jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     return false;
 
   int32_t surface_frame_jank_bitmask =
@@ -226,7 +233,11 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_sf_stuffing_id_(
           context->storage->InternString("SurfaceFlinger Stuffing")),
       jank_tag_none_animating_id_(
-          context->storage->InternString("Non Animating")) {}
+          context->storage->InternString("Non Animating")),
+      jank_tag_no_app_frames_id_(
+          context->storage->InternString("No App Frames")),
+      jank_tag_display_not_on_id_(
+          context->storage->InternString("Display not ON")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
                                                               ConstBytes blob) {
@@ -268,6 +279,10 @@ StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     jank_tag = jank_tag_dropped_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
     jank_tag = jank_tag_none_animating_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_NO_APP_FRAMES) {
+    jank_tag = jank_tag_no_app_frames_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
+    jank_tag = jank_tag_display_not_on_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }
@@ -458,6 +473,8 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
     jank_tag = jank_tag_dropped_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
     jank_tag = jank_tag_none_animating_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
+    jank_tag = jank_tag_display_not_on_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }
