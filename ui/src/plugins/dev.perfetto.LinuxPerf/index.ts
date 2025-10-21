@@ -34,7 +34,10 @@ import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {createPerfCallsitesTrack} from './perf_samples_profile_track';
+import {
+  createPerfCallsitesTrack,
+  createProcessNonCallsiteTrack,
+} from './perf_samples_profile_track';
 
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -53,6 +56,7 @@ export default class implements PerfettoPlugin {
     await this.addProcessPerfSamplesTracks(trace);
     await this.addThreadPerfSamplesTracks(trace);
     await this.addPerfCounterTracks(trace);
+    await this.addProcessNonCallstackTracks(trace);
 
     trace.onTraceReady.addListener(async () => {
       await selectPerfTracksIfSingleProcess(trace);
@@ -156,6 +160,41 @@ export default class implements PerfettoPlugin {
         });
       },
     });
+  }
+
+  private async addProcessNonCallstackTracks(trace: Trace) {
+    const pResult = await trace.engine.query(`
+      SELECT DISTINCT upid
+      FROM perf_sample
+      JOIN thread USING (utid)
+      WHERE
+        callsite_id IS NULL AND
+        upid IS NOT NULL
+    `);
+    for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
+      const upid = it.upid;
+      const uri = `/process_${upid}/perf_samples_other`;
+
+      trace.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: ['PerfOtherSamplesTrack'],
+          upid,
+        },
+        renderer: createProcessNonCallsiteTrack(trace, uri, upid),
+      });
+
+      const otherSamplesTrack = new TrackNode({
+        uri,
+        name: `Unclassified perf samples`,
+        sortOrder: -35,
+      });
+
+      const group = trace.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
+      group?.addChildInOrder(otherSamplesTrack);
+    }
   }
 
   private async addThreadPerfSamplesTracks(trace: Trace) {

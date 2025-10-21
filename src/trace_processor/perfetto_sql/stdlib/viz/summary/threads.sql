@@ -49,7 +49,7 @@ SELECT
   count() AS perf_sample_cnt
 FROM perf_sample
 WHERE
-  callsite_id IS NOT NULL
+  utid IS NOT NULL
 GROUP BY
   utid;
 
