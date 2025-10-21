@@ -105,9 +105,6 @@ $border-3: 2px solid var(--pf-color-border);
   overflow: auto;
   align-items: flex-start;
 
-  background: var(--pf-color-background); // Performance tweak - see b/335451611
-  will-change: scroll-position;
-
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
   // content.
@@ -127,6 +124,7 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__puck {
+    // Improves layerization performance when scrolling.
     will-change: transform;
   }
 
@@ -134,19 +132,12 @@ $border-3: 2px solid var(--pf-color-border);
     display: flex;
     flex-direction: column;
     min-width: 100%;
-    overflow: hidden;
-    background: var(
-      --pf-color-background
-    ); // Performance tweak - see b/335451611
 
     .pf-grid__row {
-      // &:hover {
-      //   background-color: color_hover(transparent);
-      // }
+      &:hover {
+        background-color: color_hover(transparent);
+      }
       border-bottom: $border-2;
-      background: var(
-        --pf-color-background
-      ); // Performance tweak - see b/335451611
     }
   }
 
@@ -161,9 +152,6 @@ $border-3: 2px solid var(--pf-color-border);
     position: relative;
     align-items: baseline;
     border-right: $border-2;
-    background: var(
-      --pf-color-background
-    ); // Performance tweak - see b/33545161
 
     &[draggable="true"] {
       cursor: grab;
