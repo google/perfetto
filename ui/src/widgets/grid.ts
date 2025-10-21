@@ -489,7 +489,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     new VirtualScrollHelper(slider, scrollContainer, [
       {
         overdrawPx: 500,
-        tolerancePx: 100,
+        tolerancePx: 250,
         callback: (rect) => {
           const rowStart = Math.floor(rect.top / rowHeight);
           const rowCount = Math.ceil(rect.height / rowHeight);
@@ -499,7 +499,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       },
       {
         overdrawPx: 2000,
-        tolerancePx: 200,
+        tolerancePx: 1000,
         callback: (rect) => {
           const rowStart = Math.floor(rect.top / rowHeight);
           const rowEnd = Math.ceil(rect.bottom / rowHeight);
