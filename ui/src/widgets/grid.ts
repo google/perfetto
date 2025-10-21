@@ -14,287 +14,24 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
+import {exists} from '../base/utils';
 import {Button} from './button';
 import {MenuItem, PopupMenu} from './menu';
-import {MithrilEvent} from '../base/mithril_utils';
+import {PopupPosition} from './popup';
+import {VirtualScrollHelper} from './virtual_scroll_helper';
+import {HTMLAttrs} from './common';
 
-export interface GridAttrs {
-  // If true, the grid will fill the height of its parent container.
-  readonly fillHeight?: boolean;
-  // An optional class name to add to the root element of the grid.
-  readonly className?: string;
-}
-
-// The top-level container. It creates the main `<table>` element and expects
-// `GridHeader` and `GridBody` as children.
-export class Grid implements m.ClassComponent<GridAttrs> {
-  view({attrs, children}: m.Vnode<GridAttrs>) {
-    const {fillHeight = false, className} = attrs;
-    return m(
-      '.pf-grid',
-      {
-        className: classNames(fillHeight && 'pf-grid--fill-height', className),
-      },
-      m('.pf-grid__table', m('table', children)),
-    );
-  }
-}
-
-// Renders the `<thead>` element. It's designed to contain `GridRow` components.
-export class GridHeader implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m('thead', children);
-  }
-}
-
-// Renders the `<tbody>` element. It will also contain `GridRow` components.
-export class GridBody implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m('tbody', children);
-  }
-}
-
-// Renders a `<tr>` element. It expects a list of cells.
-export class GridRow implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m('tr', children);
-  }
-}
+const DEFAULT_ROW_HEIGHT = 24;
+const INITIAL_SIZE_MAX_WIDTH = 600;
+const AUTO_RESIZE_MAX_WIDTH = 2_000;
+const COL_WIDTH_MIN_PX = 50;
+const CELL_PADDING_PX = 5;
 
 export type SortDirection = 'ASC' | 'DESC';
-
 export type CellAlignment = 'left' | 'center' | 'right';
-
 export type ReorderPosition = 'before' | 'after';
-
-export interface GridHeaderCellAttrs extends m.Attributes {
-  // The current sort direction, if any.
-  readonly sort?: SortDirection;
-  // Callback invoked when the user clicks the sort button.
-  readonly onSort?: (direction: SortDirection) => void;
-  // An array of Mithril children (e.g., MenuItem, MenuDivider) for the
-  // context menu.
-  readonly menuItems?: m.Children;
-  // Horizontal alignment of the cell content.
-  readonly aggregation?: {
-    readonly left: m.Children;
-    readonly right: m.Children;
-  };
-  // A handle to identify a group of reorderable columns. Columns can only be
-  // reordered within the same group.
-  readonly reorderable?: {
-    readonly handle: string;
-  };
-  // Called when a column is dragged and dropped onto another column.
-  // The first argument is the `key` of the column being dragged, the second
-  // is the `key` of the column being dropped on.
-  readonly onReorder?: (
-    from: string | number | undefined,
-    to: string | number | undefined,
-    position: ReorderPosition,
-  ) => void;
-  // If true, the cell will have a thick right border, useful for separating
-  // groups of columns.
-  readonly thickRightBorder?: boolean;
-}
-
-// Renders a `<th>` element, for use inside a `GridRow` within a `GridHeader`.
-export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
-  private dragOverState: {count: number; position: ReorderPosition} = {
-    count: 0,
-    position: 'after',
-  };
-
-  view({attrs, children, key}: m.Vnode<GridHeaderCellAttrs>) {
-    const {
-      sort,
-      onSort,
-      menuItems,
-      aggregation,
-      reorderable,
-      onReorder,
-      thickRightBorder,
-      ...rest
-    } = attrs;
-
-    const renderSortButton = () => {
-      if (!onSort) return null;
-
-      const nextDirection: SortDirection = (() => {
-        if (!sort) return 'ASC';
-        if (sort === 'ASC') return 'DESC';
-        if (sort === 'DESC') return 'ASC';
-        // Default to ascending if no sort is defined.
-        return 'ASC';
-      })();
-
-      return m(Button, {
-        className: classNames(
-          !sort && 'pf-grid-cell__hint',
-          !sort && 'pf-visible-on-hover',
-        ),
-        rounded: true,
-        icon: sort === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
-        onclick: (e: MouseEvent) => {
-          onSort(nextDirection);
-          e.stopPropagation();
-        },
-      });
-    };
-
-    const renderMenu = () => {
-      if (menuItems === undefined) return null;
-      return m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            className: 'pf-visible-on-hover pf-grid-cell__menu-button',
-            icon: Icons.ContextMenuAlt,
-            rounded: true,
-          }),
-        },
-        menuItems,
-      );
-    };
-
-    const hasAggregation = aggregation !== undefined;
-    const reorderHandle = reorderable?.handle;
-
-    return m(
-      'th',
-      {
-        ...rest,
-        draggable: reorderable !== undefined,
-        className: classNames(
-          this.dragOverState.count > 0 && 'pf-drag-over',
-          this.dragOverState.count > 0 &&
-            `pf-drag-over--${this.dragOverState.position}`,
-          thickRightBorder && 'pf-grid-cell--thick-right-border',
-        ),
-        ondragstart: (e: MithrilEvent<DragEvent>) => {
-          e.redraw = false;
-          e.dataTransfer!.setData(reorderable!.handle, JSON.stringify({key}));
-        },
-        ondragenter: (e: MithrilEvent<DragEvent>) => {
-          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            ++this.dragOverState.count;
-          }
-        },
-        ondragleave: (e: MithrilEvent<DragEvent>) => {
-          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            --this.dragOverState.count;
-          }
-        },
-        ondragover: (e: MithrilEvent<DragEvent>) => {
-          e.preventDefault();
-          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            e.dataTransfer!.dropEffect = 'move';
-            const target = e.currentTarget as HTMLElement;
-            const rect = target.getBoundingClientRect();
-            this.dragOverState.position =
-              e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-          } else {
-            e.dataTransfer!.dropEffect = 'none';
-          }
-        },
-        ondrop: (e: MithrilEvent<DragEvent>) => {
-          this.dragOverState.count = 0;
-          if (reorderHandle) {
-            const data = e.dataTransfer!.getData(reorderHandle);
-            if (data) {
-              e.preventDefault();
-              const {key: from} = JSON.parse(data);
-              const to = attrs.key as string | number | undefined;
-              const target = e.currentTarget as HTMLElement;
-              const rect = target.getBoundingClientRect();
-              const position =
-                e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-              onReorder?.(from, to, position);
-            }
-          }
-        },
-      },
-      m('.pf-grid-cell-header', [
-        m('.pf-grid-cell', [
-          m('.pf-grid-cell__content-container', [
-            m('.pf-grid-cell__content', children),
-            renderSortButton(),
-          ]),
-          renderMenu(),
-        ]),
-        hasAggregation &&
-          m(
-            '.pf-grid-cell__aggregation',
-            m('.pf-grid-cell__aggregation-left', aggregation.left),
-            m('.pf-grid-cell__aggregation-right', aggregation.right),
-          ),
-      ]),
-    );
-  }
-}
-
-export interface GridDataCellAttrs extends m.Attributes {
-  // An array of Mithril children (e.g., MenuItem, MenuDivider) for the
-  // context menu.
-  readonly menuItems?: m.Children;
-  // Horizontal alignment of the cell content.
-  readonly align?: CellAlignment;
-  // If true, the cell will be styled to indicate missing data.
-  readonly isMissing?: boolean;
-  // If true, the cell will have a thick right border.
-  readonly thickRightBorder?: boolean;
-}
-
-// Renders a `<td>` element, for use inside a `GridRow` within a `GridBody`.
-export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
-  view({attrs, children}: m.Vnode<GridDataCellAttrs>) {
-    const {menuItems, align, isMissing, thickRightBorder, className, ...rest} =
-      attrs;
-
-    const renderMenu = () => {
-      if (menuItems === undefined) return null;
-      return m(
-        '.pf-grid-cell__actions',
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              className: 'pf-grid-cell__menu-button pf-visible-on-hover',
-              icon: Icons.ContextMenuAlt,
-              rounded: true,
-            }),
-          },
-          menuItems,
-        ),
-      );
-    };
-
-    return m(
-      'td',
-      {
-        ...rest,
-        className: classNames(
-          className,
-          thickRightBorder && 'pf-grid-cell--thick-right-border',
-        ),
-      },
-      m('.pf-grid-cell', [
-        m(
-          '.pf-grid-cell__content-container',
-          {
-            className: classNames(
-              align && `pf-grid-cell--align-${align}`,
-              isMissing && 'pf-grid-cell--missing',
-            ),
-          },
-          m('.pf-grid-cell__content', children),
-        ),
-        renderMenu(),
-      ]),
-    );
-  }
-}
 
 export function renderSortMenuItems(
   sorted: SortDirection | undefined,
@@ -322,83 +59,796 @@ export function renderSortMenuItems(
   ];
 }
 
-export interface PageControlAttrs {
-  readonly from: number;
-  readonly to: number;
-  readonly of: number;
-  nextPageClick(): void;
-  prevPageClick(): void;
-  firstPageClick(): void;
-  lastPageClick(): void;
+export interface GridHeaderCellAttrs extends m.Attributes {
+  readonly sort?: SortDirection;
+  readonly onSort?: (direction: SortDirection) => void;
+  readonly menuItems?: m.Children;
+  readonly subContent?: m.Children;
 }
 
-import {Stack} from './stack';
-import {Chip} from './chip';
+export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
+  view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
+    const {sort, onSort, menuItems, subContent, ...htmlAttrs} = attrs;
 
-export class PageControl implements m.ClassComponent<PageControlAttrs> {
-  view({attrs}: m.Vnode<PageControlAttrs>) {
+    const renderSortButton = () => {
+      if (!onSort) return undefined;
+
+      const nextDirection: SortDirection = (() => {
+        if (!sort) return 'ASC';
+        if (sort === 'ASC') return 'DESC';
+        if (sort === 'DESC') return 'ASC';
+        return 'ASC';
+      })();
+
+      return m(Button, {
+        className: classNames(
+          'pf-grid-header-cell__sort-button',
+          !sort && 'pf-grid-cell--hint',
+          !sort && 'pf-visible-on-hover',
+        ),
+        ariaLabel: 'Sort column',
+        rounded: true,
+        icon: sort === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
+        onclick: (e: MouseEvent) => {
+          onSort(nextDirection);
+          e.stopPropagation();
+        },
+      });
+    };
+
+    const renderMenu = () => {
+      if (menuItems === undefined) return undefined;
+      return m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            className: 'pf-visible-on-hover pf-grid-header-cell__menu-button',
+            icon: Icons.ContextMenuAlt,
+            rounded: true,
+            ariaLabel: 'Column menu',
+          }),
+        },
+        menuItems,
+      );
+    };
+
+    return m(
+      '.pf-grid-header-cell',
+      {
+        ...htmlAttrs,
+      },
+      [
+        m(
+          '.pf-grid-header-cell__main-content',
+          m(
+            '.pf-grid-header-cell__title',
+            m('.pf-grid-header-cell__title-wrapper', children),
+            renderSortButton(),
+          ),
+          renderMenu(),
+        ),
+        subContent !== undefined &&
+          m('.pf-grid-header-cell__sub-content', subContent),
+      ],
+    );
+  }
+}
+
+export interface GridCellAttrs extends HTMLAttrs {
+  readonly menuItems?: m.Children;
+  readonly align?: CellAlignment;
+  readonly nullish?: boolean;
+  readonly padding?: boolean;
+}
+
+export class GridCell implements m.ClassComponent<GridCellAttrs> {
+  view({attrs, children}: m.Vnode<GridCellAttrs>) {
     const {
-      from,
-      to,
-      of,
-      firstPageClick,
-      prevPageClick,
-      nextPageClick,
-      lastPageClick,
+      menuItems,
+      align = 'left',
+      nullish,
+      className,
+      padding = true,
+      ...rest
     } = attrs;
 
-    const isFirstPage = from === 1;
-    const isLastPage = to === of;
+    const cell = m(
+      '.pf-grid-cell',
+      {
+        ...rest,
+        className: classNames(
+          className,
+          align && `pf-grid-cell--align-${align}`,
+          padding && 'pf-grid-cell--padded',
+          nullish && 'pf-grid-cell--nullish',
+        ),
+      },
+      m('.pf-grid-cell__content-wrapper', children),
+    );
 
-    return m(Stack, {className: 'pf-page-control', orientation: 'horizontal'}, [
-      m('span', `${from} - ${to} of ${of}`),
-      m(Button, {
-        icon: Icons.FirstPage,
-        disabled: isFirstPage,
-        title: 'First Page',
-        onclick: firstPageClick,
-      }),
-      m(Button, {
-        icon: Icons.PrevPage,
-        disabled: isFirstPage,
-        title: 'Previous Page',
-        onclick: prevPageClick,
-      }),
-      m(Button, {
-        icon: Icons.NextPage,
-        disabled: isLastPage,
-        title: 'Next Page',
-        onclick: nextPageClick,
-      }),
-      m(Button, {
-        icon: Icons.LastPage,
-        disabled: isLastPage,
-        title: 'Last Page',
-        onclick: lastPageClick,
-      }),
+    if (Boolean(menuItems)) {
+      return m(
+        PopupMenu,
+        {
+          trigger: cell,
+          isContextMenu: true,
+          popupPosition: PopupPosition.Bottom,
+        },
+        menuItems,
+      );
+    } else {
+      return cell;
+    }
+  }
+}
+
+/**
+ * Row data with cells and optional styling.
+ */
+export type GridRow = ReadonlyArray<m.Children>;
+
+/**
+ * Column definition for Grid.
+ */
+export interface GridColumn {
+  readonly key: string;
+  readonly header?: m.Children;
+  readonly minWidth?: number;
+  readonly thickRightBorder?: boolean;
+  readonly reorderable?: {readonly handle: string};
+}
+
+/**
+ * Partial row data for virtual scrolling with paginated data.
+ * When using this, virtualization must be enabled.
+ */
+export interface PartialRowData {
+  readonly offset: number;
+  readonly total: number;
+  readonly data: ReadonlyArray<GridRow>;
+  readonly onLoadData: (offset: number, limit: number) => void;
+}
+
+/**
+ * Row data can be either:
+ * - Full dataset (array)
+ * - Partial/paginated dataset (object with offset, total, data, and load callback)
+ */
+export type GridRowData = ReadonlyArray<GridRow> | PartialRowData;
+
+/**
+ * Virtual scrolling configuration.
+ * Required when using PartialRowData, optional otherwise.
+ */
+export interface GridVirtualization {
+  readonly rowHeightPx: number;
+}
+
+/**
+ * Attributes for the Grid component.
+ */
+export interface GridAttrs {
+  readonly columns: ReadonlyArray<GridColumn>;
+  readonly rowData: GridRowData;
+  readonly virtualization?: GridVirtualization;
+  readonly fillHeight?: boolean;
+  readonly className?: string;
+  readonly onRowHover?: (rowIndex: number) => void;
+  readonly onRowOut?: () => void;
+  readonly onColumnReorder?: (
+    from: string | number | undefined,
+    to: string | number | undefined,
+    position: ReorderPosition,
+  ) => void;
+}
+
+/**
+ * Grid is a purely presentational component that renders tabular data with
+ * virtual scrolling and column resizing. It provides the layout structure but
+ * does NO automatic wrapping or transformation of content.
+ *
+ * Key features:
+ * - Virtual scrolling for efficient rendering of large datasets
+ * - Automatic column sizing based on content
+ * - Manual column resizing via drag handles
+ * - Double-click to auto-resize columns
+ *
+ * IMPORTANT: Grid is completely data-agnostic:
+ * - Headers must be provided as GridHeaderCell components (for sorting, menus, reordering)
+ * - Cells must be provided as GridCell components (for alignment, menus)
+ * - Grid does NO automatic wrapping or injection of components
+ * - Parent component is responsible for ALL content rendering
+ *
+ * For automatic features like sorting and filtering, use DataGrid instead.
+ *
+ * # Row Data API
+ *
+ * Grid supports two modes for providing row data:
+ *
+ * ## 1. Full Dataset (Array)
+ * When you have all rows in memory, pass them as a simple array:
+ * ```typescript
+ * rowData: [
+ *   [m(GridCell, '1'), m(GridCell, 'Alice')],
+ *   [m(GridCell, '2'), m(GridCell, 'Bob')],
+ * ]
+ * ```
+ *
+ * ## 2. Partial/Paginated Dataset (PartialRowData)
+ * For large datasets where you load data on-demand:
+ * ```typescript
+ * rowData: {
+ *   data: [...],           // Current page of rows
+ *   total: 1000000,        // Total number of rows
+ *   offset: 0,             // Current offset
+ *   onLoadData: (offset, limit) => {
+ *     // Load and set data for the requested range
+ *   }
+ * }
+ * ```
+ * When using PartialRowData, virtualization MUST be enabled.
+ *
+ * # Virtualization
+ *
+ * Virtualization is optional for full datasets but required for partial data:
+ * ```typescript
+ * virtualization: {
+ *   rowHeightPx: 24  // Height of each row in pixels
+ * }
+ * ```
+ *
+ * # Complete Examples
+ *
+ * Simple grid with full dataset (no virtualization):
+ * ```typescript
+ * m(Grid, {
+ *   columns: [
+ *     {key: 'id', header: m(GridHeaderCell, 'ID')},
+ *     {key: 'name', header: m(GridHeaderCell, 'Name')},
+ *   ],
+ *   rowData: [
+ *     [m(GridCell, {align: 'right'}, '1'), m(GridCell, 'Alice')],
+ *     [m(GridCell, {align: 'right'}, '2'), m(GridCell, 'Bob')],
+ *   ],
+ *   fillHeight: true,
+ * })
+ * ```
+ *
+ * Grid with full dataset and DOM virtualization:
+ * ```typescript
+ * m(Grid, {
+ *   columns: [...],
+ *   rowData: [...1000 rows...],
+ *   virtualization: {
+ *     rowHeightPx: 24,  // Enables virtual scrolling
+ *   },
+ *   fillHeight: true,
+ * })
+ * ```
+ *
+ * Grid with partial/paginated data (virtualization required):
+ * ```typescript
+ * m(Grid, {
+ *   columns: [...],
+ *   rowData: {
+ *     data: currentPageRows,
+ *     total: 1000000,
+ *     offset: currentOffset,
+ *     onLoadData: (offset, limit) => {
+ *       // Fetch and update currentPageRows, currentOffset
+ *     },
+ *   },
+ *   virtualization: {
+ *     rowHeightPx: 24,  // Required for PartialRowData
+ *   },
+ *   fillHeight: true,
+ * })
+ * ```
+ */
+function isPartialRowData(rowData: GridRowData): rowData is PartialRowData {
+  return !Array.isArray(rowData);
+}
+
+export class Grid implements m.ClassComponent<GridAttrs> {
+  private sizedColumns: Set<string> = new Set();
+  private renderBounds?: {rowStart: number; rowEnd: number};
+  private columnDragState: Map<
+    string,
+    {count: number; position: ReorderPosition}
+  > = new Map();
+  private fieldToId: Map<string, number> = new Map();
+  private nextId = 0;
+
+  private getColumnId(field: string): number {
+    if (!this.fieldToId.has(field)) {
+      this.fieldToId.set(field, this.nextId++);
+    }
+    return this.fieldToId.get(field)!;
+  }
+
+  view({attrs}: m.Vnode<GridAttrs>) {
+    const {
+      columns,
+      rowData,
+      virtualization,
+      fillHeight = false,
+      className,
+    } = attrs;
+
+    // Validate: PartialRowData requires virtualization
+    if (isPartialRowData(rowData) && virtualization === undefined) {
+      throw new Error(
+        'Grid: virtualization is required when using PartialRowData',
+      );
+    }
+
+    // Extract row information
+    const rows = isPartialRowData(rowData) ? rowData.data : rowData;
+    const totalRows = isPartialRowData(rowData)
+      ? rowData.total
+      : rowData.length;
+    const rowOffset = isPartialRowData(rowData) ? rowData.offset : 0;
+
+    // Virtualization settings
+    const isVirtualized = virtualization !== undefined;
+    const rowHeight = virtualization?.rowHeightPx ?? DEFAULT_ROW_HEIGHT;
+
+    // Render the grid structure inline
+    return m(
+      '.pf-grid',
+      {
+        className: classNames(fillHeight && 'pf-grid--fill-height', className),
+        ref: 'scroll-container',
+        role: 'table',
+      },
+      m(
+        '.pf-grid__header',
+        m(
+          '.pf-grid__row',
+          {
+            role: 'row',
+          },
+          columns.map((column) => {
+            return this.renderHeaderCell(column, attrs.onColumnReorder);
+          }),
+        ),
+      ),
+      // Body
+      m(
+        '.pf-grid__body',
+        {
+          style: isVirtualized
+            ? {
+                minHeight: `${totalRows * rowHeight}px`,
+              }
+            : undefined,
+          ref: 'slider',
+        },
+        isVirtualized
+          ? m(
+              '.pf-grid__puck',
+              {
+                style: {
+                  transform: `translateY(${
+                    this.renderBounds?.rowStart !== undefined
+                      ? this.renderBounds.rowStart * rowHeight
+                      : 0
+                  }px)`,
+                },
+              },
+              this.renderRows(
+                columns,
+                rows,
+                rowOffset,
+                rowHeight,
+                attrs.onRowHover,
+                attrs.onRowOut,
+              ),
+            )
+          : this.renderAllRows(columns, rows, attrs.onRowHover, attrs.onRowOut),
+      ),
+    );
+  }
+
+  oncreate(vnode: m.VnodeDOM<GridAttrs, this>) {
+    const {virtualization, columns, rowData} = vnode.attrs;
+
+    // Extract rows from rowData
+    const rows = isPartialRowData(rowData) ? rowData.data : rowData;
+
+    if (rows.length > 0) {
+      // Check if there are new columns that need sizing
+      const newColumns = columns.filter(
+        (column) => !this.sizedColumns.has(column.key),
+      );
+
+      if (newColumns.length > 0) {
+        this.measureAndApplyWidths(
+          vnode.dom as HTMLElement,
+          newColumns,
+          INITIAL_SIZE_MAX_WIDTH,
+        );
+      }
+    }
+
+    // Only set up virtual scrolling if virtualization is enabled
+    if (virtualization === undefined) {
+      return;
+    }
+
+    const rowHeight = virtualization.rowHeightPx;
+    const onLoadData = isPartialRowData(rowData)
+      ? rowData.onLoadData
+      : undefined;
+
+    const scrollContainer: HTMLElement = (vnode.dom as HTMLElement)!;
+    const slider: HTMLElement = (vnode.dom as HTMLElement).querySelector(
+      '[ref="slider"]',
+    )!;
+
+    new VirtualScrollHelper(slider, scrollContainer, [
+      {
+        overdrawPx: 500,
+        tolerancePx: 100,
+        callback: (rect) => {
+          const rowStart = Math.floor(rect.top / rowHeight);
+          const rowCount = Math.ceil(rect.height / rowHeight);
+          this.renderBounds = {rowStart, rowEnd: rowStart + rowCount};
+          m.redraw();
+        },
+      },
+      {
+        overdrawPx: 2000,
+        tolerancePx: 200,
+        callback: (rect) => {
+          const rowStart = Math.floor(rect.top / rowHeight);
+          const rowEnd = Math.ceil(rect.bottom / rowHeight);
+          if (onLoadData !== undefined) {
+            onLoadData(rowStart, rowEnd - rowStart);
+          }
+          m.redraw();
+        },
+      },
     ]);
   }
-}
 
-export class GridFilterBar implements m.ClassComponent {
-  view({children}: m.Vnode) {
-    return m(Stack, {orientation: 'horizontal', wrap: true}, children);
+  onupdate(vnode: m.VnodeDOM<GridAttrs, this>) {
+    const {columns, rowData} = vnode.attrs;
+
+    // Extract rows from rowData
+    const rows = isPartialRowData(rowData) ? rowData.data : rowData;
+
+    if (rows.length > 0) {
+      // Check if there are new columns that need sizing
+      const newColumns = columns.filter(
+        (column) => !this.sizedColumns.has(column.key),
+      );
+
+      if (newColumns.length > 0) {
+        this.measureAndApplyWidths(
+          vnode.dom as HTMLElement,
+          newColumns,
+          INITIAL_SIZE_MAX_WIDTH,
+        );
+      }
+    }
   }
-}
 
-export interface GridFilterAttrs {
-  readonly content: string;
-  onRemove(): void;
-}
+  private measureAndApplyWidths(
+    gridDom: HTMLElement,
+    columns: ReadonlyArray<GridColumn>,
+    maxWidth: number = AUTO_RESIZE_MAX_WIDTH,
+  ): void {
+    const gridClone = gridDom.cloneNode(true) as HTMLElement;
+    gridDom.appendChild(gridClone);
 
-export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
-  view({attrs}: m.Vnode<GridFilterAttrs>): m.Children {
-    return m(Chip, {
-      className: 'pf-grid-filter',
-      label: attrs.content,
-      removable: true,
-      onRemove: attrs.onRemove,
-      title: attrs.content,
+    // Now read the actual widths (this will cause a reflow)
+    // Find all the cells in this column (header + data rows)
+    const allCells = gridClone.querySelectorAll(`.pf-grid__cell-container`); // TODO pick a better selector for this
+
+    // Only continue if we have more cells than just the header
+    if (allCells.length <= columns.length) {
+      gridClone.remove();
+      return;
+    }
+
+    columns.forEach((column) => {
+      const columnId = this.getColumnId(column.key);
+
+      // Clear the existing width to allow natural sizing
+      gridClone.style.setProperty(`--pf-grid-col-${columnId}`, 'fit-content');
+
+      // Find all the cells in this column
+      const cellsInThisColumn = Array.from(allCells).filter(
+        (cell) => (cell as HTMLElement).dataset['columnId'] === `${columnId}`,
+      );
+
+      const widths = cellsInThisColumn.map((c) => {
+        return c.scrollWidth;
+      });
+      const maxCellWidth = Math.max(...widths);
+      const minWidth = column.minWidth ?? COL_WIDTH_MIN_PX;
+      const finalWidth = Math.min(
+        maxWidth,
+        Math.max(minWidth, Math.ceil(maxCellWidth) + CELL_PADDING_PX),
+      );
+
+      gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${finalWidth}px`);
+
+      // Store the width
+      this.sizedColumns.add(column.key);
     });
+
+    gridClone.remove();
+  }
+
+  private renderRows(
+    columns: ReadonlyArray<GridColumn>,
+    rows: ReadonlyArray<GridRow>,
+    rowOffset: number,
+    rowHeight: number,
+    onRowHover?: (rowIndex: number) => void,
+    onRowOut?: () => void,
+  ): m.Children {
+    if (this.renderBounds === undefined) {
+      return undefined;
+    }
+
+    const {rowStart, rowEnd} = this.renderBounds;
+    const displayRowCount = rowEnd - rowStart;
+
+    const indices = Array.from(
+      {length: displayRowCount},
+      (_, i) => rowStart + i,
+    );
+
+    return indices
+      .map((rowIndex) => {
+        const relativeIndex = rowIndex - rowOffset;
+        const row =
+          relativeIndex >= 0 && relativeIndex < rows.length
+            ? rows[relativeIndex]
+            : undefined;
+
+        if (row !== undefined) {
+          return m(
+            '.pf-grid__row',
+            {
+              key: rowIndex,
+              role: 'row',
+              style: {
+                height: `${rowHeight}px`,
+              },
+              onmouseenter: onRowHover ? () => onRowHover(rowIndex) : undefined,
+              onmouseleave: onRowOut,
+            },
+            columns.map((column, index) => {
+              const children = row[index];
+              const columnId = this.getColumnId(column.key);
+
+              return m(
+                '.pf-grid__cell-container',
+                {
+                  'style': {
+                    width: `var(--pf-grid-col-${columnId})`,
+                  },
+                  'role': 'cell',
+                  'data-column-id': columnId,
+                  'className': classNames(
+                    column.thickRightBorder &&
+                      'pf-grid__cell-container--border-right-thick',
+                  ),
+                },
+                children,
+              );
+            }),
+          );
+        } else {
+          return undefined;
+        }
+      })
+      .filter(exists);
+  }
+
+  private renderAllRows(
+    columns: ReadonlyArray<GridColumn>,
+    rows: ReadonlyArray<GridRow>,
+    onRowHover?: (rowIndex: number) => void,
+    onRowOut?: () => void,
+  ): m.Children {
+    return rows.map((row, rowIndex) => {
+      return m(
+        '.pf-grid__row',
+        {
+          key: rowIndex,
+          role: 'row',
+          onmouseenter: onRowHover ? () => onRowHover(rowIndex) : undefined,
+          onmouseleave: onRowOut,
+        },
+        columns.map((column, index) => {
+          const children = row[index];
+          const columnId = this.getColumnId(column.key);
+
+          return m(
+            '.pf-grid__cell-container',
+            {
+              'style': {
+                width: `var(--pf-grid-col-${columnId})`,
+              },
+              'role': 'cell',
+              'data-column-id': columnId,
+              'className': classNames(
+                column.thickRightBorder &&
+                  'pf-grid__cell-container--border-right-thick',
+              ),
+            },
+            children,
+          );
+        }),
+      );
+    });
+  }
+
+  private renderHeaderCell(
+    column: GridColumn,
+    onColumnReorder?: (
+      from: string | number | undefined,
+      to: string | number | undefined,
+      position: ReorderPosition,
+    ) => void,
+  ): m.Children {
+    const columnId = this.getColumnId(column.key);
+
+    const renderResizeHandle = () => {
+      return m('.pf-grid__resize-handle', {
+        onmousedown: (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Find the nearest header cell to get the starting width
+          const headerCell = (e.currentTarget as HTMLElement).closest(
+            '.pf-grid__cell-container',
+          );
+
+          if (!headerCell) return;
+
+          const startX = e.clientX;
+          const startWidth = headerCell.scrollWidth;
+
+          const gridDom = (e.currentTarget as HTMLElement).closest(
+            '.pf-grid',
+          ) as HTMLElement | null;
+          if (gridDom === null) return;
+
+          const handleMouseMove = (e: MouseEvent) => {
+            const delta = e.clientX - startX;
+            const minWidth = column.minWidth ?? COL_WIDTH_MIN_PX;
+            const newWidth = Math.max(minWidth, startWidth + delta);
+
+            // Set the css variable for the column being resized
+            gridDom.style.setProperty(
+              `--pf-grid-col-${columnId}`,
+              `${newWidth}px`,
+            );
+          };
+
+          const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+          };
+
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        },
+        ondblclick: (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Auto-resize this column by measuring actual DOM
+          const target = e.currentTarget as HTMLElement;
+          const headerCell = target.parentElement as HTMLElement;
+          const gridDom = headerCell.closest('.pf-grid') as HTMLElement | null;
+
+          if (gridDom === null) return;
+
+          this.measureAndApplyWidths(gridDom, [column], AUTO_RESIZE_MAX_WIDTH);
+        },
+      });
+    };
+
+    const reorderHandle = column.reorderable?.handle;
+    const dragOverState = this.columnDragState.get(column.key) ?? {
+      count: 0,
+      position: 'after' as ReorderPosition,
+    };
+
+    return m(
+      '.pf-grid__cell-container',
+      {
+        'role': 'columnheader',
+        'ariaLabel': column.key,
+        'data-column-id': columnId,
+        'key': column.key,
+        'style': {
+          width: `var(--pf-grid-col-${columnId})`,
+        },
+        'draggable': column.reorderable !== undefined,
+        'className': classNames(
+          column.thickRightBorder &&
+            'pf-grid__cell-container--border-right-thick',
+          dragOverState.count > 0 && 'pf-grid__cell-container--drag-over',
+          dragOverState.count > 0 &&
+            `pf-grid__cell-container--drag-over-${dragOverState.position}`,
+        ),
+        'ondragstart': (e: MithrilEvent<DragEvent>) => {
+          if (!reorderHandle) return;
+          e.redraw = false;
+          e.dataTransfer!.setData(
+            reorderHandle,
+            JSON.stringify({key: column.key}),
+          );
+        },
+        'ondragenter': (e: MithrilEvent<DragEvent>) => {
+          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
+            const state = this.columnDragState.get(column.key) ?? {
+              count: 0,
+              position: 'after' as ReorderPosition,
+            };
+            this.columnDragState.set(column.key, {
+              ...state,
+              count: state.count + 1,
+            });
+          }
+        },
+        'ondragleave': (e: MithrilEvent<DragEvent>) => {
+          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
+            const state = this.columnDragState.get(column.key);
+            if (state) {
+              this.columnDragState.set(column.key, {
+                ...state,
+                count: state.count - 1,
+              });
+            }
+          }
+        },
+        'ondragover': (e: MithrilEvent<DragEvent>) => {
+          e.preventDefault();
+          if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
+            e.dataTransfer!.dropEffect = 'move';
+            const target = e.currentTarget as HTMLElement;
+            const rect = target.getBoundingClientRect();
+            const position: ReorderPosition =
+              e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+            const state = this.columnDragState.get(column.key) ?? {
+              count: 0,
+              position: 'after' as ReorderPosition,
+            };
+            if (state.position !== position) {
+              this.columnDragState.set(column.key, {...state, position});
+            }
+          } else {
+            e.dataTransfer!.dropEffect = 'none';
+          }
+        },
+        'ondrop': (e: MithrilEvent<DragEvent>) => {
+          this.columnDragState.set(column.key, {count: 0, position: 'after'});
+          if (reorderHandle && onColumnReorder) {
+            const data = e.dataTransfer!.getData(reorderHandle);
+            if (data) {
+              e.preventDefault();
+              const {key: from} = JSON.parse(data);
+              const to = column.key;
+              const target = e.currentTarget as HTMLElement;
+              const rect = target.getBoundingClientRect();
+              const position =
+                e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+              onColumnReorder(from, to, position);
+            }
+          }
+        },
+      },
+      column.header ?? column.key,
+      renderResizeHandle(),
+    );
   }
 }

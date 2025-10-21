@@ -20,17 +20,6 @@ import {sqliteString} from '../../../../base/string_utils';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-  renderSortMenuItems,
-  SortDirection,
-} from '../../../../widgets/grid';
-
-import {
   LegacySqlTableFilterOptions,
   LegacySqlTableFilterLabel,
 } from './render_cell_utils';
@@ -46,6 +35,14 @@ import {
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './select_column_menu';
+import {
+  Grid,
+  renderSortMenuItems,
+  SortDirection,
+  GridColumn,
+  GridCell,
+  GridHeaderCell,
+} from '../../../../widgets/grid';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -285,100 +282,103 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     const columns = this.state.getSelectedColumns();
 
-    return [
-      m(
-        Grid,
-        {
-          className: 'sql-table',
-          fillHeight: true,
-        },
-        [
-          m(
-            GridHeader,
-            m(
-              GridRow,
-              columns.map((column, i) => {
-                const sorted = this.state.isSortedBy(column);
-                const menuItems: m.Children = [
-                  renderSortMenuItems(sorted, (direction) =>
-                    this.state.sortBy({column, direction}),
-                  ),
-                  m(MenuDivider),
-                  this.state.getSelectedColumns().length > 1 &&
-                    m(MenuItem, {
-                      label: 'Hide',
-                      icon: Icons.Hide,
-                      onclick: () => this.state.hideColumnAtIndex(i),
-                    }),
-                  m(
-                    MenuItem,
-                    {label: 'Add filter', icon: Icons.Filter},
-                    this.renderColumnFilterOptions(column),
-                  ),
-                  additionalColumnMenuItems &&
-                    additionalColumnMenuItems[
-                      this.state.getCurrentRequest().columns[
-                        sqlColumnId(column.column)
-                      ]
-                    ],
-                  // Menu items before divider apply to selected column
-                  m(MenuDivider),
-                  // Menu items after divider apply to entire table
-                  m(AddColumnMenuItem, {
-                    table: this,
-                    state: this.state,
-                    index: i,
-                  }),
-                ];
+    // Build VirtualGrid columns
+    const virtualGridColumns = columns.map((column, i) => {
+      const sorted = this.state.isSortedBy(column);
+      const menuItems: m.Children = [
+        renderSortMenuItems(sorted, (direction) =>
+          this.state.sortBy({column, direction}),
+        ),
+        m(MenuDivider),
+        this.state.getSelectedColumns().length > 1 &&
+          m(MenuItem, {
+            label: 'Hide',
+            icon: Icons.Hide,
+            onclick: () => this.state.hideColumnAtIndex(i),
+          }),
+        m(
+          MenuItem,
+          {label: 'Add filter', icon: Icons.Filter},
+          this.renderColumnFilterOptions(column),
+        ),
+        additionalColumnMenuItems &&
+          additionalColumnMenuItems[
+            this.state.getCurrentRequest().columns[sqlColumnId(column.column)]
+          ],
+        // Menu items before divider apply to selected column
+        m(MenuDivider),
+        // Menu items after divider apply to entire table
+        m(AddColumnMenuItem, {
+          table: this,
+          state: this.state,
+          index: i,
+        }),
+      ];
 
-                return m(
-                  GridHeaderCell,
-                  {
-                    key: i,
-                    sort: sorted,
-                    onSort: (direction: SortDirection) => {
-                      this.state.sortBy({column, direction});
-                    },
-                    menuItems,
-                    reorderable: {handle: 'column'},
-                    onReorder: (from, to, position) => {
-                      if (typeof from === 'number' && typeof to === 'number') {
-                        const toIndex = position === 'before' ? to : to + 1;
-                        this.state.moveColumn(from, toIndex);
-                      }
-                    },
-                  },
-                  columnTitle(column),
-                );
-              }),
-            ),
-          ),
-          m(
-            GridBody,
-            rows.map((row) => {
-              return m(
-                GridRow,
-                columns.map((col) => {
-                  const {content, menu, isNumerical, isNull} = renderCell(
-                    col,
-                    row,
-                    this.state,
-                  );
-                  return m(
-                    GridDataCell,
-                    {
-                      menuItems: menu,
-                      align: isNull ? 'center' : isNumerical ? 'right' : 'left',
-                      isMissing: isNull,
-                    },
-                    content,
-                  );
-                }),
-              );
-            }),
-          ),
-        ],
-      ),
+      const columnKey = tableColumnId(column);
+
+      const gridColumn: GridColumn = {
+        key: columnKey,
+        header: m(
+          GridHeaderCell,
+          {
+            sort: sorted,
+            onSort: (direction: SortDirection) => {
+              this.state.sortBy({column, direction});
+            },
+            menuItems,
+          },
+          columnTitle(column),
+        ),
+        reorderable: {handle: 'column'},
+      };
+
+      return gridColumn;
+    });
+
+    // Build VirtualGrid rows
+    const virtualGridRows = rows.map((row) => {
+      return columns.map((col) => {
+        const {content, menu, isNumerical, isNull} = renderCell(
+          col,
+          row,
+          this.state,
+        );
+        return m(
+          GridCell,
+          {
+            menuItems: menu,
+            align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+            nullish: isNull,
+          },
+          content,
+        );
+      });
+    });
+
+    return [
+      m(Grid, {
+        className: 'sql-table',
+        columns: virtualGridColumns,
+        rowData: virtualGridRows,
+        fillHeight: true,
+        onColumnReorder: (from, to, position) => {
+          if (typeof from === 'string' && typeof to === 'string') {
+            // Convert column names to indices
+            const fromIndex = columns.findIndex(
+              (col) => tableColumnId(col) === from,
+            );
+            const toIndex = columns.findIndex(
+              (col) => tableColumnId(col) === to,
+            );
+
+            if (fromIndex !== -1 && toIndex !== -1) {
+              const targetIndex = position === 'before' ? toIndex : toIndex + 1;
+              this.state.moveColumn(fromIndex, targetIndex);
+            }
+          }
+        },
+      }),
       this.state.isLoading() && m(Spinner),
       this.state.getQueryError() !== undefined &&
         m('.query-error', this.state.getQueryError()),
