@@ -446,8 +446,10 @@ class FtraceParser {
   const StringId disp_vblank_irq_enable_output_id_arg_name_;
   const StringId hrtimer_id_;
   const StringId local_timer_id_;
-  const StringId f2fs_checkpoint_cat_id_;
-  const StringId f2fs_reason_arg_id_;
+  const StringId f2fs_checkpoint_name_id_;
+  const StringId f2fs_reason_str_arg_id_;
+  const StringId f2fs_reason_int_arg_id_;
+  const StringId f2fs_dev_arg_id_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 

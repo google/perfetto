@@ -558,9 +558,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
           context_->storage->InternString("output_id")),
       hrtimer_id_(context_->storage->InternString("hrtimer")),
       local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")),
-      f2fs_checkpoint_cat_id_(
-          context_->storage->InternString("f2fs_write_checkpoint")),
-      f2fs_reason_arg_id_(context->storage->InternString("reason")) {
+      f2fs_checkpoint_name_id_(
+          context_->storage->InternString("F2fs Write Checkpoint")),
+      f2fs_reason_str_arg_id_(context_->storage->InternString("reason_str")),
+      f2fs_reason_int_arg_id_(context_->storage->InternString("reason_int")),
+      f2fs_dev_arg_id_(context->storage->InternString("dev")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -4408,31 +4410,79 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
                                        event.value(), track_id);
 }
 
+namespace {
+
+enum class CheckpointState {
+  kUnknown,
+  kStart,
+  kFinishBlkOps,
+  kFinish,
+};
+
+CheckpointState GetCheckpointStateFromString(base::StringView msg) {
+  if (msg.find("start block_ops") != base::StringView::npos) {
+    return CheckpointState::kStart;
+  }
+  if (msg.find("finish checkpoint") != base::StringView::npos) {
+    return CheckpointState::kFinish;
+  }
+  if (msg.find("finish block_ops") != base::StringView::npos) {
+    return CheckpointState::kFinishBlkOps;
+  }
+  return CheckpointState::kUnknown;
+}
+
+constexpr auto kF2fsCheckpointBlueprint = tracks::SliceBlueprint(
+    "f2fs_write_checkpoint",
+    tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("pid")),
+    tracks::FnNameBlueprint([](uint32_t pid) {
+      return base::StackString<255>("f2fs_ckpt-%u", pid);
+    }));
+
+}  // namespace
+
 void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
                                             uint32_t pid,
                                             ConstBytes blob) {
   protos::pbzero::F2fsWriteCheckpointFtraceEvent::Decoder evt(blob);
 
-  base::StringView msg(evt.msg());
+  base::StringView msg_view(evt.dest_msg());
+  CheckpointState state = GetCheckpointStateFromString(msg_view);
+  if (state != CheckpointState::kStart && state != CheckpointState::kFinish) {
+    return;
+  }
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kF2fsCheckpointBlueprint, tracks::Dimensions(pid));
 
-  int32_t reason = evt.reason();
-  std::string reason_str = GetF2fsCheckpointReasonString(reason);
-  StringId reason_name_id =
-      context_->storage->InternString(base::StringView(reason_str));
+  switch (state) {
+    case CheckpointState::kStart: {
+      int32_t reason_int = evt.reason();
+      std::string reason_str = GetF2fsCheckpointReasonString(reason_int);
+      StringId reason_str_id =
+          context_->storage->InternString(base::StringView(reason_str));
+      uint64_t dev = evt.dev();
 
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      // End the slice first to prevent any open slice existing.
+      context_->slice_tracker->End(ts, track_id);
 
-  if (msg.find("start block_ops") != base::StringView::npos) {
-    context_->slice_tracker->Begin(
-        ts, track_id, f2fs_checkpoint_cat_id_, reason_name_id,
-        [&](ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(f2fs_reason_arg_id_,
-                           Variadic::String(reason_name_id));
-        });
-  } else if (msg.find("finish checkpoint") != base::StringView::npos) {
-    context_->slice_tracker->End(ts, track_id, f2fs_checkpoint_cat_id_,
-                                 reason_name_id);
+      context_->slice_tracker->Begin(
+          ts, track_id, kNullStringId, f2fs_checkpoint_name_id_,
+          [&](ArgsTracker::BoundInserter* inserter) {
+            inserter->AddArg(f2fs_dev_arg_id_, Variadic::UnsignedInteger(dev));
+            inserter->AddArg(f2fs_reason_int_arg_id_,
+                             Variadic::Integer(reason_int));
+            inserter->AddArg(f2fs_reason_str_arg_id_,
+                             Variadic::String(reason_str_id));
+          });
+      break;
+    }
+    case CheckpointState::kFinish: {
+      context_->slice_tracker->End(ts, track_id);
+      break;
+    }
+    case CheckpointState::kFinishBlkOps:
+    case CheckpointState::kUnknown:
+      break;
   }
 }
 
