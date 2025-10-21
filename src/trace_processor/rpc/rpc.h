@@ -130,6 +130,8 @@ class Rpc {
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
 
+  TraceProcessor* trace_processor() const { return trace_processor_.get(); }
+
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
