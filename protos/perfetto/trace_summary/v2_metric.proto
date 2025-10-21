@@ -165,6 +165,7 @@ message TraceMetricV2Spec {
     STRING = 1;
     INT64 = 2;
     DOUBLE = 3;
+    BOOLEAN = 4;
   }
   message DimensionSpec {
     // The name of the dimension.
@@ -588,6 +589,7 @@ message TraceMetricV2Bundle {
         int64 int64_value = 2;
         double double_value = 3;
         Null null_value = 4;
+        bool bool_value = 5;
       }
     }
     repeated Dimension dimension = 2;
