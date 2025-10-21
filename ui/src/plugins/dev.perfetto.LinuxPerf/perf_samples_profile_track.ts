@@ -152,7 +152,6 @@ function renderDetailsPanel(
   );
 }
 
-// TODO: consider adding information such as "cpu" to the on-selection details
 export function createProcessNonCallsiteTrack(
   trace: Trace,
   uri: string,
@@ -170,11 +169,10 @@ export function createProcessNonCallsiteTrack(
        SELECT
           p.id,
           ts,
-          callsite_id AS callsiteId,
           upid
         FROM perf_sample AS p
         JOIN thread USING (utid)
-        WHERE callsiteId IS NULL
+        WHERE callsite_id IS NULL
           AND upid = ${upid}
         ORDER BY ts
       `,
