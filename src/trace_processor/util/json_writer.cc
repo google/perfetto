@@ -17,6 +17,11 @@
 #include "src/trace_processor/util/json_writer.h"
 
 #include <cmath>
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
