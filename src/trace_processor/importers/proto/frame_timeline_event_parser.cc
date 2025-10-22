@@ -114,7 +114,7 @@ bool DisplayFrameJanky(int32_t jank_type) {
 bool SurfaceFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE ||
-      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING |
+      jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
           jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     return false;
 
