@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import {MultiSourceNode, QueryNode} from '../query_node';
-import {NodeBoxLayout} from './graph/node_box';
+import {NodeContainerLayout} from './graph/node_container';
 
 export function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
   return 'prevNodes' in node;
 }
 
 export function findOverlappingNode(
-  dragNodeLayout: NodeBoxLayout,
-  resolvedNodeLayouts: Map<QueryNode, NodeBoxLayout>,
+  dragNodeLayout: NodeContainerLayout,
+  resolvedNodeLayouts: Map<QueryNode, NodeContainerLayout>,
   dragNode: QueryNode,
 ): QueryNode | undefined {
   for (const [node, layout] of resolvedNodeLayouts.entries()) {
@@ -33,8 +33,8 @@ export function findOverlappingNode(
 }
 
 export function isOverlapping(
-  layout1: NodeBoxLayout,
-  layout2: NodeBoxLayout,
+  layout1: NodeContainerLayout,
+  layout2: NodeContainerLayout,
   padding: number,
 ): boolean {
   const w1 = layout1.width ?? 0;
@@ -50,9 +50,32 @@ export function isOverlapping(
   );
 }
 
+export function findBlockOverlap(
+  draggedBlock: QueryNode[],
+  resolvedNodeLayouts: Map<QueryNode, NodeContainerLayout>,
+): QueryNode | undefined {
+  const draggedBlockSet = new Set(draggedBlock);
+  for (const nodeInBlock of draggedBlock) {
+    const layout = resolvedNodeLayouts.get(nodeInBlock);
+    if (!layout) continue;
+
+    for (const [
+      candidateNode,
+      candidateLayout,
+    ] of resolvedNodeLayouts.entries()) {
+      if (draggedBlockSet.has(candidateNode)) continue;
+
+      if (isOverlapping(layout, candidateLayout, 0)) {
+        return candidateNode;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function isOverlappingBottomPort(
-  dragNodeLayout: NodeBoxLayout,
-  targetNodeLayout: NodeBoxLayout,
+  dragNodeLayout: NodeContainerLayout,
+  targetNodeLayout: NodeContainerLayout,
   padding: number,
 ): boolean {
   const w1 = dragNodeLayout.width ?? 0;

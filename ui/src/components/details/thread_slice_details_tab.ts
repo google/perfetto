@@ -34,14 +34,7 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
-import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-} from '../../widgets/grid';
+import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {assertExists, assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
@@ -342,46 +335,31 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(
         Section,
         {title: 'Preceding Flows'},
-        m(
-          Grid,
-          m(
-            GridHeader,
+        m(Grid, {
+          columns: [
+            {key: 'sliceName', header: m(GridHeaderCell, 'Slice')},
+            {key: 'delay', header: m(GridHeaderCell, 'Delay')},
+            {key: 'thread', header: m(GridHeaderCell, 'Thread')},
+          ],
+          rowData: inFlows.map((flow) => [
             m(
-              GridRow,
-              m(GridHeaderCell, 'Slice'),
-              m(GridHeaderCell, 'Delay'),
-              m(GridHeaderCell, 'Thread'),
+              GridCell,
+              m(SliceRef, {
+                trace: this.trace,
+                id: asSliceSqlId(flow.begin.sliceId),
+                name: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
+              }),
             ),
-          ),
-          m(
-            GridBody,
-            inFlows.map((flow) =>
-              m(
-                GridRow,
-                m(
-                  GridDataCell,
-                  m(SliceRef, {
-                    trace: this.trace,
-                    id: asSliceSqlId(flow.begin.sliceId),
-                    name:
-                      flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  m(DurationWidget, {
-                    trace: this.trace,
-                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  this.getThreadNameForFlow(flow.begin, !isRunTask),
-                ),
-              ),
+            m(
+              GridCell,
+              m(DurationWidget, {
+                trace: this.trace,
+                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+              }),
             ),
-          ),
-        ),
+            m(GridCell, this.getThreadNameForFlow(flow.begin, !isRunTask)),
+          ]),
+        }),
       );
     } else {
       return null;
@@ -400,45 +378,31 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(
         Section,
         {title: 'Following Flows'},
-        m(
-          Grid,
-          m(
-            GridHeader,
+        m(Grid, {
+          columns: [
+            {key: 'slice', header: m(GridHeaderCell, 'Slice')},
+            {key: 'delay', header: m(GridHeaderCell, 'Delay')},
+            {key: 'thread', header: m(GridHeaderCell, 'Thread')},
+          ],
+          rowData: outFlows.map((flow) => [
             m(
-              GridRow,
-              m(GridHeaderCell, 'Slice'),
-              m(GridHeaderCell, 'Delay'),
-              m(GridHeaderCell, 'Thread'),
+              GridCell,
+              m(SliceRef, {
+                trace: this.trace,
+                id: asSliceSqlId(flow.end.sliceId),
+                name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
+              }),
             ),
-          ),
-          m(
-            GridBody,
-            outFlows.map((flow) =>
-              m(
-                GridRow,
-                m(
-                  GridDataCell,
-                  m(SliceRef, {
-                    trace: this.trace,
-                    id: asSliceSqlId(flow.end.sliceId),
-                    name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  m(DurationWidget, {
-                    trace: this.trace,
-                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  this.getThreadNameForFlow(flow.end, !isPostTask),
-                ),
-              ),
+            m(
+              GridCell,
+              m(DurationWidget, {
+                trace: this.trace,
+                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+              }),
             ),
-          ),
-        ),
+            m(GridCell, this.getThreadNameForFlow(flow.end, !isPostTask)),
+          ]),
+        }),
       );
     } else {
       return null;

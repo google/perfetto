@@ -45,7 +45,7 @@ export function createThreadStateTrack(
         ts: LONG,
         dur: LONG,
         layer: NUM,
-        cpu: NUM_NULL,
+        ucpu: NUM_NULL,
         utid: NUM,
         state: STR,
         depth: NUM,
@@ -55,7 +55,7 @@ export function createThreadStateTrack(
           id,
           ts,
           dur,
-          cpu,
+          ucpu,
           utid,
           sched_state_io_to_human_readable_string(state, io_wait) AS state,
           -- Move sleeping and idle slices to the back layer, others on top

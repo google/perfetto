@@ -883,13 +883,13 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  async addModemTeaData(ctx: Trace, support: SupportPlugin): Promise<void> {
+  async addModemMintData(ctx: Trace, support: SupportPlugin): Promise<void> {
     const e = ctx.engine;
     const groupName = 'Modem Detail';
 
     await e.query(
       `INCLUDE PERFETTO MODULE
-          google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
+          google3.wireless.android.telemetry.trace_extractor.modules.modem_mint_metrics`,
     );
 
     const counters = await e.query(
@@ -1114,7 +1114,7 @@ export default class implements PerfettoPlugin {
     if (features.has('google3')) {
       await this.addAtomCounters(ctx, support);
       await this.addAtomSlices(ctx, support);
-      await this.addModemTeaData(ctx, support);
+      await this.addModemMintData(ctx, support);
     }
   }
 }
