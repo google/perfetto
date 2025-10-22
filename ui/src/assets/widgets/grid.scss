@@ -123,6 +123,11 @@ $border-3: 2px solid var(--pf-color-border);
     z-index: 1; // Ensure header is above body rows when scrolling.
   }
 
+  &__puck {
+    // Improves layerization performance when scrolling.
+    will-change: transform;
+  }
+
   &__body {
     display: flex;
     flex-direction: column;

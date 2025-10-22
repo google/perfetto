@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <fcntl.h>
-#include <sys/stat.h>
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -59,7 +57,6 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_blob.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/profiling/deobfuscator.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
@@ -69,6 +66,7 @@
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/read_trace_internal.h"
+#include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -111,7 +109,6 @@
 namespace perfetto::trace_processor {
 
 namespace {
-TraceProcessor* g_tp;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE)
 
@@ -210,8 +207,8 @@ ScopedLine GetLine(const char* prompt) {
 
 #endif  // PERFETTO_TP_LINENOISE
 
-base::Status PrintStats() {
-  auto it = g_tp->ExecuteQuery(
+base::Status PrintStats(TraceProcessor* trace_processor) {
+  auto it = trace_processor->ExecuteQuery(
       "SELECT name, idx, source, value from stats "
       "where severity IN ('error', 'data_loss') and value > 0");
 
@@ -263,7 +260,8 @@ base::Status PrintStats() {
   return base::OkStatus();
 }
 
-base::Status ExportTraceToDatabase(const std::string& output_name) {
+base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
+                                   const std::string& output_name) {
   PERFETTO_CHECK(output_name.find('\'') == std::string::npos);
   {
     base::ScopedFile fd(base::OpenFile(output_name, O_CREAT | O_RDWR, 0600));
@@ -275,21 +273,22 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
   std::string attach_sql =
       "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
-  auto attach_it = g_tp->ExecuteQuery(attach_sql);
+  auto attach_it = trace_processor->ExecuteQuery(attach_sql);
   bool attach_has_more = attach_it.Next();
   PERFETTO_DCHECK(!attach_has_more);
 
   RETURN_IF_ERROR(attach_it.Status());
 
   // Export real and virtual tables.
-  auto tables_it = g_tp->ExecuteQuery("SELECT name FROM perfetto_tables");
+  auto tables_it =
+      trace_processor->ExecuteQuery("SELECT name FROM perfetto_tables");
   while (tables_it.Next()) {
     std::string table_name = tables_it.Get(0).string_value;
     PERFETTO_CHECK(!base::Contains(table_name, '\''));
     std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
                              " AS SELECT * FROM " + table_name;
 
-    auto export_it = g_tp->ExecuteQuery(export_sql);
+    auto export_it = trace_processor->ExecuteQuery(export_sql);
     bool export_has_more = export_it.Next();
     PERFETTO_DCHECK(!export_has_more);
     RETURN_IF_ERROR(export_it.Status());
@@ -297,8 +296,8 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
   RETURN_IF_ERROR(tables_it.Status());
 
   // Export views.
-  auto views_it =
-      g_tp->ExecuteQuery("SELECT sql FROM sqlite_master WHERE type='view'");
+  auto views_it = trace_processor->ExecuteQuery(
+      "SELECT sql FROM sqlite_master WHERE type='view'");
   while (views_it.Next()) {
     std::string sql = views_it.Get(0).string_value;
     // View statements are of the form "CREATE VIEW name AS stmt". We need to
@@ -308,14 +307,15 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
     sql = sql.substr(0, kPrefix.size()) + "perfetto_export." +
           sql.substr(kPrefix.size());
 
-    auto export_it = g_tp->ExecuteQuery(sql);
+    auto export_it = trace_processor->ExecuteQuery(sql);
     bool export_has_more = export_it.Next();
     PERFETTO_DCHECK(!export_has_more);
     RETURN_IF_ERROR(export_it.Status());
   }
   RETURN_IF_ERROR(views_it.Status());
 
-  auto detach_it = g_tp->ExecuteQuery("DETACH DATABASE perfetto_export");
+  auto detach_it =
+      trace_processor->ExecuteQuery("DETACH DATABASE perfetto_export");
   bool detach_has_more = attach_it.Next();
   PERFETTO_DCHECK(!detach_has_more);
   return detach_it.Status();
@@ -350,12 +350,13 @@ std::string BaseName(std::string metric_path) {
                                         : metric_path.substr(slash_idx + 1);
 }
 
-base::Status RegisterMetric(const std::string& register_metric) {
+base::Status RegisterMetric(TraceProcessor* trace_processor,
+                            const std::string& register_metric) {
   std::string sql;
   base::ReadFile(register_metric, &sql);
 
   std::string path = "shell/" + BaseName(register_metric);
-  return g_tp->RegisterMetric(path, sql);
+  return trace_processor->RegisterMetric(path, sql);
 }
 
 base::Status ParseToFileDescriptorProto(
@@ -375,7 +376,8 @@ base::Status ParseToFileDescriptorProto(
   return base::OkStatus();
 }
 
-base::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
+base::Status ExtendMetricsProto(TraceProcessor* trace_processor,
+                                const std::string& extend_metrics_proto,
                                 google::protobuf::DescriptorPool* pool) {
   google::protobuf::FileDescriptorSet desc_set;
   auto* file_desc = desc_set.add_file();
@@ -389,7 +391,8 @@ base::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
   desc_set.SerializeToArray(metric_proto.data(),
                             static_cast<int>(metric_proto.size()));
 
-  return g_tp->ExtendMetricsProto(metric_proto.data(), metric_proto.size());
+  return trace_processor->ExtendMetricsProto(metric_proto.data(),
+                                             metric_proto.size());
 }
 
 enum MetricV1OutputFormat {
@@ -404,7 +407,8 @@ struct MetricNameAndPath {
   std::optional<std::string> no_ext_path;
 };
 
-base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
+base::Status RunMetrics(TraceProcessor* trace_processor,
+                        const std::vector<MetricNameAndPath>& metrics,
                         MetricV1OutputFormat format) {
   std::vector<std::string> metric_names(metrics.size());
   for (size_t i = 0; i < metrics.size(); ++i) {
@@ -414,14 +418,15 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
   switch (format) {
     case MetricV1OutputFormat::kBinaryProto: {
       std::vector<uint8_t> metric_result;
-      RETURN_IF_ERROR(g_tp->ComputeMetric(metric_names, &metric_result));
+      RETURN_IF_ERROR(
+          trace_processor->ComputeMetric(metric_names, &metric_result));
       fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(),
              stdout);
       break;
     }
     case MetricV1OutputFormat::kJson: {
       std::string out;
-      RETURN_IF_ERROR(g_tp->ComputeMetricText(
+      RETURN_IF_ERROR(trace_processor->ComputeMetricText(
           metric_names, TraceProcessor::MetricResultFormat::kJson, &out));
       out += '\n';
       fwrite(out.c_str(), sizeof(char), out.size(), stdout);
@@ -429,7 +434,7 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
     }
     case MetricV1OutputFormat::kTextProto: {
       std::string out;
-      RETURN_IF_ERROR(g_tp->ComputeMetricText(
+      RETURN_IF_ERROR(trace_processor->ComputeMetricText(
           metric_names, TraceProcessor::MetricResultFormat::kProtoText, &out));
       out += '\n';
       fwrite(out.c_str(), sizeof(char), out.size(), stdout);
@@ -567,8 +572,9 @@ void PrintQueryResultAsCsv(const QueryResult& result, FILE* output) {
   }
 }
 
-base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
-  auto it = g_tp->ExecuteQuery(sql_query);
+base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
+                                     const std::string& sql_query) {
+  auto it = trace_processor->ExecuteQuery(sql_query);
   if (it.StatementWithOutputCount() > 0)
     return base::ErrStatus("Unexpected result from a query.");
 
@@ -577,12 +583,13 @@ base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
                    : it.Status();
 }
 
-base::Status RunQueriesAndPrintResult(const std::string& sql_query,
+base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
+                                      const std::string& sql_query,
                                       FILE* output) {
   PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
   auto query_start = std::chrono::steady_clock::now();
 
-  auto it = g_tp->ExecuteQuery(sql_query);
+  auto it = trace_processor->ExecuteQuery(sql_query);
   RETURN_IF_ERROR(it.Status());
 
   bool has_more = it.Next();
@@ -1256,9 +1263,11 @@ void ExtendPoolWithBinaryDescriptor(
   }
 }
 
-base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
+base::Status LoadTrace(TraceProcessor* trace_processor,
+                       const std::string& trace_file_path,
+                       double* size_mb) {
   base::Status read_status = ReadTraceUnfinalized(
-      g_tp, trace_file_path.c_str(), [&size_mb](size_t parsed_size) {
+      trace_processor, trace_file_path.c_str(), [&size_mb](size_t parsed_size) {
         *size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
       });
@@ -1269,7 +1278,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
 
   bool is_proto_trace = false;
   {
-    auto it = g_tp->ExecuteQuery(
+    auto it = trace_processor->ExecuteQuery(
         "SELECT str_value FROM metadata WHERE name = 'trace_type'");
     if (it.Next() && it.Get(0).type == SqlValue::kString) {
       if (std::string_view(it.Get(0).AsString()) == "proto") {
@@ -1283,12 +1292,14 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
   if (symbolizer) {
     if (is_proto_trace) {
-      g_tp->Flush();
+      trace_processor->Flush();
       profiling::SymbolizeDatabase(
-          g_tp, symbolizer.get(), [](const std::string& trace_proto) {
+          trace_processor, symbolizer.get(),
+          [trace_processor](const std::string& trace_proto) {
             std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
             memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-            auto status = g_tp->Parse(std::move(buf), trace_proto.size());
+            auto status =
+                trace_processor->Parse(std::move(buf), trace_proto.size());
             if (!status.ok()) {
               PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
                                       status.message().c_str());
@@ -1303,12 +1314,13 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
   auto maybe_map = profiling::GetPerfettoProguardMapPath();
   if (!maybe_map.empty()) {
     if (is_proto_trace) {
-      g_tp->Flush();
+      trace_processor->Flush();
       profiling::ReadProguardMapsToDeobfuscationPackets(
-          maybe_map, [](const std::string& trace_proto) {
+          maybe_map, [trace_processor](const std::string& trace_proto) {
             std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
             memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-            auto status = g_tp->Parse(std::move(buf), trace_proto.size());
+            auto status =
+                trace_processor->Parse(std::move(buf), trace_proto.size());
             if (!status.ok()) {
               PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
                                       status.message().c_str());
@@ -1320,23 +1332,26 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
       PERFETTO_ELOG("Skipping deobfuscation for non-proto trace");
     }
   }
-  return g_tp->NotifyEndOfFile();
+  return trace_processor->NotifyEndOfFile();
 }
 
-base::Status RunQueries(const std::string& queries, bool expect_output) {
+base::Status RunQueries(TraceProcessor* trace_processor,
+                        const std::string& queries,
+                        bool expect_output) {
   if (expect_output) {
-    return RunQueriesAndPrintResult(queries, stdout);
+    return RunQueriesAndPrintResult(trace_processor, queries, stdout);
   }
-  return RunQueriesWithoutOutput(queries);
+  return RunQueriesWithoutOutput(trace_processor, queries);
 }
 
-base::Status RunQueriesFromFile(const std::string& query_file_path,
+base::Status RunQueriesFromFile(TraceProcessor* trace_processor,
+                                const std::string& query_file_path,
                                 bool expect_output) {
   std::string queries;
   if (!base::ReadFile(query_file_path, &queries)) {
     return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
   }
-  return RunQueries(queries, expect_output);
+  return RunQueries(trace_processor, queries, expect_output);
 }
 
 base::Status ParseSingleMetricExtensionPath(bool dev,
@@ -1402,7 +1417,9 @@ base::Status ParseMetricExtensionPaths(
   return CheckForDuplicateMetricExtension(metric_extensions);
 }
 
-base::Status IncludeSqlPackage(std::string root, bool allow_override) {
+base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
+                               std::string root,
+                               bool allow_override) {
   // Remove trailing slash
   if (root.back() == '/')
     root.resize(root.length() - 1);
@@ -1446,15 +1463,16 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
         .first->push_back({import_key, file_contents});
   }
   for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
-    RETURN_IF_ERROR(
-        g_tp->RegisterSqlPackage({/*name=*/module_it.key(),
-                                  /*files=*/module_it.value(),
-                                  /*allow_override=*/allow_override}));
+    RETURN_IF_ERROR(trace_processor->RegisterSqlPackage(
+        {/*name=*/module_it.key(),
+         /*files=*/module_it.value(),
+         /*allow_override=*/allow_override}));
   }
   return base::OkStatus();
 }
 
-base::Status LoadOverridenStdlib(std::string root) {
+base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
+                                 std::string root) {
   // Remove trailing slash
   if (root.back() == '/') {
     root.resize(root.length() - 1);
@@ -1482,15 +1500,16 @@ base::Status LoadOverridenStdlib(std::string root) {
         .first->push_back({module_name, module_file});
   }
   for (auto package = packages.GetIterator(); package; ++package) {
-    g_tp->RegisterSqlPackage({/*name=*/package.key(),
-                              /*files=*/package.value(),
-                              /*allow_override=*/true});
+    trace_processor->RegisterSqlPackage({/*name=*/package.key(),
+                                         /*files=*/package.value(),
+                                         /*allow_override=*/true});
   }
 
   return base::OkStatus();
 }
 
-base::Status LoadMetricExtensionProtos(const std::string& proto_root,
+base::Status LoadMetricExtensionProtos(TraceProcessor* trace_processor,
+                                       const std::string& proto_root,
                                        const std::string& mount_path,
                                        google::protobuf::DescriptorPool& pool) {
   if (!base::FileExists(proto_root)) {
@@ -1522,11 +1541,12 @@ base::Status LoadMetricExtensionProtos(const std::string& proto_root,
   ExtendPoolWithBinaryDescriptor(
       pool, serialized_filedescset.data(),
       static_cast<int>(serialized_filedescset.size()), {});
-  return g_tp->ExtendMetricsProto(serialized_filedescset.data(),
-                                  serialized_filedescset.size());
+  return trace_processor->ExtendMetricsProto(serialized_filedescset.data(),
+                                             serialized_filedescset.size());
 }
 
-base::Status LoadMetricExtensionSql(const std::string& sql_root,
+base::Status LoadMetricExtensionSql(TraceProcessor* trace_processor,
+                                    const std::string& sql_root,
                                     const std::string& mount_path) {
   if (!base::FileExists(sql_root)) {
     return base::ErrStatus(
@@ -1545,12 +1565,13 @@ base::Status LoadMetricExtensionSql(const std::string& sql_root,
       return base::ErrStatus("Cannot read file %s", file_path.c_str());
     }
     RETURN_IF_ERROR(
-        g_tp->RegisterMetric(mount_path + file_path, file_contents));
+        trace_processor->RegisterMetric(mount_path + file_path, file_contents));
   }
   return base::OkStatus();
 }
 
-base::Status LoadMetricExtension(const MetricExtension& extension,
+base::Status LoadMetricExtension(TraceProcessor* trace_processor,
+                                 const MetricExtension& extension,
                                  google::protobuf::DescriptorPool& pool) {
   const std::string& disk_path = extension.disk_path();
   const std::string& virtual_path = extension.virtual_path();
@@ -1563,9 +1584,11 @@ base::Status LoadMetricExtension(const MetricExtension& extension,
   // Note: Proto files must be loaded first, because we determine whether an SQL
   // file is a metric or not by checking if the name matches a field of the root
   // TraceMetrics proto.
-  RETURN_IF_ERROR(LoadMetricExtensionProtos(
-      disk_path + "protos/", kMetricProtoRoot + virtual_path, pool));
-  RETURN_IF_ERROR(LoadMetricExtensionSql(disk_path + "sql/", virtual_path));
+  RETURN_IF_ERROR(
+      LoadMetricExtensionProtos(trace_processor, disk_path + "protos/",
+                                kMetricProtoRoot + virtual_path, pool));
+  RETURN_IF_ERROR(LoadMetricExtensionSql(trace_processor, disk_path + "sql/",
+                                         virtual_path));
 
   return base::OkStatus();
 }
@@ -1592,7 +1615,8 @@ base::Status PopulateDescriptorPool(
   return base::OkStatus();
 }
 
-base::Status LoadMetrics(const std::string& raw_metric_names,
+base::Status LoadMetrics(TraceProcessor* trace_processor,
+                         const std::string& raw_metric_names,
                          google::protobuf::DescriptorPool& pool,
                          std::vector<MetricNameAndPath>& name_and_path) {
   std::vector<std::string> split;
@@ -1614,13 +1638,14 @@ base::Status LoadMetrics(const std::string& raw_metric_names,
     std::string no_ext_path = metric_or_path.substr(0, ext_idx);
 
     // The proto must be extended before registering the metric.
-    base::Status status = ExtendMetricsProto(no_ext_path + ".proto", &pool);
+    base::Status status =
+        ExtendMetricsProto(trace_processor, no_ext_path + ".proto", &pool);
     if (!status.ok()) {
       return base::ErrStatus("Unable to extend metrics proto %s: %s",
                              metric_or_path.c_str(), status.c_message());
     }
 
-    status = RegisterMetric(no_ext_path + ".sql");
+    status = RegisterMetric(trace_processor, no_ext_path + ".sql");
     if (!status.ok()) {
       return base::ErrStatus("Unable to register metric %s: %s",
                              metric_or_path.c_str(), status.c_message());
@@ -1643,20 +1668,23 @@ MetricV1OutputFormat ParseMetricV1OutputFormat(
 }
 
 base::Status LoadMetricsAndExtensionsSql(
+    TraceProcessor* trace_processor,
     const std::vector<MetricNameAndPath>& metrics,
     const std::vector<MetricExtension>& extensions) {
   for (const MetricExtension& extension : extensions) {
     const std::string& disk_path = extension.disk_path();
     const std::string& virtual_path = extension.virtual_path();
 
-    RETURN_IF_ERROR(LoadMetricExtensionSql(disk_path + "sql/", virtual_path));
+    RETURN_IF_ERROR(LoadMetricExtensionSql(trace_processor, disk_path + "sql/",
+                                           virtual_path));
   }
 
   for (const MetricNameAndPath& metric : metrics) {
     // Ignore builtin metrics.
     if (!metric.no_ext_path.has_value())
       continue;
-    RETURN_IF_ERROR(RegisterMetric(metric.no_ext_path.value() + ".sql"));
+    RETURN_IF_ERROR(
+        RegisterMetric(trace_processor, metric.no_ext_path.value() + ".sql"));
   }
   return base::OkStatus();
 }
@@ -1686,7 +1714,8 @@ struct InteractiveOptions {
   const google::protobuf::DescriptorPool* pool;
 };
 
-base::Status StartInteractiveShell(const InteractiveOptions& options) {
+base::Status StartInteractiveShell(TraceProcessor* trace_processor,
+                                   const InteractiveOptions& options) {
   SetupLineEditor();
 
   uint32_t column_width = options.column_width;
@@ -1708,12 +1737,12 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
       if (strcmp(command, "help") == 0) {
         PrintShellUsage();
       } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
-        if (!ExportTraceToDatabase(arg).ok())
+        if (!ExportTraceToDatabase(trace_processor, arg).ok())
           PERFETTO_ELOG("Database export failed");
       } else if (strcmp(command, "reset") == 0) {
-        g_tp->RestoreInitialTables();
+        trace_processor->RestoreInitialTables();
       } else if (strcmp(command, "read") == 0 && strlen(arg)) {
-        base::Status status = RunQueriesFromFile(arg, true);
+        base::Status status = RunQueriesFromFile(trace_processor, arg, true);
         if (!status.ok()) {
           PERFETTO_ELOG("%s", status.c_message());
         }
@@ -1725,8 +1754,8 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
         }
         column_width = *width;
       } else if (strcmp(command, "load-metrics-sql") == 0) {
-        base::Status status =
-            LoadMetricsAndExtensionsSql(options.metrics, options.extensions);
+        base::Status status = LoadMetricsAndExtensionsSql(
+            trace_processor, options.metrics, options.extensions);
         if (!status.ok()) {
           PERFETTO_ELOG("%s", status.c_message());
         }
@@ -1736,8 +1765,8 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
           continue;
         }
 
-        base::Status status =
-            RunMetrics(options.metrics, options.metric_v1_format);
+        base::Status status = RunMetrics(trace_processor, options.metrics,
+                                         options.metric_v1_format);
         if (!status.ok()) {
           fprintf(stderr, "%s\n", status.c_message());
         }
@@ -1748,35 +1777,38 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
     }
 
     base::TimeNanos t_start = base::GetWallTimeNs();
-    auto it = g_tp->ExecuteQuery(line.get());
+    auto it = trace_processor->ExecuteQuery(line.get());
     PrintQueryResultInteractively(&it, t_start, column_width);
   }
   return base::OkStatus();
 }
 
-base::Status MaybeWriteMetatrace(const std::string& metatrace_path) {
+base::Status MaybeWriteMetatrace(TraceProcessor* trace_processor,
+                                 const std::string& metatrace_path) {
   if (metatrace_path.empty()) {
     return base::OkStatus();
   }
   std::vector<uint8_t> serialized;
-  RETURN_IF_ERROR(g_tp->DisableAndReadMetatrace(&serialized));
+  RETURN_IF_ERROR(trace_processor->DisableAndReadMetatrace(&serialized));
 
   auto file = base::OpenFile(metatrace_path, O_CREAT | O_RDWR | O_TRUNC, 0600);
   if (!file)
     return base::ErrStatus("Unable to open metatrace file");
 
-  ssize_t res = base::WriteAll(*file, serialized.data(), serialized.size());
+  auto res = base::WriteAll(*file, serialized.data(), serialized.size());
   if (res < 0)
     return base::ErrStatus("Error while writing metatrace file");
   return base::OkStatus();
 }
 
-base::Status MaybeUpdateSqlPackages(const CommandLineOptions& options) {
+base::Status MaybeUpdateSqlPackages(TraceProcessor* trace_processor,
+                                    const CommandLineOptions& options) {
   if (!options.override_stdlib_path.empty()) {
     if (!options.dev)
       return base::ErrStatus("Overriding stdlib requires --dev flag");
 
-    auto status = LoadOverridenStdlib(options.override_stdlib_path);
+    auto status =
+        LoadOverridenStdlib(trace_processor, options.override_stdlib_path);
     if (!status.ok())
       return base::ErrStatus("Couldn't override stdlib: %s",
                              status.c_message());
@@ -1785,7 +1817,8 @@ base::Status MaybeUpdateSqlPackages(const CommandLineOptions& options) {
   if (!options.override_sql_package_paths.empty()) {
     for (const auto& override_sql_package_path :
          options.override_sql_package_paths) {
-      auto status = IncludeSqlPackage(override_sql_package_path, true);
+      auto status =
+          IncludeSqlPackage(trace_processor, override_sql_package_path, true);
       if (!status.ok())
         return base::ErrStatus("Couldn't override stdlib package: %s",
                                status.c_message());
@@ -1794,7 +1827,8 @@ base::Status MaybeUpdateSqlPackages(const CommandLineOptions& options) {
 
   if (!options.sql_package_paths.empty()) {
     for (const auto& add_sql_package_path : options.sql_package_paths) {
-      auto status = IncludeSqlPackage(add_sql_package_path, false);
+      auto status =
+          IncludeSqlPackage(trace_processor, add_sql_package_path, false);
       if (!status.ok())
         return base::ErrStatus("Couldn't add SQL package: %s",
                                status.c_message());
@@ -1889,9 +1923,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
-  g_tp = tp.get();
-
-  RETURN_IF_ERROR(MaybeUpdateSqlPackages(options));
+  RETURN_IF_ERROR(MaybeUpdateSqlPackages(tp.get(), options));
 
   // Enable metatracing as soon as possible.
   if (!options.metatrace_path.empty()) {
@@ -1919,31 +1951,33 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   // used in UI using httpd.
   // Metric extensions are also used to populate the descriptor pool.
   for (const auto& extension : metric_extensions) {
-    RETURN_IF_ERROR(LoadMetricExtension(extension, pool));
+    RETURN_IF_ERROR(LoadMetricExtension(tp.get(), extension, pool));
   }
 
   base::TimeNanos t_load{};
   if (!options.trace_file_path.empty()) {
     base::TimeNanos t_load_start = base::GetWallTimeNs();
     double size_mb = 0;
-    RETURN_IF_ERROR(LoadTrace(options.trace_file_path, &size_mb));
+    RETURN_IF_ERROR(LoadTrace(tp.get(), options.trace_file_path, &size_mb));
     t_load = base::GetWallTimeNs() - t_load_start;
 
     double t_load_s = static_cast<double>(t_load.count()) / 1E9;
     PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
                   t_load_s, size_mb / t_load_s);
 
-    RETURN_IF_ERROR(PrintStats());
+    RETURN_IF_ERROR(PrintStats(tp.get()));
   }
 
 #if PERFETTO_HAS_SIGNAL_H()
   // Set up interrupt signal to allow the user to abort query.
-  signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
+  static TraceProcessor* g_tp_for_signal_handler = tp.get();
+  signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
   if (!options.pre_metrics_v1_path.empty()) {
-    RETURN_IF_ERROR(RunQueriesFromFile(options.pre_metrics_v1_path, false));
+    RETURN_IF_ERROR(
+        RunQueriesFromFile(tp.get(), options.pre_metrics_v1_path, false));
   }
 
   // Trace summarization
@@ -1991,7 +2025,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
     std::vector<uint8_t> output;
     RETURN_IF_ERROR(
-        g_tp->Summarize(computation_config, specs, &output, output_spec));
+        tp->Summarize(computation_config, specs, &output, output_spec));
     if (options.query_file_path.empty()) {
       fwrite(output.data(), sizeof(char), output.size(), stdout);
     }
@@ -2001,28 +2035,30 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   std::vector<MetricNameAndPath> metrics;
   if (!options.metric_v1_names.empty()) {
     PERFETTO_CHECK(!options.summary);
-    RETURN_IF_ERROR(LoadMetrics(options.metric_v1_names, pool, metrics));
+    RETURN_IF_ERROR(
+        LoadMetrics(tp.get(), options.metric_v1_names, pool, metrics));
   }
 
   MetricV1OutputFormat metric_format = ParseMetricV1OutputFormat(options);
   if (!metrics.empty()) {
-    RETURN_IF_ERROR(RunMetrics(metrics, metric_format));
+    RETURN_IF_ERROR(RunMetrics(tp.get(), metrics, metric_format));
   }
 
   if (!options.query_file_path.empty()) {
-    base::Status status = RunQueriesFromFile(options.query_file_path, true);
+    base::Status status =
+        RunQueriesFromFile(tp.get(), options.query_file_path, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
   }
 
   if (!options.query_string.empty()) {
-    base::Status status = RunQueries(options.query_string, true);
+    base::Status status = RunQueries(tp.get(), options.query_string, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
   }
@@ -2030,10 +2066,15 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!options.export_file_path.empty()) {
-    RETURN_IF_ERROR(ExportTraceToDatabase(options.export_file_path));
+    RETURN_IF_ERROR(ExportTraceToDatabase(tp.get(), options.export_file_path));
   }
 
   if (options.enable_httpd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+    Rpc rpc(std::move(tp), !options.trace_file_path.empty());
+
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+
 #if PERFETTO_HAS_SIGNAL_H()
     if (options.metatrace_path.empty()) {
       // Restore the default signal handler to allow the user to terminate
@@ -2043,16 +2084,14 @@ base::Status TraceProcessorMain(int argc, char** argv) {
       // Write metatrace to file before exiting.
       static std::string* metatrace_path = &options.metatrace_path;
       signal(SIGINT, [](int) {
-        MaybeWriteMetatrace(*metatrace_path);
+        MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
+                            *metatrace_path);
         exit(1);
       });
     }
 #endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
     RunHttpRPCServer(
-        /*preloaded_instance=*/std::move(tp),
-        /*is_preloaded_eof=*/!options.trace_file_path.empty(),
+        /*rpc=*/rpc,
         /*listen_ip=*/options.listen_ip,
         /*port_number=*/options.port_number,
         /*additional_cors_origins=*/options.additional_cors_origins);
@@ -2063,18 +2102,26 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.enable_stdiod) {
-    return RunStdioRpcServer(std::move(tp), !options.trace_file_path.empty());
+    Rpc rpc(std::move(tp), !options.trace_file_path.empty());
+#if PERFETTO_HAS_SIGNAL_H()
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+    g_tp_for_signal_handler = nullptr;
+    signal(SIGINT, [](int) {
+      g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
+    });
+#endif
+    return RunStdioRpcServer(rpc);
   }
 
   if (options.launch_shell) {
     RETURN_IF_ERROR(StartInteractiveShell(
-        InteractiveOptions{options.wide ? 40u : 20u, metric_format,
-                           metric_extensions, metrics, &pool}));
+        tp.get(), InteractiveOptions{options.wide ? 40u : 20u, metric_format,
+                                     metric_extensions, metrics, &pool}));
   } else if (!options.perf_file_path.empty()) {
     RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
   }
 
-  RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
 
   return base::OkStatus();
 }
