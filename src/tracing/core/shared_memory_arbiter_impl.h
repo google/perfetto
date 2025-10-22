@@ -329,6 +329,13 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // batching period.
   bool delayed_flush_scheduled_ = false;
 
+  // Indicates whether we have already scheduled an immediate flush due to the
+  // shared memory buffer being more than half full. Set to true when the first
+  // immediate flush is posted and cleared when the flush completes. This
+  // prevents posting multiple immediate flush tasks when chunks continue to be
+  // committed while the buffer remains over 50% full.
+  bool immediate_flush_scheduled_ = false;
+
   // Stores target buffer reservations for writers created via
   // CreateStartupTraceWriter(). A bound reservation sets
   // TargetBufferReservation::resolved to true and is associated with the actual
