@@ -63,7 +63,7 @@ export default class implements PerfettoPlugin {
     const name = track.name;
     const path = name.split(NESTING_SEPARATOR);
 
-    // No path found, no need to separate
+    // No path found, no need to organize
     if (path.length <= 1) return;
 
     // Root tracks not supported
