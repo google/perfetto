@@ -18,12 +18,19 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/version.h"
 #include "src/protozero/descriptor_diff/descriptor_diff.h"
+
+// For dup().
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace protozero {
 namespace {
@@ -137,7 +144,7 @@ int DescriptorDiffMain(int argc, char** argv) {
     return 1;
   }
 
-  if (perfetto::base::WriteAllHandle(*out_fd, res->data(), res->size()) == -1) {
+  if (perfetto::base::WriteAll(*out_fd, res->data(), res->size()) == -1) {
     PERFETTO_ELOG("Error writing to output file");
     return 1;
   }
