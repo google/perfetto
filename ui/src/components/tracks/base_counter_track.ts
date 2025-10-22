@@ -863,7 +863,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       ctx.fill();
 
       // Dashed line
-      ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
+      ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(lastX, lastDrawnY);
