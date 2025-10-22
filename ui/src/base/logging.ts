@@ -47,7 +47,8 @@ export function assertDefined<T>(value: T | undefined): T {
 
 export function assertIsInstance<T>(
   value: unknown,
-  clazz: Function,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  clazz: new (...args: any[]) => T,
   optMsg?: string,
 ): T {
   assertTrue(

@@ -27,6 +27,7 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {Trace} from '../../public/trace';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -35,11 +36,11 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-export function renderTimelinePage() {
+export function renderTimelinePage(trace?: Trace) {
   // Only render if a trace is loaded
-  const trace = AppImpl.instance.trace;
-  if (trace) {
-    return m(TimelinePage, {trace});
+  const traceImpl = trace instanceof TraceImpl ? trace : AppImpl.instance.trace;
+  if (traceImpl !== undefined) {
+    return m(TimelinePage, {trace: traceImpl});
   } else {
     return undefined;
   }
@@ -74,7 +75,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
         }),
         // Hide tracks while the trace is loading to prevent thrashing.
-        !AppImpl.instance.isLoadingTrace && [
+        !AppImpl.instance.isTraceLoading(trace.traceInfo.source) && [
           // Don't render pinned tracks if we have none.
           trace.workspace.pinnedTracks.length > 0 &&
             m(TrackTreeView, {

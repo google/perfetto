@@ -69,9 +69,10 @@ export class IdleDetector {
   }
 
   private idleIndicators() {
-    const reqsPending = AppImpl.instance.trace?.engine.numRequestsPending ?? 0;
+    const trace = AppImpl.instance.trace;
+    const reqsPending = trace?.engine.numRequestsPending ?? 0;
     return [
-      !AppImpl.instance.isLoadingTrace,
+      !trace || !AppImpl.instance.isTraceLoading(trace.traceInfo.source),
       reqsPending === 0,
       !raf.hasPendingRedraws,
       !taskTracker.hasPendingTasks(),

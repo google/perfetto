@@ -16,7 +16,6 @@ import z from 'zod';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {AppImpl} from '../../core/app_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
@@ -24,6 +23,8 @@ import {TrackNode, Workspace} from '../../public/workspace';
 import {App} from '../../public/app';
 import {Setting} from '../../public/settings';
 import {Time} from '../../base/time';
+import {assertIsInstance} from '../../base/logging';
+import {TraceImpl} from '../../core/trace_impl';
 
 export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackUtils';
@@ -75,7 +76,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       name: `Run query in selected time window`,
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        const omnibox = AppImpl.instance.omnibox;
+        const omnibox = assertIsInstance(ctx, TraceImpl).omnibox;
         omnibox.setMode(OmniboxMode.Query);
         omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,

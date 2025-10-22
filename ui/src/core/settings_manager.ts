@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
+import {Registry} from '../base/registry';
 import {
   Setting,
   SettingDescriptor,
@@ -27,6 +28,7 @@ export const PERFETTO_SETTINGS_STORAGE_KEY = 'perfettoSettings';
 // Implement the Setting interface for registered settings
 export class SettingImpl<T> implements Setting<T> {
   readonly bootValue?: T;
+  private _registration?: Disposable;
 
   constructor(
     private readonly manager: SettingsManagerImpl,
@@ -79,17 +81,25 @@ export class SettingImpl<T> implements Setting<T> {
 
   [Symbol.dispose](): void {
     // Use the stored disposable if available
-    this.manager.unregister(this.id);
+    this._registration?.[Symbol.dispose]();
+    delete this._registration;
+  }
+
+  adopt(registration: Disposable): void {
+    this._registration = registration;
   }
 }
 
 export class SettingsManagerImpl implements SettingsManager {
-  private readonly registry = new Map<string, SettingImpl<unknown>>();
+  private readonly registry: Registry<SettingImpl<unknown>>;
   private currentStoredValues: Record<string, unknown> = {};
   private readonly store: Storage;
 
-  constructor(store: Storage) {
+  constructor(store: Storage, parentRegistry?: Registry<SettingImpl<unknown>>) {
     this.store = store;
+    this.registry = parentRegistry
+      ? parentRegistry.createChild()
+      : new Registry<SettingImpl<unknown>>((setting) => setting.id);
     this.load();
   }
 
@@ -126,14 +136,11 @@ export class SettingsManagerImpl implements SettingsManager {
       setting.requiresReload,
       setting.render,
     );
-
-    this.registry.set(setting.id, settingImpl as SettingImpl<unknown>);
+    settingImpl.adopt(
+      this.registry.register(settingImpl as SettingImpl<unknown>),
+    );
 
     return settingImpl;
-  }
-
-  unregister(id: string): void {
-    this.registry.delete(id);
   }
 
   resetAll(): void {
@@ -211,5 +218,12 @@ export class SettingsManagerImpl implements SettingsManager {
     } catch (e) {
       console.error('Failed to save settings to store:', e);
     }
+  }
+
+  /**
+   * Create a subordinate settings manager, as for trace-scoped settings.
+   */
+  createChild(): SettingsManagerImpl {
+    return new SettingsManagerImpl(this.store, this.registry);
   }
 }

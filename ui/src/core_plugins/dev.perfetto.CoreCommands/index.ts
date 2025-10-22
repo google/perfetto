@@ -204,14 +204,6 @@ export default class CoreCommands implements PerfettoPlugin {
         icon: 'filter_none',
       });
     }
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.CloseTrace',
-      name: 'Close trace',
-      callback: () => {
-        ctx.closeCurrentTrace();
-      },
-    });
   }
 
   async onTraceLoad(ctx: TraceImpl): Promise<void> {
@@ -230,6 +222,14 @@ export default class CoreCommands implements PerfettoPlugin {
         ctx,
         app.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
       );
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.CloseTrace',
+      name: 'Close trace',
+      callback: () => {
+        ctx.closeTrace(ctx);
+      },
     });
 
     ctx.commands.registerCommand({

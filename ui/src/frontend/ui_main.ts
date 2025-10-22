@@ -23,7 +23,7 @@ import {AppImpl} from '../core/app_impl';
 import {CookieConsent} from '../core/cookie_consent';
 import {featureFlags} from '../core/feature_flags';
 import {OmniboxMode} from '../core/omnibox_manager';
-import {TraceImpl} from '../core/trace_impl';
+import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
 import {Button} from '../widgets/button';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -58,9 +58,11 @@ export class UiMain implements m.ClassComponent {
   }
 }
 
+export interface UiMainPerTraceAttrs extends OptionalTraceImplAttrs {}
+
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
-export class UiMainPerTrace implements m.ClassComponent {
+export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   // NOTE: this should NOT need to be an AsyncDisposableStack. If you feel the
   // need of making it async because you want to clean up SQL resources, that
   // will cause bugs (see comments in oncreate()).
@@ -70,9 +72,8 @@ export class UiMainPerTrace implements m.ClassComponent {
   private trace?: TraceImpl;
 
   // This function is invoked once per trace.
-  constructor() {
-    const app = AppImpl.instance;
-    const trace = app.trace;
+  constructor({attrs}: m.Vnode<UiMainPerTraceAttrs>) {
+    const trace = attrs.trace ?? AppImpl.instance.trace;
     this.trace = trace;
 
     // Register global commands (commands that are useful even without a trace
@@ -81,7 +82,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'dev.perfetto.OpenCommandPalette',
         name: 'Open command palette',
-        callback: () => app.omnibox.setMode(OmniboxMode.Command),
+        callback: () => this.preferredApp.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
@@ -93,7 +94,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
     ];
     globalCmds.forEach((cmd) => {
-      this.trash.use(app.commands.registerCommand(cmd));
+      this.trash.use(this.preferredApp.commands.registerCommand(cmd));
     });
 
     // When the UI loads there is no trace. There is no point registering
@@ -103,7 +104,7 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   private renderOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+    const omnibox = this.preferredApp.omnibox;
     const omniboxMode = omnibox.mode;
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
@@ -128,7 +129,7 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   renderPromptOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+    const omnibox = this.preferredApp.omnibox;
     const prompt = assertExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
@@ -173,7 +174,8 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
-    const {commands, omnibox} = AppImpl.instance;
+    const omnibox = this.preferredApp.omnibox;
+    const commands = this.preferredApp.commands;
     const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
@@ -246,15 +248,16 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   renderQueryOmnibox(): m.Children {
+    const omnibox = this.preferredApp.omnibox;
     const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
     return m(Omnibox, {
-      value: AppImpl.instance.omnibox.text,
+      value: omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'pf-omnibox--query-mode',
 
       onInput: (value) => {
-        AppImpl.instance.omnibox.setText(value);
+        omnibox.setText(value);
       },
       onSubmit: (query, alt) => {
         const config = {
@@ -266,32 +269,33 @@ export class UiMainPerTrace implements m.ClassComponent {
         addQueryResultsTab(this.trace, config, tag);
       },
       onClose: () => {
-        AppImpl.instance.omnibox.setText('');
+        omnibox.setText('');
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        AppImpl.instance.omnibox.reset();
+        omnibox.reset();
       },
       onGoBack: () => {
-        AppImpl.instance.omnibox.reset();
+        omnibox.reset();
       },
     });
   }
 
   renderSearchOmnibox(): m.Children {
+    const omnibox = this.preferredApp.omnibox;
     return m(Omnibox, {
-      value: AppImpl.instance.omnibox.text,
+      value: omnibox.text,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Command);
+          omnibox.setMode(OmniboxMode.Command);
           return;
         } else if (value === ':') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Query);
+          omnibox.setMode(OmniboxMode.Query);
           return;
         }
-        AppImpl.instance.omnibox.setText(value);
+        omnibox.setText(value);
         if (this.trace === undefined) return; // No trace loaded.
         if (value.length >= 4) {
           this.trace.search.search(value);
@@ -352,10 +356,14 @@ export class UiMainPerTrace implements m.ClassComponent {
     this.maybeFocusOmnibar();
   }
 
+  private get preferredApp(): AppImpl | TraceImpl {
+    return this.trace ?? AppImpl.instance;
+  }
+
   view(): m.Children {
     const app = AppImpl.instance;
     const isSomethingLoading =
-      AppImpl.instance.isLoadingTrace ||
+      (this.trace && app.isTraceLoading(this.trace.traceInfo.source)) ||
       (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 
@@ -369,11 +377,14 @@ export class UiMainPerTrace implements m.ClassComponent {
         className: 'pf-ui-main__loading',
         state: isSomethingLoading ? 'indeterminate' : 'none',
       }),
-      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
+      m(
+        '.pf-ui-main__page-container',
+        this.preferredApp.pages.renderPageForCurrentRoute(this.trace),
+      ),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(app.trace),
-      app.perfDebugging.renderPerfStats(),
+      showStatusBarFlag.get() && renderStatusBar(this.trace),
+      this.preferredApp.perfDebugging.renderPerfStats(),
     ]);
   }
 
@@ -407,20 +418,24 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   private maybeFocusOmnibar() {
-    if (AppImpl.instance.omnibox.focusOmniboxNextRender) {
+    const omnibox = (this.trace ?? AppImpl.instance).omnibox;
+    if (
+      omnibox.focusOmniboxNextRender &&
+      this.trace === AppImpl.instance.trace
+    ) {
       const omniboxEl = this.omniboxInputEl;
       if (omniboxEl) {
         omniboxEl.focus();
-        if (AppImpl.instance.omnibox.pendingCursorPlacement === undefined) {
+        if (omnibox.pendingCursorPlacement === undefined) {
           omniboxEl.select();
         } else {
           omniboxEl.setSelectionRange(
-            AppImpl.instance.omnibox.pendingCursorPlacement,
-            AppImpl.instance.omnibox.pendingCursorPlacement,
+            omnibox.pendingCursorPlacement,
+            omnibox.pendingCursorPlacement,
           );
         }
       }
-      AppImpl.instance.omnibox.clearFocusFlag();
+      omnibox.clearFocusFlag();
     }
   }
 }
