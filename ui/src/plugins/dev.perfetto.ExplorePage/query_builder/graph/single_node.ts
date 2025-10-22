@@ -14,64 +14,67 @@
 
 import m from 'mithril';
 
-import {NodeActions, NodeBox} from './node_box';
-import {QueryNode} from '../../query_node';
-import {NodeContainer, NodeContainerLayout} from './node_container';
 import {classNames} from '../../../../base/classnames';
+import {QueryNode} from '../../query_node';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 
-export interface NodeBlockAttrs extends NodeActions {
-  readonly nodes: QueryNode[];
+import {NodeContainer, NodeContainerLayout} from './node_container';
+import {NodeBox} from './node_box';
+
+export const PADDING = 20;
+export const NODE_HEIGHT = 50;
+export const DEFAULT_NODE_WIDTH = 100;
+
+export interface SingleNodeAttrs {
+  readonly node: QueryNode;
   readonly layout: NodeContainerLayout;
-  readonly selectedNode?: QueryNode;
+  readonly isSelected: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeDragStart: (
     node: QueryNode,
     event: DragEvent,
     layout: NodeContainerLayout,
   ) => void;
+  readonly onDuplicateNode: (node: QueryNode) => void;
+  readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
 }
 
-export const NodeBlock: m.Component<NodeBlockAttrs> = {
+export const SingleNode: m.Component<SingleNodeAttrs> = {
   view({attrs}) {
     const {
-      nodes,
+      node,
       layout,
+      isSelected,
       onNodeSelected,
       onNodeDragStart,
-      selectedNode,
       onNodeRendered,
     } = attrs;
-    const firstNode = nodes[0];
 
-    const isSelected = selectedNode ? nodes.includes(selectedNode) : false;
+    const conditionalClasses = classNames(
+      !node.validate() && 'pf-exp-node-box__invalid',
+      node.state.issues?.queryError && 'pf-exp-node-box__invalid-query',
+      node.state.issues?.responseError && 'pf-exp-node-box__invalid-response',
+    );
 
     return m(
       NodeContainer,
       {
-        node: firstNode,
+        node,
         layout,
         isSelected,
         onNodeDragStart,
         onNodeRendered,
       },
       m(
-        '.pf-exp-node-block',
-        nodes.map((n) =>
-          m(
-            '.pf-exp-node-block__node',
-            {
-              class: classNames(
-                n === selectedNode && 'pf-exp-node-block__node--selected',
-              ),
-              onclick: () => onNodeSelected(n),
-            },
-            m(NodeBox, {
-              ...attrs,
-              node: n,
-            }),
-          ),
-        ),
+        '.pf-exp-node-box',
+        {
+          class: conditionalClasses,
+          onclick: () => onNodeSelected(node),
+        },
+        m(NodeBox, {...attrs}),
       ),
     );
   },
