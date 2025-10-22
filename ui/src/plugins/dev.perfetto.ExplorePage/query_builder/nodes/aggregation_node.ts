@@ -71,7 +71,6 @@ export class AggregationNode implements ModificationNode {
   readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
-  meterialisedAs?: string;
 
   get finalCols(): ColumnInfo[] {
     const selected = this.state.groupByColumns.filter((c) => c.checked);
@@ -226,10 +225,6 @@ export class AggregationNode implements ModificationNode {
       issues: this.state.issues,
     };
     return new AggregationNode(stateCopy);
-  }
-
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
