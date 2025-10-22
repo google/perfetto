@@ -420,11 +420,23 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
         scoped_lock.unlock();
         FlushPendingCommitDataRequests();
       } else {
+        bool should_post_immediate_flush = true;
+        if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+          // Only post an immediate flush task if we haven't already posted one.
+          // This prevents spamming the task runner with immediate flushes when
+          // the buffer remains over 50% full while chunks continue to be
+          // committed. See b/330580374.
+          should_post_immediate_flush = !immediate_flush_scheduled_;
+        }
+
         // Since we aren't on the |task_runner_| thread post a task instead,
         // in order to prevent non-overlaping commit data request flushes.
-        weak_this = weak_ptr_factory_.GetWeakPtr();
-        task_runner_to_post_delayed_callback_on = task_runner_;
-        flush_delay_ms = 0;
+        if (should_post_immediate_flush) {
+          weak_this = weak_ptr_factory_.GetWeakPtr();
+          task_runner_to_post_delayed_callback_on = task_runner_;
+          flush_delay_ms = 0;
+          immediate_flush_scheduled_ = true;
+        }
       }
     }
   }  // scoped_lock(lock_)
