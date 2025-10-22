@@ -22,55 +22,63 @@ import {QueryNode, singleNodeOperation} from '../../query_node';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 
 import {
-  NodeBox,
-  NodeBoxLayout,
+  SingleNode,
   NODE_HEIGHT,
   PADDING,
   DEFAULT_NODE_WIDTH,
-} from './node_box';
+} from './single_node';
 import {NodeBlock} from './node_block';
 import {Arrow, Port} from './arrow';
 import {EmptyGraph} from '../empty_graph';
 import {nodeRegistry} from '../node_registry';
 
+import {isMultiSourceNode, isOverlapping, findBlockOverlap} from '../utils';
+import {NodeContainerLayout} from './node_container';
+
 const BUTTONS_AREA_WIDTH = 300;
 const BUTTONS_AREA_HEIGHT = 50;
 
-function getOutputPorts(layout: NodeBoxLayout, portCount: number): Port[] {
-  const ports: Port[] = [];
-  for (let i = 0; i < portCount; i++) {
-    ports.push({
-      x:
-        layout.x +
-        ((layout.width ?? DEFAULT_NODE_WIDTH) * (i + 1)) / (portCount + 1),
-      y: layout.y + (layout.height ?? NODE_HEIGHT),
-    });
-  }
-  return ports;
+function getTopPort(layout: NodeContainerLayout): Port {
+  return {
+    x: layout.x + (layout.width ?? DEFAULT_NODE_WIDTH) / 2,
+    y: layout.y,
+  };
 }
 
-function getInputPorts(layout: NodeBoxLayout, portCount: number): Port[] {
-  const ports: Port[] = [];
-  for (let i = 0; i < portCount; i++) {
-    ports.push({
-      x:
-        layout.x +
-        ((layout.width ?? DEFAULT_NODE_WIDTH) * (i + 1)) / (portCount + 1),
-      y: layout.y,
-    });
+function getBottomPort(layout: NodeContainerLayout): Port {
+  return {
+    x: layout.x + (layout.width ?? DEFAULT_NODE_WIDTH) / 2,
+    y: layout.y + (layout.height ?? NODE_HEIGHT),
+  };
+}
+
+export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
+  const allNodes: QueryNode[] = [];
+  for (const root of rootNodes) {
+    const queue: QueryNode[] = [root];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      allNodes.push(curr);
+      for (const child of curr.nextNodes) {
+        queue.push(child);
+      }
+    }
   }
-  return ports;
+  return allNodes;
 }
 
 export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
-  readonly nodeLayouts: Map<string, NodeBoxLayout>;
+  readonly nodeLayouts: Map<string, NodeContainerLayout>;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
+  readonly onNodeLayoutChange: (
+    nodeId: string,
+    layout: NodeContainerLayout,
+  ) => void;
   readonly onAddSourceNode: (id: string) => void;
-  readonly onAddDerivedNode: (id: string, node: QueryNode) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -90,7 +98,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private dragNode?: QueryNode;
   // A map from nodes to their layout information (position and size). This
   // allows us to quickly look up the position of any node in the graph.
-  private resolvedNodeLayouts: Map<QueryNode, NodeBoxLayout> = new Map();
+  private currentLayouts: Map<QueryNode, NodeContainerLayout> = new Map();
   // The width of the node graph area. This is used to constrain the nodes
   // within the bounds of the graph.
   private nodeGraphWidth: number = 0;
@@ -98,6 +106,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   // node. This is used to prevent the node from jumping to the cursor's
   // position when the drag starts.
   private dragOffset?: {x: number; y: number};
+  private dragNodeOriginalLayout?: NodeContainerLayout;
+  private dragBlockOffsets?: Map<QueryNode, {x: number; y: number}>;
+  private revertDrag: boolean = false;
 
   oncreate({dom, attrs}: m.VnodeDOM<GraphAttrs>) {
     const box = dom as HTMLElement;
@@ -106,62 +117,109 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     box.ondragover = (event) => {
       event.preventDefault(); // Allow dropping
       if (this.dragNode) {
-        const dragNodeLayout = this.resolvedNodeLayouts.get(this.dragNode);
+        const dragNodeLayout = this.currentLayouts.get(this.dragNode);
         if (dragNodeLayout && this.dragOffset) {
           const rect = box.getBoundingClientRect();
-          const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
-          const h = dragNodeLayout.height ?? NODE_HEIGHT;
           // To provide real-time feedback to the user, we continuously update
           // the node's position during the drag operation. This allows the
           // connecting arrows to follow the node smoothly.
           const x = event.clientX - rect.left - this.dragOffset.x;
           const y = event.clientY - rect.top - this.dragOffset.y;
-          this.resolvedNodeLayouts.set(this.dragNode, {
-            ...dragNodeLayout,
-            x: Math.max(0, Math.min(x, rect.width - w)),
-            y: Math.max(0, Math.min(y, rect.height - h)),
-          });
+
+          if (this.dragBlockOffsets) {
+            for (const [node, offset] of this.dragBlockOffsets.entries()) {
+              const layout = this.currentLayouts.get(node);
+              if (!layout) continue;
+              const nodeW = layout.width ?? DEFAULT_NODE_WIDTH;
+              const nodeH = layout.height ?? NODE_HEIGHT;
+              this.currentLayouts.set(node, {
+                ...layout,
+                x: Math.max(0, Math.min(x + offset.x, rect.width - nodeW)),
+                y: Math.max(0, Math.min(y + offset.y, rect.height - nodeH)),
+              });
+            }
+          } else {
+            const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
+            const h = dragNodeLayout.height ?? NODE_HEIGHT;
+            this.currentLayouts.set(this.dragNode, {
+              ...dragNodeLayout,
+              x: Math.max(0, Math.min(x, rect.width - w)),
+              y: Math.max(0, Math.min(y, rect.height - h)),
+            });
+          }
           m.redraw();
         }
       }
     };
 
     box.ondrop = (event) => {
-      this.onDrop(event, box, attrs);
+      this.onDrop(event, box);
     };
 
     box.ondragend = () => {
+      if (this.dragNode && this.revertDrag) {
+        attrs.onNodeLayoutChange(
+          this.dragNode.nodeId,
+          this.dragNodeOriginalLayout!,
+        );
+        this.revertDrag = false;
+      }
       if (this.dragNode) {
         this.dragNode = undefined;
         this.dragOffset = undefined;
+        this.dragNodeOriginalLayout = undefined;
+        this.dragBlockOffsets = undefined;
         m.redraw();
       }
     };
   }
 
-  private onDrop = (event: DragEvent, box: HTMLElement, attrs: GraphAttrs) => {
+  private onDrop = (event: DragEvent, box: HTMLElement) => {
     event.preventDefault();
-    if (!this.dragNode) return;
-    const dragNodeLayout = this.resolvedNodeLayouts.get(this.dragNode);
+    if (!this.dragNode || !this.attrs) return;
+    const attrs = this.attrs;
+    const dragNodeLayout = this.currentLayouts.get(this.dragNode);
     if (!dragNodeLayout) return;
+
+    const {nodeToBlock} = this.identifyNodeBlocks(getAllNodes(attrs.rootNodes));
+    const draggedBlock = nodeToBlock.get(this.dragNode);
+    if (!draggedBlock) {
+      throw new Error('Every node should belong to a block');
+    }
+
+    const overlappingNode = findBlockOverlap(draggedBlock, this.currentLayouts);
+
+    if (overlappingNode && isMultiSourceNode(overlappingNode)) {
+      const lastNodeInBlock = draggedBlock[draggedBlock.length - 1];
+
+      if (!overlappingNode.prevNodes.includes(lastNodeInBlock)) {
+        overlappingNode.prevNodes.push(lastNodeInBlock);
+        lastNodeInBlock.nextNodes.push(overlappingNode);
+        overlappingNode.onPrevNodesUpdated?.();
+      }
+      this.revertDrag = true;
+      m.redraw();
+      return;
+    }
 
     const rect = box.getBoundingClientRect();
     const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
     const h = dragNodeLayout.height ?? NODE_HEIGHT;
 
-    // The "Add Node" and "Clear All Nodes" buttons occupy a fixed area in the
-    // top-right corner of the graph. To prevent nodes from being dropped on
-    // top of these buttons, we define a reserved area that is treated as an
-    // obstacle.
-    const buttonsReservedArea: NodeBoxLayout = {
+    const buttonsReservedArea: NodeContainerLayout = {
       x: this.nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
       y: PADDING,
       width: BUTTONS_AREA_WIDTH,
       height: BUTTONS_AREA_HEIGHT,
     };
 
-    const otherLayouts = [...this.resolvedNodeLayouts.entries()]
-      .filter(([node, _]) => node !== this.dragNode)
+    const otherLayouts = [...this.currentLayouts.entries()]
+      .filter(([node, _]) => {
+        if (this.dragBlockOffsets) {
+          return !this.dragBlockOffsets.has(node);
+        }
+        return node !== this.dragNode;
+      })
       .map(([, layout]) => layout);
 
     const allLayouts = [...otherLayouts, buttonsReservedArea];
@@ -178,38 +236,73 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       rect,
     );
 
-    attrs.onNodeLayoutChange(this.dragNode.nodeId, {
-      ...newLayout,
-      width: w,
-      height: h,
-    });
+    if (this.dragBlockOffsets) {
+      for (const [node, offset] of this.dragBlockOffsets.entries()) {
+        const layout = this.currentLayouts.get(node);
+        if (!layout) continue;
+        const nodeW = layout.width ?? DEFAULT_NODE_WIDTH;
+        const nodeH = layout.height ?? NODE_HEIGHT;
+        attrs.onNodeLayoutChange(node.nodeId, {
+          x: newLayout.x + offset.x,
+          y: newLayout.y + offset.y,
+          width: nodeW,
+          height: nodeH,
+        });
+      }
+    } else {
+      attrs.onNodeLayoutChange(this.dragNode.nodeId, {
+        ...newLayout,
+        width: w,
+        height: h,
+      });
+    }
     m.redraw();
   };
 
   onNodeDragStart = (
     node: QueryNode,
     event: DragEvent,
-    layout: NodeBoxLayout,
+    layout: NodeContainerLayout,
   ) => {
     if (!this.attrs) return;
 
-    const allNodes = this.getAllNodes(this.attrs.rootNodes);
-    this.resolvedNodeLayouts = new Map<QueryNode, NodeBoxLayout>();
+    const allNodes = getAllNodes(this.attrs.rootNodes);
+    this.currentLayouts = new Map<QueryNode, NodeContainerLayout>();
     for (const node of allNodes) {
       const layout = this.attrs.nodeLayouts.get(node.nodeId);
       if (layout) {
-        this.resolvedNodeLayouts.set(node, layout);
+        this.currentLayouts.set(node, layout);
       }
     }
 
     this.dragNode = node;
+    this.dragNodeOriginalLayout = {...layout};
     const nodeElem = event.currentTarget as HTMLElement;
 
-    this.resolvedNodeLayouts.set(node, {
+    this.currentLayouts.set(node, {
       ...layout,
       width: nodeElem.offsetWidth,
       height: nodeElem.offsetHeight,
     });
+
+    this.dragBlockOffsets = undefined;
+    const {nodeToBlock} = this.identifyNodeBlocks(allNodes);
+    const block = nodeToBlock.get(node);
+    if (block && block.length > 1) {
+      const dragNodeLayout = this.currentLayouts.get(node);
+      if (dragNodeLayout) {
+        this.dragBlockOffsets = new Map();
+        for (const blockNode of block) {
+          const blockNodeLayout = this.currentLayouts.get(blockNode);
+          if (blockNodeLayout) {
+            this.dragBlockOffsets.set(blockNode, {
+              x: blockNodeLayout.x - dragNodeLayout.x,
+              y: blockNodeLayout.y - dragNodeLayout.y,
+            });
+          }
+        }
+      }
+    }
 
     // To prevent the node from jumping to the cursor's position when a drag
     // starts, we calculate the initial offset of the cursor from the
@@ -227,21 +320,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     }
   };
 
-  private getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
-    const allNodes: QueryNode[] = [];
-    for (const root of rootNodes) {
-      const queue: QueryNode[] = [root];
-      while (queue.length > 0) {
-        const curr = queue.shift()!;
-        allNodes.push(curr);
-        for (const child of curr.nextNodes) {
-          queue.push(child);
-        }
-      }
-    }
-    return allNodes;
-  }
-
   private renderEmptyNodeGraph(attrs: GraphAttrs) {
     return m(EmptyGraph, {
       onAddSourceNode: attrs.onAddSourceNode,
@@ -253,7 +331,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   private renderControls(attrs: GraphAttrs) {
-    const menuItems = nodeRegistry
+    const sourceMenuItems = nodeRegistry
       .list()
       .filter(([_id, descriptor]) => descriptor.type === 'source')
       .map(([id, descriptor]) => {
@@ -266,66 +344,73 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         });
       });
 
-    return m(
-      '.pf-node-graph__controls',
-      m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            label: 'Add Node',
-            icon: Icons.Add,
-            variant: ButtonVariant.Filled,
-          }),
-        },
-        menuItems,
-      ),
-      m(Button, {
+    const operationMenuItems = nodeRegistry
+      .list()
+      .filter(([_id, descriptor]) => descriptor.type === 'multisource')
+      .map(([id, descriptor]) => {
+        if (descriptor.devOnly && !attrs.devMode) {
+          return null;
+        }
+        return m(MenuItem, {
+          label: descriptor.name,
+          onclick: () => attrs.onAddSourceNode(id),
+        });
+      });
+
+    const moreMenuItems = [
+      m(MenuItem, {
         label: 'Export',
         icon: Icons.Download,
-        variant: ButtonVariant.Minimal,
         onclick: attrs.onExport,
-        style: {marginLeft: '8px'},
       }),
-      m(Button, {
+      m(MenuItem, {
         label: 'Clear All Nodes',
         icon: Icons.Delete,
         intent: Intent.Danger,
         onclick: attrs.onClearAllNodes,
-        style: {marginLeft: '8px'},
       }),
-    );
+    ];
 
     return m(
-      '.pf-node-graph__controls',
+      '.pf-exp-node-graph__controls',
       m(
         PopupMenu,
         {
           trigger: m(Button, {
-            label: 'Add Node',
+            label: 'Add Source',
             icon: Icons.Add,
             variant: ButtonVariant.Filled,
           }),
         },
-        menuItems,
+        sourceMenuItems,
       ),
-      m(Button, {
-        label: 'Export',
-        icon: Icons.Download,
-        variant: ButtonVariant.Minimal,
-        onclick: attrs.onExport,
-        style: {marginLeft: '8px'},
-      }),
-      m(Button, {
-        label: 'Clear All Nodes',
-        icon: Icons.Delete,
-        intent: Intent.Danger,
-        onclick: attrs.onClearAllNodes,
-        style: {marginLeft: '8px'},
-      }),
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: 'Add Operation',
+            icon: Icons.Add,
+            variant: ButtonVariant.Filled,
+            style: {marginLeft: '8px'},
+          }),
+        },
+        operationMenuItems,
+      ),
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            icon: Icons.ContextMenuAlt,
+            variant: ButtonVariant.Minimal,
+            style: {marginLeft: '8px'},
+          }),
+        },
+        moreMenuItems,
+      ),
     );
   }
 
-  private identifyNodeBlocks(allNodes: QueryNode[]): {
+  public identifyNodeBlocks(allNodes: QueryNode[]): {
     nodeToBlock: Map<QueryNode, QueryNode[]>;
     renderedAsPartOfBlock: Set<QueryNode>;
   } {
@@ -343,11 +428,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         currentNode = currentNode.nextNodes[0];
         block.push(currentNode);
       }
-      if (block.length > 1) {
-        nodeToBlock.set(node, block);
-        for (const blockNode of block) {
-          renderedAsPartOfBlock.add(blockNode);
-        }
+      nodeToBlock.set(node, block);
+      for (const blockNode of block) {
+        renderedAsPartOfBlock.add(blockNode);
       }
     }
     return {nodeToBlock, renderedAsPartOfBlock};
@@ -369,35 +452,33 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
       const block = nodeToBlock.get(node);
       if (block) {
-        const layout = this.resolvedNodeLayouts.get(node)!;
+        const layout = this.currentLayouts.get(node)!;
         children.push(
           m(NodeBlock, {
             nodes: block,
-            isSelected: selectedNode ? block.includes(selectedNode) : false,
-            isDragging: this.dragNode === node,
+            selectedNode,
             layout,
             onNodeSelected,
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddDerivedNode: attrs.onAddDerivedNode,
+            onAddOperationNode: attrs.onAddOperationNode,
             onNodeRendered,
             onRemoveFilter: attrs.onRemoveFilter,
           }),
         );
       } else {
-        const layout = this.resolvedNodeLayouts.get(node)!;
+        const layout = this.currentLayouts.get(node)!;
         children.push(
-          m(NodeBox, {
+          m(SingleNode, {
             node,
             isSelected: selectedNode === node,
-            isDragging: this.dragNode === node,
             layout,
             onNodeSelected,
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
-            onAddDerivedNode: attrs.onAddDerivedNode,
+            onAddOperationNode: attrs.onAddOperationNode,
             onNodeRendered,
             onRemoveFilter: attrs.onRemoveFilter,
           }),
@@ -421,11 +502,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       const lastNodeInGroup = block ? block[block.length - 1] : node;
 
       for (const nextNode of lastNodeInGroup.nextNodes) {
-        const from = this.resolvedNodeLayouts.get(lastNodeInGroup);
-        const to = this.resolvedNodeLayouts.get(nextNode);
+        const from = this.currentLayouts.get(node);
+        const to = this.currentLayouts.get(nextNode);
         if (from && to) {
-          const fromPort = getOutputPorts(from, 1)[0];
-          const toPort = getInputPorts(to, 1)[0];
+          const fromPort = getBottomPort(from);
+          const toPort = getTopPort(to);
           children.push(m(Arrow, {from: fromPort, to: toPort}));
         }
       }
@@ -438,7 +519,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const {rootNodes} = attrs;
 
     const onNodeRendered = (node: QueryNode, element: HTMLElement) => {
-      const layout = this.resolvedNodeLayouts.get(node);
+      const layout = this.currentLayouts.get(node);
       if (layout) {
         const newWidth = element.offsetWidth;
         const newHeight = element.offsetHeight;
@@ -452,29 +533,29 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       }
     };
 
-    const allNodes = this.getAllNodes(rootNodes);
+    const allNodes = getAllNodes(rootNodes);
 
     // Prune layouts for nodes that no longer exist.
     if (!this.dragNode) {
-      this.resolvedNodeLayouts = new Map<QueryNode, NodeBoxLayout>();
+      this.currentLayouts = new Map<QueryNode, NodeContainerLayout>();
       for (const node of allNodes) {
         const layout = attrs.nodeLayouts.get(node.nodeId);
         if (layout) {
-          this.resolvedNodeLayouts.set(node, layout);
+          this.currentLayouts.set(node, layout);
         }
       }
     }
 
     // Pre-flight to calculate layout for new nodes before rendering.
     for (const node of allNodes) {
-      if (!this.resolvedNodeLayouts.has(node)) {
+      if (!this.currentLayouts.has(node)) {
         const newLayout = findNextAvailablePosition(
           node,
-          Array.from(this.resolvedNodeLayouts.values()),
-          this.resolvedNodeLayouts,
+          Array.from(this.currentLayouts.values()),
+          this.currentLayouts,
           this.nodeGraphWidth,
         );
-        this.resolvedNodeLayouts.set(node, newLayout);
+        this.currentLayouts.set(node, newLayout);
         attrs.onNodeLayoutChange(node.nodeId, {
           x: newLayout.x,
           y: newLayout.y,
@@ -508,7 +589,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     }
 
     return m(
-      '.pf-node-graph',
+      '.pf-exp-node-graph',
       {
         tabindex: 0,
         onclick: (e: MouseEvent) => {
@@ -528,12 +609,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 // enough to clear the obstacle. This process is repeated until no more
 // overlaps are detected.
 function findNonOverlappingLayout(
-  initialLayout: NodeBoxLayout,
-  otherLayouts: NodeBoxLayout[],
+  initialLayout: NodeContainerLayout,
+  otherLayouts: NodeContainerLayout[],
   w: number,
   h: number,
   rect: DOMRect,
-): NodeBoxLayout {
+): NodeContainerLayout {
   const newLayout = {...initialLayout};
 
   for (const layout of otherLayouts) {
@@ -584,27 +665,6 @@ function findNonOverlappingLayout(
   return newLayout;
 }
 
-// This is a standard axis-aligned bounding box (AABB) collision detection
-// algorithm. It checks if two rectangles are overlapping by comparing their
-// positions and dimensions.
-function isOverlapping(
-  layout1: NodeBoxLayout,
-  layout2: NodeBoxLayout,
-  padding: number,
-): boolean {
-  const w1 = layout1.width ?? DEFAULT_NODE_WIDTH;
-  const h1 = layout1.height ?? NODE_HEIGHT;
-  const w2 = layout2.width ?? DEFAULT_NODE_WIDTH;
-  const h2 = layout2.height ?? NODE_HEIGHT;
-
-  return (
-    layout1.x < layout2.x + w2 + padding &&
-    layout1.x + w1 + padding > layout2.x &&
-    layout1.y < layout2.y + h2 + padding &&
-    layout1.y + h1 + padding > layout2.y
-  );
-}
-
 // When a new node is added to the graph, we need to find a suitable position
 // for it. This function implements a simple grid-based placement algorithm. It
 // iterates through the graph from top to bottom, left to right, and places the
@@ -612,14 +672,14 @@ function isOverlapping(
 // nodes.
 function findNextAvailablePosition(
   node: QueryNode,
-  layouts: NodeBoxLayout[],
-  nodeLayouts: Map<QueryNode, NodeBoxLayout>,
+  layouts: NodeContainerLayout[],
+  nodeLayouts: Map<QueryNode, NodeContainerLayout>,
   nodeGraphWidth: number,
-): NodeBoxLayout {
+): NodeContainerLayout {
   const w = Math.max(DEFAULT_NODE_WIDTH, node.getTitle().length * 8 + 60);
   const h = NODE_HEIGHT;
 
-  const buttonsReservedArea: NodeBoxLayout = {
+  const buttonsReservedArea: NodeContainerLayout = {
     x: nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
     y: PADDING,
     width: BUTTONS_AREA_WIDTH,
@@ -628,19 +688,26 @@ function findNextAvailablePosition(
 
   const allLayouts = [...layouts, buttonsReservedArea];
 
+  let predecessor: QueryNode | undefined;
+  if ('prevNode' in node) {
+    predecessor = node.prevNode;
+  } else if ('prevNodes' in node && node.prevNodes.length > 0) {
+    predecessor = node.prevNodes[0];
+  }
+
   // If the node is a nextNode (e.g., an aggregation or sub-query), it should
   // be added below the previous node.
-  if (node.prevNodes && node.prevNodes.length > 0) {
-    const prevLayout = nodeLayouts.get(node.prevNodes[0]);
+  if (predecessor) {
+    const prevLayout = nodeLayouts.get(predecessor);
     if (prevLayout) {
       let x = prevLayout.x;
       let y = prevLayout.y + (prevLayout.height ?? h) + PADDING * 2;
       // Try to place the new node below the previous node, shifted by the
       // number of siblings.
-      if (node.prevNodes[0].nextNodes.length > 1) {
+      if (predecessor.nextNodes.length > 1) {
         x +=
-          (node.prevNodes[0].nextNodes.indexOf(node) -
-            (node.prevNodes[0].nextNodes.length - 1) / 2) *
+          (predecessor.nextNodes.indexOf(node) -
+            (predecessor.nextNodes.length - 1) / 2) *
           (w + PADDING);
       }
       while (true) {

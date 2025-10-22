@@ -1013,6 +1013,46 @@ class TrackEvent(TestSuite):
         "Second Name"
         """))
 
+  def test_track_event_callstacks(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_callstacks.textproto'),
+        query="""
+        WITH inline_slices AS (
+          SELECT
+            EXTRACT_ARG(arg_set_id, 'callsite_id') AS callsite_id
+          FROM slice
+          WHERE name GLOB 'Inline Slice *'
+        ),
+        inline_stats AS (
+          SELECT
+            COUNT(DISTINCT callsite_id) AS inline_unique_callstacks
+          FROM inline_slices
+          WHERE callsite_id IS NOT NULL
+        )
+        SELECT
+          slice.name,
+          COALESCE(spf.name, '[NULL]') AS leaf_frame,
+          COALESCE(sps.source_file, '[NULL]') AS source_file,
+          COALESCE(sps.line_number, 0) AS line_number,
+          inline_stats.inline_unique_callstacks
+        FROM slice
+        CROSS JOIN inline_stats
+        LEFT JOIN stack_profile_callsite spc
+          ON spc.id = EXTRACT_ARG(slice.arg_set_id, 'callsite_id')
+        LEFT JOIN stack_profile_frame spf
+          ON spf.id = spc.frame_id
+        LEFT JOIN stack_profile_symbol sps
+          ON sps.symbol_set_id = spf.symbol_set_id AND sps.id = spf.symbol_set_id
+        WHERE slice.name IN ('Inline Slice 1', 'Inline Slice 2', 'Interned Slice')
+        ORDER BY slice.name;
+        """,
+        out=Csv("""
+        "name","leaf_frame","source_file","line_number","inline_unique_callstacks"
+        "Inline Slice 1","InlineLeaf","leaf.cc",42,1
+        "Inline Slice 2","InlineLeaf","leaf.cc",42,1
+        "Interned Slice","FuncB","[NULL]",0,1
+        """))
+
   def test_track_event_name_resolution_extended(self):
     return DiffTestBlueprint(
         trace=Path('track_event_name_resolution_extended.textproto'),

@@ -252,11 +252,11 @@ async function loadTraceIntoEngine(
 
   let nextPage = route.page;
   if (route.page === '/' || route.page === '') {
-    // Current'y on the home page, navigate to the timeline page.
+    // Currently on the home page, navigate to the timeline page.
     nextPage = '/viewer';
   }
 
-  Router.navigate(`#!${nextPage}?local_cache_key=${cacheUuid}`);
+  Router.navigate(`#!${nextPage}${route.subpage}?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);

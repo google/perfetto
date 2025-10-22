@@ -17,8 +17,11 @@
   font-family: var(--pf-font-compact);
   overflow: hidden auto;
 
-  &__elapsed-time {
-    font-size: 0.9em;
+  &__results {
+    max-height: 500px;
+  }
+
+  &__results-summary {
     margin-left: 0.2em;
   }
 

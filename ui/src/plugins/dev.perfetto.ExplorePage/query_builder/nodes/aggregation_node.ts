@@ -19,6 +19,8 @@ import {
   nextNodeId,
   NodeType,
   createSelectColumnsProto,
+  notifyNextNodes,
+  ModificationNode,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {
@@ -32,6 +34,7 @@ import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
+import {Card} from '../../../../widgets/card';
 import {NodeIssues} from '../node_issues';
 
 export interface AggregationSerializedState {
@@ -49,7 +52,7 @@ export interface AggregationSerializedState {
 }
 
 export interface AggregationNodeState extends QueryNodeState {
-  prevNodes?: QueryNode[];
+  prevNode: QueryNode;
   groupByColumns: ColumnInfo[];
   aggregations: Aggregation[];
 }
@@ -62,19 +65,12 @@ export interface Aggregation {
   isEditing?: boolean;
 }
 
-export class AggregationNode implements QueryNode {
+export class AggregationNode implements ModificationNode {
   readonly nodeId: string;
   readonly type = NodeType.kAggregation;
-  readonly prevNodes?: QueryNode[];
+  readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
-  meterialisedAs?: string;
-
-  get sourceCols() {
-    return (
-      this.prevNodes?.[0]?.finalCols ?? this.prevNodes?.[0]?.sourceCols ?? []
-    );
-  }
 
   get finalCols(): ColumnInfo[] {
     const selected = this.state.groupByColumns.filter((c) => c.checked);
@@ -93,15 +89,30 @@ export class AggregationNode implements QueryNode {
       groupByColumns: state.groupByColumns ?? [],
       aggregations: state.aggregations ?? [],
     };
-    this.prevNodes = state.prevNodes;
+    this.prevNode = state.prevNode;
     this.nextNodes = [];
     if (this.state.groupByColumns.length === 0) {
-      this.state.groupByColumns = newColumnInfoList(this.sourceCols, false);
+      this.state.groupByColumns = newColumnInfoList(
+        this.prevNode.finalCols ?? [],
+        false,
+      );
     }
+    const userOnChange = this.state.onchange;
+    this.state.onchange = () => {
+      notifyNextNodes(this);
+      userOnChange?.();
+    };
+  }
+
+  onPrevNodesUpdated() {
+    this.updateGroupByColumns();
   }
 
   updateGroupByColumns() {
-    const newGroupByColumns = newColumnInfoList(this.sourceCols, false);
+    const newGroupByColumns = newColumnInfoList(
+      this.prevNode.finalCols ?? [],
+      false,
+    );
     for (const oldCol of this.state.groupByColumns) {
       if (oldCol.checked) {
         const newCol = newGroupByColumns.find((c) => c.name === oldCol.name);
@@ -121,19 +132,14 @@ export class AggregationNode implements QueryNode {
     if (this.state.issues) {
       this.state.issues.queryError = undefined;
     }
-    if (!this.prevNodes || this.prevNodes.length === 0) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
-        'Aggregation node has no previous node',
-      );
-      return false;
-    }
-    if (!this.prevNodes[0].validate()) {
+    if (!this.prevNode.validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
       return false;
     }
-    const sourceColNames = new Set(this.sourceCols.map((c) => c.name));
+    const sourceColNames = new Set(
+      (this.prevNode.finalCols ?? []).map((c) => c.name),
+    );
     const missingCols: string[] = [];
     for (const col of this.state.groupByColumns) {
       if (col.checked && !sourceColNames.has(col.name)) {
@@ -210,7 +216,7 @@ export class AggregationNode implements QueryNode {
 
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
-      prevNodes: this.state.prevNodes,
+      prevNode: this.state.prevNode,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: this.state.filters ? [...this.state.filters] : undefined,
@@ -221,15 +227,9 @@ export class AggregationNode implements QueryNode {
     return new AggregationNode(stateCopy);
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
-  }
-
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
-
-    if (!this.prevNodes || this.prevNodes.length === 0) return;
-    const prevSq = this.prevNodes[0].getStructuredQuery();
+    const prevSq = this.prevNode.getStructuredQuery();
     if (!prevSq) return undefined;
 
     const groupByProto = createGroupByProto(
@@ -269,7 +269,7 @@ export class AggregationNode implements QueryNode {
   }
 
   resolveColumns() {
-    const sourceCols = this.sourceCols;
+    const sourceCols = this.prevNode.finalCols ?? [];
     this.state.groupByColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
       if (sourceCol) {
@@ -324,6 +324,7 @@ export class AggregationNode implements QueryNode {
     });
     return {
       ...state,
+      prevNode: undefined as unknown as QueryNode,
       groupByColumns,
       aggregations,
     };
@@ -574,15 +575,15 @@ class AggregationOperationComponent
       ];
     };
 
-    return m('.pf-exp-query-operations', [
-      m(
-        '.pf-exp-section',
+    return m(
+      '.pf-exp-query-operations',
+      m(Card, {}, [
         m(
           '.pf-exp-operations-container',
           selectGroupByColumns(),
           m('.pf-exp-aggregations-list', aggregationsList()),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 }

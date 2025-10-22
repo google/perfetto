@@ -16,98 +16,69 @@ import m from 'mithril';
 import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
+import {ArgNode, convertArgsToTree, Key} from './slice_args_parser';
 import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {TreeNode} from '../../widgets/tree';
-import {Args, ArgsDict, ArgValue} from '../sql_utils/args';
+import {Arg} from '../sql_utils/args';
 import {Trace} from '../../public/trace';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(
   trace: Trace,
-  args: ArgsDict,
-  extraMenuItems?: (key: string, arg: ArgValue) => m.Children,
+  args: ReadonlyArray<Arg>,
+  extraMenuItems?: (arg: Arg) => m.Children,
 ): m.Children {
-  if (hasArgs(args)) {
-    return Object.entries(args).map(([key, value]) =>
-      renderArgsTree(trace, key, key, value, extraMenuItems),
-    );
+  if (args.length > 0) {
+    const tree = convertArgsToTree(args);
+    return renderArgTreeNodes(trace, tree, extraMenuItems);
+  } else {
+    return undefined;
   }
-  return undefined;
 }
 
-export function hasArgs(args?: ArgsDict): args is ArgsDict {
-  return exists(args) && Object.keys(args).length > 0;
+export function hasArgs(args?: Arg[]): args is Arg[] {
+  return exists(args) && args.length > 0;
 }
 
-function renderArgsTree(
+function renderArgTreeNodes(
   trace: Trace,
-  key: string,
-  fullKey: string,
-  args: Args,
-  extraMenuItems?: (path: string, arg: ArgValue) => m.Children,
+  args: ArgNode<Arg>[],
+  extraMenuItems?: (arg: Arg) => m.Children,
 ): m.Children {
-  if (args instanceof Array) {
-    return m(
-      TreeNode,
-      {
-        left: key,
-        summary: renderArraySummary(args),
-      },
-      args.map((value, index) =>
-        renderArgsTree(
-          trace,
-          `[${index}]`,
-          `${fullKey}[${index}]`,
-          value,
-          extraMenuItems,
-        ),
-      ),
-    );
-  }
-  if (args !== null && typeof args === 'object') {
-    if (Object.keys(args).length === 1) {
-      const [[childName, value]] = Object.entries(args);
-      return renderArgsTree(
-        trace,
-        `${key}.${childName}`,
-        `${fullKey}.${childName}`,
-        value,
-        extraMenuItems,
+  return args.map((arg) => {
+    const {key, value, children} = arg;
+    if (children && children.length === 1) {
+      // If we only have one child, collapse into self and combine keys
+      const child = children[0];
+      const compositeArg = {
+        ...child,
+        key: stringifyKey(key, child.key),
+      };
+      return renderArgTreeNodes(trace, [compositeArg], extraMenuItems);
+    } else {
+      return m(
+        TreeNode,
+        {
+          left: renderArgKey(stringifyKey(key), value, extraMenuItems),
+          right: exists(value) && renderArgValue(value),
+          summary: children && renderSummary(children),
+        },
+        children && renderArgTreeNodes(trace, children, extraMenuItems),
       );
     }
-    return m(
-      TreeNode,
-      {
-        left: key,
-        summary: renderDictSummary(args),
-      },
-      Object.entries(args).map(([childName, child]) =>
-        renderArgsTree(
-          trace,
-          childName,
-          `${fullKey}.${childName}`,
-          child,
-          extraMenuItems,
-        ),
-      ),
-    );
-  }
-  return m(TreeNode, {
-    left: renderArgKey(key, fullKey, args, extraMenuItems),
-    right: renderArgValue(args),
   });
 }
 
 function renderArgKey(
   key: string,
-  fullKey: string,
-  value: ArgValue,
-  extraMenuItems?: (path: string, arg: ArgValue) => m.Children,
+  value: Arg | undefined,
+  extraMenuItems?: (arg: Arg) => m.Children,
 ): m.Children {
   if (value === undefined) {
     return key;
   } else {
+    const {key: fullKey} = value;
     return m(
       PopupMenu,
       {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
@@ -116,31 +87,42 @@ function renderArgKey(
         icon: 'content_copy',
         onclick: () => navigator.clipboard.writeText(fullKey),
       }),
-      extraMenuItems?.(fullKey, value),
+      extraMenuItems?.(value),
     );
   }
 }
 
-function renderArgValue(value: ArgValue): m.Children {
-  if (isWebLink(value)) {
-    return renderWebLink(value);
+function renderArgValue({displayValue}: Arg): m.Children {
+  if (isWebLink(displayValue)) {
+    return renderWebLink(displayValue);
   } else {
-    return `${value}`;
+    return `${displayValue}`;
   }
 }
 
-function renderArraySummary(children: Args[]): m.Children {
-  return `[ ... (${children.length} items) ]`;
-}
-
-function renderDictSummary(children: ArgsDict): m.Children {
-  const summary = Object.keys(children).slice(0, 2).join(', ');
-  const remaining = Object.keys(children).length - 2;
+function renderSummary(children: ArgNode<Arg>[]): m.Children {
+  const summary = children
+    .slice(0, 2)
+    .map(({key}) => key)
+    .join(', ');
+  const remaining = children.length - 2;
   if (remaining > 0) {
     return `{${summary}, ... (${remaining} more items)}`;
   } else {
     return `{${summary}}`;
   }
+}
+
+function stringifyKey(...key: Key[]): string {
+  return key
+    .map((element, index) => {
+      if (typeof element === 'number') {
+        return `[${element}]`;
+      } else {
+        return (index === 0 ? '' : '.') + element;
+      }
+    })
+    .join('');
 }
 
 function isWebLink(value: unknown): value is string {

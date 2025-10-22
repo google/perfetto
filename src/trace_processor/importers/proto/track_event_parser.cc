@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
@@ -208,6 +209,9 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       correlation_id_key_id_(context->storage->InternString("correlation_id")),
       legacy_trace_source_id_key_id_(
           context_->storage->InternString("legacy_trace_source_id")),
+      callsite_id_key_id_(context_->storage->InternString("callsite_id")),
+      end_callsite_id_key_id_(
+          context_->storage->InternString("end_callsite_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
@@ -337,7 +341,7 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
     std::string key = "chrome.process_label[";
     key.append(std::to_string(label_index++));
     key.append("]");
-    context_->process_tracker->AddArgsTo(upid).AddArg(
+    context_->process_tracker->AddArgsToProcess(upid).AddArg(
         chrome_process_label_flat_key_id_,
         context_->storage->InternString(base::StringView(key)),
         Variadic::String(label_id));
@@ -357,7 +361,7 @@ void TrackEventParser::ParseChromeProcessDescriptor(
   context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
 
   ArgsTracker::BoundInserter process_args =
-      context_->process_tracker->AddArgsTo(upid);
+      context_->process_tracker->AddArgsToProcess(upid);
   // For identifying Chrome processes in system traces.
   process_args.AddArg(chrome_process_type_id_, Variadic::String(name_id));
   if (decoder.has_host_app_package_name()) {
@@ -438,6 +442,14 @@ void TrackEventParser::AddActiveProcess(int64_t packet_timestamp, int32_t pid) {
       context_->process_tracker->GetOrCreateProcess(static_cast<uint32_t>(pid));
   active_chrome_processes_tracker_.AddActiveProcessMetadata(packet_timestamp,
                                                             upid);
+}
+
+DummyMemoryMapping* TrackEventParser::GetOrCreateInlineCallstackDummyMapping() {
+  if (!inline_callstack_dummy_mapping_) {
+    inline_callstack_dummy_mapping_ =
+        &context_->mapping_tracker->CreateDummyMapping("track_event_inline");
+  }
+  return inline_callstack_dummy_mapping_;
 }
 
 void TrackEventParser::NotifyEndOfFile() {

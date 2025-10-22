@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {NodeType} from './query_node';
-import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {ExplorePageState} from './explore_page';
@@ -25,7 +26,7 @@ import {
   deserializeState,
 } from './json_handler';
 import {SqlSourceSerializedState} from './query_builder/nodes/sources/sql_source';
-import m from 'mithril';
+import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 export function showImportWithStatementModal(
   trace: Trace,
@@ -216,7 +217,7 @@ function parseSql(sql: string): ParsedNode[] {
 export function createGraphFromSql(sql: string): string {
   const {nodes: parsedNodes, modules} = parseSqlWithModules(sql);
   const serializedNodes: SerializedNode[] = [];
-  const nodeLayouts: {[key: string]: NodeBoxLayout} = {};
+  const nodeLayouts: {[key: string]: NodeContainerLayout} = {};
   const rootNodeIds: string[] = [];
 
   const nodeMap = new Map<string, SerializedNode>();
@@ -243,6 +244,9 @@ export function createGraphFromSql(sql: string): string {
     for (const dep of parsedNode.dependencies) {
       const depNode = nodeMap.get(dep)!;
       depNode.nextNodes.push(node.nodeId);
+      if (!node.prevNodes) {
+        node.prevNodes = [];
+      }
       node.prevNodes.push(depNode.nodeId);
     }
     if (parsedNode.dependencies.length === 0) {

@@ -13,20 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, QueryNodeState, NodeType} from '../../../query_node';
+import {
+  QueryNode,
+  QueryNodeState,
+  NodeType,
+  createFinalColumns,
+  SourceNode,
+  nextNodeId,
+} from '../../../query_node';
 import {ColumnInfo} from '../../column_info';
 import protos from '../../../../../protos';
-import {SourceNode} from '../../source_node';
 
-export class TestNode extends SourceNode {
+export class TestNode implements SourceNode {
+  readonly nodeId: string;
+  readonly state: QueryNodeState;
   isDevNode = true;
-
-  get sourceCols(): ColumnInfo[] {
-    return [];
-  }
+  readonly finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
 
   constructor(state: QueryNodeState) {
-    super(state);
+    this.nodeId = nextNodeId();
+    this.state = state;
+    this.finalCols = createFinalColumns([]);
+    this.nextNodes = [];
   }
 
   get type(): NodeType {
@@ -49,11 +58,11 @@ export class TestNode extends SourceNode {
     return m('div', 'Test Node');
   }
 
-  isMaterialised(): boolean {
-    return false;
-  }
-
   serializeState(): object {
     return {};
+  }
+
+  validate(): boolean {
+    return true;
   }
 }
