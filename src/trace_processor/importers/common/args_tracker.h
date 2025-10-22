@@ -255,6 +255,10 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_cpu_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::TraceImportLogsTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_trace_import_logs_table(), id);
+  }
+
   // Returns a CompactArgSet which contains the args inserted into this
   // ArgsTracker. Requires that every arg in this tracker was inserted for the
   // "arg_set_id" column given by |column| at the given |row_number|.
