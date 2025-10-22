@@ -18,6 +18,9 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
+  createFinalColumns,
+  MultiSourceNode,
+  nextNodeId,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -28,45 +31,46 @@ import {
   queryHistoryStorage,
 } from '../../../../../components/widgets/query_history';
 import {Trace} from '../../../../../public/trace';
-import {SourceNode} from '../../source_node';
 
 import {ColumnInfo} from '../../column_info';
 import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters: FilterDefinition[];
+  filters?: FilterDefinition[];
   customTitle?: string;
+  comment?: string;
 }
 
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
   trace: Trace;
-  sourceCols?: ColumnInfo[];
 }
 
-export class SqlSourceNode extends SourceNode {
+export class SqlSourceNode implements MultiSourceNode {
+  readonly nodeId: string;
   readonly state: SqlSourceState;
   prevNodes: QueryNode[] = [];
+  finalCols: ColumnInfo[];
+  nextNodes: QueryNode[];
+  meterialisedAs?: string;
 
   constructor(attrs: SqlSourceState) {
-    super(attrs);
+    this.nodeId = nextNodeId();
     this.state = attrs;
-    this.state.sourceCols = [];
+    this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
+    this.prevNodes = attrs.prevNodes ?? [];
   }
 
   get type() {
     return NodeType.kSqlSource;
   }
 
-  get sourceCols() {
-    return this.state.sourceCols ?? [];
-  }
-
   setSourceColumns(columns: string[]) {
-    this.state.sourceCols = columns.map((c) => columnInfoFromName(c));
-    this.finalCols = this.sourceCols;
+    this.finalCols = createFinalColumns(
+      columns.map((c) => columnInfoFromName(c)),
+    );
     m.redraw();
   }
 
@@ -77,7 +81,7 @@ export class SqlSourceNode extends SourceNode {
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      filters: [],
+      filters: this.state.filters ? [...this.state.filters] : undefined,
       customTitle: this.state.customTitle,
       issues: this.state.issues,
       trace: this.state.trace,
@@ -102,6 +106,7 @@ export class SqlSourceNode extends SourceNode {
       sql: this.state.sql,
       filters: this.state.filters,
       customTitle: this.state.customTitle,
+      comment: this.state.comment,
     };
   }
 
@@ -111,7 +116,7 @@ export class SqlSourceNode extends SourceNode {
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
-    sqlProto.columnNames = this.sourceCols.map((c) => c.column.name);
+    sqlProto.columnNames = this.finalCols.map((c) => c.column.name);
 
     for (const prevNode of this.prevNodes) {
       const dependency = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();

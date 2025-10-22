@@ -34,6 +34,7 @@ import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -113,8 +114,8 @@ export default class implements PerfettoPlugin {
       upid: NUM_NULL,
       threadName: STR_NULL,
       processName: STR_NULL,
-      tid: NUM_NULL,
-      pid: NUM_NULL,
+      tid: LONG_NULL,
+      pid: LONG_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
       machine: NUM_NULL,
@@ -250,9 +251,9 @@ export default class implements PerfettoPlugin {
       upid: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
-      tid: NUM_NULL,
+      tid: LONG_NULL,
       threadName: STR_NULL,
-      pid: NUM_NULL,
+      pid: LONG_NULL,
       processName: STR_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
@@ -603,7 +604,7 @@ function createSliceFlameGraphPanel(trace: Trace) {
         return undefined;
       }
 
-      return {isLoading: false, content: currentFlamegraph.flamegraph.render()};
+      return {isLoading: false, content: currentFlamegraph.render()};
     },
   };
 }
@@ -611,7 +612,7 @@ function createSliceFlameGraphPanel(trace: Trace) {
 async function computeSliceFlamegraph(
   trace: Trace,
   currentSelection: AreaSelection,
-): Promise<(AsyncDisposable & {flamegraph: QueryFlamegraph}) | undefined> {
+): Promise<QueryFlamegraph | undefined> {
   const trackIds = [];
   for (const trackInfo of currentSelection.tracks) {
     if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
@@ -689,10 +690,12 @@ async function computeSliceFlamegraph(
       },
     ],
   );
-  return {
-    ...iiTable,
-    flamegraph: new QueryFlamegraph(trace, metrics, {
+  return new QueryFlamegraph(
+    trace,
+    metrics,
+    {
       state: Flamegraph.createDefaultState(metrics),
-    }),
-  };
+    },
+    [iiTable],
+  );
 }

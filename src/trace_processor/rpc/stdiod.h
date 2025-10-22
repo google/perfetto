@@ -17,20 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_STDIOD_H_
 #define SRC_TRACE_PROCESSOR_RPC_STDIOD_H_
 
-#include <memory>
 #include "perfetto/base/status.h"
+#include "src/trace_processor/rpc/rpc.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessor;
 
 // Starts a RPC server that handles requests using protobuf-over-stdio.
 // Returns when the server completes.
-base::Status RunStdioRpcServer(std::unique_ptr<TraceProcessor>,
-                               bool is_preloaded_eof);
+base::Status RunStdioRpcServer(Rpc& rpc);
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_RPC_STDIOD_H_

@@ -30,19 +30,19 @@ import {Setting} from '../../public/settings';
 import {z} from 'zod';
 
 // Build a standardized URI for a frames track
-function makeUri(upid: number, kind: 'expected_frames' | 'actual_frames') {
+function makeUri(upid: number, kind: string) {
   return `/process_${upid}/${kind}`;
 }
 
 export default class Frames implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
-  static useExperimentalJankForClassification: Setting<boolean>;
+  static showExperimentalJankClassification: Setting<boolean>;
 
   static onActivate(app: App): void {
-    Frames.useExperimentalJankForClassification = app.settings.register({
-      id: `${app.pluginId}#useExperimentalJankForClassification`,
-      name: 'Use experimental jank classificaiton (alpha)',
+    Frames.showExperimentalJankClassification = app.settings.register({
+      id: `${app.pluginId}#showExperimentalJankClassification`,
+      name: 'show experimental jank classificaiton track (alpha)',
       description: 'Use alternative method to classify jank. Not recommented.',
       schema: z.boolean(),
       defaultValue: false,
@@ -137,21 +137,26 @@ export default class Frames implements PerfettoPlugin {
       trackIds: STR,
       maxDepth: NUM,
     });
+
     for (; it.valid(); it.next()) {
       const upid = it.upid;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const maxDepth = it.maxDepth;
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
 
-      const uri = makeUri(upid, 'actual_frames');
+      // Standard actual frames track
+      const standardUri = makeUri(upid, 'actual_frames');
       ctx.tracks.registerTrack({
-        uri,
+        uri: standardUri,
         renderer: createActualFramesTrack(
           ctx,
-          uri,
+          standardUri,
           maxDepth,
           trackIds,
-          Frames.useExperimentalJankForClassification.get(),
+          false,
         ),
         tags: {
           upid,
@@ -159,15 +164,40 @@ export default class Frames implements PerfettoPlugin {
           kinds: [SLICE_TRACK_KIND, ACTUAL_FRAMES_SLICE_TRACK_KIND],
         },
       });
-      const group = ctx.plugins
-        .getPlugin(ProcessThreadGroupsPlugin)
-        .getGroupForProcess(upid);
-      const track = new TrackNode({
-        uri,
-        name: 'Actual Timeline',
-        sortOrder: -50,
-      });
-      group?.addChildInOrder(track);
+      group?.addChildInOrder(
+        new TrackNode({
+          uri: standardUri,
+          name: 'Actual Timeline',
+          sortOrder: -50,
+        }),
+      );
+
+      // Experimental jank classification track (if enabled)
+      if (Frames.showExperimentalJankClassification.get()) {
+        const experimentalUri = makeUri(upid, 'actual_frames_experimental');
+        ctx.tracks.registerTrack({
+          uri: experimentalUri,
+          renderer: createActualFramesTrack(
+            ctx,
+            experimentalUri,
+            maxDepth,
+            trackIds,
+            true,
+          ),
+          tags: {
+            upid,
+            trackIds,
+            kinds: [SLICE_TRACK_KIND],
+          },
+        });
+        group?.addChildInOrder(
+          new TrackNode({
+            uri: experimentalUri,
+            name: 'Actual Timeline (Experimental)',
+            sortOrder: -49,
+          }),
+        );
+      }
     }
   }
 }

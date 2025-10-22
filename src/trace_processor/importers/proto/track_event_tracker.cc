@@ -672,7 +672,7 @@ bool TrackEventTracker::IsTrackHierarchyValid(uint64_t uuid) {
     }
     auto* state_ptr = descriptor_tracks_state_.Find(current_uuid);
     if (!state_ptr) {
-      PERFETTO_ELOG("Missing uuid in hierarchy for track %" PRIu64, uuid);
+      context_->storage->IncrementStats(stats::track_hierarchy_missing_uuid);
       return false;
     }
     seen[i] = current_uuid;

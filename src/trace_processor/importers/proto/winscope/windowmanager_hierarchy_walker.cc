@@ -247,10 +247,19 @@ base::Status WindowManagerHierarchyWalker::ParseTaskProto(
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
   protos::pbzero::TaskProto::Decoder task(child.task());
+  protos::pbzero::WindowContainerProto::Decoder task_window_container(
+      task.window_container());
+
   protos::pbzero::TaskFragmentProto::Decoder task_fragment(
       task.task_fragment());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
+  protos::pbzero::WindowContainerProto::Decoder task_fragment_window_container(
       task_fragment.window_container());
+
+  protos::pbzero::WindowContainerProto::Decoder& window_container =
+      task.has_task_fragment() && task_fragment.has_window_container()
+          ? task_fragment_window_container
+          : task_window_container;
+
   protos::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
@@ -263,7 +272,7 @@ base::Status WindowManagerHierarchyWalker::ParseTaskProto(
   std::optional<StringPool::Id> name_override;
   if (task.has_id()) {
     std::string name = std::to_string(task.id());
-    if (task.has_task_name()) {
+    if (task.has_task_name() && task.task_name().size > 0) {
       name += "(" + task.task_name().ToStdString() + ")";
     }
     name_override = pool_->InternString(base::StringView(name));
@@ -274,8 +283,14 @@ base::Status WindowManagerHierarchyWalker::ParseTaskProto(
       window_container.visible(), std::nullopt, name_override,
       std::move(pruned_proto), kTaskId});
 
-  return ParseWindowContainerChildren(window_container, tokenAndTitle->token,
-                                      result);
+  protos::pbzero::WindowContainerProto::Decoder&
+      window_container_with_children =
+          task_fragment_window_container.has_children()
+              ? task_fragment_window_container
+              : task_window_container;
+
+  return ParseWindowContainerChildren(window_container_with_children,
+                                      tokenAndTitle->token, result);
 }
 
 base::Status WindowManagerHierarchyWalker::ParseActivityRecordProto(

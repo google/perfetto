@@ -256,6 +256,9 @@ message LayerProto {
 
   // Settings which specify how an outline should be drawn for a layer.
   optional BorderSettings border_settings = 66;
+
+  // "True" corner radii of the layer computed by SurfaceFlinger.
+  optional CornerRadiiProto effective_radii = 67;
 }
 
 message PositionProto {

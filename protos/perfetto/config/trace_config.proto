@@ -27,7 +27,7 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 42.
+// Next id: 43.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -763,4 +763,20 @@ message TraceConfig {
   // Introduced in: perfetto v52.
   // Supported on: Android 25Q3+.
   optional uint32 exclusive_prio = 41;
+
+  // If true && |write_into_file|, do NOT flush buffers when periodically write
+  // them into file.
+  //
+  // By default, if |write_into_file| is set, each time we periodically write
+  // buffers into file, we first issue a Flush() to all data source, forcing
+  // them to commit their data into the tracing service. This helps us to always
+  // write latest data to the file.
+  //
+  // Before this flag was introduced, the default behavior was NOT to flush
+  // buffers when periodically write them into file. If true this flag
+  // returns the old default behavior.
+  //
+  // Introduced in: perfetto v53.
+  // Supported on: Android 25Q4+.
+  optional bool no_flush_before_write_into_file = 42;
 }

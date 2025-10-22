@@ -34,14 +34,7 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
-import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-} from '../../widgets/grid';
+import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {assertExists, assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
@@ -57,11 +50,11 @@ interface ContextMenuItem {
   run(slice: SliceDetails, trace: Trace): void;
 }
 
-function getTidFromSlice(slice: SliceDetails): number | undefined {
+function getTidFromSlice(slice: SliceDetails): bigint | undefined {
   return slice.thread?.tid;
 }
 
-function getPidFromSlice(slice: SliceDetails): number | undefined {
+function getPidFromSlice(slice: SliceDetails): bigint | undefined {
   return slice.process?.pid;
 }
 
@@ -210,20 +203,37 @@ async function getSliceDetails(
   return getSlice(engine, asSliceSqlId(id));
 }
 
+// Interface for additional sections that can be composed
+// with ThreadSliceDetailsPanel
+export interface TrackEventDetailsPanelSection {
+  load(selection: TrackEventSelection): Promise<void>;
+  render(): m.Children;
+}
+
+export interface ThreadSliceDetailsPanelAttrs {
+  // Optional additional sections to render in the left column
+  leftSections?: TrackEventDetailsPanelSection[];
+  // Optional additional sections to render in the right column
+  rightSections?: TrackEventDetailsPanelSection[];
+}
+
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
   private readonly trace: TraceImpl;
+  private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
-  constructor(trace: Trace) {
+  constructor(trace: Trace, attrs?: ThreadSliceDetailsPanelAttrs) {
     // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
     // TraceImpl (because of flows) but here we must take a Trace interface,
     // because this track is exposed to plugins (which see only Trace).
     this.trace = assertIsInstance(trace, TraceImpl);
+    this.attrs = attrs ?? {};
   }
 
-  async load({eventId}: TrackEventSelection) {
+  async load(selection: TrackEventSelection) {
     const {trace} = this;
+    const {eventId} = selection;
     const details = await getSliceDetails(trace.engine, eventId);
 
     if (
@@ -239,6 +249,17 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     }
 
     this.sliceDetails = details;
+
+    // Load additional sections
+    const sectionsToLoad = [
+      ...(this.attrs.leftSections ?? []),
+      ...(this.attrs.rightSections ?? []),
+    ];
+    if (sectionsToLoad.length > 0) {
+      await Promise.all(
+        sectionsToLoad.map((section) => section.load(selection)),
+      );
+    }
   }
 
   render() {
@@ -246,6 +267,15 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});
     }
     const slice = this.sliceDetails;
+
+    // Render additional left and right sections
+    const additionalLeft = this.attrs.leftSections?.map((section) =>
+      section.render(),
+    );
+    const additionalRight = this.attrs.rightSections?.map((section) =>
+      section.render(),
+    );
+
     return m(
       DetailsShell,
       {
@@ -255,13 +285,21 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       },
       m(
         GridLayout,
-        renderDetails(this.trace, slice, this.breakdownByThreadState),
-        this.renderRhs(this.trace, slice),
+        m(
+          GridLayoutColumn,
+          renderDetails(this.trace, slice, this.breakdownByThreadState),
+          additionalLeft,
+        ),
+        this.renderRhs(this.trace, slice, additionalRight),
       ),
     );
   }
 
-  private renderRhs(trace: Trace, slice: SliceDetails): m.Children {
+  private renderRhs(
+    trace: Trace,
+    slice: SliceDetails,
+    additionalSections?: m.Children,
+  ): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
     const args =
@@ -272,8 +310,14 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         m(Tree, renderSliceArguments(trace, slice.args)),
       );
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (precFlows ?? followingFlows ?? args) {
-      return m(GridLayoutColumn, precFlows, followingFlows, args);
+    if (precFlows ?? followingFlows ?? args ?? additionalSections) {
+      return m(
+        GridLayoutColumn,
+        precFlows,
+        followingFlows,
+        args,
+        additionalSections,
+      );
     } else {
       return undefined;
     }
@@ -291,46 +335,31 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(
         Section,
         {title: 'Preceding Flows'},
-        m(
-          Grid,
-          m(
-            GridHeader,
+        m(Grid, {
+          columns: [
+            {key: 'sliceName', header: m(GridHeaderCell, 'Slice')},
+            {key: 'delay', header: m(GridHeaderCell, 'Delay')},
+            {key: 'thread', header: m(GridHeaderCell, 'Thread')},
+          ],
+          rowData: inFlows.map((flow) => [
             m(
-              GridRow,
-              m(GridHeaderCell, 'Slice'),
-              m(GridHeaderCell, 'Delay'),
-              m(GridHeaderCell, 'Thread'),
+              GridCell,
+              m(SliceRef, {
+                trace: this.trace,
+                id: asSliceSqlId(flow.begin.sliceId),
+                name: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
+              }),
             ),
-          ),
-          m(
-            GridBody,
-            inFlows.map((flow) =>
-              m(
-                GridRow,
-                m(
-                  GridDataCell,
-                  m(SliceRef, {
-                    trace: this.trace,
-                    id: asSliceSqlId(flow.begin.sliceId),
-                    name:
-                      flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  m(DurationWidget, {
-                    trace: this.trace,
-                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  this.getThreadNameForFlow(flow.begin, !isRunTask),
-                ),
-              ),
+            m(
+              GridCell,
+              m(DurationWidget, {
+                trace: this.trace,
+                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+              }),
             ),
-          ),
-        ),
+            m(GridCell, this.getThreadNameForFlow(flow.begin, !isRunTask)),
+          ]),
+        }),
       );
     } else {
       return null;
@@ -349,45 +378,31 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       return m(
         Section,
         {title: 'Following Flows'},
-        m(
-          Grid,
-          m(
-            GridHeader,
+        m(Grid, {
+          columns: [
+            {key: 'slice', header: m(GridHeaderCell, 'Slice')},
+            {key: 'delay', header: m(GridHeaderCell, 'Delay')},
+            {key: 'thread', header: m(GridHeaderCell, 'Thread')},
+          ],
+          rowData: outFlows.map((flow) => [
             m(
-              GridRow,
-              m(GridHeaderCell, 'Slice'),
-              m(GridHeaderCell, 'Delay'),
-              m(GridHeaderCell, 'Thread'),
+              GridCell,
+              m(SliceRef, {
+                trace: this.trace,
+                id: asSliceSqlId(flow.end.sliceId),
+                name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
+              }),
             ),
-          ),
-          m(
-            GridBody,
-            outFlows.map((flow) =>
-              m(
-                GridRow,
-                m(
-                  GridDataCell,
-                  m(SliceRef, {
-                    trace: this.trace,
-                    id: asSliceSqlId(flow.end.sliceId),
-                    name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  m(DurationWidget, {
-                    trace: this.trace,
-                    dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                  }),
-                ),
-                m(
-                  GridDataCell,
-                  this.getThreadNameForFlow(flow.end, !isPostTask),
-                ),
-              ),
+            m(
+              GridCell,
+              m(DurationWidget, {
+                trace: this.trace,
+                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+              }),
             ),
-          ),
-        ),
+            m(GridCell, this.getThreadNameForFlow(flow.end, !isPostTask)),
+          ]),
+        }),
       );
     } else {
       return null;

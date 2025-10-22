@@ -245,6 +245,12 @@ namespace perfetto::trace_processor::stats {
       "TrackEventRangeOfInterest packet, and track event dropping is "         \
       "enabled."),                                                             \
   F(track_event_tokenizer_errors,         kSingle,  kInfo,     kAnalysis, ""), \
+  F(track_hierarchy_missing_uuid,         kSingle,  kError,    kAnalysis,      \
+      "A track referenced a parent UUID which was not defined, breaking the "  \
+      "parent-child hierarchy of tracks. This is generally a bug in the trace "\
+      "producer which should be fixed. When this error is encountered, the "   \
+      "track and all of its associated events will be discarded, leading to "  \
+      "incomplete data."),                                                     \
   F(track_event_thread_invalid_end,       kSingle,  kError,    kTrace,         \
       "The end event for a thread track does not match a track event "         \
       "begin event. This can happen on mixed atrace/track_event traces "       \
@@ -572,7 +578,14 @@ namespace perfetto::trace_processor::stats {
   F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace,     \
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
-      "Linux kernel documentation for causes of this and potential fixes.")
+      "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace,   \
+      "One or more simpleperf samples were dropped because their callchain "   \
+      "entries referenced a file_id that has no corresponding File record in " \
+      "the simpleperf proto. This typically happens when the simpleperf data " \
+      "is incomplete or truncated, or due to a bug in simpleperf. Try "        \
+      "re-recording the profile and ensure the file is not truncated. If "     \
+      "this occurs consistently, please report it to the simpleperf team.")
 // clang-format on
 
 enum Type {

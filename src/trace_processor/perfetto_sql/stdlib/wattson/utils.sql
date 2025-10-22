@@ -47,3 +47,8 @@ RETURNS TableOrSubquery AS
     *
   FROM $tab
 );
+
+-- DSU dependency policy
+CREATE PERFETTO MACRO _dsu_dep()
+RETURNS Expr AS
+255;
