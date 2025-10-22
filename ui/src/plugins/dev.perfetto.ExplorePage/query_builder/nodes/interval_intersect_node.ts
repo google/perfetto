@@ -46,7 +46,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: IntervalIntersectNodeState;
-  meterialisedAs?: string;
 
   get finalCols(): ColumnInfo[] {
     return newColumnInfoList(this.prevNodes[0]?.finalCols ?? [], true);
@@ -161,9 +160,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
     return new IntervalIntersectNode(stateCopy);
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
-  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 

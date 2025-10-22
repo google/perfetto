@@ -15,14 +15,7 @@
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-} from '../../widgets/grid';
+import {Grid, GridColumn, GridHeaderCell, GridCell} from '../../widgets/grid';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
@@ -320,42 +313,35 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
 
   private getDelayTable(): m.Child {
     if (this.orderedJankSlices.length > 0) {
-      return m(
-        Grid,
+      const columns: GridColumn[] = [
+        {key: 'cause', header: m(GridHeaderCell, 'Cause')},
+        {key: 'duration', header: m(GridHeaderCell, 'Duration')},
+        {key: 'delayedVsyncs', header: m(GridHeaderCell, 'Delayed Vsyncs')},
+      ];
+
+      const rows = this.orderedJankSlices.map((jankSlice) => [
         m(
-          GridHeader,
-          m(
-            GridRow,
-            m(GridHeaderCell, 'Cause'),
-            m(GridHeaderCell, 'Duration'),
-            m(GridHeaderCell, 'Delayed Vsyncs'),
-          ),
+          GridCell,
+          renderSliceRef({
+            trace: this.trace,
+            id: jankSlice.id,
+            trackUri: JANKS_TRACK_URI,
+            title: jankSlice.cause,
+          }),
         ),
         m(
-          GridBody,
-          this.orderedJankSlices.map((jankSlice) =>
-            m(
-              GridRow,
-              m(
-                GridDataCell,
-                renderSliceRef({
-                  trace: this.trace,
-                  id: jankSlice.id,
-                  trackUri: JANKS_TRACK_URI,
-                  title: jankSlice.cause,
-                }),
-              ),
-              m(
-                GridDataCell,
-                jankSlice.dur !== undefined
-                  ? m(DurationWidget, {trace: this.trace, dur: jankSlice.dur})
-                  : 'NULL',
-              ),
-              m(GridDataCell, jankSlice.delayVsync),
-            ),
-          ),
+          GridCell,
+          jankSlice.dur !== undefined
+            ? m(DurationWidget, {trace: this.trace, dur: jankSlice.dur})
+            : 'NULL',
         ),
-      );
+        m(GridCell, {align: 'right'}, jankSlice.delayVsync ?? 'NULL'),
+      ]);
+
+      return m(Grid, {
+        columns,
+        rowData: rows,
+      });
     } else {
       return 'None';
     }

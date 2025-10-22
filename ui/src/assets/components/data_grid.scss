@@ -31,25 +31,24 @@
     overflow: auto;
   }
 
-  &__aggregation {
-    display: inline-flex;
-    gap: 0.3em;
-    color: var(--pf-color-text-muted);
-    font-weight: 300;
-  }
-
-  &__cell--number {
-    text-align: right;
-  }
-
-  &__cell--null {
-    text-align: center;
-    color: var(--pf-color-text-muted);
-    font-style: italic;
-  }
-
-  // Don't want the progress bar to squish!
+  // Don't want the progress bar to shrink when the grid is in a flex column.
   &__loading {
     flex: none;
+  }
+}
+
+.pf-aggr-cell {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 0.1em;
+
+  &__symbol {
+    margin-right: 0.3em;
+  }
+
+  &__content {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
