@@ -79,6 +79,7 @@ import {
 } from './widget_page_utils';
 import {renderGridDemo} from './grid_demo';
 import {renderDataGridDemo} from './data_grid_demo';
+import {NodeGraph} from '../../widgets/nodegraph';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -492,6 +493,206 @@ function TagInputDemo() {
           tags.splice(index, 1);
         },
       });
+    },
+  };
+}
+
+interface Connection {
+  fromNode: string;
+  fromPort: number;
+  toNode: string;
+  toPort: number;
+}
+
+interface Node {
+  id: string;
+  title: string;
+  x: number;
+  y: number;
+  inputs?: string[];
+  outputs?: string[];
+  content?: m.Children;
+  contextMenu?: m.Children;
+}
+
+function NodeGraphDemo() {
+  let joinType = 'INNER';
+  let joinColumn = 'id';
+  let filterCondition = 'dur > 1000';
+  const columnOptions = {
+    id: true,
+    name: true,
+    ts: true,
+    dur: false,
+    utid: false,
+  };
+
+  const nodes: Node[] = [
+    {
+      id: 'table_slice',
+      title: 'Table: slice',
+      x: 50,
+      y: 80,
+      outputs: ['Output'],
+      contextMenu: [
+        m(MenuItem, {
+          label: 'View Schema',
+          icon: 'info',
+          onclick: () => console.log('View schema for slice table'),
+        }),
+        m(MenuItem, {
+          label: 'Add Filter',
+          icon: 'filter_alt',
+          onclick: () => console.log('Add filter'),
+        }),
+      ],
+    },
+    {
+      id: 'table_thread',
+      title: 'Table: thread',
+      x: 50,
+      y: 220,
+      outputs: ['Output'],
+      contextMenu: [
+        m(MenuItem, {
+          label: 'View Schema',
+          icon: 'info',
+          onclick: () => console.log('View schema for thread table'),
+        }),
+        m(MenuItem, {
+          label: 'Add Filter',
+          icon: 'filter_alt',
+          onclick: () => console.log('Add filter'),
+        }),
+      ],
+    },
+    {
+      id: 'join',
+      title: 'JOIN',
+      x: 320,
+      y: 100,
+      inputs: ['Left', 'Right'],
+      outputs: ['Output'],
+      content: m('', [
+        m(
+          Select,
+          {
+            value: joinType,
+            onchange: (e: Event) => {
+              joinType = (e.target as HTMLSelectElement).value;
+            },
+          },
+          [
+            m('option', {value: 'INNER'}, 'INNER JOIN'),
+            m('option', {value: 'LEFT'}, 'LEFT JOIN'),
+            m('option', {value: 'RIGHT'}, 'RIGHT JOIN'),
+            m('option', {value: 'FULL'}, 'FULL JOIN'),
+          ],
+        ),
+        m(
+          '',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '12px',
+              color: 'var(--pf-color-text-muted)',
+            },
+          },
+          'ON:',
+        ),
+        m(
+          Select,
+          {
+            value: joinColumn,
+            onchange: (e: Event) => {
+              joinColumn = (e.target as HTMLSelectElement).value;
+            },
+          },
+          [
+            m('option', {value: 'id'}, 'id'),
+            m('option', {value: 'utid'}, 'utid'),
+            m('option', {value: 'name'}, 'name'),
+          ],
+        ),
+      ]),
+    },
+    {
+      id: 'filter',
+      title: 'WHERE',
+      x: 570,
+      y: 100,
+      inputs: ['Input'],
+      outputs: ['Output'],
+      content: m(TextInput, {
+        value: filterCondition,
+        placeholder: 'Enter condition...',
+        oninput: (e: Event) => {
+          filterCondition = (e.target as HTMLInputElement).value;
+        },
+      }),
+    },
+    {
+      id: 'select',
+      title: 'SELECT',
+      x: 820,
+      y: 100,
+      inputs: ['Input'],
+      outputs: ['Output'],
+      content: m(
+        '',
+        {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
+        Object.entries(columnOptions).map(([col, checked]) =>
+          m(Checkbox, {
+            label: col,
+            checked,
+            onchange: () => {
+              columnOptions[col as keyof typeof columnOptions] = !checked;
+            },
+          }),
+        ),
+      ),
+    },
+  ];
+
+  const connections: Connection[] = [
+    {fromNode: 'table_slice', fromPort: 0, toNode: 'join', toPort: 0},
+    {fromNode: 'table_thread', fromPort: 0, toNode: 'join', toPort: 1},
+    {fromNode: 'join', fromPort: 0, toNode: 'filter', toPort: 0},
+    {fromNode: 'filter', fromPort: 0, toNode: 'select', toPort: 0},
+  ];
+
+  return {
+    view: () => {
+      return m(
+        'div',
+        {
+          style: {
+            width: '600px',
+            height: '400px',
+            overflow: 'hidden',
+            border: '1px solid #444',
+          },
+        },
+        m(NodeGraph, {
+          nodes: nodes,
+          connections: connections,
+          onConnect: (conn: Connection) => {
+            console.log('New connection created:', conn);
+            connections.push(conn);
+          },
+          onNodeDrag: (nodeId: string, x: number, y: number) => {
+            const node = nodes.find((n) => n.id === nodeId);
+            if (node) {
+              node.x = x;
+              node.y = y;
+            }
+          },
+          onConnectionRemove: (index: number) => {
+            console.log('Connection removed at index:', index);
+            connections.splice(index, 1);
+          },
+        }),
+      );
     },
   };
 }
@@ -1646,6 +1847,13 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         initialOpts: {
           wide: false,
         },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'NodeGraph',
+        wide: true,
+        renderWidget: () => m(NodeGraphDemo),
+        initialOpts: {},
       }),
     );
   }
