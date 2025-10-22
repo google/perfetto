@@ -84,8 +84,6 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Dropped Frame");
   if (jank_type & FrameTimelineEvent::JANK_NON_ANIMATING)
     jank_reasons.emplace_back("Non Animating");
-  if (jank_type & FrameTimelineEvent::JANK_NO_APP_FRAMES)
-    jank_reasons.emplace_back("No App Frames");
   if (jank_type & FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     jank_reasons.emplace_back("Display not ON");
 
@@ -100,7 +98,6 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
 bool DisplayFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
-      jank_type == FrameTimelineEvent::JANK_NO_APP_FRAMES ||
       jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
@@ -234,8 +231,6 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("SurfaceFlinger Stuffing")),
       jank_tag_none_animating_id_(
           context->storage->InternString("Non Animating")),
-      jank_tag_no_app_frames_id_(
-          context->storage->InternString("No App Frames")),
       jank_tag_display_not_on_id_(
           context->storage->InternString("Display not ON")) {}
 
@@ -279,8 +274,6 @@ StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     jank_tag = jank_tag_dropped_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
     jank_tag = jank_tag_none_animating_id_;
-  } else if (jank_type == FrameTimelineEvent::JANK_NO_APP_FRAMES) {
-    jank_tag = jank_tag_no_app_frames_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
     jank_tag = jank_tag_display_not_on_id_;
   } else {

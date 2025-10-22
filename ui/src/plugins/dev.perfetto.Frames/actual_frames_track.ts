@@ -99,7 +99,6 @@ function getColorSchemeForJank(
       case 'No Jank': // should not happen
         return GREEN_200;
       case 'Non Animating': // should not happen
-      case 'No App Frames':
       case 'Display not ON':
         return WHITE_200;
       default:
@@ -119,7 +118,6 @@ function getColorSchemeForJank(
       case 'No Jank':
         return GREEN_500;
       case 'Non Animating':
-      case 'No App Frames':
       case 'Display not ON':
         return WHITE_200;
       default:
