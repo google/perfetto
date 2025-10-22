@@ -31,25 +31,24 @@ class PrunePerfEventsIntegrationTest
     : public testing::Test,
       protected TraceRedactionIntegrationFixure {
  protected:
-  base::StatusOr<std::unique_ptr<trace_processor::TraceProcessor>> LoadTrace(
-      std::string trace_path) const {
-    auto raw_trace = ReadRawTrace(trace_path);
-    if (!raw_trace.ok()) {
-      return raw_trace.status();
+  static std::unique_ptr<trace_processor::TraceProcessor> CreateTraceProcessor(
+      std::string_view raw) {
+    auto read_buffer = std::make_unique<uint8_t[]>(raw.size());
+    memcpy(read_buffer.get(), raw.data(), raw.size());
+
+    trace_processor::Config config;
+    auto trace_processor =
+        trace_processor::TraceProcessor::CreateInstance(config);
+
+    auto parsed = trace_processor->Parse(std::move(read_buffer), raw.size());
+
+    if (!parsed.ok()) {
+      return nullptr;
     }
-
-    std::unique_ptr<trace_processor::TraceProcessor> trace_processor =
-        trace_processor::TraceProcessor::CreateInstance(
-            trace_processor::Config());
-
-    auto read_buffer = std::make_unique<uint8_t[]>(raw_trace->size());
-    memcpy(read_buffer.get(), raw_trace->data(), raw_trace->size());
-
-    RETURN_IF_ERROR(
-        trace_processor->Parse(std::move(read_buffer), raw_trace->size()));
-    RETURN_IF_ERROR(trace_processor->NotifyEndOfFile());
-
-    return std::move(trace_processor);
+    if (auto status = trace_processor->NotifyEndOfFile(); !status.ok()) {
+      return nullptr;
+    }
+    return trace_processor;
   }
 
   void SetUp() override {
@@ -66,10 +65,13 @@ class PrunePerfEventsIntegrationTest
     }
     ASSERT_OK(status);
 
-    ASSERT_OK_AND_ASSIGN(trace_processor_redacted_,
-                         LoadTrace(GetRedactedTrace()));
-    ASSERT_OK_AND_ASSIGN(trace_processor_original_,
-                         LoadTrace(GetSourceTrace()));
+    auto raw_original = LoadOriginal();
+    ASSERT_OK(raw_original);
+    trace_processor_original_ = CreateTraceProcessor(raw_original.value());
+
+    auto raw_redacted = LoadRedacted();
+    ASSERT_OK(raw_redacted);
+    trace_processor_redacted_ = CreateTraceProcessor(raw_redacted.value());
   }
 
   std::unique_ptr<trace_processor::TraceProcessor> trace_processor_original_;
