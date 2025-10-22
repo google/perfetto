@@ -814,6 +814,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const timestamp = Time.fromRaw(timestamps[0]);
     ctx.moveTo(Math.max(0, calculateX(timestamp)), zeroY);
     let lastDrawnY = zeroY;
+    let lastX = 0;
     for (let i = 0; i < timestamps.length; i++) {
       const timestamp = Time.fromRaw(timestamps[i]);
       const x = Math.max(0, calculateX(timestamp));
@@ -831,12 +832,45 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         ctx.lineTo(x, lastY);
       }
       lastDrawnY = lastY;
+      lastX = x;
     }
-    ctx.lineTo(endPx, lastDrawnY);
-    ctx.lineTo(endPx, zeroY);
+
+    // Draw the main shape (without extension)
+    // We need to stroke before closing the path to avoid stroking the vertical
+    // line at lastX
+    ctx.lineTo(lastX, lastDrawnY);
+    ctx.stroke();
+
+    // Now close the fill without stroking
+    ctx.lineTo(lastX, zeroY);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
+
+    // Draw fade-out from last sample to edge
+    if (endPx > lastX) {
+      // Gradient fill for fade-out (no vertical line at lastX)
+      const gradient = ctx.createLinearGradient(lastX, 0, endPx, 0);
+      gradient.addColorStop(0, `hsla(${hue}, 45%, 50%, 0.6)`);
+      gradient.addColorStop(1, `hsla(${hue}, 45%, 50%, 0)`);
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastDrawnY);
+      ctx.lineTo(endPx, lastDrawnY);
+      ctx.lineTo(endPx, zeroY);
+      ctx.lineTo(lastX, zeroY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Dashed line
+      ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastDrawnY);
+      ctx.lineTo(endPx, lastDrawnY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     if (yMin < 0 && yMax > 0) {
       // Draw the Y=0 dashed line.
@@ -874,7 +908,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       ctx.moveTo(xStart, y);
       ctx.lineTo(xEnd, y);
       ctx.lineWidth = 3;
+      if (hover.tsEnd === undefined) {
+        ctx.setLineDash([4, 4]);
+      }
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.lineWidth = 1;
 
       // Draw change marker if it would be visible.

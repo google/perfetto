@@ -188,11 +188,12 @@ async function loadCounterDetails(
   });
   const value = row.value;
   const leftTs = Time.fromRaw(row.leftTs);
-  const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
   const prevValue = row.prevValue !== null ? row.prevValue : value;
 
   const delta = value - prevValue;
-  const duration = rightTs - leftTs;
+  // If there's no next event, duration is -1 (no more events)
+  const duration =
+    row.rightTs !== null ? Time.fromRaw(row.rightTs) - leftTs : -1n;
   const argSetId = row.argSetId;
   const args =
     argSetId == null ? undefined : await getArgs(engine, asArgSetId(argSetId));
