@@ -132,6 +132,33 @@ TEST_F(JsonParserTest, ParseStringWithEscapes) {
   EXPECT_EQ(std::get<std::string_view>(value), "hello \"world\"");
 }
 
+TEST_F(JsonParserTest, ParseStringEndingWithBackslash) {
+  constexpr std::string_view kJson = "\"value\\\\\"";
+  JsonValue value;
+  std::string str;
+  Parse(kJson, value, str);
+  ASSERT_TRUE(std::holds_alternative<std::string_view>(value));
+  EXPECT_EQ(std::get<std::string_view>(value), "value\\");
+}
+
+TEST_F(JsonParserTest, ParseStringWithEscapesInMiddle) {
+  constexpr std::string_view kJson = "\"hello\\nworld\"";
+  JsonValue value;
+  std::string str;
+  Parse(kJson, value, str);
+  ASSERT_TRUE(std::holds_alternative<std::string_view>(value));
+  EXPECT_EQ(std::get<std::string_view>(value), "hello\nworld");
+}
+
+TEST_F(JsonParserTest, ParseEmptyString) {
+  constexpr std::string_view kJson = "\"\"";
+  JsonValue value;
+  std::string str;
+  Parse(kJson, value, str);
+  ASSERT_TRUE(std::holds_alternative<std::string_view>(value));
+  EXPECT_EQ(std::get<std::string_view>(value), "");
+}
+
 TEST_F(JsonParserTest, ParseObject) {
   constexpr std::string_view kJson = "{\"key\": \"value\"}";
   JsonValue value;

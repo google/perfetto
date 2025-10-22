@@ -49,11 +49,9 @@ export class UnionNode implements MultiSourceNode {
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: UnionNodeState;
-  meterialisedAs?: string;
   customTitle?: string;
   comment?: string;
   filters?: FilterDefinition[];
-  isExecuted?: boolean;
 
   get finalCols(): ColumnInfo[] {
     return this.state.selectedColumns.filter((col) => col.checked);
@@ -220,9 +218,6 @@ export class UnionNode implements MultiSourceNode {
     return clone;
   }
 
-  isMaterialised(): boolean {
-    return this.isExecuted === true && this.meterialisedAs !== undefined;
-  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     return undefined;
   }

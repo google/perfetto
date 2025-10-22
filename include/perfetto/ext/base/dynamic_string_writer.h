@@ -93,6 +93,8 @@ class DynamicStringWriter {
     return StringView(buffer_.c_str(), buffer_.size());
   }
 
+  void Clear() { buffer_.clear(); }
+
  private:
   std::string buffer_;
 };

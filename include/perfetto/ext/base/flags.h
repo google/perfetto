@@ -45,7 +45,8 @@ namespace perfetto::base::flags {
         : NonAndroidPlatformDefault_FALSE)                             \
   X(use_rt_mutex, NonAndroidPlatformDefault_FALSE)                     \
   X(use_rt_futex, NonAndroidPlatformDefault_FALSE)                     \
-  X(buffer_clone_preserve_read_iter, NonAndroidPlatformDefault_TRUE)
+  X(buffer_clone_preserve_read_iter, NonAndroidPlatformDefault_TRUE)   \
+  X(sma_prevent_duplicate_immediate_flushes, NonAndroidPlatformDefault_TRUE)
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //

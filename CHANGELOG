@@ -4,6 +4,9 @@ Unreleased:
       by default (set it explicitly to false to revert to previous encoding,
       which is now deprecated). This reduces trace size when recording events
       that aren't know by perfetto at compile time.
+    * SharedMemoryArbiter: Reduced CPU usage when tracing high-throughput
+      workloads by preventing duplicate immediate flush tasks when the shared
+      memory buffer is more than half full.
   SQL Standard library:
     *
   Trace Processor:
@@ -24,7 +27,8 @@ Unreleased:
       from JSON traces. Processes and threads with lower sort index values
       will appear first in the UI.
   SDK:
-    *
+    * Reduced CPU usage when tracing high-throughput workloads by preventing
+      duplicate immediate flush tasks in the shared memory arbiter.
 
 v52.0 - 2025-09-16:
   Tracing service and probes:

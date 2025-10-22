@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -385,9 +386,20 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
     // trace.
     if (fully_bound_ &&
         (last_patch_req || bytes_pending_commit_ >= shmem_abi_.size() / 2)) {
-      weak_this = weak_ptr_factory_.GetWeakPtr();
-      task_runner_to_post_delayed_callback_on = task_runner_;
-      flush_delay_ms = 0;
+      bool should_post_immediate_flush = true;
+      if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+        // Only post an immediate flush task if we haven't already posted one.
+        // This prevents spamming the task runner with immediate flushes when
+        // the buffer remains over 50% full while chunks continue to be
+        // committed. See b/330580374.
+        should_post_immediate_flush = !immediate_flush_scheduled_;
+      }
+      if (should_post_immediate_flush) {
+        weak_this = weak_ptr_factory_.GetWeakPtr();
+        task_runner_to_post_delayed_callback_on = task_runner_;
+        flush_delay_ms = 0;
+        immediate_flush_scheduled_ = true;
+      }
     }
 
     // When using shmem emulation we commit the completed chunks immediately
@@ -401,15 +413,30 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
         // Allow next call to UpdateCommitDataRequest to start
         // another batching period.
         delayed_flush_scheduled_ = false;
+        // We're flushing synchronously, so any scheduled immediate flush is
+        // no longer needed.
+        immediate_flush_scheduled_ = false;
         // We can't flush while holding the lock
         scoped_lock.unlock();
         FlushPendingCommitDataRequests();
       } else {
+        bool should_post_immediate_flush = true;
+        if (base::flags::sma_prevent_duplicate_immediate_flushes) {
+          // Only post an immediate flush task if we haven't already posted one.
+          // This prevents spamming the task runner with immediate flushes when
+          // the buffer remains over 50% full while chunks continue to be
+          // committed. See b/330580374.
+          should_post_immediate_flush = !immediate_flush_scheduled_;
+        }
+
         // Since we aren't on the |task_runner_| thread post a task instead,
         // in order to prevent non-overlaping commit data request flushes.
-        weak_this = weak_ptr_factory_.GetWeakPtr();
-        task_runner_to_post_delayed_callback_on = task_runner_;
-        flush_delay_ms = 0;
+        if (should_post_immediate_flush) {
+          weak_this = weak_ptr_factory_.GetWeakPtr();
+          task_runner_to_post_delayed_callback_on = task_runner_;
+          flush_delay_ms = 0;
+          immediate_flush_scheduled_ = true;
+        }
       }
     }
   }  // scoped_lock(lock_)
@@ -424,9 +451,11 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
             return;
           {
             std::lock_guard<base::MaybeRtMutex> scoped_lock(weak_this->lock_);
-            // Clear |delayed_flush_scheduled_|, allowing the next call to
+            // Clear |delayed_flush_scheduled_| and
+            // |immediate_flush_scheduled_|, allowing the next call to
             // UpdateCommitDataRequest to start another batching period.
             weak_this->delayed_flush_scheduled_ = false;
+            weak_this->immediate_flush_scheduled_ = false;
           }
           weak_this->FlushPendingCommitDataRequests();
         },

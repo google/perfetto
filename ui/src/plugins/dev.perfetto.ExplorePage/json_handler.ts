@@ -39,7 +39,6 @@ import {
   IntervalIntersectNodeState,
   IntervalIntersectSerializedState,
 } from './query_builder/nodes/interval_intersect_node';
-import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {
@@ -51,6 +50,7 @@ import {
   LimitAndOffsetNodeState,
 } from './query_builder/nodes/dev/limit_and_offset_node';
 import {SortNode, SortNodeState} from './query_builder/nodes/dev/sort_node';
+import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -77,7 +77,7 @@ export interface SerializedGraph {
   nodes: SerializedNode[];
   rootNodeIds: string[];
   selectedNodeId?: string;
-  nodeLayouts: {[key: string]: NodeBoxLayout};
+  nodeLayouts: {[key: string]: NodeContainerLayout};
 }
 
 function serializeNode(node: QueryNode): SerializedNode {

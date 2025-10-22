@@ -195,7 +195,8 @@ inline ReturnCode ScanString(const char* start,
   }
   // Start searching for the closing quote from the character after the opening
   // quote.
-  for (const char* str_start = ++cur;;) {
+  const char* str_start = ++cur;
+  for (;;) {
     // Find the next double quote.
     cur = static_cast<const char*>(
         memchr(cur, '"', static_cast<size_t>(end - cur)));
@@ -203,17 +204,33 @@ inline ReturnCode ScanString(const char* start,
     if (PERFETTO_UNLIKELY(!cur)) {
       return ReturnCode::kIncompleteInput;
     }
-    // If the character before the quote is not a backslash, it's the end of the
-    // string.
+    // Fast path: if the character before the quote is not a backslash, we
+    // found the closing quote.
     if (PERFETTO_LIKELY(cur[-1] != '\\')) {
-      str = std::string_view(str_start, static_cast<size_t>(cur - str_start));
-      out = cur + 1;
-      return ReturnCode::kOk;
+      break;
     }
-    // If it's an escaped quote, skip it and continue searching.
+    // Slow path: count consecutive backslashes before the quote. If the count
+    // is even, the quote is not escaped and closes the string. If odd, the
+    // quote is escaped and we continue searching.
+    size_t backslash_count = 1;  // We already know cur[-1] == '\\'
+    const char* p = cur - 2;
+    while (p >= str_start && *p == '\\') {
+      ++backslash_count;
+      --p;
+    }
+    // If the backslash count is even, the quote closes the string.
+    if ((backslash_count & 1) == 0) {
+      break;
+    }
+    // The quote is escaped, continue searching.
     ++cur;
-    has_escapes = true;
   }
+  // Check if there are any backslashes in the string (indicating escapes).
+  has_escapes =
+      memchr(str_start, '\\', static_cast<size_t>(cur - str_start)) != nullptr;
+  str = std::string_view(str_start, static_cast<size_t>(cur - str_start));
+  out = cur + 1;
+  return ReturnCode::kOk;
 }
 
 // Parses a JSON string, handling escape sequences if necessary.

@@ -15,16 +15,22 @@
 import {classNames} from '../../../../base/classnames';
 import m from 'mithril';
 import {QueryNode} from '../../query_node';
-import {NodeBoxLayout} from './node_box';
+
+export interface NodeContainerLayout {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}
 
 export interface NodeContainerAttrs {
   node: QueryNode;
-  layout: NodeBoxLayout;
+  layout: NodeContainerLayout;
   isSelected: boolean;
   onNodeDragStart: (
     node: QueryNode,
     event: DragEvent,
-    layout: NodeBoxLayout,
+    layout: NodeContainerLayout,
   ) => void;
   onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }

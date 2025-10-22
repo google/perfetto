@@ -977,10 +977,6 @@ export class ModifyColumnsNode implements ModificationNode {
     return prevSq;
   }
 
-  isMaterialised(): boolean {
-    return false;
-  }
-
   serializeState(): ModifyColumnsSerializedState {
     if (this.prevNode === undefined) {
       throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');

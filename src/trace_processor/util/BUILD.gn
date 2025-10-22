@@ -238,6 +238,7 @@ source_set("args_utils") {
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
+    "../containers",
     "../storage",
     "../types",
   ]

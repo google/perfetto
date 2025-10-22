@@ -98,6 +98,25 @@ export class Form implements m.ClassComponent<FormAttrs> {
       ),
     );
   }
+
+  oncreate(vnode: m.VnodeDOM<FormAttrs, this>) {
+    this.maybeDisableSubmitButton(vnode.dom);
+  }
+
+  onupdate(vnode: m.VnodeDOM<FormAttrs, this>) {
+    this.maybeDisableSubmitButton(vnode.dom);
+  }
+
+  private maybeDisableSubmitButton(dom: Element) {
+    // Work out if the form is valid and enable/disable the submit button.
+    const formElement = dom as HTMLFormElement;
+    const submitButton = formElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement | null;
+    if (submitButton) {
+      submitButton.disabled = !formElement.checkValidity();
+    }
+  }
 }
 
 // A simple wrapper around a <label> element. Designed to be used within Form

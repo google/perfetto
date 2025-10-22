@@ -41,6 +41,15 @@
     &--enabled {
       color: unset;
     }
+
+    &--focused {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-highlight) 70%,
+        transparent
+      );
+      animation: highlight-flash 1s ease-out;
+    }
   }
 
   &__details {
@@ -58,5 +67,29 @@
     flex-direction: row;
     column-gap: 12px;
     align-items: center;
+  }
+
+  &__link-button {
+    visibility: hidden;
+  }
+}
+
+.pf-card:hover .pf-plugins-page__link-button {
+  visibility: visible;
+}
+
+@keyframes highlight-flash {
+  0% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: var(--pf-color-highlight);
+  }
+  100% {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-highlight) 70%,
+      transparent
+    );
   }
 }

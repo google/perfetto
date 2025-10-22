@@ -32,7 +32,7 @@ export default class implements PerfettoPlugin {
 
     app.pages.registerPage({
       route: '/settings',
-      render: () => m(SettingsPage),
+      render: (subpage) => m(SettingsPage, {subpage}),
     });
 
     app.commands.registerCommand({

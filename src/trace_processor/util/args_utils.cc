@@ -17,12 +17,23 @@
 #include "src/trace_processor/util/args_utils.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
@@ -43,6 +54,7 @@ ArgNode ArgNode::Dict() {
   ArgNode node(Variadic::Null());
   node.type_ = Type::kDict;
   node.dict_ = std::make_unique<std::vector<std::pair<std::string, ArgNode>>>();
+  node.dict_index_ = std::make_unique<base::FlatHashMap<std::string, size_t>>();
   node.primitive_value_ = Variadic::Null();
   return node;
 }
@@ -74,17 +86,47 @@ ArgNode& ArgNode::AppendOrGet(size_t index) {
 
 ArgNode& ArgNode::AddOrGet(const std::string_view key) {
   PERFETTO_CHECK(type_ == Type::kDict);
-  auto it =
-      std::find_if(dict_->begin(), dict_->end(),
-                   [&key](const auto& pair) { return pair.first == key; });
-  if (it != dict_->end()) {
-    return it->second;
+  PERFETTO_CHECK(dict_index_);
+
+  // Fast O(1) lookup in hash map
+  std::string key_str(key);  // Need std::string for hash map
+  if (size_t* idx = dict_index_->Find(key_str)) {
+    return (*dict_)[*idx].second;
   }
-  dict_->emplace_back(key, ArgNode(Variadic::Null()));
+
+  // Not found - add new entry
+  size_t new_idx = dict_->size();
+  dict_->emplace_back(std::move(key_str), ArgNode(Variadic::Null()));
+  dict_index_->Insert(dict_->back().first, new_idx);
   return dict_->back().second;
 }
 
+void ArgNode::Clear() {
+  switch (type_) {
+    case Type::kPrimitive:
+      primitive_value_ = Variadic::Null();
+      break;
+    case Type::kArray:
+      if (array_) {
+        array_->clear();  // Clear but retain capacity
+      }
+      break;
+    case Type::kDict:
+      if (dict_) {
+        dict_->clear();  // Clear but retain capacity
+      }
+      if (dict_index_) {
+        dict_index_->Clear();  // Clear but retain capacity
+      }
+      break;
+  }
+}
+
 ArgSet::ArgSet() : root_(ArgNode::Dict()) {}
+
+void ArgSet::Clear() {
+  root_.Clear();
+}
 
 base::Status ArgSet::AppendArg(NullTermStringView key, Variadic value) {
   // Parse the key path (e.g., "foo.bar[0].baz")
@@ -109,11 +151,12 @@ base::Status ArgSet::AppendArg(NullTermStringView key, Variadic value) {
       target = &target->AddOrGet(part.substr(0, bracket_pos));
       while (bracket_pos != std::string::npos) {
         // We constructed this string from an int earlier in trace_processor
-        // so it shouldn't be possible for this (or the StringToUInt32
+        // so it shouldn't be possible for this (or the StringViewToUInt32
         // below) to fail.
         std::string_view s = part.substr(
             bracket_pos + 1, part.find(']', bracket_pos) - bracket_pos - 1);
-        std::optional<uint32_t> index = base::StringToUInt32(std::string(s));
+        std::optional<uint32_t> index =
+            base::StringViewToUInt32(base::StringView(s));
         if (PERFETTO_UNLIKELY(!index)) {
           return base::ErrStatus(
               "Expected to be able to extract index from %s of key %s",

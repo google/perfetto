@@ -23,6 +23,8 @@ import {
   QueryNodeState,
   NodeType,
   createFinalColumns,
+  SourceNode,
+  nextNodeId,
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
@@ -34,7 +36,6 @@ import {FilterDefinition} from '../../../../../components/widgets/data_grid/comm
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
-import {SourceNode} from '../../source_node';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
@@ -95,16 +96,16 @@ export function modalForTableSelection(
   });
 }
 
-export class TableSourceNode extends SourceNode {
+export class TableSourceNode implements SourceNode {
+  readonly nodeId: string;
   readonly state: TableSourceState;
   readonly prevNodes: QueryNode[] = [];
   showColumns: boolean = false;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
-  meterialisedAs?: string;
 
   constructor(attrs: TableSourceState) {
-    super(attrs);
+    this.nodeId = nextNodeId();
     this.state = attrs;
     this.state.onchange = attrs.onchange;
     this.finalCols = createFinalColumns(
@@ -193,9 +194,6 @@ export class TableSourceNode extends SourceNode {
     return this.state.customTitle ?? `${this.state.sqlTable?.name}`;
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
-  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
