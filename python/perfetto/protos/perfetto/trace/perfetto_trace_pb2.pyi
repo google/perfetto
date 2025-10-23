@@ -7590,6 +7590,7 @@ class FrameTimelineEvent(_message.Message):
     JANK_APP_RESYNCED_JITTER: FrameTimelineEvent.JankType
     JANK_BUFFER_STUFFING: FrameTimelineEvent.JankType
     JANK_DISPLAY_HAL: FrameTimelineEvent.JankType
+    JANK_DISPLAY_NOT_ON: FrameTimelineEvent.JankType
     JANK_DROPPED: FrameTimelineEvent.JankType
     JANK_NONE: FrameTimelineEvent.JankType
     JANK_NON_ANIMATING: FrameTimelineEvent.JankType
