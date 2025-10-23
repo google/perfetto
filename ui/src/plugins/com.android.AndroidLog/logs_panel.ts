@@ -228,8 +228,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         m(GridCell, {className, align: 'right'}, String(pids[i])),
         m(GridCell, {className, align: 'right'}, String(tids[i])),
         m(GridCell, {className}, priorityLetter || '?'),
-        m(GridCell, {className}, tags[i]),
         hasProcessNames && m(GridCell, {className}, processNames[i]),
+        m(GridCell, {className}, tags[i]),
         m(GridCell, {className}, messages[i]),
       ].filter(Boolean);
 
