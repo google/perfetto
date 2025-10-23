@@ -291,9 +291,7 @@ describe('InMemoryDataSource', () => {
 
   describe('combined filtering and sorting', () => {
     test('filter then sort', () => {
-      const filters: DataGridFilter[] = [
-        {column: 'active', op: '=', value: 1},
-      ];
+      const filters: DataGridFilter[] = [{column: 'active', op: '=', value: 1}];
       const sorting: Sorting = {column: 'value', direction: 'DESC'};
       dataSource.notifyUpdate({sorting, filters});
       const result = dataSource.rows;
@@ -306,9 +304,7 @@ describe('InMemoryDataSource', () => {
 
   describe('caching behavior', () => {
     test('data is not reprocessed if sorting and filters are identical', () => {
-      const filters: DataGridFilter[] = [
-        {column: 'tag', op: '=', value: 'A'},
-      ];
+      const filters: DataGridFilter[] = [{column: 'tag', op: '=', value: 'A'}];
       const sorting: Sorting = {column: 'name', direction: 'ASC'};
 
       dataSource.notifyUpdate({sorting, filters});
@@ -323,9 +319,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('data is reprocessed if sorting changes', () => {
-      const filters: DataGridFilter[] = [
-        {column: 'tag', op: '=', value: 'A'},
-      ];
+      const filters: DataGridFilter[] = [{column: 'tag', op: '=', value: 'A'}];
       const sorting1: Sorting = {column: 'name', direction: 'ASC'};
       const sorting2: Sorting = {column: 'name', direction: 'DESC'};
 
@@ -340,12 +334,8 @@ describe('InMemoryDataSource', () => {
     });
 
     test('data is reprocessed if filters change', () => {
-      const filters1: DataGridFilter[] = [
-        {column: 'tag', op: '=', value: 'A'},
-      ];
-      const filters2: DataGridFilter[] = [
-        {column: 'tag', op: '=', value: 'B'},
-      ];
+      const filters1: DataGridFilter[] = [{column: 'tag', op: '=', value: 'A'}];
+      const filters2: DataGridFilter[] = [{column: 'tag', op: '=', value: 'B'}];
       const sorting: Sorting = {column: 'name', direction: 'ASC'};
 
       dataSource.notifyUpdate({sorting, filters: filters1});
