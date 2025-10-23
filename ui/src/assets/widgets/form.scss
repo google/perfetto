@@ -26,11 +26,15 @@
     justify-content: right;
     flex-direction: row-reverse;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
   }
 
   .pf-form-label {
     font-weight: bolder;
+  }
+
+  select:invalid {
+    outline: 2px auto var(--pf-color-danger);
   }
 }
 

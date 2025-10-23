@@ -157,10 +157,6 @@ export class SortNode implements ModificationNode {
     return this.state;
   }
 
-  isMaterialised(): boolean {
-    return false;
-  }
-
   static deserializeState(state: SortNodeState): SortNodeState {
     return {
       ...state,
