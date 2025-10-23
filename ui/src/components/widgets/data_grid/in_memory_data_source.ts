@@ -161,25 +161,8 @@ export class InMemoryDataSource implements DataGridDataSource {
     // Compare each filter
     return filtersA.every((filterA, index) => {
       const filterB = filtersB[index];
-      return (
-        filterA.column === filterB.column &&
-        filterA.op === filterB.op &&
-        (!('value' in filterA) ||
-          !('value' in filterB) ||
-          this.isValueEqual(filterA.value, filterB.value))
-      );
+      return JSON.stringify(filterA) === JSON.stringify(filterB);
     });
-  }
-
-  private isValueEqual(valueA: SqlValue, valueB: SqlValue): boolean {
-    if (valueA === valueB) return true;
-
-    if (valueA instanceof Uint8Array && valueB instanceof Uint8Array) {
-      if (valueA.length !== valueB.length) return false;
-      return valueA.every((byte, i) => byte === valueB[i]);
-    }
-
-    return false;
   }
 
   private applyFilters(
@@ -223,6 +206,10 @@ export class InMemoryDataSource implements DataGridDataSource {
               return regex.test(value);
             }
             return false;
+          case 'in':
+            return filter.value.findIndex((v) => valuesEqual(v, value)) !== -1;
+          case 'not in':
+            return filter.value.findIndex((v) => valuesEqual(v, value)) === -1;
           default:
             return false;
         }
