@@ -253,7 +253,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     return m(PopupMultiSelect, {
       label: 'Filter',
       icon: 'filter_list_alt',
-      popupPosition: PopupPosition.Top,
+      position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<string>(excludeList);
