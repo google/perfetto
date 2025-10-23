@@ -352,7 +352,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
 
     return m(
       Section,
-      {title: this.isJankStage ? `Jank Cause: ${name}` : name},
+      {title: this.isJankStage ? `Jank Cause: ${name}` : name ?? '[null]'},
       childWidgets,
     );
   }
@@ -417,7 +417,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       rows: [this.eventLatencyBreakdown],
       getChildren: (slice) => slice.children,
       columns: [
-        {name: 'Name', getData: (slice) => slice.name},
+        {name: 'Name', getData: (slice) => slice.name ?? '[null]'},
         {name: 'Duration', getData: (slice) => Duration.humanise(slice.dur)},
         {
           name: 'vs prev',
