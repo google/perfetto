@@ -228,7 +228,7 @@ export class SelectionManagerImpl implements SelectionManager {
 
   async resolveSqlEvents(
     sqlTableName: string,
-    ids: number[],
+    ids: ReadonlyArray<number>,
   ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>> {
     // This function:
     // 1. Find the list of tracks whose rootTableName is the same as the one we

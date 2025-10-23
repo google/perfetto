@@ -103,7 +103,7 @@ export interface SelectionManager {
    */
   resolveSqlEvents(
     sqlTableName: string,
-    ids: number[],
+    ids: ReadonlyArray<number>,
   ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>>;
 
   /**
