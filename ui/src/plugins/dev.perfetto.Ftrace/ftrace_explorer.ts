@@ -150,7 +150,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       {
         title: this.renderTitle(),
         buttons: this.renderFilterPanel(attrs),
-        fillParent: true,
+        fillHeight: true,
       },
       m(Grid, {
         className: 'pf-ftrace-explorer',
