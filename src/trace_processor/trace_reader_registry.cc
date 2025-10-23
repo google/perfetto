@@ -50,6 +50,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kFuchsiaTraceType:
     case kProtoTraceType:
     case kSymbolsTraceType:
+    case kDeobfuscationTraceType:
     case kAndroidLogcatTraceType:
     case kAndroidDumpstateTraceType:
     case kGeckoTraceType:

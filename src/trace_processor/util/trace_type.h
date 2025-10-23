@@ -35,6 +35,7 @@ enum TraceType {
   kPprofTraceType,
   kProtoTraceType,
   kSymbolsTraceType,
+  kDeobfuscationTraceType,
   kSystraceTraceType,
   kUnknownTraceType,
   kZipFile,

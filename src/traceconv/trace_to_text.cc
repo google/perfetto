@@ -201,7 +201,8 @@ bool TraceToText(std::istream* input, std::ostream* output) {
     } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
     return input_reader.ok();
   } else if (type == TraceType::kProtoTraceType ||
-             type == trace_processor::kSymbolsTraceType) {
+             type == trace_processor::kSymbolsTraceType ||
+             type == trace_processor::kDeobfuscationTraceType) {
     do {
       online_trace_to_text.Feed(buffer.get(), buffer_len);
       if (!online_trace_to_text.ok())

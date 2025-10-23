@@ -18,10 +18,16 @@
 
 #include <tuple>
 
+#include "src/trace_processor/util/trace_type.h"
+
 namespace perfetto::trace_processor {
 
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
   auto trace_priority = [](TraceType type) -> int {
+    if (type == kDeobfuscationTraceType)
+      // Traces with deobfuscation mappings should be the very last to be read,
+      // after symbols traces.
+      return 4;
     if (type == kSymbolsTraceType)
       // Traces with symbols should be the last ones to be read.
       // TODO(carlscab): Proto traces with just ModuleSymbols packets should be

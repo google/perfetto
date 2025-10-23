@@ -77,6 +77,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
 
     case kProtoTraceType:
     case kSymbolsTraceType:
+    case kDeobfuscationTraceType:
       return ConvertSortingMode(context.config.sorting_mode);
 
     case kAndroidBugreportTraceType:

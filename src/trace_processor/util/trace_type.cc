@@ -55,6 +55,9 @@ constexpr uint8_t kTracePacketTag =
 constexpr uint16_t kModuleSymbolsTag =
     protozero::proto_utils::MakeTagLengthDelimited(
         protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
+constexpr uint16_t kDeobfuscationMappingTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kDeobfuscationMappingFieldNumber);
 
 inline bool isspace(unsigned char c) {
   return ::isspace(c);
@@ -77,7 +80,11 @@ bool MatchesMagic(const uint8_t* data,
   return memcmp(data + offset, magic, N) == 0;
 }
 
-bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
+// Helper function to check if a proto trace contains a specific packet field.
+// Checks if the first TracePacket in the trace contains the given field tag.
+bool IsProtoTraceWithPacketField(const uint8_t* ptr,
+                                 size_t size,
+                                 uint16_t field_tag) {
   const uint8_t* const end = ptr + size;
 
   uint64_t tag;
@@ -104,7 +111,15 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
     return false;
   }
 
-  return tag == kModuleSymbolsTag;
+  return tag == field_tag;
+}
+
+bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
+  return IsProtoTraceWithPacketField(ptr, size, kModuleSymbolsTag);
+}
+
+bool IsProtoTraceWithDeobfuscation(const uint8_t* ptr, size_t size) {
+  return IsProtoTraceWithPacketField(ptr, size, kDeobfuscationMappingTag);
 }
 
 bool IsPprofProfile(const uint8_t* data, size_t size) {
@@ -182,6 +197,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "proto";
     case kSymbolsTraceType:
       return "symbols";
+    case kDeobfuscationTraceType:
+      return "deobfuscation";
     case kNinjaLogTraceType:
       return "ninja_log";
     case kFuchsiaTraceType:
@@ -327,6 +344,11 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   // Systrace with no header or leading HTML.
   if (base::StartsWith(start, " "))
     return kSystraceTraceType;
+
+  // Check for deobfuscation traces before symbols, as deobfuscation traces
+  // should be sorted last (after symbols).
+  if (IsProtoTraceWithDeobfuscation(data, size))
+    return kDeobfuscationTraceType;
 
   if (IsProtoTraceWithSymbols(data, size))
     return kSymbolsTraceType;
