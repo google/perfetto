@@ -102,7 +102,8 @@ export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
  * (uncontrolled mode).
  */
 
-type OnFiltersChanged = (filters: ReadonlyArray<DataGridFilter>) => void;
+type OnFilterAdd = (filter: DataGridFilter) => void;
+type OnFilterRemove = (index: number) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
 type ColumnOrder = ReadonlyArray<string>;
 type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
@@ -156,7 +157,7 @@ export interface DataGridAttrs {
    * the parent component becomes responsible for updating the sorting prop.
    * @param sorting The new sort configuration
    */
-  readonly onSortingChanged?: OnSortingChanged;
+  readonly onSort?: OnSortingChanged;
 
   /**
    * Array of filters to apply to the data - can operate in controlled or
@@ -178,28 +179,12 @@ export interface DataGridAttrs {
   readonly initialFilters?: ReadonlyArray<DataGridFilter>;
 
   /**
-   * Callback triggered when filters are added or removed.
-   * Allows parent components to react to filtering changes.
-   * Required for controlled mode filtering - when provided with filters,
-   * the parent component becomes responsible for updating the filters prop.
-   * @param filters The new array of filter definitions
+   * These callbacks are triggered when filters are added or removed by the
+   * user. They are only called in controlled mode, e.g. only if filters is
+   * provided.
    */
-  readonly onFiltersChanged?: OnFiltersChanged;
-
-  /**
-   * This callback is triggered when the user requests a filter to be added
-   * from the UI - for example, by clicking 'Filter out nulls' in a column
-   * header menu, or 'Filter equal to this' in a cell menu.
-   *
-   * This is provided as a convenience to allow the host application to manage
-   * their own filter state outside of the DataGrid if they wish.
-   *
-   * If this is not provided, the grid will still add the filter to the list of
-   * active filters and trigger onFiltersChanged as normal.
-   *
-   * @param filter - The filter to be added.
-   */
-  readonly onFilterAdd?: (filter: DataGridFilter) => void;
+  readonly onFilterAdd?: OnFilterAdd;
+  readonly onFilterRemove?: OnFilterRemove;
 
   /**
    * Order of columns to display - can operate in controlled or uncontrolled
@@ -318,12 +303,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columns,
       data,
       sorting = this.sorting,
-      onSortingChanged = sorting === this.sorting
-        ? (x) => (this.sorting = x)
-        : noOp,
+      onSort = sorting === this.sorting ? (x) => (this.sorting = x) : noOp,
       filters = this.filters,
-      onFiltersChanged,
-      onFilterAdd: onFilterAdded,
+      onFilterAdd = filters === this.filters
+        ? (filter) => {
+            this.filters = [...this.filters, filter];
+          }
+        : noOp,
+      onFilterRemove = filters === this.filters
+        ? (index) => {
+            const newFilters = this.filters.filter((_, i) => i !== index);
+            this.filters = newFilters;
+          }
+        : noOp,
       columnOrder = this.columnOrder,
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
@@ -337,35 +329,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsRight,
       className,
     } = attrs;
-
-    const filtersUncontrolled = filters === this.filters;
-
-    // Enable filter controls if one of the following is true:
-    // - Filter state is not controlled
-    // - onFiltersChanged is provided
-    // - onFilterAdded is provided
-    const enableFilterControls = Boolean(
-      filtersUncontrolled || onFiltersChanged || onFilterAdded,
-    );
-
-    const changeFilters = (x: ReadonlyArray<DataGridFilter>) => {
-      if (filtersUncontrolled) {
-        this.filters = x;
-      }
-      onFiltersChanged?.(x);
-    };
-
-    const addFilter = (filter: DataGridFilter) => {
-      onFilterAdded?.(filter);
-      changeFilters([...filters, filter]);
-    };
-
-    const onSortingChangedWithReset =
-      onSortingChanged === noOp
-        ? noOp
-        : (sorting: Sorting) => {
-            onSortingChanged(sorting);
-          };
 
     // In uncontrolled mode, sync columnOrder with truly new columns
     // (not hidden columns)
@@ -409,8 +372,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
 
-    const sortControls = onSortingChangedWithReset !== noOp;
-    const filterControls = enableFilterControls;
+    const sortControls = onSort !== noOp;
+    const filtersUncontrolled = filters === this.filters;
+    const filterControls = Boolean(
+      filtersUncontrolled || onFilterAdd !== noOp || onFilterRemove !== noOp,
+    );
 
     // Build VirtualGrid columns with all DataGrid features
     const virtualGridColumns = orderedColumns.map((column) => {
@@ -429,12 +395,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         menuItems.push(
           ...renderSortMenuItems(sort, (direction) => {
             if (direction) {
-              onSortingChangedWithReset({
+              onSort({
                 column: column.name,
                 direction: direction,
               });
             } else {
-              onSortingChangedWithReset({
+              onSort({
                 direction: 'UNSORTED',
               });
             }
@@ -450,13 +416,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           m(MenuItem, {
             label: 'Filter out nulls',
             onclick: () => {
-              addFilter({column: column.name, op: 'is not null'});
+              onFilterAdd({column: column.name, op: 'is not null'});
             },
           }),
           m(MenuItem, {
             label: 'Only show nulls',
             onclick: () => {
-              addFilter({column: column.name, op: 'is null'});
+              onFilterAdd({column: column.name, op: 'is null'});
             },
           }),
         );
@@ -568,7 +534,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             sort,
             onSort: sortControls
               ? (direction) => {
-                  onSortingChangedWithReset({
+                  onSort({
                     column: column.name,
                     direction,
                   });
@@ -620,7 +586,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter equal to this',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: '=',
                         value: value,
@@ -630,7 +596,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter not equal to this',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: '!=',
                         value: value,
@@ -645,7 +611,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter greater than this',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: '>',
                         value: value,
@@ -655,7 +621,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter greater than or equal to this',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: '>=',
                         value: value,
@@ -665,7 +631,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter less than this',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: '<',
                         value: value,
@@ -675,7 +641,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter less than or equal to this',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: '<=',
                         value: value,
@@ -690,7 +656,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Filter out nulls',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: 'is not null',
                       });
@@ -699,7 +665,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   m(MenuItem, {
                     label: 'Only show nulls',
                     onclick: () => {
-                      addFilter({
+                      onFilterAdd({
                         column: column.name,
                         op: 'is null',
                       });
@@ -754,8 +720,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.renderTableToolbar(
         filters,
         sorting,
-        onSortingChangedWithReset,
-        changeFilters,
+        onSort,
+        onFilterRemove,
         showFiltersInToolbar,
         showResetButton,
         toolbarItemsLeft,
@@ -801,8 +767,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private renderTableToolbar(
     filters: ReadonlyArray<DataGridFilter>,
     sorting: Sorting,
-    onSortingChanged: OnSortingChanged,
-    onFiltersChanged: OnFiltersChanged,
+    onSort: OnSortingChanged,
+    onFilterRemove: OnFilterRemove,
     showFilters: boolean,
     showResetButton: boolean,
     toolbarItemsLeft: m.Children,
@@ -826,8 +792,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
             title: 'Reset grid state',
             onclick: () => {
-              onSortingChanged({direction: 'UNSORTED'});
-              onFiltersChanged([]);
+              onSort({direction: 'UNSORTED'});
             },
           }),
         m(StackAuto, [
@@ -837,9 +802,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 return m(GridFilterChip, {
                   content: this.formatFilter(filter),
                   onRemove: () => {
-                    const newFilters = filters.filter((f) => f !== filter);
-                    this.filters = newFilters;
-                    onFiltersChanged(newFilters);
+                    const filterIndex = filters.indexOf(filter);
+                    onFilterRemove(filterIndex);
                   },
                 });
               }),
