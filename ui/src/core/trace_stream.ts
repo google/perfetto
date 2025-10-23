@@ -15,22 +15,9 @@
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {exists} from '../base/utils';
+import {TraceChunk, TraceStream} from '../public/stream';
 
 export const TRACE_SLICE_SIZE = 32 * 1024 * 1024;
-
-// The object returned by TraceStream.readChunk() promise.
-export interface TraceChunk {
-  data: Uint8Array;
-  eof: boolean;
-  bytesRead: number;
-  bytesTotal: number;
-}
-
-// Base interface for loading trace data in chunks.
-// The caller has to call readChunk() until TraceChunk.eof == true.
-export interface TraceStream {
-  readChunk(): Promise<TraceChunk>;
-}
 
 // Loads a trace from a File object. For the "open file" use case.
 export class TraceFileStream implements TraceStream {

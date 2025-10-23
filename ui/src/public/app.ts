@@ -23,7 +23,7 @@ import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
-import {TraceStream} from '../core/trace_stream';
+import {TraceStream} from './stream';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has

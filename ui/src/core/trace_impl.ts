@@ -56,7 +56,7 @@ import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {isStartupCommandAllowed} from './startup_command_allowlist';
-import {TraceStream} from './trace_stream';
+import {TraceStream} from '../public/stream';
 
 /**
  * Handles the per-trace state of the UI

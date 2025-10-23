@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {SerializedAppState} from './state_serialization_schema';
-import {TraceStream} from './trace_stream';
+import {TraceStream} from '../public/stream';
 
 interface CommonTraceProps {
   serializedAppState?: SerializedAppState;

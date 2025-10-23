@@ -35,8 +35,8 @@ import {
   TraceFileStream,
   TraceHttpStream,
   TraceMultipleFilesStream,
-  TraceStream,
 } from '../core/trace_stream';
+import {TraceStream} from '../public/stream';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,

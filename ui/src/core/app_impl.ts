@@ -24,6 +24,7 @@ import {PageHandler} from '../public/page';
 import {Raf} from '../public/raf';
 import {RouteArg, RouteArgs} from '../public/route_schema';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {TraceStream} from '../public/stream';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
@@ -41,7 +42,6 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceContext, TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
-import {TraceStream} from './trace_stream';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
