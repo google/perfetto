@@ -172,7 +172,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
         {
           trigger: cell,
           isContextMenu: true,
-          popupPosition: PopupPosition.Bottom,
+          position: PopupPosition.Bottom,
         },
         menuItems,
       );

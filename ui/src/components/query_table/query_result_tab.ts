@@ -101,7 +101,7 @@ export class QueryResultTab implements Tab {
               PopupMenu,
               {
                 trigger: m(Button, {label: 'Show debug track'}),
-                popupPosition: PopupPosition.Top,
+                position: PopupPosition.Top,
               },
               m(AddDebugTrackMenu, {
                 trace: this.trace,

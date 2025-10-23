@@ -415,7 +415,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     return m(PopupMultiSelect, {
       label: 'Filter by machine',
       icon: 'filter_list_alt',
-      popupPosition: PopupPosition.Top,
+      position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<number>(machineExcludeList);
