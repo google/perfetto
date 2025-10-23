@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
-interface DetailsShellAttrs {
+export interface DetailsShellAttrs {
   // Additional class names to apply to the shell
   readonly className?: string;
   // Main title of the details shell.

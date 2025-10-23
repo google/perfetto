@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
-interface SpinnerAttrs {
+export interface SpinnerAttrs {
   // Whether to use an ease-in-ease-out animation rather than a linear one.
   // Defaults to false.
   easing?: boolean;
