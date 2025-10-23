@@ -116,6 +116,9 @@ $border-3: 2px solid var(--pf-color-border);
   overflow: auto;
   align-items: flex-start;
 
+  // Fixes poor layerization performance
+  isolation: isolate;
+
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
   // content.
