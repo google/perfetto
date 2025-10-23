@@ -93,7 +93,7 @@ export class QueryResultTab implements Tab {
       trace: this.trace,
       query: this.args.query,
       resp: this.queryResponse,
-      fillParent: true,
+      fillHeight: true,
       contextButtons: [
         this.sqlViewName === undefined
           ? null
