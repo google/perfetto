@@ -146,7 +146,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           // to the datasource itself, so we define this but fix it as an empty
           // array.
           filters: [],
-          onFilterAdded: (filter) => {
+          onFilterAdd: (filter) => {
             // Add the filter to the node
             attrs.node.state.filters = [
               ...(attrs.node.state.filters ?? []),

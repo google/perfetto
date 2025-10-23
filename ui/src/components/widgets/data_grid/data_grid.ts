@@ -199,7 +199,7 @@ export interface DataGridAttrs {
    *
    * @param filter - The filter to be added.
    */
-  readonly onFilterAdded?: (filter: DataGridFilter) => void;
+  readonly onFilterAdd?: (filter: DataGridFilter) => void;
 
   /**
    * Order of columns to display - can operate in controlled or uncontrolled
@@ -323,7 +323,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         : noOp,
       filters = this.filters,
       onFiltersChanged,
-      onFilterAdded,
+      onFilterAdd: onFilterAdded,
       columnOrder = this.columnOrder,
       onColumnOrderChanged = columnOrder === this.columnOrder
         ? (x) => (this.columnOrder = x)
