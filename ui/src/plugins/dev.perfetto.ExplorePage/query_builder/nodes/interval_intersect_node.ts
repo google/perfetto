@@ -24,7 +24,6 @@ import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
-import {Select} from '../../../../widgets/select';
 import {NodeIssues} from '../node_issues';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 
@@ -47,7 +46,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: IntervalIntersectNodeState;
-  meterialisedAs?: string;
 
   get finalCols(): ColumnInfo[] {
     return newColumnInfoList(this.prevNodes[0]?.finalCols ?? [], true);
@@ -113,10 +111,41 @@ export class IntervalIntersectNode implements MultiSourceNode {
   }
 
   nodeSpecificModify(onExecute?: () => void): m.Child {
-    return m(IntervalIntersectComponent, {
-      node: this,
-      onExecute,
-    });
+    this.validate();
+    const error = this.state.issues?.queryError;
+
+    return m(
+      '.pf-exp-query-operations',
+      error && m(Callout, {icon: 'error'}, error.message),
+      m(
+        '.pf-exp-section',
+        m(
+          '.pf-exp-operations-container',
+          m('h2', 'Interval Intersect'),
+          this.prevNodes.slice(1).map((intervalNode, index) =>
+            m(
+              '.pf-exp-interval-node',
+              m('span', `Interval ${index + 1}: ${intervalNode.getTitle()}`),
+              m(Button, {
+                icon: 'delete',
+                onclick: () => {
+                  const nextNodeIndex = intervalNode.nextNodes.indexOf(this);
+                  if (nextNodeIndex > -1) {
+                    intervalNode.nextNodes.splice(nextNodeIndex, 1);
+                  }
+                  this.prevNodes.splice(index + 1, 1);
+                  this.state.onchange?.();
+                },
+              }),
+            ),
+          ),
+          m(Button, {
+            label: 'Run',
+            onclick: onExecute,
+          }),
+        ),
+      ),
+    );
   }
 
   clone(): QueryNode {
@@ -131,9 +160,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
     return new IntervalIntersectNode(stateCopy);
   }
 
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
-  }
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
@@ -175,79 +201,5 @@ export class IntervalIntersectNode implements MultiSourceNode {
     return {
       prevNodes: [baseNode, ...intervalNodes],
     };
-  }
-}
-
-interface IntervalIntersectComponentAttrs {
-  node: IntervalIntersectNode;
-  onExecute?: () => void;
-}
-
-class IntervalIntersectComponent
-  implements m.ClassComponent<IntervalIntersectComponentAttrs>
-{
-  view({attrs}: m.CVnode<IntervalIntersectComponentAttrs>) {
-    const {node, onExecute} = attrs;
-    node.validate();
-    const availableNodes = node.state.allNodes.filter(
-      (n) => n !== node && !node.prevNodes.includes(n),
-    );
-    const error = node.state.issues?.queryError;
-
-    return m(
-      '.pf-exp-query-operations',
-      error && m(Callout, {icon: 'error'}, error.message),
-      m(
-        '.pf-exp-section',
-        m(
-          '.pf-exp-operations-container',
-          m('h2', 'Interval Intersect'),
-          node.prevNodes.slice(1).map((intervalNode, index) =>
-            m(
-              '.pf-exp-interval-node',
-              m('span', `Interval ${index + 1}: ${intervalNode.getTitle()}`),
-              m(Button, {
-                icon: 'delete',
-                onclick: () => {
-                  const nextNodeIndex = intervalNode.nextNodes.indexOf(node);
-                  if (nextNodeIndex > -1) {
-                    intervalNode.nextNodes.splice(nextNodeIndex, 1);
-                  }
-                  node.prevNodes.splice(index + 1, 1);
-                  node.state.onchange?.();
-                },
-              }),
-            ),
-          ),
-          m(
-            '.pf-exp-add-interval',
-            m(
-              Select,
-              {
-                onchange: (e: Event) => {
-                  const selectedNodeId = (e.target as HTMLSelectElement).value;
-                  const selectedNode = availableNodes.find(
-                    (n) => n.nodeId === selectedNodeId,
-                  );
-                  if (selectedNode) {
-                    node.prevNodes.push(selectedNode);
-                    selectedNode.nextNodes.push(node);
-                    node.state.onchange?.();
-                  }
-                },
-              },
-              m('option', {disabled: true, selected: true}, 'Select a source'),
-              availableNodes.map((n) =>
-                m('option', {value: n.nodeId}, n.getTitle()),
-              ),
-            ),
-          ),
-          m(Button, {
-            label: 'Run',
-            onclick: onExecute,
-          }),
-        ),
-      ),
-    );
   }
 }

@@ -34,6 +34,7 @@ import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
+import {Card} from '../../../../widgets/card';
 import {NodeIssues} from '../node_issues';
 
 export interface AggregationSerializedState {
@@ -70,7 +71,6 @@ export class AggregationNode implements ModificationNode {
   readonly prevNode: QueryNode;
   nextNodes: QueryNode[];
   readonly state: AggregationNodeState;
-  meterialisedAs?: string;
 
   get finalCols(): ColumnInfo[] {
     const selected = this.state.groupByColumns.filter((c) => c.checked);
@@ -225,10 +225,6 @@ export class AggregationNode implements ModificationNode {
       issues: this.state.issues,
     };
     return new AggregationNode(stateCopy);
-  }
-
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -579,15 +575,15 @@ class AggregationOperationComponent
       ];
     };
 
-    return m('.pf-exp-query-operations', [
-      m(
-        '.pf-exp-section',
+    return m(
+      '.pf-exp-query-operations',
+      m(Card, {}, [
         m(
           '.pf-exp-operations-container',
           selectGroupByColumns(),
           m('.pf-exp-aggregations-list', aggregationsList()),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 }

@@ -14,17 +14,22 @@
 
 import m from 'mithril';
 
-import {
-  NodeBoxAttrs,
-  NodeBoxContent,
-  renderAddButton,
-  renderWarningIcon,
-} from './node_box';
+import {NodeActions, NodeBox} from './node_box';
 import {QueryNode} from '../../query_node';
-import {NodeContainer} from './node_container';
+import {NodeContainer, NodeContainerLayout} from './node_container';
+import {classNames} from '../../../../base/classnames';
 
-export interface NodeBlockAttrs extends Omit<NodeBoxAttrs, 'node'> {
-  nodes: QueryNode[];
+export interface NodeBlockAttrs extends NodeActions {
+  readonly nodes: QueryNode[];
+  readonly layout: NodeContainerLayout;
+  readonly selectedNode?: QueryNode;
+  readonly onNodeSelected: (node: QueryNode) => void;
+  readonly onNodeDragStart: (
+    node: QueryNode,
+    event: DragEvent,
+    layout: NodeContainerLayout,
+  ) => void;
+  readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }
 
 export const NodeBlock: m.Component<NodeBlockAttrs> = {
@@ -34,11 +39,12 @@ export const NodeBlock: m.Component<NodeBlockAttrs> = {
       layout,
       onNodeSelected,
       onNodeDragStart,
-      isSelected,
+      selectedNode,
       onNodeRendered,
     } = attrs;
     const firstNode = nodes[0];
-    const lastNode = nodes[nodes.length - 1];
+
+    const isSelected = selectedNode ? nodes.includes(selectedNode) : false;
 
     return m(
       NodeContainer,
@@ -50,20 +56,22 @@ export const NodeBlock: m.Component<NodeBlockAttrs> = {
         onNodeRendered,
       },
       m(
-        '.pf-node-block',
+        '.pf-exp-node-block',
         nodes.map((n) =>
           m(
-            '.pf-node-block__node',
-            {onclick: () => onNodeSelected(n)},
-            m(NodeBoxContent, {...attrs, node: n}),
+            '.pf-exp-node-block__node',
+            {
+              class: classNames(
+                n === selectedNode && 'pf-exp-node-block__node--selected',
+              ),
+              onclick: () => onNodeSelected(n),
+            },
+            m(NodeBox, {
+              ...attrs,
+              node: n,
+            }),
           ),
         ),
-        renderWarningIcon(lastNode),
-        renderAddButton({
-          ...attrs,
-          node: lastNode,
-          onAddDerivedNode: attrs.onAddDerivedNode,
-        }),
       ),
     );
   },

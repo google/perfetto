@@ -12,31 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-modify-columns-node {
-  .pf-node-details-box {
-    border: 1px solid var(--pf-border-color);
-    border-radius: 4px;
-    padding: 8px;
-    margin-top: 8px;
-  }
+@import "../common";
 
-  .pf-node-details-box strong {
+.pf-modify-columns-node {
+  .pf-exp-node-details-box strong {
     display: block;
     margin-bottom: 4px;
   }
 
-  .pf-node-details-box div {
-    font-size: 0.8em;
+  .pf-exp-node-details-box div {
+    font-size: var(--pf-exp-font-size-sm);
     padding: 2px 0;
   }
 
-  .pf-node-details-message {
+  .pf-exp-node-details-message {
     font-style: italic;
     color: var(--pf-text-color-light);
   }
 
   .pf-columns-box-title {
-    font-size: 1.2em;
+    font-size: var(--pf-exp-font-size-md);
     font-weight: 500;
     margin: 0 0 1rem 0;
   }
@@ -57,9 +52,84 @@
   .pf-column:hover .pf-drag-handle {
     opacity: 1;
   }
+
+  .pf-exp-modify-columns-node-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pf-exp-switch-component {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pf-exp-switch-case {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pf-exp-switch-default-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 }
 
-.pf-node-details-card {
+.pf-exp-node-details-card {
   padding: 4px;
-  font-size: 0.8em;
+  font-size: var(--pf-exp-font-size-sm);
+}
+
+.pf-exp-switch-details-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pf-exp-switch-expression {
+  font-family: var(--pf-font-family-monospace);
+}
+
+.pf-exp-switch-alias {
+  font-family: var(--pf-font-family-monospace);
+  font-style: italic;
+  color: var(--pf-text-color-light);
+}
+
+.pf-exp-if-component {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-exp-if-clause,
+.pf-exp-else-clause {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-exp-if-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.pf-exp-if-details-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pf-exp-if-expression {
+  font-family: var(--pf-font-family-monospace);
+}
+
+.pf-exp-if-alias {
+  font-family: var(--pf-font-family-monospace);
+  font-style: italic;
+  color: var(--pf-text-color-light);
 }

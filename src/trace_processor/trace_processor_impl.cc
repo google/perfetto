@@ -1261,7 +1261,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<TablePtrBind>(engine.get());
   RegisterFunction<ExportJson>(engine.get(), storage);
   RegisterFunction<ExtractArg>(engine.get(), storage);
-  RegisterFunction<ArgSetToJson>(engine.get(), storage);
+  RegisterFunction<ArgSetToJson>(
+      engine.get(), std::make_unique<ArgSetToJson::Context>(storage));
   RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());
   RegisterFunction<Reverse>(engine.get());
   RegisterFunction<ToMonotonic>(engine.get(), context->clock_converter.get());
