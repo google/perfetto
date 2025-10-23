@@ -23,6 +23,8 @@ INCLUDE PERFETTO MODULE wattson.curves.device_l3;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- 1D LUT
 CREATE PERFETTO TABLE _filtered_curves_1d_raw AS
 SELECT
@@ -164,7 +166,7 @@ FROM _filtered_curves_2d_raw
 JOIN _dev_cpu_policy_map
   USING (policy)
 WHERE
-  dep_policy = 255;
+  dep_policy = _dsu_dep!();
 
 -- Chooses the minimum vote for CPUs with dependencies
 CREATE PERFETTO TABLE _cpu_w_dependency_default_vote AS
@@ -215,7 +217,7 @@ WITH
     JOIN _dev_cpu_policy_map AS m
       USING (policy)
     WHERE
-      dep_policy != 255
+      dep_policy != _dsu_dep!()
   ),
   dep_cpus AS (
     SELECT DISTINCT

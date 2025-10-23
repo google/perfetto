@@ -13,41 +13,76 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
+import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
+import {Icons} from '../../../base/semantic_icons';
+import {exists} from '../../../base/utils';
+import {SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
+import {Box} from '../../../widgets/box';
+import {Button} from '../../../widgets/button';
+import {Chip} from '../../../widgets/chip';
+import {LinearProgress} from '../../../widgets/linear_progress';
+import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {Stack, StackAuto} from '../../../widgets/stack';
 import {
+  renderSortMenuItems,
+  Grid,
+  GridColumn,
+  GridCell,
+  GridHeaderCell,
+} from '../../../widgets/grid';
+import {
+  AggregationFunction,
   ColumnDefinition,
   DataGridDataSource,
-  DataSourceResult,
   FilterDefinition,
   RowDef,
   Sorting,
-  AggregationFunction,
 } from './common';
-import {MenuDivider, MenuItem} from '../../../widgets/menu';
-import {Icons} from '../../../base/semantic_icons';
 import {InMemoryDataSource} from './in_memory_data_source';
-import {Stack, StackAuto} from '../../../widgets/stack';
-import {Box} from '../../../widgets/box';
-import {LinearProgress} from '../../../widgets/linear_progress';
-import {
-  Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
-  GridHeaderCell,
-  GridRow,
-  renderSortMenuItems,
-  PageControl,
-  SortDirection,
-  GridFilterBar,
-  GridFilterChip,
-} from '../../../widgets/grid';
-import {classNames} from '../../../base/classnames';
 
-const DEFAULT_ROWS_PER_PAGE = 50;
+export class GridFilterBar implements m.ClassComponent {
+  view({children}: m.Vnode) {
+    return m(Stack, {orientation: 'horizontal', wrap: true}, children);
+  }
+}
+
+export interface GridFilterAttrs {
+  readonly content: string;
+  onRemove(): void;
+}
+
+export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
+  view({attrs}: m.Vnode<GridFilterAttrs>): m.Children {
+    return m(Chip, {
+      className: 'pf-grid-filter',
+      label: attrs.content,
+      removable: true,
+      onRemove: attrs.onRemove,
+      title: attrs.content,
+    });
+  }
+}
+
+export interface AggregationCellAttrs extends m.Attributes {
+  readonly symbol?: string;
+}
+
+export class AggregationCell implements m.ClassComponent<AggregationCellAttrs> {
+  view({attrs, children}: m.Vnode<AggregationCellAttrs>) {
+    const {className, symbol, ...rest} = attrs;
+    return m(
+      '.pf-aggr-cell',
+      {
+        ...rest,
+        className: classNames(className),
+      },
+      m('.pf-aggr-cell__symbol', symbol),
+      m('.pf-aggr-cell__content', children),
+    );
+  }
+}
 
 /**
  * DataGrid is designed to be a flexible and efficient data viewing and analysis
@@ -69,6 +104,8 @@ const DEFAULT_ROWS_PER_PAGE = 50;
 
 type OnFiltersChanged = (filters: ReadonlyArray<FilterDefinition>) => void;
 type OnSortingChanged = (sorting: Sorting) => void;
+type ColumnOrder = ReadonlyArray<string>;
+type OnColumnOrderChanged = (columnOrder: ColumnOrder) => void;
 type CellRenderer = (
   value: SqlValue,
   columnName: string,
@@ -150,9 +187,37 @@ export interface DataGridAttrs {
   readonly onFiltersChanged?: OnFiltersChanged;
 
   /**
-   * Controls how many rows are displayed per page.
+   * Order of columns to display - can operate in controlled or uncontrolled
+   * mode.
+   *
+   * In controlled mode: Provide this prop along with onColumnOrderChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage order internally.
+   *
+   * Array of column names in the order they should be displayed.
+   * If not provided, columns are displayed in the order given in the columns prop.
    */
-  readonly maxRowsPerPage?: number;
+  readonly columnOrder?: ColumnOrder;
+
+  /**
+   * Initial column order to apply on first load.
+   * This is ignored in controlled mode (i.e. when `columnOrder` is provided).
+   */
+  readonly initialColumnOrder?: ColumnOrder;
+
+  /**
+   * Callback triggered when columns are reordered via drag-and-drop.
+   * Allows parent components to react to reordering changes.
+   * Required for controlled mode - when provided with columnOrder,
+   * the parent component becomes responsible for updating the columnOrder prop.
+   * @param columnOrder The new array of column names in display order
+   */
+  readonly onColumnOrderChanged?: OnColumnOrderChanged;
+
+  /**
+   * Whether to enable column reordering via drag-and-drop.
+   * Default = true if onColumnOrderChanged is provided, false otherwise.
+   */
+  readonly columnReordering?: boolean;
 
   /**
    * Optional custom cell renderer function.
@@ -202,10 +267,14 @@ export interface DataGridAttrs {
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Internal state
-  private currentPage = 0;
-
   private sorting: Sorting = {direction: 'UNSORTED'};
   private filters: ReadonlyArray<FilterDefinition> = [];
+  private columnOrder: ColumnOrder = [];
+  // Track all columns we've ever seen to distinguish hidden vs new columns
+  private seenColumns: Set<string> = new Set();
+  // Track pagination state from virtual scrolling
+  private paginationOffset: number = 0;
+  private paginationLimit: number = 100;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -215,6 +284,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialFilters) {
       this.filters = attrs.initialFilters;
     }
+
+    // Initialize column order from initial prop or columns array
+    if (attrs.initialColumnOrder) {
+      this.columnOrder = attrs.initialColumnOrder;
+    } else {
+      this.columnOrder = attrs.columns.map((c) => c.name);
+    }
+
+    // Track all initial columns as seen
+    attrs.columns.forEach((column) => {
+      this.seenColumns.add(column.name);
+    });
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -229,8 +310,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       onFiltersChanged = filters === this.filters
         ? (x) => (this.filters = x)
         : noOp,
+      columnOrder = this.columnOrder,
+      onColumnOrderChanged = columnOrder === this.columnOrder
+        ? (x) => (this.columnOrder = x)
+        : noOp,
+      columnReordering = onColumnOrderChanged !== noOp,
       cellRenderer = renderCell,
-      maxRowsPerPage = DEFAULT_ROWS_PER_PAGE,
       showFiltersInToolbar = true,
       fillHeight = false,
       showResetButton = false,
@@ -244,7 +329,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? noOp
         : (filter: ReadonlyArray<FilterDefinition>) => {
             onFiltersChanged(filter);
-            this.currentPage = 0;
           };
 
     const onSortingChangedWithReset =
@@ -252,8 +336,24 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ? noOp
         : (sorting: Sorting) => {
             onSortingChanged(sorting);
-            this.currentPage = 0;
           };
+
+    // In uncontrolled mode, sync columnOrder with truly new columns
+    // (not hidden columns)
+    if (columnOrder === this.columnOrder) {
+      const newColumns = columns
+        .map((c) => c.name)
+        .filter((name) => !this.seenColumns.has(name));
+
+      if (newColumns.length > 0) {
+        // Add newly seen columns to tracking and order
+        newColumns.forEach((name) => this.seenColumns.add(name));
+        this.columnOrder = [...this.columnOrder, ...newColumns];
+      }
+    }
+
+    // Reorder columns based on columnOrder array
+    const orderedColumns = this.getOrderedColumns(columns, columnOrder);
 
     // Initialize the datasource if required
     let dataSource: DataGridDataSource;
@@ -265,30 +365,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       dataSource = data as DataGridDataSource;
     }
 
-    // Work out the offset and limit and update the datasource
-    const offset = this.currentPage * maxRowsPerPage;
-    const limit = maxRowsPerPage;
+    // Update datasource with current state (sorting, filtering, pagination)
+    // This is called every view cycle to catch changes
     dataSource.notifyUpdate({
-      columns: columns.map((c) => c.name),
+      columns: orderedColumns.map((c) => c.name),
       sorting,
       filters,
       pagination: {
-        offset,
-        limit,
+        offset: this.paginationOffset,
+        limit: this.paginationLimit,
       },
       aggregates: columns
         .filter((c) => c.aggregation)
         .map((c) => ({col: c.name, func: c.aggregation!})),
     });
-
-    // Calculate total pages based on totalRows and rowsPerPage
-    const totalRows = dataSource.rows?.totalRows ?? 0;
-    const totalPages = Math.max(1, Math.ceil(totalRows / maxRowsPerPage));
-
-    // Ensure current page doesn't exceed total pages
-    if (this.currentPage >= totalPages && totalPages > 0) {
-      this.currentPage = Math.max(0, totalPages - 1);
-    }
 
     const addFilter =
       onFiltersChangedWithReset === noOp
@@ -298,271 +388,209 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const sortControls = onSortingChangedWithReset !== noOp;
     const filterControls = onFiltersChangedWithReset !== noOp;
 
-    return m(
-      '.pf-data-grid',
-      {
-        className: classNames(
-          fillHeight && 'pf-data-grid--fill-height',
-          className,
-        ),
-      },
-      this.renderTableToolbar(
-        totalPages,
-        totalRows,
-        filters,
-        sorting,
-        onSortingChangedWithReset,
-        onFiltersChangedWithReset,
-        maxRowsPerPage,
-        showFiltersInToolbar,
-        showResetButton,
-        toolbarItemsLeft,
-        toolbarItemsRight,
-      ),
-      m(LinearProgress, {
-        className: 'pf-data-grid__loading',
-        state: dataSource.isLoading ? 'indeterminate' : 'none',
-      }),
-      m(
-        Grid,
-        {
-          className: 'pf-data-grid__table',
-        },
-        [
-          m(
-            GridHeader,
-            m(
-              GridRow,
-              columns.map((column) => {
-                const sort = (() => {
-                  if (sorting.direction === 'UNSORTED') {
-                    return undefined;
-                  } else if (sorting.column === column.name) {
-                    return sorting.direction;
-                  } else {
-                    return undefined;
-                  }
-                })();
+    // Build VirtualGrid columns with all DataGrid features
+    const virtualGridColumns = orderedColumns.map((column) => {
+      const sort = (() => {
+        if (sorting.direction === 'UNSORTED') {
+          return undefined;
+        } else if (sorting.column === column.name) {
+          return sorting.direction;
+        } else {
+          return undefined;
+        }
+      })();
 
-                const menuItems: m.Children = [];
-                sortControls &&
-                  menuItems.push(
-                    renderSortMenuItems(sort, (direction) => {
-                      if (direction) {
-                        onSortingChangedWithReset({
-                          column: column.name,
-                          direction: direction,
-                        });
-                      } else {
-                        onSortingChangedWithReset({
-                          direction: 'UNSORTED',
-                        });
-                      }
-                    }),
-                  );
+      const menuItems: m.Children = [];
+      sortControls &&
+        menuItems.push(
+          ...renderSortMenuItems(sort, (direction) => {
+            if (direction) {
+              onSortingChangedWithReset({
+                column: column.name,
+                direction: direction,
+              });
+            } else {
+              onSortingChangedWithReset({
+                direction: 'UNSORTED',
+              });
+            }
+          }),
+        );
 
-                if (filterControls && sortControls && menuItems.length > 0) {
-                  menuItems.push(m(MenuDivider));
-                }
+      if (filterControls && sortControls && menuItems.length > 0) {
+        menuItems.push(m(MenuDivider));
+      }
 
-                if (filterControls) {
-                  menuItems.push(
-                    m(MenuItem, {
-                      label: 'Filter out nulls',
-                      onclick: () => {
-                        addFilter({column: column.name, op: 'is not null'});
-                      },
-                    }),
-                    m(MenuItem, {
-                      label: 'Only show nulls',
-                      onclick: () => {
-                        addFilter({column: column.name, op: 'is null'});
-                      },
-                    }),
-                  );
-                }
-
-                return m(
-                  GridHeaderCell,
-                  {
-                    sort,
-                    onSort: sortControls
-                      ? (direction: SortDirection) => {
-                          onSortingChangedWithReset({
-                            column: column.name,
-                            direction,
-                          });
-                        }
-                      : undefined,
-                    menuItems: menuItems.length > 0 ? menuItems : undefined,
-                    aggregation: column.aggregation &&
-                      dataSource.rows?.aggregates && {
-                        left: m(
-                          'span',
-                          {title: column.aggregation},
-                          aggregationFunIcon(column.aggregation),
-                        ),
-                        right: cellRenderer(
-                          dataSource.rows.aggregates[column.name],
-                          column.name,
-                          dataSource.rows.aggregates,
-                        ),
-                      },
-                  },
-                  column.title ?? column.name,
-                );
-              }),
-            ),
-          ),
-          dataSource.rows &&
-            m(
-              GridBody,
-              this.renderTableBody(
-                columns,
-                dataSource.rows,
-                filters,
-                onFiltersChangedWithReset,
-                cellRenderer,
-                maxRowsPerPage,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  private renderTableToolbar(
-    totalPages: number,
-    totalRows: number,
-    filters: ReadonlyArray<FilterDefinition>,
-    sorting: Sorting,
-    onSortingChanged: OnSortingChanged,
-    onFiltersChanged: OnFiltersChanged,
-    maxRowsPerPage: number,
-    showFilters: boolean,
-    showResetButton: boolean,
-    toolbarItemsLeft: m.Children,
-    toolbarItemsRight: m.Children,
-  ) {
-    if (
-      totalPages === 1 &&
-      filters.length === 0 &&
-      !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
-      showResetButton === false
-    ) {
-      return undefined;
-    }
-
-    return m(Box, {className: 'pf-data-grid__toolbar', spacing: 'small'}, [
-      m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
-        toolbarItemsLeft,
-        showResetButton &&
-          m(Button, {
-            icon: Icons.ResetState,
-            label: 'Reset',
-            disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
-            title: 'Reset grid state',
+      if (filterControls) {
+        menuItems.push(
+          m(MenuItem, {
+            label: 'Filter out nulls',
             onclick: () => {
-              onSortingChanged({direction: 'UNSORTED'});
-              onFiltersChanged([]);
+              addFilter({column: column.name, op: 'is not null'});
             },
           }),
-        m(StackAuto, [
-          showFilters &&
-            m(GridFilterBar, [
-              filters.map((filter) => {
-                return m(GridFilterChip, {
-                  content: this.formatFilter(filter),
-                  onRemove: () => {
-                    const newFilters = filters.filter((f) => f !== filter);
-                    this.filters = newFilters;
-                    onFiltersChanged(newFilters);
-                    this.currentPage = 0;
+          m(MenuItem, {
+            label: 'Only show nulls',
+            onclick: () => {
+              addFilter({column: column.name, op: 'is null'});
+            },
+          }),
+        );
+      }
+
+      if (Boolean(column.headerMenuItems)) {
+        if (menuItems.length > 0) {
+          menuItems.push(m(MenuDivider));
+        }
+        menuItems.push(column.headerMenuItems);
+      }
+
+      // Add column visibility options if column reordering is enabled
+      if (columnReordering) {
+        if (menuItems.length > 0) {
+          menuItems.push(m(MenuDivider));
+        }
+
+        // Hide current column (only if more than 1 visible)
+        if (orderedColumns.length > 1) {
+          menuItems.push(
+            m(MenuItem, {
+              label: 'Hide column',
+              icon: Icons.Hide,
+              onclick: () => {
+                const newOrder = columnOrder.filter(
+                  (name) => name !== column.name,
+                );
+                onColumnOrderChanged(newOrder);
+              },
+            }),
+          );
+        }
+
+        const allColumnsShowing = columns.every((col) =>
+          columnOrder.includes(col.name),
+        );
+
+        // Show/hide columns submenu
+        menuItems.push(
+          m(
+            MenuItem,
+            {
+              label: 'Manage columns',
+              icon: 'view_column',
+            },
+            [
+              // Show all
+              m(MenuItem, {
+                label: 'Show all',
+                icon: allColumnsShowing ? Icons.Checkbox : Icons.BlankCheckbox,
+                closePopupOnClick: false,
+                onclick: () => {
+                  const newOrder = columns.map((c) => c.name);
+                  onColumnOrderChanged(newOrder);
+                },
+              }),
+              m(MenuDivider),
+              // Individual columns
+              columns.map((col) => {
+                const isVisible = columnOrder.includes(col.name);
+                return m(MenuItem, {
+                  label: col.name,
+                  closePopupOnClick: false,
+                  icon: isVisible ? Icons.Checkbox : Icons.BlankCheckbox,
+                  onclick: () => {
+                    if (isVisible) {
+                      // Hide: remove from order (but keep at least 1 column)
+                      if (columnOrder.length > 1) {
+                        const newOrder = columnOrder.filter(
+                          (name) => name !== col.name,
+                        );
+                        onColumnOrderChanged(newOrder);
+                      }
+                    } else {
+                      // Show: add to end of order
+                      const newOrder = [...columnOrder, col.name];
+                      onColumnOrderChanged(newOrder);
+                    }
                   },
                 });
               }),
-            ]),
-        ]),
-        m(PageControl, {
-          from: this.currentPage * maxRowsPerPage + 1,
-          to: Math.min((this.currentPage + 1) * maxRowsPerPage, totalRows),
-          of: totalRows,
-          firstPageClick: () => {
-            if (this.currentPage !== 0) {
-              this.currentPage = 0;
-            }
-          },
-          prevPageClick: () => {
-            if (this.currentPage > 0) {
-              this.currentPage -= 1;
-            }
-          },
-          nextPageClick: () => {
-            if (this.currentPage < totalPages - 1) {
-              this.currentPage += 1;
-            }
-          },
-          lastPageClick: () => {
-            if (this.currentPage < totalPages - 1) {
-              this.currentPage = Math.max(0, totalPages - 1);
-            }
-          },
-        }),
-        toolbarItemsRight,
-      ]),
-    ]);
-  }
+            ],
+          ),
+        );
+      }
 
-  private formatFilter(filter: FilterDefinition) {
-    if ('value' in filter) {
-      return `${filter.column} ${filter.op} ${filter.value}`;
-    } else {
-      return `${filter.column} ${filter.op}`;
-    }
-  }
-
-  private renderTableBody(
-    columns: ReadonlyArray<ColumnDefinition>,
-    rowData: DataSourceResult,
-    filters: ReadonlyArray<FilterDefinition>,
-    onFilterChange: OnFiltersChanged,
-    cellRenderer: CellRenderer,
-    maxRowsPerPage: number,
-  ): m.Children {
-    const {rows, totalRows, rowOffset} = rowData;
-
-    // Create array for all potential rows on the current page
-    const startIndex = this.currentPage * maxRowsPerPage;
-    const endIndex = Math.min(startIndex + maxRowsPerPage, totalRows);
-    const displayRowCount = Math.max(0, endIndex - startIndex);
-    const enableFilters = onFilterChange !== noOp;
-
-    // Generate array of indices for rows that should be displayed
-    const indices = Array.from(
-      {length: displayRowCount},
-      (_, i) => startIndex + i,
-    );
-
-    const addFilter = (x: FilterDefinition) => onFilterChange([...filters, x]);
-
-    return indices.map((rowIndex) => {
-      // Calculate the relative index within the available rows array
-      const relativeIndex = rowIndex - rowOffset;
-      // Check if this index is valid for the available rows
-      const row =
-        relativeIndex >= 0 && relativeIndex < rows.length
-          ? rows[relativeIndex]
+      // Build aggregation sub-content if needed
+      const subContent =
+        column.aggregation && dataSource.rows?.aggregates
+          ? m(
+              AggregationCell,
+              {
+                symbol: aggregationFunIcon(column.aggregation),
+              },
+              cellRenderer(
+                dataSource.rows.aggregates[column.name],
+                column.name,
+                dataSource.rows.aggregates,
+              ),
+            )
           : undefined;
 
-      if (row) {
-        // Return a populated row if data is available
-        return m(
-          GridRow,
-          columns.map((column) => {
+      const gridColumn: GridColumn = {
+        key: column.name,
+        header: m(
+          GridHeaderCell,
+          {
+            sort,
+            onSort: sortControls
+              ? (direction) => {
+                  onSortingChangedWithReset({
+                    column: column.name,
+                    direction,
+                  });
+                }
+              : undefined,
+            menuItems: menuItems.length > 0 ? menuItems : undefined,
+            subContent,
+            label: column.name,
+          },
+          column.title ?? column.name,
+        ),
+        reorderable: columnReordering
+          ? {handle: 'datagrid-columns'}
+          : undefined,
+      };
+
+      return gridColumn;
+    });
+
+    const rows = dataSource.rows;
+    const virtualGridRows = (() => {
+      if (!rows) return [];
+
+      // Find the intersection of rows between what we have and what is required
+      // and only render those.
+
+      const start = Math.max(rows.rowOffset, this.paginationOffset);
+
+      const rowIndices = Array.from(
+        {length: this.paginationLimit},
+        (_, i) => i + start,
+      );
+
+      // Convert RowDef data to vnode rows for VirtualGrid
+      return rowIndices
+        .map((index) => {
+          const row = rows.rows[index - rows.rowOffset];
+          if (row === undefined) return undefined;
+          const cellRow: m.Children[] = [];
+
+          orderedColumns.forEach((column) => {
             const value = row[column.name];
             const menuItems: m.Children = [];
 
-            if (enableFilters) {
+            // Build filter menu items if filtering is enabled
+            if (filterControls) {
               if (value !== null) {
                 menuItems.push(
                   m(MenuItem, {
@@ -657,26 +685,200 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               }
             }
 
-            return m(
-              GridDataCell,
-              {
-                menuItems: menuItems.length > 0 ? menuItems : undefined,
-                align: (() => {
-                  if (isNumeric(value)) return 'right';
-                  if (value === null) return 'center';
-                  return 'left';
-                })(),
-                isMissing: value === null,
-              },
-              cellRenderer(value, column.name, row),
+            // Add custom cell menu items if provided
+            if (column.cellMenuItems !== undefined) {
+              const extraItems = column.cellMenuItems(value, row);
+              if (extraItems !== undefined) {
+                if (menuItems.length > 0) {
+                  menuItems.push(m(MenuDivider));
+                }
+                menuItems.push(extraItems);
+              }
+            }
+
+            // Build cell - use GridDataCell when we have menus or special rendering
+            cellRow.push(
+              m(
+                GridCell,
+                {
+                  align: isNumeric(value)
+                    ? 'right'
+                    : value === null
+                      ? 'center'
+                      : 'left',
+                  nullish: value === null,
+                  menuItems: menuItems.length > 0 ? menuItems : undefined,
+                },
+                cellRenderer(value, column.name, row),
+              ),
             );
+          });
+
+          return cellRow;
+        })
+        .filter(exists);
+    })();
+
+    return m(
+      '.pf-data-grid',
+      {
+        className: classNames(
+          fillHeight && 'pf-data-grid--fill-height',
+          className,
+        ),
+      },
+      this.renderTableToolbar(
+        filters,
+        sorting,
+        onSortingChangedWithReset,
+        onFiltersChangedWithReset,
+        showFiltersInToolbar,
+        showResetButton,
+        toolbarItemsLeft,
+        toolbarItemsRight,
+      ),
+      m(LinearProgress, {
+        className: 'pf-data-grid__loading',
+        state: dataSource.isLoading ? 'indeterminate' : 'none',
+      }),
+      m(Grid, {
+        className: 'pf-data-grid__table',
+        columns: virtualGridColumns,
+        rowData: {
+          data: virtualGridRows,
+          total: rows?.totalRows ?? 0,
+          offset: Math.max(rows?.rowOffset ?? 0, this.paginationOffset),
+          onLoadData: (offset, limit) => {
+            // Store pagination state and trigger redraw
+            this.paginationOffset = offset;
+            this.paginationLimit = limit;
+            m.redraw();
+          },
+        },
+        virtualization: {
+          rowHeightPx: 25,
+        },
+        fillHeight: true,
+        onColumnReorder: columnReordering
+          ? (from, to, position) => {
+              const newOrder = this.reorderColumns(
+                columnOrder,
+                from,
+                to,
+                position,
+              );
+              onColumnOrderChanged(newOrder);
+            }
+          : undefined,
+      }),
+    );
+  }
+
+  private renderTableToolbar(
+    filters: ReadonlyArray<FilterDefinition>,
+    sorting: Sorting,
+    onSortingChanged: OnSortingChanged,
+    onFiltersChanged: OnFiltersChanged,
+    showFilters: boolean,
+    showResetButton: boolean,
+    toolbarItemsLeft: m.Children,
+    toolbarItemsRight: m.Children,
+  ) {
+    if (
+      filters.length === 0 &&
+      !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
+      showResetButton === false
+    ) {
+      return undefined;
+    }
+
+    return m(Box, {className: 'pf-data-grid__toolbar', spacing: 'small'}, [
+      m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
+        toolbarItemsLeft,
+        showResetButton &&
+          m(Button, {
+            icon: Icons.ResetState,
+            label: 'Reset',
+            disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
+            title: 'Reset grid state',
+            onclick: () => {
+              onSortingChanged({direction: 'UNSORTED'});
+              onFiltersChanged([]);
+            },
           }),
-        );
-      } else {
-        // Return an empty placeholder row if data is not available
-        return undefined;
-      }
-    });
+        m(StackAuto, [
+          showFilters &&
+            m(GridFilterBar, [
+              filters.map((filter) => {
+                return m(GridFilterChip, {
+                  content: this.formatFilter(filter),
+                  onRemove: () => {
+                    const newFilters = filters.filter((f) => f !== filter);
+                    this.filters = newFilters;
+                    onFiltersChanged(newFilters);
+                  },
+                });
+              }),
+            ]),
+        ]),
+        toolbarItemsRight,
+      ]),
+    ]);
+  }
+
+  private formatFilter(filter: FilterDefinition) {
+    if ('value' in filter) {
+      return `${filter.column} ${filter.op} ${filter.value}`;
+    } else {
+      return `${filter.column} ${filter.op}`;
+    }
+  }
+
+  private getOrderedColumns(
+    columns: ReadonlyArray<ColumnDefinition>,
+    order: ColumnOrder,
+  ): ReadonlyArray<ColumnDefinition> {
+    // Create a map for fast lookup
+    const columnMap = new Map(columns.map((c) => [c.name, c]));
+
+    // Return ONLY columns in the specified order
+    // Columns not in order are considered hidden
+    const ordered = order.map((name) => columnMap.get(name)).filter(exists);
+
+    return ordered;
+  }
+
+  private reorderColumns(
+    currentOrder: ColumnOrder,
+    fromKey: string | number | undefined,
+    toKey: string | number | undefined,
+    position: 'before' | 'after',
+  ): ColumnOrder {
+    if (typeof fromKey !== 'string' || typeof toKey !== 'string') {
+      return currentOrder;
+    }
+
+    const newOrder = [...currentOrder];
+    const fromIndex = newOrder.indexOf(fromKey);
+    const toIndex = newOrder.indexOf(toKey);
+
+    if (fromIndex === -1 || toIndex === -1) return currentOrder;
+
+    // Can't drag a column relative to itself
+    if (fromKey === toKey) return currentOrder;
+
+    // Remove from old position
+    newOrder.splice(fromIndex, 1);
+
+    // Calculate new position
+    let insertIndex = toIndex;
+    if (fromIndex < toIndex) insertIndex--;
+    if (position === 'after') insertIndex++;
+
+    // Insert at new position
+    newOrder.splice(insertIndex, 0, fromKey);
+
+    return newOrder;
   }
 }
 
@@ -694,12 +896,8 @@ export function renderCell(value: SqlValue, columnName: string) {
       },
       `Blob (${value.length} bytes)`,
     );
-  } else if (typeof value === 'number' || typeof value === 'bigint') {
-    return m('span.pf-data-grid__cell--number', `${value}`);
-  } else if (value === null) {
-    return m('span.pf-data-grid__cell--null', 'null');
   } else {
-    return m('span', `${value}`);
+    return String(value);
   }
 }
 

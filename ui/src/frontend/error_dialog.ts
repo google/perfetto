@@ -56,6 +56,12 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
+  if (err.message.includes('ABT: Got no attachments from extension')) {
+    showABTError();
+    timeLastReport = now;
+    return;
+  }
+
   if (
     err.message.includes('A transfer error has occurred') ||
     err.message.includes('The device was disconnected') ||
@@ -370,6 +376,19 @@ function showWebUSBError() {
       m(
         'span',
         'Note: Perfetto and chrome://inspect cannot be used simultaneously as they both require exclusive access to the USB ADB interface.',
+      ),
+    ),
+  });
+}
+
+function showABTError() {
+  showModal({
+    title: 'An ABT error occurred',
+    content: m(
+      'div',
+      m(
+        'span',
+        `The Android Bug Tool (ABT) Chrome extension did not pass a valid file.`,
       ),
     ),
   });

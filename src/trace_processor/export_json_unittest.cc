@@ -1790,7 +1790,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
       context_.storage->InternString("is_peak_rss_resettable");
   {
     ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(upid).AddArg(
+    args_tracker.AddArgsToProcess(upid).AddArg(
         is_peak_rss_resettable_id, Variadic::Boolean(kIsPeakRssResettable));
   }
 

@@ -666,10 +666,24 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
-    upid =
-        context_->process_tracker->UpdateProcessWithParent(upid, pupid, true);
+    upid = context_->process_tracker->UpdateProcessWithParent(
+        upid, pupid, /*associate_main_thread=*/true);
 
     context_->process_tracker->SetProcessMetadata(upid, argv0, joined_cmdline);
+
+    // perfetto v50+: additionally, if we know that the "cmdline" contents are
+    // coming from the main thread's name ("comm"), then set the thread name as
+    // well. This comes up with kernel threads, which are in fact single-thread
+    // processes without a /proc/pid/cmdline. The reuse of "cmdline" for this
+    // scenario is historical, but we maintain compatibility. Note:
+    // cmdline_is_comm is not equivalent to "is a kernel thread", as the field
+    // could also be set for e.g. zombie processes.
+    if (proc.cmdline_is_comm()) {
+      auto utid = context_->process_tracker->GetOrCreateThread(pid);
+      auto thread_name_id = context_->storage->InternString(joined_cmdline);
+      context_->process_tracker->UpdateThreadName(
+          utid, thread_name_id, ThreadNamePriority::kProcessTree);
+    }
 
     if (proc.has_uid()) {
       context_->process_tracker->SetProcessUid(
@@ -688,7 +702,7 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 
     // Linux v6.4+: explicit field for whether this is a kernel thread.
     if (proc.has_is_kthread()) {
-      context_->process_tracker->AddArgsTo(upid).AddArg(
+      context_->process_tracker->AddArgsToProcess(upid).AddArg(
           is_kthread_id_, Variadic::Boolean(proc.is_kthread()));
     }
   }

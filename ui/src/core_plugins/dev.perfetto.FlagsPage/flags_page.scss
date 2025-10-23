@@ -17,14 +17,57 @@
     border-left: solid 3px var(--pf-color-primary);
   }
 
+  &__flag-id {
+    font-size: 0.7em;
+    color: var(--pf-color-text-muted);
+    font-family: var(--pf-font-monospace);
+    margin-bottom: 6px;
+  }
+
   &__description {
     font-size: smaller;
   }
 
+  &__link-button {
+    visibility: hidden;
+  }
+}
+
+.pf-card:hover .pf-flags-page__link-button {
+  visibility: visible;
+}
+
+.pf-flags-page {
   &__footer {
     margin-top: 12px;
     margin-bottom: 24px;
     display: flex;
     justify-content: center;
+  }
+
+  // Highlight the focused flag when navigating directly to it
+  &__card--focused {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-highlight) 70%,
+      transparent
+    );
+    animation: highlight-flash 1s ease-out;
+  }
+}
+
+@keyframes highlight-flash {
+  0% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: var(--pf-color-highlight);
+  }
+  100% {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-highlight) 70%,
+      transparent
+    );
   }
 }

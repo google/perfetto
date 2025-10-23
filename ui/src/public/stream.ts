@@ -12,26 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/theme";
-
-.pf-ndv-floating-button {
-  position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
+// The object returned by TraceStream.readChunk() promise.
+export interface TraceChunk {
+  data: Uint8Array;
+  eof: boolean;
+  bytesRead: number;
+  bytesTotal: number;
 }
 
-.pf-ndv-floating-card {
-  position: absolute;
-  bottom: 4rem;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 50vw;
-  max-height: 50vh;
-  overflow-y: auto;
-  padding: 1rem;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 0.5rem;
-  background-color: var(--pf-color-background);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+// Base interface for loading trace data in chunks.
+// The caller has to call readChunk() until TraceChunk.eof == true.
+export interface TraceStream {
+  readChunk(): Promise<TraceChunk>;
 }

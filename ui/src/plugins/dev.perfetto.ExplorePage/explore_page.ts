@@ -19,18 +19,18 @@ import {Builder} from './query_builder/builder';
 import {QueryNode, QueryNodeState} from './query_node';
 import {Trace} from '../../public/trace';
 
-import {NodeBoxLayout} from './query_builder/graph/node_box';
 import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
+import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 registerCoreNodes();
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
-  nodeLayouts: Map<string, NodeBoxLayout>;
+  nodeLayouts: Map<string, NodeContainerLayout>;
   devMode?: boolean;
 }
 
@@ -71,7 +71,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  handleAddDerivedNode(
+  async handleAddOperationNode(
     attrs: ExplorePageAttrs,
     node: QueryNode,
     derivedNodeId: string,
@@ -79,14 +79,47 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const {state, onStateUpdate} = attrs;
     const descriptor = nodeRegistry.get(derivedNodeId);
     if (descriptor) {
+      let initialState: Partial<QueryNodeState> | null = {};
+      if (descriptor.preCreate) {
+        const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+        if (!sqlModules) return;
+        initialState = await descriptor.preCreate({sqlModules});
+      }
+
+      if (initialState === null) {
+        return;
+      }
+
       const nodeState: QueryNodeState = {
-        prevNodes: [node],
+        ...initialState,
+        prevNode: node,
       };
 
       const newNode = descriptor.factory(nodeState, {
         allNodes: state.rootNodes,
       });
-      node.nextNodes.push(newNode);
+
+      // Insert the new node between the selected node and its children,
+      // carefully re-linking all parent/child connections.
+      if (node.nextNodes.length > 0) {
+        const children = [...node.nextNodes];
+        node.nextNodes = [newNode];
+        newNode.nextNodes = children;
+        for (const child of children) {
+          if ('prevNode' in child && child.prevNode === node) {
+            child.prevNode = newNode;
+          }
+          if ('prevNodes' in child) {
+            const index = child.prevNodes.indexOf(node);
+            if (index > -1) {
+              child.prevNodes[index] = newNode;
+            }
+          }
+        }
+      } else {
+        node.nextNodes.push(newNode);
+      }
+
       onStateUpdate((currentState) => ({
         ...currentState,
         selectedNode: newNode,
@@ -149,7 +182,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // If the node is a child of another node, remove it from the parent's
     // nextNodes array.
-    if (node.prevNodes) {
+    if ('prevNode' in node) {
+      const childIdx = node.prevNode.nextNodes.indexOf(node);
+      if (childIdx !== -1) {
+        node.prevNode.nextNodes.splice(childIdx, 1);
+      }
+    } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
         const childIdx = prevNode.nextNodes.indexOf(node);
         if (childIdx !== -1) {
@@ -299,9 +337,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onAddSourceNode: (id) => {
           this.handleAddSourceNode(attrs, id);
         },
-        onAddDerivedNode: (id) => {
+        onAddOperationNode: (id) => {
           if (state.selectedNode) {
-            this.handleAddDerivedNode(attrs, state.selectedNode, id);
+            this.handleAddOperationNode(attrs, state.selectedNode, id);
           }
         },
         onClearAllNodes: () => this.handleClearAllNodes(attrs),

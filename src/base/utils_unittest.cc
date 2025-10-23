@@ -106,7 +106,9 @@ TEST(UtilsTest, PipeBlockingRW) {
 // is a HANDLE.
 TEST(UtilsTest, ReadWritePlatformHandle) {
   auto tmp = TempDir::Create();
-  std::string payload = "foo\nbar\0baz\r\nqux";
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
   std::string tmp_path = tmp.path() + "/temp.txt";
 
   // Write a file using PlatformHandle. Note: the {} blocks are to make sure
@@ -339,6 +341,57 @@ TEST(UtilsTest, GetFileSize) {
   ASSERT_TRUE(maybe_size.has_value());
   ASSERT_EQ(maybe_size.value(), payload.size());
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
+  auto tmp = TempDir::Create();
+  std::string tmp_path = tmp.path() + "/temp.txt";
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      { auto fstream_write = OpenFstream(tmp_path, "wt"); }, "");
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      { auto fstream_write = OpenFstream(tmp_path, "w,ccs=UTF-8"); }, "");
+}
+
+TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
+  auto tmp = TempDir::Create();
+  std::string tmp_path = tmp.path() + "/temp.txt";
+  // Explicitly set the string size, we want to write all data to the file.
+  std::string payload("foo\nbar\0baz\r\nqux", 16);
+  ASSERT_EQ(payload.size(), static_cast<size_t>(16));
+
+  for (const char* mode : {"w", "wb"}) {
+    {
+      auto fstream_write = OpenFstream(tmp_path, mode);
+      size_t res = fwrite(payload.data(), payload.size(), 1, *fstream_write);
+      ASSERT_EQ(res, 1ul);
+    }
+    {
+      // If not in binary mode, '\r\n' sequences are translated when both read
+      // and write using FILE* API. So we read back data using `ReadFile` (it
+      // uses `open` with O_BINARY flag on Windows) to get the real bytes from
+      // the disk.
+      std::string actual;
+      ASSERT_TRUE(ReadFile(tmp_path, &actual));
+      ASSERT_EQ(actual, payload);
+    }
+    ASSERT_EQ(remove(tmp_path.c_str()), 0);
+  }
+
+  {
+    TempFile file = TempFile::Create();
+    WriteAll(*file, payload.data(), payload.size());
+
+    auto fstream = OpenFstream(file.path(), "r");
+    std::string actual(128, '\0');
+    size_t bytes_read = fread(actual.data(), 1, actual.size(), *fstream);
+    ASSERT_EQ(bytes_read, payload.size());
+    actual.resize(bytes_read);
+    ASSERT_EQ(actual, payload);
+  }
+}
+#endif
 
 }  // namespace
 }  // namespace base

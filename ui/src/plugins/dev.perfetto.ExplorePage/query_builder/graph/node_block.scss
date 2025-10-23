@@ -12,31 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/theme";
+@import "../common";
+@import "node_colors";
 
-.pf-node-block {
-  .pf-node-box__warning-icon {
-    position: absolute;
-    top: -0.5rem;
-    right: -0.5rem;
-  }
-
-  .pf-node-box-add-button {
-    position: absolute;
-    bottom: -0.5rem;
-    right: -0.5rem;
-    display: none;
-  }
-
-  &:hover .pf-node-box-add-button,
-  &.pf-node-container--selected .pf-node-box-add-button {
-    display: flex;
-  }
+.pf-exp-node-block {
+  @extend .pf-exp-node;
 }
 
-.pf-node-block__node {
+.pf-exp-node-block__node {
   position: relative;
-  padding: 0.625rem 0.75rem;
   &:not(:last-child) {
     border-bottom: 2px solid var(--pf-color-border);
   }
