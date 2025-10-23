@@ -27,12 +27,11 @@ import {Aggregation, AGGREGATIONS} from './aggregations';
 import {aggregationId, pivotId} from './ids';
 import {
   Grid,
-  GridBody,
-  GridDataCell,
-  GridHeader,
+  GridCell,
+  GridColumn,
   GridHeaderCell,
-  GridRow,
   renderSortMenuItems,
+  SortDirection,
 } from '../../../../widgets/grid';
 
 export interface PivotTableAttrs {
@@ -50,15 +49,171 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     const aggregations = state.getAggregations();
     const extraRowButton = attrs.extraRowButton;
 
-    const headers = [
+    // Expand the tree to a list of rows to show
+    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
+
+    // Build VirtualGrid columns
+    const columns: GridColumn[] = [
       ...pivots.map((pivot, index) => {
         const sorted = state.isSortedByPivot(pivot);
-        return m(
-          GridHeaderCell,
-          {
-            key: `pivot-${pivotId(pivot)}`,
-            reorderable: {handle: 'pivot'},
-            onReorder: (from, to, position) => {
+        const columnKey = `pivot-${pivotId(pivot)}`;
+        const gridColumn: GridColumn = {
+          key: columnKey,
+          header: m(
+            GridHeaderCell,
+            {
+              sort: sorted,
+              onSort: (direction: SortDirection) =>
+                state.sortByPivot(pivot, direction),
+              menuItems: this.renderPivotColumnMenu(attrs, pivot, index),
+            },
+            pivotId(pivot),
+          ),
+          reorderable: {handle: 'pivot'},
+          thickRightBorder: index === pivots.length - 1,
+        };
+        return gridColumn;
+      }),
+      ...aggregations.map((agg, index) => {
+        const columnKey = `agg-${aggregationId(agg)}`;
+        const gridColumn: GridColumn = {
+          key: columnKey,
+          header: m(
+            GridHeaderCell,
+            {
+              sort: state.isSortedByAggregation(agg),
+              onSort: (direction: SortDirection) =>
+                state.sortByAggregation(agg, direction),
+              menuItems: this.renderAggregationColumnMenu(attrs, agg, index),
+            },
+            aggregationId(agg),
+          ),
+          reorderable: {handle: 'aggregation'},
+        };
+        return gridColumn;
+      }),
+    ];
+
+    if (extraRowButton) {
+      columns.push({
+        key: 'action-button',
+        minWidth: 0,
+        header: m(GridHeaderCell, ''),
+      });
+    }
+
+    // Build VirtualGrid rows
+    const rows = nodes.map((node) => {
+      const cellRow: m.Children[] = [];
+
+      // Handle pivot cells
+      if (node.isRoot()) {
+        // For root node, create a special "Total values" cell that spans all pivot columns
+        // We'll just put it in the first pivot column and leave others empty
+        cellRow.push(
+          m(
+            GridCell,
+            {
+              align: 'right',
+            },
+            m('.pf-pivot-table__total-values', 'Total values:'),
+          ),
+        );
+
+        // Leave other pivot columns empty for the root row
+        for (let i = 1; i < pivots.length; i++) {
+          cellRow.push(m(GridCell));
+        }
+      } else {
+        // Regular pivot cells
+        pivots.forEach((_, index) => {
+          const status = node.getPivotDisplayStatus(index);
+          const value = node.getPivotValue(index);
+          const renderedCell = (function () {
+            if (value === undefined) return undefined;
+            return state.getPivots()[index].renderCell(value);
+          })();
+          const content = [
+            (status === 'collapsed' || status === 'expanded') &&
+              m(Button, {
+                icon:
+                  status === 'collapsed' ? 'chevron_right' : Icons.ExpandDown,
+                onclick: () => {
+                  node.collapsed = !node.collapsed;
+                  m.redraw();
+                },
+                compact: true,
+              }),
+            status === 'auto_expanded' &&
+              m(Button, {
+                icon: 'chevron_right',
+                disabled: true,
+                compact: true,
+              }),
+            status === 'pivoted_value' &&
+              m('span.pf-pivot-table__cell--indent'),
+            renderedCell && renderedCell.content,
+            status === 'hidden_behind_collapsed' && '...',
+          ];
+          cellRow.push(
+            m(
+              GridCell,
+              {
+                align: renderedCell?.isNull
+                  ? 'center'
+                  : renderedCell?.isNumerical
+                    ? 'right'
+                    : 'left',
+                nullish: renderedCell?.isNull,
+              },
+              content,
+            ),
+          );
+        });
+      }
+
+      // Handle aggregation cells
+      aggregations.forEach((agg, index) => {
+        const renderedCell = agg.column.renderCell(
+          node.getAggregationValue(index),
+        );
+        cellRow.push(
+          m(
+            GridCell,
+            {
+              align: renderedCell?.isNull
+                ? 'center'
+                : renderedCell?.isNumerical
+                  ? 'right'
+                  : 'left',
+              nullish: renderedCell?.isNull,
+            },
+            renderedCell.content,
+          ),
+        );
+      });
+
+      // Handle extra row button
+      if (extraRowButton) {
+        cellRow.push(m(GridCell, {padding: false}, extraRowButton(node)));
+      }
+
+      return cellRow;
+    });
+
+    return [
+      m(Grid, {
+        fillHeight: true,
+        className: 'pf-pivot-table',
+        columns,
+        rowData: rows,
+        virtualization: {
+          rowHeightPx: 25,
+        },
+        onColumnReorder: (from, to, position) => {
+          if (typeof from === 'string' && typeof to === 'string') {
+            // Handle pivot column reordering
+            if (from.startsWith('pivot-') && to.startsWith('pivot-')) {
               const fromIndex = pivots.findIndex(
                 (p) => `pivot-${pivotId(p)}` === from,
               );
@@ -69,22 +224,9 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                 toIndex++;
               }
               state.movePivot(fromIndex, toIndex);
-            },
-            sort: sorted,
-            onSort: (direction) => state.sortByPivot(pivot, direction),
-            menuItems: this.renderPivotColumnMenu(attrs, pivot, index),
-            thickRightBorder: index === pivots.length - 1,
-          },
-          pivotId(pivot),
-        );
-      }),
-      ...aggregations.map((agg, index) => {
-        return m(
-          GridHeaderCell,
-          {
-            key: `agg-${aggregationId(agg)}`,
-            reorderable: {handle: 'aggregation'},
-            onReorder: (from, to, position) => {
+            }
+            // Handle aggregation column reordering
+            else if (from.startsWith('agg-') && to.startsWith('agg-')) {
               const fromIndex = aggregations.findIndex(
                 (a) => `agg-${aggregationId(a)}` === from,
               );
@@ -95,133 +237,10 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                 toIndex++;
               }
               state.moveAggregation(fromIndex, toIndex);
-            },
-            sort: state.isSortedByAggregation(agg),
-            onSort: (direction) => state.sortByAggregation(agg, direction),
-            menuItems: this.renderAggregationColumnMenu(attrs, agg, index),
-          },
-          aggregationId(agg),
-        );
-      }),
-    ];
-
-    if (extraRowButton) {
-      headers.push(m(GridHeaderCell, {key: 'action-button'}));
-    }
-
-    // Expand the tree to a list of rows to show.
-    const nodes: PivotTreeNode[] = data ? [...data.listDescendants()] : [];
-
-    return [
-      m(
-        Grid,
-        {
-          fillHeight: true,
-          className: 'pf-pivot-table',
+            }
+          }
         },
-        [
-          m(GridHeader, m(GridRow, headers)),
-          m(
-            GridBody,
-            nodes.map((node) => {
-              const pivotCells = node.isRoot()
-                ? [
-                    m(
-                      GridDataCell,
-                      {
-                        align: 'right',
-                        colspan: pivots.length,
-                        thickRightBorder: true,
-                      },
-                      m('.pf-pivot-table__total-values', 'Total values:'),
-                    ),
-                  ]
-                : pivots.map((_pivot, index) => {
-                    const status = node.getPivotDisplayStatus(index);
-                    const value = node.getPivotValue(index);
-                    const renderedCell = (function () {
-                      if (value === undefined) return undefined;
-                      return state.getPivots()[index].renderCell(value);
-                    })();
-                    const content = [
-                      (status === 'collapsed' || status === 'expanded') &&
-                        m(Button, {
-                          icon:
-                            status === 'collapsed'
-                              ? 'chevron_right'
-                              : Icons.ExpandDown,
-                          onclick: () => {
-                            node.collapsed = !node.collapsed;
-                            m.redraw();
-                          },
-                          compact: true,
-                        }),
-                      // Show a non-clickable indicator that the value is auto-expanded.
-                      status === 'auto_expanded' &&
-                        m(Button, {
-                          icon: 'chevron_right',
-                          disabled: true,
-                          compact: true,
-                        }),
-                      // Indent the expanded values to align them with the parent value
-                      // even though they do not have the "expand/collapse" button.
-                      status === 'pivoted_value' &&
-                        m('span.pf-pivot-table__cell--indent'),
-                      renderedCell && renderedCell.content,
-                      // Show ellipsis for the last pivot if the node is collapsed to
-                      // make it clear to the user that there are some values.
-                      status === 'hidden_behind_collapsed' && '...',
-                    ];
-                    return m(
-                      GridDataCell,
-                      {
-                        thickRightBorder: index === pivots.length - 1,
-                        align: renderedCell?.isNull
-                          ? 'center'
-                          : renderedCell?.isNumerical
-                            ? 'right'
-                            : 'left',
-                        isMissing: renderedCell?.isNull,
-                      },
-                      content,
-                    );
-                  });
-
-              const aggregationCells = aggregations.map((agg, index) => {
-                const renderedCell = agg.column.renderCell(
-                  node.getAggregationValue(index),
-                );
-                return m(
-                  GridDataCell,
-                  {
-                    align: renderedCell?.isNull
-                      ? 'center'
-                      : renderedCell?.isNumerical
-                        ? 'right'
-                        : 'left',
-                    isMissing: renderedCell?.isNull,
-                  },
-                  renderedCell.content,
-                );
-              });
-
-              const cells = [...pivotCells, ...aggregationCells];
-
-              if (extraRowButton) {
-                cells.push(
-                  m(
-                    GridDataCell,
-                    {className: 'action-button'},
-                    extraRowButton(node),
-                  ),
-                );
-              }
-
-              return m(GridRow, cells);
-            }),
-          ),
-        ],
-      ),
+      }),
       data === undefined && m(Spinner),
     ];
   }

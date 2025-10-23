@@ -34,7 +34,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {NodeBoxLayout} from './graph/node_box';
+import {NodeContainerLayout} from './graph/node_container';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -44,18 +44,21 @@ export interface BuilderAttrs {
 
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
-  readonly nodeLayouts: Map<string, NodeBoxLayout>;
+  readonly nodeLayouts: Map<string, NodeContainerLayout>;
 
   readonly onDevModeChange?: (enabled: boolean) => void;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
-  readonly onAddDerivedNode: (id: string) => void;
+  readonly onAddOperationNode: (id: string) => void;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (nodeId: string, layout: NodeBoxLayout) => void;
+  readonly onNodeLayoutChange: (
+    nodeId: string,
+    layout: NodeContainerLayout,
+  ) => void;
 
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
@@ -171,15 +174,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAddSourceNode: attrs.onAddSourceNode,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onAddDerivedNode: attrs.onAddDerivedNode,
+          onAddOperationNode: attrs.onAddOperationNode,
           devMode: attrs.devMode,
           onDevModeChange: attrs.onDevModeChange,
-          onDeleteNode: (node: QueryNode) => {
-            if (node.isMaterialised()) {
-              trace.engine.query(`DROP TABLE IF EXISTS ${node.meterialisedAs}`);
-            }
-            attrs.onDeleteNode(node);
-          },
+          onDeleteNode: attrs.onDeleteNode,
           onImport: attrs.onImport,
           onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
