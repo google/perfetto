@@ -38,8 +38,8 @@ import {createPerfCallsitesTrack} from './perf_samples_profile_track';
 
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
-function makeUriForProc(upid: number, sessionId: number) {
-  return `/process_${upid}/perf_samples_profile_${sessionId}`;
+function makeUriForProc(upid: number, counterName: string, sessionId: number) {
+  return `/process_${upid}/perf_samples_profile_${counterName}_${sessionId}`;
 }
 
 export default class implements PerfettoPlugin {
@@ -117,7 +117,7 @@ export default class implements PerfettoPlugin {
 
       // Nested tracks: one per counter being sampled on.
       for (const {cntrName, sessionId} of counters) {
-        const uri = makeUriForProc(upid, sessionId);
+        const uri = makeUriForProc(upid, cntrName, sessionId);
         trackUris.push(uri);
         trace.tracks.registerTrack({
           uri,
@@ -233,7 +233,7 @@ export default class implements PerfettoPlugin {
 
       // Nested tracks: one per counter being sampled on.
       for (const {cntrName, sessionId} of counters) {
-        const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile_${sessionId}`;
+        const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile_${cntrName}_${sessionId}`;
         trace.tracks.registerTrack({
           uri,
           tags: {
