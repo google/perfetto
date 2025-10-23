@@ -2073,9 +2073,9 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
     Rpc rpc(std::move(tp), !options.trace_file_path.empty());
 
+#if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
 
-#if PERFETTO_HAS_SIGNAL_H()
     if (options.metatrace_path.empty()) {
       // Restore the default signal handler to allow the user to terminate
       // httpd server via Ctrl-C.
