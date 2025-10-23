@@ -37,23 +37,17 @@ const NESTING_SEPARATOR: string = ' -> ';
  *      - Track3
  */
 export default class implements PerfettoPlugin {
-  static readonly id = 'com.android.OrganizeNestedTracks';
+  static readonly id = 'com.android.CreateTrackHierarchyFromNames';
   static readonly dependencies = [
     StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.commands.registerCommand({
-      id: 'com.android.OrganizeNestedTracks.organize',
-      name: 'Organize nested tracks',
-      callback: async () => {
-        this.organizeNestedTracks(ctx);
-      },
-    });
+    this.createTrackHierarchyFromNames(ctx);
   }
 
-  private organizeNestedTracks(ctx: Trace) {
+  private createTrackHierarchyFromNames(ctx: Trace) {
     ctx.workspace.flatTracks
       .filter((track) => track.name.includes(NESTING_SEPARATOR))
       .forEach((track) => this.organizeTrack(track));

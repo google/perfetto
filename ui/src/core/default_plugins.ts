@@ -36,7 +36,6 @@ export const defaultPlugins = [
   'com.android.DayExplorer',
   'com.android.GpuWorkPeriod',
   'com.android.LargeScreensPerf',
-  'com.android.OrganizeNestedTracks',
   'com.android.PinAndroidPerfMetrics',
   'com.android.PinSysUITracks',
   'com.android.SysUIWorkspace',
