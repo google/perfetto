@@ -328,10 +328,10 @@ interface FilterByTextWidgetAttrs {
 
 class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
-    const icon = attrs.hideNonMatching ? 'unfold_less' : 'unfold_more';
+    const icon = attrs.hideNonMatching ? 'filter_alt' : 'filter_alt_off';
     const tooltip = attrs.hideNonMatching
-      ? 'Expand all and view highlighted'
-      : 'Collapse all';
+      ? 'Show all logs and highlight matches'
+      : 'Show only matching logs';
     return m(Button, {
       icon,
       title: tooltip,
@@ -415,7 +415,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     return m(PopupMultiSelect, {
       label: 'Filter by machine',
       icon: 'filter_list_alt',
-      popupPosition: PopupPosition.Top,
+      position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<number>(machineExcludeList);
