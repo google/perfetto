@@ -126,10 +126,10 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       {key: 'pid', header: m(GridHeaderCell, 'PID')},
       {key: 'tid', header: m(GridHeaderCell, 'TID')},
       {key: 'level', header: m(GridHeaderCell, 'Level')},
-      {key: 'tag', header: m(GridHeaderCell, 'Tag')},
       ...(hasProcessNames
         ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
         : []),
+      {key: 'tag', header: m(GridHeaderCell, 'Tag')},
       {key: 'message', header: m(GridHeaderCell, 'Message')},
     ];
 
