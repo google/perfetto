@@ -102,7 +102,7 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &[active] {
-    background: var(--pf-color-border-secondary);
+    background: color_active(transparent);
   }
 }
 
