@@ -45,6 +45,7 @@ message FrameTimelineEvent {
     JANK_DROPPED = 1024;
     JANK_NON_ANIMATING = 2048;
     JANK_APP_RESYNCED_JITTER = 4096;
+    JANK_DISPLAY_NOT_ON = 8192;
   };
 
   // Specifies the severity of a jank.

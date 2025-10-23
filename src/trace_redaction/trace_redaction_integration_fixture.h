@@ -20,6 +20,7 @@
 #include <string>
 
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
@@ -39,6 +40,9 @@ class TraceRedactionIntegrationFixure {
   base::StatusOr<std::string> LoadOriginal() const;
 
   base::StatusOr<std::string> LoadRedacted() const;
+
+  static std::unique_ptr<trace_processor::TraceProcessor> CreateTraceProcessor(
+      std::string_view raw);
 
   // Set the package name to "just some package name". If a specific package
   // name is needed, the test it should overwrite this value.

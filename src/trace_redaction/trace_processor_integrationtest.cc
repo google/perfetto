@@ -166,26 +166,6 @@ class BeforeAndAfterAfterIntegrationTest
     trace_processor_after_ = CreateTraceProcessor(raw_after.value());
   }
 
-  static std::unique_ptr<trace_processor::TraceProcessor> CreateTraceProcessor(
-      std::string_view raw) {
-    auto read_buffer = std::make_unique<uint8_t[]>(raw.size());
-    memcpy(read_buffer.get(), raw.data(), raw.size());
-
-    trace_processor::Config config;
-    auto trace_processor =
-        trace_processor::TraceProcessor::CreateInstance(config);
-
-    auto parsed = trace_processor->Parse(std::move(read_buffer), raw.size());
-
-    if (!parsed.ok()) {
-      return nullptr;
-    }
-    if (auto status = trace_processor->NotifyEndOfFile(); !status.ok()) {
-      return nullptr;
-    }
-    return trace_processor;
-  }
-
   std::unique_ptr<trace_processor::TraceProcessor> trace_processor_before_;
   std::unique_ptr<trace_processor::TraceProcessor> trace_processor_after_;
 };
