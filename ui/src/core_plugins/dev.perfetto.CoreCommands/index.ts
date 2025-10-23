@@ -44,6 +44,7 @@ import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 import {Setting} from '../../public/settings';
+import {toggleHelp} from '../../frontend/help_modal';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -140,6 +141,22 @@ export default class CoreCommands implements PerfettoPlugin {
   static macrosSetting: Setting<MacroConfig> | undefined = undefined;
 
   static onActivate(ctx: AppImpl) {
+    // Register global commands (commands that are required even without a trace
+    // loaded).
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.OpenCommandPalette',
+      name: 'Open command palette',
+      callback: () => ctx.omnibox.setMode(OmniboxMode.Command),
+      defaultHotkey: '!Mod+Shift+P',
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ShowHelp',
+      name: 'Show help',
+      callback: () => toggleHelp(),
+      defaultHotkey: '?',
+    });
+
     if (ctx.sidebar.enabled) {
       ctx.commands.registerCommand({
         id: 'dev.perfetto.ToggleLeftSidebar',
