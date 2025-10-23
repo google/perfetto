@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {UIFilter} from '../../../plugins/dev.perfetto.ExplorePage/query_builder/operations/filter';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {
   DataGridDataSource,
@@ -23,6 +22,7 @@ import {
   DataGridModel,
   AggregateSpec,
   areAggregateArraysEqual,
+  DataGridFilter,
 } from './common';
 
 export class InMemoryDataSource implements DataGridDataSource {
@@ -32,7 +32,7 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   // Cached state for diffing
   private oldSorting: Sorting = {direction: 'UNSORTED'};
-  private oldFilters: ReadonlyArray<UIFilter> = [];
+  private oldFilters: ReadonlyArray<DataGridFilter> = [];
   private aggregates?: ReadonlyArray<AggregateSpec>;
 
   constructor(data: ReadonlyArray<RowDef>) {
@@ -152,8 +152,8 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   // Helper function to compare arrays of filter definitions for equality.
   private areFiltersEqual(
-    filtersA: ReadonlyArray<UIFilter>,
-    filtersB: ReadonlyArray<UIFilter>,
+    filtersA: ReadonlyArray<DataGridFilter>,
+    filtersB: ReadonlyArray<DataGridFilter>,
   ): boolean {
     if (filtersA === filtersB) return true;
     if (filtersA.length !== filtersB.length) return false;
@@ -184,7 +184,7 @@ export class InMemoryDataSource implements DataGridDataSource {
 
   private applyFilters(
     data: ReadonlyArray<RowDef>,
-    filters: ReadonlyArray<UIFilter>,
+    filters: ReadonlyArray<DataGridFilter>,
   ): ReadonlyArray<RowDef> {
     if (filters.length === 0) {
       return data;
