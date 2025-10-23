@@ -24,6 +24,7 @@
 #include <functional>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 #include "perfetto/public/compiler.h"
@@ -187,12 +188,28 @@ struct MurmurHash {
     } else if constexpr (std::is_same_v<T, float>) {
       return murmur_internal::MurmurHashMix(
           murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
-    } else if constexpr (std::is_same_v<T, std::string> ||
-                         std::is_same_v<T, std::string_view>) {
-      return murmur_internal::MurmurHashBytes(value.data(), value.size());
     } else {
       return std::hash<T>{}(value);
     }
+  }
+};
+
+// Explicit specialization for std::string to support heterogeneous lookup
+// with std::string_view and const char*.
+template <>
+struct MurmurHash<std::string> {
+  // Standard C++ library requirement for heterogeneous lookup support.
+  using is_transparent = void;
+
+  uint64_t operator()(const std::string& value) const {
+    return murmur_internal::MurmurHashBytes(value.data(), value.size());
+  }
+  uint64_t operator()(std::string_view value) const {
+    return murmur_internal::MurmurHashBytes(value.data(), value.size());
+  }
+  uint64_t operator()(const char* value) const {
+    std::string_view sv(value);
+    return murmur_internal::MurmurHashBytes(sv.data(), sv.size());
   }
 };
 
