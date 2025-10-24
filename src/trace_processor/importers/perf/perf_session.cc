@@ -55,12 +55,16 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
     return base::ErrStatus("No perf_event_attr");
   }
 
-  auto perf_session_id =
-      context_->storage->mutable_perf_session_table()->Insert({}).id;
-
   RefPtr<PerfEventAttr> first_attr;
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
   for (const auto& entry : attr_with_ids_) {
+    // Assign a distinct sampling stream id to each event description. Note: at
+    // the time of writing, we do not correctly re-group the events if the
+    // recording was using leader sampling (this would require proper handling
+    // of HEADER_GROUP_DESC). But this is fine since the samples will still be
+    // attributed to the first counter in the group.
+    auto perf_session_id =
+        context_->storage->mutable_perf_session_table()->Insert({}).id;
     RefPtr<PerfEventAttr> attr(
         new PerfEventAttr(context_, perf_session_id, entry.attr));
     if (!first_attr) {
@@ -88,9 +92,9 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
         !first_attr->id_offset_from_end().has_value()))) {
     return base::ErrStatus("No id offsets for multiple perf_event_attr");
   }
-  return RefPtr<PerfSession>(
-      new PerfSession(context_, perf_session_id, std::move(first_attr),
-                      std::move(attrs_by_id), attr_with_ids_.size() == 1));
+  return RefPtr<PerfSession>(new PerfSession(context_, std::move(first_attr),
+                                             std::move(attrs_by_id),
+                                             attr_with_ids_.size() == 1));
 }
 
 base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
@@ -187,10 +191,13 @@ std::optional<BuildId> PerfSession::LookupBuildId(
 }
 
 void PerfSession::SetCmdline(const std::vector<std::string>& args) {
-  context_->storage->mutable_perf_session_table()
-      ->FindById(perf_session_id_)
-      ->set_cmdline(context_->storage->InternString(
-          base::StringView(base::Join(args, " "))));
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    auto session_id = it.value()->perf_session_id();
+    context_->storage->mutable_perf_session_table()
+        ->FindById(session_id)
+        ->set_cmdline(context_->storage->InternString(
+            base::StringView(base::Join(args, " "))));
+  }
 }
 
 bool PerfSession::HasPerfClock() const {

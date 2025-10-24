@@ -183,11 +183,12 @@ base::Status RecordParser::InternSample(Sample sample) {
   std::optional<CallsiteId> callsite_id = InternCallchain(
       upid, sample.callchain, sample.perf_session->needs_pc_adjustment());
 
+  auto session_id = sample.attr->perf_session_id();
   context_->storage->mutable_perf_sample_table()->Insert(
       {sample.trace_ts, utid, sample.cpu,
        context_->storage->InternString(
            ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
-       callsite_id, std::nullopt, sample.perf_session->perf_session_id()});
+       callsite_id, std::nullopt, session_id});
 
   return UpdateCounters(sample);
 }
