@@ -1064,6 +1064,7 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_memory_snapshot_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_mmap_record_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_package_list_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_user_list_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_perf_session_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_process_memory_snapshot_table());

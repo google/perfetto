@@ -540,6 +540,11 @@ class TraceStorage {
     return &package_list_table_;
   }
 
+  const tables::UserListTable& user_list_table() const {
+    return user_list_table_;
+  }
+  tables::UserListTable* mutable_user_list_table() { return &user_list_table_; }
+
   const tables::AndroidGameInterventionListTable&
   android_game_intervention_list_table() const {
     return android_game_intervention_list_table_;
@@ -1179,6 +1184,7 @@ class TraceStorage {
   tables::PerfSampleTable perf_sample_table_{&string_pool_};
   tables::InstrumentsSampleTable instruments_sample_table_{&string_pool_};
   tables::PackageListTable package_list_table_{&string_pool_};
+  tables::UserListTable user_list_table_{&string_pool_};
   tables::AndroidGameInterventionListTable
       android_game_intervention_list_table_{&string_pool_};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_};
