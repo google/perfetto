@@ -49,7 +49,7 @@ export type PopupMultiSelectAttrs = MultiSelectAttrs & {
   compact?: boolean;
   icon?: string;
   label: string;
-  popupPosition?: PopupPosition;
+  position?: PopupPosition;
 };
 
 // A component which shows a list of items with checkboxes, allowing the user to
@@ -223,7 +223,7 @@ export class PopupMultiSelect
   implements m.ClassComponent<PopupMultiSelectAttrs>
 {
   view({attrs}: m.CVnode<PopupMultiSelectAttrs>) {
-    const {icon, popupPosition = PopupPosition.Auto, intent, compact} = attrs;
+    const {icon, position = PopupPosition.Auto, intent, compact} = attrs;
 
     return m(
       Popup,
@@ -234,7 +234,7 @@ export class PopupMultiSelect
           intent,
           compact,
         }),
-        position: popupPosition,
+        position,
       },
       m(MultiSelect, attrs as MultiSelectAttrs),
     );
