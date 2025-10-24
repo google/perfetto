@@ -26,14 +26,14 @@ interface Position {
   transformedY?: number;
 }
 
-interface Connection {
+export interface Connection {
   fromNode: string;
   fromPort: number;
   toNode: string;
   toPort: number;
 }
 
-interface Node {
+export interface Node {
   id: string;
   title: string;
   x: number;
@@ -66,12 +66,12 @@ interface CanvasState {
   zoom: number;
 }
 
-interface NodeGraphApi {
+export interface NodeGraphApi {
   autoLayout: () => void;
   recenter: () => void;
 }
 
-interface NodeCanvasAttrs {
+export interface NodeGraphAttrs {
   readonly nodes?: Node[];
   readonly connections?: Connection[];
   readonly onConnect?: (connection: Connection) => void;
@@ -359,8 +359,8 @@ export function autoLayoutNodes(
 // ========================================
 // CANVAS COMPONENT
 // ========================================
-export const NodeGraph: m.Component<NodeCanvasAttrs> = {
-  oncreate: (vnode: m.VnodeDOM<NodeCanvasAttrs>) => {
+export const NodeGraph: m.Component<NodeGraphAttrs> = {
+  oncreate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
     const {connections = [], onConnectionRemove, onReady} = vnode.attrs;
 
     // Render connections after DOM is ready
@@ -633,7 +633,7 @@ export const NodeGraph: m.Component<NodeCanvasAttrs> = {
     dom._handleWheel = handleWheel;
   },
 
-  onupdate: (vnode: m.VnodeDOM<NodeCanvasAttrs>) => {
+  onupdate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
     const {connections = [], onConnectionRemove} = vnode.attrs;
 
     // Re-render connections when component updates
@@ -643,7 +643,7 @@ export const NodeGraph: m.Component<NodeCanvasAttrs> = {
     }
   },
 
-  onremove: (vnode: m.VnodeDOM<NodeCanvasAttrs>) => {
+  onremove: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
     // Clean up event listeners
     const dom = vnode.dom as NodeGraphDOM;
     const handleMouseMove = dom._handleMouseMove;
@@ -662,7 +662,7 @@ export const NodeGraph: m.Component<NodeCanvasAttrs> = {
     }
   },
 
-  view: (vnode: m.Vnode<NodeCanvasAttrs>) => {
+  view: (vnode: m.Vnode<NodeGraphAttrs>) => {
     const {nodes = [], connections = [], onConnect} = vnode.attrs;
 
     return m(

@@ -79,7 +79,7 @@ import {
 } from './widget_page_utils';
 import {renderGridDemo} from './grid_demo';
 import {renderDataGridDemo} from './data_grid_demo';
-import {NodeGraph} from '../../widgets/nodegraph';
+import {Connection, Node, NodeGraph} from '../../widgets/nodegraph';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -495,24 +495,6 @@ function TagInputDemo() {
       });
     },
   };
-}
-
-interface Connection {
-  fromNode: string;
-  fromPort: number;
-  toNode: string;
-  toPort: number;
-}
-
-interface Node {
-  id: string;
-  title: string;
-  x: number;
-  y: number;
-  inputs?: string[];
-  outputs?: string[];
-  content?: m.Children;
-  contextMenu?: m.Children;
 }
 
 function NodeGraphDemo() {
