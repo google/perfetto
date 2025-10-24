@@ -232,7 +232,11 @@ function getNodeDimensions(nodeId: string): {width: number; height: number} {
   const nodeElement = document.querySelector(`[data-node="${nodeId}"]`);
   if (nodeElement) {
     const rect = nodeElement.getBoundingClientRect();
-    return {width: rect.width, height: rect.height};
+    // Divide by zoom to get canvas content space dimensions
+    return {
+      width: rect.width / canvasState.zoom,
+      height: rect.height / canvasState.zoom,
+    };
   }
   // Fallback if DOM element not found
   return {width: 180, height: 100};
