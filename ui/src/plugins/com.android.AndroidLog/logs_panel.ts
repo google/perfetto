@@ -130,7 +130,12 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
         : []),
       {key: 'tag', header: m(GridHeaderCell, 'Tag')},
-      {key: 'message', header: m(GridHeaderCell, 'Message')},
+      {
+        key: 'message',
+        // Allow the initial width of the message column to expand as needed.
+        maxInitialWidthPx: Infinity,
+        header: m(GridHeaderCell, 'Message'),
+      },
     ];
 
     return m(
