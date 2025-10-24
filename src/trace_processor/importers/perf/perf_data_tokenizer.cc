@@ -358,12 +358,12 @@ base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
     return base::ErrStatus("Failed to read time");
   }
 
-  // TODO(449973773): `*time > 0` is a temporary hack to work around the fact that
-  // some perf record types which actually don't have a timestamp. They should
-  // have been procesed during tokenization time (e.g. MMAP/MMAP2/COMM) but
-  // were incorrectly written to be handled with at parsing time. So by setting
-  // trace_ts to `latest_timestamp_`, we don't try and convert a zero timestamp
-  // accidentally, leading to negative timestamps in some clocks.
+  // TODO(449973773): `*time > 0` is a temporary hack to work around the fact
+  // that some perf record types which actually don't have a timestamp. They
+  // should have been procesed during tokenization time (e.g. MMAP/MMAP2/COMM)
+  // but were incorrectly written to be handled with at parsing time. So by
+  // setting trace_ts to `latest_timestamp_`, we don't try and convert a zero
+  // timestamp accidentally, leading to negative timestamps in some clocks.
   base::StatusOr<int64_t> trace_ts =
       time && *time > 0
           ? context_->clock_tracker->ToTraceTime(record.attr->clock_id(),
