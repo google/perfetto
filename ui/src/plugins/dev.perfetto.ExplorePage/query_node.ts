@@ -16,7 +16,7 @@ import protos from '../../protos';
 import m from 'mithril';
 import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
-import {FilterDefinition} from '../../components/widgets/data_grid/common';
+import {UIFilter} from './query_builder/operations/filter';
 import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
@@ -68,7 +68,7 @@ export interface QueryNodeState {
   sqlTable?: SqlTable;
 
   // Operations
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
 
   issues?: NodeIssues;
 

@@ -33,11 +33,11 @@ import {
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../../operations/filter';
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }
