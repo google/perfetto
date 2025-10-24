@@ -1851,6 +1851,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
 
       m(WidgetShowcase, {
         label: 'NodeGraph',
+        description:
+          'Scroll left and right to pan / pinch to zoom. Drag nodes from output to input ports to connect nodes. Click connectors or drag outputs away from ports to remove connections.',
         wide: true,
         renderWidget: () => m(NodeGraphDemo),
         initialOpts: {},
