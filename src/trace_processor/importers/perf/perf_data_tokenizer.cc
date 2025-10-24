@@ -230,7 +230,6 @@ PerfDataTokenizer::ParseAttrs() {
 
   PerfSession::Builder builder(context_);
   while (attr_reader.CanReadNext()) {
-    PERFETTO_LOG("ZXF: perf_event_attr");
     PerfFile::AttrsEntry entry;
     RETURN_IF_ERROR(attr_reader.ReadNext(entry));
 

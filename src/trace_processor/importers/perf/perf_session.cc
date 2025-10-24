@@ -92,9 +92,9 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
         !first_attr->id_offset_from_end().has_value()))) {
     return base::ErrStatus("No id offsets for multiple perf_event_attr");
   }
-  return RefPtr<PerfSession>(
-      new PerfSession(context_, std::move(first_attr),
-                      std::move(attrs_by_id), attr_with_ids_.size() == 1));
+  return RefPtr<PerfSession>(new PerfSession(context_, std::move(first_attr),
+                                             std::move(attrs_by_id),
+                                             attr_with_ids_.size() == 1));
 }
 
 base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
@@ -190,7 +190,15 @@ std::optional<BuildId> PerfSession::LookupBuildId(
   return it ? std::make_optional(*it) : std::nullopt;
 }
 
-void PerfSession::SetCmdline(const std::vector<std::string>&) {}
+void PerfSession::SetCmdline(const std::vector<std::string>& args) {
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    auto session_id = it.value()->perf_session_id();
+    context_->storage->mutable_perf_session_table()
+        ->FindById(session_id)
+        ->set_cmdline(context_->storage->InternString(
+            base::StringView(base::Join(args, " "))));
+  }
+}
 
 bool PerfSession::HasPerfClock() const {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
