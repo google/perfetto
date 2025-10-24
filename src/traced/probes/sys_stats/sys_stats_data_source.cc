@@ -303,8 +303,7 @@ std::optional<uint64_t> SysStatsDataSource::ReadFileToUInt64(
   if (!rsize)
     return std::nullopt;
 
-  return static_cast<uint64_t>(
-      strtoll(static_cast<char*>(read_buf_.Get()), nullptr, 10));
+  return base::CStringToUInt64(static_cast<char*>(read_buf_.Get()));
 }
 
 void SysStatsDataSource::ReadThermalZones(protos::pbzero::SysStats* sys_stats) {
@@ -444,8 +443,7 @@ void SysStatsDataSource::OpenGpuFreqFiles(OpenFunction open_fn) {
     for (size_t gt = 0;; ++gt) {
       base::StackString<256> freq_path(
           "/sys/class/drm/card0/device/tile%zu/gt%zu/freq0/act_freq", tile, gt);
-      auto fd = open_fn(freq_path.c_str());
-      if (fd) {
+      if (base::ScopedFile fd = open_fn(freq_path.c_str())) {
         intel_gpufreq_fds_.emplace_back(std::move(fd), freq_path.ToStdString());
         found = true;
       } else {
@@ -457,10 +455,9 @@ void SysStatsDataSource::OpenGpuFreqFiles(OpenFunction open_fn) {
     }
   }
 
-  auto fd = open_fn("/sys/class/drm/card0/gt_act_freq_mhz");
-  if (fd) {
-    intel_gpufreq_fds_.emplace_back(std::move(fd),
-                                    "/sys/class/drm/card0/gt_act_freq_mhz");
+  static const char kI915Frequency[] = "/sys/class/drm/card0/gt_act_freq_mhz";
+  if (base::ScopedFile fd = open_fn(kI915Frequency)) {
+    intel_gpufreq_fds_.emplace_back(std::move(fd), kI915Frequency);
   }
   amd_gpufreq_fd_ = open_fn("/sys/class/drm/card0/device/pp_dpm_sclk");
   adreno_gpufreq_fd_ = open_fn("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq");
