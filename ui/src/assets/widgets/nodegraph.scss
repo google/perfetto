@@ -68,6 +68,52 @@
     color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
 }
 
+// Wrapper for dock chains - uses flexbox to make children same width
+.pf-dock-chain {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+
+  // All nodes in chain stretch to same width (determined by widest node)
+  .pf-node {
+    width: 100%;
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+  }
+}
+
+// Docked child: flush top edge with no rounded corners or border
+.pf-node.pf-docked-child {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: none;
+}
+
+// Parent with docked child: flush bottom edge with no rounded corners
+.pf-node.pf-has-docked-child {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+// Dock target highlight with pulsing animation
+.pf-node.pf-dock-target {
+  box-shadow: 0 4px 0 3px var(--pf-color-accent);
+  animation: pulse-dock 0.6s ease-in-out infinite;
+}
+
+@keyframes pulse-dock {
+  0%,
+  100% {
+    box-shadow: 0 4px 0 3px var(--pf-color-accent);
+  }
+  50% {
+    box-shadow: 0 6px 0 5px var(--pf-color-accent);
+    opacity: 0.95;
+  }
+}
+
 .pf-node-header {
   background: var(--pf-color-background);
   padding: 8px 12px;
