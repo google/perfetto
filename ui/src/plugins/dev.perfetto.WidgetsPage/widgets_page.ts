@@ -536,14 +536,12 @@ function NodeGraphDemo() {
       outputs: ['Output'],
       contextMenu: [
         m(MenuItem, {
-          label: 'View Schema',
+          label: 'Item A',
           icon: 'info',
-          onclick: () => console.log('View schema for slice table'),
         }),
         m(MenuItem, {
-          label: 'Add Filter',
+          label: 'Item B',
           icon: 'filter_alt',
-          onclick: () => console.log('Add filter'),
         }),
       ],
     },
@@ -555,14 +553,12 @@ function NodeGraphDemo() {
       outputs: ['Output'],
       contextMenu: [
         m(MenuItem, {
-          label: 'View Schema',
+          label: 'Item A',
           icon: 'info',
-          onclick: () => console.log('View schema for thread table'),
         }),
         m(MenuItem, {
-          label: 'Add Filter',
+          label: 'Item B',
           icon: 'filter_alt',
-          onclick: () => console.log('Add filter'),
         }),
       ],
     },
@@ -615,6 +611,16 @@ function NodeGraphDemo() {
           ],
         ),
       ]),
+      contextMenu: [
+        m(MenuItem, {
+          label: 'Item A',
+          icon: 'info',
+        }),
+        m(MenuItem, {
+          label: 'Item B',
+          icon: 'filter_alt',
+        }),
+      ],
     },
     {
       id: 'filter',
@@ -630,6 +636,16 @@ function NodeGraphDemo() {
           filterCondition = (e.target as HTMLInputElement).value;
         },
       }),
+      contextMenu: [
+        m(MenuItem, {
+          label: 'Item A',
+          icon: 'info',
+        }),
+        m(MenuItem, {
+          label: 'Item B',
+          icon: 'filter_alt',
+        }),
+      ],
     },
     {
       id: 'select',
@@ -651,6 +667,16 @@ function NodeGraphDemo() {
           }),
         ),
       ),
+      contextMenu: [
+        m(MenuItem, {
+          label: 'Item A',
+          icon: 'info',
+        }),
+        m(MenuItem, {
+          label: 'Item B',
+          icon: 'filter_alt',
+        }),
+      ],
     },
   ];
 

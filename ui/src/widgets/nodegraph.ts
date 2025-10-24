@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {PopupMenu} from './menu';
-import {Icon} from './icon';
 import {Button} from './button';
 
 // ========================================
@@ -857,8 +856,9 @@ export const NodeGraph: m.Component<NodeCanvasAttrs> = {
                       m(
                         PopupMenu,
                         {
-                          trigger: m(Icon, {
+                          trigger: m(Button, {
                             icon: 'more_vert',
+                            rounded: true,
                           }),
                         },
                         node.contextMenu,
