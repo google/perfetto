@@ -501,6 +501,7 @@ function NodeGraphDemo() {
   let joinType = 'INNER';
   let joinColumn = 'id';
   let filterCondition = 'dur > 1000';
+  let selectedNodeId: string | null = null;
   const columnOptions = {
     id: true,
     name: true,
@@ -684,6 +685,7 @@ function NodeGraphDemo() {
         m(NodeGraph, {
           nodes: nodes,
           connections: connections,
+          selectedNodeId: selectedNodeId,
           onConnect: (conn: Connection) => {
             console.log('New connection created:', conn);
             connections.push(conn);
@@ -698,6 +700,10 @@ function NodeGraphDemo() {
           onConnectionRemove: (index: number) => {
             console.log('Connection removed at index:', index);
             connections.splice(index, 1);
+          },
+          onNodeSelect: (nodeId: string | null) => {
+            selectedNodeId = nodeId;
+            console.log('Node selected:', nodeId);
           },
         }),
       );

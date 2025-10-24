@@ -78,6 +78,8 @@ export interface NodeGraphAttrs {
   readonly onNodeDrag?: (nodeId: string, x: number, y: number) => void;
   readonly onConnectionRemove?: (index: number) => void;
   readonly onReady?: (api: NodeGraphApi) => void;
+  readonly selectedNodeId?: string | null;
+  readonly onNodeSelect?: (nodeId: string | null) => void;
 }
 
 interface NodeGraphDOM extends Element {
@@ -663,7 +665,7 @@ export const NodeGraph: m.Component<NodeGraphAttrs> = {
   },
 
   view: (vnode: m.Vnode<NodeGraphAttrs>) => {
-    const {nodes = [], connections = [], onConnect} = vnode.attrs;
+    const {nodes = [], connections = [], onConnect, selectedNodeId} = vnode.attrs;
 
     return m(
       '.pf-canvas',
@@ -676,6 +678,13 @@ export const NodeGraph: m.Component<NodeGraphAttrs> = {
           ) {
             // Start panning if clicking on canvas background or SVG
             canvasState.selectedNode = null;
+
+            // Call onNodeSelect callback with null to indicate deselection
+            const {onNodeSelect} = vnode.attrs;
+            if (onNodeSelect !== undefined) {
+              onNodeSelect(null);
+            }
+
             canvasState.isPanning = true;
             canvasState.panStart = {x: e.clientX, y: e.clientY};
             e.preventDefault();
@@ -826,7 +835,7 @@ export const NodeGraph: m.Component<NodeGraphAttrs> = {
               const {id, title, x, y, inputs = [], outputs = []} = node;
 
               const classes =
-                canvasState.selectedNode === id ? 'pf-selected' : '';
+                selectedNodeId === id ? 'pf-selected' : '';
 
               return m(
                 '.pf-node',
@@ -840,6 +849,13 @@ export const NodeGraph: m.Component<NodeGraphAttrs> = {
                     e.stopPropagation();
                     canvasState.draggedNode = id;
                     canvasState.selectedNode = id;
+
+                    // Call onNodeSelect callback
+                    const {onNodeSelect} = vnode.attrs;
+                    if (onNodeSelect !== undefined) {
+                      onNodeSelect(id);
+                    }
+
                     const rect = (
                       e.currentTarget as HTMLElement
                     ).getBoundingClientRect();
