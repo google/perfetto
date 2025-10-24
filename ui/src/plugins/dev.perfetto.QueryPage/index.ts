@@ -167,7 +167,7 @@ class QueryPageMini implements m.ClassComponent<QueryPageMiniAttrs> {
             trace: attrs.trace,
             query: attrs.executedQuery,
             resp: attrs.queryResult,
-            fillParent: false,
+            fillHeight: false,
           }),
     );
   }

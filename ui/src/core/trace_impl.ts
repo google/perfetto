@@ -56,6 +56,7 @@ import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {isStartupCommandAllowed} from './startup_command_allowlist';
+import {TraceStream} from '../public/stream';
 
 /**
  * Handles the per-trace state of the UI
@@ -501,19 +502,23 @@ export class TraceImpl implements Trace {
     this.appImpl.navigate(newHash);
   }
 
-  openTraceFromFile(file: File): void {
-    this.appImpl.openTraceFromFile(file);
+  openTraceFromFile(file: File) {
+    return this.appImpl.openTraceFromFile(file);
   }
 
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
-    this.appImpl.openTraceFromUrl(url, serializedAppState);
+    return this.appImpl.openTraceFromUrl(url, serializedAppState);
+  }
+
+  openTraceFromStream(stream: TraceStream) {
+    return this.appImpl.openTraceFromStream(stream);
   }
 
   openTraceFromBuffer(
     args: OpenTraceArrayBufArgs,
     serializedAppState?: SerializedAppState,
-  ): void {
-    this.appImpl.openTraceFromBuffer(args, serializedAppState);
+  ) {
+    return this.appImpl.openTraceFromBuffer(args, serializedAppState);
   }
 
   closeCurrentTrace(): void {

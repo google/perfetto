@@ -389,7 +389,7 @@ function onCssLoaded() {
             focusable: false,
           },
           [
-            m(OverlayContainer, {fillParent: true}, [
+            m(OverlayContainer, {fillHeight: true}, [
               m(UiMain, {key: themeSetting.get()}),
             ]),
           ],

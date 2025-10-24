@@ -83,7 +83,7 @@ interface QueryTableAttrs {
   readonly query: string;
   readonly resp?: QueryResponse;
   readonly contextButtons?: m.Child[];
-  readonly fillParent: boolean;
+  readonly fillHeight: boolean;
 }
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
@@ -111,7 +111,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   }
 
   view({attrs}: m.CVnode<QueryTableAttrs>) {
-    const {resp, query, contextButtons = [], fillParent} = attrs;
+    const {resp, query, contextButtons = [], fillHeight} = attrs;
 
     return m(
       DetailsShell,
@@ -120,7 +120,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         title: this.renderTitle(resp),
         description: query,
         buttons: this.renderButtons(query, contextButtons, resp),
-        fillParent,
+        fillHeight,
       },
       resp && this.dataSource && this.renderTableContent(resp, this.dataSource),
     );

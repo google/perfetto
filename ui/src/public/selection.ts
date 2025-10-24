@@ -96,6 +96,17 @@ export interface SelectionManager {
   selectTrack(trackUri: string, opts?: SelectionOpts): void;
 
   /**
+   * Resolves events via a sql table name + ids.
+   *
+   * @param sqlTableName - The name of the SQL table to resolve.
+   * @param ids - The IDs of the events in that table.
+   */
+  resolveSqlEvents(
+    sqlTableName: string,
+    ids: ReadonlyArray<number>,
+  ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>>;
+
+  /**
    * Select a track event via a sql table name + id.
    *
    * @param sqlTableName - The name of the SQL table to resolve.

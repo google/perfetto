@@ -215,7 +215,7 @@ class LegacySqlTableTab implements Tab {
         title: 'Table',
         description: this.getDisplayName(),
         buttons: this.getTableButtons(),
-        fillParent: true,
+        fillHeight: true,
       },
       m('.pf-sql-table', [
         (hasFilters || showViewButtons) &&

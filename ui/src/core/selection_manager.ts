@@ -228,7 +228,7 @@ export class SelectionManagerImpl implements SelectionManager {
 
   async resolveSqlEvents(
     sqlTableName: string,
-    id: number,
+    ids: ReadonlyArray<number>,
   ): Promise<ReadonlyArray<{eventId: number; trackUri: string}>> {
     // This function:
     // 1. Find the list of tracks whose rootTableName is the same as the one we
@@ -265,10 +265,13 @@ export class SelectionManagerImpl implements SelectionManager {
     // Run one query per no-filter track. This is the only way we can reliably
     // keep track of which track the event belonged to.
     for (const [dataset, track] of tracksWithNoFilter) {
-      const query = `select id from (${dataset.query()}) where id = ${id}`;
+      const query = `select id from (${dataset.query()}) where id IN (${ids.join(',')})`;
       const result = await this.engine.query(query);
       if (result.numRows() > 0) {
-        matches.push({eventId: id, trackUri: track.uri});
+        matches.push({
+          eventId: result.firstRow({id: NUM}).id,
+          trackUri: track.uri,
+        });
       }
     }
 
@@ -288,7 +291,7 @@ export class SelectionManagerImpl implements SelectionManager {
 
       // Make sure to include the filter value in the schema.
       const schema = {...union.schema, [colName]: UNKNOWN};
-      const query = `select * from (${union.query(schema)}) where id = ${id}`;
+      const query = `select * from (${union.query(schema)}) where id IN (${ids.join(',')})`;
       const result = await this.engine.query(query);
 
       const getTrackFromFilterValue = function (value: SqlValue) {
@@ -308,7 +311,7 @@ export class SelectionManagerImpl implements SelectionManager {
         const value = row.get(colName);
         const trackUri = getTrackFromFilterValue(value);
         if (trackUri) {
-          matches.push({eventId: id, trackUri});
+          matches.push({eventId: row.id as number, trackUri});
         }
       }
     }
@@ -320,7 +323,7 @@ export class SelectionManagerImpl implements SelectionManager {
     sqlTableName: string,
     id: number,
   ): Promise<{eventId: number; trackUri: string} | undefined> {
-    const matches = await this.resolveSqlEvents(sqlTableName, id);
+    const matches = await this.resolveSqlEvents(sqlTableName, [id]);
     return matches[0];
   }
 

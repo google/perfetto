@@ -918,7 +918,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                 checked: value,
               };
             }),
-            popupPosition: PopupPosition.Top,
+            position: PopupPosition.Top,
             label: 'Multi Select',
             icon: arg(icon, Icons.LibraryAddCheck),
             onChange: (diffs: MultiSelectDiff[]) => {
@@ -1012,7 +1012,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             ),
           ),
         initialOpts: {
-          popupPosition: new EnumOption(
+          position: new EnumOption(
             PopupPosition.Bottom,
             Object.values(PopupPosition),
           ),
@@ -1064,7 +1064,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               right: m(
                 PopupMenu,
                 {
-                  popupPosition: PopupPosition.RightStart,
+                  position: PopupPosition.RightStart,
                   trigger: m(
                     Anchor,
                     {

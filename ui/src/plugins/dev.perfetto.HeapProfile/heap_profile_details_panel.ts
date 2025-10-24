@@ -109,7 +109,7 @@ export class HeapProfileFlamegraphDetailsPanel
       m(
         DetailsShell,
         {
-          fillParent: true,
+          fillHeight: true,
           title: m(
             'span',
             getFlamegraphTitle(type),

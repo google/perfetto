@@ -63,7 +63,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       DetailsShell,
       {
         title: 'Query data',
-        fillParent: true,
+        fillHeight: true,
         buttons: this.renderMenu(attrs),
       },
       this.renderContent(attrs, message),
