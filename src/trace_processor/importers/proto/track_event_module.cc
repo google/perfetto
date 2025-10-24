@@ -23,7 +23,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
-#include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
+#include "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
@@ -51,7 +51,8 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
-      kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
+      kChromeTrackEventExtensionDescriptor.data(),
+      kChromeTrackEventExtensionDescriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kAndroidTrackEventDescriptor.data(), kAndroidTrackEventDescriptor.size());
 }

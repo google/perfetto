@@ -43,6 +43,7 @@ load(
     "perfetto_android_jni_library",
     "perfetto_android_library",
     "perfetto_android_instrumentation_test",
+    "perfetto_protozero_descriptor_diff",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
@@ -1239,6 +1240,16 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //protos/third_party/chromium:extension_descriptor
+perfetto_protozero_descriptor_diff(
+    name = "protos_third_party_chromium_extension_descriptor",
+    outs = [
+        "protos/third_party/chromium/chrome_track_event_extension.descriptor",
+    ],
+    minuend = "protos_third_party_chromium_descriptor",
+    subtrahend = "protos_perfetto_trace_descriptor",
+)
+
 # GN target: //src/android_internal:headers
 perfetto_filegroup(
     name = "src_android_internal_headers",
@@ -1548,6 +1559,30 @@ perfetto_filegroup(
     srcs = [
         "src/profiling/deobfuscator.cc",
         "src/profiling/deobfuscator.h",
+    ],
+)
+
+# GN target: //src/protozero/descriptor_diff:lib
+perfetto_filegroup(
+    name = "src_protozero_descriptor_diff_lib",
+    srcs = [
+        "src/protozero/descriptor_diff/descriptor_diff.cc",
+        "src/protozero/descriptor_diff/descriptor_diff.h",
+    ],
+)
+
+# GN target: //src/protozero/descriptor_diff:protozero_descriptor_diff
+perfetto_cc_binary(
+    name = "src_protozero_descriptor_diff_protozero_descriptor_diff",
+    srcs = [
+        ":src_protozero_descriptor_diff_lib",
+        "src/protozero/descriptor_diff/main.cc",
+    ],
+    deps = [
+        ":protos_perfetto_common_zero",
+        ":protozero",
+        ":src_base_base",
+        ":src_base_version",
     ],
 )
 
@@ -2371,10 +2406,10 @@ perfetto_cc_proto_descriptor(
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
     deps = [
-        ":protos_third_party_chromium_descriptor",
+        ":protos_third_party_chromium_extension_descriptor",
     ],
     outs = [
-        "src/trace_processor/importers/proto/chrome_track_event.descriptor.h",
+        "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
     ],
 )
 
