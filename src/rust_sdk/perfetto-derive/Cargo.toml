@@ -1,0 +1,21 @@
+[package]
+name = "perfetto-derive"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[features]
+default = []
+vendored = ["perfetto/vendored"]
+
+[dependencies]
+perfetto = { path = "../perfetto", default-features = false  }
+syn = { version = "1.0.5", features = ["full"] }
+quote = "1.0.8"
+proc-macro2 = "1.0"
+
+[[example]]
+name = "derive"
+path = "examples/derive.rs"

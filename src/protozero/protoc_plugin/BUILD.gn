@@ -47,3 +47,14 @@ perfetto_host_executable("protozero_c_plugin") {
     "../../../src/base",
   ]
 }
+
+# The plugin that generates standalone Rust macros and function from protos
+# (xxx.pz.rs). This is used to generate the Rust SDK for the shared library.
+perfetto_host_executable("protozero_rust_plugin") {
+  sources = [ "protozero_rust_plugin.cc" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:protoc_lib",
+    "../../../src/base",
+  ]
+}
