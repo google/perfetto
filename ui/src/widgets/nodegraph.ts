@@ -669,7 +669,12 @@ export const NodeGraph: m.Component<NodeGraphAttrs> = {
   },
 
   view: (vnode: m.Vnode<NodeGraphAttrs>) => {
-    const {nodes = [], connections = [], onConnect, selectedNodeId} = vnode.attrs;
+    const {
+      nodes = [],
+      connections = [],
+      onConnect,
+      selectedNodeId,
+    } = vnode.attrs;
 
     return m(
       '.pf-canvas',
@@ -838,8 +843,7 @@ export const NodeGraph: m.Component<NodeGraphAttrs> = {
             nodes.map((node: Node) => {
               const {id, title, x, y, inputs = [], outputs = []} = node;
 
-              const classes =
-                selectedNodeId === id ? 'pf-selected' : '';
+              const classes = selectedNodeId === id ? 'pf-selected' : '';
 
               return m(
                 '.pf-node',
