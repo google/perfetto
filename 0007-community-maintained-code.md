@@ -2,7 +2,7 @@
 
 **Authors:** @primiano @LalitMaganti
 
-**Status:** Draft
+**Status:** Decided
 
 ## Problem
 
