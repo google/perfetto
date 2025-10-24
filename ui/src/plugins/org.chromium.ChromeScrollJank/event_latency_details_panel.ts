@@ -50,7 +50,7 @@ function getPath(slice: SliceTreeNode): string[] {
   const result: string[] = [];
   let node: SliceTreeNode | undefined = slice;
   while (node.parent !== undefined) {
-    result.push(node.name);
+    result.push(node.name ?? '[null]');
     node = node.parent;
   }
   return result.reverse();
