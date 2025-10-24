@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_INVOCATION_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_INVOCATION_H_
 
 #include <sys/types.h>
 #include <cstddef>
@@ -41,15 +41,15 @@ class TraceProcessorContext;
 namespace perf_importer {
 
 // Helper to deal with perf_event_attr instances in a perf file.
-// TODO(rsavitski): choose a better name. This does /not/ correspond to a
-// distinct perf_session_id (which represents a distinct sampling stream of
-// data), one PerfSession can map onto multiple perf_session_id.
-class PerfSession : public RefCounted {
+// This does /not/ correspond to a distinct perf_session_id (which represents
+// a distinct sampling stream of data), one PerfInvocation can map onto
+// multiple perf_session_id.
+class PerfInvocation : public RefCounted {
  public:
   class Builder {
    public:
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
-    base::StatusOr<RefPtr<PerfSession>> Build();
+    base::StatusOr<RefPtr<PerfInvocation>> Build();
     Builder& AddAttrAndIds(perf_event_attr attr, std::vector<uint64_t> ids) {
       attr_with_ids_.push_back({attr, std::move(ids)});
       return *this;
@@ -105,7 +105,7 @@ class PerfSession : public RefCounted {
     }
   };
 
-  PerfSession(TraceProcessorContext* context,
+  PerfInvocation(TraceProcessorContext* context,
               RefPtr<PerfEventAttr> first_attr,
               base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
               bool has_single_perf_event_attr)
@@ -136,4 +136,4 @@ class PerfSession : public RefCounted {
 }  // namespace perf_importer
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_INVOCATION_H_
