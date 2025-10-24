@@ -13,29 +13,30 @@
 // limitations under the License.
 
 import {
-  createQueryCounterTrack,
-  SqlDataSource,
-} from '../../components/tracks/query_counter_track';
+  CounterRowSchema,
+  CounterTrack,
+} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 
-async function registerAllocsTrack(
+async function registerAllocsTrack<T extends CounterRowSchema>(
   ctx: Trace,
   uri: string,
-  dataSource: SqlDataSource,
+  dataset: SourceDataset<T>,
 ) {
-  const track = await createQueryCounterTrack({
+  const track = await CounterTrack.createMaterialized({
     trace: ctx,
     uri,
-    data: dataSource,
+    dataset,
   });
   ctx.tracks.registerTrack({
     uri,
@@ -55,29 +56,50 @@ export default class implements PerfettoPlugin {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.memory.dmabuf`);
 
-    const pids = await e.query(
-      `SELECT DISTINCT upid, IIF(upid IS NULL, utid, NULL) AS utid FROM android_memory_cumulative_dmabuf`,
-    );
+    const pids = await e.query(`
+      SELECT DISTINCT
+        upid,
+        IIF(upid IS NULL, utid, NULL) AS utid
+      FROM android_memory_cumulative_dmabuf
+    `);
     const it = pids.iter({upid: NUM_NULL, utid: NUM_NULL});
     for (; it.valid(); it.next()) {
       if (it.upid != null) {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
-        const config: SqlDataSource = {
-          sqlSource: `SELECT ts, value FROM android_memory_cumulative_dmabuf
-                 WHERE upid = ${it.upid}`,
-        };
-        await registerAllocsTrack(ctx, uri, config);
+        const dataset = new SourceDataset({
+          src: `
+            SELECT
+              ts,
+              value
+            FROM android_memory_cumulative_dmabuf
+            WHERE upid = ${it.upid}
+          `,
+          schema: {
+            ts: LONG,
+            value: NUM,
+          },
+        });
+        await registerAllocsTrack(ctx, uri, dataset);
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
           .getGroupForProcess(it.upid)
           ?.addChildInOrder(new TrackNode({uri, name: 'dmabuf allocs'}));
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
-        const config: SqlDataSource = {
-          sqlSource: `SELECT ts, value FROM android_memory_cumulative_dmabuf
-                 WHERE utid = ${it.utid}`,
-        };
-        await registerAllocsTrack(ctx, uri, config);
+        const dataset = new SourceDataset({
+          src: `
+            SELECT
+              ts,
+              value
+            FROM android_memory_cumulative_dmabuf
+            WHERE utid = ${it.utid}
+          `,
+          schema: {
+            ts: LONG,
+            value: NUM,
+          },
+        });
+        await registerAllocsTrack(ctx, uri, dataset);
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
           .getGroupForThread(it.utid)

@@ -15,9 +15,13 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {
+  CounterRowSchema,
+  CounterTrack,
+} from '../../components/tracks/counter_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.CpuPerUid';
@@ -25,29 +29,24 @@ export default class implements PerfettoPlugin {
 
   private _topLevelGroup: TrackNode | undefined;
 
-  private async addCpuPerUidTrack(
+  private addCpuPerUidTrack(
     ctx: Trace,
-    sql: string,
+    dataset: SourceDataset<CounterRowSchema>,
     name: string,
     uri: string,
     group: TrackNode,
     sharing?: string,
   ) {
-    const track = await createQueryCounterTrack({
+    const track = CounterTrack.create({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: sql,
-        columns: ['ts', 'value'],
-      },
-      columns: {ts: 'ts', value: 'value'},
-      options: {
+      dataset,
+      defaultOptions: {
         unit: '%',
         yOverrideMaximum: 100,
         yOverrideMinimum: 0,
         yRangeSharingKey: sharing,
       },
-      materialize: false,
     });
     ctx.tracks.registerTrack({
       uri,
@@ -95,11 +94,20 @@ export default class implements PerfettoPlugin {
 
       for (; it.valid(); it.next()) {
         const name = `${it.type} (${clusterName(it.cluster)})`;
-        await this.addCpuPerUidTrack(
+        this.addCpuPerUidTrack(
           ctx,
-          `select ts, value
-          from _android_cpu_per_uid_summary
-          where type = '${it.type}' and cluster = ${it.cluster}`,
+          new SourceDataset({
+            src: `
+              SELECT
+                ts,
+                value
+              FROM _android_cpu_per_uid_summary
+              WHERE type = '${it.type}' AND cluster = ${it.cluster}`,
+            schema: {
+              ts: LONG,
+              value: NUM,
+            },
+          }),
           name,
           `/cpu_per_uid_summary_${it.type}_${it.cluster}`,
           group,
@@ -137,13 +145,25 @@ export default class implements PerfettoPlugin {
 
       for (; it.valid(); it.next()) {
         const name = `${it.name} (${clusterName(it.cluster)})`;
-        await this.addCpuPerUidTrack(
+        this.addCpuPerUidTrack(
           ctx,
-          `select
-           ts,
-           min(100, 100 * cpu_ratio) as value
-         from android_cpu_per_uid_counter
-         where track_id = ${it.id}`,
+          new SourceDataset({
+            src: `
+              SELECT
+                ts,
+                MIN(100, 100 * cpu_ratio) AS value,
+                track_id
+              FROM android_cpu_per_uid_counter
+            `,
+            schema: {
+              ts: LONG,
+              value: NUM,
+            },
+            filter: {
+              col: 'track_id',
+              eq: it.id,
+            },
+          }),
           name,
           `/${uriPrefix}_${it.id}`,
           group,
