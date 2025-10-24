@@ -106,7 +106,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   // the sections.
   std::vector<std::pair<uint8_t, PerfFile::Section>> feature_sections_;
 
-  RefPtr<PerfInvocation> perf_session_;
+  RefPtr<PerfInvocation> perf_invocation_;
 
   util::TraceBlobViewReader buffer_;
 

@@ -248,8 +248,8 @@ PerfDataTokenizer::ParseAttrs() {
     builder.AddAttrAndIds(entry.attr, std::move(ids));
   }
 
-  ASSIGN_OR_RETURN(perf_session_, builder.Build());
-  if (perf_session_->HasPerfClock()) {
+  ASSIGN_OR_RETURN(perf_invocation_, builder.Build());
+  if (perf_invocation_->HasPerfClock()) {
     RETURN_IF_ERROR(context_->clock_tracker->SetTraceTimeClock(
         protos::pbzero::BUILTIN_CLOCK_PERF));
   }
@@ -319,7 +319,7 @@ base::Status PerfDataTokenizer::ProcessRecord(Record record) {
 
 base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
     Record& record) {
-  record.session = perf_session_;
+  record.session = perf_invocation_;
   std::optional<TraceBlobView> tbv =
       buffer_.SliceOff(buffer_.start_offset(), sizeof(record.header));
   if (!tbv) {
@@ -340,7 +340,7 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
   record.payload = std::move(*tbv);
 
   base::StatusOr<RefPtr<PerfEventAttr>> attr =
-      perf_session_->FindAttrForRecord(record.header, record.payload);
+      perf_invocation_->FindAttrForRecord(record.header, record.payload);
   if (!attr.ok()) {
     return base::ErrStatus("Unable to determine perf_event_attr for record. %s",
                            attr.status().c_message());
@@ -453,7 +453,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
     case feature::ID_CMD_LINE: {
       ASSIGN_OR_RETURN(std::vector<std::string> args,
                        feature::ParseCmdline(std::move(data)));
-      perf_session_->SetCmdline(args);
+      perf_invocation_->SetCmdline(args);
       return base::OkStatus();
     }
 
@@ -461,7 +461,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       return feature::EventDescription::Parse(
           std::move(data), [&](feature::EventDescription desc) {
             for (auto id : desc.ids) {
-              perf_session_->SetEventName(id, desc.event_string);
+              perf_invocation_->SetEventName(id, desc.event_string);
             }
             return base::OkStatus();
           });
@@ -469,7 +469,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
     case feature::ID_BUILD_ID:
       return feature::BuildId::Parse(
           std::move(data), [&](feature::BuildId build_id) {
-            perf_session_->AddBuildId(
+            perf_invocation_->AddBuildId(
                 build_id.pid, std::move(build_id.filename),
                 BuildId::FromRaw(std::move(build_id.build_id)));
             return base::OkStatus();
@@ -484,16 +484,17 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
     }
 
     case feature::ID_SIMPLEPERF_META_INFO: {
-      perf_session_->SetIsSimpleperf();
+      perf_invocation_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
-        perf_session_->SetEventName(it.key().type, it.key().config, it.value());
+        perf_invocation_->SetEventName(it.key().type, it.key().config,
+                                       it.value());
       }
       break;
     }
     case feature::ID_SIMPLEPERF_FILE2: {
-      perf_session_->SetIsSimpleperf();
+      perf_invocation_->SetIsSimpleperf();
       RETURN_IF_ERROR(feature::ParseSimpleperfFile2(
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(

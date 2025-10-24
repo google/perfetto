@@ -49,7 +49,7 @@ struct Sample {
 
   int64_t trace_ts;
   protos::pbzero::Profiling::CpuMode cpu_mode;
-  RefPtr<PerfInvocation> perf_session;
+  RefPtr<PerfInvocation> perf_invocation;
   RefPtr<PerfEventAttr> attr;
 
   std::optional<uint64_t> ip;
