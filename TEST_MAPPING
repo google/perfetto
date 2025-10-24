@@ -13,6 +13,9 @@
     {
       "name": "CtsPerfettoTestCases"
     },
+    {
+      "name": "CtsPerfettoTestCases"
+    },
     // Additional presubmit tests that explicitly exercise
     // Perfetto's backend
     {
