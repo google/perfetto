@@ -54,7 +54,7 @@
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
-#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_invocation.h"
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
@@ -228,7 +228,7 @@ PerfDataTokenizer::ParseAttrs() {
   ASSIGN_OR_RETURN(AttrsSectionReader attr_reader,
                    AttrsSectionReader::Create(header_, std::move(*tbv)));
 
-  PerfSession::Builder builder(context_);
+  PerfInvocation::Builder builder(context_);
   while (attr_reader.CanReadNext()) {
     PerfFile::AttrsEntry entry;
     RETURN_IF_ERROR(attr_reader.ReadNext(entry));

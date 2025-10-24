@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_invocation.h"
 
 #include <cinttypes>
 #include <cstddef>
@@ -50,7 +50,7 @@ bool OffsetsMatch(const PerfEventAttr& attr, const PerfEventAttr& other) {
 }
 }  // namespace
 
-base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
+base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
   if (attr_with_ids_.empty()) {
     return base::ErrStatus("No perf_event_attr");
   }
@@ -92,12 +92,12 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
         !first_attr->id_offset_from_end().has_value()))) {
     return base::ErrStatus("No id offsets for multiple perf_event_attr");
   }
-  return RefPtr<PerfSession>(new PerfSession(context_, std::move(first_attr),
-                                             std::move(attrs_by_id),
-                                             attr_with_ids_.size() == 1));
+  return RefPtr<PerfInvocation>(new PerfInvocation(context_, std::move(first_attr),
+                                                   std::move(attrs_by_id),
+                                                   attr_with_ids_.size() == 1));
 }
 
-base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
+base::StatusOr<RefPtr<PerfEventAttr>> PerfInvocation::FindAttrForRecord(
     const perf_event_header& header,
     const TraceBlobView& payload) const {
   if (header.type >= PERF_RECORD_USER_TYPE_START) {
@@ -128,7 +128,7 @@ base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
   return it;
 }
 
-bool PerfSession::ReadEventId(const perf_event_header& header,
+bool PerfInvocation::ReadEventId(const perf_event_header& header,
                               const TraceBlobView& payload,
                               uint64_t& id) const {
   const PerfEventAttr& first = *attrs_by_id_.GetIterator().value();
@@ -146,7 +146,7 @@ bool PerfSession::ReadEventId(const perf_event_header& header,
   return reader.Skip(*first.id_offset_from_start()) && reader.Read(id);
 }
 
-RefPtr<PerfEventAttr> PerfSession::FindAttrForEventId(uint64_t id) const {
+RefPtr<PerfEventAttr> PerfInvocation::FindAttrForEventId(uint64_t id) const {
   auto* it = attrs_by_id_.Find(id);
   if (!it) {
     return {};
@@ -154,7 +154,7 @@ RefPtr<PerfEventAttr> PerfSession::FindAttrForEventId(uint64_t id) const {
   return RefPtr<PerfEventAttr>(it->get());
 }
 
-void PerfSession::SetEventName(uint64_t event_id, std::string name) {
+void PerfInvocation::SetEventName(uint64_t event_id, std::string name) {
   auto* it = attrs_by_id_.Find(event_id);
   if (!it) {
     return;
@@ -162,7 +162,7 @@ void PerfSession::SetEventName(uint64_t event_id, std::string name) {
   (*it)->set_event_name(std::move(name));
 }
 
-void PerfSession::SetEventName(uint32_t type,
+void PerfInvocation::SetEventName(uint32_t type,
                                uint64_t config,
                                const std::string& name) {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
@@ -172,13 +172,13 @@ void PerfSession::SetEventName(uint32_t type,
   }
 }
 
-void PerfSession::AddBuildId(int32_t pid,
+void PerfInvocation::AddBuildId(int32_t pid,
                              std::string filename,
                              BuildId build_id) {
   build_ids_.Insert({pid, std::move(filename)}, std::move(build_id));
 }
 
-std::optional<BuildId> PerfSession::LookupBuildId(
+std::optional<BuildId> PerfInvocation::LookupBuildId(
     uint32_t pid,
     const std::string& filename) const {
   // -1 is used in BUILD_ID feature to match any pid.
@@ -190,7 +190,7 @@ std::optional<BuildId> PerfSession::LookupBuildId(
   return it ? std::make_optional(*it) : std::nullopt;
 }
 
-void PerfSession::SetCmdline(const std::vector<std::string>& args) {
+void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     auto session_id = it.value()->perf_session_id();
     context_->storage->mutable_perf_session_table()
@@ -200,7 +200,7 @@ void PerfSession::SetCmdline(const std::vector<std::string>& args) {
   }
 }
 
-bool PerfSession::HasPerfClock() const {
+bool PerfInvocation::HasPerfClock() const {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     if (it.value()->clock_id() == protos::pbzero::BUILTIN_CLOCK_PERF) {
       return true;
