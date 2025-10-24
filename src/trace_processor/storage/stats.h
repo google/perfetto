@@ -585,7 +585,13 @@ namespace perfetto::trace_processor::stats {
       "the simpleperf proto. This typically happens when the simpleperf data " \
       "is incomplete or truncated, or due to a bug in simpleperf. Try "        \
       "re-recording the profile and ensure the file is not truncated. If "     \
-      "this occurs consistently, please report it to the simpleperf team.")
+      "this occurs consistently, please report it to the simpleperf team."),   \
+  F(slice_negative_duration,                    kSingle,  kError,  kAnalysis,   \
+      "Number of slices dropped due to negative duration. This usually "       \
+      "indicates incorrect timestamps in the trace data."),                    \
+  F(gpu_work_period_negative_duration,          kSingle,  kError,  kAnalysis,   \
+      "Number of GPU work period events with negative duration (end < start). "\
+      "Check the GPU driver for timestamp bugs.")
 // clang-format on
 
 enum Type {

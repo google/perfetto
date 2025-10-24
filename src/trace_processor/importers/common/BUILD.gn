@@ -37,6 +37,8 @@ source_set("common") {
     "flow_tracker.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
+    "import_logs_tracker.cc",
+    "import_logs_tracker.h",
     "jit_cache.cc",
     "jit_cache.h",
     "legacy_v8_cpu_profile_tracker.cc",

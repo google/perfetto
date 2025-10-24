@@ -41,6 +41,7 @@ class DescriptorPool;
 class EventTracker;
 class FlowTracker;
 class GlobalArgsTracker;
+class ImportLogsTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -172,6 +173,7 @@ class TraceProcessorContext {
 
   PerTracePtr<TraceState> trace_state;
   PerTracePtr<Destructible> content_analyzer;
+  PerTracePtr<ImportLogsTracker> import_logs_tracker;
 
   // Per-Machine State
   // =================
