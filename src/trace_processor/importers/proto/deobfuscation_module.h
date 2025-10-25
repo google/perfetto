@@ -17,25 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_MODULE_H_
 
-#include <cstdint>
-#include <optional>
-#include <vector>
-
 #include "perfetto/protozero/field.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor {
 
-// Importer module for deobfuscation data.
 class DeobfuscationModule : public ProtoImporterModule {
  public:
   explicit DeobfuscationModule(ProtoImporterModuleContext* module_context,
@@ -52,24 +41,9 @@ class DeobfuscationModule : public ProtoImporterModule {
 
  private:
   void StoreDeobfuscationMapping(protozero::ConstBytes);
+  void BuildMappingTableIncremental(
+      const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
 
-  void GuessPackages();
-  void GuessPackageForCallsite(tables::ProcessTable::Id,
-                               tables::StackProfileCallsiteTable::Id);
-
-  void DeobfuscateHeapGraphClass(
-      std::optional<StringPool::Id> package_name_id,
-      StringPool::Id obfuscated_class_id,
-      const protos::pbzero::ObfuscatedClass::Decoder& cls);
-
-  void ParseDeobfuscationMappingForHeapGraph(
-      const protos::pbzero::DeobfuscationMapping::Decoder&,
-      HeapGraphTracker*);
-  void ParseDeobfuscationMappingForProfiles(
-      const protos::pbzero::DeobfuscationMapping::Decoder&);
-  void ParseDeobfuscationMapping(protozero::ConstBytes, HeapGraphTracker*);
-
-  std::vector<TraceBlob> packets_;
   TraceProcessorContext* context_;
 };
 

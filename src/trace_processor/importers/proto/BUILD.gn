@@ -135,6 +135,8 @@ source_set("full") {
     "content_analyzer.h",
     "deobfuscation_module.cc",
     "deobfuscation_module.h",
+    "deobfuscation_tracker.cc",
+    "deobfuscation_tracker.h",
     "frame_timeline_event_parser.cc",
     "frame_timeline_event_parser.h",
     "gpu_event_parser.cc",
