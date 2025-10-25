@@ -141,6 +141,8 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
+  GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
@@ -161,7 +163,7 @@ class TraceProcessorContext {
   GlobalPtr<MetadataTracker> metadata_tracker;
   GlobalPtr<RegisteredFileTracker> registered_file_tracker;
   GlobalPtr<UuidState> uuid_state;
-  GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
+  GlobalPtr<Destructible> heap_graph_tracker;     // HeapGraphTracker
 
   // Per-Trace State
   // ==========================
@@ -185,7 +187,6 @@ class TraceProcessorContext {
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
-  PerMachinePtr<StackProfileTracker> stack_profile_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================
