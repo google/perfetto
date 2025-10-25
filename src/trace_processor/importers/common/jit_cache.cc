@@ -58,7 +58,6 @@ std::pair<FrameId, bool> JitCache::JittedFunction::InternFrame(
                     static_cast<int64_t>(frame_key.rel_pc), symbol_set_id_})
           .id;
   interned_frames_.Insert(frame_key, frame_id);
-  context->stack_profile_tracker->OnFrameCreated(frame_id);
 
   context->storage->mutable_jit_frame_table()->Insert({jit_code_id_, frame_id});
 
