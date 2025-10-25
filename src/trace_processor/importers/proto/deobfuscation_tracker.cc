@@ -45,15 +45,71 @@ DeobfuscationTracker::DeobfuscationTracker(TraceProcessorContext* context)
 
 DeobfuscationTracker::~DeobfuscationTracker() = default;
 
+std::vector<FrameId> DeobfuscationTracker::JavaFramesForName(
+    NameInPackage name) const {
+  if (const auto* frames = java_frames_for_name_.Find(name); frames) {
+    return std::vector<FrameId>(frames->begin(), frames->end());
+  }
+  return {};
+}
+
+void DeobfuscationTracker::BuildJavaFrameMaps() {
+  // Iterate over all frames in the table (names are now finalized)
+  const auto& frame_table = context_->storage->stack_profile_frame_table();
+  const auto& mapping_table = context_->storage->stack_profile_mapping_table();
+
+  for (auto frame_it = frame_table.IterateRows(); frame_it; ++frame_it) {
+    const FrameId frame_id = frame_it.id();
+    const StringId name_id = frame_it.name();
+    const base::StringView function_name =
+        context_->storage->GetString(name_id);
+
+    // Only process Java frames (must contain '.')
+    if (function_name.find('.') == base::StringView::npos) {
+      continue;
+    }
+
+    // Extract package from mapping
+    const MappingId mapping_id = frame_it.mapping();
+    const auto mapping = mapping_table.FindById(mapping_id);
+    const base::StringView mapping_name =
+        context_->storage->GetString(mapping->name());
+
+    std::optional<std::string> package =
+        PackageFromLocation(context_->storage.get(), mapping_name);
+
+    if (package) {
+      // Found package from mapping path
+      StringId package_id =
+          context_->storage->InternString(base::StringView(*package));
+      NameInPackage nip{name_id, package_id};
+      java_frames_for_name_[nip].insert(frame_id);
+    } else if (mapping_name.find("/memfd:") == 0) {
+      // Special case: memfd mappings
+      StringId memfd_id = context_->storage->InternString("memfd");
+      NameInPackage nip{name_id, memfd_id};
+      java_frames_for_name_[nip].insert(frame_id);
+    } else {
+      // Package unknown - will need guessing from process info
+      frames_needing_package_guess_.insert(frame_id);
+    }
+  }
+}
+
 void DeobfuscationTracker::AddDeobfuscationMapping(ConstBytes blob) {
   packets_.emplace_back(TraceBlob::CopyFrom(blob.data, blob.size));
 }
 
 void DeobfuscationTracker::NotifyEndOfFile() {
-  if (context_->stack_profile_tracker->HasFramesWithoutKnownPackage()) {
+  // Step 1: Build Java frame maps from complete frame table
+  BuildJavaFrameMaps();
+
+  // Step 2: Guess packages for frames that couldn't be determined from mappings
+  if (!frames_needing_package_guess_.empty()) {
     GuessPackages();
   }
 
+  // Step 3: Perform deobfuscation using the built maps
   for (const auto& packet : packets_) {
     DeobfuscationMapping::Decoder mapping(packet.data(), packet.size());
     DeobfuscateProfiles(mapping);
@@ -93,14 +149,12 @@ void DeobfuscationTracker::DeobfuscateProfiles(
       std::vector<tables::StackProfileFrameTable::Id> frames;
       if (opt_package_name_id) {
         const std::vector<tables::StackProfileFrameTable::Id> pkg_frames =
-            context_->stack_profile_tracker->JavaFramesForName(
-                {*merged_obfuscated_id, *opt_package_name_id});
+            JavaFramesForName({*merged_obfuscated_id, *opt_package_name_id});
         frames.insert(frames.end(), pkg_frames.begin(), pkg_frames.end());
       }
       if (opt_memfd_id) {
         const std::vector<tables::StackProfileFrameTable::Id> memfd_frames =
-            context_->stack_profile_tracker->JavaFramesForName(
-                {*merged_obfuscated_id, *opt_memfd_id});
+            JavaFramesForName({*merged_obfuscated_id, *opt_memfd_id});
         frames.insert(frames.end(), memfd_frames.begin(), memfd_frames.end());
       }
 
@@ -215,7 +269,6 @@ void DeobfuscationTracker::GuessPackageForCallsite(
     tables::ProcessTable::Id upid,
     tables::StackProfileCallsiteTable::Id callsite_id) {
   const auto& process_table = context_->storage->process_table();
-  auto* stack_profile_tracker = context_->stack_profile_tracker.get();
 
   auto process = process_table.FindById(upid);
   if (!process.has_value()) {
@@ -226,8 +279,8 @@ void DeobfuscationTracker::GuessPackageForCallsite(
     return;
   }
 
+  // Find package from package_list_table
   std::optional<StringId> package;
-
   for (auto it = context_->storage->package_list_table().IterateRows(); it;
        ++it) {
     if (it.uid() == *process->android_appid()) {
@@ -240,16 +293,23 @@ void DeobfuscationTracker::GuessPackageForCallsite(
     return;
   }
 
+  // Walk callsite chain and assign package to frames that need it
   const auto& callsite_table =
       context_->storage->stack_profile_callsite_table();
   auto callsite = callsite_table.FindById(callsite_id);
   while (callsite.has_value()) {
-    auto frame_id = callsite->frame_id();
+    const FrameId frame_id = callsite->frame_id();
 
-    if (stack_profile_tracker->FrameHasUnknownPackage(frame_id) != 0) {
-      if (process->name().has_value()) {
-        stack_profile_tracker->SetPackageForFrame(*package, frame_id);
-      }
+    // Check if this frame needs package guessing
+    if (frames_needing_package_guess_.count(frame_id) != 0) {
+      // Add frame to map with guessed package
+      auto frame =
+          context_->storage->stack_profile_frame_table().FindById(frame_id);
+      NameInPackage nip{frame->name(), *package};
+      java_frames_for_name_[nip].insert(frame_id);
+
+      // Remove from set (package now known)
+      frames_needing_package_guess_.erase(frame_id);
     }
 
     auto parent_id = callsite->parent_id();
