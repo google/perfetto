@@ -28,12 +28,12 @@
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -128,6 +128,10 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
     if (it.value()->content_analyzer) {
       PacketAnalyzer::Get(it.value())->NotifyEndOfFile();
     }
+  }
+  auto& machines = context()->forked_context_state->machine_to_context;
+  for (auto it = machines.GetIterator(); it; ++it) {
+    it.value()->symbol_tracker->NotifyEndOfFile();
   }
   auto& all = context()->forked_context_state->trace_and_machine_to_context;
   for (auto it = all.GetIterator(); it; ++it) {
