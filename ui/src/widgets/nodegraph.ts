@@ -308,6 +308,25 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Clear existing paths
     svg.innerHTML = '';
 
+    // Create arrow marker definition
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'arrowhead');
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '10');
+    marker.setAttribute('refX', '10');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 10 3, 0 6');
+    polygon.setAttribute('fill', 'var(--pf-color-accent)');
+
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
     // Only render explicit connections (not implicit dock connections)
     connections.forEach((conn, idx) => {
       const from = getPortPosition(conn.fromNode, 'output', conn.fromPort);
@@ -327,6 +346,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           'd',
           createCurve(from.x, from.y, to.x, to.y, fromPortType, toPortType),
         );
+        path.setAttribute('marker-end', 'url(#arrowhead)');
         path.style.pointerEvents = 'stroke';
         path.style.cursor = 'pointer';
 
