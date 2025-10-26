@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PopupMenu} from './menu';
 import {Button} from './button';
 
 // ========================================
@@ -35,7 +34,6 @@ export interface Connection {
 
 export interface Node {
   id: string;
-  title: string;
   x: number;
   y: number;
   inputs?: string[];
@@ -1087,7 +1085,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               // Render all nodes - wrap dock chains in flex container
               nodes
                 .map((node: Node) => {
-                  const {id, title, inputs = [], outputs = []} = node;
+                  const {id, inputs = [], outputs = []} = node;
 
                   // Check if this is the root of a dock chain
                   const chain = getChain(node);
@@ -1107,7 +1105,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                       chain.map((chainNode) => {
                         const {
                           id: cId,
-                          title: cTitle,
                           inputs: cInputs = [],
                           outputs: cOutputs = [],
                         } = chainNode;
@@ -1188,20 +1185,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                             },
                           },
                           [
-                            m('.pf-node-header', [
-                              m('span.pf-node-title', cTitle),
-                              chainNode.contextMenu !== undefined &&
-                                m(
-                                  PopupMenu,
-                                  {
-                                    trigger: m(Button, {
-                                      icon: 'more_vert',
-                                      rounded: true,
-                                    }),
-                                  },
-                                  chainNode.contextMenu,
-                                ),
-                            ]),
                             m('.pf-node-body', [
                               chainNode.content !== undefined &&
                                 m('.pf-node-content', chainNode.content),
@@ -1376,8 +1359,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                       'class': classes,
                       'style': `left: ${renderPos.x}px; top: ${renderPos.y}px; z-index: ${canvasState.draggedNode === id ? 1000 : 10}`,
                       'onmousedown': (e: MouseEvent) => {
-                        if ((e.target as HTMLElement).closest('.pf-port'))
+                        if ((e.target as HTMLElement).closest('.pf-port')) {
                           return;
+                        }
                         e.stopPropagation();
 
                         // Start dragging
@@ -1400,20 +1384,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                       },
                     },
                     [
-                      m('.pf-node-header', [
-                        m('span.pf-node-title', title),
-                        node.contextMenu !== undefined &&
-                          m(
-                            PopupMenu,
-                            {
-                              trigger: m(Button, {
-                                icon: 'more_vert',
-                                rounded: true,
-                              }),
-                            },
-                            node.contextMenu,
-                          ),
-                      ]),
                       m('.pf-node-body', [
                         // Render custom content if provided
                         node.content !== undefined &&

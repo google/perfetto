@@ -31,7 +31,6 @@ interface ModelNode {
 
 // Node template definition
 interface NodeTemplate {
-  title: string;
   inputs: string[];
   outputs: string[];
   content?: m.Children;
@@ -68,12 +67,10 @@ export function NodeGraphDemo() {
   // Template renderers - map from type to node template
   const nodeTemplates: Record<string, NodeTemplate> = {
     table: {
-      title: 'Table',
       inputs: [],
       outputs: ['Data'],
     },
     select: {
-      title: 'SELECT',
       inputs: ['Data'],
       outputs: ['Result'],
       content: m(
@@ -121,7 +118,6 @@ export function NodeGraphDemo() {
 
     return {
       id: model.id,
-      title: template.title,
       x: model.x,
       y: model.y,
       inputs: template.inputs,
@@ -139,7 +135,6 @@ export function NodeGraphDemo() {
 
     return {
       id: model.id,
-      title: template.title,
       inputs: template.inputs,
       outputs: template.outputs,
       content: template.content,
@@ -216,6 +211,15 @@ export function NodeGraphDemo() {
             onNodeRemove: (nodeId: string) => {
               modelNodes.delete(nodeId);
               if (selectedNodeId === nodeId) selectedNodeId = null;
+              // Also remove any connections to/from this node
+              for (let i = connections.length - 1; i >= 0; i--) {
+                if (
+                  connections[i].fromNode === nodeId ||
+                  connections[i].toNode === nodeId
+                ) {
+                  connections.splice(i, 1);
+                }
+              }
               console.log(`onNodeRemove: ${nodeId}`);
             },
             onNodeSelect: (nodeId: string | null) => {
