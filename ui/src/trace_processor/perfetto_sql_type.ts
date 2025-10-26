@@ -14,11 +14,13 @@
 
 import {errResult, okResult, Result} from '../base/result';
 
+// Representation of a PerfettoSQL type:
+// https://perfetto.dev/docs/analysis/perfetto-sql-syntax#types
 export type PerfettoSqlType =
   | {
       kind:
         | 'int'
-        | 'float'
+        | 'double'
         | 'string'
         | 'boolean'
         | 'bytes'
@@ -45,8 +47,8 @@ const SIMPLE_TYPES = {
   long: 'int',
   int: 'int',
   bool: 'boolean',
-  float: 'float',
-  double: 'float',
+  float: 'double',
+  double: 'double',
   string: 'string',
   bytes: 'bytes',
   timestamp: 'timestamp',
