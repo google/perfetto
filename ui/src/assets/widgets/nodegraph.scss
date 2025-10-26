@@ -60,6 +60,7 @@
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
   cursor: move;
   pointer-events: auto;
+  padding-block: 12px;
 }
 
 .pf-node.pf-selected {
@@ -132,13 +133,8 @@
   flex: 1;
 }
 
-.pf-node-body {
-  padding-block: 12px;
-}
-
 .pf-node-content {
   padding-inline: 12px;
-  margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--pf-color-border-secondary);
 }
@@ -149,6 +145,10 @@
   color: var(--pf-color-text-muted);
   font-size: 13px;
   padding: 4px 16px;
+
+  .pf-port {
+    transform: translateY(-50%);
+  }
 }
 
 .pf-port-input {
@@ -168,7 +168,6 @@
   cursor: crosshair;
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
   transition: all 0.2s;
   z-index: 10;
 }
@@ -186,6 +185,19 @@
 
 .pf-port.pf-input {
   left: -8px;
+}
+
+.pf-port.pf-port-top {
+  top: 0;
+  left: 50%;
+  transform: translateY(-50%);
+}
+
+.pf-port.pf-port-bottom {
+  top: unset;
+  bottom: 0;
+  left: 50%;
+  transform: translateY(50%);
 }
 
 .pf-port.pf-output {

@@ -18,12 +18,14 @@ import {Checkbox} from '../../widgets/checkbox';
 import {PopupMenu} from '../../widgets/menu';
 import {MenuItem} from '../../widgets/menu';
 import {Button} from '../../widgets/button';
+import {TextInput} from '../../widgets/text_input';
 import {uuidv4} from '../../base/uuid';
+import {Select} from '../../widgets/select';
 
 // Simple model state - just data
 interface ModelNode {
   id: string;
-  type: 'table' | 'select';
+  type: 'table' | 'select' | 'filter' | 'join';
   x: number;
   y: number;
   nextId?: string; // ID of next node in chain
@@ -47,8 +49,16 @@ export function NodeGraphDemo() {
     dur: false,
   };
 
+  // State for join type
+  let joinType = 'INNER';
+
+  let table = 'slice';
+
+  // State for filter expression
+  let filterExpression = '';
+
   // Function to add a new node
-  function addNode(type: 'table' | 'select') {
+  function addNode(type: 'table' | 'select' | 'filter' | 'join') {
     const id = uuidv4();
     const newNode: ModelNode = {
       id: id,
@@ -68,11 +78,26 @@ export function NodeGraphDemo() {
   const nodeTemplates: Record<string, NodeTemplate> = {
     table: {
       inputs: [],
-      outputs: ['Data'],
+      outputs: ['Output'],
+      content: m(
+        Select,
+        {
+          value: table,
+          onchange: (e: Event) => {
+            table = (e.target as HTMLSelectElement).value;
+          },
+        },
+        [
+          m('option', {value: 'slice'}, 'slice'),
+          m('option', {value: 'sched'}, 'sched'),
+          m('option', {value: 'thread_state'}, 'thread_state'),
+          m('option', {value: 'counter'}, 'counter'),
+        ],
+      ),
     },
     select: {
-      inputs: ['Data'],
-      outputs: ['Result'],
+      inputs: ['Input'],
+      outputs: ['Output'],
       content: m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
@@ -85,6 +110,36 @@ export function NodeGraphDemo() {
             },
           }),
         ),
+      ),
+    },
+    filter: {
+      inputs: ['Input'],
+      outputs: ['Output'],
+      content: m(TextInput, {
+        placeholder: 'Filter expression...',
+        value: filterExpression,
+        onInput: (value: string) => {
+          filterExpression = value;
+        },
+      }),
+    },
+    join: {
+      inputs: ['Left', 'Right'],
+      outputs: ['Output'],
+      content: m(
+        Select,
+        {
+          value: joinType,
+          onchange: (e: Event) => {
+            joinType = (e.target as HTMLSelectElement).value;
+          },
+        },
+        [
+          m('option', {value: 'INNER'}, 'INNER'),
+          m('option', {value: 'LEFT'}, 'LEFT'),
+          m('option', {value: 'RIGHT'}, 'RIGHT'),
+          m('option', {value: 'FULL'}, 'FULL'),
+        ],
       ),
     },
   };
@@ -173,6 +228,16 @@ export function NodeGraphDemo() {
                 label: 'SELECT',
                 icon: 'filter_alt',
                 onclick: () => addNode('select'),
+              }),
+              m(MenuItem, {
+                label: 'Filter',
+                icon: 'filter_list',
+                onclick: () => addNode('filter'),
+              }),
+              m(MenuItem, {
+                label: 'Join',
+                icon: 'join',
+                onclick: () => addNode('join'),
               }),
             ],
           ),
