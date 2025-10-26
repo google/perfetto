@@ -14,176 +14,68 @@
 
 import m from 'mithril';
 import {Connection, Node, NodeGraph} from '../../widgets/nodegraph';
-import {Select} from '../../widgets/select';
-import {TextInput} from '../../widgets/text_input';
 import {Checkbox} from '../../widgets/checkbox';
+import {PopupMenu} from '../../widgets/menu';
 import {MenuItem} from '../../widgets/menu';
+import {Button} from '../../widgets/button';
+import {uuidv4} from '../../base/uuid';
+
+// Simple model state - just data
+interface ModelNode {
+  id: string;
+  type: 'table' | 'select';
+  x: number;
+  y: number;
+  nextId?: string; // ID of next node in chain
+}
+
+// Node template definition
+interface NodeTemplate {
+  title: string;
+  inputs: string[];
+  outputs: string[];
+  content?: m.Children;
+}
 
 export function NodeGraphDemo() {
-  let joinType = 'INNER';
-  let joinColumn = 'id';
-  let filterCondition = 'dur > 1000';
   let selectedNodeId: string | null = null;
+
+  // State for select node checkboxes
   const columnOptions = {
     id: true,
     name: true,
-    ts: true,
+    ts: false,
     dur: false,
-    utid: false,
   };
 
-  const nodes: Node[] = [
-    {
-      id: 'table_slice',
-      title: 'Table: slice',
-      x: 50,
-      y: 80,
-      outputs: ['Output'],
-      canDockAbove: false,
-      contextMenu: [
-        m(MenuItem, {
-          label: 'Item A',
-          icon: 'info',
-        }),
-        m(MenuItem, {
-          label: 'Item B',
-          icon: 'filter_alt',
-        }),
-      ],
-      next: {
-        id: 'table_slice_filter',
-        title: 'WHERE',
-        inputs: ['Input'],
-        outputs: ['Output'],
-        content: m(TextInput, {
-          value: filterCondition,
-          placeholder: 'Enter condition...',
-          oninput: (e: Event) => {
-            filterCondition = (e.target as HTMLInputElement).value;
-          },
-        }),
-        contextMenu: [
-          m(MenuItem, {
-            label: 'Item A',
-            icon: 'info',
-          }),
-          m(MenuItem, {
-            label: 'Item B',
-            icon: 'filter_alt',
-          }),
-        ],
-      },
+  // Function to add a new node
+  function addNode(type: 'table' | 'select') {
+    const id = uuidv4();
+    const newNode: ModelNode = {
+      id: id,
+      type: type,
+      x: 100 + Math.random() * 200, // Random offset
+      y: 50 + Math.random() * 200,
+    };
+    modelNodes.set(newNode.id, newNode);
+  }
+
+  // Model state - persists across renders
+  const modelNodes: Map<string, ModelNode> = new Map();
+  addNode('table');
+  addNode('select');
+
+  // Template renderers - map from type to node template
+  const nodeTemplates: Record<string, NodeTemplate> = {
+    table: {
+      title: 'Table',
+      inputs: [],
+      outputs: ['Data'],
     },
-    {
-      id: 'table_thread',
-      title: 'Table: thread',
-      x: 50,
-      y: 220,
-      canDockAbove: false,
-      outputs: ['Output'],
-      contextMenu: [
-        m(MenuItem, {
-          label: 'Item A',
-          icon: 'info',
-        }),
-        m(MenuItem, {
-          label: 'Item B',
-          icon: 'filter_alt',
-        }),
-      ],
-    },
-    {
-      id: 'join',
-      title: 'JOIN',
-      x: 320,
-      y: 100,
-      inputs: ['Left', 'Right'],
-      outputs: ['Output'],
-      content: m('', [
-        m(
-          Select,
-          {
-            value: joinType,
-            onchange: (e: Event) => {
-              joinType = (e.target as HTMLSelectElement).value;
-            },
-          },
-          [
-            m('option', {value: 'INNER'}, 'INNER JOIN'),
-            m('option', {value: 'LEFT'}, 'LEFT JOIN'),
-            m('option', {value: 'RIGHT'}, 'RIGHT JOIN'),
-            m('option', {value: 'FULL'}, 'FULL JOIN'),
-          ],
-        ),
-        m(
-          '',
-          {
-            style: {
-              marginTop: '8px',
-              fontSize: '12px',
-              color: 'var(--pf-color-text-muted)',
-            },
-          },
-          'ON:',
-        ),
-        m(
-          Select,
-          {
-            value: joinColumn,
-            onchange: (e: Event) => {
-              joinColumn = (e.target as HTMLSelectElement).value;
-            },
-          },
-          [
-            m('option', {value: 'id'}, 'id'),
-            m('option', {value: 'utid'}, 'utid'),
-            m('option', {value: 'name'}, 'name'),
-          ],
-        ),
-      ]),
-      contextMenu: [
-        m(MenuItem, {
-          label: 'Item A',
-          icon: 'info',
-        }),
-        m(MenuItem, {
-          label: 'Item B',
-          icon: 'filter_alt',
-        }),
-      ],
-    },
-    {
-      id: 'filter',
-      title: 'WHERE',
-      x: 570,
-      y: 100,
-      inputs: ['Input'],
-      outputs: ['Output'],
-      content: m(TextInput, {
-        value: filterCondition,
-        placeholder: 'Enter condition...',
-        oninput: (e: Event) => {
-          filterCondition = (e.target as HTMLInputElement).value;
-        },
-      }),
-      contextMenu: [
-        m(MenuItem, {
-          label: 'Item A',
-          icon: 'info',
-        }),
-        m(MenuItem, {
-          label: 'Item B',
-          icon: 'filter_alt',
-        }),
-      ],
-    },
-    {
-      id: 'select',
+    select: {
       title: 'SELECT',
-      x: 820,
-      y: 100,
-      inputs: ['Input'],
-      outputs: ['Output'],
+      inputs: ['Data'],
+      outputs: ['Result'],
       content: m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
@@ -197,161 +89,165 @@ export function NodeGraphDemo() {
           }),
         ),
       ),
-      contextMenu: [
-        m(MenuItem, {
-          label: 'Item A',
-          icon: 'info',
-        }),
-        m(MenuItem, {
-          label: 'Item B',
-          icon: 'filter_alt',
-        }),
-      ],
     },
-  ];
+  };
 
-  const connections: Connection[] = [
-    {fromNode: 'table_slice', fromPort: 0, toNode: 'join', toPort: 0},
-    {fromNode: 'table_thread', fromPort: 0, toNode: 'join', toPort: 1},
-    {fromNode: 'join', fromPort: 0, toNode: 'filter', toPort: 0},
-    {fromNode: 'filter', fromPort: 0, toNode: 'select', toPort: 0},
-  ];
+  // Find root nodes (not referenced by any other node's nextId)
+  function getRootNodeIds(): string[] {
+    const referenced = new Set<string>();
+    for (const node of modelNodes.values()) {
+      if (node.nextId) referenced.add(node.nextId);
+    }
+    return Array.from(modelNodes.keys()).filter((id) => !referenced.has(id));
+  }
+
+  // Render model state into NodeGraph nodes
+  function renderNodes(): Node[] {
+    const rootIds = getRootNodeIds();
+    return rootIds
+      .map((id) => {
+        const model = modelNodes.get(id);
+        if (!model) return null;
+        return renderNodeChain(model);
+      })
+      .filter((n): n is Node => n !== null);
+  }
+
+  // Render a model node and its chain
+  function renderNodeChain(model: ModelNode): Node {
+    const template = nodeTemplates[model.type];
+    const hasNext = model.nextId !== undefined;
+    const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+
+    return {
+      id: model.id,
+      title: template.title,
+      x: model.x,
+      y: model.y,
+      inputs: template.inputs,
+      outputs: template.outputs,
+      content: template.content,
+      next: nextModel ? renderChildNode(nextModel) : undefined,
+    };
+  }
+
+  // Render child node (keep all ports visible)
+  function renderChildNode(model: ModelNode): Omit<Node, 'x' | 'y'> {
+    const template = nodeTemplates[model.type];
+    const hasNext = model.nextId !== undefined;
+    const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+
+    return {
+      id: model.id,
+      title: template.title,
+      inputs: template.inputs,
+      outputs: template.outputs,
+      content: template.content,
+      next: nextModel ? renderChildNode(nextModel) : undefined,
+    };
+  }
+
+  const connections: Connection[] = [];
 
   return {
     view: () => {
-      return m(
-        'div',
-        {
-          style: {
-            width: '600px',
-            height: '400px',
-            overflow: 'hidden',
-            border: '1px solid #444',
+      return m('div', [
+        // Add Node button
+        m(
+          'div',
+          {
+            style: {
+              marginBottom: '8px',
+            },
           },
-        },
-        m(NodeGraph, {
-          nodes: nodes,
-          connections: connections,
-          selectedNodeId: selectedNodeId,
-          onConnect: (conn: Connection) => {
-            console.log('New connection created:', conn);
-            connections.push(conn);
-          },
-          onNodeDrag: (nodeId: string, x: number, y: number) => {
-            const node = nodes.find((n) => n.id === nodeId);
-            if (node) {
-              node.x = x;
-              node.y = y;
-            }
-          },
-          onConnectionRemove: (index: number) => {
-            console.log('Connection removed at index:', index);
-            connections.splice(index, 1);
-          },
-          onNodeSelect: (nodeId: string | null) => {
-            selectedNodeId = nodeId;
-            console.log('Node selected:', nodeId);
-          },
-          onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
-            // targetId is the ID of the last node in the chain
-            // We need to find this node and attach the child to it
+          m(
+            PopupMenu,
+            {
+              trigger: m(Button, {
+                label: 'Add Node',
+                icon: 'add',
+              }),
+            },
+            [
+              m(MenuItem, {
+                label: 'Table',
+                icon: 'table_chart',
+                onclick: () => addNode('table'),
+              }),
+              m(MenuItem, {
+                label: 'SELECT',
+                icon: 'filter_alt',
+                onclick: () => addNode('select'),
+              }),
+            ],
+          ),
+        ),
 
-            // First, check if targetId is a root node
-            let targetNode: Node | Omit<Node, 'x' | 'y'> | undefined =
-              nodes.find((n) => n.id === targetId);
-
-            // If not found in root nodes, search in chains
-            if (!targetNode) {
-              for (const rootNode of nodes) {
-                let current: Node | Omit<Node, 'x' | 'y'> = rootNode;
-                while (current.next) {
-                  if (current.next.id === targetId) {
-                    targetNode = current.next;
-                    break;
-                  }
-                  current = current.next;
-                }
-                if (targetNode) break;
+        // NodeGraph
+        m(
+          'div',
+          {
+            style: {
+              width: '600px',
+              height: '400px',
+              overflow: 'hidden',
+              border: '1px solid #444',
+            },
+          },
+          m(NodeGraph, {
+            nodes: renderNodes(),
+            connections: connections,
+            selectedNodeId: selectedNodeId,
+            onConnect: (conn: Connection) => {
+              console.log('Connection created:', conn);
+              connections.push(conn);
+            },
+            onNodeDrag: (nodeId: string, x: number, y: number) => {
+              const model = modelNodes.get(nodeId);
+              if (model) {
+                model.x = x;
+                model.y = y;
               }
-            }
+            },
+            onConnectionRemove: (index: number) => {
+              console.log('Connection removed:', index);
+              connections.splice(index, 1);
+            },
+            onNodeRemove: (nodeId: string) => {
+              modelNodes.delete(nodeId);
+              if (selectedNodeId === nodeId) selectedNodeId = null;
+              console.log(`onNodeRemove: ${nodeId}`);
+            },
+            onNodeSelect: (nodeId: string | null) => {
+              selectedNodeId = nodeId;
+              console.log(`onNodeSelect: ${nodeId}`);
+            },
+            onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
+              const target = modelNodes.get(targetId);
+              const child = modelNodes.get(childNode.id);
 
-            if (targetNode) {
-              // Remove child from nodes array (it's now in the linked list)
-              const childIndex = nodes.findIndex((n) => n.id === childNode.id);
-              if (childIndex !== -1) {
-                nodes.splice(childIndex, 1);
+              if (target && child) {
+                target.nextId = child.id;
+                console.log(`Docked ${child.id} to ${targetId}`);
               }
+            },
+            onUndock: (parentId: string) => {
+              const parent = modelNodes.get(parentId);
 
-              // Attach child to target's next
-              targetNode.next = childNode;
-              console.log(`Node ${childNode.id} docked to ${targetId}`);
-            }
-          },
-          onUndock: (parentId: string) => {
-            // Find the parent node (could be root or in a chain)
-            let parent: Node | Omit<Node, 'x' | 'y'> | undefined = nodes.find(
-              (n) => n.id === parentId,
-            );
+              if (parent && parent.nextId) {
+                const child = modelNodes.get(parent.nextId);
 
-            // If not found in root nodes, search in chains
-            if (!parent) {
-              for (const rootNode of nodes) {
-                let current: Node | Omit<Node, 'x' | 'y'> = rootNode;
-                while (current.next) {
-                  if (current.next.id === parentId) {
-                    parent = current.next;
-                    break;
-                  }
-                  current = current.next;
-                }
-                if (parent) break;
-              }
-            }
-
-            if (parent && parent.next) {
-              const childNode = parent.next;
-
-              // Determine position for new root node
-              let x = 0;
-              let y = 0;
-              if ('x' in parent) {
-                // Parent is a root node
-                x = parent.x;
-                y = parent.y + 100;
-              } else {
-                // Parent is in a chain, find the root to get x coordinate
-                const root = nodes.find((n) => {
-                  let curr: Node | Omit<Node, 'x' | 'y'> | undefined = n;
-                  while (curr !== undefined) {
-                    if (curr.id === parent!.id) return true;
-                    if (!curr.next) break;
-                    curr = curr.next;
-                  }
-                  return false;
-                });
-                if (root) {
-                  x = root.x;
-                  y = root.y + 200; // Offset more for chained parent
+                if (child) {
+                  child.x = parent.x;
+                  child.y = parent.y + 150;
+                  parent.nextId = undefined;
+                  console.log(`Undocked ${child.id} from ${parentId}`);
                 }
               }
-
-              // Create a new root node from the child (KEEPS its entire chain)
-              const newNode: Node = {
-                ...childNode,
-                x,
-                y,
-              };
-
-              // Break the link (child keeps its own next chain)
-              parent.next = undefined;
-
-              // Add back to nodes array as independent root node (with its chain)
-              nodes.push(newNode);
-              console.log(`Node ${childNode.id} undocked from ${parentId}`);
-            }
-          },
-        }),
-      );
+            },
+          }),
+        ),
+      ]);
     },
   };
 }
