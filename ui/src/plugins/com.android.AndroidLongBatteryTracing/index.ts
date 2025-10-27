@@ -554,8 +554,11 @@ export default class implements PerfettoPlugin {
       new SourceDataset({
         src: `
           SELECT
-            ts - 60000000000 AS ts,
-            safe_dur + 60000000000 AS dur,
+            -- Clamp start time to > 0 to avoid negative timestamps.
+            MAX(0, ts - 60000000000) AS ts,
+            -- The end time is (ts + safe_dur), so the duration is the original
+            -- end time minus the clamped start time.
+            (ts + safe_dur) - MAX(0, ts - 60000000000) AS dur,
             str_value AS name,
             package_name AS package
           FROM add_package_name!((
@@ -883,13 +886,13 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  async addModemTeaData(ctx: Trace, support: SupportPlugin): Promise<void> {
+  async addModemMintData(ctx: Trace, support: SupportPlugin): Promise<void> {
     const e = ctx.engine;
     const groupName = 'Modem Detail';
 
     await e.query(
       `INCLUDE PERFETTO MODULE
-          google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
+          google3.wireless.android.telemetry.trace_extractor.modules.modem_mint_metrics`,
     );
 
     const counters = await e.query(
@@ -1114,7 +1117,7 @@ export default class implements PerfettoPlugin {
     if (features.has('google3')) {
       await this.addAtomCounters(ctx, support);
       await this.addAtomSlices(ctx, support);
-      await this.addModemTeaData(ctx, support);
+      await this.addModemMintData(ctx, support);
     }
   }
 }

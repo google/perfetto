@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-overlay-container {
-  &--fill-height {
-    height: 100%;
-  }
+// The object returned by TraceStream.readChunk() promise.
+export interface TraceChunk {
+  data: Uint8Array;
+  eof: boolean;
+  bytesRead: number;
+  bytesTotal: number;
+}
+
+// Base interface for loading trace data in chunks.
+// The caller has to call readChunk() until TraceChunk.eof == true.
+export interface TraceStream {
+  readChunk(): Promise<TraceChunk>;
 }
