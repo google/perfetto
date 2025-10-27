@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/stats.h"
@@ -93,7 +94,11 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
                                             StringId raw_name,
                                             int64_t duration,
                                             SetArgsCallback args_callback) {
-  PERFETTO_DCHECK(duration >= 0);
+  if (duration < 0) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::slice_negative_duration, timestamp);
+    return std::nullopt;
+  }
 
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
