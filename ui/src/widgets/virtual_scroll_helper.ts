@@ -27,6 +27,30 @@ export interface VirtualScrollHelperOpts {
 export interface Data {
   opts: VirtualScrollHelperOpts;
   rect?: Bounds2D;
+  velocity?: number; // px/ms (positive = down, negative = up)
+}
+
+// Constants for predictive scrolling
+const VELOCITY_MULTIPLIER = 0.8;
+const MAX_OFFSET_RATIO = 0.75;
+const VELOCITY_THRESHOLD = 0.1; // px/ms
+const SMOOTHING_FACTOR = 0.4;
+
+/**
+ * Calculate predictive offset based on scroll velocity.
+ * Returns offset in pixels to shift the viewport in the scroll direction.
+ */
+function calculatePredictiveOffset(
+  velocity: number,
+  overdrawPx: number,
+): number {
+  if (Math.abs(velocity) < VELOCITY_THRESHOLD) {
+    return 0;
+  }
+
+  const offset = velocity * VELOCITY_MULTIPLIER * overdrawPx;
+  const maxOffset = overdrawPx * MAX_OFFSET_RATIO;
+  return Math.max(-maxOffset, Math.min(maxOffset, offset));
 }
 
 export class VirtualScrollHelper {
@@ -42,10 +66,26 @@ export class VirtualScrollHelper {
       return {opts};
     });
 
+    let previousScrollOffset = 0;
+    let previousTimestamp = performance.now();
+
     const recalculateRects = () => {
-      this._data.forEach((data) =>
-        recalculatePuckRect(sliderElement, containerElement, data),
-      );
+      const delta = containerElement.scrollTop - previousScrollOffset;
+      previousScrollOffset = containerElement.scrollTop;
+      // Calculate scrolling velocity
+      const now = performance.now();
+      const timeDelta = now - previousTimestamp;
+      previousTimestamp = now;
+      const scrollingVelocity = delta / timeDelta;
+
+      // Update velocity for each data level with smoothing
+      this._data.forEach((data) => {
+        const previousVelocity = data.velocity ?? 0;
+        data.velocity =
+          SMOOTHING_FACTOR * scrollingVelocity +
+          (1 - SMOOTHING_FACTOR) * previousVelocity;
+        recalculatePuckRect(sliderElement, containerElement, data);
+      });
     };
 
     containerElement.addEventListener('scroll', recalculateRects, {
@@ -78,15 +118,19 @@ function recalculatePuckRect(
   data: Data,
 ): void {
   const {tolerancePx, overdrawPx, callback} = data.opts;
+  const velocity = data.velocity ?? 0;
+
   if (!data.rect) {
     const targetPuckRect = getTargetPuckRect(
       sliderElement,
       containerElement,
       overdrawPx,
+      velocity,
     );
     callback(targetPuckRect);
     data.rect = targetPuckRect;
   } else {
+    const oldRect = data.rect;
     const viewportRect = new Rect2D(containerElement.getBoundingClientRect());
 
     // Expand the viewportRect by the tolerance
@@ -95,19 +139,16 @@ function recalculatePuckRect(
     const sliderClientRect = sliderElement.getBoundingClientRect();
     const viewportClamped = viewportExpandedRect.intersect(sliderClientRect);
 
-    // Translate the puck rect into client space (currently in slider space)
-    const puckClientRect = viewportClamped.translate({
-      x: sliderClientRect.x,
-      y: sliderClientRect.y,
-    });
+    const viewportInSliderCoods = viewportClamped.reframe(sliderClientRect);
 
-    // Check if the tolerance rect entirely contains the expanded viewport rect
-    // If not, request an update
-    if (!puckClientRect.contains(viewportClamped)) {
+    // Check if the old rect contains the current viewport with the expanded
+    // tolerance, then we're all good, otherwise request an update.
+    if (!new Rect2D(oldRect).contains(viewportInSliderCoods)) {
       const targetPuckRect = getTargetPuckRect(
         sliderElement,
         containerElement,
         overdrawPx,
+        velocity,
       );
       callback(targetPuckRect);
       data.rect = targetPuckRect;
@@ -120,6 +161,7 @@ function getTargetPuckRect(
   sliderElement: HTMLElement,
   containerElement: Element,
   overdrawPx: number,
+  velocity: number = 0,
 ) {
   const sliderElementRect = sliderElement.getBoundingClientRect();
   const containerRect = new Rect2D(containerElement.getBoundingClientRect());
@@ -127,8 +169,12 @@ function getTargetPuckRect(
   // Calculate the intersection of the container's viewport and the target
   const intersection = containerRect.intersect(sliderElementRect);
 
+  // Apply predictive offset based on scroll velocity
+  const offsetY = calculatePredictiveOffset(velocity, overdrawPx);
+  const shiftedIntersection = intersection.translate({x: 0, y: offsetY});
+
   // Pad the intersection by the overdraw amount
-  const intersectionExpanded = intersection.expand(overdrawPx);
+  const intersectionExpanded = shiftedIntersection.expand(overdrawPx);
 
   // Intersect with the original target rect unless we want to avoid resizes
   const targetRect = intersectionExpanded.intersect(sliderElementRect);

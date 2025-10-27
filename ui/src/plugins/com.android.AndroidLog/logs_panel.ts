@@ -33,13 +33,19 @@ import {
 import {PopupPosition} from '../../widgets/popup';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
-import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
+import {
+  Grid,
+  GridColumn,
+  GridRow,
+  GridHeaderCell,
+  GridCell,
+} from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 
-const ROW_H = 20;
+const ROW_H = 24;
 
 export interface LogFilteringCriteria {
   minimumLevel: number;
@@ -112,6 +118,26 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.entries.processName.filter((name) => name).length > 0;
     const totalEvents = this.entries?.totalEvents ?? 0;
 
+    const columns: GridColumn[] = [
+      ...(hasMachineIds
+        ? [{key: 'machine', header: m(GridHeaderCell, 'Machine')}]
+        : []),
+      {key: 'timestamp', header: m(GridHeaderCell, 'Timestamp')},
+      {key: 'pid', header: m(GridHeaderCell, 'PID')},
+      {key: 'tid', header: m(GridHeaderCell, 'TID')},
+      {key: 'level', header: m(GridHeaderCell, 'Level')},
+      ...(hasProcessNames
+        ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
+        : []),
+      {key: 'tag', header: m(GridHeaderCell, 'Tag')},
+      {
+        key: 'message',
+        // Allow the initial width of the message column to expand as needed.
+        maxInitialWidthPx: Infinity,
+        header: m(GridHeaderCell, 'Message'),
+      },
+    ];
+
     return m(
       DetailsShell,
       {
@@ -123,31 +149,26 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           store: attrs.filterStore,
         }),
       },
-      m(VirtualTable, {
+      m(Grid, {
         className: 'pf-logs-panel',
-        columns: [
-          ...(hasMachineIds ? [{header: 'Machine', width: '6em'}] : []),
-          {header: 'Timestamp', width: '13em'},
-          {header: 'PID', width: '3em'},
-          {header: 'TID', width: '3em'},
-          {header: 'Level', width: '4em'},
-          {header: 'Tag', width: '13em'},
-          ...(hasProcessNames ? [{header: 'Process', width: '18em'}] : []),
-          // '' means column width can vary depending on the content.
-          // This works as this is the last column, but using this for other
-          // columns will pull the columns to the right out of line.
-          {header: 'Message', width: ''},
-        ],
-        rows: this.renderRows(hasMachineIds, hasProcessNames),
-        firstRowOffset: this.entries?.offset ?? 0,
-        numRows: this.entries?.totalEvents ?? 0,
-        rowHeight: ROW_H,
-        onReload: (offset, count) => {
-          this.pagination = {offset, count};
-          this.reloadData(attrs);
+        columns,
+        rowData: {
+          data: this.renderRows(hasMachineIds, hasProcessNames),
+          total: this.entries?.totalEvents ?? 0,
+          offset: this.entries?.offset ?? 0,
+          onLoadData: (offset, count) => {
+            this.pagination = {offset, count};
+            this.reloadData(attrs);
+          },
         },
-        onRowHover: (id) => {
-          const timestamp = this.entries?.timestamps[id];
+        virtualization: {
+          rowHeightPx: ROW_H,
+        },
+        fillHeight: true,
+        onRowHover: (rowIndex) => {
+          // Calculate the actual row index from virtualization offset
+          const actualIndex = rowIndex - (this.entries?.offset ?? 0);
+          const timestamp = this.entries?.timestamps[actualIndex];
           if (timestamp !== undefined) {
             attrs.trace.timeline.hoverCursorTimestamp = timestamp;
           }
@@ -178,7 +199,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private renderRows(
     hasMachineIds: boolean | undefined,
     hasProcessNames: boolean | undefined,
-  ): VirtualTableRow[] {
+  ): ReadonlyArray<GridRow> {
     if (!this.entries) {
       return [];
     }
@@ -193,30 +214,31 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     const messages = this.entries.messages;
     const processNames = this.entries.processName;
 
-    const rows: VirtualTableRow[] = [];
+    const rows: GridRow[] = [];
     for (let i = 0; i < this.entries.timestamps.length; i++) {
       const priority = priorities[i];
       const priorityLetter = LOG_PRIORITIES[priority][0];
       const ts = timestamps[i];
       const priorityClass = `pf-logs-panel__row--${classForPriority(priority)}`;
+      const isHighlighted = this.entries.isHighlighted[i];
+      const className = classNames(
+        priorityClass,
+        isHighlighted && 'pf-logs-panel__row--highlighted',
+      );
 
-      rows.push({
-        id: i,
-        className: classNames(
-          priorityClass,
-          this.entries.isHighlighted[i] && 'pf-logs-panel__row--highlighted',
-        ),
-        cells: [
-          ...(hasMachineIds ? [machineIds[i]] : []),
-          m(Timestamp, {trace, ts}),
-          String(pids[i]),
-          String(tids[i]),
-          priorityLetter || '?',
-          tags[i],
-          ...(hasProcessNames ? [processNames[i]] : []),
-          messages[i],
-        ],
-      });
+      const row = [
+        hasMachineIds &&
+          m(GridCell, {className, align: 'right'}, machineIds[i]),
+        m(GridCell, {className}, m(Timestamp, {trace, ts})),
+        m(GridCell, {className, align: 'right'}, String(pids[i])),
+        m(GridCell, {className, align: 'right'}, String(tids[i])),
+        m(GridCell, {className}, priorityLetter || '?'),
+        hasProcessNames && m(GridCell, {className}, processNames[i]),
+        m(GridCell, {className}, tags[i]),
+        m(GridCell, {className}, messages[i]),
+      ].filter(Boolean);
+
+      rows.push(row);
     }
 
     return rows;
@@ -311,10 +333,10 @@ interface FilterByTextWidgetAttrs {
 
 class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
-    const icon = attrs.hideNonMatching ? 'unfold_less' : 'unfold_more';
+    const icon = attrs.hideNonMatching ? 'filter_alt' : 'filter_alt_off';
     const tooltip = attrs.hideNonMatching
-      ? 'Expand all and view highlighted'
-      : 'Collapse all';
+      ? 'Show all logs and highlight matches'
+      : 'Show only matching logs';
     return m(Button, {
       icon,
       title: tooltip,
@@ -398,7 +420,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     return m(PopupMultiSelect, {
       label: 'Filter by machine',
       icon: 'filter_list_alt',
-      popupPosition: PopupPosition.Top,
+      position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<number>(machineExcludeList);

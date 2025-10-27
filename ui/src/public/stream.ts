@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
+// The object returned by TraceStream.readChunk() promise.
+export interface TraceChunk {
+  data: Uint8Array;
+  eof: boolean;
+  bytesRead: number;
+  bytesTotal: number;
+}
 
-.pf-virtual-scroll-container {
-  overflow: auto;
-  height: 100%;
+// Base interface for loading trace data in chunks.
+// The caller has to call readChunk() until TraceChunk.eof == true.
+export interface TraceStream {
+  readChunk(): Promise<TraceChunk>;
 }

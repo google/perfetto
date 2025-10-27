@@ -18,7 +18,8 @@ import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
-  FilterDefinition,
+  FilterNull,
+  FilterValue,
 } from '../../../components/widgets/data_grid/common';
 import {
   DataGrid,
@@ -63,7 +64,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       DetailsShell,
       {
         title: 'Query data',
-        fillParent: true,
+        fillHeight: true,
         buttons: this.renderMenu(attrs),
       },
       this.renderContent(attrs, message),
@@ -145,10 +146,29 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
-          filters: attrs.node.state.filters,
-          onFiltersChanged: (filters: ReadonlyArray<FilterDefinition>) => {
-            attrs.node.state.filters = [...filters];
-            attrs.onchange?.();
+          // We don't actually want the datagrid to display or apply any filters
+          // to the datasource itself, so we define this but fix it as an empty
+          // array.
+          filters: [],
+          onFilterAdd: (filter) => {
+            // These are the filters supported by the explore page currently.
+            const supportedOps = [
+              '=',
+              '!=',
+              '<',
+              '<=',
+              '>',
+              '>=',
+              'is null',
+              'is not null',
+            ];
+            if (supportedOps.includes(filter.op)) {
+              attrs.node.state.filters = [
+                ...(attrs.node.state.filters ?? []),
+                filter as FilterValue | FilterNull,
+              ];
+              attrs.onchange?.();
+            }
           },
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);

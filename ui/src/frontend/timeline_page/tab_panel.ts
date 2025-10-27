@@ -87,11 +87,9 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
 
     // Add the permanent current selection tab to the front of the list of tabs
     const active = currentTabUri === 'current_selection';
-    if (active) {
-      drawerContent.push(
-        m(Gate, {open: active}, m(CurrentSelectionTab, {trace})),
-      );
-    }
+    drawerContent.unshift(
+      m(Gate, {open: active}, m(CurrentSelectionTab, {trace})),
+    );
 
     tabs.unshift(
       m(
