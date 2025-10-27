@@ -13175,6 +13175,22 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero/descriptor_diff:lib
+filegroup {
+    name: "perfetto_src_protozero_descriptor_diff_lib",
+    srcs: [
+        "src/protozero/descriptor_diff/descriptor_diff.cc",
+    ],
+}
+
+// GN: //src/protozero/descriptor_diff:unittests
+filegroup {
+    name: "perfetto_src_protozero_descriptor_diff_unittests",
+    srcs: [
+        "src/protozero/descriptor_diff/descriptor_diff_unittest.cc",
+    ],
+}
+
 // GN: //src/protozero/filtering:bytecode_common
 filegroup {
     name: "perfetto_src_protozero_filtering_bytecode_common",
@@ -17543,6 +17559,8 @@ cc_test {
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protovm_test_messages_lite_gen",
         ":perfetto_src_protovm_unittests",
+        ":perfetto_src_protozero_descriptor_diff_lib",
+        ":perfetto_src_protozero_descriptor_diff_unittests",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
