@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -104,12 +105,15 @@ void InitPerTraceState(TraceProcessorContext* context, uint32_t raw_trace_id) {
   context->trace_state = Ptr<TraceProcessorContext::TraceState>::MakeRoot(
       TraceProcessorContext::TraceState{raw_trace_id});
   context->content_analyzer = nullptr;
+  context->import_logs_tracker =
+      Ptr<ImportLogsTracker>::MakeRoot(context, raw_trace_id);
 }
 
 void CopyTraceState(const TraceProcessorContext* source,
                     TraceProcessorContext* dest) {
   dest->trace_state = source->trace_state.Fork();
   dest->content_analyzer = source->content_analyzer.Fork();
+  dest->import_logs_tracker = source->import_logs_tracker.Fork();
 }
 
 Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
