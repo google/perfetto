@@ -2484,9 +2484,10 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
               WriteIntoFile(tracing_session, std::move(packets));
         } while (has_more && !stop_writing_into_file);
 
+        // Ensure all data was written to the file.
+        base::FlushFile(tracing_session->write_into_file.get());
+
         if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
-          // Ensure all data was written to the file before we close it.
-          base::FlushFile(tracing_session->write_into_file.get());
           tracing_session->write_into_file.reset();
           tracing_session->write_period_ms = 0;
           if (tracing_session->state == TracingSession::STARTED)

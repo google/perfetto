@@ -42,10 +42,6 @@
 
 namespace perfetto {
 
-// Directory for local state and temporary files. This is automatically
-// created by the system by setting setprop persist.traced.enable=1.
-extern const char* kStateDir;
-
 class PerfettoCmd : public Consumer {
  public:
   PerfettoCmd();

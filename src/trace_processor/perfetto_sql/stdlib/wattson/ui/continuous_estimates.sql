@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE counters.intervals;
+
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.utils;
@@ -26,21 +28,19 @@ CREATE PERFETTO MACRO _get_continuous_estimates(
 )
 RETURNS TableOrSubquery AS
 (
-  WITH
-    base AS (
-      SELECT
-        ts,
-        $rail,
-        lag($rail, 1, $rail) OVER (ORDER BY ts) != $rail AS changed
-      FROM _system_state_mw
-    )
   SELECT
     ts,
-    lead(ts, 1, trace_end()) OVER (ORDER BY ts) - ts AS dur,
-    $rail
-  FROM base
-  WHERE
-    changed
+    dur,
+    value AS $rail
+  FROM counter_leading_intervals!((
+    SELECT
+      ts,
+      dur,
+      $rail AS value,
+      NULL AS id,
+      NULL AS track_id
+    FROM _system_state_mw
+  ))
 );
 
 CREATE PERFETTO TABLE _system_state_cpu0_mw AS

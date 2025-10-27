@@ -119,8 +119,6 @@ void ArgsAppend(std::string* str, const std::string& arg) {
 }
 }  // namespace
 
-const char* kStateDir = "/data/misc/perfetto-traces";
-
 PerfettoCmd::PerfettoCmd() {
   // Only the main thread instance on the main thread will receive ctrl-c.
   PerfettoCmd* set_if_null = nullptr;

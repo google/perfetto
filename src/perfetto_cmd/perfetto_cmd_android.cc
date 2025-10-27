@@ -33,6 +33,10 @@
 namespace perfetto {
 namespace {
 
+// Directory for local state and temporary files. This is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+const char* kStateDir = "/data/misc/perfetto-traces";
+
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
 }  // namespace

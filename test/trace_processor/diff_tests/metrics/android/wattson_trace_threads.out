@@ -5,10 +5,10 @@ wattson_trace_threads {
   period_info {
     period_id: 1
     task_info {
-      estimated_mws: 34.415909
-      estimated_mw: 3.961489
+      estimated_mws: 34.41899
+      estimated_mw: 3.961843
       idle_transitions_mws: -20.19533
-      total_mws: 14.220581
+      total_mws: 14.22366
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -1335,10 +1335,10 @@ wattson_trace_threads {
       process_id: 1926
     }
     task_info {
-      estimated_mws: 0.257572
-      estimated_mw: 0.029648
+      estimated_mws: 0.259248
+      estimated_mw: 0.029841
       idle_transitions_mws: 0.187774
-      total_mws: 0.445345
+      total_mws: 0.447021
       thread_name: "kworker/3:5"
       process_name: "kworker/3:5"
       thread_id: 104

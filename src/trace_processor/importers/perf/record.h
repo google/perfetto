@@ -24,7 +24,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
-#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_invocation.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -70,7 +70,7 @@ struct Record {
                                              : attr->time_offset_from_end();
   }
 
-  RefPtr<PerfSession> session;
+  RefPtr<PerfInvocation> session;
   RefPtr<PerfEventAttr> attr;
   perf_event_header header;
   TraceBlobView payload;

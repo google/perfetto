@@ -61,7 +61,10 @@ export function renderDetails(
                 table: assertExists(getSqlTableDescription(trace, 'slice')),
                 filters: [
                   {
-                    op: (cols) => `${cols[0]} = ${sqliteString(slice.name)}`,
+                    op: (cols) =>
+                      slice.name === undefined
+                        ? `${cols[0]} IS NULL`
+                        : `${cols[0]} = ${sqliteString(slice.name)}`,
                     columns: ['name'],
                   },
                 ],

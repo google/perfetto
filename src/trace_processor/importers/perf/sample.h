@@ -25,7 +25,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
-#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_invocation.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -49,7 +49,7 @@ struct Sample {
 
   int64_t trace_ts;
   protos::pbzero::Profiling::CpuMode cpu_mode;
-  RefPtr<PerfSession> perf_session;
+  RefPtr<PerfInvocation> perf_invocation;
   RefPtr<PerfEventAttr> attr;
 
   std::optional<uint64_t> ip;

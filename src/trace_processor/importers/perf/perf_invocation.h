@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_INVOCATION_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_INVOCATION_H_
 
 #include <sys/types.h>
 #include <cstddef>
@@ -41,12 +41,15 @@ class TraceProcessorContext;
 namespace perf_importer {
 
 // Helper to deal with perf_event_attr instances in a perf file.
-class PerfSession : public RefCounted {
+// This does /not/ correspond to a distinct perf_session_id (which represents
+// a distinct sampling stream of data), one PerfInvocation can map onto
+// multiple perf_session_id.
+class PerfInvocation : public RefCounted {
  public:
   class Builder {
    public:
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
-    base::StatusOr<RefPtr<PerfSession>> Build();
+    base::StatusOr<RefPtr<PerfInvocation>> Build();
     Builder& AddAttrAndIds(perf_event_attr attr, std::vector<uint64_t> ids) {
       attr_with_ids_.push_back({attr, std::move(ids)});
       return *this;
@@ -60,10 +63,6 @@ class PerfSession : public RefCounted {
     TraceProcessorContext* const context_;
     std::vector<PerfEventAttrWithIds> attr_with_ids_;
   };
-
-  tables::PerfSessionTable::Id perf_session_id() const {
-    return perf_session_id_;
-  }
 
   RefPtr<PerfEventAttr> FindAttrForEventId(uint64_t id) const;
 
@@ -106,13 +105,11 @@ class PerfSession : public RefCounted {
     }
   };
 
-  PerfSession(TraceProcessorContext* context,
-              tables::PerfSessionTable::Id perf_session_id,
+  PerfInvocation(TraceProcessorContext* context,
               RefPtr<PerfEventAttr> first_attr,
               base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
               bool has_single_perf_event_attr)
       : context_(context),
-        perf_session_id_(perf_session_id),
         first_attr_(std::move(first_attr)),
         attrs_by_id_(std::move(attrs_by_id)),
         has_single_perf_event_attr_(has_single_perf_event_attr) {}
@@ -122,7 +119,6 @@ class PerfSession : public RefCounted {
                    uint64_t& id) const;
 
   TraceProcessorContext* const context_;
-  tables::PerfSessionTable::Id perf_session_id_;
   RefPtr<PerfEventAttr> first_attr_;
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id_;
 
@@ -130,7 +126,7 @@ class PerfSession : public RefCounted {
   // whether there was only one perf_event_attr (with potentially different ids
   // associated). This makes the attr lookup given a record trivial and not
   // dependant no having any id field in the records.
-  bool has_single_perf_event_attr_;
+  bool has_single_perf_event_attr_ = false;
 
   bool is_simpleperf_ = false;
 
@@ -140,4 +136,4 @@ class PerfSession : public RefCounted {
 }  // namespace perf_importer
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_INVOCATION_H_

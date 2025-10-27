@@ -16,7 +16,6 @@ WITH
   ),
   named_counter AS (
     SELECT
-      perf_session_id,
       ts,
       cpu,
       SUM(cast_int !(IIF(t.name = 'cpu-cycles', c.delta, 0)))
@@ -30,7 +29,6 @@ WITH
     FROM counter_delta AS c, perf_counter_track AS t
     ON (c.track_id = t.id)
     GROUP BY
-      perf_session_id,
       ts,
       cpu
   )
@@ -55,7 +53,7 @@ SELECT
 FROM
   named_counter AS c,
   perf_sample AS s
-USING (perf_session_id, ts, cpu),
+USING (ts, cpu),
 thread USING (utid),
 process USING (upid),
 stack_profile_callsite AS spc ON (s.callsite_id = spc.id),

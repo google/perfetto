@@ -25,7 +25,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_invocation.h"
 
 namespace perfetto {
 namespace trace_processor {
