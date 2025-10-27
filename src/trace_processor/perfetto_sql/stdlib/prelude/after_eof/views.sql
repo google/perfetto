@@ -199,12 +199,12 @@ FROM __intrinsic_thread;
 -- NOTE: sorted by Android user id
 CREATE PERFETTO VIEW android_users (
   -- Android user id
-  id ID,
+  uid LONG,
   -- User type
   type STRING
 ) AS
 SELECT
-  uid AS id,
+  uid,
   type
 FROM __intrinsic_user_list;
 

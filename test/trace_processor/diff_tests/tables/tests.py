@@ -596,7 +596,7 @@ class Tables(TestSuite):
         SELECT
           uid,
           type
-        FROM __intrinsic_user_list
+        FROM android_users
         ORDER BY uid;
         """,
         out=Csv("""
