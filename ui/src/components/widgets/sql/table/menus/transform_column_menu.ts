@@ -24,17 +24,16 @@ import {
   PerfettoSqlTypes,
 } from '../../../../../trace_processor/perfetto_sql_type';
 import {createTableColumn} from '../create_column';
-import {sqlColumnId, SqlExpression} from '../sql_column';
+import {SqlExpression} from '../sql_column';
 import {uuidv4} from '../../../../../base/uuid';
 import {range} from '../../../../../base/array_utils';
 
 type Transform = {
   label: string;
-  // The SQL function or operation to apply.
+  // The SQL expresssion to apply.
   expression: (colExpr: string, ...params: string[]) => string;
   // Optional parameters for the transform
   parameters?: TransformParameter[];
-  // The resulting type after transformation
   resultType: PerfettoSqlType;
 };
 
@@ -42,7 +41,6 @@ type TransformParameter = {
   name: string;
   placeholder: string;
   defaultValue?: string;
-  // Optional validation
   validate?: (value: string) => boolean;
 };
 
@@ -64,6 +62,7 @@ const STRING_TRANSFORMS: Transform[] = [
       {
         name: 'start',
         placeholder: '1-based, can be negative (optional)',
+        defaultValue: '1',
         validate: (value) => {
           if (value === '') {
             return true;
@@ -98,7 +97,7 @@ const STRING_TRANSFORMS: Transform[] = [
     resultType: PerfettoSqlTypes.STRING,
   },
   {
-    label: 'remove prefix',
+    label: 'strip prefix',
     expression: (col, prefix) =>
       `CASE WHEN ${col} LIKE '${prefix}%' THEN substr(${col}, ${prefix.length + 1}) ELSE ${col} END`,
     parameters: [
@@ -110,7 +109,7 @@ const STRING_TRANSFORMS: Transform[] = [
     resultType: PerfettoSqlTypes.STRING,
   },
   {
-    label: 'remove suffix',
+    label: 'strip suffix',
     expression: (col, suffix) =>
       `CASE WHEN ${col} LIKE '%${suffix}' THEN substr(${col}, 1, length(${col}) - ${suffix.length}) ELSE ${col} END`,
     parameters: [
@@ -161,8 +160,8 @@ class TransformMenuItem implements m.ClassComponent<TransformMenuItemAttrs> {
           onSubmit: (e: Event) => {
             e.stopPropagation();
             params.forEach((param, index) => {
-              this.paramState[index].error =
-                param.validate?.(this.paramState[index].value) ?? false;
+              const value = this.paramState[index].value;
+              this.paramState[index].error = !(param.validate?.(value) ?? true);
             });
             const hasError = this.paramState.some((state) => state.error);
             if (hasError) {
@@ -174,7 +173,8 @@ class TransformMenuItem implements m.ClassComponent<TransformMenuItemAttrs> {
           submitLabel: 'Apply',
         },
         params.map((param, index) => [
-          m(FormLabel, {for: `${this.uuid}_param_${index}`}, param.name),
+          params.length > 1 &&
+            m(FormLabel, {for: `${this.uuid}_param_${index}`}, param.name),
           m(TextInput, {
             id: `${this.uuid}_param_${index}`,
             placeholder: param.placeholder,
@@ -185,10 +185,12 @@ class TransformMenuItem implements m.ClassComponent<TransformMenuItemAttrs> {
               ).value;
               this.paramState[index].error = false;
             },
-            style: this.paramState[index] ?? {
-              border: '1px solid red',
-              outline: 'none',
-            },
+            style: this.paramState[index].error
+              ? {
+                  border: '1px solid red',
+                  outline: 'none',
+                }
+              : {},
           }),
         ]),
       ),
@@ -197,7 +199,13 @@ class TransformMenuItem implements m.ClassComponent<TransformMenuItemAttrs> {
 
   private applyTransform(attrs: TransformMenuItemAttrs) {
     const {column, columnIndex, state, transform} = attrs;
-    const values = this.paramState.map((state) => state.value);
+    const values = this.paramState.map((state, index) => {
+      const defaultValue = attrs.transform.parameters?.[index].defaultValue;
+      if (defaultValue !== undefined) {
+        return state.value || defaultValue;
+      }
+      return state.value;
+    });
 
     // Create the transformation expression
     const transformExpression = (cols: string[]) =>
@@ -206,11 +214,7 @@ class TransformMenuItem implements m.ClassComponent<TransformMenuItemAttrs> {
     // Create the new column with transformation
     const newColumn = createTableColumn({
       trace: state.trace,
-      column: new SqlExpression(
-        transformExpression,
-        [column.column],
-        `${transform.label}(${sqlColumnId(column.column)})`,
-      ),
+      column: new SqlExpression(transformExpression, [column.column]),
       type: transform.resultType,
       origin: {
         kind: 'transform',
@@ -241,7 +245,7 @@ export function renderTransformColumnMenu(
 
   return m(
     MenuItem,
-    {label: 'Transform', icon: Icons.Change},
+    {label: 'Transform', icon: Icons.ApplyFunction},
     transforms.map((transform) =>
       m(TransformMenuItem, {
         column,

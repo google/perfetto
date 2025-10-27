@@ -68,6 +68,7 @@ export class Icons {
   static readonly Analyze = 'analytics';
   static readonly Chart = 'bar_chart';
   static readonly Pivot = 'pivot_table_chart';
+  static readonly ApplyFunction = 'function';
 
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
