@@ -67,7 +67,7 @@ schemas, function arguments and return types:
 | `BYTES` | Binary data |
 | `TIMESTAMP` | Absolute timestamp in nanoseconds |
 | `DURATION` | Time duration in nanoseconds |
-| `ARG_SET_ID` | An identifier for a set of arguments. This set can be obtained by joining with an `args` table on `arg_set_id` column. |
+| `ARGSETID` | An identifier for a set of arguments. This set can be obtained by joining with an `args` table on `arg_set_id` column. |
 | `ID` | An ID column for this table. Each table can have only one ID column, whose values should be unique and fit into `uint32`. |
 | `JOINID(table.column)` | A foreign key reference into a given table. `table` should exist, should have column named `column` of type `ID`. |
 | `ID(table.column)` | A variant of the `ID` type, which is both primary key for this table and simultaneusly is a foreign key reference into another table. Useful when a given table is based on a subset of rows from another table (e.g. `slice`). |
