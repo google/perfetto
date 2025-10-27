@@ -265,6 +265,12 @@ namespace perfetto::trace_processor::stats {
   F(clock_sync_failure,                   kSingle,  kError,    kAnalysis, ""), \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, ""), \
+  F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis,      \
+      "A namespaced thread association was received but the corresponding "    \
+      "process association was not found. This can happen due to data losses " \
+      "during trace collection. The trace will be missing namespace "          \
+      "associations for some threads, which may affect analysis. To address "  \
+      "this issue, address the underlying data losses."),                      \
   F(json_tokenizer_failure,               kSingle,  kError,    kTrace,    ""), \
   F(json_parser_failure,                  kSingle,  kError,    kTrace,    ""), \
   F(json_display_time_unit,               kSingle,  kInfo,     kTrace,         \
