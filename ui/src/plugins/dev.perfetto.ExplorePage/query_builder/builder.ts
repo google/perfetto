@@ -25,7 +25,6 @@ import {DataExplorer} from './data_explorer';
 import {
   DataGridDataSource,
   DataGridModel,
-  FilterDefinition,
 } from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -35,6 +34,7 @@ import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {NodeContainerLayout} from './graph/node_container';
+import {UIFilter} from './operations/filter';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -63,7 +63,7 @@ export interface BuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;

@@ -874,6 +874,18 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/user_list_config.proto
+
+// Data source that lists details (such as version code) about users on an
+// Android device.
+message UserListConfig {
+  // If not empty, emit info about only the following list of user types
+  // (exact match, no regex). Otherwise, emit info about all users.
+  repeated string user_type_filter = 1;
+}
+
+// End of protos/perfetto/config/android/user_list_config.proto
+
 // Begin of protos/perfetto/config/android/windowmanager_config.proto
 
 // Custom configuration for the "android.windowmanager" data source.
@@ -3977,7 +3989,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 138
+// Next id: 139
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4176,6 +4188,9 @@ message DataSourceConfig {
 
   // Data source name: android.cpu_per_uid
   optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
+
+  // Data source name: android.user_list
+  optional UserListConfig user_list_config = 138 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -6893,6 +6908,25 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/user_list.proto
+
+message UserList {
+  message UserInfo {
+    optional string type = 1;
+    optional uint64 uid = 2;
+  }
+
+  repeated UserInfo users = 1;
+
+  // At least one error occurred parsing the user.list.
+  optional bool parse_error = 2;
+
+  // Failed to open / read user.list.
+  optional bool read_error = 3;
+}
+
+// End of protos/perfetto/trace/android/user_list.proto
 
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
@@ -17429,7 +17463,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 123.
+// Next id: 124.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17585,6 +17619,8 @@ message TracePacket {
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
+
+    UserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
