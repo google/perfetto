@@ -83,6 +83,13 @@ $border-3: 2px solid var(--pf-color-border);
   &--nullish {
     font-style: italic;
     color: var(--pf-color-text-muted);
+
+    // Add a little padding because italic text can extend beyond the bounds of
+    // the container, and because we have to use overflow: hidden in order to
+    // ellipsize properly, this can end up cutting off the edges of the text.
+    .pf-grid-cell__content-wrapper {
+      padding-right: 0.2em;
+    }
   }
 
   &--hint {
@@ -92,6 +99,10 @@ $border-3: 2px solid var(--pf-color-border);
   &__content-wrapper {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  &[active] {
+    background: color_active(transparent);
   }
 }
 
@@ -104,6 +115,9 @@ $border-3: 2px solid var(--pf-color-border);
   font-size: 14px;
   overflow: auto;
   align-items: flex-start;
+
+  // Fixes poor layerization performance
+  isolation: isolate;
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table

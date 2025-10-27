@@ -6,22 +6,22 @@
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law of or agreed to in writing, software
+// Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../common";
-@import "node_colors";
-
-.pf-exp-node-block {
-  @extend .pf-exp-node;
+// The object returned by TraceStream.readChunk() promise.
+export interface TraceChunk {
+  data: Uint8Array;
+  eof: boolean;
+  bytesRead: number;
+  bytesTotal: number;
 }
 
-.pf-exp-node-block__node {
-  position: relative;
-  &:not(:last-child) {
-    border-bottom: 2px solid var(--pf-color-border);
-  }
+// Base interface for loading trace data in chunks.
+// The caller has to call readChunk() until TraceChunk.eof == true.
+export interface TraceStream {
+  readChunk(): Promise<TraceChunk>;
 }

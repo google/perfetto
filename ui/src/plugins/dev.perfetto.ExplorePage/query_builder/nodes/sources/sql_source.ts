@@ -53,7 +53,6 @@ export class SqlSourceNode implements MultiSourceNode {
   prevNodes: QueryNode[] = [];
   finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
-  meterialisedAs?: string;
 
   constructor(attrs: SqlSourceState) {
     this.nodeId = nextNodeId();
@@ -95,10 +94,6 @@ export class SqlSourceNode implements MultiSourceNode {
 
   getTitle(): string {
     return this.state.customTitle ?? 'Sql source';
-  }
-
-  isMaterialised(): boolean {
-    return this.state.isExecuted === true && this.meterialisedAs !== undefined;
   }
 
   serializeState(): SqlSourceSerializedState {

@@ -144,10 +144,6 @@ export class AddColumnsNode implements ModificationNode {
     return this.state;
   }
 
-  isMaterialised(): boolean {
-    return false;
-  }
-
   static deserializeState(
     serializedState: AddColumnsNodeState,
   ): AddColumnsNodeState {
