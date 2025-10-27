@@ -33,8 +33,8 @@ const CASTS = {
   int: {
     type: PerfettoSqlTypes.INT,
   },
-  float: {
-    type: PerfettoSqlTypes.FLOAT,
+  double: {
+    type: PerfettoSqlTypes.DOUBLE,
   },
   string: {
     type: PerfettoSqlTypes.STRING,
