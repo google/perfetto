@@ -16,10 +16,7 @@ import m from 'mithril';
 
 import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {
-  DataGridDataSource,
-  FilterDefinition,
-} from '../../../components/widgets/data_grid/common';
+import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
 import {
   DataGrid,
   renderCell,
@@ -145,9 +142,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           columns: attrs.response.columns.map((c) => ({name: c})),
           data: attrs.dataSource,
           showFiltersInToolbar: true,
-          filters: attrs.node.state.filters,
-          onFiltersChanged: (filters: ReadonlyArray<FilterDefinition>) => {
-            attrs.node.state.filters = [...filters];
+          // We don't actually want the datagrid to display or apply any filters
+          // to the datasource itself, so we define this but fix it as an empty
+          // array.
+          filters: [],
+          onFilterAdd: (filter) => {
+            // Add the filter to the node
+            attrs.node.state.filters = [
+              ...(attrs.node.state.filters ?? []),
+              filter,
+            ];
             attrs.onchange?.();
           },
           cellRenderer: (value: SqlValue, name: string) => {
