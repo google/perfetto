@@ -25,11 +25,11 @@ import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../operations/filter';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }

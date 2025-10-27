@@ -16,7 +16,7 @@ import protos from '../../protos';
 import m from 'mithril';
 import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
-import {FilterDefinition} from '../../components/widgets/data_grid/common';
+import {UIFilter} from './query_builder/operations/filter';
 import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
@@ -68,7 +68,7 @@ export interface QueryNodeState {
   sqlTable?: SqlTable;
 
   // Operations
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
 
   issues?: NodeIssues;
 
@@ -226,13 +226,14 @@ export async function analyzeNode(
 
 export function setOperationChanged(node: QueryNode) {
   let curr: QueryNode | undefined = node;
+  const queue: QueryNode[] = [];
   while (curr) {
     if (curr.state.hasOperationChanged) {
-      // Already marked as changed, and so are the children.
-      break;
+      // Already marked as changed, skip this branch
+      curr = queue.shift();
+      continue;
     }
     curr.state.hasOperationChanged = true;
-    const queue: QueryNode[] = [];
     curr.nextNodes.forEach((child) => {
       queue.push(child);
     });

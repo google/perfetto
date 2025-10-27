@@ -716,6 +716,8 @@ perfetto_cc_library(
             ":src_traced_probes_sys_stats_sys_stats",
             ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
+            ":src_traced_probes_user_list_user_list",
+            ":src_traced_probes_user_list_user_list_parser",
             ":src_tracing_ipc_producer_producer",
         ],
     }),
@@ -1918,6 +1920,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/flow_tracker.h",
         "src/trace_processor/importers/common/global_args_tracker.cc",
         "src/trace_processor/importers/common/global_args_tracker.h",
+        "src/trace_processor/importers/common/import_logs_tracker.cc",
+        "src/trace_processor/importers/common/import_logs_tracker.h",
         "src/trace_processor/importers/common/jit_cache.cc",
         "src/trace_processor/importers/common/jit_cache.h",
         "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
@@ -2212,8 +2216,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/perf/perf_event.h",
         "src/trace_processor/importers/perf/perf_event_attr.cc",
         "src/trace_processor/importers/perf/perf_event_attr.h",
-        "src/trace_processor/importers/perf/perf_session.cc",
-        "src/trace_processor/importers/perf/perf_session.h",
+        "src/trace_processor/importers/perf/perf_invocation.cc",
+        "src/trace_processor/importers/perf/perf_invocation.h",
         "src/trace_processor/importers/perf/reader.h",
         "src/trace_processor/importers/perf/record.h",
     ],
@@ -2346,6 +2350,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/content_analyzer.h",
         "src/trace_processor/importers/proto/deobfuscation_module.cc",
         "src/trace_processor/importers/proto/deobfuscation_module.h",
+        "src/trace_processor/importers/proto/deobfuscation_tracker.cc",
+        "src/trace_processor/importers/proto/deobfuscation_tracker.h",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.h",
         "src/trace_processor/importers/proto/gpu_event_parser.cc",
@@ -4379,6 +4385,24 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/user_list:user_list
+perfetto_filegroup(
+    name = "src_traced_probes_user_list_user_list",
+    srcs = [
+        "src/traced/probes/user_list/user_list_data_source.cc",
+        "src/traced/probes/user_list/user_list_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/user_list:user_list_parser
+perfetto_filegroup(
+    name = "src_traced_probes_user_list_user_list_parser",
+    srcs = [
+        "src/traced/probes/user_list/user_list_parser.cc",
+        "src/traced/probes/user_list/user_list_parser.h",
+    ],
+)
+
 # GN target: //src/traced/probes:data_source
 perfetto_filegroup(
     name = "src_traced_probes_data_source",
@@ -5484,6 +5508,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
+        "protos/perfetto/config/android/user_list_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
     ],
     visibility = [
@@ -6300,6 +6325,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/user_list.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
