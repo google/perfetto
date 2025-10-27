@@ -35,7 +35,7 @@ void ImportLogsTracker::RecordImportLog(
     std::optional<int64_t> timestamp,
     std::optional<int64_t> byte_offset,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
-  PERFETTO_DCHECK(stats::kSources[stat_key] == stats::Source::kAnalysis);
+  PERFETTO_CHECK(stats::kSources[stat_key] == stats::Source::kAnalysis);
 
   context_->storage->IncrementStats(stat_key);
 
