@@ -310,17 +310,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     // Create arrow marker definition
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    const marker = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'marker',
+    );
     marker.setAttribute('id', 'arrowhead');
     marker.setAttribute('markerWidth', '10');
-    marker.setAttribute('markerHeight', '10');
+    marker.setAttribute('markerHeight', '6');
     marker.setAttribute('refX', '10');
     marker.setAttribute('refY', '3');
     marker.setAttribute('orient', 'auto');
     marker.setAttribute('markerUnits', 'strokeWidth');
 
-    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    polygon.setAttribute('points', '0 0, 10 3, 0 6');
+    const polygon = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'polygon',
+    );
+    polygon.setAttribute('points', '0 0, 6 3, 0 6');
     polygon.setAttribute('fill', 'var(--pf-color-accent)');
 
     marker.appendChild(polygon);
@@ -339,8 +345,18 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         );
         path.setAttribute('class', 'pf-connection');
 
-        const fromPortType = getPortType(conn.fromNode, 'output', conn.fromPort, nodes);
-        const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
+        const fromPortType = getPortType(
+          conn.fromNode,
+          'output',
+          conn.fromPort,
+          nodes,
+        );
+        const toPortType = getPortType(
+          conn.toNode,
+          'input',
+          conn.toPort,
+          nodes,
+        );
 
         path.setAttribute(
           'd',
@@ -383,7 +399,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // For temp connections, use the stored port type
       const fromPortType = canvasState.connecting.portType;
       // The target end defaults to the opposite type for visual feedback
-      const toPortType = fromPortType === 'top' || fromPortType === 'bottom' ? 'top' : 'left';
+      const toPortType =
+        fromPortType === 'top' || fromPortType === 'bottom' ? 'top' : 'left';
       path.setAttribute(
         'd',
         createCurve(fromX, fromY, toX, toY, fromPortType, toPortType),
@@ -1322,7 +1339,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                       nodeId: existingConn.fromNode,
                                       portIndex: existingConn.fromPort,
                                       type: 'output',
-                                      portType: getPortType(existingConn.fromNode, 'output', existingConn.fromPort, nodes),
+                                      portType: getPortType(
+                                        existingConn.fromNode,
+                                        'output',
+                                        existingConn.fromPort,
+                                        nodes,
+                                      ),
                                       x: 0,
                                       y: 0,
                                       transformedX: outputPos.x,
@@ -1365,11 +1387,15 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                               }),
 
                             chainNode.content !== undefined &&
-                              m('.pf-node-content', {
-                                onkeydown: (e: KeyboardEvent) => {
-                                  e.stopPropagation();
+                              m(
+                                '.pf-node-content',
+                                {
+                                  onkeydown: (e: KeyboardEvent) => {
+                                    e.stopPropagation();
+                                  },
                                 },
-                              }, chainNode.content),
+                                chainNode.content,
+                              ),
 
                             // Remaining inputs on left side (inputs[1+])
                             cInputs.slice(1).map((input: string, i: number) =>
@@ -1413,7 +1439,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                           nodeId: existingConn.fromNode,
                                           portIndex: existingConn.fromPort,
                                           type: 'output',
-                                          portType: getPortType(existingConn.fromNode, 'output', existingConn.fromPort, nodes),
+                                          portType: getPortType(
+                                            existingConn.fromNode,
+                                            'output',
+                                            existingConn.fromPort,
+                                            nodes,
+                                          ),
                                           x: 0,
                                           y: 0,
                                           transformedX: outputPos.x,
@@ -1635,7 +1666,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                 nodeId: existingConn.fromNode,
                                 portIndex: existingConn.fromPort,
                                 type: 'output',
-                                portType: getPortType(existingConn.fromNode, 'output', existingConn.fromPort, nodes),
+                                portType: getPortType(
+                                  existingConn.fromNode,
+                                  'output',
+                                  existingConn.fromPort,
+                                  nodes,
+                                ),
                                 x: 0,
                                 y: 0,
                                 transformedX: outputPos.x,
@@ -1684,11 +1720,15 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
                       // Render custom content if provided
                       node.content !== undefined &&
-                        m('.pf-node-content', {
-                          onkeydown: (e: KeyboardEvent) => {
-                            e.stopPropagation();
+                        m(
+                          '.pf-node-content',
+                          {
+                            onkeydown: (e: KeyboardEvent) => {
+                              e.stopPropagation();
+                            },
                           },
-                        }, node.content),
+                          node.content,
+                        ),
 
                       // Remaining inputs on left side (inputs[1+])
                       inputs.slice(1).map((input: string, i: number) =>
@@ -1737,7 +1777,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                     nodeId: existingConn.fromNode,
                                     portIndex: existingConn.fromPort,
                                     type: 'output',
-                                    portType: getPortType(existingConn.fromNode, 'output', existingConn.fromPort, nodes),
+                                    portType: getPortType(
+                                      existingConn.fromNode,
+                                      'output',
+                                      existingConn.fromPort,
+                                      nodes,
+                                    ),
                                     x: 0,
                                     y: 0,
                                     transformedX: outputPos.x,

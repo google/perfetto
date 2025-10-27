@@ -331,6 +331,17 @@ export function NodeGraphDemo() {
                 target.nextId = child.id;
                 console.log(`onDock: ${child.id} to ${targetId}`);
               }
+
+              // If a connection already exists between these nodes, remove it
+              for (let i = connections.length - 1; i >= 0; i--) {
+                const conn = connections[i];
+                if (
+                  (conn.fromNode === targetId && conn.fromPort === 0) ||
+                  (conn.toNode === child?.id && conn.toPort === 0)
+                ) {
+                  connections.splice(i, 1);
+                }
+              }
             },
             onUndock: (parentId: string) => {
               const parent = modelNodes.get(parentId);
@@ -342,6 +353,16 @@ export function NodeGraphDemo() {
                   child.x = parent.x;
                   child.y = parent.y + 150;
                   parent.nextId = undefined;
+
+                  // Connect the previously docker nodes together with a
+                  // connection
+                  connections.push({
+                    fromNode: parent.id,
+                    fromPort: 0,
+                    toNode: child.id,
+                    toPort: 0,
+                  });
+
                   console.log(`onUndock: ${child.id} from ${parentId}`);
                 }
               }
