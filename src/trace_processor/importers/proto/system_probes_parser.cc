@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -592,7 +593,7 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
   }
 }
 
-void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
+void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProcessTree::Decoder ps(blob);
 
   for (auto it = ps.processes(); it; ++it) {
@@ -725,8 +726,11 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       for (auto nstid_it = thd.nstid(); nstid_it; nstid_it++) {
         nstid.emplace_back(static_cast<int64_t>(*nstid_it));
       }
-      context_->process_tracker->UpdateNamespacedThread(tgid, tid,
-                                                        std::move(nstid));
+      if (!context_->process_tracker->UpdateNamespacedThread(
+              tgid, tid, std::move(nstid))) {
+        context_->import_logs_tracker->RecordParserError(
+            stats::namespaced_thread_missing_process, ts);
+      }
     }
   }
 }
