@@ -315,9 +315,11 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
 
     // For each partition insert into table.
     uint32_t rows = 0;
+    std::vector<Partition*> cur_partition_in_table;
+    cur_partition_in_table.reserve(tabc);
     for (auto p_it = p_intervals->GetIterator(); p_it; ++p_it) {
-      std::vector<Partition*> cur_partition_in_table;
       bool all_have_p = true;
+      cur_partition_in_table.clear();
 
       // From each table get all vectors of intervals.
       for (uint32_t i = 0; i < tabc; i++) {
