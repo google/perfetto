@@ -61,7 +61,10 @@ export function NodeGraphDemo() {
   let filterExpression = '';
 
   // Function to add a new node
-  function addNode(type: 'table' | 'select' | 'filter' | 'join') {
+  function addNode(
+    type: 'table' | 'select' | 'filter' | 'join',
+    toNodeId?: string,
+  ) {
     const id = uuidv4();
     const newNode: ModelNode = {
       id: id,
@@ -70,6 +73,12 @@ export function NodeGraphDemo() {
       y: 50 + Math.random() * 200,
     };
     modelNodes.set(newNode.id, newNode);
+    if (toNodeId) {
+      const parentNode = modelNodes.get(toNodeId);
+      if (parentNode) {
+        parentNode.nextId = id;
+      }
+    }
   }
 
   // Model state - persists across renders
@@ -195,6 +204,23 @@ export function NodeGraphDemo() {
       outputs: template.outputs,
       content: template.content,
       next: nextModel ? renderChildNode(nextModel) : undefined,
+      addMenuItems: [
+        m(MenuItem, {
+          label: 'Select',
+          icon: 'filter_alt',
+          onclick: () => addNode('select', model.id),
+        }),
+        m(MenuItem, {
+          label: 'Filter',
+          icon: 'filter_list',
+          onclick: () => addNode('filter', model.id),
+        }),
+        m(MenuItem, {
+          label: 'Join',
+          icon: 'join',
+          onclick: () => addNode('join', model.id),
+        }),
+      ],
     };
   }
 
@@ -210,6 +236,23 @@ export function NodeGraphDemo() {
       outputs: template.outputs,
       content: template.content,
       next: nextModel ? renderChildNode(nextModel) : undefined,
+      addMenuItems: [
+        m(MenuItem, {
+          label: 'Select',
+          icon: 'filter_alt',
+          onclick: () => addNode('select', model.id),
+        }),
+        m(MenuItem, {
+          label: 'Filter',
+          icon: 'filter_list',
+          onclick: () => addNode('filter', model.id),
+        }),
+        m(MenuItem, {
+          label: 'Join',
+          icon: 'join',
+          onclick: () => addNode('join', model.id),
+        }),
+      ],
     };
   }
 
