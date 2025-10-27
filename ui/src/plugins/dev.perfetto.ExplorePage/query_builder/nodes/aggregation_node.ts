@@ -28,8 +28,11 @@ import {
   columnInfoFromName,
   newColumnInfoList,
 } from '../column_info';
-import {createFiltersProto, FilterOperation} from '../operations/filter';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
@@ -46,7 +49,7 @@ export interface AggregationSerializedState {
     isValid?: boolean;
     isEditing?: boolean;
   }[];
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }
@@ -206,8 +209,8 @@ export class AggregationNode implements ModificationNode {
       m(FilterOperation, {
         filters: this.state.filters,
         sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          this.state.filters = newFilters as FilterDefinition[];
+        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+          this.state.filters = [...newFilters];
           this.state.onchange?.();
         },
       }),

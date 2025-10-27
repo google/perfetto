@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {InMemoryDataSource} from './in_memory_data_source';
-import {AggregateSpec, FilterDefinition, RowDef, Sorting} from './common';
+import {AggregateSpec, DataGridFilter, RowDef, Sorting} from './common';
 
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<RowDef> = [
@@ -83,7 +83,7 @@ describe('InMemoryDataSource', () => {
 
   describe('filtering', () => {
     test('equality filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'name', op: '=', value: 'Alice'},
       ];
       dataSource.notifyUpdate({filters});
@@ -93,7 +93,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('inequality filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'active', op: '!=', value: 1},
       ];
       dataSource.notifyUpdate({filters});
@@ -103,7 +103,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('less than filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'value', op: '<', value: 150},
       ];
       dataSource.notifyUpdate({filters});
@@ -114,7 +114,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('less than or equal filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'value', op: '<=', value: 150},
       ];
       dataSource.notifyUpdate({filters});
@@ -125,7 +125,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('greater than filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'value', op: '>', value: 200},
       ];
       dataSource.notifyUpdate({filters});
@@ -135,7 +135,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('greater than or equal filter with bigint', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'value', op: '>=', value: 250n},
       ];
       dataSource.notifyUpdate({filters});
@@ -145,7 +145,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('is null filter', () => {
-      const filters: FilterDefinition[] = [{column: 'value', op: 'is null'}];
+      const filters: DataGridFilter[] = [{column: 'value', op: 'is null'}];
       dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(1);
@@ -153,7 +153,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('is not null filter', () => {
-      const filters: FilterDefinition[] = [{column: 'blob', op: 'is not null'}];
+      const filters: DataGridFilter[] = [{column: 'blob', op: 'is not null'}];
       dataSource.notifyUpdate({filters});
       const result = dataSource.rows;
       expect(result.totalRows).toBe(6); // All except Charlie
@@ -161,7 +161,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('glob filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'name', op: 'glob', value: 'A*e'},
       ];
       dataSource.notifyUpdate({filters});
@@ -171,7 +171,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('glob filter with ?', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'name', op: 'glob', value: 'B?b'},
       ];
       dataSource.notifyUpdate({filters});
@@ -181,7 +181,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('multiple filters', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'active', op: '=', value: 1},
         {column: 'tag', op: '=', value: 'A'},
       ];
@@ -195,7 +195,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('no matching rows filter', () => {
-      const filters: FilterDefinition[] = [
+      const filters: DataGridFilter[] = [
         {column: 'name', op: '=', value: 'NonExistent'},
       ];
       dataSource.notifyUpdate({filters});
@@ -291,9 +291,7 @@ describe('InMemoryDataSource', () => {
 
   describe('combined filtering and sorting', () => {
     test('filter then sort', () => {
-      const filters: FilterDefinition[] = [
-        {column: 'active', op: '=', value: 1},
-      ];
+      const filters: DataGridFilter[] = [{column: 'active', op: '=', value: 1}];
       const sorting: Sorting = {column: 'value', direction: 'DESC'};
       dataSource.notifyUpdate({sorting, filters});
       const result = dataSource.rows;
@@ -306,9 +304,7 @@ describe('InMemoryDataSource', () => {
 
   describe('caching behavior', () => {
     test('data is not reprocessed if sorting and filters are identical', () => {
-      const filters: FilterDefinition[] = [
-        {column: 'tag', op: '=', value: 'A'},
-      ];
+      const filters: DataGridFilter[] = [{column: 'tag', op: '=', value: 'A'}];
       const sorting: Sorting = {column: 'name', direction: 'ASC'};
 
       dataSource.notifyUpdate({sorting, filters});
@@ -323,9 +319,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('data is reprocessed if sorting changes', () => {
-      const filters: FilterDefinition[] = [
-        {column: 'tag', op: '=', value: 'A'},
-      ];
+      const filters: DataGridFilter[] = [{column: 'tag', op: '=', value: 'A'}];
       const sorting1: Sorting = {column: 'name', direction: 'ASC'};
       const sorting2: Sorting = {column: 'name', direction: 'DESC'};
 
@@ -340,12 +334,8 @@ describe('InMemoryDataSource', () => {
     });
 
     test('data is reprocessed if filters change', () => {
-      const filters1: FilterDefinition[] = [
-        {column: 'tag', op: '=', value: 'A'},
-      ];
-      const filters2: FilterDefinition[] = [
-        {column: 'tag', op: '=', value: 'B'},
-      ];
+      const filters1: DataGridFilter[] = [{column: 'tag', op: '=', value: 'A'}];
+      const filters2: DataGridFilter[] = [{column: 'tag', op: '=', value: 'B'}];
       const sorting: Sorting = {column: 'name', direction: 'ASC'};
 
       dataSource.notifyUpdate({sorting, filters: filters1});
@@ -359,10 +349,10 @@ describe('InMemoryDataSource', () => {
     });
 
     test('data is reprocessed if filter value changes (Uint8Array)', () => {
-      const filters1: FilterDefinition[] = [
+      const filters1: DataGridFilter[] = [
         {column: 'blob', op: '=', value: new Uint8Array([1, 2])},
       ];
-      const filters2: FilterDefinition[] = [
+      const filters2: DataGridFilter[] = [
         {column: 'blob', op: '=', value: new Uint8Array([3, 4, 5])},
       ];
 
