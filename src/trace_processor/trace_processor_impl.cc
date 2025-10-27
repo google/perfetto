@@ -640,9 +640,8 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // Last opportunity to flush all pending data.
   FlushInternal(false);
 
-  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
-
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
+  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
   DeobfuscationTracker::Get(context())->NotifyEndOfFile();
 
   // Rebuild the bounds table once everything has been completed: we do this
