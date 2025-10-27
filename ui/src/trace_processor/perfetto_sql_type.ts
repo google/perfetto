@@ -17,17 +17,7 @@ import {errResult, okResult, Result} from '../base/result';
 // Representation of a PerfettoSQL type:
 // https://perfetto.dev/docs/analysis/perfetto-sql-syntax#types
 export type PerfettoSqlType =
-  | {
-      kind:
-        | 'int'
-        | 'double'
-        | 'string'
-        | 'boolean'
-        | 'bytes'
-        | 'timestamp'
-        | 'duration'
-        | 'arg_set_id';
-    }
+  | SimpleType
   | {
       kind: 'id';
       source?: {
@@ -43,7 +33,19 @@ export type PerfettoSqlType =
       };
     };
 
-const SIMPLE_TYPES = {
+type SimpleType = {
+  kind:
+    | 'int'
+    | 'double'
+    | 'boolean'
+    | 'string'
+    | 'bytes'
+    | 'timestamp'
+    | 'duration'
+    | 'arg_set_id';
+};
+
+const SIMPLE_TYPES: Record<string, SimpleType['kind']> = {
   long: 'int',
   int: 'int',
   bool: 'boolean',
@@ -54,7 +56,6 @@ const SIMPLE_TYPES = {
   timestamp: 'timestamp',
   duration: 'duration',
   argsetid: 'arg_set_id',
-  id: 'id',
 };
 
 export function parsePerfettoSqlTypeFromString(
@@ -67,18 +68,11 @@ export function parsePerfettoSqlTypeFromString(
       kind: maybeSimpleType,
     });
   }
-  // JOINID(table.column):
-  {
-    const match = value.match(/^joinid\(([^.]+)\.([^)]+)\)$/);
-    if (match) {
-      return okResult({
-        kind: 'joinid',
-        source: {
-          table: match[1],
-          column: match[2],
-        },
-      });
-    }
+  // ID:
+  if (value === 'id') {
+    return okResult({
+      kind: 'id',
+    });
   }
   // ID(table.column):
   {
@@ -86,6 +80,19 @@ export function parsePerfettoSqlTypeFromString(
     if (match) {
       return okResult({
         kind: 'id',
+        source: {
+          table: match[1],
+          column: match[2],
+        },
+      });
+    }
+  }
+  // JOINID(table.column):
+  {
+    const match = value.match(/^joinid\(([^.]+)\.([^)]+)\)$/);
+    if (match) {
+      return okResult({
+        kind: 'joinid',
         source: {
           table: match[1],
           column: match[2],
