@@ -297,6 +297,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   bool,
                   no_flush_before_write_into_file,
                   42);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  bool,
+                  persist_trace_after_reboot,
+                  43);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_SessionSemaphore,
