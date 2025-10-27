@@ -17,9 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_TRACKER_H_
 
+#include <cstddef>
 #include <optional>
+#include <tuple>
+#include <unordered_set>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
@@ -30,6 +36,22 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
+
+struct NameInPackage {
+  StringId name;
+  StringId package;
+
+  bool operator==(const NameInPackage& b) const {
+    return std::tie(name, package) == std::tie(b.name, b.package);
+  }
+
+  struct Hasher {
+    size_t operator()(const NameInPackage& o) const {
+      return static_cast<size_t>(
+          base::FnvHasher::Combine(o.name.raw_id(), o.package.raw_id()));
+    }
+  };
+};
 
 class DeobfuscationTracker : public Destructible {
  public:
@@ -45,6 +67,8 @@ class DeobfuscationTracker : public Destructible {
   void NotifyEndOfFile();
 
  private:
+  std::vector<FrameId> JavaFramesForName(NameInPackage name) const;
+  void BuildJavaFrameMaps();
   void DeobfuscateProfiles(
       const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
   void ParseDeobfuscationMappingForHeapGraph(
@@ -60,6 +84,14 @@ class DeobfuscationTracker : public Destructible {
 
   std::vector<TraceBlob> packets_;
   TraceProcessorContext* context_;
+
+  // Maps (name, package) -> set of FrameIds for deobfuscation
+  base::
+      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>
+          java_frames_for_name_;
+
+  // Frames needing package guessing (temporary during EOF processing)
+  std::unordered_set<FrameId> frames_needing_package_guess_;
 };
 
 }  // namespace perfetto::trace_processor
