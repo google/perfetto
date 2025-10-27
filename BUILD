@@ -2315,6 +2315,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/content_analyzer.h",
         "src/trace_processor/importers/proto/deobfuscation_module.cc",
         "src/trace_processor/importers/proto/deobfuscation_module.h",
+        "src/trace_processor/importers/proto/deobfuscation_tracker.cc",
+        "src/trace_processor/importers/proto/deobfuscation_tracker.h",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.h",
         "src/trace_processor/importers/proto/gpu_event_parser.cc",
