@@ -102,6 +102,7 @@ export interface NodeGraphAttrs {
   ) => void;
   readonly onUndock?: (parentId: string) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
+  readonly hideControls?: boolean;
 }
 
 // ========================================
@@ -1105,6 +1106,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         connections = [],
         onConnect,
         selectedNodeId,
+        hideControls = false,
       } = vnode.attrs;
 
       const className = classNames(
@@ -1152,32 +1154,37 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
         },
         [
-          // Control buttons
-          m('.pf-nodegraph-controls', [
-            m(Button, {
-              label: 'Auto Layout',
-              icon: 'account_tree',
-              variant: ButtonVariant.Filled,
-              onclick: () => {
-                const {nodes = [], connections = [], onNodeDrag} = vnode.attrs;
-                autoLayoutGraph(nodes, connections, onNodeDrag);
-              },
-            }),
-            m(Button, {
-              label: 'Fit to Screen',
-              icon: 'center_focus_strong',
-              variant: ButtonVariant.Filled,
-              onclick: (e: MouseEvent) => {
-                const {nodes = []} = vnode.attrs;
-                const canvas = (e.currentTarget as HTMLElement).closest(
-                  '.pf-canvas',
-                );
-                if (canvas) {
-                  autofit(nodes, canvas as HTMLElement);
-                }
-              },
-            }),
-          ]),
+          // Control buttons (can be hidden via hideControls prop)
+          !hideControls &&
+            m('.pf-nodegraph-controls', [
+              m(Button, {
+                label: 'Auto Layout',
+                icon: 'account_tree',
+                variant: ButtonVariant.Filled,
+                onclick: () => {
+                  const {
+                    nodes = [],
+                    connections = [],
+                    onNodeDrag,
+                  } = vnode.attrs;
+                  autoLayoutGraph(nodes, connections, onNodeDrag);
+                },
+              }),
+              m(Button, {
+                label: 'Fit to Screen',
+                icon: 'center_focus_strong',
+                variant: ButtonVariant.Filled,
+                onclick: (e: MouseEvent) => {
+                  const {nodes = []} = vnode.attrs;
+                  const canvas = (e.currentTarget as HTMLElement).closest(
+                    '.pf-canvas',
+                  );
+                  if (canvas) {
+                    autofit(nodes, canvas as HTMLElement);
+                  }
+                },
+              }),
+            ]),
 
           // Container for nodes and SVG that gets transformed
           m(

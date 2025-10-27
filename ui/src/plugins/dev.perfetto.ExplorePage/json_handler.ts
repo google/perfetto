@@ -50,7 +50,6 @@ import {
   LimitAndOffsetNodeState,
 } from './query_builder/nodes/dev/limit_and_offset_node';
 import {SortNode, SortNodeState} from './query_builder/nodes/dev/sort_node';
-import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -77,7 +76,7 @@ export interface SerializedGraph {
   nodes: SerializedNode[];
   rootNodeIds: string[];
   selectedNodeId?: string;
-  nodeLayouts: {[key: string]: NodeContainerLayout};
+  nodeLayouts: {[key: string]: {x: number; y: number}};
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -94,10 +93,12 @@ function serializeNode(node: QueryNode): SerializedNode {
     nextNodes: node.nextNodes.map((n: QueryNode) => n.nodeId),
   };
 
-  if ('prevNode' in node) {
+  if ('prevNode' in node && node.prevNode) {
     serialized.prevNode = node.prevNode.nodeId;
   } else if ('prevNodes' in node) {
-    serialized.prevNodes = node.prevNodes.map((n: QueryNode) => n.nodeId);
+    serialized.prevNodes = node.prevNodes
+      .filter((n) => n !== undefined)
+      .map((n) => n!.nodeId);
   }
 
   return serialized;
