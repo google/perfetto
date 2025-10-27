@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
 import {QueryNode} from '../../query_node';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../operations/filter';
 
 import {NodeContainer, NodeContainerLayout} from './node_container';
 import {NodeBox} from './node_box';
@@ -39,7 +39,7 @@ export interface SingleNodeAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
 }
 
 export const SingleNode: m.Component<SingleNodeAttrs> = {
