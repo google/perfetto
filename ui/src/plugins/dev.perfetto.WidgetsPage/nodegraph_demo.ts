@@ -258,10 +258,6 @@ export function NodeGraphDemo() {
             nodes: renderNodes(),
             connections: connections,
             selectedNodeId: selectedNodeId,
-            onConnect: (conn: Connection) => {
-              console.log('Connection created:', conn);
-              connections.push(conn);
-            },
             onNodeDrag: (nodeId: string, x: number, y: number) => {
               const model = modelNodes.get(nodeId);
               if (model) {
@@ -269,14 +265,30 @@ export function NodeGraphDemo() {
                 model.y = y;
               }
             },
+            onConnect: (conn: Connection) => {
+              console.log('onConnect:', conn);
+              connections.push(conn);
+            },
             onConnectionRemove: (index: number) => {
-              console.log('Connection removed:', index);
+              console.log('onConnectionRemove:', index);
               connections.splice(index, 1);
             },
             onNodeRemove: (nodeId: string) => {
-              modelNodes.delete(nodeId);
+              // Find the node to remove
+              const nodeToDelete = modelNodes.get(nodeId);
+              if (!nodeToDelete) return;
+
+              // Dock any child node to its parent
+              for (const parent of modelNodes.values()) {
+                if (parent.nextId === nodeId) {
+                  parent.nextId = nodeToDelete.nextId;
+                }
+              }
+
+              // Clear selection if needed
               if (selectedNodeId === nodeId) selectedNodeId = null;
-              // Also remove any connections to/from this node
+
+              // Remove any connections to/from this node
               for (let i = connections.length - 1; i >= 0; i--) {
                 if (
                   connections[i].fromNode === nodeId ||
@@ -285,6 +297,10 @@ export function NodeGraphDemo() {
                   connections.splice(i, 1);
                 }
               }
+
+              // Finally remove the node
+              modelNodes.delete(nodeId);
+
               console.log(`onNodeRemove: ${nodeId}`);
             },
             onNodeSelect: (nodeId: string | null) => {
@@ -297,7 +313,7 @@ export function NodeGraphDemo() {
 
               if (target && child) {
                 target.nextId = child.id;
-                console.log(`Docked ${child.id} to ${targetId}`);
+                console.log(`onDock: ${child.id} to ${targetId}`);
               }
             },
             onUndock: (parentId: string) => {
@@ -310,7 +326,7 @@ export function NodeGraphDemo() {
                   child.x = parent.x;
                   child.y = parent.y + 150;
                   parent.nextId = undefined;
-                  console.log(`Undocked ${child.id} from ${parentId}`);
+                  console.log(`onUndock: ${child.id} from ${parentId}`);
                 }
               }
             },
