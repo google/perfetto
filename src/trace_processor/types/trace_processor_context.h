@@ -164,7 +164,7 @@ class TraceProcessorContext {
   GlobalPtr<MetadataTracker> metadata_tracker;
   GlobalPtr<RegisteredFileTracker> registered_file_tracker;
   GlobalPtr<UuidState> uuid_state;
-  GlobalPtr<Destructible> heap_graph_tracker;     // HeapGraphTracker
+  GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
 
   // Per-Trace State
   // ==========================
