@@ -135,7 +135,7 @@ function renderDetailsPanel(
     m(
       DetailsShell,
       {
-        fillParent: true,
+        fillHeight: true,
         title: 'Perf sample',
         buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
           m('span', [

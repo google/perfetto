@@ -24,8 +24,7 @@ import {VirtualScrollHelper} from './virtual_scroll_helper';
 import {HTMLAttrs} from './common';
 
 const DEFAULT_ROW_HEIGHT = 24;
-const INITIAL_SIZE_MAX_WIDTH = 600;
-const AUTO_RESIZE_MAX_WIDTH = 2_000;
+const COL_WIDTH_INITIAL_MAX_PX = 600;
 const COL_WIDTH_MIN_PX = 50;
 const CELL_PADDING_PX = 5;
 
@@ -172,7 +171,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
         {
           trigger: cell,
           isContextMenu: true,
-          popupPosition: PopupPosition.Bottom,
+          position: PopupPosition.Bottom,
         },
         menuItems,
       );
@@ -192,6 +191,7 @@ export type GridRow = ReadonlyArray<m.Children>;
  */
 export interface GridColumn {
   readonly key: string;
+  readonly maxInitialWidthPx?: number;
   readonly header?: m.Children;
   readonly minWidth?: number;
   readonly thickRightBorder?: boolean;
@@ -465,8 +465,19 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       if (newColumns.length > 0) {
         this.measureAndApplyWidths(
           vnode.dom as HTMLElement,
-          newColumns,
-          INITIAL_SIZE_MAX_WIDTH,
+          newColumns.map((col) => {
+            const {
+              key,
+              minWidth = COL_WIDTH_MIN_PX,
+              maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
+            } = col;
+
+            return {
+              key,
+              minWidth,
+              maxWidth: maxInitialWidthPx,
+            };
+          }),
         );
       }
     }
@@ -527,8 +538,19 @@ export class Grid implements m.ClassComponent<GridAttrs> {
       if (newColumns.length > 0) {
         this.measureAndApplyWidths(
           vnode.dom as HTMLElement,
-          newColumns,
-          INITIAL_SIZE_MAX_WIDTH,
+          newColumns.map((col) => {
+            const {
+              key,
+              minWidth = COL_WIDTH_MIN_PX,
+              maxInitialWidthPx = COL_WIDTH_INITIAL_MAX_PX,
+            } = col;
+
+            return {
+              key,
+              minWidth,
+              maxWidth: maxInitialWidthPx,
+            };
+          }),
         );
       }
     }
@@ -536,8 +558,11 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
   private measureAndApplyWidths(
     gridDom: HTMLElement,
-    columns: ReadonlyArray<GridColumn>,
-    maxWidth: number = AUTO_RESIZE_MAX_WIDTH,
+    columns: ReadonlyArray<{
+      readonly key: string;
+      readonly minWidth: number;
+      readonly maxWidth: number;
+    }>,
   ): void {
     const gridClone = gridDom.cloneNode(true) as HTMLElement;
     gridDom.appendChild(gridClone);
@@ -567,13 +592,13 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         return c.scrollWidth;
       });
       const maxCellWidth = Math.max(...widths);
-      const minWidth = column.minWidth ?? COL_WIDTH_MIN_PX;
-      const finalWidth = Math.min(
-        maxWidth,
-        Math.max(minWidth, Math.ceil(maxCellWidth) + CELL_PADDING_PX),
+      const unboundedWidth = maxCellWidth + CELL_PADDING_PX;
+      const width = Math.min(
+        column.maxWidth,
+        Math.max(column.minWidth, unboundedWidth),
       );
 
-      gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${finalWidth}px`);
+      gridDom.style.setProperty(`--pf-grid-col-${columnId}`, `${width}px`);
 
       // Store the width
       this.sizedColumns.add(column.key);
@@ -751,7 +776,14 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
           if (gridDom === null) return;
 
-          this.measureAndApplyWidths(gridDom, [column], AUTO_RESIZE_MAX_WIDTH);
+          this.measureAndApplyWidths(gridDom, [
+            {
+              key: column.key,
+              minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
+              // No max - columns can grow as wide as needed on double-click
+              maxWidth: Infinity,
+            },
+          ]);
         },
       });
     };
