@@ -1365,7 +1365,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                               }),
 
                             chainNode.content !== undefined &&
-                              m('.pf-node-content', chainNode.content),
+                              m('.pf-node-content', {
+                                onkeydown: (e: KeyboardEvent) => {
+                                  e.stopPropagation();
+                                },
+                              }, chainNode.content),
 
                             // Remaining inputs on left side (inputs[1+])
                             cInputs.slice(1).map((input: string, i: number) =>
@@ -1680,7 +1684,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
                       // Render custom content if provided
                       node.content !== undefined &&
-                        m('.pf-node-content', node.content),
+                        m('.pf-node-content', {
+                          onkeydown: (e: KeyboardEvent) => {
+                            e.stopPropagation();
+                          },
+                        }, node.content),
 
                       // Remaining inputs on left side (inputs[1+])
                       inputs.slice(1).map((input: string, i: number) =>
