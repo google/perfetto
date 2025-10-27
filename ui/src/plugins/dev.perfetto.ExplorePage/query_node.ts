@@ -226,13 +226,14 @@ export async function analyzeNode(
 
 export function setOperationChanged(node: QueryNode) {
   let curr: QueryNode | undefined = node;
+  const queue: QueryNode[] = [];
   while (curr) {
     if (curr.state.hasOperationChanged) {
-      // Already marked as changed, and so are the children.
-      break;
+      // Already marked as changed, skip this branch
+      curr = queue.shift();
+      continue;
     }
     curr.state.hasOperationChanged = true;
-    const queue: QueryNode[] = [];
     curr.nextNodes.forEach((child) => {
       queue.push(child);
     });
