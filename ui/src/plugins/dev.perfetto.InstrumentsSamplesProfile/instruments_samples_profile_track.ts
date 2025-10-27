@@ -206,7 +206,7 @@ function renderDetailsPanel(
     m(
       DetailsShell,
       {
-        fillParent: true,
+        fillHeight: true,
         title: 'Instruments Samples',
         buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
           m('span', [
