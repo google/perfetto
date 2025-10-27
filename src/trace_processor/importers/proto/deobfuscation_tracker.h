@@ -67,12 +67,9 @@ class DeobfuscationTracker : public Destructible {
   void NotifyEndOfFile();
 
  private:
-  using JavaFrameMap =
-      base::FlatHashMap<NameInPackage, base::FlatSet<FrameId>,
-                        NameInPackage::Hasher>;
+  using JavaFrameMap = base::
+      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>;
 
-  std::vector<FrameId> JavaFramesForName(const JavaFrameMap& java_frames_for_name,
-                                         NameInPackage name) const;
   void BuildJavaFrameMaps(
       JavaFrameMap& java_frames_for_name,
       std::unordered_set<FrameId>& frames_needing_package_guess);

@@ -21,7 +21,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob.h"
@@ -35,25 +37,29 @@
 #include "src/trace_processor/util/profiler_util.h"
 
 namespace perfetto::trace_processor {
-
+namespace {
 using ::perfetto::protos::pbzero::DeobfuscationMapping;
 using ::perfetto::protos::pbzero::ObfuscatedClass;
 using ::perfetto::protos::pbzero::ObfuscatedMember;
 using ::protozero::ConstBytes;
 
+using JavaFrameMap = base::
+    FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>;
+
+std::vector<FrameId> JavaFramesForName(const JavaFrameMap& java_frames_for_name,
+                                       NameInPackage name) {
+  if (const auto* frames = java_frames_for_name.Find(name); frames) {
+    return {frames->begin(), frames->end()};
+  }
+  return {};
+}
+
+}  // namespace
+
 DeobfuscationTracker::DeobfuscationTracker(TraceProcessorContext* context)
     : context_(context) {}
 
 DeobfuscationTracker::~DeobfuscationTracker() = default;
-
-std::vector<FrameId> DeobfuscationTracker::JavaFramesForName(
-    const JavaFrameMap& java_frames_for_name,
-    NameInPackage name) const {
-  if (const auto* frames = java_frames_for_name.Find(name); frames) {
-    return std::vector<FrameId>(frames->begin(), frames->end());
-  }
-  return {};
-}
 
 void DeobfuscationTracker::BuildJavaFrameMaps(
     JavaFrameMap& java_frames_for_name,
@@ -357,10 +363,9 @@ void DeobfuscationTracker::GuessPackages(
         !sample.callsite_id().has_value()) {
       continue;
     }
-    GuessPackageForCallsite(java_frames_for_name,
-                            tables::ProcessTable::Id(*thread->upid()),
-                            *sample.callsite_id(),
-                            frames_needing_package_guess);
+    GuessPackageForCallsite(
+        java_frames_for_name, tables::ProcessTable::Id(*thread->upid()),
+        *sample.callsite_id(), frames_needing_package_guess);
   }
 }
 
