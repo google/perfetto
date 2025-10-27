@@ -52,6 +52,9 @@ export function NodeGraphDemo() {
   // State for join type
   let joinType = 'INNER';
 
+  // State for join condition
+  let joinOn = '';
+
   let table = 'slice';
 
   // State for filter expression
@@ -90,8 +93,8 @@ export function NodeGraphDemo() {
         [
           m('option', {value: 'slice'}, 'slice'),
           m('option', {value: 'sched'}, 'sched'),
-          m('option', {value: 'thread_state'}, 'thread_state'),
-          m('option', {value: 'counter'}, 'counter'),
+          m('option', {value: 'thread'}, 'thread'),
+          m('option', {value: 'process'}, 'process'),
         ],
       ),
     },
@@ -127,18 +130,31 @@ export function NodeGraphDemo() {
       inputs: ['Left', 'Right'],
       outputs: ['Output'],
       content: m(
-        Select,
-        {
-          value: joinType,
-          onchange: (e: Event) => {
-            joinType = (e.target as HTMLSelectElement).value;
-          },
-        },
+        '',
+        {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
         [
-          m('option', {value: 'INNER'}, 'INNER'),
-          m('option', {value: 'LEFT'}, 'LEFT'),
-          m('option', {value: 'RIGHT'}, 'RIGHT'),
-          m('option', {value: 'FULL'}, 'FULL'),
+          m(
+            Select,
+            {
+              value: joinType,
+              onchange: (e: Event) => {
+                joinType = (e.target as HTMLSelectElement).value;
+              },
+            },
+            [
+              m('option', {value: 'INNER'}, 'INNER'),
+              m('option', {value: 'LEFT'}, 'LEFT'),
+              m('option', {value: 'RIGHT'}, 'RIGHT'),
+              m('option', {value: 'FULL'}, 'FULL'),
+            ],
+          ),
+          m(TextInput, {
+            placeholder: 'ON condition...',
+            value: joinOn,
+            onInput: (value: string) => {
+              joinOn = value;
+            },
+          }),
         ],
       ),
     },
@@ -225,7 +241,7 @@ export function NodeGraphDemo() {
                 onclick: () => addNode('table'),
               }),
               m(MenuItem, {
-                label: 'SELECT',
+                label: 'Select',
                 icon: 'filter_alt',
                 onclick: () => addNode('select'),
               }),
