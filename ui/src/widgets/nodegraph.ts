@@ -150,6 +150,7 @@ function createCurve(
   y2: number,
   fromPortType?: 'top' | 'bottom' | 'left' | 'right',
   toPortType?: 'top' | 'bottom' | 'left' | 'right',
+  shortenEnd = 0,
 ): string {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -164,26 +165,38 @@ function createCurve(
   // For left/right ports, control points extend horizontally
   if (fromPortType === 'bottom' || fromPortType === 'top') {
     // First control point extends vertically
-    const verticalOffset = Math.max(Math.abs(dy) * 0.6, distance * 0.4);
+    const verticalOffset = Math.max(Math.abs(dy) * 0.5, distance * 0.5);
     cx1 = x1;
     cy1 = fromPortType === 'bottom' ? y1 + verticalOffset : y1 - verticalOffset;
   } else {
     // First control point extends horizontally for left/right ports
-    const horizontalOffset = Math.max(Math.abs(dx) * 0.6, distance * 0.4);
+    const horizontalOffset = Math.max(Math.abs(dx) * 0.5, distance * 0.5);
     cx1 = x1 + horizontalOffset;
     cy1 = y1; // Keep Y constant for horizontal extension
   }
 
   if (toPortType === 'bottom' || toPortType === 'top') {
     // Second control point extends vertically
-    const verticalOffset = Math.max(Math.abs(dy) * 0.6, distance * 0.4);
+    const verticalOffset = Math.max(Math.abs(dy) * 0.5, distance * 0.5);
     cx2 = x2;
     cy2 = toPortType === 'bottom' ? y2 + verticalOffset : y2 - verticalOffset;
   } else {
     // Second control point extends horizontally for left/right ports
-    const horizontalOffset = Math.max(Math.abs(dx) * 0.6, distance * 0.4);
+    const horizontalOffset = Math.max(Math.abs(dx) * 0.5, distance * 0.5);
     cx2 = x2 - horizontalOffset;
     cy2 = y2; // Keep Y constant for horizontal extension
+  }
+
+  if (shortenEnd > 0) {
+    const tangentX = x2 - cx2;
+    const tangentY = y2 - cy2;
+    const tangentLength = Math.sqrt(tangentX * tangentX + tangentY * tangentY);
+    if (tangentLength > shortenEnd) {
+      const unitTangentX = tangentX / tangentLength;
+      const unitTangentY = tangentY / tangentLength;
+      x2 -= unitTangentX * shortenEnd;
+      y2 -= unitTangentY * shortenEnd;
+    }
   }
 
   return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
@@ -310,6 +323,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Clear existing paths
     svg.innerHTML = '';
 
+    const shortenLength = 16;
+    const arrowheadLength = 4;
+
     // Create arrow marker definition
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     const marker = document.createElementNS(
@@ -317,18 +333,18 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       'marker',
     );
     marker.setAttribute('id', 'arrowhead');
-    marker.setAttribute('markerWidth', '10');
-    marker.setAttribute('markerHeight', '6');
-    marker.setAttribute('refX', '10');
-    marker.setAttribute('refY', '3');
+    marker.setAttribute('viewBox', `0 0 ${arrowheadLength} 10`);
+    marker.setAttribute('refX', '0');
+    marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', `${arrowheadLength}`);
+    marker.setAttribute('markerHeight', '10');
     marker.setAttribute('orient', 'auto');
-    marker.setAttribute('markerUnits', 'strokeWidth');
 
     const polygon = document.createElementNS(
       'http://www.w3.org/2000/svg',
       'polygon',
     );
-    polygon.setAttribute('points', '0 0, 6 3, 0 6');
+    polygon.setAttribute('points', `0 2.5, ${arrowheadLength} 5, 0 7.5`);
     polygon.setAttribute('fill', 'var(--pf-color-accent)');
 
     marker.appendChild(polygon);
@@ -362,7 +378,15 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
         path.setAttribute(
           'd',
-          createCurve(from.x, from.y, to.x, to.y, fromPortType, toPortType),
+          createCurve(
+            from.x,
+            from.y,
+            to.x,
+            to.y,
+            fromPortType,
+            toPortType,
+            shortenLength,
+          ),
         );
         path.setAttribute('marker-end', 'url(#arrowhead)');
         path.style.pointerEvents = 'stroke';
