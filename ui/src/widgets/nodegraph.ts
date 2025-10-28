@@ -102,12 +102,6 @@ export interface NodeGraphAttrs {
   readonly onNodeRemove?: (nodeId: string) => void;
 }
 
-interface NodeGraphDOM extends Element {
-  _handleMouseMove?: (e: MouseEvent) => void;
-  _handleMouseUp?: () => void;
-  _handleWheel?: (e: WheelEvent) => void;
-}
-
 // ========================================
 // CONSTANTS
 // ========================================
@@ -279,6 +273,162 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     dockTarget: null,
     isDockZone: false,
     undockCandidate: null,
+  };
+
+  let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
+  let canvasElement: HTMLElement | null = null;
+
+  const handleMouseMove = (e: MouseEvent) => {
+    m.redraw();
+    if (!latestVnode || !canvasElement) return;
+    const vnode = latestVnode;
+    const canvas = canvasElement;
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // Store both screen and transformed coordinates
+    canvasState.mousePos = {
+      x: e.clientX,
+      y: e.clientY,
+      transformedX:
+        (e.clientX - canvasRect.left - canvasState.panOffset.x) /
+        canvasState.zoom,
+      transformedY:
+        (e.clientY - canvasRect.top - canvasState.panOffset.y) /
+        canvasState.zoom,
+    };
+
+    if (canvasState.isPanning) {
+      // Pan the canvas
+      const dx = e.clientX - canvasState.panStart.x;
+      const dy = e.clientY - canvasState.panStart.y;
+      canvasState.panOffset = {
+        x: canvasState.panOffset.x + dx,
+        y: canvasState.panOffset.y + dy,
+      };
+      canvasState.panStart = {x: e.clientX, y: e.clientY};
+      m.redraw();
+    } else if (canvasState.undockCandidate !== null) {
+      // Check if we've exceeded the undock threshold
+      const dx = e.clientX - canvasState.undockCandidate.startX;
+      const dy = e.clientY - canvasState.undockCandidate.startY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance > UNDOCK_THRESHOLD) {
+        // Exceeded threshold - perform undock
+        const {onUndock, onNodeDrag} = vnode.attrs;
+        if (onUndock && onNodeDrag) {
+          onUndock(canvasState.undockCandidate.parentId);
+          onNodeDrag(
+            canvasState.undockCandidate.nodeId,
+            (canvasState.undockCandidate.startX -
+              canvasRect.left -
+              canvasState.panOffset.x) /
+              canvasState.zoom -
+              canvasState.dragOffset.x / canvasState.zoom,
+            canvasState.undockCandidate.renderY,
+          );
+          m.redraw(); // Force update so nodes array regenerates
+        }
+        canvasState.undockCandidate = null;
+      }
+    } else if (canvasState.draggedNode !== null) {
+      // Calculate new position relative to canvas container (accounting for pan and zoom)
+      const newX =
+        (e.clientX - canvasRect.left - canvasState.panOffset.x) /
+          canvasState.zoom -
+        canvasState.dragOffset.x / canvasState.zoom;
+      const newY =
+        (e.clientY - canvasRect.top - canvasState.panOffset.y) /
+          canvasState.zoom -
+        canvasState.dragOffset.y / canvasState.zoom;
+
+      // ONLY move the dragged node itself
+      // Children follow automatically via render position calculation
+      const {onNodeDrag, nodes = []} = vnode.attrs;
+      if (onNodeDrag !== undefined) {
+        onNodeDrag(canvasState.draggedNode, newX, newY);
+      }
+
+      // Check if we're in a dock zone (exclude the parent we just undocked from)
+      const draggedNode = nodes.find((n) => n.id === canvasState.draggedNode);
+      if (draggedNode) {
+        const dockInfo = findDockTarget(draggedNode, newX, newY, nodes);
+        canvasState.dockTarget = dockInfo.targetNodeId;
+        canvasState.isDockZone = dockInfo.isValidZone;
+      }
+      m.redraw();
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!latestVnode) return;
+    const vnode = latestVnode;
+    // Handle docking if in dock zone
+    if (
+      canvasState.draggedNode &&
+      canvasState.isDockZone &&
+      canvasState.dockTarget
+    ) {
+      const {nodes = [], onDock} = vnode.attrs;
+      const draggedNode = nodes.find((n) => n.id === canvasState.draggedNode);
+      if (onDock && draggedNode) {
+        // Create child node without x/y coordinates
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const {x, y, ...childNode} = draggedNode;
+        onDock(canvasState.dockTarget, childNode);
+      }
+    }
+
+    // Check for collision (only for non-docked nodes)
+    if (canvasState.draggedNode !== null) {
+      const {nodes = [], onNodeDrag} = vnode.attrs;
+      const draggedNode = nodes.find((n) => n.id === canvasState.draggedNode);
+
+      // Only do overlap checking if NOT being docked
+      if (draggedNode && !canvasState.isDockZone && onNodeDrag) {
+        // Get actual node dimensions from DOM
+        const dims = getNodeDimensions(draggedNode.id);
+
+        // Calculate total height of the dragged node's chain
+        const chain = getChain(draggedNode);
+        let chainHeight = 0;
+        chain.forEach((chainNode) => {
+          chainHeight += getNodeDimensions(chainNode.id).height;
+        });
+
+        // Check if node (and its entire chain) overlaps with any other nodes
+        if (
+          checkNodeOverlap(
+            draggedNode.x,
+            draggedNode.y,
+            draggedNode.id,
+            nodes,
+            dims.width,
+            chainHeight,
+          )
+        ) {
+          // Find nearest non-overlapping position
+          const newPos = findNearestNonOverlappingPosition(
+            draggedNode.x,
+            draggedNode.y,
+            draggedNode.id,
+            nodes,
+            dims.width,
+            chainHeight,
+          );
+          // Update to the non-overlapping position
+          onNodeDrag(draggedNode.id, newPos.x, newPos.y);
+        }
+      }
+    }
+
+    canvasState.draggedNode = null;
+    canvasState.connecting = null;
+    canvasState.isPanning = false;
+    canvasState.dockTarget = null;
+    canvasState.isDockZone = false;
+    canvasState.undockCandidate = null;
+    m.redraw();
   };
 
   // Helper to determine port type based on port index
@@ -831,8 +981,56 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     m.redraw();
   }
 
+  const handleWheel = (e: WheelEvent) => {
+    if (!canvasElement) return;
+    e.preventDefault();
+
+    // Zoom with Ctrl+wheel, pan without Ctrl
+    if (e.ctrlKey || e.metaKey) {
+      // Zoom around mouse position
+      const canvas = canvasElement;
+      const canvasRect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - canvasRect.left;
+      const mouseY = e.clientY - canvasRect.top;
+
+      // Calculate zoom delta (negative deltaY = zoom in)
+      const zoomDelta = -e.deltaY * 0.003;
+      const newZoom = Math.max(
+        0.1,
+        Math.min(5.0, canvasState.zoom * (1 + zoomDelta)),
+      );
+
+      // Calculate the point in canvas space (before zoom)
+      const canvasX = (mouseX - canvasState.panOffset.x) / canvasState.zoom;
+      const canvasY = (mouseY - canvasState.panOffset.y) / canvasState.zoom;
+
+      // Update zoom
+      canvasState.zoom = newZoom;
+
+      // Adjust pan to keep the same point under the mouse
+      canvasState.panOffset = {
+        x: mouseX - canvasX * newZoom,
+        y: mouseY - canvasY * newZoom,
+      };
+    } else {
+      // Pan the canvas based on wheel delta
+      canvasState.panOffset = {
+        x: canvasState.panOffset.x - e.deltaX,
+        y: canvasState.panOffset.y - e.deltaY,
+      };
+    }
+
+    m.redraw();
+  };
+
   return {
     oncreate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
+      latestVnode = vnode;
+      canvasElement = vnode.dom as HTMLElement;
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      canvasElement.addEventListener('wheel', handleWheel, {passive: false});
+
       const {
         connections = [],
         nodes = [],
@@ -868,57 +1066,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       if (onReady) {
         onReady({autoLayout, recenter});
       }
-
-      const handleWheel = (e: WheelEvent) => {
-        e.preventDefault();
-
-        // Zoom with Ctrl+wheel, pan without Ctrl
-        if (e.ctrlKey || e.metaKey) {
-          // Zoom around mouse position
-          const canvas = vnode.dom as HTMLElement;
-          const canvasRect = canvas.getBoundingClientRect();
-          const mouseX = e.clientX - canvasRect.left;
-          const mouseY = e.clientY - canvasRect.top;
-
-          // Calculate zoom delta (negative deltaY = zoom in)
-          const zoomDelta = -e.deltaY * 0.003;
-          const newZoom = Math.max(
-            0.1,
-            Math.min(5.0, canvasState.zoom * (1 + zoomDelta)),
-          );
-
-          // Calculate the point in canvas space (before zoom)
-          const canvasX = (mouseX - canvasState.panOffset.x) / canvasState.zoom;
-          const canvasY = (mouseY - canvasState.panOffset.y) / canvasState.zoom;
-
-          // Update zoom
-          canvasState.zoom = newZoom;
-
-          // Adjust pan to keep the same point under the mouse
-          canvasState.panOffset = {
-            x: mouseX - canvasX * newZoom,
-            y: mouseY - canvasY * newZoom,
-          };
-        } else {
-          // Pan the canvas based on wheel delta
-          canvasState.panOffset = {
-            x: canvasState.panOffset.x - e.deltaX,
-            y: canvasState.panOffset.y - e.deltaY,
-          };
-        }
-
-        m.redraw();
-      };
-
-      const canvas = vnode.dom as HTMLElement;
-      canvas.addEventListener('wheel', handleWheel, {passive: false});
-
-      // Store handlers on the vnode's dom for cleanup
-      const dom = vnode.dom as NodeGraphDOM;
-      dom._handleWheel = handleWheel;
     },
 
     onupdate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
+      latestVnode = vnode;
       const {connections = [], nodes = [], onConnectionRemove} = vnode.attrs;
 
       // Re-render connections when component updates
@@ -934,25 +1085,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     },
 
     onremove: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
-      // Clean up event listeners
-      const dom = vnode.dom as NodeGraphDOM;
-      const handleMouseMove = dom._handleMouseMove;
-      const handleMouseUp = dom._handleMouseUp;
-
-      if (handleMouseMove !== undefined) {
-        document.removeEventListener('mousemove', handleMouseMove);
-      }
-      if (handleMouseUp !== undefined) {
-        document.removeEventListener('mouseup', handleMouseUp);
-      }
-
-      const handleWheel = dom._handleWheel;
-      if (handleWheel !== undefined) {
-        (vnode.dom as HTMLElement).removeEventListener('wheel', handleWheel);
-      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      (vnode.dom as HTMLElement).removeEventListener('wheel', handleWheel);
     },
 
     view: (vnode: m.Vnode<NodeGraphAttrs>) => {
+      latestVnode = vnode;
       const {
         nodes = [],
         connections = [],
@@ -960,164 +1099,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         selectedNodeId,
       } = vnode.attrs;
 
-      const handleMouseMove = (e: MouseEvent) => {
-        const canvas = (e.target as HTMLElement).closest(
-          '.pf-canvas',
-        ) as HTMLElement | null;
-        if (!canvas) return;
-        const canvasRect = canvas.getBoundingClientRect();
-
-        // Store both screen and transformed coordinates
-        canvasState.mousePos = {
-          x: e.clientX,
-          y: e.clientY,
-          transformedX:
-            (e.clientX - canvasRect.left - canvasState.panOffset.x) /
-            canvasState.zoom,
-          transformedY:
-            (e.clientY - canvasRect.top - canvasState.panOffset.y) /
-            canvasState.zoom,
-        };
-
-        if (canvasState.isPanning) {
-          // Pan the canvas
-          const dx = e.clientX - canvasState.panStart.x;
-          const dy = e.clientY - canvasState.panStart.y;
-          canvasState.panOffset = {
-            x: canvasState.panOffset.x + dx,
-            y: canvasState.panOffset.y + dy,
-          };
-          canvasState.panStart = {x: e.clientX, y: e.clientY};
-          m.redraw();
-        } else if (canvasState.undockCandidate !== null) {
-          // Check if we've exceeded the undock threshold
-          const dx = e.clientX - canvasState.undockCandidate.startX;
-          const dy = e.clientY - canvasState.undockCandidate.startY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance > UNDOCK_THRESHOLD) {
-            // Exceeded threshold - perform undock
-            const {onUndock, onNodeDrag} = vnode.attrs;
-            if (onUndock && onNodeDrag) {
-              onUndock(canvasState.undockCandidate.parentId);
-              onNodeDrag(
-                canvasState.undockCandidate.nodeId,
-                (canvasState.undockCandidate.startX -
-                  canvasRect.left -
-                  canvasState.panOffset.x) /
-                  canvasState.zoom -
-                  canvasState.dragOffset.x / canvasState.zoom,
-                canvasState.undockCandidate.renderY,
-              );
-              m.redraw(); // Force update so nodes array regenerates
-            }
-            canvasState.undockCandidate = null;
-          }
-        } else if (canvasState.draggedNode !== null) {
-          // Calculate new position relative to canvas container (accounting for pan and zoom)
-          const newX =
-            (e.clientX - canvasRect.left - canvasState.panOffset.x) /
-              canvasState.zoom -
-            canvasState.dragOffset.x / canvasState.zoom;
-          const newY =
-            (e.clientY - canvasRect.top - canvasState.panOffset.y) /
-              canvasState.zoom -
-            canvasState.dragOffset.y / canvasState.zoom;
-
-          // ONLY move the dragged node itself
-          // Children follow automatically via render position calculation
-          const {onNodeDrag, nodes = []} = vnode.attrs;
-          if (onNodeDrag !== undefined) {
-            onNodeDrag(canvasState.draggedNode, newX, newY);
-          }
-
-          // Check if we're in a dock zone (exclude the parent we just undocked from)
-          const draggedNode = nodes.find(
-            (n) => n.id === canvasState.draggedNode,
-          );
-          if (draggedNode) {
-            const dockInfo = findDockTarget(draggedNode, newX, newY, nodes);
-            canvasState.dockTarget = dockInfo.targetNodeId;
-            canvasState.isDockZone = dockInfo.isValidZone;
-          }
-        }
-      };
-
-      const handleMouseUp = () => {
-        // Handle docking if in dock zone
-        if (
-          canvasState.draggedNode &&
-          canvasState.isDockZone &&
-          canvasState.dockTarget
-        ) {
-          const {nodes = [], onDock} = vnode.attrs;
-          const draggedNode = nodes.find(
-            (n) => n.id === canvasState.draggedNode,
-          );
-          if (onDock && draggedNode) {
-            // Create child node without x/y coordinates
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const {x, y, ...childNode} = draggedNode;
-            onDock(canvasState.dockTarget, childNode);
-          }
-        }
-
-        // Check for collision (only for non-docked nodes)
-        if (canvasState.draggedNode !== null) {
-          const {nodes = [], onNodeDrag} = vnode.attrs;
-          const draggedNode = nodes.find(
-            (n) => n.id === canvasState.draggedNode,
-          );
-
-          // Only do overlap checking if NOT being docked
-          if (draggedNode && !canvasState.isDockZone && onNodeDrag) {
-            // Get actual node dimensions from DOM
-            const dims = getNodeDimensions(draggedNode.id);
-
-            // Calculate total height of the dragged node's chain
-            const chain = getChain(draggedNode);
-            let chainHeight = 0;
-            chain.forEach((chainNode) => {
-              chainHeight += getNodeDimensions(chainNode.id).height;
-            });
-
-            // Check if node (and its entire chain) overlaps with any other nodes
-            if (
-              checkNodeOverlap(
-                draggedNode.x,
-                draggedNode.y,
-                draggedNode.id,
-                nodes,
-                dims.width,
-                chainHeight,
-              )
-            ) {
-              // Find nearest non-overlapping position
-              const newPos = findNearestNonOverlappingPosition(
-                draggedNode.x,
-                draggedNode.y,
-                draggedNode.id,
-                nodes,
-                dims.width,
-                chainHeight,
-              );
-              // Update to the non-overlapping position
-              onNodeDrag(draggedNode.id, newPos.x, newPos.y);
-            }
-          }
-        }
-
-        canvasState.draggedNode = null;
-        canvasState.connecting = null;
-        canvasState.isPanning = false;
-        canvasState.dockTarget = null;
-        canvasState.isDockZone = false;
-        canvasState.undockCandidate = null;
-        m.redraw();
-      };
-
       const className = classNames(
         canvasState.connecting && 'pf-connecting',
+        canvasState.connecting &&
+          `connecting-from-${canvasState.connecting.type}`,
         canvasState.isPanning && 'pf-panning',
       );
 
@@ -1155,8 +1140,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               }
             }
           },
-          onmousemove: handleMouseMove,
-          onmouseup: handleMouseUp,
           style: `background-size: ${20 * canvasState.zoom}px ${20 * canvasState.zoom}px;
             background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
         },
