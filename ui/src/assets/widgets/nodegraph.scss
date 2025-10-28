@@ -190,14 +190,14 @@
 .pf-port.pf-port-top {
   top: 0;
   left: 50%;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
 }
 
 .pf-port.pf-port-bottom {
   top: unset;
   bottom: 0;
   left: 50%;
-  transform: translateY(50%);
+  transform: translate(-50%, 50%);
 }
 
 .pf-port.pf-output {
