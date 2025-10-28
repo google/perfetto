@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -824,6 +825,15 @@ class TrackEventParser::EventImporter {
       }
     }
 
+    // Add `flow_id` parameter to the `onMeasure`, `onLayout` event to support
+    // linking with the corresponding update Trace event via flow connection.
+    if (platform_measure_layout_draw_flow_ids.size() > 0) {
+      for (auto flow_id : platform_measure_layout_draw_flow_ids) {
+        context_->flow_tracker->Step(slice_id, flow_id);
+      }
+      platform_measure_layout_draw_flow_ids.clear();
+    }
+
     // Add `flow_id` parameter to the `paintEnd` event to support linking with
     // the corresponding update Trace event via flow connection.
     if (paint_end_flow_ids_.size() > 0) {
@@ -1367,6 +1377,7 @@ class TrackEventParser::EventImporter {
     bool is_load_template_event = false;
     bool has_instance_id_parameter = false;
     bool is_paint_end_event = false;
+    bool is_android_platform_measure_layout_draw = false;
     if (!name.empty() &&
         strcmp(name.c_str(), BindPipelineIDWithTimingFlag) == 0) {
       is_timing_flag_event = true;
@@ -1375,6 +1386,11 @@ class TrackEventParser::EventImporter {
     } else if (!name.empty() &&
                strcmp(name.c_str(), "Timing::Mark.paintEnd") == 0) {
       is_paint_end_event = true;
+    } else if (!name.empty() &&
+               ((strcmp(name.c_str(), "LynxView.onMeasure") == 0) ||
+                (strcmp(name.c_str(), "LynxView.onLayout") == 0) ||
+                (strcmp(name.c_str(), "LynxView.onDraw") == 0))) {
+      is_android_platform_measure_layout_draw = true;
     }
 
     std::string timing_flag = "";
@@ -1433,6 +1449,36 @@ class TrackEventParser::EventImporter {
           // it is of integer type. Here, for compatibility reason, only the
           // last flow_id will be shown.
           args_writer.AddUnsignedInteger(debug_key.key(), flow_ids->back());
+        }
+
+        if (is_android_platform_measure_layout_draw &&
+            annotation_name == "pipeline_ids") {
+          const std::string& pipeline_ids =
+              annotation.string_value().ToStdString();
+          std::vector<std::string> pipeline_id_arr;
+          std::string token;
+          std::stringstream tokenStream(pipeline_ids);
+          while (std::getline(tokenStream, token, ',')) {
+            pipeline_id_arr.push_back(token);
+          }
+          for (auto& pipeline_id : pipeline_id_arr) {
+            auto flow_ids = context_->storage->GetPipelineFlowIds(pipeline_id);
+            if (!flow_ids || flow_ids->empty()) {
+              continue;
+            }
+            for (uint64_t f : *flow_ids) {
+              platform_measure_layout_draw_flow_ids.push_back(f);
+            }
+          }
+          if (platform_measure_layout_draw_flow_ids.size() > 0) {
+            auto debug_key = parser_->args_parser_.EnterDictionary("flowId");
+            // The best approach here is to write all flow_ids into the
+            // args_writer. However, currently only one flow_id is displayed,
+            // and it is of integer type. Here, for compatibility reason, only
+            // the last flow_id will be shown.
+            args_writer.AddUnsignedInteger(
+                debug_key.key(), platform_measure_layout_draw_flow_ids.back());
+          }
         }
       }
     }
@@ -1496,6 +1542,7 @@ class TrackEventParser::EventImporter {
 
   uint32_t packet_sequence_id_;
   std::vector<uint64_t> paint_end_flow_ids_;
+  std::vector<uint64_t> platform_measure_layout_draw_flow_ids;
 };
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context,
