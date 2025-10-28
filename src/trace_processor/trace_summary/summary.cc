@@ -401,6 +401,22 @@ base::Status WriteDimension(
   return base::OkStatus();
 }
 
+struct InternedDimensionKey {
+  base::StringView key_column_name;
+  uint64_t key_hash;
+  bool operator==(const InternedDimensionKey& o) const {
+    return key_column_name == o.key_column_name && key_hash == o.key_hash;
+  }
+  struct Hasher {
+    size_t operator()(const InternedDimensionKey& k) const {
+      base::FnvHasher h;
+      h.Update(k.key_column_name.data(), k.key_column_name.size());
+      h.Update(k.key_hash);
+      return static_cast<size_t>(h.digest());
+    }
+  };
+};
+
 base::Status WriteInternedDimensionValue(
     const SqlValue& col_value,
     TraceMetricV2Spec::DimensionType type,
@@ -560,8 +576,9 @@ base::Status WriteInternedDimensionBundles(
     TraceProcessor* processor,
     const TraceMetricV2Spec::Decoder& spec,
     const std::vector<std::string>& interned_dimension_queries,
-    const base::FlatHashMap<std::string, base::FlatHashMap<uint64_t, bool>>&
-        interned_dim_keys_in_metric_bundle,
+    const base::
+        FlatHashMap<InternedDimensionKey, bool, InternedDimensionKey::Hasher>&
+            interned_dim_keys_in_metric_bundle,
     TraceMetricV2Bundle* bundle) {
   RETURN_IF_ERROR(ValidateInternedDimensionSpecs(spec));
   size_t interned_dimension_idx = 0;
@@ -570,8 +587,6 @@ base::Status WriteInternedDimensionBundles(
     InternedDimensionSpec::ColumnSpec::Decoder key_col_spec(
         ms.key_column_spec());
     base::StringView key_column_name = key_col_spec.name();
-    const auto& allowed_keys =
-        *interned_dim_keys_in_metric_bundle.Find(key_column_name.ToStdString());
     auto* interned_dimension_bundle = bundle->add_interned_dimension_bundles();
 
     const std::string& sql =
@@ -622,7 +637,7 @@ base::Status WriteInternedDimensionBundles(
       ASSIGN_OR_RETURN(uint64_t hash, HashOf(key_val));
       // If the key was not in the metric bundle, we don't need to output
       // its interned data.
-      if (!allowed_keys.Find(hash)) {
+      if (!interned_dim_keys_in_metric_bundle.Find({key_column_name, hash})) {
         continue;
       }
       RETURN_IF_ERROR(
@@ -671,17 +686,17 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
     const Metric* first = value.front();
     TraceMetricV2Spec::Decoder first_spec(first->spec);
 
-    base::FlatHashMap<std::string, base::FlatHashMap<uint64_t, bool>>
-        interned_dim_keys_in_metric_bundle;
+    base::FlatHashMap<base::StringView, bool> interned_dim_key_cols;
     for (auto ms_it = first_spec.interned_dimension_specs(); ms_it; ++ms_it) {
       InternedDimensionSpec::Decoder ms_decoder(*ms_it);
-      interned_dim_keys_in_metric_bundle.Insert(
-          InternedDimensionSpec::ColumnSpec::Decoder(
-              ms_decoder.key_column_spec())
-              .name()
-              .ToStdString(),
-          base::FlatHashMap<uint64_t, bool>());
+      interned_dim_key_cols.Insert(InternedDimensionSpec::ColumnSpec::Decoder(
+                                       ms_decoder.key_column_spec())
+                                       .name()
+                                       .ToStdStringView(),
+                                   true);
     }
+    base::FlatHashMap<InternedDimensionKey, bool, InternedDimensionKey::Hasher>
+        interned_dim_keys_in_metric_bundle;
 
     auto query_it = processor->ExecuteQuery(first->query);
     if (!query_it.Status().ok()) {
@@ -759,10 +774,12 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
       for (const auto& dim : dimensions_with_index) {
         RETURN_IF_ERROR(WriteDimension(dim, bundle_id, query_it,
                                        row->add_dimension(), &hasher));
-        if (auto* key_set = interned_dim_keys_in_metric_bundle.Find(dim.name)) {
+        base::StringView dim_name_view(dim.name);
+        if (interned_dim_key_cols.Find(dim_name_view)) {
           const auto& key_val = query_it.Get(dim.index);
           ASSIGN_OR_RETURN(uint64_t key_hash, HashOf(key_val));
-          key_set->Insert(key_hash, true);
+          interned_dim_keys_in_metric_bundle.Insert({dim_name_view, key_hash},
+                                                    true);
         }
       }
       uint64_t hash = hasher.digest();
