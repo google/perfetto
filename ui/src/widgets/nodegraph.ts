@@ -1081,7 +1081,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           },
           onmousemove: handleMouseMove,
           onmouseup: handleMouseUp,
-          style: `cursor: ${canvasState.isPanning ? 'grabbing' : 'grab'}`,
+          style: `cursor: ${canvasState.isPanning ? 'grabbing' : 'grab'};
+            background-size: ${20 * canvasState.zoom}px ${20 * canvasState.zoom}px;
+            background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
         },
         [
           // Control buttons
