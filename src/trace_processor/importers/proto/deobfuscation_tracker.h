@@ -67,31 +67,31 @@ class DeobfuscationTracker : public Destructible {
   void NotifyEndOfFile();
 
  private:
-  std::vector<FrameId> JavaFramesForName(NameInPackage name) const;
-  void BuildJavaFrameMaps();
+  using JavaFrameMap = base::
+      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>;
+
+  void BuildJavaFrameMaps(
+      JavaFrameMap& java_frames_for_name,
+      std::unordered_set<FrameId>& frames_needing_package_guess);
   void DeobfuscateProfiles(
+      const JavaFrameMap& java_frames_for_name,
       const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
-  void ParseDeobfuscationMappingForHeapGraph(
+  void DeobfuscateHeapGraph(
       const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
   void DeobfuscateHeapGraphClass(
       std::optional<StringId> package_name_id,
       StringId obfuscated_class_name_id,
       const protos::pbzero::ObfuscatedClass::Decoder& cls);
-  void GuessPackages();
+  void GuessPackages(JavaFrameMap& java_frames_for_name,
+                     std::unordered_set<FrameId>& frames_needing_package_guess);
   void GuessPackageForCallsite(
+      JavaFrameMap& java_frames_for_name,
       tables::ProcessTable::Id upid,
-      tables::StackProfileCallsiteTable::Id callsite_id);
+      tables::StackProfileCallsiteTable::Id callsite_id,
+      std::unordered_set<FrameId>& frames_needing_package_guess);
 
   std::vector<TraceBlob> packets_;
   TraceProcessorContext* context_;
-
-  // Maps (name, package) -> set of FrameIds for deobfuscation
-  base::
-      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>
-          java_frames_for_name_;
-
-  // Frames needing package guessing (temporary during EOF processing)
-  std::unordered_set<FrameId> frames_needing_package_guess_;
 };
 
 }  // namespace perfetto::trace_processor
