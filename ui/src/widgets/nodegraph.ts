@@ -80,6 +80,11 @@ interface CanvasState {
   dockTarget: string | null; // Node being targeted for docking
   isDockZone: boolean; // Whether we're in valid dock position
   undockCandidate: UndockCandidate | null; // Tracks potential undock before threshold
+  hoveredPort: {
+    nodeId: string;
+    portIndex: number;
+    type: 'input' | 'output';
+  } | null;
 }
 
 export interface NodeGraphApi {
@@ -275,6 +280,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     dockTarget: null,
     isDockZone: false,
     undockCandidate: null,
+    hoveredPort: null,
   };
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
@@ -298,6 +304,35 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         (e.clientY - canvasRect.top - canvasState.panOffset.y) /
         canvasState.zoom,
     };
+
+    if (canvasState.connecting) {
+      const portElement = (e.target as HTMLElement).closest(
+        '.pf-port.pf-input',
+      );
+      if (portElement) {
+        const nodeElement = portElement.closest(
+          '[data-node]',
+        ) as HTMLElement | null;
+        const portId =
+          portElement.getAttribute('data-port') ||
+          portElement.parentElement?.getAttribute('data-port');
+
+        if (nodeElement && portId) {
+          const nodeId = nodeElement.dataset.node!;
+          const [type, portIndexStr] = portId.split('-');
+          if (type === 'input') {
+            const portIndex = parseInt(portIndexStr, 10);
+            canvasState.hoveredPort = {nodeId, portIndex, type: 'input'};
+          } else {
+            canvasState.hoveredPort = null;
+          }
+        } else {
+          canvasState.hoveredPort = null;
+        }
+      } else {
+        canvasState.hoveredPort = null;
+      }
+    }
 
     if (canvasState.isPanning) {
       // Pan the canvas
@@ -576,14 +611,29 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // Convert screen coordinates to canvas content coordinates
       const fromX = canvasState.connecting.transformedX;
       const fromY = canvasState.connecting.transformedY;
-      const toX = canvasState.mousePos.transformedX ?? 0;
-      const toY = canvasState.mousePos.transformedY ?? 0;
+      let toX = canvasState.mousePos.transformedX ?? 0;
+      let toY = canvasState.mousePos.transformedY ?? 0;
 
       // For temp connections, use the stored port type
       const fromPortType = canvasState.connecting.portType;
       // The target end defaults to the opposite type for visual feedback
-      const toPortType =
+      let toPortType: 'top' | 'left' | 'right' | 'bottom' =
         fromPortType === 'top' || fromPortType === 'bottom' ? 'top' : 'left';
+
+      if (
+        canvasState.hoveredPort &&
+        canvasState.connecting.type === 'output' &&
+        canvasState.hoveredPort.type === 'input'
+      ) {
+        const {nodeId, portIndex, type} = canvasState.hoveredPort;
+        const hoverPos = getPortPosition(nodeId, type, portIndex);
+        if (hoverPos.x !== 0 || hoverPos.y !== 0) {
+          toX = hoverPos.x;
+          toY = hoverPos.y;
+          toPortType = getPortType(nodeId, type, portIndex, nodes);
+        }
+      }
+
       path.setAttribute(
         'd',
         createCurve(fromX, fromY, toX, toY, fromPortType, toPortType),
