@@ -117,7 +117,7 @@ class FullTraceJankMetricHandler implements MetricHandler {
         columns: fullTraceJankColumns,
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: fullTraceJankColumns,
+      rawColumns: fullTraceJankColumns,
       title: trackName,
     };
   }

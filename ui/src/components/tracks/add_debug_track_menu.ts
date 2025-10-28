@@ -254,7 +254,7 @@ export class AddDebugTrackMenu
             name: this.options.name,
           },
           argSetIdColumn: this.options.argSetId,
-          argColumns: attrs.availableColumns,
+          rawColumns: attrs.availableColumns,
           pivotOn: this.options.pivot,
         });
         break;
