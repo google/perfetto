@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from './button';
+import {Button, ButtonVariant} from './button';
 import {PopupMenu} from './menu';
 import {classNames} from '../base/classnames';
 
@@ -654,6 +654,183 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     return {x: startX, y: startY};
   }
 
+  function getNodesBoundingBox(
+    nodes: Node[],
+    includeChains: boolean,
+  ): {minX: number; minY: number; maxX: number; maxY: number} {
+    if (nodes.length === 0) {
+      return {minX: 0, minY: 0, maxX: 0, maxY: 0};
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    nodes.forEach((node) => {
+      const dims = getNodeDimensions(node.id);
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + dims.width);
+
+      if (includeChains) {
+        const chain = getChain(node);
+        let chainHeight = 0;
+        chain.forEach((chainNode) => {
+          const chainDims = getNodeDimensions(chainNode.id);
+          chainHeight += chainDims.height;
+        });
+        maxY = Math.max(maxY, node.y + chainHeight);
+      } else {
+        maxY = Math.max(maxY, node.y + dims.height);
+      }
+    });
+
+    return {minX, minY, maxX, maxY};
+  }
+
+  // Helper to perform auto-layout
+  function autoLayoutGraph(
+    nodes: Node[],
+    connections: Connection[],
+    onNodeDrag: ((nodeId: string, x: number, y: number) => void) | undefined,
+  ) {
+    // Build a map from any node ID (including nodes in chains) to its root node ID
+    const nodeIdToRootId = new Map<string, string>();
+    nodes.forEach((node) => {
+      nodeIdToRootId.set(node.id, node.id);
+      const chain = getChain(node);
+      chain.slice(1).forEach((chainNode) => {
+        nodeIdToRootId.set(chainNode.id, node.id);
+      });
+    });
+
+    // Find root nodes (nodes with no incoming connections)
+    // Count connections to any node in a chain as connections to the root
+    const incomingCounts = new Map<string, number>();
+    nodes.forEach((node) => incomingCounts.set(node.id, 0));
+    connections.forEach((conn) => {
+      const rootId = nodeIdToRootId.get(conn.toNode) ?? conn.toNode;
+      const currentCount = incomingCounts.get(rootId) ?? 0;
+      incomingCounts.set(rootId, currentCount + 1);
+    });
+
+    const rootNodes = nodes.filter((node) => incomingCounts.get(node.id) === 0);
+    const visited = new Set<string>();
+    const layers: string[][] = [];
+
+    // BFS to assign nodes to layers
+    const queue: Array<{id: string; layer: number}> = rootNodes.map((n) => ({
+      id: n.id,
+      layer: 0,
+    }));
+
+    while (queue.length > 0) {
+      const {id, layer} = queue.shift()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
+
+      if (layers[layer] === undefined) layers[layer] = [];
+      layers[layer].push(id);
+
+      // Add connected nodes to next layer
+      // If connection goes to a node in a chain, add the root node
+      connections
+        .filter((conn) => {
+          // Check if this node or any node in its chain is the source
+          const node = nodes.find((n) => n.id === id);
+          if (!node) return false;
+          const chain = getChain(node);
+          return chain.some((chainNode) => chainNode.id === conn.fromNode);
+        })
+        .forEach((conn) => {
+          const rootId = nodeIdToRootId.get(conn.toNode) ?? conn.toNode;
+          if (!visited.has(rootId)) {
+            queue.push({id: rootId, layer: layer + 1});
+          }
+        });
+    }
+
+    // Position nodes using actual DOM dimensions
+    const layerSpacing = 50; // Horizontal spacing between layers
+    let currentX = 50; // Start position
+
+    layers.forEach((layer) => {
+      // Find the widest node in this layer (considering entire chains)
+      let maxWidth = 0;
+      layer.forEach((nodeId) => {
+        const node = nodes.find((n) => n.id === nodeId);
+        if (node) {
+          // Check width of all nodes in the chain
+          const chain = getChain(node);
+          chain.forEach((chainNode) => {
+            const chainDims = getNodeDimensions(chainNode.id);
+            maxWidth = Math.max(maxWidth, chainDims.width);
+          });
+        }
+      });
+
+      // Position each node in this layer
+      let currentY = 50;
+      layer.forEach((nodeId) => {
+        const node = nodes.find((n) => n.id === nodeId);
+        if (node && onNodeDrag) {
+          onNodeDrag(node.id, currentX, currentY);
+
+          // Calculate height of entire chain
+          const chain = getChain(node);
+          let chainHeight = 0;
+          chain.forEach((chainNode) => {
+            const dims = getNodeDimensions(chainNode.id);
+            chainHeight += dims.height;
+          });
+
+          currentY += chainHeight + 30;
+        }
+      });
+
+      // Move to next layer
+      currentX += maxWidth + layerSpacing;
+    });
+
+    m.redraw();
+  }
+
+  function autofit(nodes: Node[], canvas: HTMLElement) {
+    if (nodes.length === 0) return;
+
+    const {minX, minY, maxX, maxY} = getNodesBoundingBox(nodes, true);
+
+    // Calculate bounding box dimensions
+    const boundingWidth = maxX - minX;
+    const boundingHeight = maxY - minY;
+
+    // Get canvas dimensions
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // Calculate zoom to fit with buffer (10% padding)
+    const bufferFactor = 0.9; // Use 90% of viewport to leave 10% buffer
+    const zoomX = (canvasRect.width * bufferFactor) / boundingWidth;
+    const zoomY = (canvasRect.height * bufferFactor) / boundingHeight;
+    const newZoom = Math.max(0.1, Math.min(5.0, Math.min(zoomX, zoomY)));
+
+    // Calculate the scaled bounding box dimensions
+    const scaledWidth = boundingWidth * newZoom;
+    const scaledHeight = boundingHeight * newZoom;
+
+    // Calculate pan offset to center the bounding box with equal padding on all sides
+    const paddingX = (canvasRect.width - scaledWidth) / 2;
+    const paddingY = (canvasRect.height - scaledHeight) / 2;
+
+    canvasState.zoom = newZoom;
+    canvasState.panOffset = {
+      x: paddingX - minX * newZoom,
+      y: paddingY - minY * newZoom,
+    };
+
+    m.redraw();
+  }
+
   return {
     oncreate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
       const {
@@ -677,122 +854,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // Create auto-layout function that uses actual DOM dimensions
       const autoLayout = () => {
         const {nodes = [], connections = [], onNodeDrag} = vnode.attrs;
-
-        // Find root nodes (nodes with no incoming connections)
-        const incomingCounts = new Map<string, number>();
-        nodes.forEach((node) => incomingCounts.set(node.id, 0));
-        connections.forEach((conn) => {
-          const currentCount = incomingCounts.get(conn.toNode) ?? 0;
-          incomingCounts.set(conn.toNode, currentCount + 1);
-        });
-
-        const rootNodes = nodes.filter(
-          (node) => incomingCounts.get(node.id) === 0,
-        );
-        const visited = new Set<string>();
-        const layers: string[][] = [];
-
-        // BFS to assign nodes to layers
-        const queue: Array<{id: string; layer: number}> = rootNodes.map(
-          (n) => ({
-            id: n.id,
-            layer: 0,
-          }),
-        );
-
-        while (queue.length > 0) {
-          const {id, layer} = queue.shift()!;
-          if (visited.has(id)) continue;
-          visited.add(id);
-
-          if (layers[layer] === undefined) layers[layer] = [];
-          layers[layer].push(id);
-
-          // Add connected nodes to next layer
-          connections
-            .filter((conn) => conn.fromNode === id)
-            .forEach((conn) => {
-              if (!visited.has(conn.toNode)) {
-                queue.push({id: conn.toNode, layer: layer + 1});
-              }
-            });
-        }
-
-        // Position nodes using actual DOM dimensions
-        const layerSpacing = 50; // Horizontal spacing between layers
-        let currentX = 50; // Start position
-
-        layers.forEach((layer) => {
-          // Find the widest node in this layer
-          let maxWidth = 0;
-          layer.forEach((nodeId) => {
-            const dims = getNodeDimensions(nodeId);
-            maxWidth = Math.max(maxWidth, dims.width);
-          });
-
-          // Position each node in this layer
-          let currentY = 50;
-          layer.forEach((nodeId) => {
-            const node = nodes.find((n) => n.id === nodeId);
-            if (node && onNodeDrag) {
-              onNodeDrag(node.id, currentX, currentY);
-
-              // Calculate height of entire chain
-              const chain = getChain(node);
-              let chainHeight = 0;
-              chain.forEach((chainNode) => {
-                const dims = getNodeDimensions(chainNode.id);
-                chainHeight += dims.height;
-              });
-
-              currentY += chainHeight + 30;
-            }
-          });
-
-          // Move to next layer
-          currentX += maxWidth + layerSpacing;
-        });
-
-        m.redraw();
+        autoLayoutGraph(nodes, connections, onNodeDrag);
       };
 
       // Create recenter function that brings all nodes into view
       const recenter = () => {
         const {nodes = []} = vnode.attrs;
-
-        if (nodes.length === 0) return;
-
-        // Calculate bounding box of all nodes
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-
-        nodes.forEach((node) => {
-          const dims = getNodeDimensions(node.id);
-          minX = Math.min(minX, node.x);
-          minY = Math.min(minY, node.y);
-          maxX = Math.max(maxX, node.x + dims.width);
-          maxY = Math.max(maxY, node.y + dims.height);
-        });
-
-        // Calculate center of bounding box
-        const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
-
-        // Get canvas dimensions
         const canvas = vnode.dom as HTMLElement;
-        const canvasRect = canvas.getBoundingClientRect();
-        const viewportCenterX = canvasRect.width / 2;
-        const viewportCenterY = canvasRect.height / 2;
-
-        // Calculate required pan offset to center the nodes
-        canvasState.panOffset = {
-          x: viewportCenterX - centerX,
-          y: viewportCenterY - centerY,
-        };
-
-        m.redraw();
+        autofit(nodes, canvas);
       };
 
       // Provide API to parent
@@ -1097,129 +1166,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             m(Button, {
               label: 'Auto Layout',
               icon: 'account_tree',
-              compact: true,
+              variant: ButtonVariant.Filled,
               onclick: () => {
                 const {nodes = [], connections = [], onNodeDrag} = vnode.attrs;
-
-                // Find root nodes (nodes with no incoming connections)
-                const incomingCounts = new Map<string, number>();
-                nodes.forEach((node) => incomingCounts.set(node.id, 0));
-                connections.forEach((conn) => {
-                  const currentCount = incomingCounts.get(conn.toNode) ?? 0;
-                  incomingCounts.set(conn.toNode, currentCount + 1);
-                });
-
-                const rootNodes = nodes.filter(
-                  (node) => incomingCounts.get(node.id) === 0,
-                );
-                const visited = new Set<string>();
-                const layers: string[][] = [];
-
-                // BFS to assign nodes to layers
-                const queue: Array<{id: string; layer: number}> = rootNodes.map(
-                  (n) => ({
-                    id: n.id,
-                    layer: 0,
-                  }),
-                );
-
-                while (queue.length > 0) {
-                  const {id, layer} = queue.shift()!;
-                  if (visited.has(id)) continue;
-                  visited.add(id);
-
-                  if (layers[layer] === undefined) layers[layer] = [];
-                  layers[layer].push(id);
-
-                  // Add connected nodes to next layer
-                  connections
-                    .filter((conn) => conn.fromNode === id)
-                    .forEach((conn) => {
-                      if (!visited.has(conn.toNode)) {
-                        queue.push({id: conn.toNode, layer: layer + 1});
-                      }
-                    });
-                }
-
-                // Position nodes using actual DOM dimensions
-                const layerSpacing = 50; // Horizontal spacing between layers
-                let currentX = 50; // Start position
-
-                layers.forEach((layer) => {
-                  // Find the widest node in this layer
-                  let maxWidth = 0;
-                  layer.forEach((nodeId) => {
-                    const dims = getNodeDimensions(nodeId);
-                    maxWidth = Math.max(maxWidth, dims.width);
-                  });
-
-                  // Position each node in this layer
-                  let currentY = 50;
-                  layer.forEach((nodeId) => {
-                    const node = nodes.find((n) => n.id === nodeId);
-                    if (node && onNodeDrag) {
-                      onNodeDrag(node.id, currentX, currentY);
-
-                      // Calculate height of entire chain
-                      const chain = getChain(node);
-                      let chainHeight = 0;
-                      chain.forEach((chainNode) => {
-                        const dims = getNodeDimensions(chainNode.id);
-                        chainHeight += dims.height;
-                      });
-
-                      currentY += chainHeight + 30;
-                    }
-                  });
-
-                  // Move to next layer
-                  currentX += maxWidth + layerSpacing;
-                });
-
-                m.redraw();
+                autoLayoutGraph(nodes, connections, onNodeDrag);
               },
             }),
             m(Button, {
-              label: 'Recenter',
+              label: 'Fit to Screen',
               icon: 'center_focus_strong',
-              compact: true,
+              variant: ButtonVariant.Filled,
               onclick: (e: MouseEvent) => {
                 const {nodes = []} = vnode.attrs;
-
-                if (nodes.length === 0) return;
-
-                // Calculate bounding box of all nodes
-                let minX = Infinity;
-                let minY = Infinity;
-                let maxX = -Infinity;
-                let maxY = -Infinity;
-
-                nodes.forEach((node) => {
-                  const dims = getNodeDimensions(node.id);
-                  minX = Math.min(minX, node.x);
-                  minY = Math.min(minY, node.y);
-                  maxX = Math.max(maxX, node.x + dims.width);
-                  maxY = Math.max(maxY, node.y + dims.height);
-                });
-
-                // Calculate center of bounding box
-                const centerX = (minX + maxX) / 2;
-                const centerY = (minY + maxY) / 2;
-
-                // Get canvas dimensions
                 const canvas = (e.currentTarget as HTMLElement).closest(
                   '.pf-canvas',
                 );
                 if (canvas) {
-                  const canvasRect = canvas.getBoundingClientRect();
-                  const viewportCenterX = canvasRect.width / 2;
-                  const viewportCenterY = canvasRect.height / 2;
-
-                  // Calculate required pan offset to center the nodes
-                  canvasState.panOffset = {
-                    x: viewportCenterX - centerX,
-                    y: viewportCenterY - centerY,
-                  };
+                  autofit(nodes, canvas as HTMLElement);
                 }
               },
             }),
