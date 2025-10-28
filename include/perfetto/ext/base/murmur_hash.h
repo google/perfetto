@@ -192,12 +192,19 @@ struct MurmurHash {
     } else if constexpr (std::is_same_v<T, float>) {
       return murmur_internal::MurmurHashMix(
           murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
+    } else if constexpr (std::is_same_v<T, std::string> ||
+                         std::is_same_v<T, std::string_view> ||
+                         std::is_same_v<T, base::StringView>) {
+      return murmur_internal::MurmurHashBytes(value.data(), value.size());
+    } else if constexpr (std::is_same_v<T, const char*>) {
+      std::string view(value);
+      return murmur_internal::MurmurHashBytes(view.data(), view.size());
     } else {
       return std::hash<T>{}(value);
     }
   }
 
-  // Heterogeneous operator() for integeral types implicitly convertible to T.
+  // Heterogeneous operator() for types implicitly convertible to T.
   // Converts U to T first to ensure consistent hashing.
   template <typename U>
   auto operator()(const U& value) const
@@ -207,11 +214,8 @@ struct MurmurHash {
     return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
   }
 };
-
-// Explicit specialization for std::string to support heterogeneous lookup
-// with std::string_view and const char*.
-template <>
-struct MurmurHash<std::string> {
+// Base class for explicit specialization for std::string and friends.
+struct StringMurmurHash {
   // Standard C++ library requirement for heterogeneous lookup support.
   using is_transparent = void;
 
@@ -229,6 +233,14 @@ struct MurmurHash<std::string> {
     return murmur_internal::MurmurHashBytes(value.data(), value.size());
   }
 };
+template <>
+struct MurmurHash<std::string> : public StringMurmurHash {};
+template <>
+struct MurmurHash<std::string_view> : public StringMurmurHash {};
+template <>
+struct MurmurHash<base::StringView> : public StringMurmurHash {};
+template <>
+struct MurmurHash<const char*> : public StringMurmurHash {};
 
 // Simple wrapper function around MurmurHash to improve clarity in callsites
 // to not have to instantiate the class and then call operator().
