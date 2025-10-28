@@ -23,8 +23,7 @@ import {ColumnInfo, columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
 import m from 'mithril';
 import {Card} from '../../../../../widgets/card';
-import {FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {FilterOperation, UIFilter} from '../../operations/filter';
 import {MultiselectInput} from '../../../../../widgets/multiselect_input';
 
 export interface AddColumnsNodeState extends QueryNodeState {
@@ -119,8 +118,8 @@ export class AddColumnsNode implements ModificationNode {
         m(FilterOperation, {
           filters: this.state.filters,
           sourceCols: this.finalCols,
-          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-            this.state.filters = newFilters as FilterDefinition[];
+          onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+            this.state.filters = [...newFilters];
           },
         }),
       ]);

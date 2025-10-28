@@ -446,7 +446,7 @@ export default class implements PerfettoPlugin {
     const groupName = 'Device State';
     const deviceStateGroup = ctx.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.workspace, 'DEVICE_STATE');
+      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'DEVICE_STATE');
     support.groups.set(groupName, deviceStateGroup);
 
     const query = (name: string, track: string) =>

@@ -470,6 +470,14 @@ class TraceStorage {
 
   tables::ModulesTable* mutable_modules_table() { return &modules_table_; }
 
+  const tables::TraceImportLogsTable& trace_import_logs_table() const {
+    return trace_import_logs_table_;
+  }
+
+  tables::TraceImportLogsTable* mutable_trace_import_logs_table() {
+    return &trace_import_logs_table_;
+  }
+
   const tables::ClockSnapshotTable& clock_snapshot_table() const {
     return clock_snapshot_table_;
   }
@@ -1114,6 +1122,8 @@ class TraceStorage {
   tables::BuildFlagsTable build_flags_table_{&string_pool_};
 
   tables::ModulesTable modules_table_{&string_pool_};
+
+  tables::TraceImportLogsTable trace_import_logs_table_{&string_pool_};
 
   // Contains data from all the clock snapshots in the trace.
   tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_};

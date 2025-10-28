@@ -12045,6 +12045,22 @@ genrule {
     ],
 }
 
+// GN: //protos/third_party/chromium:extension_descriptor
+genrule {
+    name: "perfetto_protos_third_party_chromium_extension_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_descriptor",
+        ":perfetto_protos_third_party_chromium_descriptor",
+    ],
+    tools: [
+        "perfetto_src_protozero_descriptor_diff_protozero_descriptor_diff",
+    ],
+    cmd: "$(location perfetto_src_protozero_descriptor_diff_protozero_descriptor_diff) --out $(out) --minuend $(location :perfetto_protos_third_party_chromium_descriptor) --subtrahend $(location :perfetto_protos_perfetto_trace_descriptor)",
+    out: [
+        "protos/third_party/chromium/chrome_track_event_extension.descriptor",
+    ],
+}
+
 // GN: //protos/third_party/chromium:zero
 filegroup {
     name: "perfetto_protos_third_party_chromium_zero",
@@ -13175,6 +13191,50 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero/descriptor_diff:lib
+filegroup {
+    name: "perfetto_src_protozero_descriptor_diff_lib",
+    srcs: [
+        "src/protozero/descriptor_diff/descriptor_diff.cc",
+    ],
+}
+
+// GN: //src/protozero/descriptor_diff:protozero_descriptor_diff
+cc_binary_host {
+    name: "perfetto_src_protozero_descriptor_diff_protozero_descriptor_diff",
+    srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
+        ":perfetto_include_perfetto_protozero_protozero",
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_protos_perfetto_common_zero_gen",
+        ":perfetto_src_base_base",
+        ":perfetto_src_base_version",
+        ":perfetto_src_protozero_descriptor_diff_lib",
+        ":perfetto_src_protozero_protozero",
+        "src/protozero/descriptor_diff/main.cc",
+    ],
+    generated_headers: [
+        "perfetto_protos_perfetto_common_zero_gen_headers",
+        "perfetto_src_base_version_gen_h",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+}
+
+// GN: //src/protozero/descriptor_diff:unittests
+filegroup {
+    name: "perfetto_src_protozero_descriptor_diff_unittests",
+    srcs: [
+        "src/protozero/descriptor_diff/descriptor_diff_unittest.cc",
+    ],
+}
+
 // GN: //src/protozero/filtering:bytecode_common
 filegroup {
     name: "perfetto_src_protozero_filtering_bytecode_common",
@@ -14080,6 +14140,7 @@ filegroup {
         "src/trace_processor/importers/common/event_tracker.cc",
         "src/trace_processor/importers/common/flow_tracker.cc",
         "src/trace_processor/importers/common/global_args_tracker.cc",
+        "src/trace_processor/importers/common/import_logs_tracker.cc",
         "src/trace_processor/importers/common/jit_cache.cc",
         "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
         "src/trace_processor/importers/common/machine_tracker.cc",
@@ -14366,6 +14427,7 @@ filegroup {
         "src/trace_processor/importers/proto/android_probes_tracker.cc",
         "src/trace_processor/importers/proto/content_analyzer.cc",
         "src/trace_processor/importers/proto/deobfuscation_module.cc",
+        "src/trace_processor/importers/proto/deobfuscation_tracker.cc",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
         "src/trace_processor/importers/proto/gpu_event_parser.cc",
         "src/trace_processor/importers/proto/graphics_event_module.cc",
@@ -14409,11 +14471,11 @@ genrule {
 genrule {
     name: "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
     srcs: [
-        ":perfetto_protos_third_party_chromium_descriptor",
+        ":perfetto_protos_third_party_chromium_extension_descriptor",
     ],
     cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
     out: [
-        "src/trace_processor/importers/proto/chrome_track_event.descriptor.h",
+        "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
     ],
     tool_files: [
         "tools/gen_cc_proto_descriptor.py",
@@ -17542,6 +17604,8 @@ cc_test {
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protovm_test_messages_lite_gen",
         ":perfetto_src_protovm_unittests",
+        ":perfetto_src_protozero_descriptor_diff_lib",
+        ":perfetto_src_protozero_descriptor_diff_unittests",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",

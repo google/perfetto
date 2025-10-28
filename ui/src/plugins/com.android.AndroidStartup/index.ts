@@ -69,7 +69,7 @@ export default class implements PerfettoPlugin {
       uri: startupTrackUri,
       sortOrder: -6,
     });
-    ctx.workspace.addChildInOrder(startupTrack);
+    ctx.defaultWorkspace.addChildInOrder(startupTrack);
 
     const breakdownTrackUri = '/android_startups_breakdown';
     ctx.tracks.registerTrack({

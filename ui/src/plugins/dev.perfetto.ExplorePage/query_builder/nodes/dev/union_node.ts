@@ -25,14 +25,14 @@ import protos from '../../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../../column_info';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../../operations/filter';
 import {Card, CardStack} from '../../../../../widgets/card';
 import {Checkbox} from '../../../../../widgets/checkbox';
 
 export interface UnionSerializedState {
   unionNodes: string[];
   selectedColumns: ColumnInfo[];
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }
@@ -51,7 +51,7 @@ export class UnionNode implements MultiSourceNode {
   readonly state: UnionNodeState;
   customTitle?: string;
   comment?: string;
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
 
   get finalCols(): ColumnInfo[] {
     return this.state.selectedColumns.filter((col) => col.checked);

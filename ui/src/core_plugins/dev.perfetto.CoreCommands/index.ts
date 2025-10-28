@@ -302,7 +302,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
-        const workspace = ctx.workspace;
+        const workspace = ctx.currentWorkspace;
         workspace.pinnedTracks.forEach((t) => workspace.unpinTrack(t));
       },
     });
@@ -311,7 +311,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
-        ctx.workspace.flatTracks.forEach((track) => track.expand());
+        ctx.currentWorkspace.flatTracks.forEach((track) => track.expand());
       },
     });
 
@@ -319,7 +319,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
-        ctx.workspace.flatTracks.forEach((track) => track.collapse());
+        ctx.currentWorkspace.flatTracks.forEach((track) => track.collapse());
       },
     });
 
@@ -644,13 +644,13 @@ export default class CoreCommands implements PerfettoPlugin {
           } else {
             // If the entire time range is already covered, update the selection
             // to cover all tracks.
-            tracksToSelect = ctx.workspace.flatTracks
+            tracksToSelect = ctx.currentWorkspace.flatTracks
               .map((t) => t.uri)
               .filter((uri) => uri !== undefined);
           }
         } else {
           // If the current selection is not an area, select all.
-          tracksToSelect = ctx.workspace.flatTracks
+          tracksToSelect = ctx.currentWorkspace.flatTracks
             .map((t) => t.uri)
             .filter((uri) => uri !== undefined);
         }
@@ -692,7 +692,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.CopyPinnedToWorkspace',
       name: 'Copy pinned tracks to workspace',
       callback: async () => {
-        const pinnedTracks = ctx.workspace.pinnedTracks;
+        const pinnedTracks = ctx.currentWorkspace.pinnedTracks;
         if (!pinnedTracks.length) {
           window.alert('No pinned tracks to copy');
           return;
@@ -715,7 +715,7 @@ export default class CoreCommands implements PerfettoPlugin {
       callback: async () => {
         // Copies all filtered tracks as a flat list to a new workspace. This
         // means parents are not included.
-        const tracks = ctx.workspace.flatTracks.filter((track) =>
+        const tracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           trackMatchesFilter(ctx, track),
         );
 
@@ -750,7 +750,7 @@ export default class CoreCommands implements PerfettoPlugin {
         if (!workspace) return;
 
         for (const uri of selection.trackUris) {
-          const node = ctx.workspace.getTrackByUri(uri);
+          const node = ctx.currentWorkspace.getTrackByUri(uri);
           if (!node) continue;
           const newNode = node.clone();
           workspace.addChildLast(newNode);

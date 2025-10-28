@@ -228,9 +228,10 @@ class ProcessTracker {
 
   // Tracks the namespace-local thread ids for a thread running in a pid
   // namespace.
-  void UpdateNamespacedThread(int64_t pid,
-                              int64_t tid,
-                              std::vector<int64_t> nstid);
+  // Returns false if the corresponding process was not found (likely due to
+  // data loss).
+  PERFETTO_WARN_UNUSED_RESULT bool
+  UpdateNamespacedThread(int64_t pid, int64_t tid, std::vector<int64_t> nstid);
 
   // The UniqueTid of the swapper thread, is 0 for the default machine and is
   // > 0 for remote machines.

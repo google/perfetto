@@ -363,15 +363,17 @@ export default class implements PerfettoPlugin {
         break;
       }
       case undefined: {
-        this.getGroupByName(ctx.workspace.tracks, group, upid).addChildInOrder(
-          track,
-        );
+        this.getGroupByName(
+          ctx.defaultWorkspace.tracks,
+          group,
+          upid,
+        ).addChildInOrder(track);
         break;
       }
       default: {
         const standardGroup = ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.workspace, topLevelGroup);
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, topLevelGroup);
         this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
         break;
       }
@@ -469,7 +471,7 @@ export default class implements PerfettoPlugin {
         const processGroupsPlugin = ctx.plugins.getPlugin(
           ProcessThreadGroupsPlugin,
         );
-        const topLevelTracks = ctx.workspace.children;
+        const topLevelTracks = ctx.defaultWorkspace.children;
         const upidOrderMap = new Map<number, number>();
 
         // Get the position of each upid's process group in the top-level tracks
