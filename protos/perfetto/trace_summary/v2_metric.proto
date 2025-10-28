@@ -334,18 +334,23 @@ message TraceMetricV2Spec {
   // Specification for a interned dimension associated with this metric.
   // For a given dimension, there can only be one interned dimension attached to
   // it.
+  // Interned dimensions are useful for providing additional information about
+  // a dimension without adding that information as a dimension to every metric
+  // row. This is particularly useful when you have columns associated with a
+  // dimension that would otherwise blow up the proto size due to repetition. By
+  // using interned dimensions, you can emit only the necessary keys, reducing
+  // data redundancy.
   //
-  // Interned dimensions are useful when you have a bunch of columns
-  // associated with a single dimension, and repeating them many times would
-  // blow up the proto size. Using interned dimensions, you can emit
-  // only an ID in the key and then "expand" to match, reducing data
-  // redundancy.
-  // For example, if a metric is dimensioned by package name, we can use
-  // interned dimension to provide APK version code for each package name
-  // without adding version code as a dimension to every row.
+  // For example, if a metric is dimensioned by package name, you can use an
+  // interned dimension to provide the APK version code for each package without
+  // adding the version code as a dimension to every row.
   //
-  // Note: The query for an interned dimension must return a unique row per
-  // dimension value, as only one row per input dimension is allowed.
+  // Note: To optimize the output size, only the keys that are actually present
+  // in the main metric query's output will be included in the interned
+  // dimension bundles.
+  //
+  // The query for an interned dimension must return a unique row per dimension
+  // value, as only one row per input dimension is allowed.
   //
   // Example:
   // ```

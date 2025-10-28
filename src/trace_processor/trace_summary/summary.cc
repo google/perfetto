@@ -67,6 +67,23 @@ using TraceSummary = protos::pbzero::TraceSummary;
 using PerfettoSqlStructuredQuery = protos::pbzero::PerfettoSqlStructuredQuery;
 using InternedDimensionSpec = TraceMetricV2Spec::InternedDimensionSpec;
 
+uint64_t HashOf(const SqlValue& val) {
+  base::FnvHasher hasher;
+  hasher.Update(val.type);
+  if (val.is_null()) {
+  } else if (val.type == SqlValue::kLong) {
+    hasher.Update(val.long_value);
+  } else if (val.type == SqlValue::kDouble) {
+    hasher.Update(val.double_value);
+  } else if (val.type == SqlValue::kString) {
+    hasher.Update(val.string_value);
+  } else {
+    PERFETTO_FATAL("Unsupported SqlValue type %d for hashing",
+                   static_cast<int>(val.type));
+  }
+  return hasher.digest();
+}
+
 struct Metric {
   std::string id;
   std::string query;
@@ -526,26 +543,12 @@ base::Status ValidateInternedDimensionSpecs(
   return base::OkStatus();
 }
 
-base::Status HashKeyAndInsert(const SqlValue& key_val,
-                              base::StringView key_column_name,
-                              base::FlatHashMap<uint64_t, bool>& seen_keys) {
-  base::FnvHasher key_hasher;
-  key_hasher.Update(key_val.type);
-  if (key_val.is_null()) {
-  } else if (key_val.type == SqlValue::kLong) {
-    key_hasher.Update(key_val.long_value);
-  } else if (key_val.type == SqlValue::kDouble) {
-    key_hasher.Update(key_val.double_value);
-  } else if (key_val.type == SqlValue::kString) {
-    key_hasher.Update(key_val.string_value);
-  } else {
-    return base::ErrStatus(
-        "Unsupported key type %d for interned dimension bundle with key "
-        "column '%.*s'",
-        static_cast<int>(key_val.type),
-        static_cast<int>(key_column_name.size()), key_column_name.data());
-  }
-  if (!seen_keys.Insert(key_hasher.digest(), true).second) {
+// Renamed from HashKeyAndInsert.
+base::Status CheckForDuplicateAndInsert(
+    uint64_t hash,
+    base::StringView key_column_name,
+    base::FlatHashMap<uint64_t, bool>& seen_keys) {
+  if (!seen_keys.Insert(hash, true).second) {
     return base::ErrStatus(
         "Duplicate key found in interned dimension bundle with key column "
         "'%.*s'",
@@ -558,6 +561,8 @@ base::Status WriteInternedDimensionBundles(
     TraceProcessor* processor,
     const TraceMetricV2Spec::Decoder& spec,
     const std::vector<std::string>& interned_dimension_queries,
+    const base::FlatHashMap<std::string, base::FlatHashMap<uint64_t, bool>>&
+        interned_dim_keys_in_metric_bundle,
     TraceMetricV2Bundle* bundle) {
   RETURN_IF_ERROR(ValidateInternedDimensionSpecs(spec));
   size_t interned_dimension_idx = 0;
@@ -566,6 +571,8 @@ base::Status WriteInternedDimensionBundles(
     InternedDimensionSpec::ColumnSpec::Decoder key_col_spec(
         ms.key_column_spec());
     base::StringView key_column_name = key_col_spec.name();
+    const auto& allowed_keys =
+        *interned_dim_keys_in_metric_bundle.Find(key_column_name.ToStdString());
     auto* interned_dimension_bundle = bundle->add_interned_dimension_bundles();
 
     const std::string& sql =
@@ -613,7 +620,15 @@ base::Status WriteInternedDimensionBundles(
     base::FlatHashMap<uint64_t, bool> seen_keys;
     while (query_it.Next()) {
       const auto& key_val = query_it.Get(column_infos[0].first);
-      RETURN_IF_ERROR(HashKeyAndInsert(key_val, key_column_name, seen_keys));
+      uint64_t hash = HashOf(key_val);
+
+      // If the key was not in the metric bundle, we don't need to output
+      // its interned data.
+      if (!allowed_keys.Find(hash)) {
+        continue;
+      }
+      RETURN_IF_ERROR(
+          CheckForDuplicateAndInsert(hash, key_column_name, seen_keys));
       auto* row = interned_dimension_bundle->add_interned_dimension_rows();
       RETURN_IF_ERROR(WriteInternedDimensionValue(
           query_it.Get(column_infos[0].first), column_infos[0].second,
@@ -657,6 +672,18 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
 
     const Metric* first = value.front();
     TraceMetricV2Spec::Decoder first_spec(first->spec);
+
+    base::FlatHashMap<std::string, base::FlatHashMap<uint64_t, bool>>
+        interned_dim_keys_in_metric_bundle;
+    for (auto ms_it = first_spec.interned_dimension_specs(); ms_it; ++ms_it) {
+      InternedDimensionSpec::Decoder ms_decoder(*ms_it);
+      interned_dim_keys_in_metric_bundle.Insert(
+          InternedDimensionSpec::ColumnSpec::Decoder(
+              ms_decoder.key_column_spec())
+              .name()
+              .ToStdString(),
+          base::FlatHashMap<uint64_t, bool>());
+    }
 
     auto query_it = processor->ExecuteQuery(first->query);
     if (!query_it.Status().ok()) {
@@ -734,6 +761,10 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
       for (const auto& dim : dimensions_with_index) {
         RETURN_IF_ERROR(WriteDimension(dim, bundle_id, query_it,
                                        row->add_dimension(), &hasher));
+        if (auto* key_set = interned_dim_keys_in_metric_bundle.Find(dim.name)) {
+          const auto& key_val = query_it.Get(dim.index);
+          key_set->Insert(HashOf(key_val), true);
+        }
       }
       uint64_t hash = hasher.digest();
       if (is_unique_dimensions && !seen_dimensions.Insert(hash, true).second) {
@@ -772,7 +803,8 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
     RETURN_IF_ERROR(query_it.Status());
     if (!first->interned_dimension_queries.empty()) {
       RETURN_IF_ERROR(WriteInternedDimensionBundles(
-          processor, first_spec, first->interned_dimension_queries, bundle));
+          processor, first_spec, first->interned_dimension_queries,
+          interned_dim_keys_in_metric_bundle, bundle));
     }
   }
   return base::OkStatus();
