@@ -29,6 +29,8 @@
   background-color: var(--pf-color-background);
   position: relative;
   user-select: none;
+  font-family: var(--pf-font-compact);
+  cursor: grab;
 }
 
 .pf-canvas-content {
@@ -63,18 +65,13 @@
   padding-block: 12px;
 }
 
-.pf-node.pf-selected {
-  border-color: var(--pf-color-accent);
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
-}
-
 // Wrapper for dock chains - uses flexbox to make children same width
 .pf-dock-chain {
   position: absolute;
   display: flex;
   flex-direction: column;
   pointer-events: auto;
+  box-shadow: 0 4px 12px var(--pf-color-box-shadow);
 
   // All nodes in chain stretch to same width (determined by widest node)
   .pf-node {
@@ -82,14 +79,22 @@
     position: relative !important;
     left: auto !important;
     top: auto !important;
+    box-shadow: none; // No box shadow for docked nodes
   }
+}
+
+.pf-node.pf-selected {
+  border-color: var(--pf-color-accent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+  z-index: 1; // Make sure box shadow appears above other nodes
 }
 
 // Docked child: flush top edge with no rounded corners or border
 .pf-node.pf-docked-child {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top: none;
+  margin-top: -2px; // Overlap border with parent
 }
 
 // Parent with docked child: flush bottom edge with no rounded corners
@@ -135,8 +140,6 @@
 
 .pf-node-content {
   padding-inline: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--pf-color-border-secondary);
 }
 
 .pf-port-row {
@@ -168,14 +171,12 @@
   cursor: crosshair;
   position: absolute;
   top: 50%;
-  transition: all 0.2s;
   z-index: 10;
 }
 
-.pf-port:hover {
+.pf-output:hover {
   background: var(--pf-color-accent);
   border-color: var(--pf-color-accent);
-  transform: translateY(-50%) scale(1.2);
 }
 
 .pf-port.pf-connected {
@@ -202,13 +203,6 @@
 
 .pf-port.pf-output {
   right: -8px;
-}
-
-.pf-port.pf-active {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
-  box-shadow: 0 0 8px
-    color-mix(in srgb, var(--pf-color-accent) 80%, transparent);
 }
 
 svg {
@@ -247,4 +241,30 @@ svg {
   stroke-width: 2;
   fill: none;
   stroke-dasharray: 5, 5;
+}
+
+.pf-connecting {
+  cursor: crosshair;
+
+  .pf-input:hover {
+    background: var(--pf-color-accent);
+    border-color: var(--pf-color-accent);
+    cursor: copy;
+  }
+  .pf-output:hover {
+    background: var(--pf-color-border);
+    border-color: var(--pf-color-border-secondary);
+    cursor: not-allowed;
+  }
+}
+
+.pf-output.pf-active,
+.pf-output.pf-active:hover {
+  background: var(--pf-color-accent);
+  border-color: var(--pf-color-accent);
+  cursor: crosshair;
+}
+
+.pf-panning {
+  cursor: grabbing;
 }
