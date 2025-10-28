@@ -107,9 +107,6 @@ $border-3: 2px solid var(--pf-color-border);
 }
 
 .pf-grid {
-  display: flex;
-  flex-direction: column;
-
   white-space: nowrap;
   font-family: var(--pf-font-compact);
   font-size: 14px;
@@ -131,7 +128,7 @@ $border-3: 2px solid var(--pf-color-border);
     flex-direction: column;
     background: var(--pf-color-background);
     border-bottom: $border-1;
-    min-width: 100%;
+    min-width: max-content;
     position: sticky;
     top: 0;
     z-index: 1; // Ensure header is above body rows when scrolling.
@@ -145,7 +142,7 @@ $border-3: 2px solid var(--pf-color-border);
   &__body {
     display: flex;
     flex-direction: column;
-    min-width: 100%;
+    min-width: max-content;
 
     .pf-grid__row {
       &:hover {

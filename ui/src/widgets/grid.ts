@@ -419,7 +419,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         {
           style: isVirtualized
             ? {
-                minHeight: `${totalRows * rowHeight}px`,
+                height: `${totalRows * rowHeight}px`,
               }
             : undefined,
           ref: 'slider',
