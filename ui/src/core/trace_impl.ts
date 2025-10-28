@@ -108,7 +108,7 @@ export class TraceContext implements Disposable {
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,
       this.timeline,
-      this.workspaceMgr.currentWorkspace,
+      this.workspaceMgr,
       this.trackMgr,
     );
 
@@ -410,8 +410,12 @@ export class TraceImpl implements Trace {
     return this.traceCtx.tabMgr;
   }
 
-  get workspace() {
+  get currentWorkspace() {
     return this.traceCtx.workspaceMgr.currentWorkspace;
+  }
+
+  get defaultWorkspace() {
+    return this.traceCtx.workspaceMgr.defaultWorkspace;
   }
 
   get workspaces() {
