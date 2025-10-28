@@ -571,7 +571,7 @@ base::Status WriteInternedDimensionBundles(
     InternedDimensionSpec::ColumnSpec::Decoder key_col_spec(
         ms.key_column_spec());
     base::StringView key_column_name = key_col_spec.name();
-    const auto& allowed_keys =
+    const auto& dim_keys_in_metric_bundle =
         *interned_dim_keys_in_metric_bundle.Find(key_column_name.ToStdString());
     auto* interned_dimension_bundle = bundle->add_interned_dimension_bundles();
 
@@ -621,10 +621,9 @@ base::Status WriteInternedDimensionBundles(
     while (query_it.Next()) {
       const auto& key_val = query_it.Get(column_infos[0].first);
       uint64_t hash = HashOf(key_val);
-
       // If the key was not in the metric bundle, we don't need to output
       // its interned data.
-      if (!allowed_keys.Find(hash)) {
+      if (!dim_keys_in_metric_bundle.Find(hash)) {
         continue;
       }
       RETURN_IF_ERROR(
