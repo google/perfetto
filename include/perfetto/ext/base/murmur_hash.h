@@ -27,6 +27,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 
 // This file provides an implementation of the 64-bit MurmurHash2 algorithm,
@@ -196,14 +197,14 @@ struct MurmurHash {
     }
   }
 
-  // Heterogeneous operator() for types implicitly convertible to T.
+  // Heterogeneous operator() for integeral types implicitly convertible to T.
   // Converts U to T first to ensure consistent hashing.
   template <typename U>
   auto operator()(const U& value) const
-      -> std::enable_if_t<std::is_convertible_v<U, T> &&
-                              !std::is_same_v<std::decay_t<U>, T>,
+      -> std::enable_if_t<std::is_integral_v<T> && std::is_integral_v<U> &&
+                              std::is_convertible_v<U, T>,
                           uint64_t> {
-    return (*this)(static_cast<T>(value));
+    return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
   }
 };
 
@@ -223,6 +224,9 @@ struct MurmurHash<std::string> {
   uint64_t operator()(const char* value) const {
     std::string_view sv(value);
     return murmur_internal::MurmurHashBytes(sv.data(), sv.size());
+  }
+  uint64_t operator()(base::StringView value) const {
+    return murmur_internal::MurmurHashBytes(value.data(), value.size());
   }
 };
 

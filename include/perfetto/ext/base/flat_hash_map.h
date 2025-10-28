@@ -105,13 +105,13 @@ struct FlatHashMapBase {
   // are equality comparable
   template <typename K, typename Key, typename Hasher>
   static constexpr bool IsLookupKeyAllowed() {
-    if constexpr (std::is_convertible_v<K, Key>) {
-      return true;
-    } else if constexpr (HasIsTransparent<Hasher>::value) {
+    if constexpr (HasIsTransparent<Hasher>::value) {
       return std::is_invocable_v<Hasher, const K&> &&
              std::is_same_v<decltype(std::declval<const Key&>() ==
                                      std::declval<const K&>()),
                             bool>;
+    } else if constexpr (std::is_convertible_v<K, Key>) {
+      return true;
     } else {
       return false;
     }
