@@ -36,6 +36,7 @@ interface NodeTemplate {
   inputs: string[];
   outputs: string[];
   content?: m.Children;
+  allInputsLeft?: boolean;
 }
 
 export function NodeGraphDemo() {
@@ -138,6 +139,7 @@ export function NodeGraphDemo() {
     join: {
       inputs: ['Left', 'Right'],
       outputs: ['Output'],
+      allInputsLeft: true,
       content: m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
@@ -195,6 +197,7 @@ export function NodeGraphDemo() {
     const template = nodeTemplates[model.type];
     const hasNext = model.nextId !== undefined;
     const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+    const allInputsLeft = template.allInputsLeft ?? false;
 
     return {
       id: model.id,
@@ -204,6 +207,7 @@ export function NodeGraphDemo() {
       outputs: template.outputs,
       content: template.content,
       next: nextModel ? renderChildNode(nextModel) : undefined,
+      allInputsLeft,
       addMenuItems: [
         m(MenuItem, {
           label: 'Select',

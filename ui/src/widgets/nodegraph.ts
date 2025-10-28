@@ -44,6 +44,8 @@ export interface Node {
   contextMenu?: m.Children; // Optional context menu items
   next?: Omit<Node, 'x' | 'y'>; // Next node in chain (linked list)
   addMenuItems?: m.Children;
+  allInputsLeft?: boolean;
+  allOutputsRight?: boolean;
 }
 
 interface ConnectingState {
@@ -439,7 +441,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     nodes: Node[],
   ): 'top' | 'bottom' | 'left' | 'right' {
     // Search in main nodes array
-    let node = nodes.find((n) => n.id === nodeId);
+    let node: Node | Omit<Node, 'x' | 'y'> | undefined = nodes.find(
+      (n) => n.id === nodeId,
+    );
 
     // If not found, search in the next chains of all nodes
     if (!node) {
@@ -447,7 +451,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         let current = rootNode.next;
         while (current) {
           if (current.id === nodeId) {
-            node = current as Node;
+            node = current;
             break;
           }
           current = current.next;
@@ -459,8 +463,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     if (!node) return portType === 'input' ? 'left' : 'right';
 
     if (portType === 'input') {
+      if (node.allInputsLeft) return 'left';
       return portIndex === 0 ? 'top' : 'left';
     } else {
+      if (node.allOutputsRight) return 'right';
       return portIndex === 0 ? 'bottom' : 'right';
     }
   }
@@ -660,10 +666,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     const DOCK_DISTANCE = 30;
     const HORIZONTAL_TOLERANCE = 100;
 
-    // Check if dragged node can be docked above others
-    // It can dock above if it has inputs (top port exists)
-    const draggedCanDockAbove = (draggedNode.inputs?.length ?? 0) > 0;
-    if (!draggedCanDockAbove) {
+    // Check if dragged node can be docked.
+    // It can be docked if it has a top input port.
+    const draggedCanDock =
+      (draggedNode.inputs?.length ?? 0) > 0 && !draggedNode.allInputsLeft;
+    if (!draggedCanDock) {
       return {targetNodeId: null, isValidZone: false};
     }
 
@@ -678,9 +685,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         lastInChain = lastInChain.next;
       }
 
-      // Check if last node in chain allows docking below it
-      // It can have nodes dock below if it has outputs (bottom port exists)
-      const lastCanDockBelow = (lastInChain.outputs?.length ?? 0) > 0;
+      // Check if last node in chain allows docking below it.
+      // It can have nodes dock below if it has a bottom output port.
+      const lastCanDockBelow =
+        (lastInChain.outputs?.length ?? 0) > 0 && !lastInChain.allOutputsRight;
       if (!lastCanDockBelow) {
         continue; // Skip this node as a dock target
       }
@@ -1286,7 +1294,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                           },
                           [
                             // First input on top (if exists and not docked child)
-                            cInputs.length > 0 &&
+                            !chainNode.allInputsLeft &&
+                              cInputs.length > 0 &&
                               !cIsDockedChild &&
                               m('.pf-port.pf-input.pf-port-top', {
                                 'data-port': 'input-0',
@@ -1379,7 +1388,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                               ),
 
                             // Remaining inputs on left side (inputs[1+])
-                            cInputs.slice(1).map((input: string, i: number) =>
+                            cInputs
+                              .slice(chainNode.allInputsLeft ? 0 : 1)
+                              .map((input: string, i: number) =>
                               m(
                                 '.pf-port-row.pf-port-input',
                                 {
@@ -1476,7 +1487,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                             ),
 
                             // Remaining outputs on right side (outputs[1+])
-                            cOutputs.slice(1).map((output: string, i: number) =>
+                            cOutputs
+                              .slice(chainNode.allOutputsRight ? 0 : 1)
+                              .map((output: string, i: number) =>
                               m(
                                 '.pf-port-row.pf-port-output',
                                 {
@@ -1526,7 +1539,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                             ),
 
                             // First output on bottom (if exists and no docked child below)
-                            cOutputs.length > 0 &&
+                            !chainNode.allOutputsRight &&
+                              cOutputs.length > 0 &&
                               !cHasDockedChild &&
                               m(
                                 PopupMenu,
@@ -1627,7 +1641,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                     [
                       // First input on top (if exists)
                       // Note: standalone nodes are never docked children, so always show if inputs exist
-                      inputs.length > 0 &&
+                      !node.allInputsLeft &&
+                        inputs.length > 0 &&
                         m('.pf-port.pf-input.pf-port-top', {
                           'data-port': 'input-0',
                           'class': isPortConnected(id, 'input', 0, connections)
@@ -1726,7 +1741,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         ),
 
                       // Remaining inputs on left side (inputs[1+])
-                      inputs.slice(1).map((input: string, i: number) =>
+                      inputs
+                        .slice(node.allInputsLeft ? 0 : 1)
+                        .map((input: string, i: number) =>
                         m(
                           '.pf-port-row.pf-port-input',
                           {
@@ -1830,7 +1847,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                       ),
 
                       // Remaining outputs on right side (outputs[1+])
-                      outputs.slice(1).map((output: string, i: number) =>
+                      outputs
+                        .slice(node.allOutputsRight ? 0 : 1)
+                        .map((output: string, i: number) =>
                         m(
                           '.pf-port-row.pf-port-output',
                           {
@@ -1881,7 +1900,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
                       // First output on bottom (if exists)
                       // Note: standalone nodes never have docked children, so always show if outputs exist
-                      outputs.length > 0 &&
+                      !node.allOutputsRight &&
+                        outputs.length > 0 &&
                         m(
                           PopupMenu,
                           {
