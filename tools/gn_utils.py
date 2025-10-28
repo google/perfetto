@@ -363,6 +363,9 @@ class GnParser(object):
       self.a_i_t_test_app: Optional[str] = None
       self.a_i_t_android_bp_test_manifest: Optional[str] = None
       self.a_i_t_android_bp_test_config: Optional[str] = None
+      # Used only when custom_action_type == 'protozero_descriptor_diff'
+      self.minuend_descriptor: Optional[str] = None
+      self.subtrahend_descriptor: Optional[str] = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -542,6 +545,13 @@ class GnParser(object):
           'perfetto_android_a_i_t_android_bp_test_config')
       target.a_i_t_android_bp_test_config = a_i_t_android_bp_test_config[
           0] if a_i_t_android_bp_test_config else None
+      minuend_descriptor = target.metadata.get('perfetto_minuend_descriptor')
+      target.minuend_descriptor = minuend_descriptor[
+          0] if minuend_descriptor else None
+      subtrahend_descriptor = target.metadata.get(
+          'perfetto_subtrahend_descriptor')
+      target.subtrahend_descriptor = subtrahend_descriptor[
+          0] if subtrahend_descriptor else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
