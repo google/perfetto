@@ -138,6 +138,8 @@ async function createTableForSliceTrack(
 ) {
   if (rawColumns === undefined) {
     // Find the raw columns list from the query if not provided.
+    // TODO(stevegolton): Potential performance improvement to be obtained from
+    // using the prepare statement API rather than a LIMIT 0 query.
     const query = `
       WITH data AS (
         ${data.sqlSource}
