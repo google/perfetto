@@ -179,6 +179,9 @@ Int NormalizeFloatToInt(Float value) {
 //     to be hashed without needing to override std::hash<T>.
 template <typename T>
 struct MurmurHash {
+  // Enable heterogeneous lookup for types implicitly convertible to T.
+  using is_transparent = void;
+
   uint64_t operator()(const T& value) const {
     if constexpr (std::is_integral_v<T>) {
       return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
@@ -191,6 +194,16 @@ struct MurmurHash {
     } else {
       return std::hash<T>{}(value);
     }
+  }
+
+  // Heterogeneous operator() for types implicitly convertible to T.
+  // Converts U to T first to ensure consistent hashing.
+  template <typename U>
+  auto operator()(const U& value) const
+      -> std::enable_if_t<std::is_convertible_v<U, T> &&
+                              !std::is_same_v<std::decay_t<U>, T>,
+                          uint64_t> {
+    return (*this)(static_cast<T>(value));
   }
 };
 
