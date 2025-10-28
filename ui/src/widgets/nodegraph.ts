@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Button} from './button';
 import {PopupMenu} from './menu';
+import {classNames} from '../base/classnames';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -1046,9 +1047,15 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         m.redraw();
       };
 
+      const className = classNames(
+        canvasState.connecting && 'pf-connecting',
+        canvasState.isPanning && 'pf-panning',
+      );
+
       return m(
         '.pf-canvas',
         {
+          className,
           tabindex: 0, // Make div focusable to capture keyboard events
           onmousedown: (e: MouseEvent) => {
             const target = e.target as HTMLElement;
@@ -1081,8 +1088,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           },
           onmousemove: handleMouseMove,
           onmouseup: handleMouseUp,
-          style: `cursor: ${canvasState.isPanning ? 'grabbing' : 'grab'};
-            background-size: ${20 * canvasState.zoom}px ${20 * canvasState.zoom}px;
+          style: `background-size: ${20 * canvasState.zoom}px ${20 * canvasState.zoom}px;
             background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
         },
         [

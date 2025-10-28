@@ -30,6 +30,7 @@
   position: relative;
   user-select: none;
   font-family: var(--pf-font-compact);
+  cursor: grab;
 }
 
 .pf-canvas-content {
@@ -171,10 +172,9 @@
   z-index: 10;
 }
 
-.pf-port:hover {
+.pf-output:hover {
   background: var(--pf-color-accent);
   border-color: var(--pf-color-accent);
-  transform: translateY(-50%) scale(1.2);
 }
 
 .pf-port.pf-connected {
@@ -189,25 +189,18 @@
 .pf-port.pf-port-top {
   top: 0;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
 }
 
 .pf-port.pf-port-bottom {
   top: unset;
   bottom: 0;
   left: 50%;
-  transform: translate(-50%, 50%);
+  transform: translateY(50%);
 }
 
 .pf-port.pf-output {
   right: -8px;
-}
-
-.pf-port.pf-active {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
-  box-shadow: 0 0 8px
-    color-mix(in srgb, var(--pf-color-accent) 80%, transparent);
 }
 
 svg {
@@ -246,4 +239,30 @@ svg {
   stroke-width: 2;
   fill: none;
   stroke-dasharray: 5, 5;
+}
+
+.pf-connecting {
+  cursor: crosshair;
+
+  .pf-input:hover {
+    background: var(--pf-color-accent);
+    border-color: var(--pf-color-accent);
+    cursor: copy;
+  }
+  .pf-output:hover {
+    background: var(--pf-color-border);
+    border-color: var(--pf-color-border-secondary);
+    cursor: not-allowed;
+  }
+}
+
+.pf-output.pf-active,
+.pf-output.pf-active:hover {
+  background: var(--pf-color-accent);
+  border-color: var(--pf-color-accent);
+  cursor: crosshair;
+}
+
+.pf-panning {
+  cursor: grabbing;
 }
