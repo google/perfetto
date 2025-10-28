@@ -140,8 +140,6 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__body {
-    display: flex;
-    flex-direction: column;
     min-width: max-content;
 
     .pf-grid__row {
