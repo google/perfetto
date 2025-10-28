@@ -252,25 +252,28 @@ class SqlTableTab implements Tab {
         buttons: this.getTableButtons(),
         fillHeight: true,
       },
-      (hasFilters || tabs.length > 1) &&
-        m('.pf-sql-table__toolbar', [
-          hasFilters && renderFilters(this.tableState.filters),
-          tabs.length > 1 &&
-            m(TabStrip, {
-              tabs,
-              currentTabKey: this.selectedTab,
-              onTabChange: (key) => (this.selectedTab = key),
-            }),
-        ]),
       m(
-        '.pf-sql-table__table',
-        tabs.map((tab) =>
-          m(
-            Gate,
-            {
-              open: tab.key == this.selectedTab,
-            },
-            tab.content,
+        '.pf-sql-table',
+        (hasFilters || tabs.length > 1) &&
+          m('.pf-sql-table__toolbar', [
+            hasFilters && renderFilters(this.tableState.filters),
+            tabs.length > 1 &&
+              m(TabStrip, {
+                tabs,
+                currentTabKey: this.selectedTab,
+                onTabChange: (key) => (this.selectedTab = key),
+              }),
+          ]),
+        m(
+          '.pf-sql-table__table',
+          tabs.map((tab) =>
+            m(
+              Gate,
+              {
+                open: tab.key == this.selectedTab,
+              },
+              tab.content,
+            ),
           ),
         ),
       ),
