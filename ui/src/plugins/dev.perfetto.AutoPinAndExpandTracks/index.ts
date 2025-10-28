@@ -192,7 +192,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   }
 
   private processUrlParameters(): void {
-    const localTracks = this.ctx.workspace.flatTracks;
+    const localTracks = this.ctx.currentWorkspace.flatTracks;
     if (AutoPinAndExpandTracks.expandTracks.length > 0) {
       const expandRegexes = AutoPinAndExpandTracks.expandTracks.map(
         (prefix) => new RegExp('^' + prefix),
@@ -216,7 +216,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   }
 
   private restoreTracks(tracks: ReadonlyArray<SavedPinnedTrack>) {
-    const localTracks = this.ctx.workspace.flatTracks.map((track) => ({
+    const localTracks = this.ctx.currentWorkspace.flatTracks.map((track) => ({
       savedTrack: this.toSavedTrack(track),
       track: track,
     }));
@@ -246,7 +246,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
 
   private getCurrentPinnedTracks() {
     const res = [];
-    for (const track of this.ctx.workspace.pinnedTracks) {
+    for (const track of this.ctx.currentWorkspace.pinnedTracks) {
       res.push(this.toSavedTrack(track));
     }
     return res;

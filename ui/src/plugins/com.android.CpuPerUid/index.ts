@@ -158,7 +158,7 @@ export default class implements PerfettoPlugin {
         name: 'CPU per UID',
         isSummary: true,
       });
-      ctx.workspace.addChildInOrder(this._topLevelGroup);
+      ctx.defaultWorkspace.addChildInOrder(this._topLevelGroup);
     }
 
     return this._topLevelGroup;

@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
     });
     ctx.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.workspace, 'POWER')
+      .getOrCreateStandardGroup(ctx.currentWorkspace, 'POWER')
       .addChildInOrder(powerRailsGroup);
 
     for (; it.valid(); it.next()) {

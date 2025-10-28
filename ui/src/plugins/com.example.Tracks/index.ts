@@ -88,7 +88,7 @@ async function addBasicSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(
+  trace.currentWorkspace.addChildInOrder(
     new TrackNode({uri, name: 'All Example Events'}),
   );
 }
@@ -124,7 +124,7 @@ async function addFilteredSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.currentWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 3: A slice track using a custom colorizer based on arguments.
@@ -155,7 +155,7 @@ async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.currentWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 4: An instant track (no durations).
@@ -181,7 +181,7 @@ async function addInstantTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.currentWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 5: A slice track with explicit depth (rendered flat).
@@ -209,7 +209,7 @@ async function addFlatSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.currentWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 6: A slice track with a fixed color scheme.
@@ -237,7 +237,7 @@ async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
+  trace.currentWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 7: Creating a nested group of tracks in the workspace.
@@ -277,7 +277,7 @@ async function addNestedTrackGroup(trace: Trace): Promise<void> {
   });
 
   // Build the hierarchy
-  trace.workspace.addChildInOrder(trackRoot);
+  trace.currentWorkspace.addChildInOrder(trackRoot);
   trackRoot.addChildLast(track1);
   trackRoot.addChildLast(track2);
   track1.addChildLast(track11);
@@ -357,6 +357,6 @@ function addGroupWithHelpText(trace: Trace) {
 
   // Add to workspace
   const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
-  trace.workspace.addChildInOrder(groupNode);
+  trace.currentWorkspace.addChildInOrder(groupNode);
   return groupNode;
 }

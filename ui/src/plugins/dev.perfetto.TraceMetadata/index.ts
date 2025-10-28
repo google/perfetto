@@ -136,7 +136,7 @@ export default class implements PerfettoPlugin {
     const trackNode = new TrackNode({uri, name: 'Clock Snapshots'});
     const group = trace.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(trace.workspace, 'SYSTEM');
+      .getOrCreateStandardGroup(trace.currentWorkspace, 'SYSTEM');
     group.addChildInOrder(trackNode);
   }
 }

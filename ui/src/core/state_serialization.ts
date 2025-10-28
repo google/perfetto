@@ -105,7 +105,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
 
   return {
     version: SERIALIZED_STATE_VERSION,
-    pinnedTracks: trace.workspace.pinnedTracks
+    pinnedTracks: trace.currentWorkspace.pinnedTracks
       .map((t) => t.uri)
       .filter((uri) => uri !== undefined),
     viewport: {
@@ -176,7 +176,7 @@ export function deserializeAppStatePhase2(
 
   // Restore the pinned tracks, if they exist.
   for (const uri of appState.pinnedTracks) {
-    const track = trace.workspace.getTrackByUri(uri);
+    const track = trace.currentWorkspace.getTrackByUri(uri);
     if (track) {
       track.pin();
     }

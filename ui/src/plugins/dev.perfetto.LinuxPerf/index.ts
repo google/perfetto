@@ -314,7 +314,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (perfCountersGroup.hasChildren) {
-      trace.workspace.addChildInOrder(perfCountersGroup);
+      trace.currentWorkspace.addChildInOrder(perfCountersGroup);
     }
 
     trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
