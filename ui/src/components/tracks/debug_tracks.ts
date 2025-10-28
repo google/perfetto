@@ -60,7 +60,7 @@ export interface DebugSliceTrackArgs {
   readonly data: SqlDataSource;
   readonly title?: string;
   readonly columns?: Partial<SliceColumnMapping>;
-  readonly argColumns?: ReadonlyArray<string>;
+  readonly rawColumns?: ReadonlyArray<string>;
   readonly pivotOn?: string;
   readonly argSetIdColumn?: string;
 }
@@ -84,8 +84,8 @@ export interface DebugSliceTrackArgs {
  * the value appended.
  * @param args.columns - Optional: The columns names to use for the various
  * essential column names.
- * @param args.argColumns - Optional: A list of columns which are passed to the
- * details panel.
+ * @param args.rawColumns - Optional: A list of columns to be displayed in the
+ * 'Raw columns' section of the details panel.
  * @param args.pivotOn - Optional: The name of a column on which to pivot. If
  * provided, we will create N tracks, one for each distinct value of the pivotOn
  * column. Each track will only show the slices which have the corresponding
@@ -103,7 +103,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
     tableName,
     args.data,
     args.columns,
-    args.argColumns,
+    args.rawColumns,
     args.pivotOn,
     args.argSetIdColumn,
   );
@@ -132,10 +132,27 @@ async function createTableForSliceTrack(
   tableName: string,
   data: SqlDataSource,
   columns: Partial<SliceColumnMapping> = {},
-  argColumns?: ReadonlyArray<string>,
+  rawColumns?: ReadonlyArray<string>,
   pivotCol?: string,
   argSetIdColumn?: string,
 ) {
+  if (rawColumns === undefined) {
+    // Find the raw columns list from the query if not provided.
+    // TODO(stevegolton): Potential performance improvement to be obtained from
+    // using the prepare statement API rather than a LIMIT 0 query.
+    const query = `
+      WITH data AS (
+        ${data.sqlSource}
+      )
+      SELECT *
+      FROM data
+      LIMIT 0
+    `;
+
+    const result = await engine.query(query);
+    rawColumns = result.columns();
+  }
+
   const {ts = 'ts', dur = 'dur', name = 'name'} = columns;
 
   // If the view has clashing names (e.g. "name" coming from joining two
@@ -149,7 +166,7 @@ async function createTableForSliceTrack(
     `${ts} as ts`,
     `ifnull(cast(${dur} as int), -1) as dur`,
     `printf('%s', ${name}) as name`,
-    argColumns && argColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
+    rawColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
     pivotCol && `${pivotCol} as pivot`,
     argSetIdColumn && `${argSetIdColumn} as arg_set_id`,
   ]

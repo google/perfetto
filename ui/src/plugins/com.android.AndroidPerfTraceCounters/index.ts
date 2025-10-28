@@ -95,7 +95,7 @@ export default class implements PerfettoPlugin {
           },
           title: 'Rutime IPC:' + tid,
           columns: {ts: 'ts', dur: 'dur', name: 'ipc'},
-          argColumns: [
+          rawColumns: [
             'instruction',
             'cycle',
             'stall_backend_mem',
