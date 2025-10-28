@@ -236,7 +236,7 @@ async function addPivotedSliceTracks(
     });
 
     const trackNode = new TrackNode({uri, name, removable: true});
-    trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+    trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
   }
 }
 
@@ -273,7 +273,7 @@ function addSingleSliceTrack(
   });
 
   const trackNode = new TrackNode({uri, name, removable: true});
-  trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+  trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
 }
 
 export interface DebugCounterTrackArgs {
@@ -397,7 +397,7 @@ async function addPivotedCounterTracks(
     });
 
     const trackNode = new TrackNode({uri, name, removable: true});
-    trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+    trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
   }
 }
 
@@ -413,5 +413,5 @@ function addSingleCounterTrack(
   });
 
   const trackNode = new TrackNode({uri, name, removable: true});
-  trace.workspace.pinnedTracksNode.addChildLast(trackNode);
+  trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
 }

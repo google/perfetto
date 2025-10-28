@@ -42,19 +42,19 @@ export default class implements PerfettoPlugin {
   }
 
   private addFoldedStateTrackToDeviceState(ctx: Trace) {
-    const foldedStateTrack = ctx.workspace.flatTracks.find(
+    const foldedStateTrack = ctx.defaultWorkspace.flatTracks.find(
       (t) => t.name == 'FoldedState',
     );
     if (foldedStateTrack) {
       const deviceStateGroup = ctx.plugins
         .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(ctx.workspace, 'DEVICE_STATE');
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'DEVICE_STATE');
       deviceStateGroup.addChildLast(foldedStateTrack);
     }
   }
 
   private pinCoreTracks(ctx: Trace) {
-    ctx.workspace.flatTracks
+    ctx.currentWorkspace.flatTracks
       .filter(
         (track) =>
           track.name == 'FoldedState' ||
@@ -67,8 +67,8 @@ export default class implements PerfettoPlugin {
   private addUnfoldMiscSection(ctx: Trace) {
     // section for tracks that don't fit neatly in other sections and are not so important to be pinned
     const group = new TrackNode({name: 'Unfold misc'});
-    ctx.workspace.addChildFirst(group);
-    ctx.workspace.flatTracks
+    ctx.currentWorkspace.addChildFirst(group);
+    ctx.currentWorkspace.flatTracks
       .filter(
         (t) =>
           t.name.startsWith('waitForAllWindowsDrawn') ||
@@ -80,8 +80,8 @@ export default class implements PerfettoPlugin {
 
   private addUnfoldAnimationSection(ctx: Trace) {
     const group = new TrackNode({name: 'Unfold animation'});
-    ctx.workspace.addChildFirst(group);
-    ctx.workspace.flatTracks
+    ctx.currentWorkspace.addChildFirst(group);
+    ctx.currentWorkspace.flatTracks
       .filter(
         (t) =>
           t.name == 'FoldUpdate' ||
@@ -95,9 +95,9 @@ export default class implements PerfettoPlugin {
 
   private async addUnfoldDisplaySwitchingSection(ctx: Trace) {
     const group = new TrackNode({name: 'Unfold display switching'});
-    ctx.workspace.addChildFirst(group);
+    ctx.currentWorkspace.addChildFirst(group);
 
-    const displayTracks = ctx.workspace.flatTracks.filter(
+    const displayTracks = ctx.currentWorkspace.flatTracks.filter(
       (t) =>
         t.name.includes('android.display') ||
         t.name.includes('Screen on blocked'),
@@ -134,6 +134,6 @@ export default class implements PerfettoPlugin {
       t.tags?.trackIds?.includes(trackId),
     );
     if (!track?.uri) return;
-    return ctx.workspace.getTrackByUri(track.uri);
+    return ctx.currentWorkspace.getTrackByUri(track.uri);
   }
 }
