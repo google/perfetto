@@ -67,6 +67,7 @@
   border-color: var(--pf-color-accent);
   box-shadow: 0 0 0 2px
     color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+  z-index: 1; // Make sure box shadow appears above other nodes
 }
 
 // Wrapper for dock chains - uses flexbox to make children same width
@@ -89,7 +90,7 @@
 .pf-node.pf-docked-child {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top: none;
+  margin-top: -2px; // Overlap border with parent
 }
 
 // Parent with docked child: flush bottom edge with no rounded corners
