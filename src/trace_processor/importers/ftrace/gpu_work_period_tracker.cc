@@ -23,17 +23,23 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
 GpuWorkPeriodTracker::GpuWorkPeriodTracker(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      start_time_ns_key_id_(context_->storage->InternString("start_time_ns")),
+      end_time_ns_key_id_(context_->storage->InternString("end_time_ns")),
+      gpu_id_key_id_(context_->storage->InternString("gpu_id")) {}
 
 void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
                                                    protozero::ConstBytes blob) {
@@ -48,6 +54,22 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
 
   const auto duration =
       static_cast<int64_t>(evt.end_time_ns() - evt.start_time_ns());
+  if (duration < 0) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::gpu_work_period_negative_duration, timestamp,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(
+              start_time_ns_key_id_,
+              Variadic::Integer(static_cast<int64_t>(evt.start_time_ns())));
+          inserter.AddArg(
+              end_time_ns_key_id_,
+              Variadic::Integer(static_cast<int64_t>(evt.end_time_ns())));
+          inserter.AddArg(
+              gpu_id_key_id_,
+              Variadic::Integer(static_cast<int64_t>(evt.gpu_id())));
+        });
+    return;
+  }
   const auto active_duration =
       static_cast<int64_t>(evt.total_active_duration_ns());
   const double active_percent = 100.0 * (static_cast<double>(active_duration) /
@@ -57,12 +79,6 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   StringId entry_name_id =
       context_->storage->InternString(entry_name.string_view());
 
-  tables::SliceTable::Row row;
-  row.ts = timestamp;
-  row.dur = duration;
-  row.track_id = track_id;
-  row.category = kNullStringId;
-  row.name = entry_name_id;
   auto slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, entry_name_id, duration);
   if (slice_id) {

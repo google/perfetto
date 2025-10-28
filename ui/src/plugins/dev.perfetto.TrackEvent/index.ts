@@ -130,7 +130,10 @@ function computeTrackEventCallstackFlamegraph(
         columnName: 'self_count',
       },
     ],
-    'include perfetto module callstacks.stack_profile',
+    `
+     include perfetto module callstacks.stack_profile;
+     include perfetto module intervals.intersect;
+    `,
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {

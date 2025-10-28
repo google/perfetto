@@ -204,16 +204,26 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('sequence_id', CppUint32())
+        C('sequence_id', CppUint32()),
+        C(
+            'has_invalid_elapsed_ts',
+            CppOptional(CppUint32()),
+        ),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layers snapshot',
         group='Winscope',
         columns={
-            'ts': 'Timestamp of the snapshot',
-            'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto_id': 'String id for raw proto message',
-            'sequence_id': 'Sequence id of the trace packet'
+            'ts':
+                'Timestamp of the snapshot',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'sequence_id':
+                'Sequence id of the trace packet',
+            'has_invalid_elapsed_ts':
+                'Indicates whether snapshot was recorded without elapsed timestamp',
         }))
 
 SURFACE_FLINGER_DISPLAY_TABLE = Table(
@@ -748,16 +758,26 @@ WINDOW_MANAGER_TABLE = Table(
             'focused_display_id',
             CppUint32(),
         ),
+        C(
+            'has_invalid_elapsed_ts',
+            CppUint32(),
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager'),
     tabledoc=TableDoc(
         doc='WindowManager',
         group='Winscope',
         columns={
-            'ts': 'The timestamp the state snapshot was captured',
-            'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto_id': 'String id for raw proto message',
-            'focused_display_id': 'Focused display id for this entry',
+            'ts':
+                'The timestamp the state snapshot was captured',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'focused_display_id':
+                'Focused display id for this snapshot',
+            'has_invalid_elapsed_ts':
+                'Indicates whether snapshot was recorded without elapsed timestamp',
         }))
 
 WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(

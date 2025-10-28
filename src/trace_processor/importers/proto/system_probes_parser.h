@@ -36,7 +36,7 @@ class SystemProbesParser {
 
   explicit SystemProbesParser(TraceProcessorContext*);
 
-  void ParseProcessTree(ConstBytes);
+  void ParseProcessTree(int64_t ts, ConstBytes);
   void ParseProcessStats(int64_t ts, ConstBytes);
   void ParseSysStats(int64_t ts, ConstBytes);
   void ParseSystemInfo(ConstBytes);

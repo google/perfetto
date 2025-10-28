@@ -675,15 +675,20 @@ void ProcessTracker::UpdateNamespacedProcess(int64_t pid,
   namespaced_processes_[pid] = {pid, std::move(nspid), {}};
 }
 
-void ProcessTracker::UpdateNamespacedThread(int64_t pid,
+bool ProcessTracker::UpdateNamespacedThread(int64_t pid,
                                             int64_t tid,
                                             std::vector<int64_t> nstid) {
-  PERFETTO_DCHECK(namespaced_processes_.find(pid) !=
-                  namespaced_processes_.end());
+  // It's possible with data loss that we collect the thread namespace
+  // information but not the process. In that case, just ignore the thread
+  // association.
+  if (namespaced_processes_.find(pid) == namespaced_processes_.end()) {
+    return false;
+  }
   auto& process = namespaced_processes_[pid];
   process.threads.emplace(tid);
 
   namespaced_threads_[tid] = {pid, tid, std::move(nstid)};
+  return true;
 }
 
 }  // namespace perfetto::trace_processor

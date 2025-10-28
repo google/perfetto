@@ -18,8 +18,8 @@ import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button} from '../../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {NodeType, QueryNode, singleNodeOperation} from '../../query_node';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
+import {UIFilter} from '../operations/filter';
 import {Chip} from '../../../../widgets/chip';
 import {Icon} from '../../../../widgets/icon';
 import {Callout} from '../../../../widgets/callout';
@@ -30,7 +30,7 @@ export interface NodeActions {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
 }
 
 export interface NodeBoxAttrs extends NodeActions {

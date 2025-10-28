@@ -53,11 +53,12 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
   auto* trace_processor_context = context_->trace_processor_context_;
   tables::WindowManagerTable::Row row;
   row.ts = timestamp;
+  protos::pbzero::WindowManagerTraceEntry::Decoder entry(blob);
+  row.has_invalid_elapsed_ts = entry.elapsed_realtime_nanos() == 0;
   row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
                             ->InternString(base::StringView(
                                 base::Base64Encode(blob.data, blob.size)))
                             .raw_id();
-  protos::pbzero::WindowManagerTraceEntry::Decoder entry(blob);
   protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
       entry.window_manager_service());
   row.focused_display_id = static_cast<uint32_t>(service.focused_display_id());

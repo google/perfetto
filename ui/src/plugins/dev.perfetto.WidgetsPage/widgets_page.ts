@@ -79,6 +79,7 @@ import {
 } from './widget_page_utils';
 import {renderGridDemo} from './grid_demo';
 import {renderDataGridDemo} from './data_grid_demo';
+import {NodeGraphDemo} from './nodegraph_demo';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1646,6 +1647,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         initialOpts: {
           wide: false,
         },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'NodeGraph',
+        description:
+          'Scroll left and right to pan / pinch to zoom. Drag nodes from output to input ports to connect nodes. Click connectors or drag outputs away from ports to remove connections.',
+        wide: true,
+        renderWidget: () => m(NodeGraphDemo),
+        initialOpts: {},
       }),
     );
   }

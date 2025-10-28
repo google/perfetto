@@ -31,15 +31,18 @@ import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
-import {createFiltersProto, FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../../operations/filter';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }
@@ -176,8 +179,8 @@ export class TableSourceNode implements SourceNode {
         m(FilterOperation, {
           filters: this.state.filters,
           sourceCols: this.finalCols,
-          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-            this.state.filters = newFilters as FilterDefinition[];
+          onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+            this.state.filters = [...newFilters];
             this.state.onchange?.();
           },
         }),

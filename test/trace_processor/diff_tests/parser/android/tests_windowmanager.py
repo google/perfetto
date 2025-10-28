@@ -27,14 +27,14 @@ class WindowManager(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.winscope.windowmanager;
         SELECT
-          ts, focused_display_id
+          ts, focused_display_id, has_invalid_elapsed_ts
         FROM
           android_windowmanager;
         """,
         out=Csv("""
-        "ts","focused_display_id"
-        558296470731,0
-        558884171862,2
+        "ts","focused_display_id","has_invalid_elapsed_ts"
+        558296470731,0,0
+        558884171862,2,1
         """))
 
   def test_snapshot_has_expected_args(self):
@@ -52,7 +52,7 @@ class WindowManager(TestSuite):
         """,
         out=Csv("""
         "key","display_value"
-        "elapsed_realtime_nanos","558296470731"
+        "elapsed_realtime_nanos","123"
         "where","trace.enable"
         "window_manager_service.focused_app","com.google.android.apps.nexuslauncher/.NexusLauncherActivity"
         "window_manager_service.focused_window.hash_code","160447612"

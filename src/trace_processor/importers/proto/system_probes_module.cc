@@ -66,7 +66,7 @@ void SystemProbesModule::ParseTracePacketData(
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kProcessTreeFieldNumber:
-      parser_.ParseProcessTree(decoder.process_tree());
+      parser_.ParseProcessTree(ts, decoder.process_tree());
       return;
     case TracePacket::kProcessStatsFieldNumber:
       parser_.ParseProcessStats(ts, decoder.process_stats());

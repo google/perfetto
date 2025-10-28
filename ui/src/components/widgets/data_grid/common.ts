@@ -42,12 +42,18 @@ export interface FilterValue {
   readonly value: SqlValue;
 }
 
+export interface FilterIn {
+  readonly column: string;
+  readonly op: 'in' | 'not in';
+  readonly value: ReadonlyArray<SqlValue>;
+}
+
 export interface FilterNull {
   readonly column: string;
   readonly op: 'is null' | 'is not null';
 }
 
-export type FilterDefinition = FilterValue | FilterNull;
+export type DataGridFilter = FilterValue | FilterNull | FilterIn;
 
 export interface SortByColumn {
   readonly column: string;
@@ -83,7 +89,7 @@ export interface AggregateSpec {
 export interface DataGridModel {
   readonly columns?: ReadonlyArray<string>;
   readonly sorting?: Sorting;
-  readonly filters?: ReadonlyArray<FilterDefinition>;
+  readonly filters?: ReadonlyArray<DataGridFilter>;
   readonly pagination?: Pagination;
   readonly aggregates?: ReadonlyArray<AggregateSpec>;
 }

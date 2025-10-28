@@ -19,7 +19,7 @@ import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {QueryNode, singleNodeOperation} from '../../query_node';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../operations/filter';
 
 import {
   SingleNode,
@@ -85,7 +85,7 @@ export interface GraphAttrs {
   readonly onImport: () => void;
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: FilterDefinition) => void;
+  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
   readonly devMode?: boolean;
   readonly onDevModeChange?: (enabled: boolean) => void;
 }

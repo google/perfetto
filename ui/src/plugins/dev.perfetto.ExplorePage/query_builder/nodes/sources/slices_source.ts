@@ -28,15 +28,18 @@ import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
-import {createFiltersProto, FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../../operations/filter';
 
 export interface SlicesSourceSerializedState {
   slice_name?: string;
   thread_name?: string;
   process_name?: string;
   track_name?: string;
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
   customTitle?: string;
   comment?: string;
 }
@@ -216,8 +219,8 @@ export class SlicesSourceNode implements SourceNode {
       m(FilterOperation, {
         filters: this.state.filters,
         sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-          this.state.filters = newFilters as FilterDefinition[];
+        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+          this.state.filters = [...newFilters];
           this.state.onchange?.();
         },
       }),

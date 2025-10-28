@@ -277,23 +277,27 @@ TEST_F(ProcessTrackerTest, UpdateTrustedPid) {
 TEST_F(ProcessTrackerTest, NamespacedProcessesAndThreads) {
   context.process_tracker->UpdateNamespacedProcess(/*pid=*/1001,
                                                    /*nspid=*/{1001, 190, 1});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1001, /*tid=*/1002,
-                                                  /*nstid=*/{1002, 192, 2});
-  context.process_tracker->UpdateNamespacedThread(1001, 1003, {1003, 193, 3});
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/1001, /*tid=*/1002,
+      /*nstid=*/{1002, 192, 2}));
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(1001, 1003,
+                                                              {1003, 193, 3}));
 
   context.process_tracker->UpdateNamespacedProcess(/*pid=*/1023,
                                                    /*nspid=*/{1023, 201, 21});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1023, /*tid=*/1026,
-                                                  {1026, 196, 26});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1023, /*tid=*/1027,
-                                                  {1027, 197, 27});
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/1023, /*tid=*/1026, {1026, 196, 26}));
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/1023, /*tid=*/1027, {1027, 197, 27}));
 
   context.process_tracker->UpdateNamespacedProcess(/*pid=*/1024,
                                                    /*nspid=*/{1024, 202, 22});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1024, /*tid=*/1028,
-                                                  /*nstid=*/{1028, 198, 28});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1024, /*tid=*/1029,
-                                                  /*nstid=*/{1029, 198, 29});
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/1024, /*tid=*/1028,
+      /*nstid=*/{1028, 198, 28}));
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/1024, /*tid=*/1029,
+      /*nstid=*/{1029, 198, 29}));
 
   // Don't resolve if the process/thread isn't namespaced.
   ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(2001, 2002),
@@ -320,6 +324,16 @@ TEST_F(ProcessTrackerTest, NamespacedProcessesAndThreads) {
             1028u);
   ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1024, 29).value(),
             1029u);
+}
+
+TEST_F(ProcessTrackerTest, NamespacedThreadMissingProcess) {
+  // Try to update a namespaced thread without first registering the process.
+  // This should fail and return false.
+  ASSERT_FALSE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/9999, /*tid=*/10000, /*nstid=*/{10000, 1}));
+
+  // The import error stat should be incremented by the caller in production.
+  // In this test, we just verify the function returns false.
 }
 
 }  // namespace
