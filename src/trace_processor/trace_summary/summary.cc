@@ -67,7 +67,7 @@ using TraceSummary = protos::pbzero::TraceSummary;
 using PerfettoSqlStructuredQuery = protos::pbzero::PerfettoSqlStructuredQuery;
 using InternedDimensionSpec = TraceMetricV2Spec::InternedDimensionSpec;
 
-uint64_t HashOf(const SqlValue& val) {
+base::StatusOr<uint64_t> HashOf(const SqlValue& val) {
   base::FnvHasher hasher;
   hasher.Update(val.type);
   if (val.is_null()) {
@@ -78,8 +78,8 @@ uint64_t HashOf(const SqlValue& val) {
   } else if (val.type == SqlValue::kString) {
     hasher.Update(val.string_value);
   } else {
-    PERFETTO_FATAL("Unsupported SqlValue type %d for hashing",
-                   static_cast<int>(val.type));
+    return base::ErrStatus("Unsupported SqlValue type %d for hashing",
+                           static_cast<int>(val.type));
   }
   return hasher.digest();
 }
@@ -571,7 +571,7 @@ base::Status WriteInternedDimensionBundles(
     InternedDimensionSpec::ColumnSpec::Decoder key_col_spec(
         ms.key_column_spec());
     base::StringView key_column_name = key_col_spec.name();
-    const auto& dim_keys_in_metric_bundle =
+    const auto& allowed_keys =
         *interned_dim_keys_in_metric_bundle.Find(key_column_name.ToStdString());
     auto* interned_dimension_bundle = bundle->add_interned_dimension_bundles();
 
@@ -620,10 +620,11 @@ base::Status WriteInternedDimensionBundles(
     base::FlatHashMap<uint64_t, bool> seen_keys;
     while (query_it.Next()) {
       const auto& key_val = query_it.Get(column_infos[0].first);
-      uint64_t hash = HashOf(key_val);
+      ASSIGN_OR_RETURN(uint64_t hash, HashOf(key_val));
+
       // If the key was not in the metric bundle, we don't need to output
       // its interned data.
-      if (!dim_keys_in_metric_bundle.Find(hash)) {
+      if (!allowed_keys.Find(hash)) {
         continue;
       }
       RETURN_IF_ERROR(
@@ -762,7 +763,8 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
                                        row->add_dimension(), &hasher));
         if (auto* key_set = interned_dim_keys_in_metric_bundle.Find(dim.name)) {
           const auto& key_val = query_it.Get(dim.index);
-          key_set->Insert(HashOf(key_val), true);
+          ASSIGN_OR_RETURN(uint64_t key_hash, HashOf(key_val));
+          key_set->Insert(key_hash, true);
         }
       }
       uint64_t hash = hasher.digest();
