@@ -62,7 +62,7 @@ export function parsePerfettoSqlTypeFromString(
   typeString: string,
 ): Result<PerfettoSqlType> {
   const value = typeString.toLowerCase();
-  const maybeSimpleType = Object(SIMPLE_TYPES)[value];
+  const maybeSimpleType = SIMPLE_TYPES[value];
   if (maybeSimpleType !== undefined) {
     return okResult({
       kind: maybeSimpleType,
