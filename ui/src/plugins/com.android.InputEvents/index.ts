@@ -63,7 +63,7 @@ export default class implements PerfettoPlugin {
     const node = new TrackNode({uri, name: 'Input Events'});
     const group = ctx.plugins
       .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.currentWorkspace, 'USER_INTERACTION');
+      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'USER_INTERACTION');
     group.addChildInOrder(node);
   }
 }

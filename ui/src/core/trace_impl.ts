@@ -108,7 +108,7 @@ export class TraceContext implements Disposable {
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,
       this.timeline,
-      this.workspaceMgr.currentWorkspace,
+      this.workspaceMgr,
       this.trackMgr,
     );
 

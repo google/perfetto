@@ -192,7 +192,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   }
 
   private processUrlParameters(): void {
-    const localTracks = this.ctx.currentWorkspace.flatTracks;
+    const localTracks = this.ctx.defaultWorkspace.flatTracks;
     if (AutoPinAndExpandTracks.expandTracks.length > 0) {
       const expandRegexes = AutoPinAndExpandTracks.expandTracks.map(
         (prefix) => new RegExp('^' + prefix),

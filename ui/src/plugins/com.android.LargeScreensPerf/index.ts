@@ -42,13 +42,13 @@ export default class implements PerfettoPlugin {
   }
 
   private addFoldedStateTrackToDeviceState(ctx: Trace) {
-    const foldedStateTrack = ctx.currentWorkspace.flatTracks.find(
+    const foldedStateTrack = ctx.defaultWorkspace.flatTracks.find(
       (t) => t.name == 'FoldedState',
     );
     if (foldedStateTrack) {
       const deviceStateGroup = ctx.plugins
         .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(ctx.currentWorkspace, 'DEVICE_STATE');
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'DEVICE_STATE');
       deviceStateGroup.addChildLast(foldedStateTrack);
     }
   }

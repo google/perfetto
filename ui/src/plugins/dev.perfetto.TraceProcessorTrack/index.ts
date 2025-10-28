@@ -373,7 +373,7 @@ export default class implements PerfettoPlugin {
       default: {
         const standardGroup = ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.currentWorkspace, topLevelGroup);
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, topLevelGroup);
         this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
         break;
       }
