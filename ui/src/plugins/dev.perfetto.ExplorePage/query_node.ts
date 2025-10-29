@@ -103,11 +103,11 @@ export interface BaseNode {
 export interface SourceNode extends BaseNode {}
 
 export interface ModificationNode extends BaseNode {
-  prevNode: QueryNode;
+  prevNode?: QueryNode;
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: QueryNode[];
+  prevNodes: (QueryNode | undefined)[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
