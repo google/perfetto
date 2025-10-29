@@ -26,7 +26,6 @@ import {
   deserializeState,
 } from './json_handler';
 import {SqlSourceSerializedState} from './query_builder/nodes/sources/sql_source';
-import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 export function showImportWithStatementModal(
   trace: Trace,
@@ -217,7 +216,7 @@ function parseSql(sql: string): ParsedNode[] {
 export function createGraphFromSql(sql: string): string {
   const {nodes: parsedNodes, modules} = parseSqlWithModules(sql);
   const serializedNodes: SerializedNode[] = [];
-  const nodeLayouts: {[key: string]: NodeContainerLayout} = {};
+  const nodeLayouts: {[key: string]: {x: number; y: number}} = {};
   const rootNodeIds: string[] = [];
 
   const nodeMap = new Map<string, SerializedNode>();

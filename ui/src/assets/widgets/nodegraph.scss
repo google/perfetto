@@ -72,6 +72,7 @@
   flex-direction: column;
   pointer-events: auto;
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
+  border-radius: 8px;
 
   // All nodes in chain stretch to same width (determined by widest node)
   .pf-node {
