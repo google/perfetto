@@ -16,9 +16,7 @@ import {errResult, okResult, Result} from '../base/result';
 
 // Representation of a PerfettoSQL type:
 // https://perfetto.dev/docs/analysis/perfetto-sql-syntax#types
-export type PerfettoSqlType =
-  | SimpleType
-  | PerfettoSqlIdType;
+export type PerfettoSqlType = SimpleType | PerfettoSqlIdType;
 
 type SimpleType = {
   kind:
