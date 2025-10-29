@@ -23,13 +23,21 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/info',
-      render: () => m(TraceInfoPage, {trace}),
+      render: (subpage) =>
+        m(TraceInfoPage, {trace, subpage: subpage}),
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      text: 'Info and stats',
+      text: 'Overview',
       href: '#!/info',
       icon: 'info',
+      sortOrder: 15,
+    });
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      text: 'Info and Stats',
+      href: '#!/info/stats',
+      icon: 'query_stats',
       sortOrder: 23,
     });
   }
