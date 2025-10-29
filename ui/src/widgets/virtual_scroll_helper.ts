@@ -76,7 +76,7 @@ export class VirtualScrollHelper {
       const now = performance.now();
       const timeDelta = now - previousTimestamp;
       previousTimestamp = now;
-      const scrollingVelocity = delta / timeDelta;
+      const scrollingVelocity = timeDelta > 0 ? delta / timeDelta : 0;
 
       // Update velocity for each data level with smoothing
       this._data.forEach((data) => {
