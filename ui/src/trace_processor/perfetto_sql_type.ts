@@ -45,6 +45,23 @@ type SimpleType = {
     | 'arg_set_id';
 };
 
+export function isQuantitativeType(type: PerfettoSqlType) {
+  switch (type.kind) {
+    case 'int':
+    case 'double':
+    case 'duration':
+    case 'timestamp':
+    case 'id':
+    case 'joinid':
+    case 'arg_set_id':
+    case 'boolean':
+      return true;
+    case 'bytes':
+    case 'string':
+      return false;
+  }
+}
+
 export class PerfettoSqlTypes {
   static readonly INT: PerfettoSqlType = {kind: 'int'};
   static readonly DOUBLE: PerfettoSqlType = {kind: 'double'};
