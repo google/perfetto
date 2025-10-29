@@ -82,6 +82,13 @@ export function NodeGraphDemo() {
     }
   }
 
+  const nodeHues: Record<string, number> = {
+    table: 200,
+    select: 100,
+    filter: 50,
+    join: 300,
+  };
+
   // Model state - persists across renders
   const modelNodes: Map<string, ModelNode> = new Map();
   addNode('table');
@@ -208,6 +215,8 @@ export function NodeGraphDemo() {
       content: template.content,
       next: nextModel ? renderChildNode(nextModel) : undefined,
       allInputsLeft,
+      accentBar: true,
+      hue: nodeHues[model.type],
       addMenuItems: [
         m(MenuItem, {
           label: 'Select',
@@ -218,11 +227,6 @@ export function NodeGraphDemo() {
           label: 'Filter',
           icon: 'filter_list',
           onclick: () => addNode('filter', model.id),
-        }),
-        m(MenuItem, {
-          label: 'Join',
-          icon: 'join',
-          onclick: () => addNode('join', model.id),
         }),
       ],
     };
@@ -240,6 +244,8 @@ export function NodeGraphDemo() {
       outputs: template.outputs,
       content: template.content,
       next: nextModel ? renderChildNode(nextModel) : undefined,
+      accentBar: true,
+      hue: nodeHues[model.type],
       addMenuItems: [
         m(MenuItem, {
           label: 'Select',

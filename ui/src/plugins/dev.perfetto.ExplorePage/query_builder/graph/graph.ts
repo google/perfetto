@@ -317,6 +317,34 @@ function ensureNodeLayouts(roots: QueryNode[], attrs: GraphAttrs): void {
 // NODE RENDERING
 // ========================================
 
+// Assigns a color hue based on the node's type for visual distinction
+function getNodeHue(node: QueryNode): number {
+  switch (node.type) {
+    case NodeType.kTable:
+      return 354; // Red (#ffcdd2)
+    case NodeType.kSimpleSlices:
+      return 122; // Green (#c8e6c9)
+    case NodeType.kSqlSource:
+      return 199; // Cyan/Light Blue (#b3e5fc)
+    case NodeType.kAggregation:
+      return 339; // Pink (#f8bbd0)
+    case NodeType.kModifyColumns:
+      return 261; // Purple (#d1c4e9)
+    case NodeType.kAddColumns:
+      return 232; // Indigo (#c5cae9)
+    case NodeType.kLimitAndOffset:
+      return 175; // Teal (#b2dfdb)
+    case NodeType.kSort:
+      return 54; // Yellow (#fff9c4)
+    case NodeType.kIntervalIntersect:
+      return 45; // Amber/Orange (#ffecb3)
+    case NodeType.kUnion:
+      return 187; // Cyan (#b2ebf2)
+    default:
+      return 65; // Lime (#f0f4c3)
+  }
+}
+
 // Returns the next docked child in the chain (rendered via 'next' property)
 function getNextDockedNode(
   qnode: QueryNode,
@@ -341,6 +369,8 @@ function createNodeConfig(
     id: qnode.nodeId,
     inputs: getInputLabels(qnode),
     outputs: ['Output'],
+    hue: getNodeHue(qnode),
+    accentBar: true,
     content: m(NodeBox, {
       node: qnode,
       onDuplicateNode: attrs.onDuplicateNode,

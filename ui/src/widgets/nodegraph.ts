@@ -34,10 +34,17 @@ export interface Connection {
   toPort: number;
 }
 
+export interface NodeTitleBar {
+  title: m.Children;
+}
+
 export interface Node {
   id: string;
   x: number;
   y: number;
+  hue?: number; // Color of the title / accent bar (0-360)
+  accentBar?: boolean; // Optional strip of accent color on the left side
+  titleBar?: NodeTitleBar; // Optional title bar
   inputs?: string[];
   outputs?: string[];
   content?: m.Children; // Optional custom content to render in node body
@@ -1279,15 +1286,24 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         const cIsDockTarget =
                           canvasState.dockTarget === cId &&
                           canvasState.isDockZone;
+                        const cHasAccentBar = chainNode.accentBar;
 
                         const cClasses = [
                           selectedNodeId === cId ? 'pf-selected' : '',
                           cIsDockedChild ? 'pf-docked-child' : '',
                           cHasDockedChild ? 'pf-has-docked-child' : '',
                           cIsDockTarget ? 'pf-dock-target' : '',
+                          cHasAccentBar ? 'pf-node--has-accent-bar' : '',
                         ]
                           .filter(Boolean)
                           .join(' ');
+
+                        const style =
+                          chainNode.hue !== undefined
+                            ? {
+                                '--pf-node-hue': `${chainNode.hue}`,
+                              }
+                            : undefined;
 
                         return m(
                           '.pf-node',
@@ -1295,6 +1311,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                             'key': cId,
                             'data-node': cId,
                             'class': cClasses,
+                            'style': style,
                             'onmousedown': (e: MouseEvent) => {
                               if (
                                 (e.target as HTMLElement).closest('.pf-port')
@@ -1350,6 +1367,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                             },
                           },
                           [
+                            // Render node title if it exists
+                            chainNode.titleBar !== undefined &&
+                              m('.pf-node-header', [
+                                m('.pf-node-title', chainNode.titleBar.title),
+                              ]),
+
                             // First input on top (if exists and not docked child)
                             !chainNode.allInputsLeft &&
                               cInputs.length > 0 &&
@@ -1433,84 +1456,39 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                 },
                               }),
 
-                            chainNode.content !== undefined &&
-                              m(
-                                '.pf-node-content',
-                                {
-                                  onkeydown: (e: KeyboardEvent) => {
-                                    e.stopPropagation();
-                                  },
-                                },
-                                chainNode.content,
-                              ),
-
-                            // Remaining inputs on left side (inputs[1+])
-                            cInputs
-                              .slice(chainNode.allInputsLeft ? 0 : 1)
-                              .map((input: string, i: number) =>
+                            m('.pf-node-body', [
+                              chainNode.content !== undefined &&
                                 m(
-                                  '.pf-port-row.pf-port-input',
+                                  '.pf-node-content',
                                   {
-                                    'data-port': `input-${i + 1}`,
+                                    onkeydown: (e: KeyboardEvent) => {
+                                      e.stopPropagation();
+                                    },
                                   },
-                                  [
-                                    m('.pf-port.pf-input', {
-                                      class: isPortConnected(
-                                        cId,
-                                        'input',
-                                        i + 1,
-                                        connections,
-                                      )
-                                        ? 'pf-connected'
-                                        : '',
-                                      onmousedown: (e: MouseEvent) => {
-                                        e.stopPropagation();
-                                        const existingConnIdx =
-                                          connections.findIndex(
-                                            (conn) =>
-                                              conn.toNode === cId &&
-                                              conn.toPort === i + 1,
-                                          );
-                                        if (existingConnIdx !== -1) {
-                                          const existingConn =
-                                            connections[existingConnIdx];
-                                          const {onConnectionRemove} =
-                                            vnode.attrs;
-                                          if (
-                                            onConnectionRemove !== undefined
-                                          ) {
-                                            onConnectionRemove(existingConnIdx);
-                                          }
-                                          const outputPos = getPortPosition(
-                                            existingConn.fromNode,
-                                            'output',
-                                            existingConn.fromPort,
-                                          );
-                                          canvasState.connecting = {
-                                            nodeId: existingConn.fromNode,
-                                            portIndex: existingConn.fromPort,
-                                            type: 'output',
-                                            portType: getPortType(
-                                              existingConn.fromNode,
-                                              'output',
-                                              existingConn.fromPort,
-                                              nodes,
-                                            ),
-                                            x: 0,
-                                            y: 0,
-                                            transformedX: outputPos.x,
-                                            transformedY: outputPos.y,
-                                          };
-                                          m.redraw();
-                                        }
-                                      },
-                                      onmouseup: (e: MouseEvent) => {
-                                        e.stopPropagation();
-                                        if (
-                                          canvasState.connecting &&
-                                          canvasState.connecting.type ===
-                                            'output'
-                                        ) {
+                                  chainNode.content,
+                                ),
+
+                              // Remaining inputs on left side (inputs[1+])
+                              cInputs
+                                .slice(chainNode.allInputsLeft ? 0 : 1)
+                                .map((input: string, i: number) =>
+                                  m(
+                                    '.pf-port-row.pf-port-input',
+                                    {
+                                      'data-port': `input-${i + 1}`,
+                                    },
+                                    [
+                                      m('.pf-port.pf-input', {
+                                        class: isPortConnected(
+                                          cId,
+                                          'input',
+                                          i + 1,
+                                          connections,
+                                        )
+                                          ? 'pf-connected'
+                                          : '',
+                                        onmousedown: (e: MouseEvent) => {
+                                          e.stopPropagation();
                                           const existingConnIdx =
                                             connections.findIndex(
                                               (conn) =>
@@ -1518,6 +1496,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                                 conn.toPort === i + 1,
                                             );
                                           if (existingConnIdx !== -1) {
+                                            const existingConn =
+                                              connections[existingConnIdx];
                                             const {onConnectionRemove} =
                                               vnode.attrs;
                                             if (
@@ -1527,79 +1507,128 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                                 existingConnIdx,
                                               );
                                             }
+                                            const outputPos = getPortPosition(
+                                              existingConn.fromNode,
+                                              'output',
+                                              existingConn.fromPort,
+                                            );
+                                            canvasState.connecting = {
+                                              nodeId: existingConn.fromNode,
+                                              portIndex: existingConn.fromPort,
+                                              type: 'output',
+                                              portType: getPortType(
+                                                existingConn.fromNode,
+                                                'output',
+                                                existingConn.fromPort,
+                                                nodes,
+                                              ),
+                                              x: 0,
+                                              y: 0,
+                                              transformedX: outputPos.x,
+                                              transformedY: outputPos.y,
+                                            };
+                                            m.redraw();
                                           }
-                                          const connection = {
-                                            fromNode:
-                                              canvasState.connecting.nodeId,
-                                            fromPort:
-                                              canvasState.connecting.portIndex,
-                                            toNode: cId,
-                                            toPort: i + 1,
-                                          };
-                                          if (onConnect !== undefined) {
-                                            onConnect(connection);
+                                        },
+                                        onmouseup: (e: MouseEvent) => {
+                                          e.stopPropagation();
+                                          if (
+                                            canvasState.connecting &&
+                                            canvasState.connecting.type ===
+                                              'output'
+                                          ) {
+                                            const existingConnIdx =
+                                              connections.findIndex(
+                                                (conn) =>
+                                                  conn.toNode === cId &&
+                                                  conn.toPort === i + 1,
+                                              );
+                                            if (existingConnIdx !== -1) {
+                                              const {onConnectionRemove} =
+                                                vnode.attrs;
+                                              if (
+                                                onConnectionRemove !== undefined
+                                              ) {
+                                                onConnectionRemove(
+                                                  existingConnIdx,
+                                                );
+                                              }
+                                            }
+                                            const connection = {
+                                              fromNode:
+                                                canvasState.connecting.nodeId,
+                                              fromPort:
+                                                canvasState.connecting
+                                                  .portIndex,
+                                              toNode: cId,
+                                              toPort: i + 1,
+                                            };
+                                            if (onConnect !== undefined) {
+                                              onConnect(connection);
+                                            }
+                                            canvasState.connecting = null;
                                           }
-                                          canvasState.connecting = null;
-                                        }
-                                      },
-                                    }),
-                                    m('span', input),
-                                  ],
+                                        },
+                                      }),
+                                      m('span', input),
+                                    ],
+                                  ),
                                 ),
-                              ),
 
-                            // Remaining outputs on right side (outputs[1+])
-                            cOutputs
-                              .slice(chainNode.allOutputsRight ? 0 : 1)
-                              .map((output: string, i: number) =>
-                                m(
-                                  '.pf-port-row.pf-port-output',
-                                  {
-                                    'data-port': `output-${i + 1}`,
-                                  },
-                                  [
-                                    m('span', output),
-                                    m('.pf-port.pf-output', {
-                                      class: [
-                                        isPortConnected(
-                                          cId,
-                                          'output',
-                                          i + 1,
-                                          connections,
-                                        )
-                                          ? 'pf-connected'
-                                          : '',
-                                        canvasState.connecting &&
-                                        canvasState.connecting.nodeId === cId &&
-                                        canvasState.connecting.portIndex ===
-                                          i + 1
-                                          ? 'pf-active'
-                                          : '',
-                                      ]
-                                        .filter(Boolean)
-                                        .join(' '),
-                                      onmousedown: (e: MouseEvent) => {
-                                        e.stopPropagation();
-                                        const portPos = getPortPosition(
-                                          cId,
-                                          'output',
-                                          i + 1,
-                                        );
-                                        canvasState.connecting = {
-                                          nodeId: cId,
-                                          portIndex: i + 1,
-                                          type: 'output',
-                                          portType: 'right',
-                                          x: 0,
-                                          y: 0,
-                                          transformedX: portPos.x,
-                                          transformedY: portPos.y,
-                                        };
-                                      },
-                                    }),
-                                  ],
+                              // Remaining outputs on right side (outputs[1+])
+                              cOutputs
+                                .slice(chainNode.allOutputsRight ? 0 : 1)
+                                .map((output: string, i: number) =>
+                                  m(
+                                    '.pf-port-row.pf-port-output',
+                                    {
+                                      'data-port': `output-${i + 1}`,
+                                    },
+                                    [
+                                      m('span', output),
+                                      m('.pf-port.pf-output', {
+                                        class: [
+                                          isPortConnected(
+                                            cId,
+                                            'output',
+                                            i + 1,
+                                            connections,
+                                          )
+                                            ? 'pf-connected'
+                                            : '',
+                                          canvasState.connecting &&
+                                          canvasState.connecting.nodeId ===
+                                            cId &&
+                                          canvasState.connecting.portIndex ===
+                                            i + 1
+                                            ? 'pf-active'
+                                            : '',
+                                        ]
+                                          .filter(Boolean)
+                                          .join(' '),
+                                        onmousedown: (e: MouseEvent) => {
+                                          e.stopPropagation();
+                                          const portPos = getPortPosition(
+                                            cId,
+                                            'output',
+                                            i + 1,
+                                          );
+                                          canvasState.connecting = {
+                                            nodeId: cId,
+                                            portIndex: i + 1,
+                                            type: 'output',
+                                            portType: 'right',
+                                            x: 0,
+                                            y: 0,
+                                            transformedX: portPos.x,
+                                            transformedY: portPos.y,
+                                          };
+                                        },
+                                      }),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                            ]),
 
                             // First output on bottom (if exists and no docked child below)
                             !chainNode.allOutputsRight &&
@@ -1662,12 +1691,22 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   const isDockTarget =
                     canvasState.dockTarget === id && canvasState.isDockZone;
 
+                  const cHasAccentBar = node.accentBar;
+
                   const classes = [
                     selectedNodeId === id ? 'pf-selected' : '',
                     isDockTarget ? 'pf-dock-target' : '',
+                    cHasAccentBar ? 'pf-node--has-accent-bar' : '',
                   ]
                     .filter(Boolean)
                     .join(' ');
+
+                  const hueStyle =
+                    node.hue !== undefined
+                      ? {
+                          '--pf-node-hue': `${node.hue}`,
+                        }
+                      : undefined;
 
                   return m(
                     '.pf-node',
@@ -1675,7 +1714,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                       'key': id,
                       'data-node': id,
                       'class': classes,
-                      'style': `left: ${renderPos.x}px; top: ${renderPos.y}px; z-index: ${canvasState.draggedNode === id ? 1000 : 10}`,
+                      'style': {
+                        left: `${renderPos.x}px`,
+                        top: `${renderPos.y}px`,
+                        zIndex: `${canvasState.draggedNode === id ? 1000 : 10}`,
+                        ...hueStyle,
+                      },
                       'onmousedown': (e: MouseEvent) => {
                         if ((e.target as HTMLElement).closest('.pf-port')) {
                           return;
@@ -1702,6 +1746,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                       },
                     },
                     [
+                      // Render node title if it exists
+                      node.titleBar !== undefined &&
+                        m('.pf-node-header', [
+                          m('.pf-node-title', node.titleBar.title),
+                        ]),
+
                       // First input on top (if exists)
                       // Note: standalone nodes are never docked children, so always show if inputs exist
                       !node.allInputsLeft &&
@@ -1791,90 +1841,42 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                           },
                         }),
 
-                      // Render custom content if provided
-                      node.content !== undefined &&
-                        m(
-                          '.pf-node-content',
-                          {
-                            onkeydown: (e: KeyboardEvent) => {
-                              e.stopPropagation();
-                            },
-                          },
-                          node.content,
-                        ),
-
-                      // Remaining inputs on left side (inputs[1+])
-                      inputs
-                        .slice(node.allInputsLeft ? 0 : 1)
-                        .map((input: string, i: number) =>
+                      m('.pf-node-body', [
+                        // Render custom content if provided
+                        node.content !== undefined &&
                           m(
-                            '.pf-port-row.pf-port-input',
+                            '.pf-node-content',
                             {
-                              'data-port': `input-${i + 1}`,
+                              onkeydown: (e: KeyboardEvent) => {
+                                e.stopPropagation();
+                              },
                             },
-                            [
-                              m('.pf-port.pf-input', {
-                                class: isPortConnected(
-                                  id,
-                                  'input',
-                                  i + 1,
-                                  connections,
-                                )
-                                  ? 'pf-connected'
-                                  : '',
-                                onmousedown: (e: MouseEvent) => {
-                                  e.stopPropagation();
+                            node.content,
+                          ),
 
-                                  // Check if this input is already connected
-                                  const existingConnIdx = connections.findIndex(
-                                    (conn) =>
-                                      conn.toNode === id &&
-                                      conn.toPort === i + 1,
-                                  );
+                        // Remaining inputs on left side (inputs[1+])
+                        inputs
+                          .slice(node.allInputsLeft ? 0 : 1)
+                          .map((input: string, i: number) =>
+                            m(
+                              '.pf-port-row.pf-port-input',
+                              {
+                                'data-port': `input-${i + 1}`,
+                              },
+                              [
+                                m('.pf-port.pf-input', {
+                                  class: isPortConnected(
+                                    id,
+                                    'input',
+                                    i + 1,
+                                    connections,
+                                  )
+                                    ? 'pf-connected'
+                                    : '',
+                                  onmousedown: (e: MouseEvent) => {
+                                    e.stopPropagation();
 
-                                  if (existingConnIdx !== -1) {
-                                    const existingConn =
-                                      connections[existingConnIdx];
-
-                                    // Remove the existing connection
-                                    const {onConnectionRemove} = vnode.attrs;
-                                    if (onConnectionRemove !== undefined) {
-                                      onConnectionRemove(existingConnIdx);
-                                    }
-
-                                    // Start a new connection from the original output port
-                                    const outputPos = getPortPosition(
-                                      existingConn.fromNode,
-                                      'output',
-                                      existingConn.fromPort,
-                                    );
-
-                                    canvasState.connecting = {
-                                      nodeId: existingConn.fromNode,
-                                      portIndex: existingConn.fromPort,
-                                      type: 'output',
-                                      portType: getPortType(
-                                        existingConn.fromNode,
-                                        'output',
-                                        existingConn.fromPort,
-                                        nodes,
-                                      ),
-                                      x: 0,
-                                      y: 0,
-                                      transformedX: outputPos.x,
-                                      transformedY: outputPos.y,
-                                    };
-
-                                    m.redraw();
-                                  }
-                                },
-                                onmouseup: (e: MouseEvent) => {
-                                  e.stopPropagation();
-                                  if (
-                                    canvasState.connecting &&
-                                    canvasState.connecting.type === 'output'
-                                  ) {
-                                    // Check if this input already has a connection
+                                    // Check if this input is already connected
                                     const existingConnIdx =
                                       connections.findIndex(
                                         (conn) =>
@@ -1882,87 +1884,139 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                           conn.toPort === i + 1,
                                       );
 
-                                    // Remove existing connection if present
                                     if (existingConnIdx !== -1) {
+                                      const existingConn =
+                                        connections[existingConnIdx];
+
+                                      // Remove the existing connection
                                       const {onConnectionRemove} = vnode.attrs;
                                       if (onConnectionRemove !== undefined) {
                                         onConnectionRemove(existingConnIdx);
                                       }
-                                    }
 
-                                    const connection = {
-                                      fromNode: canvasState.connecting.nodeId,
-                                      fromPort:
-                                        canvasState.connecting.portIndex,
-                                      toNode: id,
-                                      toPort: i + 1,
+                                      // Start a new connection from the original output port
+                                      const outputPos = getPortPosition(
+                                        existingConn.fromNode,
+                                        'output',
+                                        existingConn.fromPort,
+                                      );
+
+                                      canvasState.connecting = {
+                                        nodeId: existingConn.fromNode,
+                                        portIndex: existingConn.fromPort,
+                                        type: 'output',
+                                        portType: getPortType(
+                                          existingConn.fromNode,
+                                          'output',
+                                          existingConn.fromPort,
+                                          nodes,
+                                        ),
+                                        x: 0,
+                                        y: 0,
+                                        transformedX: outputPos.x,
+                                        transformedY: outputPos.y,
+                                      };
+
+                                      m.redraw();
+                                    }
+                                  },
+                                  onmouseup: (e: MouseEvent) => {
+                                    e.stopPropagation();
+                                    if (
+                                      canvasState.connecting &&
+                                      canvasState.connecting.type === 'output'
+                                    ) {
+                                      // Check if this input already has a connection
+                                      const existingConnIdx =
+                                        connections.findIndex(
+                                          (conn) =>
+                                            conn.toNode === id &&
+                                            conn.toPort === i + 1,
+                                        );
+
+                                      // Remove existing connection if present
+                                      if (existingConnIdx !== -1) {
+                                        const {onConnectionRemove} =
+                                          vnode.attrs;
+                                        if (onConnectionRemove !== undefined) {
+                                          onConnectionRemove(existingConnIdx);
+                                        }
+                                      }
+
+                                      const connection = {
+                                        fromNode: canvasState.connecting.nodeId,
+                                        fromPort:
+                                          canvasState.connecting.portIndex,
+                                        toNode: id,
+                                        toPort: i + 1,
+                                      };
+
+                                      // Call onConnect callback if provided
+                                      if (onConnect !== undefined) {
+                                        onConnect(connection);
+                                      }
+
+                                      canvasState.connecting = null;
+                                    }
+                                  },
+                                }),
+                                m('span', input),
+                              ],
+                            ),
+                          ),
+
+                        // Remaining outputs on right side (outputs[1+])
+                        outputs
+                          .slice(node.allOutputsRight ? 0 : 1)
+                          .map((output: string, i: number) =>
+                            m(
+                              '.pf-port-row.pf-port-output',
+                              {
+                                'data-port': `output-${i + 1}`,
+                              },
+                              [
+                                m('span', output),
+                                m('.pf-port.pf-output', {
+                                  class: [
+                                    isPortConnected(
+                                      id,
+                                      'output',
+                                      i + 1,
+                                      connections,
+                                    )
+                                      ? 'pf-connected'
+                                      : '',
+                                    canvasState.connecting &&
+                                    canvasState.connecting.nodeId === id &&
+                                    canvasState.connecting.portIndex === i + 1
+                                      ? 'pf-active'
+                                      : '',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' '),
+                                  onmousedown: (e: MouseEvent) => {
+                                    e.stopPropagation();
+                                    const portPos = getPortPosition(
+                                      id,
+                                      'output',
+                                      i + 1,
+                                    );
+                                    canvasState.connecting = {
+                                      nodeId: id,
+                                      portIndex: i + 1,
+                                      type: 'output',
+                                      portType: 'right',
+                                      x: 0,
+                                      y: 0,
+                                      transformedX: portPos.x,
+                                      transformedY: portPos.y,
                                     };
-
-                                    // Call onConnect callback if provided
-                                    if (onConnect !== undefined) {
-                                      onConnect(connection);
-                                    }
-
-                                    canvasState.connecting = null;
-                                  }
-                                },
-                              }),
-                              m('span', input),
-                            ],
+                                  },
+                                }),
+                              ],
+                            ),
                           ),
-                        ),
-
-                      // Remaining outputs on right side (outputs[1+])
-                      outputs
-                        .slice(node.allOutputsRight ? 0 : 1)
-                        .map((output: string, i: number) =>
-                          m(
-                            '.pf-port-row.pf-port-output',
-                            {
-                              'data-port': `output-${i + 1}`,
-                            },
-                            [
-                              m('span', output),
-                              m('.pf-port.pf-output', {
-                                class: [
-                                  isPortConnected(
-                                    id,
-                                    'output',
-                                    i + 1,
-                                    connections,
-                                  )
-                                    ? 'pf-connected'
-                                    : '',
-                                  canvasState.connecting &&
-                                  canvasState.connecting.nodeId === id &&
-                                  canvasState.connecting.portIndex === i + 1
-                                    ? 'pf-active'
-                                    : '',
-                                ]
-                                  .filter(Boolean)
-                                  .join(' '),
-                                onmousedown: (e: MouseEvent) => {
-                                  e.stopPropagation();
-                                  const portPos = getPortPosition(
-                                    id,
-                                    'output',
-                                    i + 1,
-                                  );
-                                  canvasState.connecting = {
-                                    nodeId: id,
-                                    portIndex: i + 1,
-                                    type: 'output',
-                                    portType: 'right',
-                                    x: 0,
-                                    y: 0,
-                                    transformedX: portPos.x,
-                                    transformedY: portPos.y,
-                                  };
-                                },
-                              }),
-                            ],
-                          ),
-                        ),
+                      ]),
 
                       // First output on bottom (if exists)
                       // Note: standalone nodes never have docked children, so always show if outputs exist
