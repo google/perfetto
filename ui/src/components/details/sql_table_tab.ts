@@ -37,6 +37,7 @@ import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {TabOption, TabStrip} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
+import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -136,9 +137,15 @@ class SqlTableTab implements Tab {
   }
 
   private tableMenuItems(column: TableColumn) {
-    return [
+    return m(
+      MenuItem,
+      {
+        label: 'Analyze',
+        icon: Icons.Analyze,
+      },
       m(MenuItem, {
         label: 'Pivot',
+        icon: Icons.Pivot,
         onclick: () => {
           const state = new PivotTableState({
             pivots: [column],
@@ -152,6 +159,7 @@ class SqlTableTab implements Tab {
       }),
       m(MenuItem, {
         label: 'Add bar chart',
+        icon: Icons.Chart,
         onclick: () => {
           const state = new SqlBarChartState({
             trace: this.tableState.trace,
@@ -163,20 +171,22 @@ class SqlTableTab implements Tab {
           this.barCharts.push(state);
         },
       }),
-      m(MenuItem, {
-        label: 'Add histogram',
-        onclick: () => {
-          const state = new SqlHistogramState({
-            trace: this.tableState.trace,
-            sqlSource: this.tableState.config.name,
-            column: column.column,
-            filters: this.tableState.filters,
-          });
-          this.selectedTab = state.uuid;
-          this.histograms.push(state);
-        },
-      }),
-    ];
+      (column.type === undefined ? true : isQuantitativeType(column.type)) &&
+        m(MenuItem, {
+          label: 'Add histogram',
+          icon: Icons.Chart,
+          onclick: () => {
+            const state = new SqlHistogramState({
+              trace: this.tableState.trace,
+              sqlSource: this.tableState.config.name,
+              column: column.column,
+              filters: this.tableState.filters,
+            });
+            this.selectedTab = state.uuid;
+            this.histograms.push(state);
+          },
+        }),
+    );
   }
 
   render() {
