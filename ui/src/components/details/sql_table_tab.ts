@@ -197,6 +197,12 @@ class SqlTableTab implements Tab {
       tabs.push({
         key: pivot.uuid,
         title: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
+        rightIcon: m(Button, {
+          icon: Icons.Close,
+          onclick: () => {
+            this.pivots = this.pivots.filter((p) => p.uuid !== pivot.uuid);
+          },
+        }),
         content: m(PivotTable, {
           state: pivot,
           extraRowButton: (node) =>
@@ -232,6 +238,14 @@ class SqlTableTab implements Tab {
       tabs.push({
         key: chart.uuid,
         title: `Bar chart: ${sqlColumnId(chart.args.column)}`,
+        rightIcon: m(Button, {
+          icon: Icons.Close,
+          onclick: () => {
+            this.barCharts = this.barCharts.filter(
+              (c) => c.uuid !== chart.uuid,
+            );
+          },
+        }),
         content: m(SqlBarChart, {state: chart}),
       });
     }
@@ -240,8 +254,21 @@ class SqlTableTab implements Tab {
       tabs.push({
         key: histogram.uuid,
         title: `Histogram: ${sqlColumnId(histogram.args.column)}`,
+        rightIcon: m(Button, {
+          icon: Icons.Close,
+          onclick: () => {
+            this.histograms = this.histograms.filter(
+              (h) => h.uuid !== histogram.uuid,
+            );
+          },
+        }),
         content: m(SqlHistogram, {state: histogram}),
       });
+    }
+
+    // Fall back to the table view if the selected tab was closed.
+    if (!tabs.some((tab) => tab.key === this.selectedTab)) {
+      this.selectedTab = this.tableState.uuid;
     }
 
     return m(
