@@ -43,10 +43,11 @@ interface NodeGraphDemoAttrs {
   readonly accentBars?: boolean;
   readonly allInputsLeft?: boolean;
   readonly allOutputsRight?: boolean;
+  readonly multiselect?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
-  let selectedNodeId: string | null = null;
+  const selectedNodeIds = new Set<string>();
 
   // State for select node checkboxes
   const columnOptions = {
@@ -339,7 +340,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           m(NodeGraph, {
             nodes: renderNodes(),
             connections: connections,
-            selectedNodeId: selectedNodeId,
+            selectedNodeIds: Array.from(selectedNodeIds),
             onNodeDrag: (nodeId: string, x: number, y: number) => {
               const model = modelNodes.get(nodeId);
               if (model) {
@@ -347,6 +348,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
                 model.y = y;
               }
             },
+            multiselect: attrs.multiselect,
             onConnect: (conn: Connection) => {
               console.log('onConnect:', conn);
               connections.push(conn);
@@ -368,7 +370,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }
 
               // Clear selection if needed
-              if (selectedNodeId === nodeId) selectedNodeId = null;
+              selectedNodeIds.delete(nodeId);
 
               // Remove any connections to/from this node
               for (let i = connections.length - 1; i >= 0; i--) {
@@ -385,9 +387,26 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
               console.log(`onNodeRemove: ${nodeId}`);
             },
-            onNodeSelect: (nodeId: string | null) => {
-              selectedNodeId = nodeId;
+            onNodeSelect: (nodeId: string) => {
+              selectedNodeIds.clear();
+              selectedNodeIds.add(nodeId);
               console.log(`onNodeSelect: ${nodeId}`);
+            },
+            onNodeAddToSelection: (nodeId: string) => {
+              selectedNodeIds.add(nodeId);
+              console.log(
+                `onNodeAddToSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
+              );
+            },
+            onNodeRemoveFromSelection: (nodeId: string) => {
+              selectedNodeIds.delete(nodeId);
+              console.log(
+                `onNodeRemoveFromSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
+              );
+            },
+            onSelectionClear: () => {
+              selectedNodeIds.clear();
+              console.log(`onSelectionClear`);
             },
             onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
               const target = modelNodes.get(targetId);
