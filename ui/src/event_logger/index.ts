@@ -22,6 +22,21 @@ import {createStore} from '../base/store';
  * Interface for event log
  */
 export interface EventLogger {
+
+  /**
+   * Sets a global property for the event logger.
+   * @param key - The property key.
+   * @param value - The property value.
+   */
+  setGlobalProperty(key: string, value: string): void;
+
+  /**
+   * Gets a global property value for the event logger.
+   * @param key - The property key.
+   * @returns The property value, or undefined if not set.
+   */
+  getGlobalProperty(key: string): string | undefined;
+
   /**
    * Initializes the event log with parameters.
    * @param params - Parameters for initialization.
@@ -42,6 +57,10 @@ export interface EventLogger {
 class NullEventLogger implements EventLogger {
   init(_params: Record<string, string>) {}
   logEvent(_event: string, _params: unknown) {}
+  setGlobalProperty(_key: string, _value: string) {}
+  getGlobalProperty(_key: string): string | undefined {
+    return undefined;
+  }
 }
 
 /**

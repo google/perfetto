@@ -22,9 +22,11 @@ import {AppImpl} from '../core/app_impl';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {HIDE_ERROR_ICON_ON_TOPBAR_FLAG} from '../lynx_features_flags';
 import {sourceMapState} from '../source_map/source_map_state';
-import {Button} from '../widgets/button';
 import {lynxPerfGlobals} from '../lynx_perf/lynx_perf_globals';
-import {Intent} from '../widgets/common';
+import {
+  renderLynxButtons,
+  getScreenSize,
+} from '../components/lynx_perf/top_bar';
 
 class Progress implements m.ClassComponent<TraceImplAttrs> {
   view({attrs}: m.CVnode<TraceImplAttrs>): m.Children {
@@ -91,24 +93,31 @@ export interface TopbarAttrs {
 }
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
+  private resizeHandler = () => {
+    m.redraw();
+  };
+
+  oncreate() {
+    window.addEventListener('resize', this.resizeHandler);
+  }
+
+  onremove() {
+    window.removeEventListener('resize', this.resizeHandler);
+  }
+
   view({attrs}: m.Vnode<TopbarAttrs>) {
     const {omnibox} = attrs;
+    const screenSize = getScreenSize();
+
     return m(
       '.topbar',
       {
-        class: `${AppImpl.instance.sidebar.visible ? '' : 'hide-sidebar'} ${lynxPerfGlobals.state.showRightSidebar ? '' : 'hide-right-sidebar'}`,
+        class: `${AppImpl.instance.sidebar.visible ? '' : 'hide-sidebar'} ${lynxPerfGlobals.state.showRightSidebar ? '' : 'hide-right-sidebar'} screen-${screenSize}`,
       },
       omnibox,
       attrs.trace && m(Progress, {trace: attrs.trace}),
       sourceMapState.state.sourceMapDecodePopup?.render(),
-      lynxPerfGlobals.state.lynxviewInstances.length > 0 &&
-        m(Button, {
-          className: 'lynx-menu',
-          label: 'Focus LynxView',
-          icon: 'center_focus_strong',
-          intent: Intent.Primary,
-          onclick: (_event: Event) => lynxPerfGlobals.toggleRightSidebar(),
-        }),
+      renderLynxButtons(),
       attrs.trace && m(TraceErrorIcon, {trace: attrs.trace}),
     );
   }

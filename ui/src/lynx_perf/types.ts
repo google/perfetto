@@ -35,6 +35,14 @@ export interface LynxState {
   filteredTraceSet: Set<number>;
 
   showRightSidebar: boolean;
+  rightSidebarTab: RightSidebarTab;
+  rightSidebarWidth: number;
+}
+
+export enum RightSidebarTab {
+  TraceAssistant,
+  LynxView,
+  Unknown,
 }
 
 export interface SliceThreadState {
@@ -93,4 +101,5 @@ export interface VitalTimestampLine {
 export interface LynxViewInstance {
   url: string;
   instanceId: string;
+  ts?: number;
 }

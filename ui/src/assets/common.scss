@@ -17,7 +17,7 @@
 @import "fonts";
 
 :root {
-  --right-sidebar-width: 350px;
+  --right-sidebar-width: 0px;
   --sidebar-width: 230px;
   --topbar-height: 44px;
   --monospace-font: "Roboto Mono", monospace;
@@ -106,7 +106,7 @@ body > main {
     "sidebar alerts right-sidebar"
     "sidebar page right-sidebar";
   grid-template-rows: auto auto 1fr;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr var(--right-sidebar-width);
   color: #121212;
   overflow: hidden;
 }

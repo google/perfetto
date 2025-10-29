@@ -20,6 +20,7 @@ const replace = require('rollup-plugin-re');
 const sourcemaps = require('rollup-plugin-sourcemaps');
 const gzipPlugin = require('rollup-plugin-gzip').default;
 import babel from '@rollup/plugin-babel';
+const json = require('@rollup/plugin-json');
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
@@ -51,6 +52,8 @@ function defBundle(tsRoot, bundle, distDir, needGzip = false) {
         presets: ['@babel/preset-react'],
         extensions: ['.ts', '.tsx']
       }),
+
+      json(),
 
       replace({
         patterns: [

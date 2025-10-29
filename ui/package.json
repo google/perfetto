@@ -45,12 +45,19 @@
     "protobufjs": "^7.3.2",
     "protobufjs-cli": "^1.1.2",
     "react": "^18.3.1",
+    "lucide-react": "0.294.0",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
     "util": "^0.12.5",
     "uuid": "^10.0.0",
     "vega": "^5.30.0",
     "vega-lite": "^5.19.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@modelcontextprotocol/sdk": "^1.18.1",
+    "@rollup/plugin-json": "^6.1.0",
+    "openai": "4.92.0",
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@google/genai": "^1.24.0"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",

@@ -36,6 +36,10 @@
   }
 }
 
+.rightbar-page {
+  height: 100%;
+}
+
 .show-right-sidebar {
   visibility: visible;
   margin-right: 0;
@@ -85,9 +89,23 @@
 }
 
 .rightbar-container {
-  display: flex;
-  width: 350px;
-  margin: 0 auto;
+  grid-area: right-sidebar;
+  width: var(--right-sidebar-width, 450px);
+  min-width: 450px;
+  max-width: 600px;
+  height: 100%;
+  position: relative;
+}
+
+.rightbar-container-resizer {
+  height: 100%;
+  cursor: ew-resize;
+  &:hover {
+    background-color: #a1a1a1;
+  }
+  &.dragging {
+    background-color: #a1a1a1;
+  }
 }
 
 .rightbar-buttons {

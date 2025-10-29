@@ -36,7 +36,7 @@ DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
     ('*', [
         '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
-        '/lynx_perf/*'
+        '/lynx_perf/*', '/event_logger/*'
     ]),
 
     # Integration tests can depend on everything.

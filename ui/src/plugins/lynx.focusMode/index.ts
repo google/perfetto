@@ -29,7 +29,7 @@ import {
   PARAMETER_FOCUS_LYNX_VIEWS,
 } from '../../lynx_perf/constants';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
-import {LynxViewInstance} from '../../lynx_perf/types';
+import {LynxViewInstance, RightSidebarTab} from '../../lynx_perf/types';
 import {getUrlParameter} from '../../lynx_perf/url_utils';
 import {AppImpl} from '../../core/app_impl';
 import {TrackNode, Workspace} from '../../public/workspace';
@@ -61,7 +61,7 @@ export default class FocusMode implements PerfettoPlugin {
       name: 'Focus LynxView',
       callback: async () => {
         if (!lynxPerfGlobals.state.showRightSidebar) {
-          lynxPerfGlobals.toggleRightSidebar();
+          lynxPerfGlobals.changeRightSidebarTab(RightSidebarTab.LynxView);
         }
       },
     });
@@ -107,6 +107,7 @@ export default class FocusMode implements PerfettoPlugin {
     ).join(',');
     const queryLoadBundle = `
       select
+        slice.ts as ts,
         args.key as key,
         args.display_value as value
       FROM slice
@@ -117,6 +118,7 @@ export default class FocusMode implements PerfettoPlugin {
     const it = res.iter({
       key: STR,
       value: STR,
+      ts: NUM,
     });
     const instances: LynxViewInstance[] = [];
     let url = '';
@@ -134,6 +136,7 @@ export default class FocusMode implements PerfettoPlugin {
         instances.push({
           url,
           instanceId,
+          ts: it.ts,
         });
         url = '';
         instanceId = '';

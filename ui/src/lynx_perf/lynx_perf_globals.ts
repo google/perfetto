@@ -23,6 +23,7 @@ import {
   IssueSummary,
   LynxState,
   LynxViewInstance,
+  RightSidebarTab,
   SliceThreadState,
   VitalTimestampLine,
 } from './types';
@@ -34,6 +35,7 @@ class LynxPerfGlobals {
     this._store.edit((draft) => {
       Object.assign(draft, createEmptyLynxState());
     });
+    this.closeRightSidebar();
   }
 
   appendPerformanceIssue(issues: IssueSummary[]) {
@@ -129,9 +131,29 @@ class LynxPerfGlobals {
     });
   }
 
-  toggleRightSidebar() {
+  closeRightSidebar() {
     this._store.edit((draft) => {
-      draft.showRightSidebar = !draft.showRightSidebar;
+      draft.showRightSidebar = false;
+      draft.rightSidebarTab = RightSidebarTab.Unknown;
+    });
+
+    document.documentElement.style.setProperty('--right-sidebar-width', '0px');
+  }
+
+  changeRightSidebarTab(tab: RightSidebarTab) {
+    this._store.edit((draft) => {
+      draft.rightSidebarTab = tab;
+      draft.showRightSidebar = true;
+    });
+    document.documentElement.style.setProperty(
+      '--right-sidebar-width',
+      this._store.state.rightSidebarWidth + 'px',
+    );
+  }
+
+  changeRightSidebarWidth(width: number) {
+    this._store.edit((draft) => {
+      draft.rightSidebarWidth = width;
     });
   }
 }

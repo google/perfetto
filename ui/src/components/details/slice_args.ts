@@ -31,6 +31,7 @@ import {raf} from '../../core/raf_scheduler';
 import {stringToJsonObject} from '../../lynx_perf/string_utils';
 import {message} from 'antd';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import {RightSidebarTab} from '../../lynx_perf/types';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(trace: Trace, args: Arg[]): m.Children {
@@ -130,7 +131,7 @@ function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
           onclick: () => {
             // popupModalForSelectLynxviewInstance();
             if (!lynxPerfGlobals.state.showRightSidebar) {
-              lynxPerfGlobals.toggleRightSidebar();
+              lynxPerfGlobals.changeRightSidebarTab(RightSidebarTab.LynxView);
             }
           },
         }),

@@ -17,6 +17,7 @@
 @mixin omnibox-width() {
   width: 90%;
   max-width: 600px;
+  min-width: 300px;
 }
 
 .topbar {
@@ -330,15 +331,79 @@
   }
 }
 
-.lynx-menu {
+// Base styles for lynx buttons
+.lynx-assistant,
+.lynx-menu,
+.lynx-overflow-menu {
   position: absolute;
-  right: 40px;
   display: flex;
   align-items: center;
+}
+
+// Large screen layout (>= 1400px)
+.topbar.screen-large {
+  .omnibox {
+    width: calc(100% - 400px); // Leave space for buttons
+    max-width: 600px;
+    min-width: 300px;
+  }
+
+  .lynx-assistant {
+    right: 150px;
+  }
+
+  .lynx-menu {
+    right: 20px;
+  }
+}
+
+// Medium screen layout (800px - 1400px)
+.topbar.screen-medium {
+  .omnibox {
+    width: calc(100% - 200px); // Leave space for icon-only buttons
+    max-width: 600px;
+    min-width: 300px;
+  }
+
+  .lynx-assistant {
+    right: 60px;
+  }
+
+  .lynx-menu {
+    right: 20px;
+  }
+}
+
+// Small screen layout (< 800px)
+.topbar.screen-small {
+  .omnibox {
+    width: calc(100% - 80px); // Leave space for overflow menu
+    max-width: 100px;
+    min-width: none;
+  }
+
+  .lynx-overflow-menu {
+    right: 20px;
+  }
+
+  // Hide individual buttons on small screens
+  .lynx-assistant,
+  .lynx-menu {
+    display: none;
+  }
 }
 
 .hide-right-sidebar {
   .query-mode {
     padding-right: 48px;
+  }
+}
+
+// Responsive adjustments for very small screens
+@media (max-width: 480px) {
+  .topbar.screen-small {
+    .omnibox {
+      min-width: 250px; // Reduce min-width for very small screens
+    }
   }
 }
