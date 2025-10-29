@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
