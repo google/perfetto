@@ -41,7 +41,6 @@ interface NodeTemplate {
   inputs: string[];
   outputs: string[];
   content?: m.Children;
-  allInputsLeft?: boolean;
 }
 
 interface NodeGraphDemoAttrs {
@@ -49,7 +48,6 @@ interface NodeGraphDemoAttrs {
   readonly accentBars?: boolean;
   readonly allInputsLeft?: boolean;
   readonly allOutputsRight?: boolean;
-  readonly multiselect?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
@@ -190,7 +188,6 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     join: {
       inputs: ['Left', 'Right'],
       outputs: ['Output'],
-      allInputsLeft: true,
       content: m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
@@ -231,89 +228,97 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     return Array.from(modelNodes.keys()).filter((id) => !referenced.has(id));
   }
 
-  // Render model state into NodeGraph nodes
-  function renderNodes(): Node[] {
-    const rootIds = getRootNodeIds();
-    return rootIds
-      .map((id) => {
-        const model = modelNodes.get(id);
-        if (!model) return null;
-        return renderNodeChain(model);
-      })
-      .filter((n): n is Node => n !== null);
-  }
-
-  // Render a model node and its chain
-  function renderNodeChain(model: ModelNode): Node {
-    const template = nodeTemplates[model.type];
-    const hasNext = model.nextId !== undefined;
-    const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
-    const allInputsLeft = template.allInputsLeft ?? false;
-
-    return {
-      id: model.id,
-      x: model.x,
-      y: model.y,
-      inputs: template.inputs,
-      outputs: template.outputs,
-      content: template.content,
-      next: nextModel ? renderChildNode(nextModel) : undefined,
-      allInputsLeft,
-      accentBar: true,
-      hue: nodeHues[model.type],
-      addMenuItems: [
-        m(MenuItem, {
-          label: 'Select',
-          icon: 'filter_alt',
-          onclick: () => addNode('select', model.id),
-        }),
-        m(MenuItem, {
-          label: 'Filter',
-          icon: 'filter_list',
-          onclick: () => addNode('filter', model.id),
-        }),
-      ],
-    };
-  }
-
-  // Render child node (keep all ports visible)
-  function renderChildNode(model: ModelNode): Omit<Node, 'x' | 'y'> {
-    const template = nodeTemplates[model.type];
-    const hasNext = model.nextId !== undefined;
-    const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
-
-    return {
-      id: model.id,
-      inputs: template.inputs,
-      outputs: template.outputs,
-      content: template.content,
-      next: nextModel ? renderChildNode(nextModel) : undefined,
-      accentBar: true,
-      hue: nodeHues[model.type],
-      addMenuItems: [
-        m(MenuItem, {
-          label: 'Select',
-          icon: 'filter_alt',
-          onclick: () => addNode('select', model.id),
-        }),
-        m(MenuItem, {
-          label: 'Filter',
-          icon: 'filter_list',
-          onclick: () => addNode('filter', model.id),
-        }),
-        m(MenuItem, {
-          label: 'Join',
-          icon: 'join',
-          onclick: () => addNode('join', model.id),
-        }),
-      ],
-    };
-  }
-
   const connections: Connection[] = [];
 
   return {
-    view: () => {
+    view: ({attrs}: m.Vnode<NodeGraphDemoAttrs>) => {
+      // Render a model node and its chain
+      function renderNodeChain(model: ModelNode): Node {
+        const template = nodeTemplates[model.type];
+        const hasNext = model.nextId !== undefined;
+        const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+
+        return {
+          id: model.id,
+          x: model.x,
+          y: model.y,
+          inputs: template.inputs,
+          outputs: template.outputs,
+          content: template.content,
+          next: nextModel ? renderChildNode(nextModel) : undefined,
+          allInputsLeft: attrs.allInputsLeft,
+          allOutputsRight: attrs.allOutputsRight,
+          accentBar: attrs.accentBars,
+          titleBar: attrs.titleBars
+            ? {title: model.type.toUpperCase()}
+            : undefined,
+          hue: nodeHues[model.type],
+          addMenuItems: [
+            m(MenuItem, {
+              label: 'Select',
+              icon: 'filter_alt',
+              onclick: () => addNode('select', model.id),
+            }),
+            m(MenuItem, {
+              label: 'Filter',
+              icon: 'filter_list',
+              onclick: () => addNode('filter', model.id),
+            }),
+          ],
+        };
+      }
+
+      // Render child node (keep all ports visible)
+      function renderChildNode(model: ModelNode): Omit<Node, 'x' | 'y'> {
+        const template = nodeTemplates[model.type];
+        const hasNext = model.nextId !== undefined;
+        const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+
+        return {
+          id: model.id,
+          inputs: template.inputs,
+          outputs: template.outputs,
+          content: template.content,
+          next: nextModel ? renderChildNode(nextModel) : undefined,
+          allInputsLeft: attrs.allInputsLeft,
+          allOutputsRight: attrs.allOutputsRight,
+          accentBar: attrs.accentBars,
+          titleBar: attrs.titleBars
+            ? {title: model.type.toUpperCase()}
+            : undefined,
+          hue: nodeHues[model.type],
+          addMenuItems: [
+            m(MenuItem, {
+              label: 'Select',
+              icon: 'filter_alt',
+              onclick: () => addNode('select', model.id),
+            }),
+            m(MenuItem, {
+              label: 'Filter',
+              icon: 'filter_list',
+              onclick: () => addNode('filter', model.id),
+            }),
+            m(MenuItem, {
+              label: 'Join',
+              icon: 'join',
+              onclick: () => addNode('join', model.id),
+            }),
+          ],
+        };
+      }
+
+      // Render model state into NodeGraph nodes
+      function renderNodes(): Node[] {
+        const rootIds = getRootNodeIds();
+        return rootIds
+          .map((id) => {
+            const model = modelNodes.get(id);
+            if (!model) return null;
+            return renderNodeChain(model);
+          })
+          .filter((n): n is Node => n !== null);
+      }
+
       return m('div', [
         // Add Node button
         m(
