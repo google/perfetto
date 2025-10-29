@@ -17,11 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_CLOCK_SYNCHRONIZER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_CLOCK_SYNCHRONIZER_H_
 
+#include <algorithm>
 #include <array>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <random>
 #include <set>
@@ -29,8 +32,10 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
@@ -193,9 +198,9 @@ class ClockSynchronizer {
 
     // Compute the fingerprint of the snapshot by hashing all clock ids. This is
     // used by the clock pathfinding logic.
-    base::FnvHasher hasher;
+    base::MurmurHashCombiner hasher;
     for (const auto& clock_ts : clock_timestamps)
-      hasher.Update(clock_ts.clock.id);
+      hasher.Combine(clock_ts.clock.id);
     const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());
 
     // Add a new entry in each clock's snapshot vector.

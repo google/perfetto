@@ -195,6 +195,9 @@ auto MurmurHashBuiltinValue(const T& value) {
   } else if constexpr (std::is_same_v<T, const char*>) {
     std::string_view view(value);
     return murmur_internal::MurmurHashBytes(view.data(), view.size());
+  } else if constexpr (std::is_pointer_v<T>) {
+    return murmur_internal::MurmurHashMix(
+        static_cast<uint64_t>(reinterpret_cast<uintptr_t>(value)));
   } else {
     struct InvalidBuiltin {};
     return InvalidBuiltin{};
