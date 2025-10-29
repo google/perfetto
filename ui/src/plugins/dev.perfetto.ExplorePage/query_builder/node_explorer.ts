@@ -23,6 +23,7 @@ import {
   Query,
   QueryNode,
   queryToRun,
+  addConnection,
 } from '../query_node';
 import {Button} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
@@ -119,9 +120,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         }
       }
       node.prevNodes = dependencies;
-      for (const prevNode of node.prevNodes) {
-        if (!prevNode.nextNodes.includes(node)) {
-          prevNode.nextNodes.push(node);
+      for (let i = 0; i < node.prevNodes.length; i++) {
+        const prevNode = node.prevNodes[i];
+        if (prevNode !== undefined) {
+          addConnection(prevNode, node, i);
         }
       }
     }

@@ -48,7 +48,7 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode.finalCols ?? [];
+    return this.prevNode?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -136,6 +136,7 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (this.prevNode === undefined) return undefined;
     return this.prevNode.getStructuredQuery();
   }
 

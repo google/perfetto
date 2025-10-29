@@ -390,7 +390,10 @@ export class ModifyColumnsNode implements ModificationNode {
       selectedColumns: state.selectedColumns ?? [],
     };
 
-    if (this.state.selectedColumns.length === 0) {
+    if (
+      this.state.selectedColumns.length === 0 &&
+      this.prevNode !== undefined
+    ) {
       this.state.selectedColumns = newColumnInfoList(this.prevNode.finalCols);
     }
 
@@ -771,7 +774,7 @@ export class ModifyColumnsNode implements ModificationNode {
           {style: 'flex-grow: 1'},
           m(SwitchComponent, {
             column: col,
-            columns: this.prevNode.finalCols,
+            columns: this.prevNode?.finalCols ?? [],
             onchange: () => {
               const newNewColumns = [...this.state.newColumns];
               newNewColumns[index] = {...col};
@@ -932,6 +935,8 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (this.prevNode === undefined) return undefined;
+
     const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
     const referencedModules: string[] = [];
 
