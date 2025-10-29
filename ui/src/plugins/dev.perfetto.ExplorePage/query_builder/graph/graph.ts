@@ -594,20 +594,20 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         m(NodeGraph, {
           nodes,
           connections,
-          selectedNodeId: selectedNode?.nodeId ?? null,
+          selectedNodeIds: selectedNode?.nodeId ? [selectedNode.nodeId] : [],
           hideControls: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
           },
-          onNodeSelect: (nodeId: string | null) => {
-            if (nodeId === null) {
-              attrs.onDeselect();
-            } else {
-              const qnode = findQueryNode(nodeId, rootNodes);
-              if (qnode) {
-                attrs.onNodeSelected(qnode);
-              }
+          multiselect: false,
+          onNodeSelect: (nodeId: string) => {
+            const qnode = findQueryNode(nodeId, rootNodes);
+            if (qnode) {
+              attrs.onNodeSelected(qnode);
             }
+          },
+          onSelectionClear: () => {
+            attrs.onDeselect();
           },
           onNodeDrag: (nodeId: string, x: number, y: number) => {
             attrs.onNodeLayoutChange(nodeId, {x, y});
