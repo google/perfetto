@@ -80,6 +80,11 @@ interface CanvasState {
   dockTarget: string | null; // Node being targeted for docking
   isDockZone: boolean; // Whether we're in valid dock position
   undockCandidate: UndockCandidate | null; // Tracks potential undock before threshold
+  hoveredPort: {
+    nodeId: string;
+    portIndex: number;
+    type: 'input' | 'output';
+  } | null;
 }
 
 export interface NodeGraphApi {
@@ -102,6 +107,7 @@ export interface NodeGraphAttrs {
   ) => void;
   readonly onUndock?: (parentId: string) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
+  readonly hideControls?: boolean;
 }
 
 // ========================================
@@ -275,6 +281,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     dockTarget: null,
     isDockZone: false,
     undockCandidate: null,
+    hoveredPort: null,
   };
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
@@ -298,6 +305,35 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         (e.clientY - canvasRect.top - canvasState.panOffset.y) /
         canvasState.zoom,
     };
+
+    if (canvasState.connecting) {
+      const portElement = (e.target as HTMLElement).closest(
+        '.pf-port.pf-input',
+      );
+      if (portElement) {
+        const nodeElement = portElement.closest(
+          '[data-node]',
+        ) as HTMLElement | null;
+        const portId =
+          portElement.getAttribute('data-port') ||
+          portElement.parentElement?.getAttribute('data-port');
+
+        if (nodeElement && portId) {
+          const nodeId = nodeElement.dataset.node!;
+          const [type, portIndexStr] = portId.split('-');
+          if (type === 'input') {
+            const portIndex = parseInt(portIndexStr, 10);
+            canvasState.hoveredPort = {nodeId, portIndex, type: 'input'};
+          } else {
+            canvasState.hoveredPort = null;
+          }
+        } else {
+          canvasState.hoveredPort = null;
+        }
+      } else {
+        canvasState.hoveredPort = null;
+      }
+    }
 
     if (canvasState.isPanning) {
       // Pan the canvas
@@ -576,14 +612,29 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // Convert screen coordinates to canvas content coordinates
       const fromX = canvasState.connecting.transformedX;
       const fromY = canvasState.connecting.transformedY;
-      const toX = canvasState.mousePos.transformedX ?? 0;
-      const toY = canvasState.mousePos.transformedY ?? 0;
+      let toX = canvasState.mousePos.transformedX ?? 0;
+      let toY = canvasState.mousePos.transformedY ?? 0;
 
       // For temp connections, use the stored port type
       const fromPortType = canvasState.connecting.portType;
       // The target end defaults to the opposite type for visual feedback
-      const toPortType =
+      let toPortType: 'top' | 'left' | 'right' | 'bottom' =
         fromPortType === 'top' || fromPortType === 'bottom' ? 'top' : 'left';
+
+      if (
+        canvasState.hoveredPort &&
+        canvasState.connecting.type === 'output' &&
+        canvasState.hoveredPort.type === 'input'
+      ) {
+        const {nodeId, portIndex, type} = canvasState.hoveredPort;
+        const hoverPos = getPortPosition(nodeId, type, portIndex);
+        if (hoverPos.x !== 0 || hoverPos.y !== 0) {
+          toX = hoverPos.x;
+          toY = hoverPos.y;
+          toPortType = getPortType(nodeId, type, portIndex, nodes);
+        }
+      }
+
       path.setAttribute(
         'd',
         createCurve(fromX, fromY, toX, toY, fromPortType, toPortType),
@@ -1105,6 +1156,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         connections = [],
         onConnect,
         selectedNodeId,
+        hideControls = false,
       } = vnode.attrs;
 
       const className = classNames(
@@ -1152,32 +1204,37 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
         },
         [
-          // Control buttons
-          m('.pf-nodegraph-controls', [
-            m(Button, {
-              label: 'Auto Layout',
-              icon: 'account_tree',
-              variant: ButtonVariant.Filled,
-              onclick: () => {
-                const {nodes = [], connections = [], onNodeDrag} = vnode.attrs;
-                autoLayoutGraph(nodes, connections, onNodeDrag);
-              },
-            }),
-            m(Button, {
-              label: 'Fit to Screen',
-              icon: 'center_focus_strong',
-              variant: ButtonVariant.Filled,
-              onclick: (e: MouseEvent) => {
-                const {nodes = []} = vnode.attrs;
-                const canvas = (e.currentTarget as HTMLElement).closest(
-                  '.pf-canvas',
-                );
-                if (canvas) {
-                  autofit(nodes, canvas as HTMLElement);
-                }
-              },
-            }),
-          ]),
+          // Control buttons (can be hidden via hideControls prop)
+          !hideControls &&
+            m('.pf-nodegraph-controls', [
+              m(Button, {
+                label: 'Auto Layout',
+                icon: 'account_tree',
+                variant: ButtonVariant.Filled,
+                onclick: () => {
+                  const {
+                    nodes = [],
+                    connections = [],
+                    onNodeDrag,
+                  } = vnode.attrs;
+                  autoLayoutGraph(nodes, connections, onNodeDrag);
+                },
+              }),
+              m(Button, {
+                label: 'Fit to Screen',
+                icon: 'center_focus_strong',
+                variant: ButtonVariant.Filled,
+                onclick: (e: MouseEvent) => {
+                  const {nodes = []} = vnode.attrs;
+                  const canvas = (e.currentTarget as HTMLElement).closest(
+                    '.pf-canvas',
+                  );
+                  if (canvas) {
+                    autofit(nodes, canvas as HTMLElement);
+                  }
+                },
+              }),
+            ]),
 
           // Container for nodes and SVG that gets transformed
           m(

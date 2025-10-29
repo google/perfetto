@@ -33,7 +33,6 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {NodeContainerLayout} from './graph/node_container';
 import {UIFilter} from './operations/filter';
 
 export interface BuilderAttrs {
@@ -44,20 +43,20 @@ export interface BuilderAttrs {
 
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
-  readonly nodeLayouts: Map<string, NodeContainerLayout>;
+  readonly nodeLayouts: Map<string, {x: number; y: number}>;
 
   readonly onDevModeChange?: (enabled: boolean) => void;
 
   // Add nodes.
   readonly onAddSourceNode: (id: string) => void;
-  readonly onAddOperationNode: (id: string) => void;
+  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (
     nodeId: string,
-    layout: NodeContainerLayout,
+    layout: {x: number; y: number},
   ) => void;
 
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -174,7 +173,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAddSourceNode: attrs.onAddSourceNode,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onAddOperationNode: attrs.onAddOperationNode,
+          onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
           devMode: attrs.devMode,
           onDevModeChange: attrs.onDevModeChange,
           onDeleteNode: attrs.onDeleteNode,
