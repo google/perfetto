@@ -127,6 +127,11 @@ class StringPool {
     const char* data() const { return reinterpret_cast<const char*>(&id); }
     size_t size() const { return sizeof(id); }
 
+    template <typename H>
+    friend H PerfettoHashValue(H h, const Id& value) {
+      return H::Combine(std::move(h), value.id);
+    }
+
    private:
     constexpr explicit Id(uint32_t i) : id(i) {}
 
