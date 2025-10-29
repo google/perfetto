@@ -29,6 +29,7 @@
   position: relative;
   user-select: none;
   font-family: var(--pf-font-compact);
+  isolation: isolate;
   cursor: grab;
   height: 450px; // Give the canvas some intrinsic height by default
 
@@ -116,8 +117,8 @@
 
 .pf-node.pf-selected {
   border-color: var(--pf-color-accent);
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
   z-index: 1; // Make sure box shadow appears above other nodes
 }
 

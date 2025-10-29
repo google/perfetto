@@ -14,19 +14,20 @@
 
 import m from 'mithril';
 import {uuidv4} from '../../../base/uuid';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
-import {MenuItem} from '../../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
   Connection,
   Node,
   NodeGraph,
   NodeGraphApi,
+  NodeGraphAttrs,
+  NodePort,
 } from '../../../widgets/nodegraph';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
-import {PopupMenu} from '../../../widgets/menu';
-import {Button, ButtonVariant} from '../../../widgets/button';
 
 // Simple model state - just data
 interface ModelNode {
@@ -39,17 +40,18 @@ interface ModelNode {
 
 // Node template definition
 interface NodeTemplate {
-  inputs: string[];
-  outputs: string[];
-  content?: m.Children;
+  readonly inputs: ReadonlyArray<NodePort>;
+  readonly outputs: ReadonlyArray<NodePort>;
+  readonly canDockTop?: boolean;
+  readonly canDockBottom?: boolean;
+  readonly content?: m.Children;
+  readonly hue: number;
 }
 
 interface NodeGraphDemoAttrs {
   readonly multiselect?: boolean;
   readonly titleBars?: boolean;
   readonly accentBars?: boolean;
-  readonly allInputsLeft?: boolean;
-  readonly allOutputsRight?: boolean;
   readonly colors?: boolean;
 }
 
@@ -82,13 +84,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     type: 'table' | 'select' | 'filter' | 'join',
   ): Omit<Node, 'x' | 'y'> {
     const template = nodeTemplates[type];
-    return {
-      id,
-      inputs: template.inputs,
-      outputs: template.outputs,
-      content: template.content,
-      hue: nodeHues[type],
-    };
+    return {id, ...template};
   }
 
   // Function to add a new node
@@ -128,13 +124,6 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     }
   }
 
-  const nodeHues: Record<string, number> = {
-    table: 200,
-    select: 100,
-    filter: 50,
-    join: 300,
-  };
-
   // Model state - persists across renders
   const modelNodes: Map<string, ModelNode> = new Map();
   addNode('table');
@@ -143,7 +132,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   const nodeTemplates: Record<string, NodeTemplate> = {
     table: {
       inputs: [],
-      outputs: ['Output'],
+      outputs: [{content: 'Output', direction: 'bottom'}],
+      canDockBottom: true,
+      hue: 200,
       content: m(
         Select,
         {
@@ -161,8 +152,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       ),
     },
     select: {
-      inputs: ['Input'],
-      outputs: ['Output'],
+      inputs: [{content: 'Input', direction: 'top'}],
+      outputs: [{content: 'Output', direction: 'bottom'}],
+      canDockTop: true,
+      canDockBottom: true,
+      hue: 100,
       content: m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
@@ -178,8 +172,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       ),
     },
     filter: {
-      inputs: ['Input'],
-      outputs: ['Output'],
+      inputs: [{content: 'Input', direction: 'top'}],
+      outputs: [{content: 'Output', direction: 'bottom'}],
+      canDockTop: true,
+      canDockBottom: true,
+      hue: 50,
       content: m(TextInput, {
         placeholder: 'Filter expression...',
         value: filterExpression,
@@ -189,8 +186,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       }),
     },
     join: {
-      inputs: ['Left', 'Right'],
-      outputs: ['Output'],
+      inputs: [
+        {content: 'Left', direction: 'top'},
+        {content: 'Right', direction: 'left'},
+      ],
+      outputs: [{content: 'Output', direction: 'bottom'}],
+      canDockTop: true,
+      canDockBottom: true,
+      hue: 300,
       content: m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
@@ -248,31 +251,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           inputs: template.inputs,
           outputs: template.outputs,
           content: template.content,
+          canDockBottom: template.canDockBottom,
+          canDockTop: template.canDockTop,
           next: nextModel ? renderChildNode(nextModel) : undefined,
-          allInputsLeft: attrs.allInputsLeft,
-          allOutputsRight: attrs.allOutputsRight,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
             ? {title: model.type.toUpperCase()}
             : undefined,
-          hue: attrs.colors ? nodeHues[model.type] : undefined,
-          addMenuItems: [
-            m(MenuItem, {
-              label: 'Select',
-              icon: 'filter_alt',
-              onclick: () => addNode('select', model.id),
-            }),
-            m(MenuItem, {
-              label: 'Filter',
-              icon: 'filter_list',
-              onclick: () => addNode('filter', model.id),
-            }),
-            m(MenuItem, {
-              label: 'Join',
-              icon: 'join',
-              onclick: () => addNode('join', model.id),
-            }),
-          ],
+          hue: attrs.colors ? template.hue : undefined,
         };
       }
 
@@ -287,31 +273,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           inputs: template.inputs,
           outputs: template.outputs,
           content: template.content,
+          canDockBottom: template.canDockBottom,
+          canDockTop: template.canDockTop,
           next: nextModel ? renderChildNode(nextModel) : undefined,
-          allInputsLeft: attrs.allInputsLeft,
-          allOutputsRight: attrs.allOutputsRight,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
             ? {title: model.type.toUpperCase()}
             : undefined,
-          hue: attrs.colors ? nodeHues[model.type] : undefined,
-          addMenuItems: [
-            m(MenuItem, {
-              label: 'Select',
-              icon: 'filter_alt',
-              onclick: () => addNode('select', model.id),
-            }),
-            m(MenuItem, {
-              label: 'Filter',
-              icon: 'filter_list',
-              onclick: () => addNode('filter', model.id),
-            }),
-            m(MenuItem, {
-              label: 'Join',
-              icon: 'join',
-              onclick: () => addNode('join', model.id),
-            }),
-          ],
+          hue: attrs.colors ? template.hue : undefined,
         };
       }
 
@@ -327,7 +296,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           .filter((n): n is Node => n !== null);
       }
 
-      return m(NodeGraph, {
+      const nodeGraphAttrs: NodeGraphAttrs = {
         toolbarItems: m(
           PopupMenu,
           {
@@ -362,7 +331,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         ),
         nodes: renderNodes(),
         connections: connections,
-        selectedNodeIds: Array.from(selectedNodeIds),
+        selectedNodeIds: selectedNodeIds,
         multiselect: attrs.multiselect,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
@@ -477,7 +446,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             }
           }
         },
-      });
+      };
+
+      return m(NodeGraph, nodeGraphAttrs);
     },
   };
 }
@@ -493,6 +464,7 @@ export function renderNodeGraph() {
       ),
     ),
     renderWidgetShowcase({
+      noPadding: true,
       renderWidget: (opts) => m(NodeGraphDemo, opts),
       initialOpts: {
         multiselect: true,
