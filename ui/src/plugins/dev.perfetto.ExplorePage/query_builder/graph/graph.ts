@@ -38,6 +38,7 @@ import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {Connection, Node, NodeGraph} from '../../../../widgets/nodegraph';
+import {UIFilter} from '../operations/filter';
 import {
   QueryNode,
   singleNodeOperation,
@@ -49,7 +50,6 @@ import {
 import {EmptyGraph} from '../empty_graph';
 import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
-import {UIFilter} from '../operations/filter';
 
 // ========================================
 // TYPE DEFINITIONS
