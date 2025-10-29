@@ -37,8 +37,7 @@
 
 #include "protos/third_party/pprof/profile.pbzero.h"
 
-namespace perfetto {
-namespace protoprofile {
+namespace perfetto::protoprofile {
 namespace {
 
 class PprofProfileComputer {
@@ -231,8 +230,7 @@ int Main(int argc, const char** argv) {
 }
 
 }  // namespace
-}  // namespace protoprofile
-}  // namespace perfetto
+}  // namespace perfetto::protoprofile
 
 int main(int argc, const char** argv) {
   return perfetto::protoprofile::Main(argc, argv);
