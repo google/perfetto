@@ -55,7 +55,7 @@ export function createTableColumn(args: {
       case 'sched':
         return new SchedIdColumn(args.trace, args.column);
     }
-    return new StandardColumn(args.column);
+    return new StandardColumn(args.column, args.type);
   }
   if (args.type?.kind === 'joinid' && args.type.source.column === 'id') {
     switch (args.type.source.table.toLowerCase()) {
@@ -71,5 +71,5 @@ export function createTableColumn(args: {
         return new SchedIdColumn(args.trace, args.column);
     }
   }
-  return new StandardColumn(args.column);
+  return new StandardColumn(args.column, args.type);
 }
