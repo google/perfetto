@@ -27,7 +27,11 @@ import protos from '../../../../../protos';
 import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
-import {createFiltersProto, FilterOperation, UIFilter} from '../../operations/filter';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../../operations/filter';
 
 export interface SlicesSourceSerializedState {
   slice_name?: string;
