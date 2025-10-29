@@ -91,6 +91,8 @@
   display: flex;
   flex-direction: column;
   padding: 0.625rem 0.75rem;
+  border-radius: 0 7px 7px 0;
+  margin-left: -1px;
 
   &.kTable {
     @include set-node-color("kTable");

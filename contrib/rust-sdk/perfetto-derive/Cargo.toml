@@ -1,0 +1,31 @@
+[package]
+edition = "2024"
+name = "perfetto-derive"
+version = "0.1.0"
+authors = ["David Reveman <dreveman@gmail.com>"]
+description = "Procedural macros for Perfetto"
+readme = "README.md"
+keywords = [
+    "tracing",
+    "perfetto",
+]
+categories = ["profiling"]
+license = "Apache-2.0"
+repository = "https://github.com/google/perfetto"
+
+[lib]
+proc-macro = true
+
+[features]
+default = ["vendored"]
+vendored = ["perfetto/vendored"]
+
+[dependencies]
+perfetto = { path = "../perfetto", default-features = false  }
+syn = { version = "1.0.5", features = ["full"] }
+quote = "1.0.8"
+proc-macro2 = "1.0"
+
+[[example]]
+name = "derive"
+path = "examples/derive.rs"
