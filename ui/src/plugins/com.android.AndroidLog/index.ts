@@ -34,6 +34,7 @@ const DEFAULT_STATE: AndroidLogPluginState = {
     // The first two log priorities are ignored.
     minimumLevel: 2,
     tags: [],
+    isTagRegex: false,
     textEntry: '',
     hideNonMatching: true,
     machineExcludeList: [],
