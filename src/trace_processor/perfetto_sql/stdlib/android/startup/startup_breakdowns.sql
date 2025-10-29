@@ -93,42 +93,53 @@ SELECT
 -- List of startups with unique ids for each possible upid. The existing
 -- startup_ids are not necessarily unique (because of multiuser).
 CREATE PERFETTO TABLE _startup_root_slices AS
-WITH possibly_overlapping AS (
--- There's a bug (b/456092940) where we can have concurrent startups with
--- the same upid. So we pre-filter to pick one in any concurrent group.
-SELECT
-  (
+WITH
+  possibly_overlapping AS (
+    -- There's a bug (b/456092940) where we can have concurrent startups with
+    -- the same upid. So we pre-filter to pick one in any concurrent group.
     SELECT
-      max(id)
-    FROM slice
-  ) + row_number() OVER () AS id,
-  android_startups.dur AS dur,
-  android_startups.ts AS ts,
-  android_startups.startup_id,
-  android_startups.startup_type,
-  process.name AS process_name,
-  thread.utid AS utid
-FROM android_startup_processes AS startup
-JOIN android_startups
-  USING (startup_id)
-JOIN thread
-  ON thread.upid = process.upid AND thread.is_main_thread
-JOIN process
-  ON process.upid = startup.upid
-WHERE
-  android_startups.dur > 0
-ORDER BY
-  ts
-), unique_startups AS (
-  -- The following self interval intersect will only yield |count| > 1 when
-  -- we have concurrent startups on the same utid. Filtering out the |count| > 1
-  -- leaves us with non concurrent startups per utid.
-  SELECT id_0 AS id, count() AS count
-  FROM _interval_intersect !((possibly_overlapping, possibly_overlapping), (utid))
-  GROUP BY utid, ts
-  HAVING count = 1
-) SELECT possibly_overlapping.* FROM possibly_overlapping JOIN unique_startups USING(id);
-
+      (
+        SELECT
+          max(id)
+        FROM slice
+      ) + row_number() OVER () AS id,
+      android_startups.dur AS dur,
+      android_startups.ts AS ts,
+      android_startups.startup_id,
+      android_startups.startup_type,
+      process.name AS process_name,
+      thread.utid AS utid
+    FROM android_startup_processes AS startup
+    JOIN android_startups
+      USING (startup_id)
+    JOIN thread
+      ON thread.upid = process.upid AND thread.is_main_thread
+    JOIN process
+      ON process.upid = startup.upid
+    WHERE
+      android_startups.dur > 0
+    ORDER BY
+      ts
+  ),
+  unique_startups AS (
+    -- The following self interval intersect will only yield |count| > 1 when
+    -- we have concurrent startups on the same utid. Filtering out the |count| > 1
+    -- leaves us with non concurrent startups per utid.
+    SELECT
+      id_0 AS id,
+      count() AS count
+    FROM _interval_intersect !((possibly_overlapping, possibly_overlapping), (utid))
+    GROUP BY
+      utid,
+      ts
+    HAVING
+      count = 1
+  )
+SELECT
+  possibly_overlapping.*
+FROM possibly_overlapping
+JOIN unique_startups
+  USING (id);
 
 -- All relevant startup slices normalized with _normalize_android_string.
 CREATE PERFETTO TABLE _startup_normalized_slices AS
