@@ -1367,21 +1367,6 @@ struct std::hash<
 
 template <>
 struct std::hash<
-    ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row> {
-  using argument_type =
-      ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row;
-  using result_type = size_t;
-
-  result_type operator()(const argument_type& r) const {
-    return std::hash<int64_t>{}(r.depth) ^
-           std::hash<std::optional<::perfetto::trace_processor::CallsiteId>>{}(
-               r.parent_id) ^
-           std::hash<::perfetto::trace_processor::FrameId>{}(r.frame_id);
-  }
-};
-
-template <>
-struct std::hash<
     ::perfetto::trace_processor::tables::StackProfileMappingTable::Row> {
   using argument_type =
       ::perfetto::trace_processor::tables::StackProfileMappingTable::Row;

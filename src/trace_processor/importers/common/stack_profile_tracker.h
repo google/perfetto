@@ -17,10 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_STACK_PROFILE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_STACK_PROFILE_TRACKER_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
@@ -38,8 +41,13 @@ class StackProfileTracker {
                             uint32_t depth);
 
  private:
+  struct Hasher {
+    size_t operator()(const tables::StackProfileCallsiteTable::Row& r) const {
+      return base::MurmurHashCombine(r.depth, r.parent_id, r.frame_id);
+    }
+  };
   TraceProcessorContext* const context_;
-  base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId>
+  base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId, Hasher>
       callsite_unique_row_index_;
 };
 
