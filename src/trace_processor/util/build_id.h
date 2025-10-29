@@ -66,6 +66,11 @@ class BuildId {
 
   const std::string& raw() const { return raw_; }
 
+  template <typename H>
+  friend H PerfettoHashValue(H h, const BuildId& value) {
+    return H::Combine(std::move(h), value.raw_);
+  }
+
  private:
   explicit BuildId(std::string data) : raw_(std::move(data)) {}
   std::string raw_;
