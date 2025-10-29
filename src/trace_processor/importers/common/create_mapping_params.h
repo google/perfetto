@@ -53,7 +53,7 @@ struct CreateMappingParams {
 
   template <typename H>
   friend H PerfettoHashValue(H h, const CreateMappingParams& p) {
-    return PerfettoHashValue(std::move(h), p.ToTuple());
+    return H::Combine(std::move(h), p.ToTuple());
   }
 };
 
