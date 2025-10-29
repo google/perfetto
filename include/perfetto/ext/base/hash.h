@@ -18,7 +18,10 @@
 #define INCLUDE_PERFETTO_EXT_BASE_HASH_H_
 
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <tuple>
 #include <utility>
 
 namespace perfetto::base {
@@ -60,6 +63,26 @@ H PerfettoHashValue(H h, const std::optional<T>& value) {
 template <typename H, typename T1, typename T2>
 H PerfettoHashValue(H h, const std::pair<T1, T2>& value) {
   return H::Combine(std::move(h), value.first, value.second);
+}
+
+// Hash function for std::tuple - combines hashes of all elements.
+template <typename H, typename... Ts>
+H PerfettoHashValue(H h, const std::tuple<Ts...>& value) {
+  return std::apply(
+      [&h](const auto&... elements) {
+        return H::Combine(std::move(h), elements...);
+      },
+      value);
+}
+
+// Hash function for pointers - hashes the pointer value as an integer.
+template <typename H, typename T>
+H PerfettoHashValue(H h, const std::unique_ptr<T>& ptr) {
+  return H::Combine(std::move(h), ptr.get());
+}
+template <typename H, typename T>
+H PerfettoHashValue(H h, const std::shared_ptr<T>& ptr) {
+  return H::Combine(std::move(h), ptr.get());
 }
 
 // This is for using already-hashed key into std::unordered_map and avoid the

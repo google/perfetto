@@ -207,10 +207,9 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
-
     // Perform a hashtable insertion with a null ID just to check if the string
     // is already inserted. If it's not, overwrite 0 with the actual Id.
+    auto hash = base::MurmurHashValue(str);
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
     auto [id, inserted] = string_index_.Insert(hash, Id());
     if (PERFETTO_LIKELY(!inserted)) {
@@ -227,8 +226,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
-
+    auto hash = base::MurmurHashValue(str);
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
     Id* id = string_index_.Find(hash);
     if (id) {

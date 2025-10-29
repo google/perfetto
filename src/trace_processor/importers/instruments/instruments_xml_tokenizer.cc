@@ -159,7 +159,7 @@ class InstrumentsXmlTokenizer::Impl {
     static constexpr std::string_view kSubsystem =
         "dev.perfetto.instruments_clock";
     clock_ = static_cast<ClockTracker::ClockId>(
-        base::FnvHasher::Combine(kSubsystem) | 0x80000000);
+        base::MurmurHashValue(kSubsystem) | 0x80000000);
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.

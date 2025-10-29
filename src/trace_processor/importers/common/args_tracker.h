@@ -301,14 +301,9 @@ class ArgsTracker {
                                    uint32_t /*col*/,
                                    uint32_t /*row*/,
                                    StringId /*key*/>;
-  struct Hasher {
-    uint64_t operator()(const ArrayKeyTuple& t) const {
-      return base::FnvHasher::Combine(
-          reinterpret_cast<uint64_t>(std::get<0>(t)), std::get<1>(t),
-          std::get<2>(t), std::get<3>(t).raw_id());
-    }
-  };
-  base::FlatHashMap<ArrayKeyTuple, size_t /*next_index*/, Hasher>
+  base::FlatHashMap<ArrayKeyTuple,
+                    size_t /*next_index*/,
+                    base::MurmurHash<ArrayKeyTuple>>
       array_indexes_;
 };
 

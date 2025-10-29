@@ -23,7 +23,7 @@
 #include <string_view>
 #include <tuple>
 
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/containers/string_pool.h"
 
 namespace perfetto::trace_processor::tracks {

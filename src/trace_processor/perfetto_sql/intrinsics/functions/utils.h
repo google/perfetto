@@ -35,7 +35,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -117,16 +117,15 @@ struct Hash : public sqlite::Function<Hash> {
 void Hash::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   PERFETTO_DCHECK(argc >= 0);
 
-  base::FnvHasher hash;
+  base::MurmurHashCombiner hash;
   for (int i = 0; i < argc; ++i) {
     sqlite3_value* value = argv[i];
     switch (sqlite::value::Type(value)) {
       case sqlite::Type::kInteger:
-        hash.Update(sqlite::value::Int64(value));
+        hash.Combine(sqlite::value::Int64(value));
         break;
       case sqlite::Type::kText: {
-        const char* ptr = sqlite::value::Text(value);
-        hash.Update(ptr, strlen(ptr));
+        hash.Combine(std::string_view(sqlite::value::Text(value)));
         break;
       }
       case sqlite::Type::kNull:
