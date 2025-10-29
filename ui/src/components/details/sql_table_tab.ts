@@ -35,7 +35,8 @@ import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
 import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
-import {Stack} from '../../widgets/stack';
+import {TabOption, TabStrip} from '../../widgets/tabs';
+import {Gate} from '../../base/mithril_utils';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -57,58 +58,39 @@ export function addLegacyTableTab(
 }
 
 function addSqlTableTabWithState(trace: Trace, state: SqlTableState) {
-  addEphemeralTab(trace, 'sqlTable', new LegacySqlTableTab(state));
+  addEphemeralTab(trace, 'sqlTable', new SqlTableTab(state));
 }
 
-class LegacySqlTableTab implements Tab {
-  constructor(private readonly state: SqlTableState) {
-    this.selected = {
-      kind: 'table',
-      state,
-    };
+class SqlTableTab implements Tab {
+  constructor(private readonly tableState: SqlTableState) {
+    this.selectedTab = tableState.uuid;
   }
 
-  private selected:
-    | {
-        kind: 'table';
-        state: SqlTableState;
-      }
-    | {
-        kind: 'pivot';
-        state: PivotTableState;
-      }
-    | {
-        kind: 'bar_chart';
-        state: SqlBarChartState;
-      }
-    | {
-        kind: 'histogram';
-        state: SqlHistogramState;
-      };
+  private selectedTab: string;
 
   private pivots: PivotTableState[] = [];
-  private bar_charts: SqlBarChartState[] = [];
+  private barCharts: SqlBarChartState[] = [];
   private histograms: SqlHistogramState[] = [];
 
   private getTableButtons() {
-    const range = this.state.getDisplayedRange();
-    const rowCount = this.state.getTotalRowCount();
+    const range = this.tableState.getDisplayedRange();
+    const rowCount = this.tableState.getTotalRowCount();
     const navigation = [
       exists(range) &&
         exists(rowCount) &&
         `Showing rows ${range.from}-${range.to} of ${rowCount}`,
       m(Button, {
         icon: Icons.GoBack,
-        disabled: !this.state.canGoBack(),
-        onclick: () => this.state.goBack(),
+        disabled: !this.tableState.canGoBack(),
+        onclick: () => this.tableState.goBack(),
       }),
       m(Button, {
         icon: Icons.GoForward,
-        disabled: !this.state.canGoForward(),
-        onclick: () => this.state.goForward(),
+        disabled: !this.tableState.canGoForward(),
+        onclick: () => this.tableState.goForward(),
       }),
     ];
-    const {selectStatement, columns} = this.state.getCurrentRequest();
+    const {selectStatement, columns} = this.tableState.getCurrentRequest();
     const debugTrackColumns = Object.values(columns).filter(
       (c) => !c.startsWith('__'),
     );
@@ -119,7 +101,7 @@ class LegacySqlTableTab implements Tab {
         position: PopupPosition.Top,
       },
       m(AddDebugTrackMenu, {
-        trace: this.state.trace,
+        trace: this.tableState.trace,
         query: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
         availableColumns: debugTrackColumns,
       }),
@@ -138,12 +120,16 @@ class LegacySqlTableTab implements Tab {
           label: 'Duplicate',
           icon: 'tab_duplicate',
           onclick: () =>
-            addSqlTableTabWithState(this.state.trace, this.state.clone()),
+            addSqlTableTabWithState(
+              this.tableState.trace,
+              this.tableState.clone(),
+            ),
         }),
         m(MenuItem, {
           label: 'Copy SQL query',
           icon: Icons.Copy,
-          onclick: () => copyToClipboard(this.state.getNonPaginatedSQLQuery()),
+          onclick: () =>
+            copyToClipboard(this.tableState.getNonPaginatedSQLQuery()),
         }),
       ),
     ];
@@ -156,14 +142,11 @@ class LegacySqlTableTab implements Tab {
         onclick: () => {
           const state = new PivotTableState({
             pivots: [column],
-            table: this.state.config,
-            trace: this.state.trace,
-            filters: this.state.filters,
+            table: this.tableState.config,
+            trace: this.tableState.trace,
+            filters: this.tableState.filters,
           });
-          this.selected = {
-            kind: 'pivot',
-            state,
-          };
+          this.selectedTab = state.uuid;
           this.pivots.push(state);
         },
       }),
@@ -171,31 +154,25 @@ class LegacySqlTableTab implements Tab {
         label: 'Add bar chart',
         onclick: () => {
           const state = new SqlBarChartState({
-            trace: this.state.trace,
-            sqlSource: this.state.config.name,
+            trace: this.tableState.trace,
+            sqlSource: this.tableState.config.name,
             column: column.column,
-            filters: this.state.filters,
+            filters: this.tableState.filters,
           });
-          this.selected = {
-            kind: 'bar_chart',
-            state,
-          };
-          this.bar_charts.push(state);
+          this.selectedTab = state.uuid;
+          this.barCharts.push(state);
         },
       }),
       m(MenuItem, {
         label: 'Add histogram',
         onclick: () => {
           const state = new SqlHistogramState({
-            trace: this.state.trace,
-            sqlSource: this.state.config.name,
+            trace: this.tableState.trace,
+            sqlSource: this.tableState.config.name,
             column: column.column,
-            filters: this.state.filters,
+            filters: this.tableState.filters,
           });
-          this.selected = {
-            kind: 'histogram',
-            state,
-          };
+          this.selectedTab = state.uuid;
           this.histograms.push(state);
         },
       }),
@@ -203,11 +180,69 @@ class LegacySqlTableTab implements Tab {
   }
 
   render() {
-    const showViewButtons =
-      this.pivots.length > 0 ||
-      this.bar_charts.length > 0 ||
-      this.histograms.length > 0;
-    const hasFilters = this.state.filters.get().length > 0;
+    const hasFilters = this.tableState.filters.get().length > 0;
+
+    const tabs: (TabOption & {content: m.Children})[] = [
+      {
+        key: this.tableState.uuid,
+        title: 'Table',
+        content: m(SqlTable, {
+          state: this.tableState,
+          addColumnMenuItems: this.tableMenuItems.bind(this),
+        }),
+      },
+    ];
+
+    for (const pivot of this.pivots) {
+      tabs.push({
+        key: pivot.uuid,
+        title: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
+        content: m(PivotTable, {
+          state: pivot,
+          extraRowButton: (node) =>
+            // Do not show any buttons for root as it doesn't have any filters anyway.
+            !node.isRoot() &&
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: Icons.GoTo,
+                }),
+              },
+              m(MenuItem, {
+                label: 'Add filters',
+                onclick: () => {
+                  this.tableState.filters.addFilters(node.getFilters());
+                },
+              }),
+              m(MenuItem, {
+                label: 'Open tab with filters',
+                onclick: () => {
+                  const newState = this.tableState.clone();
+                  newState.filters.addFilters(node.getFilters());
+                  addSqlTableTabWithState(this.tableState.trace, newState);
+                },
+              }),
+            ),
+        }),
+      });
+    }
+
+    for (const chart of this.barCharts) {
+      tabs.push({
+        key: chart.uuid,
+        title: `Bar chart: ${sqlColumnId(chart.args.column)}`,
+        content: m(SqlBarChart, {state: chart}),
+      });
+    }
+
+    for (const histogram of this.histograms) {
+      tabs.push({
+        key: histogram.uuid,
+        title: `Histogram: ${sqlColumnId(histogram.args.column)}`,
+        content: m(SqlHistogram, {state: histogram}),
+      });
+    }
 
     return m(
       DetailsShell,
@@ -217,115 +252,45 @@ class LegacySqlTableTab implements Tab {
         buttons: this.getTableButtons(),
         fillHeight: true,
       },
-      m('.pf-sql-table', [
-        (hasFilters || showViewButtons) &&
+      m(
+        '.pf-sql-table',
+        (hasFilters || tabs.length > 1) &&
           m('.pf-sql-table__toolbar', [
-            hasFilters && renderFilters(this.state.filters),
-            showViewButtons &&
-              m(Stack, {orientation: 'horizontal'}, [
-                m(Button, {
-                  label: 'Table',
-                  active: this.selected.state === this.state,
-                  onclick: () => {
-                    this.selected = {
-                      kind: 'table',
-                      state: this.state,
-                    };
-                  },
-                }),
-                this.pivots.map((pivot) =>
-                  m(Button, {
-                    label: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
-                    active: this.selected.state === pivot,
-                    onclick: () => {
-                      this.selected = {
-                        kind: 'pivot',
-                        state: pivot,
-                      };
-                    },
-                  }),
-                ),
-                this.bar_charts.map((chart) =>
-                  m(Button, {
-                    label: `Bar chart: ${sqlColumnId(chart.args.column)}`,
-                    active: this.selected.state === chart,
-                    onclick: () => {
-                      this.selected = {
-                        kind: 'bar_chart',
-                        state: chart,
-                      };
-                    },
-                  }),
-                ),
-                this.histograms.map((chart) =>
-                  m(Button, {
-                    label: `Histogram: ${sqlColumnId(chart.args.column)}`,
-                    active: this.selected.state === chart,
-                    onclick: () => {
-                      this.selected = {
-                        kind: 'histogram',
-                        state: chart,
-                      };
-                    },
-                  }),
-                ),
-              ]),
+            hasFilters && renderFilters(this.tableState.filters),
+            tabs.length > 1 &&
+              m(TabStrip, {
+                tabs,
+                currentTabKey: this.selectedTab,
+                onTabChange: (key) => (this.selectedTab = key),
+              }),
           ]),
-        m('.pf-sql-table__table', [
-          this.selected.kind === 'table' &&
-            m(SqlTable, {
-              state: this.selected.state,
-              addColumnMenuItems: this.tableMenuItems.bind(this),
-            }),
-          this.selected.kind === 'pivot' &&
-            m(PivotTable, {
-              state: this.selected.state,
-              extraRowButton: (node) =>
-                // Do not show any buttons for root as it doesn't have any filters anyway.
-                !node.isRoot() &&
-                m(
-                  PopupMenu,
-                  {
-                    trigger: m(Button, {
-                      icon: Icons.GoTo,
-                    }),
-                  },
-                  m(MenuItem, {
-                    label: 'Add filters',
-                    onclick: () => {
-                      this.state.filters.addFilters(node.getFilters());
-                    },
-                  }),
-                  m(MenuItem, {
-                    label: 'Open tab with filters',
-                    onclick: () => {
-                      const newState = this.state.clone();
-                      newState.filters.addFilters(node.getFilters());
-                      addSqlTableTabWithState(this.state.trace, newState);
-                    },
-                  }),
-                ),
-            }),
-          this.selected.kind === 'bar_chart' &&
-            m(SqlBarChart, {state: this.selected.state}),
-          this.selected.kind === 'histogram' &&
-            m(SqlHistogram, {state: this.selected.state}),
-        ]),
-      ]),
+        m(
+          '.pf-sql-table__table',
+          tabs.map((tab) =>
+            m(
+              Gate,
+              {
+                open: tab.key == this.selectedTab,
+              },
+              tab.content,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   getTitle(): string {
-    const rowCount = this.state.getTotalRowCount();
+    const rowCount = this.tableState.getTotalRowCount();
     const rows = rowCount === undefined ? '' : ` (${rowCount})`;
     return `Table ${this.getDisplayName()}${rows}`;
   }
 
   private getDisplayName(): string {
-    return this.state.config.displayName ?? this.state.config.name;
+    return this.tableState.config.displayName ?? this.tableState.config.name;
   }
 
   isLoading(): boolean {
-    return this.state.isLoading();
+    return this.tableState.isLoading();
   }
 }

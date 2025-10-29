@@ -42,3 +42,15 @@ Power analysis in Trace Processor and UI:
 
 Advanced query/data features in UI:
   Alexander Timin <alexander@timin.me> - @altimin
+
+
+Community maintainers
+---------------------
+Maintainers for community-maintained code found in contrib/ directory.
+
+See /rfcs/0007-community-maintained-code.md for details.
+
+Rust SDK maintainers:
+  David Reveman <dreveman@gmail.com> - @dreveman
+  Jonathan Bailey <jon.bailey45@gmail.com> - @jon-rv
+  Elisa Tai <ziyi.elisa.tai@gmail.com> - @zytyz

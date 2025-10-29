@@ -124,8 +124,7 @@ export function renderFilters(attrs: NodeBoxAttrs): m.Child {
 export const NodeBox: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
-    const hasCustomTitle = node.state.customTitle !== undefined;
-    const shouldShowTitle = !singleNodeOperation(node.type) || hasCustomTitle;
+    const shouldShowTitle = !singleNodeOperation(node.type);
 
     return [
       m(

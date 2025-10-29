@@ -90,47 +90,6 @@
 .pf-exp-node-box__content {
   display: flex;
   flex-direction: column;
-  padding: 0.625rem 0.75rem;
-
-  &.kTable {
-    @include set-node-color("kTable");
-  }
-
-  &.kSimpleSlices {
-    @include set-node-color("kSimpleSlices");
-  }
-
-  &.kSqlSource {
-    @include set-node-color("kSqlSource");
-  }
-
-  &.kAggregation {
-    @include set-node-color("kAggregation");
-  }
-
-  &.kModifyColumns {
-    @include set-node-color("kModifyColumns");
-  }
-
-  &.kAddColumns {
-    @include set-node-color("kAddColumns");
-  }
-
-  &.kLimitAndOffset {
-    @include set-node-color("kLimitAndOffset");
-  }
-
-  &.kSort {
-    @include set-node-color("kSort");
-  }
-
-  &.kIntervalIntersect {
-    @include set-node-color("kIntervalIntersect");
-  }
-
-  &.kUnion {
-    @include set-node-color("kUnion");
-  }
 }
 
 .pf-exp-node-box__filters {

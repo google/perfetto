@@ -27,6 +27,22 @@
     justify-content: space-between;
     padding: 0.375rem;
     border-bottom: 1px solid var(--pf-color-border);
+
+    .pf-button {
+      margin-left: 0.5rem;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      h2 {
+        font-weight: bold;
+        font-size: var(--pf-exp-font-size-md);
+        color: var(--pf-color-text);
+      }
+    }
   }
 
   article {

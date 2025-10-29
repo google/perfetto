@@ -62,6 +62,21 @@
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
   cursor: move;
   pointer-events: auto;
+}
+
+.pf-node--has-accent-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 100%;
+  background: hsl(var(--pf-node-hue, 210), 60%, 50%);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.pf-node-body {
   padding-block: 12px;
 }
 
@@ -72,6 +87,7 @@
   flex-direction: column;
   pointer-events: auto;
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
+  border-radius: 8px;
 
   // All nodes in chain stretch to same width (determined by widest node)
   .pf-node {
@@ -121,17 +137,36 @@
 }
 
 .pf-node-header {
-  background: var(--pf-color-background);
+  background: color-mix(
+    in srgb,
+    hsl(var(--pf-node-hue, 210), 60%, 50%) 50%,
+    var(--pf-color-background)
+  );
   padding: 8px 12px;
-  border-radius: 6px 6px 0 0;
-  color: var(--pf-color-text);
   font-weight: bold;
-  font-size: 14px;
-  border-bottom: 1px solid var(--pf-color-border);
+  border-radius: 6px 6px 0 0;
   display: flex;
+  border-bottom: 1px solid var(--pf-color-border);
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+.pf-docked-child .pf-node-header {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.pf-has-docked-child .pf-node-header {
+  border-bottom-left-radius: 0;
+}
+
+.pf-docked-child::before {
+  border-top-left-radius: 0;
+}
+
+.pf-has-docked-child::before {
+  border-bottom-left-radius: 0;
 }
 
 .pf-node-title {
@@ -140,6 +175,10 @@
 
 .pf-node-content {
   padding-inline: 12px;
+}
+
+.pf-node--has-accent-bar .pf-node-content {
+  padding-left: 22px;
 }
 
 .pf-port-row {
@@ -154,6 +193,10 @@
   }
 }
 
+.pf-node--has-accent-bar .pf-port-row {
+  padding-left: 22px;
+}
+
 .pf-port-input {
   text-align: left;
 }
@@ -166,8 +209,8 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--pf-color-border);
-  border: 2px solid var(--pf-color-border-secondary);
+  background: var(--pf-color-background-secondary);
+  border: 2px solid var(--pf-color-border);
   cursor: crosshair;
   position: absolute;
   top: 50%;

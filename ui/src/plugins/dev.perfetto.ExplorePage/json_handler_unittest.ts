@@ -449,25 +449,6 @@ describe('JSON serialization/deserialization', () => {
     );
   });
 
-  test('serializes and deserializes custom title', () => {
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-      customTitle: 'My Custom Title',
-    });
-    const initialState: ExplorePageState = {
-      rootNodes: [sliceNode],
-      nodeLayouts: new Map(),
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    expect(deserializedState.rootNodes.length).toBe(1);
-    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
-    expect(deserializedNode.state.customTitle).toBe('My Custom Title');
-    expect(deserializedNode.getTitle()).toBe('My Custom Title');
-  });
-
   test('serializes and deserializes modify columns node', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
