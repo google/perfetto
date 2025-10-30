@@ -1660,6 +1660,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           accentBars: false,
           allInputsLeft: false,
           allOutputsRight: false,
+          colors: false,
         },
       }),
     );
