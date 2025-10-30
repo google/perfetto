@@ -29,6 +29,7 @@
 #include <random>
 #include <set>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -36,7 +37,6 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 
@@ -121,11 +121,25 @@ class TraceProcessorContext;
 //   S2                        {t: 2000, id: 2}   |
 //   S3                                           {t:5000, id:3}
 
-template <typename TClockEventListener>
-class ClockSynchronizer {
+// Base class for ClockSynchronizer containing non-templated types.
+// This allows listener implementations to reference these types without
+// depending on the template instantiation.
+class ClockSynchronizerBase {
  public:
   using ClockId = int64_t;
 
+  // Error type when clock conversion fails (used internally for listener)
+  enum class ErrorType {
+    kOk = 0,
+    kUnknownSourceClock,  // Source clock never seen in any snapshot
+    kUnknownTargetClock,  // Target clock never seen in any snapshot
+    kNoPath,              // No snapshot path connects source to target
+  };
+};
+
+template <typename TClockEventListener>
+class ClockSynchronizer : public ClockSynchronizerBase {
+ public:
   explicit ClockSynchronizer(
       std::unique_ptr<TClockEventListener> clock_event_listener)
       : trace_time_clock_id_(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
@@ -166,24 +180,36 @@ class ClockSynchronizer {
     return (static_cast<int64_t>(seq_id) << 32) | clock_id;
   }
 
+  // Extracts the sequence ID and raw clock ID from a converted sequence-scoped
+  // clock (i.e., one created via SequenceToGlobalClock).
+  // Returns {sequence_id, raw_clock_id}.
+  static std::pair<uint32_t, uint32_t> ExtractSequenceClockId(
+      ClockId global_clock_id) {
+    PERFETTO_DCHECK(!IsSequenceClock(global_clock_id));  // Must be converted
+    auto raw_clock_id = static_cast<uint32_t>(global_clock_id & 0xFFFFFFFF);
+    PERFETTO_DCHECK(
+        IsSequenceClock(raw_clock_id));  // Raw ID must be sequence-scoped
+    auto seq_id = static_cast<uint32_t>(global_clock_id >> 32);
+    return {seq_id, raw_clock_id};
+  }
+
   // Converts a timestamp from an arbitrary clock domain to the trace time.
   // On the first call, it also "locks" the trace time clock, preventing it
   // from being changed later.
-  PERFETTO_ALWAYS_INLINE base::StatusOr<int64_t> ToTraceTime(
+  // If byte_offset is provided and conversion fails, records the error via
+  // the listener.
+  PERFETTO_ALWAYS_INLINE std::optional<int64_t> ToTraceTime(
       ClockId clock_id,
-      int64_t timestamp) {
+      int64_t timestamp,
+      std::optional<size_t> byte_offset = std::nullopt) {
     if (PERFETTO_UNLIKELY(!trace_time_clock_id_used_for_conversion_)) {
       clock_event_listener_->OnTraceTimeClockIdChanged(trace_time_clock_id_);
     }
     trace_time_clock_id_used_for_conversion_ = true;
-
     if (clock_id == trace_time_clock_id_) {
       return ToHostTraceTime(timestamp);
     }
-
-    ASSIGN_OR_RETURN(int64_t ts,
-                     Convert(clock_id, timestamp, trace_time_clock_id_));
-    return ToHostTraceTime(ts);
+    return Convert(clock_id, timestamp, trace_time_clock_id_, byte_offset);
   }
 
   // Appends a new snapshot for the given clock domains.
@@ -481,21 +507,30 @@ class ClockSynchronizer {
   ClockSynchronizer(const ClockSynchronizer&) = delete;
   ClockSynchronizer& operator=(const ClockSynchronizer&) = delete;
 
-  base::StatusOr<int64_t> ConvertSlowpath(
+  std::optional<int64_t> ConvertSlowpath(
       ClockId src_clock_id,
       int64_t src_timestamp,
       std::optional<int64_t> src_timestamp_ns,
-      ClockId target_clock_id) {
+      ClockId target_clock_id,
+      std::optional<size_t> byte_offset) {
     PERFETTO_DCHECK(!IsSequenceClock(src_clock_id));
     PERFETTO_DCHECK(!IsSequenceClock(target_clock_id));
     clock_event_listener_->OnClockSyncCacheMiss();
 
     ClockPath path = FindPath(src_clock_id, target_clock_id);
     if (!path.valid()) {
-      // Too many logs maybe emitted when path is invalid.
-      return base::ErrStatus("No path from clock %" PRId64 " to %" PRId64
-                             " at timestamp %" PRId64,
-                             src_clock_id, target_clock_id, src_timestamp);
+      // Determine which clock(s) are unknown and record error
+      ErrorType error;
+      if (clocks_.find(src_clock_id) == clocks_.end()) {
+        error = ErrorType::kUnknownSourceClock;
+      } else if (clocks_.find(target_clock_id) == clocks_.end()) {
+        error = ErrorType::kUnknownTargetClock;
+      } else {
+        error = ErrorType::kNoPath;
+      }
+      clock_event_listener_->RecordConversionError(
+          error, src_clock_id, target_clock_id, src_timestamp, byte_offset);
+      return std::nullopt;
     }
 
     // Iterate trough the path found and translate timestamps onto the new clock
@@ -606,9 +641,10 @@ class ClockSynchronizer {
   // Converts a timestamp between two clock domains. Tries to use the cache
   // first (only for single-path resolutions), then falls back on path finding
   // as described in the header.
-  base::StatusOr<int64_t> Convert(ClockId src_clock_id,
-                                  int64_t src_timestamp,
-                                  ClockId target_clock_id) {
+  std::optional<int64_t> Convert(ClockId src_clock_id,
+                                 int64_t src_timestamp,
+                                 ClockId target_clock_id,
+                                 std::optional<size_t> byte_offset) {
     std::optional<int64_t> ns;
     if (PERFETTO_LIKELY(!cache_lookups_disabled_for_testing_)) {
       for (const auto& cached_clock_path : cache_) {
@@ -626,7 +662,8 @@ class ClockSynchronizer {
         }
       }
     }
-    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id);
+    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id,
+                           byte_offset);
   }
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.

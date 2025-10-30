@@ -40,6 +40,8 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
@@ -242,9 +244,9 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (decoder.incremental_state_cleared() ||
       sequence_flags &
           protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
-    HandleIncrementalStateCleared(decoder);
+    HandleIncrementalStateCleared(decoder, packet);
   } else if (decoder.previous_packet_dropped()) {
-    HandlePreviousPacketDropped(decoder);
+    HandlePreviousPacketDropped(decoder, packet);
   }
 
   // It is important that we parse defaults before parsing other fields such as
@@ -303,7 +305,9 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
       }
       scoped_state->needs_incremental_state_skipped++;
-      context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+      context_->import_logs_tracker->RecordTokenizationError(
+          stats::packet_skipped_seq_needs_incremental_state_invalid,
+          packet.offset());
       return base::OkStatus();
     }
   }
@@ -349,8 +353,8 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // chrome and then remove this.
       auto trace_ts = context_->clock_tracker->ToTraceTime(
           protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-      if (trace_ts.ok())
-        timestamp = trace_ts.value();
+      if (trace_ts)
+        timestamp = *trace_ts;
     } else if (timestamp_clock_id) {
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
@@ -366,9 +370,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
         converted_clock_id =
             ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
       }
-      auto trace_ts =
-          context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
-      if (!trace_ts.ok()) {
+      auto trace_ts = context_->clock_tracker->ToTraceTime(
+          converted_clock_id, timestamp, packet.offset());
+      if (!trace_ts) {
         // We need to switch to full sorting mode to ensure that packets with
         // missing timestamp are handled correctly. Don't save the packet unless
         // switching to full sorting mode succeeded.
@@ -378,12 +382,11 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
           return base::OkStatus();
         }
         // We don't return an error here as it will cause the trace to stop
-        // parsing. Instead, we rely on the stat increment to inform the user
-        // about the error.
-        context_->storage->IncrementStats(stats::clock_sync_failure);
+        // parsing. Instead, we rely on the stat increment (which happened
+        // automatically in ToTraceTime) to inform the user about the error.
         return base::OkStatus();
       }
-      timestamp = trace_ts.value();
+      timestamp = *trace_ts;
     }
   } else {
     timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
@@ -430,11 +433,11 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
 }
 
 void ProtoTraceReader::HandleIncrementalStateCleared(
-    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG(
-        "incremental_state_cleared without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::incremental_state_cleared_missing_sequence_id, packet.offset());
     return;
   }
   GetIncrementalStateForPacketSequence(
@@ -454,10 +457,11 @@ void ProtoTraceReader::HandleFirstPacketOnSequence(
 }
 
 void ProtoTraceReader::HandlePreviousPacketDropped(
-    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG("previous_packet_dropped without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::previous_packet_dropped_missing_sequence_id, packet.offset());
     return;
   }
   GetIncrementalStateForPacketSequence(
@@ -469,9 +473,9 @@ void ProtoTraceReader::ParseTracePacketDefaults(
     const protos::pbzero::TracePacket_Decoder& packet_decoder,
     TraceBlobView trace_packet_defaults) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG(
-        "TracePacketDefaults packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::trace_packet_defaults_missing_sequence_id,
+        trace_packet_defaults.offset());
     return;
   }
 
@@ -484,8 +488,8 @@ void ProtoTraceReader::ParseInternedData(
     const protos::pbzero::TracePacket::Decoder& packet_decoder,
     TraceBlobView interned_data) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG("InternedData packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::interned_data_missing_sequence_id, interned_data.offset());
     return;
   }
 
@@ -495,7 +499,9 @@ void ProtoTraceReader::ParseInternedData(
   // Don't parse interned data entries until incremental state is valid, because
   // they could otherwise be associated with the wrong generation in the state.
   if (!state->IsIncrementalStateValid()) {
-    context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::interned_data_skipped_incremental_state_invalid,
+        interned_data.offset());
     return;
   }
 
@@ -554,28 +560,31 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
     int64_t ts_to_convert =
         clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
     // Even if we have trace time from snapshot, we still run ToTraceTime to
-    // optimise future conversions.
-    base::StatusOr<int64_t> opt_trace_ts = context_->clock_tracker->ToTraceTime(
+    // optimise future conversions. Don't pass byte_offset since we expect
+    // failures here (e.g., non-monotonic clocks).
+    auto opt_trace_ts = context_->clock_tracker->ToTraceTime(
         clock_timestamp.clock.id, ts_to_convert);
 
-    if (!opt_trace_ts.ok()) {
+    int64_t trace_ts_value;
+    if (!opt_trace_ts) {
       // This can happen if |AddSnapshot| failed to resolve this clock, e.g. if
       // clock is not monotonic. Try to fetch trace time from snapshot.
       if (!trace_time_from_snapshot) {
-        PERFETTO_DLOG("%s", opt_trace_ts.status().c_message());
         continue;
       }
-      opt_trace_ts = *trace_time_from_snapshot;
+      trace_ts_value = *trace_time_from_snapshot;
+    } else {
+      trace_ts_value = *opt_trace_ts;
     }
 
     // Double check that all the clocks in this snapshot resolve to the same
     // trace timestamp value.
     PERFETTO_DCHECK(!trace_ts_for_check ||
-                    opt_trace_ts.value() == trace_ts_for_check.value());
-    trace_ts_for_check = *opt_trace_ts;
+                    trace_ts_value == trace_ts_for_check.value());
+    trace_ts_for_check = trace_ts_value;
 
     tables::ClockSnapshotTable::Row row;
-    row.ts = *opt_trace_ts;
+    row.ts = trace_ts_value;
     row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id);
     row.clock_value =
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;

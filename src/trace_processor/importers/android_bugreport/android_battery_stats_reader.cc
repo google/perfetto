@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -151,11 +152,11 @@ base::Status AndroidBatteryStatsReader::ProcessBatteryStatsHistoryEvent(
 base::Status AndroidBatteryStatsReader::SendToSorter(
     std::chrono::nanoseconds event_ts,
     AndroidDumpstateEvent event) {
-  ASSIGN_OR_RETURN(
-      int64_t trace_ts,
-      context_->clock_tracker->ToTraceTime(
-          protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count()));
-  stream_->Push(trace_ts, std::move(event));
+  std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+      protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count());
+  if (trace_ts) {
+    stream_->Push(*trace_ts, std::move(event));
+  }
   return base::OkStatus();
 }
 

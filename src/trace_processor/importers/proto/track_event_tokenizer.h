@@ -59,14 +59,17 @@ class TrackEventTokenizer {
   ModuleResult TokenizeRangeOfInterestPacket(
       RefPtr<PacketSequenceStateGeneration> state,
       const protos::pbzero::TracePacket_Decoder&,
+      TraceBlobView* packet,
       int64_t packet_timestamp);
   ModuleResult TokenizeTrackDescriptorPacket(
       RefPtr<PacketSequenceStateGeneration> state,
       const protos::pbzero::TracePacket_Decoder&,
+      TraceBlobView* packet,
       int64_t packet_timestamp);
   ModuleResult TokenizeThreadDescriptorPacket(
       RefPtr<PacketSequenceStateGeneration> state,
-      const protos::pbzero::TracePacket_Decoder&);
+      const protos::pbzero::TracePacket_Decoder&,
+      TraceBlobView* packet);
   ModuleResult TokenizeTrackEventPacket(
       RefPtr<PacketSequenceStateGeneration> state,
       const protos::pbzero::TracePacket_Decoder&,
@@ -78,17 +81,25 @@ class TrackEventTokenizer {
                                 const protos::pbzero::ThreadDescriptor_Decoder&,
                                 bool use_synthetic_tid);
   template <typename T>
-  base::Status AddExtraCounterValues(
+  bool AddExtraCounterValues(
       PacketSequenceStateGeneration& state,
       TrackEventData& data,
       size_t& index,
       protozero::RepeatedFieldIterator<T> value_it,
       protozero::RepeatedFieldIterator<uint64_t> packet_track_uuid_it,
-      protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it);
+      protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it,
+      TraceBlobView* packet);
   base::Status TokenizeLegacySampleEvent(
       const protos::pbzero::TrackEvent_Decoder&,
       const protos::pbzero::TrackEvent_LegacyEvent_Decoder&,
       PacketSequenceStateGeneration& state);
+
+  // Helper to record tokenization errors with packet offset
+  void RecordTokenizationError(size_t stat_key, TraceBlobView* packet);
+  // Helper to record tokenization errors with track_uuid arg
+  void RecordTokenizationErrorWithTrackUuid(size_t stat_key,
+                                            uint64_t track_uuid,
+                                            TraceBlobView* packet);
 
   TraceProcessorContext* const context_;
   TrackEventTracker* const track_event_tracker_;
@@ -99,6 +110,7 @@ class TrackEventTokenizer {
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;
+  const StringId track_uuid_key_id_;
 
   std::array<StringId, 4> counter_unit_ids_;
 };

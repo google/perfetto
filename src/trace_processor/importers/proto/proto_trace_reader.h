@@ -91,10 +91,11 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
-  void HandleIncrementalStateCleared(
-      const protos::pbzero::TracePacket_Decoder&);
+  void HandleIncrementalStateCleared(const protos::pbzero::TracePacket_Decoder&,
+                                     const TraceBlobView& packet);
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
-  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&);
+  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&,
+                                   const TraceBlobView& packet);
   void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,

@@ -21,9 +21,9 @@
 #include <optional>
 #include <random>
 #include <tuple>
+#include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -49,10 +49,10 @@ class ClockTrackerTest : public ::testing::Test {
   std::unique_ptr<ClockSynchronizerListenerImpl> ct_companion_ =
       std::make_unique<ClockSynchronizerListenerImpl>(&context_);
   ClockTracker ct_{std::move(ct_companion_)};
-  base::StatusOr<int64_t> Convert(ClockTracker::ClockId src_clock_id,
-                                  int64_t src_timestamp,
-                                  ClockTracker::ClockId target_clock_id) {
-    return ct_.Convert(src_clock_id, src_timestamp, target_clock_id);
+  std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
+                                 int64_t src_timestamp,
+                                 ClockTracker::ClockId target_clock_id) {
+    return ct_.Convert(src_clock_id, src_timestamp, target_clock_id, {});
   }
 };
 
@@ -69,7 +69,7 @@ constexpr auto MONOTONIC_COARSE =
 constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).has_value());
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
@@ -96,7 +96,7 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
 }
 
 TEST_F(ClockTrackerTest, ToTraceTimeFromSnapshot) {
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).has_value());
 
   EXPECT_EQ(*ct_.ToTraceTimeFromSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}}),
             10010);
@@ -121,7 +121,7 @@ TEST_F(ClockTrackerTest, RealTimeClockMovingBackwards) {
   ct_.AddSnapshot({{BOOTTIME, 40030}, {REALTIME, 30}});
 
   // Now only BOOTIME -> REALTIME conversion should be possible.
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 11).ok());
+  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 11).has_value());
   EXPECT_EQ(*Convert(BOOTTIME, 10011, REALTIME), 11);
   EXPECT_EQ(*Convert(BOOTTIME, 10029, REALTIME), 29);
   EXPECT_EQ(*Convert(BOOTTIME, 40030, REALTIME), 30);
@@ -343,7 +343,7 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
 
 // Test clock conversion with offset to the host.
 TEST_F(ClockTrackerTest, ClockOffset) {
-  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).has_value());
 
   context_.machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
