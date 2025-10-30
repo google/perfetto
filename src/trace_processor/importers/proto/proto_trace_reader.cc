@@ -40,6 +40,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -149,7 +150,9 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
       parser_(std::make_unique<ProtoTraceParserImpl>(ctx, &module_context_)),
       skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
-          ctx->storage->InternString("invalid_incremental_state")) {
+          ctx->storage->InternString("invalid_incremental_state")),
+      packet_sequence_id_key_id_(
+          ctx->storage->InternString("packet_sequence_id")) {
   module_context_.trace_packet_stream = context_->sorter->CreateStream(
       std::make_unique<TracePacketSink>(parser_.get()));
   module_context_.track_event_stream = context_->sorter->CreateStream(
@@ -243,9 +246,9 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (decoder.incremental_state_cleared() ||
       sequence_flags &
           protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
-    HandleIncrementalStateCleared(decoder);
+    HandleIncrementalStateCleared(decoder, packet);
   } else if (decoder.previous_packet_dropped()) {
-    HandlePreviousPacketDropped(decoder);
+    HandlePreviousPacketDropped(decoder, packet);
   }
 
   // It is important that we parse defaults before parsing other fields such as
@@ -304,7 +307,13 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
       }
       scoped_state->needs_incremental_state_skipped++;
-      context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+      context_->import_logs_tracker->RecordTokenizationError(
+          stats::packet_skipped_seq_needs_incremental_state_invalid,
+          packet.offset(),
+          [this, seq_id](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(packet_sequence_id_key_id_,
+                            Variadic::UnsignedInteger(seq_id));
+          });
       return base::OkStatus();
     }
   }
@@ -430,11 +439,11 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
 }
 
 void ProtoTraceReader::HandleIncrementalStateCleared(
-    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG(
-        "incremental_state_cleared without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::incremental_state_cleared_missing_sequence_id, packet.offset());
     return;
   }
   GetIncrementalStateForPacketSequence(
@@ -454,10 +463,11 @@ void ProtoTraceReader::HandleFirstPacketOnSequence(
 }
 
 void ProtoTraceReader::HandlePreviousPacketDropped(
-    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG("previous_packet_dropped without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::previous_packet_dropped_missing_sequence_id, packet.offset());
     return;
   }
   GetIncrementalStateForPacketSequence(
@@ -469,9 +479,9 @@ void ProtoTraceReader::ParseTracePacketDefaults(
     const protos::pbzero::TracePacket_Decoder& packet_decoder,
     TraceBlobView trace_packet_defaults) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG(
-        "TracePacketDefaults packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::trace_packet_defaults_missing_sequence_id,
+        trace_packet_defaults.offset());
     return;
   }
 
@@ -484,8 +494,8 @@ void ProtoTraceReader::ParseInternedData(
     const protos::pbzero::TracePacket::Decoder& packet_decoder,
     TraceBlobView interned_data) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG("InternedData packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::interned_data_missing_sequence_id, interned_data.offset());
     return;
   }
 
@@ -495,7 +505,14 @@ void ProtoTraceReader::ParseInternedData(
   // Don't parse interned data entries until incremental state is valid, because
   // they could otherwise be associated with the wrong generation in the state.
   if (!state->IsIncrementalStateValid()) {
-    context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+    uint32_t seq_id = packet_decoder.trusted_packet_sequence_id();
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::interned_data_skipped_incremental_state_invalid,
+        interned_data.offset(),
+        [this, seq_id](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(packet_sequence_id_key_id_,
+                          Variadic::UnsignedInteger(seq_id));
+        });
     return;
   }
 
