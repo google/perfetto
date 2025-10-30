@@ -409,20 +409,20 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+    std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-    if (trace_ts.ok())
-      timestamp = trace_ts.value();
+    if (trace_ts)
+      timestamp = *trace_ts;
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
     timestamp = ts_absolute_us * 1000;
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+    std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-    if (trace_ts.ok())
-      timestamp = trace_ts.value();
+    if (trace_ts)
+      timestamp = *trace_ts;
   } else if (packet.has_timestamp()) {
     timestamp = packet_timestamp;
   } else {
@@ -607,11 +607,16 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     }
     const auto& val = *opt_val;
     if (val.isMember("startTime")) {
-      ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
-                                       protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
-                                       val["startTime"].asInt64() * 1000));
-      v8_tracker_->SetStartTsForSessionAndPid(
-          legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), ts);
+      std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
+          protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
+          val["startTime"].asInt64() * 1000);
+      if (ts) {
+        v8_tracker_->SetStartTsForSessionAndPid(
+            legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), *ts);
+      } else {
+        return base::ErrStatus(
+            "v8 legacy profile: failed to convert startTime to trace time");
+      }
       continue;
     }
     const auto& profile = val["cpuProfile"];

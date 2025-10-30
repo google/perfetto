@@ -89,7 +89,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::Status ProcessTimeConvRecord(Record record);
   base::Status ProcessItraceStartRecord(Record record);
 
-  base::StatusOr<int64_t> ExtractTraceTimestamp(const Record& record);
+  std::optional<int64_t> ExtractTraceTimestamp(const Record& record);
 
   TraceProcessorContext* context_;
   PerfTracker perf_tracker_;
