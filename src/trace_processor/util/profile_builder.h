@@ -21,11 +21,12 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -126,18 +127,17 @@ class GProfileBuilder {
   };
 
   struct AnnotatedFrameId {
-    struct Hash {
-      size_t operator()(const AnnotatedFrameId& id) const {
-        return static_cast<size_t>(perfetto::base::FnvHasher::Combine(
-            id.frame_id.value, static_cast<int>(id.annotation)));
-      }
-    };
-
     FrameId frame_id;
     CallsiteAnnotation annotation;
 
     bool operator==(const AnnotatedFrameId& other) const {
       return frame_id == other.frame_id && annotation == other.annotation;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H hasher, const AnnotatedFrameId& id) {
+      return H::Combine(std::move(hasher), id.frame_id,
+                        static_cast<int>(id.annotation));
     }
   };
 
@@ -155,17 +155,6 @@ class GProfileBuilder {
   // other hand are directly written to the proto.
 
   struct Location {
-    struct Hash {
-      size_t operator()(const Location& loc) const {
-        perfetto::base::FnvHasher hasher;
-        hasher.UpdateAll(loc.mapping_id, loc.rel_pc, loc.lines.size());
-        for (const auto& line : loc.lines) {
-          hasher.UpdateAll(line.function_id, line.line);
-        }
-        return static_cast<size_t>(hasher.digest());
-      }
-    };
-
     uint64_t mapping_id;
     uint64_t rel_pc;
     std::vector<Line> lines;
@@ -173,6 +162,16 @@ class GProfileBuilder {
     bool operator==(const Location& other) const {
       return mapping_id == other.mapping_id && rel_pc == other.rel_pc &&
              lines == other.lines;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H hasher, const Location& loc) {
+      hasher = H::Combine(std::move(hasher), loc.mapping_id, loc.rel_pc,
+                          loc.lines.size());
+      for (const auto& line : loc.lines) {
+        hasher = H::Combine(std::move(hasher), line.function_id, line.line);
+      }
+      return hasher;
     }
   };
 
@@ -182,13 +181,6 @@ class GProfileBuilder {
   // identify mapping in order to deduplicate rows in the stack_profile_mapping
   // table.
   struct MappingKey {
-    struct Hash {
-      size_t operator()(const MappingKey& mapping) const {
-        return base::FnvHasher::Combine(mapping.size, mapping.file_offset,
-                                        mapping.build_id_or_filename);
-      }
-    };
-
     explicit MappingKey(
         const tables::StackProfileMappingTable::ConstRowReference& mapping,
         StringTable& string_table);
@@ -196,6 +188,12 @@ class GProfileBuilder {
     bool operator==(const MappingKey& other) const {
       return size == other.size && file_offset == other.file_offset &&
              build_id_or_filename == other.build_id_or_filename;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H hasher, const MappingKey& mapping) {
+      return H::Combine(std::move(hasher), mapping.size, mapping.file_offset,
+                        mapping.build_id_or_filename);
     }
 
     uint64_t size;
@@ -237,13 +235,6 @@ class GProfileBuilder {
   };
 
   struct Function {
-    struct Hash {
-      size_t operator()(const Function& func) const {
-        return static_cast<size_t>(perfetto::base::FnvHasher::Combine(
-            func.name, func.system_name, func.filename));
-      }
-    };
-
     int64_t name;
     int64_t system_name;
     int64_t filename;
@@ -251,6 +242,12 @@ class GProfileBuilder {
     bool operator==(const Function& other) const {
       return name == other.name && system_name == other.system_name &&
              filename == other.filename;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H hasher, const Function& func) {
+      return H::Combine(std::move(hasher), func.name, func.system_name,
+                        func.filename);
     }
   };
 
@@ -268,15 +265,24 @@ class GProfileBuilder {
    private:
     // Key holds the serialized value of the Sample::location_id proto field
     // (packed varint).
-    using SerializedLocationId = std::vector<uint8_t>;
-    struct Hasher {
-      size_t operator()(const SerializedLocationId& data) const {
-        base::FnvHasher hasher;
-        hasher.Update(reinterpret_cast<const char*>(data.data()), data.size());
-        return static_cast<size_t>(hasher.digest());
+    struct SerializedLocationId {
+      std::vector<uint8_t> data;
+
+      bool operator==(const SerializedLocationId& o) const {
+        return data == o.data;
+      }
+
+      template <typename H>
+      friend H PerfettoHashValue(H h, const SerializedLocationId& loc) {
+        return H::Combine(
+            std::move(h),
+            std::string_view(reinterpret_cast<const char*>(loc.data.data()),
+                             loc.data.size()));
       }
     };
-    base::FlatHashMap<SerializedLocationId, std::vector<int64_t>, Hasher>
+    base::FlatHashMap<SerializedLocationId,
+                      std::vector<int64_t>,
+                      base::MurmurHash<SerializedLocationId>>
         samples_;
   };
 
@@ -358,23 +364,21 @@ class GProfileBuilder {
   // Caches a (possibly annotated) CallsiteId (callstack) to the list of
   // locations emitted to the profile.
   struct MaybeAnnotatedCallsiteId {
-    struct Hash {
-      size_t operator()(const MaybeAnnotatedCallsiteId& id) const {
-        return static_cast<size_t>(perfetto::base::FnvHasher::Combine(
-            id.callsite_id.value, id.annotate));
-      }
-    };
-
     CallsiteId callsite_id;
     bool annotate;
 
     bool operator==(const MaybeAnnotatedCallsiteId& other) const {
       return callsite_id == other.callsite_id && annotate == other.annotate;
     }
+
+    template <typename H>
+    friend H PerfettoHashValue(H hasher, const MaybeAnnotatedCallsiteId& id) {
+      return H::Combine(std::move(hasher), id.callsite_id, id.annotate);
+    }
   };
   std::unordered_map<MaybeAnnotatedCallsiteId,
                      protozero::PackedVarInt,
-                     MaybeAnnotatedCallsiteId::Hash>
+                     base::MurmurHash<MaybeAnnotatedCallsiteId>>
       cached_location_ids_;
 
   // Cursors to help lookup data in the tables.
@@ -388,9 +392,13 @@ class GProfileBuilder {
 
   // Helpers to map TraceProcessor rows to already written Profile entities
   // (their ids).
-  std::unordered_map<AnnotatedFrameId, uint64_t, AnnotatedFrameId::Hash>
+  std::unordered_map<AnnotatedFrameId,
+                     uint64_t,
+                     base::MurmurHash<AnnotatedFrameId>>
       seen_locations_;
-  std::unordered_map<AnnotatedFrameId, uint64_t, AnnotatedFrameId::Hash>
+  std::unordered_map<AnnotatedFrameId,
+                     uint64_t,
+                     base::MurmurHash<AnnotatedFrameId>>
       seen_functions_;
   std::unordered_map<MappingId, uint64_t> seen_mappings_;
   std::unordered_map<int64_t, uint64_t> seen_fake_locations_;
@@ -400,9 +408,10 @@ class GProfileBuilder {
   // are consecutive integers starting at 1. (Ids with value 0 are not allowed).
   // Ids are not unique across entities (i.e. there can be a mapping_id = 1 and
   // a function_id = 1)
-  std::unordered_map<Location, uint64_t, Location::Hash> locations_;
-  std::unordered_map<MappingKey, uint64_t, MappingKey::Hash> mapping_keys_;
-  std::unordered_map<Function, uint64_t, Function::Hash> functions_;
+  std::unordered_map<Location, uint64_t, base::MurmurHash<Location>> locations_;
+  std::unordered_map<MappingKey, uint64_t, base::MurmurHash<MappingKey>>
+      mapping_keys_;
+  std::unordered_map<Function, uint64_t, base::MurmurHash<Function>> functions_;
   // Staging area for Mappings. mapping_id - 1 = index in the vector.
   std::vector<Mapping> mappings_;
   SampleAggregator samples_;

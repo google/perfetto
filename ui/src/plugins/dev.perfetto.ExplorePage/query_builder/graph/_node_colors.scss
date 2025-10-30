@@ -26,38 +26,49 @@ $other-color: #f0f4c3;
 
 @mixin set-node-color($node-type) {
   @if $node-type == "kTable" {
-    background-color: color-mix(in srgb, $kTable-color, transparent 50%);
+    background-color: color-mix(in srgb, $kTable-color, transparent 85%);
+    border-left: 4px solid $kTable-color;
   } @else if $node-type == "kSimpleSlices" {
-    background-color: color-mix(in srgb, $kSimpleSlices-color, transparent 50%);
+    background-color: color-mix(in srgb, $kSimpleSlices-color, transparent 85%);
+    border-left: 4px solid $kSimpleSlices-color;
   } @else if $node-type == "kSqlSource" {
-    background-color: color-mix(in srgb, $kSqlSource-color, transparent 50%);
+    background-color: color-mix(in srgb, $kSqlSource-color, transparent 85%);
+    border-left: 4px solid $kSqlSource-color;
   } @else if $node-type == "kAggregation" {
-    background-color: color-mix(in srgb, $kAggregation-color, transparent 50%);
+    background-color: color-mix(in srgb, $kAggregation-color, transparent 85%);
+    border-left: 4px solid $kAggregation-color;
   } @else if $node-type == "kModifyColumns" {
     background-color: color-mix(
       in srgb,
       $kModifyColumns-color,
-      transparent 50%
+      transparent 85%
     );
+    border-left: 4px solid $kModifyColumns-color;
   } @else if $node-type == "kAddColumns" {
-    background-color: color-mix(in srgb, $kAddColumns-color, transparent 50%);
+    background-color: color-mix(in srgb, $kAddColumns-color, transparent 85%);
+    border-left: 4px solid $kAddColumns-color;
   } @else if $node-type == "kLimitAndOffset" {
     background-color: color-mix(
       in srgb,
       $kLimitAndOffset-color,
-      transparent 50%
+      transparent 85%
     );
+    border-left: 4px solid $kLimitAndOffset-color;
   } @else if $node-type == "kSort" {
-    background-color: color-mix(in srgb, $kSort-color, transparent 50%);
+    background-color: color-mix(in srgb, $kSort-color, transparent 85%);
+    border-left: 4px solid $kSort-color;
   } @else if $node-type == "kIntervalIntersect" {
     background-color: color-mix(
       in srgb,
       $kIntervalIntersect-color,
-      transparent 50%
+      transparent 85%
     );
+    border-left: 4px solid $kIntervalIntersect-color;
   } @else if $node-type == "kUnion" {
-    background-color: color-mix(in srgb, $kUnion-color, transparent 50%);
+    background-color: color-mix(in srgb, $kUnion-color, transparent 85%);
+    border-left: 4px solid $kUnion-color;
   } @else {
-    background-color: color-mix(in srgb, $other-color, transparent 50%);
+    background-color: color-mix(in srgb, $other-color, transparent 85%);
+    border-left: 4px solid $other-color;
   }
 }

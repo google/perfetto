@@ -15,7 +15,7 @@
 // It's common to want to have a class depending on a boolean flag, in which
 // case we use `flag && className` which evaluates to either false or a string,
 // which is why false is included in definition of ArgType.
-type ArgType = string | false | undefined;
+type ArgType = string | false | undefined | null;
 
 // Join class names together into valid HTML class attributes
 // Falsy elements are ignored

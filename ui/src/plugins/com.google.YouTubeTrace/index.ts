@@ -67,7 +67,9 @@ export default class implements PerfettoPlugin {
     });
   }
   private pinDebugTrack(trace: Trace, query: string, trackName: string) {
-    if (!trace.workspace.pinnedTracks.find((t) => t.name === trackName)) {
+    if (
+      !trace.currentWorkspace.pinnedTracks.find((t) => t.name === trackName)
+    ) {
       trace.commands.runCommand(
         'dev.perfetto.AddDebugSliceTrack',
         query,

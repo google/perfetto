@@ -52,12 +52,12 @@ with pprof.
 
 If you are extracting heaps profiles like heapprofd you can use the following:
 
-`~/traceconv profile [input proto file] [output file]`
+`~/traceconv profile [input proto file]`
 
 However if you are using callstack sampling like traced_perf then use the
 following instead:
 
-`~/traceconv profile [input proto file] [output file] --perf`
+`~/traceconv profile [input proto file] --perf`
 
 Note for `--perf` the output is one pprof file per process sampled in the trace.
 You can use pprof to merge them together if desired.

@@ -907,6 +907,129 @@ TEST_F(TraceSummaryTest, TemplateSpecWithUnitAndPolarity) {
   )-"));
 }
 
+TEST_F(TraceSummaryTest, InternedDimensionBundleUnusedKeysDropped) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "dur"
+      dimensions_specs { name: "dim_1" type: INT64 }
+      dimensions_specs { name: "dim_2" type: INT64 }
+      query {
+        sql {
+          sql: "SELECT 123 as dim_1, 123 as dim_2, 750.0 as dur UNION ALL SELECT 456 as dim_1, 789 as dim_2, 850.0 as dur"
+          column_names: "dim_1"
+          column_names: "dim_2"
+          column_names: "dur"
+        }
+      }
+      interned_dimension_specs {
+        key_column_spec { name: "dim_1" type: INT64 }
+        data_column_specs { name: "version_1" type: INT64 }
+        query {
+          sql {
+            sql: "SELECT 123 as dim_1, 100 as version_1 UNION ALL SELECT 456 as dim_1, 200 as version_1 UNION ALL SELECT 789 as dim_1, 300 as version_1"
+          }
+        }
+      }
+      interned_dimension_specs {
+        key_column_spec { name: "dim_2" type: INT64 }
+        data_column_specs { name: "version_2" type: INT64 }
+        query {
+          sql {
+            sql: "SELECT 123 as dim_2, 1000 as version_2 UNION ALL SELECT 456 as dim_2, 2000 as version_2 UNION ALL SELECT 789 as dim_2, 3000 as version_2"
+          }
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      bundle_id: "my_metric"
+      specs {
+        id: "my_metric_dur"
+        value: "dur"
+        dimensions_specs {
+          name: "dim_1"
+          type: INT64
+        }
+        dimensions_specs {
+          name: "dim_2"
+          type: INT64
+        }
+        query {
+          sql {
+            sql: "SELECT 123 as dim_1, 123 as dim_2, 750.0 as dur UNION ALL SELECT 456 as dim_1, 789 as dim_2, 850.0 as dur"
+            column_names: "dim_1"
+            column_names: "dim_2"
+            column_names: "dur"
+          }
+        }
+        bundle_id: "my_metric"
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim_1"
+            type: INT64
+          }
+          data_column_specs {
+            name: "version_1"
+            type: INT64
+          }
+          query {
+            sql {
+              sql: "SELECT 123 as dim_1, 100 as version_1 UNION ALL SELECT 456 as dim_1, 200 as version_1 UNION ALL SELECT 789 as dim_1, 300 as version_1"
+            }
+          }
+        }
+        interned_dimension_specs {
+          key_column_spec {
+            name: "dim_2"
+            type: INT64
+          }
+          data_column_specs {
+            name: "version_2"
+            type: INT64
+          }
+          query {
+            sql {
+              sql: "SELECT 123 as dim_2, 1000 as version_2 UNION ALL SELECT 456 as dim_2, 2000 as version_2 UNION ALL SELECT 789 as dim_2, 3000 as version_2"
+            }
+          }
+        }
+      }
+      row {
+        dimension { int64_value: 123 }
+        dimension { int64_value: 123 }
+        values { double_value: 750.000000 }
+      }
+      row {
+        dimension { int64_value: 456 }
+        dimension { int64_value: 789 }
+        values { double_value: 850.000000 }
+      }
+      interned_dimension_bundles {
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 123 }
+          interned_dimension_values { int64_value: 100 }
+        }
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 456 }
+          interned_dimension_values { int64_value: 200 }
+        }
+      }
+      interned_dimension_bundles {
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 123 }
+          interned_dimension_values { int64_value: 1000 }
+        }
+        interned_dimension_rows {
+          key_dimension_value { int64_value: 789 }
+          interned_dimension_values { int64_value: 3000 }
+        }
+      }
+    }
+  )-"));
+}
+
 TEST_F(TraceSummaryTest, TemplateSpecWithValueColumnsAndSpecsError) {
   base::StatusOr<std::string> status_or_output = RunSummarize(R"(
     metric_template_spec {

@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto::trace_processor {
@@ -66,6 +67,11 @@ class BuildId {
 
   const std::string& raw() const { return raw_; }
 
+  template <typename H>
+  friend H PerfettoHashValue(H h, const BuildId& value) {
+    return H::Combine(std::move(h), value.raw_);
+  }
+
  private:
   explicit BuildId(std::string data) : raw_(std::move(data)) {}
   std::string raw_;
@@ -77,7 +83,7 @@ template <>
 struct std::hash<perfetto::trace_processor::BuildId> {
   std::size_t operator()(
       const perfetto::trace_processor::BuildId& o) const noexcept {
-    return perfetto::base::FnvHasher::Combine(o);
+    return perfetto::base::MurmurHashValue(o);
   }
 };
 

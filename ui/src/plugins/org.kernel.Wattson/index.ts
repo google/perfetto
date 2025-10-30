@@ -59,7 +59,7 @@ export default class implements PerfettoPlugin {
     if (!(markersSupported || cpuSupported || gpuSupported)) return;
 
     const group = new TrackNode({name: 'Wattson', isSummary: true});
-    ctx.workspace.addChildInOrder(group);
+    ctx.defaultWorkspace.addChildInOrder(group);
 
     if (markersSupported) {
       await addWattsonMarkersElements(ctx, group);

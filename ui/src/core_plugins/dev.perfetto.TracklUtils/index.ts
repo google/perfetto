@@ -52,7 +52,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           return;
         }
 
-        const tracksWithUris = trace.workspace.flatTracksOrdered.filter(
+        const tracksWithUris = trace.currentWorkspace.flatTracksOrdered.filter(
           (track) => track.uri !== undefined,
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
         const track = await app.omnibox.prompt('Choose a track...', {
@@ -88,7 +88,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       id: 'dev.perfetto.FindTrackByUri',
       name: 'Find track by URI',
       callback: async () => {
-        const tracksWithUris = ctx.workspace.flatTracksOrdered.filter(
+        const tracksWithUris = ctx.currentWorkspace.flatTracksOrdered.filter(
           (track) => track.uri !== undefined,
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
         const track = await ctx.omnibox.prompt('Choose a track...', {
@@ -107,7 +107,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       name: 'Pin track by name',
       defaultHotkey: 'Shift+T',
       callback: async () => {
-        const tracksWithUris = ctx.workspace.flatTracksOrdered.filter(
+        const tracksWithUris = ctx.currentWorkspace.flatTracksOrdered.filter(
           (track) => track.uri !== undefined,
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
         const track = await ctx.omnibox.prompt('Choose a track...', {
@@ -135,7 +135,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           testTrackWithRegex(track, regex, nameOrPath),
         );
         matchingTracks.forEach((track) => track.pin());
@@ -175,7 +175,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           testTrackWithRegex(track, regex, nameOrPath),
         );
         matchingTracks.forEach((track) => track.expand());
@@ -199,7 +199,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           testTrackWithRegex(track, regex, nameOrPath),
         );
         matchingTracks.forEach((track) => track.collapse());
@@ -239,7 +239,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
-        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           testTrackWithRegex(track, regex, nameOrPath),
         );
 
@@ -315,7 +315,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
-        const matchingTracks = ctx.workspace.flatTracks.filter((track) =>
+        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
           testTrackWithRegex(track, regex, nameOrPath),
         );
 
@@ -606,6 +606,6 @@ async function resolveTracksFromSliceQuery(
   }
   const resolved = await ctx.selection.resolveSqlEvents('slice', sliceIds);
   return resolved
-    .map((event) => ctx.workspace.getTrackByUri(event.trackUri))
+    .map((event) => ctx.currentWorkspace.getTrackByUri(event.trackUri))
     .filter((track) => track !== undefined);
 }

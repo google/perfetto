@@ -200,7 +200,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       group.addChildInOrder(new TrackNode({name, uri}));
     }
     if (group.children.length > 0) {
-      ctx.workspace.addChildInOrder(group);
+      ctx.defaultWorkspace.addChildInOrder(group);
     }
 
     ctx.tracks.registerOverlay(new WakerOverlay(ctx));
@@ -422,7 +422,7 @@ export default class SchedPlugin implements PerfettoPlugin {
 
   private addSchedulingSummaryTracks(ctx: Trace) {
     const summaryGroup = new TrackNode({name: 'Scheduler', isSummary: true});
-    ctx.workspace.addChildInOrder(summaryGroup);
+    ctx.defaultWorkspace.addChildInOrder(summaryGroup);
 
     const runnableThreadCountTitle = 'Runnable thread count';
     const runnableThreadCountUri = `/runnable_thread_count`;

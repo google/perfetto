@@ -112,7 +112,7 @@ class BlockingCallMetricHandler implements MetricHandler {
         columns: ['name', 'ts', 'dur'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: ['name', 'ts', 'dur'],
+      rawColumns: ['name', 'ts', 'dur'],
       title: trackName,
     };
   }
@@ -144,7 +144,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<
-    Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'argColumns' | 'title'>
+    Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
   > {
     let row: Row = {
       frame_id: null,
@@ -176,7 +176,7 @@ class BlockingCallMetricHandler implements MetricHandler {
         columns: ['frame_id', 'ts', 'dur'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'frame_id'},
-      argColumns: ['frame_id', 'ts', 'dur'],
+      rawColumns: ['frame_id', 'ts', 'dur'],
       title: 'Frame with max duration blocking call',
     };
   }

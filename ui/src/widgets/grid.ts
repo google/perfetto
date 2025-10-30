@@ -413,40 +413,66 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           }),
         ),
       ),
-      // Body
-      m(
-        '.pf-grid__body',
-        {
-          style: isVirtualized
-            ? {
-                minHeight: `${totalRows * rowHeight}px`,
-              }
-            : undefined,
-          ref: 'slider',
+      isVirtualized
+        ? this.renderVirtualizedGridBody(
+            totalRows,
+            rowHeight,
+            columns,
+            rows,
+            rowOffset,
+            attrs,
+          )
+        : this.renderGridBody(columns, rows, attrs),
+    );
+  }
+
+  private renderVirtualizedGridBody(
+    totalRows: number,
+    rowHeight: number,
+    columns: ReadonlyArray<GridColumn>,
+    rows: ReadonlyArray<GridRow>,
+    rowOffset: number,
+    attrs: GridAttrs,
+  ) {
+    return m(
+      '.pf-grid__body',
+      {
+        ref: 'slider',
+        style: {
+          height: `${totalRows * rowHeight}px`,
         },
-        isVirtualized
-          ? m(
-              '.pf-grid__puck',
-              {
-                style: {
-                  transform: `translateY(${
-                    this.renderBounds?.rowStart !== undefined
-                      ? this.renderBounds.rowStart * rowHeight
-                      : 0
-                  }px)`,
-                },
-              },
-              this.renderRows(
-                columns,
-                rows,
-                rowOffset,
-                rowHeight,
-                attrs.onRowHover,
-                attrs.onRowOut,
-              ),
-            )
-          : this.renderAllRows(columns, rows, attrs.onRowHover, attrs.onRowOut),
+      },
+      m(
+        '.pf-grid__puck',
+        {
+          style: {
+            transform: `translateY(${
+              this.renderBounds?.rowStart !== undefined
+                ? this.renderBounds.rowStart * rowHeight
+                : 0
+            }px)`,
+          },
+        },
+        this.renderRows(
+          columns,
+          rows,
+          rowOffset,
+          rowHeight,
+          attrs.onRowHover,
+          attrs.onRowOut,
+        ),
       ),
+    );
+  }
+
+  private renderGridBody(
+    columns: ReadonlyArray<GridColumn>,
+    rows: ReadonlyArray<GridRow>,
+    attrs: GridAttrs,
+  ) {
+    return m(
+      '.pf-grid__body',
+      this.renderAllRows(columns, rows, attrs.onRowHover, attrs.onRowOut),
     );
   }
 

@@ -56,7 +56,7 @@ export default class implements PerfettoPlugin {
         columns: sliceColumns,
       },
       title: 'app_' + sliceName + '_start reason: ' + reason,
-      argColumns: sliceColumns,
+      rawColumns: sliceColumns,
     });
   }
 

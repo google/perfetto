@@ -16,21 +16,20 @@ import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {Builder} from './query_builder/builder';
-import {QueryNode, QueryNodeState} from './query_node';
+import {QueryNode, QueryNodeState, singleNodeOperation} from './query_node';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
-import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 registerCoreNodes();
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
-  nodeLayouts: Map<string, NodeContainerLayout>;
+  nodeLayouts: Map<string, {x: number; y: number}>;
   devMode?: boolean;
 }
 
@@ -99,25 +98,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         allNodes: state.rootNodes,
       });
 
-      // Insert the new node between the selected node and its children,
-      // carefully re-linking all parent/child connections.
-      if (node.nextNodes.length > 0) {
-        const children = [...node.nextNodes];
-        node.nextNodes = [newNode];
-        newNode.nextNodes = children;
-        for (const child of children) {
-          if ('prevNode' in child && child.prevNode === node) {
-            child.prevNode = newNode;
-          }
-          if ('prevNodes' in child) {
-            const index = child.prevNodes.indexOf(node);
-            if (index > -1) {
-              child.prevNodes[index] = newNode;
-            }
-          }
-        }
-      } else {
-        node.nextNodes.push(newNode);
+      let lastNodeInChain = node;
+      while (
+        lastNodeInChain.nextNodes.length === 1 &&
+        lastNodeInChain.nextNodes[0] !== undefined &&
+        singleNodeOperation(lastNodeInChain.nextNodes[0].type)
+      ) {
+        lastNodeInChain = lastNodeInChain.nextNodes[0];
+      }
+
+      lastNodeInChain.nextNodes = [newNode];
+
+      if ('prevNode' in newNode) {
+        newNode.prevNode = lastNodeInChain;
       }
 
       onStateUpdate((currentState) => ({
@@ -177,21 +170,38 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
 
-    // If the node is a root node, remove it from the root nodes array.
-    const newRootNodes = state.rootNodes.filter((n) => n !== node);
+    let newRootNodes = state.rootNodes.filter((n) => n !== node);
+    if (state.rootNodes.includes(node) && node.nextNodes.length > 0) {
+      newRootNodes = [...newRootNodes, ...node.nextNodes];
+    }
 
-    // If the node is a child of another node, remove it from the parent's
-    // nextNodes array.
-    if ('prevNode' in node) {
+    if ('prevNode' in node && node.prevNode) {
       const childIdx = node.prevNode.nextNodes.indexOf(node);
       if (childIdx !== -1) {
-        node.prevNode.nextNodes.splice(childIdx, 1);
+        node.prevNode.nextNodes.splice(childIdx, 1, ...node.nextNodes);
+        for (const child of node.nextNodes) {
+          if ('prevNode' in child) {
+            child.prevNode = node.prevNode;
+          }
+        }
       }
     } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
+        if (!prevNode) continue;
+
         const childIdx = prevNode.nextNodes.indexOf(node);
         if (childIdx !== -1) {
-          prevNode.nextNodes.splice(childIdx, 1);
+          prevNode.nextNodes.splice(childIdx, 1, ...node.nextNodes);
+          for (const child of node.nextNodes) {
+            if ('prevNode' in child) {
+              child.prevNode = prevNode;
+            } else if ('prevNodes' in child) {
+              const deletedNodeIdx = child.prevNodes.indexOf(node);
+              if (deletedNodeIdx !== -1) {
+                child.prevNodes[deletedNodeIdx] = prevNode;
+              }
+            }
+          }
         }
       }
     }
@@ -337,10 +347,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onAddSourceNode: (id) => {
           this.handleAddSourceNode(attrs, id);
         },
-        onAddOperationNode: (id) => {
-          if (state.selectedNode) {
-            this.handleAddOperationNode(attrs, state.selectedNode, id);
-          }
+        onAddOperationNode: (id, node) => {
+          this.handleAddOperationNode(attrs, node, id);
         },
         onClearAllNodes: () => this.handleClearAllNodes(attrs),
         onDuplicateNode: () => {
