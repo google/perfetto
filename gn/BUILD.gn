@@ -69,6 +69,7 @@ action("gen_buildflags") {
       (enable_perfetto_trace_processor && build_with_chromium)) {
     perfetto_local_symbolizer =
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_FREEBSD() || " +
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MAC() ||" +
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_WIN()"
   } else {
