@@ -19,14 +19,18 @@ import {
   newColumnInfo,
   newColumnInfoList,
 } from './column_info';
-import {SqlColumn, SqlType} from '../../dev.perfetto.SqlModules/sql_modules';
+import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 
 describe('column_info utilities', () => {
-  const stringType: SqlType = {name: 'STRING', shortName: 'string'};
-  const intType: SqlType = {name: 'INTEGER', shortName: 'int'};
-  const timestampType: SqlType = {
-    name: 'TIMESTAMP_NS',
-    shortName: 'timestamp_ns',
+  const stringType: PerfettoSqlType = {
+    kind: 'string',
+  };
+  const intType: PerfettoSqlType = {
+    kind: 'int',
+  };
+  const timestampType: PerfettoSqlType = {
+    kind: 'timestamp',
   };
 
   describe('columnInfoFromSqlColumn', () => {
@@ -39,7 +43,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn);
 
       expect(result.name).toBe('id');
-      expect(result.type).toBe('INTEGER');
+      expect(result.type).toBe('INT');
       expect(result.checked).toBe(false);
       expect(result.column).toBe(sqlColumn);
       expect(result.alias).toBeUndefined();
@@ -68,7 +72,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn, false);
 
       expect(result.name).toBe('ts');
-      expect(result.type).toBe('TIMESTAMP_NS');
+      expect(result.type).toBe('TIMESTAMP');
       expect(result.checked).toBe(false);
     });
   });
@@ -81,8 +85,7 @@ describe('column_info utilities', () => {
       expect(result.type).toBe('NA');
       expect(result.checked).toBe(false);
       expect(result.column.name).toBe('test_column');
-      expect(result.column.type.name).toBe('NA');
-      expect(result.column.type.shortName).toBe('NA');
+      expect(result.column.type).toBe(undefined);
     });
 
     it('should create ColumnInfo with checked=true when specified', () => {
@@ -114,7 +117,7 @@ describe('column_info utilities', () => {
       const result = newColumnInfo(original);
 
       expect(result.name).toBe('id');
-      expect(result.type).toBe('INTEGER');
+      expect(result.type).toBe('INT');
       expect(result.checked).toBe(false);
       expect(result.column).toBe(original.column);
       expect(result.alias).toBeUndefined();
@@ -132,7 +135,7 @@ describe('column_info utilities', () => {
       const result = newColumnInfo(original);
 
       expect(result.name).toBe('identifier');
-      expect(result.type).toBe('INTEGER');
+      expect(result.type).toBe('INT');
       expect(result.column.name).toBe('id');
       expect(result.alias).toBeUndefined();
     });
