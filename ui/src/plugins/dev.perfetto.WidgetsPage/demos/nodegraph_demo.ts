@@ -13,19 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {uuidv4} from '../../../base/uuid';
+import {Checkbox} from '../../../widgets/checkbox';
+import {MenuItem} from '../../../widgets/menu';
 import {
   Connection,
   Node,
   NodeGraph,
   NodeGraphApi,
-} from '../../widgets/nodegraph';
-import {Checkbox} from '../../widgets/checkbox';
-import {PopupMenu} from '../../widgets/menu';
-import {MenuItem} from '../../widgets/menu';
-import {Button} from '../../widgets/button';
-import {TextInput} from '../../widgets/text_input';
-import {uuidv4} from '../../base/uuid';
-import {Select} from '../../widgets/select';
+} from '../../../widgets/nodegraph';
+import {Select} from '../../../widgets/select';
+import {TextInput} from '../../../widgets/text_input';
+import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
+import {PopupMenu} from '../../../widgets/menu';
+import {Button, ButtonVariant} from '../../../widgets/button';
 
 // Simple model state - just data
 interface ModelNode {
@@ -266,6 +267,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               icon: 'filter_list',
               onclick: () => addNode('filter', model.id),
             }),
+            m(MenuItem, {
+              label: 'Join',
+              icon: 'join',
+              onclick: () => addNode('join', model.id),
+            }),
           ],
         };
       }
@@ -321,180 +327,239 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           .filter((n): n is Node => n !== null);
       }
 
-      return m('div', [
-        // Add Node button
-        m(
-          'div',
+      return m(NodeGraph, {
+        toolbarItems: m(
+          PopupMenu,
           {
-            style: {
-              marginBottom: '8px',
-            },
+            trigger: m(Button, {
+              label: 'Add Node',
+              icon: 'add',
+              variant: ButtonVariant.Filled,
+            }),
           },
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {
-                label: 'Add Node',
-                icon: 'add',
-              }),
-            },
-            [
-              m(MenuItem, {
-                label: 'Table',
-                icon: 'table_chart',
-                onclick: () => addNode('table'),
-              }),
-              m(MenuItem, {
-                label: 'Select',
-                icon: 'filter_alt',
-                onclick: () => addNode('select'),
-              }),
-              m(MenuItem, {
-                label: 'Filter',
-                icon: 'filter_list',
-                onclick: () => addNode('filter'),
-              }),
-              m(MenuItem, {
-                label: 'Join',
-                icon: 'join',
-                onclick: () => addNode('join'),
-              }),
-            ],
-          ),
+          [
+            m(MenuItem, {
+              label: 'Table',
+              icon: 'table_chart',
+              onclick: () => addNode('table'),
+            }),
+            m(MenuItem, {
+              label: 'Select',
+              icon: 'filter_alt',
+              onclick: () => addNode('select'),
+            }),
+            m(MenuItem, {
+              label: 'Filter',
+              icon: 'filter_list',
+              onclick: () => addNode('filter'),
+            }),
+            m(MenuItem, {
+              label: 'Join',
+              icon: 'join',
+              onclick: () => addNode('join'),
+            }),
+          ],
         ),
+        nodes: renderNodes(),
+        connections: connections,
+        selectedNodeIds: Array.from(selectedNodeIds),
+        multiselect: attrs.multiselect,
+        onReady: (api: NodeGraphApi) => {
+          graphApi = api;
+        },
+        onNodeDrag: (nodeId: string, x: number, y: number) => {
+          const model = modelNodes.get(nodeId);
+          if (model) {
+            model.x = x;
+            model.y = y;
+          }
+        },
+        onConnect: (conn: Connection) => {
+          console.log('onConnect:', conn);
+          connections.push(conn);
+        },
+        onConnectionRemove: (index: number) => {
+          console.log('onConnectionRemove:', index);
+          connections.splice(index, 1);
+        },
+        onNodeRemove: (nodeId: string) => {
+          // Find the node to remove
+          const nodeToDelete = modelNodes.get(nodeId);
+          if (!nodeToDelete) return;
 
-        // NodeGraph
-        m(
-          'div',
-          {
-            style: {
-              width: '600px',
-              height: '400px',
-              overflow: 'hidden',
-              border: '1px solid #444',
-            },
-          },
-          m(NodeGraph, {
-            nodes: renderNodes(),
-            connections: connections,
-            onReady: (api: NodeGraphApi) => {
-              graphApi = api;
-            },
-            selectedNodeIds: Array.from(selectedNodeIds),
-            onNodeDrag: (nodeId: string, x: number, y: number) => {
-              const model = modelNodes.get(nodeId);
-              if (model) {
-                model.x = x;
-                model.y = y;
-              }
-            },
-            multiselect: attrs.multiselect,
-            onConnect: (conn: Connection) => {
-              console.log('onConnect:', conn);
-              connections.push(conn);
-            },
-            onConnectionRemove: (index: number) => {
-              console.log('onConnectionRemove:', index);
-              connections.splice(index, 1);
-            },
-            onNodeRemove: (nodeId: string) => {
-              // Find the node to remove
-              const nodeToDelete = modelNodes.get(nodeId);
-              if (!nodeToDelete) return;
+          // Dock any child node to its parent
+          for (const parent of modelNodes.values()) {
+            if (parent.nextId === nodeId) {
+              parent.nextId = nodeToDelete.nextId;
+            }
+          }
 
-              // Dock any child node to its parent
-              for (const parent of modelNodes.values()) {
-                if (parent.nextId === nodeId) {
-                  parent.nextId = nodeToDelete.nextId;
-                }
-              }
+          // Clear selection if needed
+          selectedNodeIds.delete(nodeId);
 
-              // Clear selection if needed
-              selectedNodeIds.delete(nodeId);
+          // Remove any connections to/from this node
+          for (let i = connections.length - 1; i >= 0; i--) {
+            if (
+              connections[i].fromNode === nodeId ||
+              connections[i].toNode === nodeId
+            ) {
+              connections.splice(i, 1);
+            }
+          }
 
-              // Remove any connections to/from this node
-              for (let i = connections.length - 1; i >= 0; i--) {
-                if (
-                  connections[i].fromNode === nodeId ||
-                  connections[i].toNode === nodeId
-                ) {
-                  connections.splice(i, 1);
-                }
-              }
+          // Finally remove the node
+          modelNodes.delete(nodeId);
 
-              // Finally remove the node
-              modelNodes.delete(nodeId);
+          console.log(`onNodeRemove: ${nodeId}`);
+        },
+        onNodeSelect: (nodeId: string) => {
+          selectedNodeIds.clear();
+          selectedNodeIds.add(nodeId);
+          console.log(`onNodeSelect: ${nodeId}`);
+        },
+        onNodeAddToSelection: (nodeId: string) => {
+          selectedNodeIds.add(nodeId);
+          console.log(
+            `onNodeAddToSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
+          );
+        },
+        onNodeRemoveFromSelection: (nodeId: string) => {
+          selectedNodeIds.delete(nodeId);
+          console.log(
+            `onNodeRemoveFromSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
+          );
+        },
+        onSelectionClear: () => {
+          selectedNodeIds.clear();
+          console.log(`onSelectionClear`);
+        },
+        onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
+          const target = modelNodes.get(targetId);
+          const child = modelNodes.get(childNode.id);
 
-              console.log(`onNodeRemove: ${nodeId}`);
-            },
-            onNodeSelect: (nodeId: string) => {
-              selectedNodeIds.clear();
-              selectedNodeIds.add(nodeId);
-              console.log(`onNodeSelect: ${nodeId}`);
-            },
-            onNodeAddToSelection: (nodeId: string) => {
-              selectedNodeIds.add(nodeId);
-              console.log(
-                `onNodeAddToSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
-              );
-            },
-            onNodeRemoveFromSelection: (nodeId: string) => {
-              selectedNodeIds.delete(nodeId);
-              console.log(
-                `onNodeRemoveFromSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
-              );
-            },
-            onSelectionClear: () => {
-              selectedNodeIds.clear();
-              console.log(`onSelectionClear`);
-            },
-            onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
-              const target = modelNodes.get(targetId);
-              const child = modelNodes.get(childNode.id);
+          if (target && child) {
+            target.nextId = child.id;
+            console.log(`onDock: ${child.id} to ${targetId}`);
+          }
 
-              if (target && child) {
-                target.nextId = child.id;
-                console.log(`onDock: ${child.id} to ${targetId}`);
-              }
+          // If a connection already exists between these nodes, remove it
+          for (let i = connections.length - 1; i >= 0; i--) {
+            const conn = connections[i];
+            if (
+              (conn.fromNode === targetId && conn.fromPort === 0) ||
+              (conn.toNode === child?.id && conn.toPort === 0)
+            ) {
+              connections.splice(i, 1);
+            }
+          }
+        },
+        onUndock: (parentId: string) => {
+          const parent = modelNodes.get(parentId);
 
-              // If a connection already exists between these nodes, remove it
-              for (let i = connections.length - 1; i >= 0; i--) {
-                const conn = connections[i];
-                if (
-                  (conn.fromNode === targetId && conn.fromPort === 0) ||
-                  (conn.toNode === child?.id && conn.toPort === 0)
-                ) {
-                  connections.splice(i, 1);
-                }
-              }
-            },
-            onUndock: (parentId: string) => {
-              const parent = modelNodes.get(parentId);
+          if (parent && parent.nextId) {
+            const child = modelNodes.get(parent.nextId);
 
-              if (parent && parent.nextId) {
-                const child = modelNodes.get(parent.nextId);
+            if (child) {
+              child.x = parent.x;
+              child.y = parent.y + 150;
+              parent.nextId = undefined;
 
-                if (child) {
-                  child.x = parent.x;
-                  child.y = parent.y + 150;
-                  parent.nextId = undefined;
+              // Connect the previously docker nodes together with a
+              // connection
+              connections.push({
+                fromNode: parent.id,
+                fromPort: 0,
+                toNode: child.id,
+                toPort: 0,
+              });
 
-                  // Connect the previously docker nodes together with a
-                  // connection
-                  connections.push({
-                    fromNode: parent.id,
-                    fromPort: 0,
-                    toNode: child.id,
-                    toPort: 0,
-                  });
-
-                  console.log(`onUndock: ${child.id} from ${parentId}`);
-                }
-              }
-            },
-          }),
-        ),
-      ]);
+              console.log(`onUndock: ${child.id} from ${parentId}`);
+            }
+          }
+        },
+      });
     },
   };
+}
+
+export function renderNodeGraph() {
+  return [
+    m(
+      '.pf-widget-intro',
+      m('h1', 'NodeGraph'),
+      m(
+        'p',
+        'An interactive graph visualization component for displaying nodes and connections between them.',
+      ),
+    ),
+    renderWidgetShowcase({
+      renderWidget: (opts) => m(NodeGraphDemo, opts),
+      initialOpts: {
+        multiselect: true,
+        accentBars: false,
+        titleBars: false,
+        colors: false,
+      },
+    }),
+
+    renderDocSection('User Interaction Guide', [
+      m('p', [
+        'NodeGraph provides an interactive canvas for creating and manipulating node-based graphs. ',
+        'Users can navigate, create nodes, connect them, and organize complex workflows.',
+      ]),
+      m('h3', 'Navigation'),
+      m('ul', [
+        m('li', [
+          m('strong', 'Scroll horizontally and vertically'),
+          ' to pan the canvas.',
+        ]),
+        m('li', [
+          m('strong', 'Click and drag on the canvas'),
+          ' to pan the canvas.',
+        ]),
+        m('li', [m('strong', 'Pinch or Ctrl+Scroll'), ' to zoom in and out.']),
+      ]),
+      m('h3', 'Nodes'),
+      m('ul', [
+        m('li', [
+          m('strong', 'Drag nodes'),
+          ' to reposition them on the canvas.',
+        ]),
+        m('li', [
+          m(
+            'strong',
+            'Drag nodes with top ports below nodes with bottom ports',
+          ),
+          ' to dock the nodes together.',
+        ]),
+        m('li', [
+          m('strong', 'Click nodes'),
+          ' to select them (hold Shift for multiselect).',
+        ]),
+        m('li', [
+          m('strong', 'Shift + click and drag'),
+          ' to box select multiple nodes.',
+        ]),
+        m('li', [
+          m('strong', 'Press Delete or Backspace'),
+          ' to remove the selected node(s).',
+        ]),
+        m('li', [
+          m('strong', 'Right-click output ports'),
+          ' to quickly add nodes docked below.',
+        ]),
+      ]),
+      m('h3', 'Connections'),
+      m('ul', [
+        m('li', [
+          m('strong', 'Drag from output ports to input ports'),
+          ' to connect nodes together.',
+        ]),
+        m('li', [
+          m('strong', 'Drag outputs away from ports'),
+          ' to disconnect and remove connections.',
+        ]),
+      ]),
+    ]),
+  ];
 }
