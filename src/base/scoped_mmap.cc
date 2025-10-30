@@ -23,6 +23,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <sys/mman.h>
 #include <unistd.h>
@@ -36,6 +37,7 @@ namespace {
 ScopedPlatformHandle OpenFileForMmap(const char* fname) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   return OpenFile(fname, O_RDONLY);
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -83,6 +85,7 @@ ScopedMmap ScopedMmap::FromHandle(base::ScopedPlatformHandle file,
   }
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   void* ptr = mmap(nullptr, length, PROT_READ, MAP_PRIVATE, *file, 0);
   if (ptr != MAP_FAILED) {
@@ -113,6 +116,7 @@ bool ScopedMmap::reset() noexcept {
   bool ret = true;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   if (ptr_ != nullptr) {
     ret = munmap(ptr_, length_) == 0;
@@ -131,6 +135,7 @@ bool ScopedMmap::reset() noexcept {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 // static
 ScopedMmap ScopedMmap::InheritMmappedRange(void* data, size_t size) {
