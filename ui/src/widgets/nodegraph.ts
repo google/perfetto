@@ -664,12 +664,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         conn.fromPort,
         nodes,
       );
-      const toPortType = getPortType(
-        conn.toNode,
-        'input',
-        conn.toPort,
-        nodes,
-      );
+      const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
 
       path.setAttribute(
         'd',
