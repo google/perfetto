@@ -45,7 +45,8 @@
 #include <unistd.h>
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
 #include <sys/ucred.h>
 #endif
 
@@ -411,7 +412,8 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
                              SockType type)
     : fd_(std::move(fd)), family_(family), type_(type) {
   PERFETTO_CHECK(fd_);
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
   const int no_sigpipe = 1;
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
@@ -1040,7 +1042,8 @@ void UnixSocket::ReadPeerCredentialsPosix() {
   PERFETTO_CHECK(res == 0);
   peer_uid_ = user_cred.uid;
   peer_pid_ = user_cred.pid;
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
   struct xucred user_cred;
   socklen_t len = sizeof(user_cred);
   int res = getsockopt(sock_raw_.fd(), 0, LOCAL_PEERCRED, &user_cred, &len);
