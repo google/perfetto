@@ -13,7 +13,6 @@
 // limitations under the License.
 
 .pf-canvas {
-  height: 100%;
   overflow: hidden;
   background: linear-gradient(
       0deg,
@@ -31,6 +30,11 @@
   user-select: none;
   font-family: var(--pf-font-compact);
   cursor: grab;
+  height: 450px; // Give the canvas some intrinsic height by default
+
+  &--fill-height {
+    height: 100%;
+  }
 }
 
 .pf-canvas-content {
