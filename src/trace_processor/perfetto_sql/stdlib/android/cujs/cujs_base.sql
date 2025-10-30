@@ -257,3 +257,105 @@ WHERE
   AND (
     vsync <= end_vsync OR end_vsync IS NULL
   );
+
+-- Table tracking all jank CUJs information.
+CREATE PERFETTO TABLE android_jank_cujs (
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  process_name STRING,
+  -- Name of the CUJ slice.
+  cuj_slice_name STRING,
+  -- Name of the CUJ without the 'J<' prefix.
+  cuj_name STRING,
+  -- Id of the CUJ slice in perfetto. Keeping the slice id column as part of this table
+  -- as provision to lookup the actual CUJ slice ts and dur. The ts and dur in this table
+  -- might differ from the slice duration, as they are associated with start and end frame
+  -- corresponding to the CUJ.
+  slice_id JOINID(slice.id),
+  -- Start timestamp of the CUJ. Start of the CUJ as defined by the start of the first overlapping
+  -- expected frame.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ. Calculated as the end timestamp of the last actual frame
+  -- overlapping with the CUJ.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ calculated based on the ts and ts_end values.
+  dur DURATION,
+  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
+  -- FT#end instant event is not present for the CUJ.
+  state STRING,
+  -- thread id of the UI thread.
+  ui_thread JOINID(thread.id),
+  -- layer id associated with the actual frame.
+  layer_id LONG,
+  -- vysnc id of the first frame that falls within the CUJ boundary.
+  begin_vsync LONG,
+  -- vysnc id of the last frame that falls within the CUJ boundary.
+  end_vsync LONG
+) AS
+SELECT
+  cujs.*,
+  _extract_cuj_name_from_slice(cujs.cuj_slice_name) AS cuj_name,
+  CASE
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cujs.cuj_id AND csm.marker_type = 'cancel'
+    )
+    THEN 'canceled'
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cujs.cuj_id AND csm.marker_type = 'end'
+    )
+    THEN 'completed'
+    ELSE NULL
+  END AS state,
+  (
+    SELECT
+      CAST(str_split(csm.marker_name, 'layerId#', 1) AS INTEGER)
+    FROM _cuj_state_markers AS csm
+    WHERE
+      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*layerId#*'
+    LIMIT 1
+  ) AS layer_id,
+  (
+    SELECT
+      CAST(str_split(csm.marker_name, 'beginVsync#', 1) AS INTEGER)
+    FROM _cuj_state_markers AS csm
+    WHERE
+      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*beginVsync#*'
+    LIMIT 1
+  ) AS begin_vsync,
+  (
+    SELECT
+      CAST(str_split(csm.marker_name, 'endVsync#', 1) AS INTEGER)
+    FROM _cuj_state_markers AS csm
+    WHERE
+      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*endVsync#*'
+    LIMIT 1
+  ) AS end_vsync,
+  (
+    SELECT
+      utid
+    FROM _cuj_state_markers AS csm
+    WHERE
+      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB "*#UIThread"
+    LIMIT 1
+  ) AS ui_thread
+FROM _jank_cujs_slices AS cujs
+WHERE
+  state != 'canceled'
+  -- Older builds don't have the state markers so we allow NULL but filter out
+  -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
+  OR (
+    state IS NULL AND cujs.dur > 4e6
+  )
+ORDER BY
+  ts ASC;
