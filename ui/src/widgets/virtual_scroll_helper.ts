@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {Bounds2D, Rect2D} from '../base/geom';
+import {Bounds2D, Rect2D, Vector2D} from '../base/geom';
 
 export interface VirtualScrollHelperOpts {
   overdrawPx: number;
@@ -27,7 +27,6 @@ export interface VirtualScrollHelperOpts {
 export interface Data {
   opts: VirtualScrollHelperOpts;
   rect?: Bounds2D;
-  velocity?: number; // px/ms (positive = down, negative = up)
 }
 
 // Constants for predictive scrolling
@@ -67,37 +66,49 @@ export class VirtualScrollHelper {
     });
 
     let previousScrollOffset = 0;
-    let previousTimestamp = performance.now();
+    let previousScrollEventTimestamp: number | undefined;
+    let previousScrollVelocity = 0;
 
-    const recalculateRects = () => {
-      const delta = containerElement.scrollTop - previousScrollOffset;
-      previousScrollOffset = containerElement.scrollTop;
-      // Calculate scrolling velocity
-      const now = performance.now();
-      const timeDelta = now - previousTimestamp;
-      previousTimestamp = now;
-      const scrollingVelocity = timeDelta > 0 ? delta / timeDelta : 0;
-
+    const recalculateRects = (scrollVelocity: number) => {
       // Update velocity for each data level with smoothing
       this._data.forEach((data) => {
-        const previousVelocity = data.velocity ?? 0;
-        data.velocity =
-          SMOOTHING_FACTOR * scrollingVelocity +
-          (1 - SMOOTHING_FACTOR) * previousVelocity;
-        recalculatePuckRect(sliderElement, containerElement, data);
+        recalculatePuckRect(
+          sliderElement,
+          containerElement,
+          data,
+          new Vector2D({x: 0, y: scrollVelocity}),
+        );
       });
     };
 
-    containerElement.addEventListener('scroll', recalculateRects, {
+    const handleScroll = (e: Event) => {
+      const target = e.target as Element;
+      const delta = target.scrollTop - previousScrollOffset;
+      const timeDelta =
+        e.timeStamp - (previousScrollEventTimestamp ?? e.timeStamp);
+      const scrollVelocity = timeDelta > 0 ? delta / timeDelta : 0;
+      previousScrollOffset = target.scrollTop;
+      previousScrollEventTimestamp = e.timeStamp;
+
+      // Filter the scroll velocity to avoid spikes
+      const filteredScrollVelocity =
+        SMOOTHING_FACTOR * scrollVelocity +
+        (1 - SMOOTHING_FACTOR) * previousScrollVelocity;
+      previousScrollVelocity = filteredScrollVelocity;
+
+      recalculateRects(filteredScrollVelocity);
+    };
+
+    containerElement.addEventListener('scroll', handleScroll, {
       passive: true,
     });
     this._trash.defer(() =>
-      containerElement.removeEventListener('scroll', recalculateRects),
+      containerElement.removeEventListener('scroll', handleScroll),
     );
 
     // Resize observer callbacks are called once immediately
     const resizeObserver = new ResizeObserver(() => {
-      recalculateRects();
+      recalculateRects(0);
     });
 
     resizeObserver.observe(containerElement);
@@ -116,9 +127,9 @@ function recalculatePuckRect(
   sliderElement: HTMLElement,
   containerElement: Element,
   data: Data,
+  velocity: Vector2D,
 ): void {
   const {tolerancePx, overdrawPx, callback} = data.opts;
-  const velocity = data.velocity ?? 0;
 
   if (!data.rect) {
     const targetPuckRect = getTargetPuckRect(
@@ -161,7 +172,7 @@ function getTargetPuckRect(
   sliderElement: HTMLElement,
   containerElement: Element,
   overdrawPx: number,
-  velocity: number = 0,
+  velocity: Vector2D,
 ) {
   const sliderElementRect = sliderElement.getBoundingClientRect();
   const containerRect = new Rect2D(containerElement.getBoundingClientRect());
@@ -170,8 +181,9 @@ function getTargetPuckRect(
   const intersection = containerRect.intersect(sliderElementRect);
 
   // Apply predictive offset based on scroll velocity
-  const offsetY = calculatePredictiveOffset(velocity, overdrawPx);
-  const shiftedIntersection = intersection.translate({x: 0, y: offsetY});
+  const offsetX = calculatePredictiveOffset(velocity.x, overdrawPx);
+  const offsetY = calculatePredictiveOffset(velocity.y, overdrawPx);
+  const shiftedIntersection = intersection.translate({x: offsetX, y: offsetY});
 
   // Pad the intersection by the overdraw amount
   const intersectionExpanded = shiftedIntersection.expand(overdrawPx);
