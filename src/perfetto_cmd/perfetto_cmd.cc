@@ -176,19 +176,20 @@ Light configuration flags: (only when NOT using -c/--config)
   ATRACE_CAT               : Record ATRACE_CAT (e.g. wm) (Android only)
 
 Statsd-specific and other Android-only flags:
-  --alert-id           : ID of the alert that triggered this trace.
-  --config-id          : ID of the triggering config.
-  --config-uid         : UID of app which registered the config.
-  --subscription-id    : ID of the subscription that triggered this trace.
-  --upload             : Upload trace.
-  --dropbox        TAG : DEPRECATED: Use --upload instead
-                         TAG should always be set to 'perfetto'.
-  --save-for-bugreport : If a trace with bugreport_score > 0 is running, it
-                         saves it into a file. Outputs the path when done.
-  --no-guardrails      : Ignore guardrails triggered when using --upload
-                         (testing only).
-  --reset-guardrails   : Resets the state of the guardails and exits
-                         (testing only).
+  --alert-id            : ID of the alert that triggered this trace.
+  --config-id           : ID of the triggering config.
+  --config-uid          : UID of app which registered the config.
+  --subscription-id     : ID of the subscription that triggered this trace.
+  --upload              : Upload trace.
+  --upload-after-reboot : TODO(ktimofeev): add description
+  --dropbox        TAG  : DEPRECATED: Use --upload instead
+                          TAG should always be set to 'perfetto'.
+  --save-for-bugreport  : If a trace with bugreport_score > 0 is running, it
+                          saves it into a file. Outputs the path when done.
+  --no-guardrails       : Ignore guardrails triggered when using --upload
+                          (testing only).
+  --reset-guardrails    : Resets the state of the guardails and exits
+                          (testing only).
 
 Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode
   --detach=key          : Detach from the tracing session with the given key.
@@ -219,6 +220,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_PBTXT_CONFIG,
     OPT_DROPBOX,
     OPT_UPLOAD,
+    OPT_UPLOAD_AFTER_REBOOT,
     OPT_IGNORE_GUARDRAILS,
     OPT_DETACH,
     OPT_ATTACH,
@@ -242,6 +244,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
       {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
       {"upload", no_argument, nullptr, OPT_UPLOAD},
+      {"upload-after-reboot", no_argument, nullptr, OPT_UPLOAD_AFTER_REBOOT},
       {"dropbox", required_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
@@ -398,6 +401,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 #endif
     }
 
+    if (option == OPT_UPLOAD_AFTER_REBOOT) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      upload_after_reboot_flag_ = true;
+      continue;
+#else
+      PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
+      return 1;
+#endif
+    }
+
     if (option == OPT_DROPBOX) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
       PERFETTO_CHECK(optarg);
@@ -536,6 +549,14 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
+  if (upload_after_reboot_flag_ &&
+      (bugreport_ || clone_all_bugreport_traces_ || is_attach() ||
+       is_detach() || query_service_ || has_config_options ||
+       background_wait_)) {
+    PERFETTO_ELOG("--upload-after-reboot cannot take any other argument");
+    return 1;
+  }
+
   if ((bugreport_ || clone_all_bugreport_traces_) &&
       (is_attach() || is_detach() || query_service_ || has_config_options ||
        background_wait_)) {
@@ -573,7 +594,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   bool parsed = false;
   bool cfg_could_be_txt = false;
   const bool will_trace_or_trigger =
-      !is_attach() && !query_service_ && !clone_all_bugreport_traces_;
+      !is_attach() && !query_service_ && !clone_all_bugreport_traces_ && !upload_after_reboot_flag_;
   if (!will_trace_or_trigger) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");

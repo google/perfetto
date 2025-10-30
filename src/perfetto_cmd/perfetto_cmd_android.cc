@@ -204,6 +204,8 @@ base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
   // TODO(ktimofeev): use flock(2) to check if the trace file is currently opend
   // by the traced or just wasn't rm-ed on the reboot. If it wasn't rm-ed
   // overwrite it.
+  // we can use base::OpenFile with "O_CREAT | O_EXCL" flags to check if file
+  // exists.
   if (base::FileExists(file_path.ToStdString())) {
     PERFETTO_ELOG(
         "Could not create a persistent trace file '%s' for session name: '%s', "
@@ -211,7 +213,7 @@ base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
         file_path.c_str(), name.c_str());
     return base::ScopedFile{};  // Invalid file.
   }
-  auto fd = base::OpenFile(file_path.ToStdString(), O_RDWR, 0600);
+  auto fd = base::OpenFile(file_path.ToStdString(), O_CREAT | O_RDWR, 0600);
   if (!fd) {
     PERFETTO_PLOG("Could not create a persistent trace file '%s'",
                   file_path.c_str());
