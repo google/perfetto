@@ -31,6 +31,7 @@ def default_cc_args():
         "includes": ["include"],
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
+            "@perfetto//bazel:os_freebsd": ["-ldl", "-lrt", "-lpthread"],
             "@perfetto//bazel:os_osx": [],
             "@perfetto//bazel:os_windows": ["ws2_32.lib"],
             "//conditions:default": ["-ldl"],
