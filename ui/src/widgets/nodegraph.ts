@@ -129,6 +129,9 @@ export interface NodeGraphAttrs {
   readonly onNodeRemove?: (nodeId: string) => void;
   readonly hideControls?: boolean;
   readonly multiselect?: boolean; // Enable multi-node selection (default: true)
+  readonly fillHeight?: boolean;
+  readonly toolbarItems?: m.Children;
+  readonly style?: Partial<CSSStyleDeclaration>;
 }
 
 // ========================================
@@ -1350,13 +1353,15 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         onConnect,
         selectedNodeIds = [],
         hideControls = false,
-        multiselect: multiselect = true,
+        multiselect = true,
+        fillHeight,
       } = vnode.attrs;
 
       // Sync internal state with prop
       canvasState.selectedNodes = new Set(selectedNodeIds);
 
       const className = classNames(
+        fillHeight && 'pf-canvas--fill-height',
         canvasState.connecting && 'pf-connecting',
         canvasState.connecting &&
           `connecting-from-${canvasState.connecting.type}`,
@@ -1439,13 +1444,17 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               }
             }
           },
-          style: `background-size: ${20 * canvasState.zoom}px ${20 * canvasState.zoom}px;
-            background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
+          style: {
+            backgroundSize: `${20 * canvasState.zoom}px ${20 * canvasState.zoom}px`,
+            backgroundPosition: `${canvasState.panOffset.x}px ${canvasState.panOffset.y}px`,
+            ...vnode.attrs.style,
+          },
         },
         [
           // Control buttons (can be hidden via hideControls prop)
           !hideControls &&
             m('.pf-nodegraph-controls', [
+              vnode.attrs.toolbarItems,
               m(Button, {
                 label: 'Auto Layout',
                 icon: 'account_tree',

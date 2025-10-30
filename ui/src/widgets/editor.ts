@@ -22,6 +22,7 @@ import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/logging';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import {HTMLAttrs} from './common';
+import {classNames} from '../base/classnames';
 
 export interface EditorAttrs extends HTMLAttrs {
   // Content of the editor. If defined, the editor operates in controlled mode,
@@ -38,6 +39,9 @@ export interface EditorAttrs extends HTMLAttrs {
 
   // Whether the editor should be focused on creation.
   readonly autofocus?: boolean;
+
+  // Whether the editor should fill the height of its container.
+  readonly fillHeight?: boolean;
 
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
@@ -165,9 +169,13 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     }
   }
 
-  view({attrs}: m.Vnode<EditorAttrs, this>): void | m.Children {
+  view({attrs}: m.Vnode<EditorAttrs>): m.Children {
+    const className = classNames(
+      attrs.className,
+      attrs.fillHeight && 'pf-editor--fill-height',
+    );
     return m('.pf-editor', {
-      className: attrs.className,
+      className: className,
       ref: attrs.ref,
     });
   }
