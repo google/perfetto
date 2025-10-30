@@ -106,6 +106,7 @@ export async function querySliceRelatedFlows(
       depth: 0,
       threadName: nullToStr(it.beginThreadName),
       processName: 'NULL',
+      pipelineId: null,
     };
 
     const end = {
@@ -118,6 +119,7 @@ export async function querySliceRelatedFlows(
       depth: 0,
       threadName: nullToStr(it.endThreadName),
       processName: 'NULL',
+      pipelineId: null,
     };
 
     nodes.push(begin);

@@ -20,6 +20,7 @@ import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
 import {Track, TrackManager} from '../public/track';
 import {AreaSelection, Selection, SelectionManager} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
+import {filterUncessaryPipleineFlow} from '../lynx_perf/trace_utils';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   id: 'showIndirectPrecedingFlows',
@@ -78,7 +79,7 @@ export class FlowManager {
     );`);
   }
 
-  async queryFlowEvents(query: string): Promise<Flow[]> {
+  async queryFlowEvents(query: string, sliceId?: number): Promise<Flow[]> {
     const result = await this.engine.query(query);
     const flows: Flow[] = [];
 
@@ -107,6 +108,10 @@ export class FlowManager {
       category: STR_NULL,
       id: NUM,
       flowToDescendant: NUM,
+      beginPipelineIds: STR_NULL,
+      beginPipelineId: STR_NULL,
+      endPipelineIds: STR_NULL,
+      endPipelineId: STR_NULL,
     });
 
     const nullToStr = (s: null | string): string => {
@@ -137,6 +142,8 @@ export class FlowManager {
         depth: it.beginDepth,
         threadName: nullToStr(it.beginThreadName),
         processName: nullToStr(it.beginProcessName),
+        pipelineIds: it.beginPipelineIds ? it.beginPipelineIds.split(',') : [],
+        pipelineId: it.beginPipelineId,
       };
 
       const end = {
@@ -150,6 +157,8 @@ export class FlowManager {
         depth: it.endDepth,
         threadName: nullToStr(it.endThreadName),
         processName: nullToStr(it.endProcessName),
+        pipelineIds: it.endPipelineIds ? it.endPipelineIds.split(',') : [],
+        pipelineId: it.endPipelineId,
       };
 
       nodes.push(begin);
@@ -164,6 +173,26 @@ export class FlowManager {
         name,
         flowToDescendant: !!it.flowToDescendant,
       });
+    }
+
+    // Filter out flows that are not the same pipeline with the 'Timing::Mark.paintEnd'.
+    if (sliceId != null) {
+      const querySliceResult = await this.engine.query(`
+        select slice.name as sliceName,
+        extract_arg(slice.arg_set_id, 'debug.pipeline_id') as pipelineId
+        from slice where slice.id=${sliceId}
+      `);
+      const result = querySliceResult.firstRow({
+        sliceName: STR_NULL,
+        pipelineId: STR_NULL,
+      });
+      if (result.sliceName === 'Timing::Mark.paintEnd') {
+        await filterUncessaryPipleineFlow(
+          this.engine,
+          flows,
+          result.pipelineId,
+        );
+      }
     }
 
     // Everything below here is a horrible hack to support flows for
@@ -349,6 +378,10 @@ export class FlowManager {
       (process_in.name || ' ' || process_in.pid) as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
+      extract_arg(t1.arg_set_id, 'debug.pipeline_ids') as beginPipelineIds,
+      extract_arg(t1.arg_set_id, 'debug.pipeline_id') as beginPipelineId,
+      extract_arg(t2.arg_set_id, 'debug.pipeline_ids') as endPipelineIds,
+      extract_arg(t2.arg_set_id, 'debug.pipeline_id') as endPipelineId,
       f.id as id,
       slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
     from ${connectedFlows} f
@@ -361,7 +394,10 @@ export class FlowManager {
     left join process process_out on process_out.upid = thread_out.upid
     left join process process_in on process_in.upid = thread_in.upid
     `;
-    this.queryFlowEvents(query).then((flows) => this.setConnectedFlows(flows));
+
+    this.queryFlowEvents(query, sliceId).then((flows) =>
+      this.setConnectedFlows(flows),
+    );
   }
 
   private areaSelected(area: AreaSelection) {
@@ -412,6 +448,10 @@ export class FlowManager {
       NULL as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
+      extract_arg(t1.arg_set_id, 'debug.pipeline_ids') as beginPipelineIds,
+      extract_arg(t1.arg_set_id, 'debug.pipeline_id') as beginPipelineId,
+      extract_arg(t2.arg_set_id, 'debug.pipeline_ids') as endPipelineIds,
+      extract_arg(t2.arg_set_id, 'debug.pipeline_id') as endPipelineId,
       f.id as id,
       slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
     from flow f

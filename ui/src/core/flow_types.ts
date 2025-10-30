@@ -51,6 +51,9 @@ export interface FlowPoint {
   // customise the name here, but for now we are hardcording a few
   // Chrome-specific bits in the query here.
   sliceChromeCustomName?: string;
+
+  pipelineIds?: string[];
+  pipelineId: string | null;
 }
 
 export type FlowDirection = 'Forward' | 'Backward';
