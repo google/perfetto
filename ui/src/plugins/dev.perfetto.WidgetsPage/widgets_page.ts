@@ -1661,6 +1661,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           allInputsLeft: false,
           allOutputsRight: false,
           multiselect: false,
+          colors: false,
         },
       }),
     );

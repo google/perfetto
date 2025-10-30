@@ -49,6 +49,7 @@ interface NodeGraphDemoAttrs {
   readonly allInputsLeft?: boolean;
   readonly allOutputsRight?: boolean;
   readonly multiselect?: boolean;
+  readonly colors?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
@@ -253,7 +254,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           titleBar: attrs.titleBars
             ? {title: model.type.toUpperCase()}
             : undefined,
-          hue: nodeHues[model.type],
+          hue: attrs.colors ? nodeHues[model.type] : undefined,
           addMenuItems: [
             m(MenuItem, {
               label: 'Select',
@@ -287,7 +288,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           titleBar: attrs.titleBars
             ? {title: model.type.toUpperCase()}
             : undefined,
-          hue: nodeHues[model.type],
+          hue: attrs.colors ? nodeHues[model.type] : undefined,
           addMenuItems: [
             m(MenuItem, {
               label: 'Select',
