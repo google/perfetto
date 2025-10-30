@@ -100,6 +100,7 @@ interface CanvasState {
     type: 'input' | 'output';
   } | null;
   selectionRect: SelectionRect | null; // Box selection state
+  canvasMouseDownPos: Position;
 }
 
 export interface NodeGraphApi {
@@ -303,6 +304,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     undockCandidate: null,
     hoveredPort: null,
     selectionRect: null,
+    canvasMouseDownPos: {x: 0, y: 0},
   };
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
@@ -1386,24 +1388,46 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 return;
               }
 
-              // Clear selection if not holding Shift or Cmd/Ctrl (or if multiselect is disabled)
-              if (!multiselect || (!e.shiftKey && !e.metaKey && !e.ctrlKey)) {
-                canvasState.selectedNodes.clear();
+              // Start panning and store position to detect click vs drag
+              canvasState.isPanning = true;
+              canvasState.panStart = {x: e.clientX, y: e.clientY};
+              canvasState.canvasMouseDownPos = {x: e.clientX, y: e.clientY};
+              e.preventDefault();
+            }
+          },
+          onclick: (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Clear selection on canvas click (only if mouse didn't move significantly)
+            if (
+              target.classList.contains('pf-canvas') ||
+              target.tagName === 'svg'
+            ) {
+              const dx = Math.abs(e.clientX - canvasState.canvasMouseDownPos.x);
+              const dy = Math.abs(e.clientY - canvasState.canvasMouseDownPos.y);
+              const threshold = 3; // Pixels of movement tolerance
 
-                // Call onSelectionClear callback
+              // Only clear if it was a click (not a drag)
+              if (dx <= threshold && dy <= threshold) {
+                canvasState.selectedNodes.clear();
                 const {onSelectionClear} = vnode.attrs;
                 if (onSelectionClear !== undefined) {
                   onSelectionClear();
                 }
               }
-
-              canvasState.isPanning = true;
-              canvasState.panStart = {x: e.clientX, y: e.clientY};
-              e.preventDefault();
             }
           },
           onkeydown: (e: KeyboardEvent) => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (e.key === 'Escape') {
+              // Deselect all nodes with Escape key
+              if (canvasState.selectedNodes.size > 0) {
+                canvasState.selectedNodes.clear();
+                const {onSelectionClear} = vnode.attrs;
+                if (onSelectionClear !== undefined) {
+                  onSelectionClear();
+                }
+                e.preventDefault();
+              }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
               const {onNodeRemove} = vnode.attrs;
               if (canvasState.selectedNodes.size > 0 && onNodeRemove) {
                 // Delete all selected nodes
