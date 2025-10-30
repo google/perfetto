@@ -180,6 +180,51 @@ message PerfettoSqlStructuredQuery {
     repeated PerfettoSqlStructuredQuery interval_intersect = 2;
   }
 
+  // DON'T USE. EXPERIMENTAL.
+  message ExperimentalJoin {
+    message EqualityColumns {
+      // The name of the column in the left query. Required.
+      optional string left_column = 1;
+      // The name of the column in the right query. Required.
+      optional string right_column = 2;
+    }
+
+    message FreeformCondition {
+      // The alias of the left query in the join. Required.
+      optional string left_query_alias = 1;
+      // The alias of the right query in the join. Required.
+      optional string right_query_alias = 2;
+      // The SQL expression representing the join condition, using left and
+      // right query aliases. Required.
+      optional string sql_expression = 3;
+    }
+    // The type of join to perform.
+    enum Type {
+      // Standard SQL INNER JOIN. A row is produced only if the join condition
+      // is met in both the left and right queries.
+      INNER = 0;
+      // Standard SQL LEFT JOIN. All rows from the left query are included,
+      // with matching rows from the right query. If there is no match, the
+      // columns from the right query will be NULL.
+      LEFT = 1;
+    }
+
+    // The type of join. Required.
+    optional Type type = 1;
+    // The "left" query in the join. Required.
+    optional PerfettoSqlStructuredQuery left_query = 2;
+    // The "right" query in the join. Required.
+    optional PerfettoSqlStructuredQuery right_query = 3;
+
+    // The condition for the join. One of the following is required.
+    oneof condition {
+      // Columns from both queries which must be equal for the join.
+      EqualityColumns equality_columns = 4;
+      // A freeform SQL expression representing the join condition.
+      FreeformCondition freeform_condition = 5;
+    }
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -223,6 +268,9 @@ message PerfettoSqlStructuredQuery {
     // Source is an interval intersect operation. See IntervalIntersect
     // documentation for more information.
     IntervalIntersect interval_intersect = 7;
+
+    // DON'T USE. EXPERIMENTAL.
+    ExperimentalJoin join = 12;
   }
 
   // Represents a single filter on a column.
