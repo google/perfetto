@@ -134,6 +134,8 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
+  static base::ScopedFile CreatePersistentTraceFile(
+      const std::string& unique_session_name);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();

@@ -1226,7 +1226,11 @@ bool PerfettoCmd::OpenOutputFile() {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    fd = CreateUnlinkedTmpFile();
+    if (trace_config_->persist_trace_after_reboot()) {
+      fd = CreatePersistentTraceFile(trace_config_->unique_session_name());
+    } else {
+      fd = CreateUnlinkedTmpFile();
+    }
 #endif
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));

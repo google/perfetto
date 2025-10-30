@@ -33,9 +33,13 @@
 namespace perfetto {
 namespace {
 
-// Directory for local state and temporary files. This is automatically
+// Directories for local state and temporary files. These are automatically
 // created by the system by setting setprop persist.traced.enable=1.
 const char* kStateDir = "/data/misc/perfetto-traces";
+const char* kStatePersistentRunningDir =
+    "/data/misc/perfetto-traces/persistent/running";
+// const char* kStatePersistentUploadingDir =
+//     "/data/misc/perfetto-traces/persistent/uploading";
 
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
@@ -187,6 +191,31 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   auto fd = base::OpenFile(kStateDir, O_TMPFILE | O_RDWR, 0600);
   if (!fd)
     PERFETTO_PLOG("Could not create a temporary trace file in %s", kStateDir);
+  return fd;
+}
+
+// static
+base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
+    const std::string& unique_session_name) {
+  std::string name =
+      unique_session_name.empty() ? "trace" : unique_session_name.substr(0, 64);
+  base::StackString<256> file_path("%s/%s.pftrace", kStatePersistentRunningDir,
+                                   name.c_str());
+  // TODO(ktimofeev): use flock(2) to check if the trace file is currently opend
+  // by the traced or just wasn't rm-ed on the reboot. If it wasn't rm-ed
+  // overwrite it.
+  if (base::FileExists(file_path.ToStdString())) {
+    PERFETTO_ELOG(
+        "Could not create a persistent trace file '%s' for session name: '%s', "
+        "file already exists",
+        file_path.c_str(), name.c_str());
+    return base::ScopedFile{};  // Invalid file.
+  }
+  auto fd = base::OpenFile(file_path.ToStdString(), O_RDWR, 0600);
+  if (!fd) {
+    PERFETTO_PLOG("Could not create a persistent trace file '%s'",
+                  file_path.c_str());
+  }
   return fd;
 }
 
