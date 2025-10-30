@@ -165,7 +165,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
           wrap && 'pf-grid-cell--wrap',
         ),
       },
-      m('.pf-grid-cell__content-wrapper', children),
+      children,
     );
 
     if (Boolean(menuItems)) {
