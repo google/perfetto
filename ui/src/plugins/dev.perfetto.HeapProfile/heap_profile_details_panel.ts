@@ -45,6 +45,7 @@ import {
 } from '../../widgets/flamegraph';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {StandardColumn} from '../../components/widgets/sql/table/columns';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 
@@ -497,14 +498,14 @@ function getHeapGraphObjectReferencesView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}object_references`,
     columns: [
-      new StandardColumn('path_hash'),
-      new StandardColumn('outgoing_reference_count'),
-      new StandardColumn('class_name'),
-      new StandardColumn('self_size'),
-      new StandardColumn('native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('path_hash', PerfettoSqlTypes.STRING),
+      new StandardColumn('outgoing_reference_count', PerfettoSqlTypes.INT),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('self_size', PerfettoSqlTypes.INT),
+      new StandardColumn('native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -515,15 +516,15 @@ function getHeapGraphIncomingReferencesView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}incoming_references`,
     columns: [
-      new StandardColumn('path_hash'),
-      new StandardColumn('class_name'),
-      new StandardColumn('field_name'),
-      new StandardColumn('field_type_name'),
-      new StandardColumn('self_size'),
-      new StandardColumn('native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('path_hash', PerfettoSqlTypes.STRING),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_type_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('self_size', PerfettoSqlTypes.INT),
+      new StandardColumn('native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -534,15 +535,15 @@ function getHeapGraphOutgoingReferencesView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}outgoing_references`,
     columns: [
-      new StandardColumn('path_hash'),
-      new StandardColumn('class_name'),
-      new StandardColumn('field_name'),
-      new StandardColumn('field_type_name'),
-      new StandardColumn('self_size'),
-      new StandardColumn('native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('path_hash', PerfettoSqlTypes.STRING),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('field_type_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('self_size', PerfettoSqlTypes.INT),
+      new StandardColumn('native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -553,13 +554,13 @@ function getHeapGraphRetainingObjectCountsView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}retaining_object_counts`,
     columns: [
-      new StandardColumn('class_name'),
-      new StandardColumn('count'),
-      new StandardColumn('total_size'),
-      new StandardColumn('total_native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('count', PerfettoSqlTypes.INT),
+      new StandardColumn('total_size', PerfettoSqlTypes.INT),
+      new StandardColumn('total_native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -570,13 +571,13 @@ function getHeapGraphRetainedObjectCountsView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}retained_object_counts`,
     columns: [
-      new StandardColumn('class_name'),
-      new StandardColumn('count'),
-      new StandardColumn('total_size'),
-      new StandardColumn('total_native_size'),
-      new StandardColumn('heap_type'),
-      new StandardColumn('root_type'),
-      new StandardColumn('reachable'),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('count', PerfettoSqlTypes.INT),
+      new StandardColumn('total_size', PerfettoSqlTypes.INT),
+      new StandardColumn('total_native_size', PerfettoSqlTypes.INT),
+      new StandardColumn('heap_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('root_type', PerfettoSqlTypes.STRING),
+      new StandardColumn('reachable', PerfettoSqlTypes.BOOLEAN),
     ],
   };
 }
@@ -587,11 +588,11 @@ function getHeapGraphDuplicateObjectsView(
   return {
     name: `_heap_graph${tableModifier(isDominator)}duplicate_objects`,
     columns: [
-      new StandardColumn('class_name'),
-      new StandardColumn('path_count'),
-      new StandardColumn('object_count'),
-      new StandardColumn('total_size'),
-      new StandardColumn('total_native_size'),
+      new StandardColumn('class_name', PerfettoSqlTypes.STRING),
+      new StandardColumn('path_count', PerfettoSqlTypes.INT),
+      new StandardColumn('object_count', PerfettoSqlTypes.INT),
+      new StandardColumn('total_size', PerfettoSqlTypes.INT),
+      new StandardColumn('total_native_size', PerfettoSqlTypes.INT),
     ],
   };
 }

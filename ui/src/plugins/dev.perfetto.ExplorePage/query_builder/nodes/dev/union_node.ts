@@ -25,15 +25,14 @@ import protos from '../../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../../column_info';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../../operations/filter';
 import {Card, CardStack} from '../../../../../widgets/card';
 import {Checkbox} from '../../../../../widgets/checkbox';
 
 export interface UnionSerializedState {
   unionNodes: string[];
   selectedColumns: ColumnInfo[];
-  filters?: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -49,9 +48,8 @@ export class UnionNode implements MultiSourceNode {
   readonly prevNodes: QueryNode[];
   nextNodes: QueryNode[];
   readonly state: UnionNodeState;
-  customTitle?: string;
   comment?: string;
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
 
   get finalCols(): ColumnInfo[] {
     return this.state.selectedColumns.filter((col) => col.checked);
@@ -61,6 +59,7 @@ export class UnionNode implements MultiSourceNode {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
+      autoExecute: state.autoExecute ?? false,
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
@@ -141,7 +140,7 @@ export class UnionNode implements MultiSourceNode {
   }
 
   getTitle(): string {
-    return this.customTitle ?? 'Union';
+    return 'Union';
   }
 
   nodeDetails(): m.Child {
@@ -213,7 +212,6 @@ export class UnionNode implements MultiSourceNode {
     };
     const clone = new UnionNode(stateCopy);
     clone.filters = this.filters ? [...this.filters] : undefined;
-    clone.customTitle = this.customTitle;
     clone.comment = this.comment;
     return clone;
   }
@@ -227,7 +225,6 @@ export class UnionNode implements MultiSourceNode {
       unionNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
       selectedColumns: this.state.selectedColumns,
       filters: this.filters,
-      customTitle: this.customTitle,
       comment: this.comment,
     };
   }

@@ -33,8 +33,11 @@ import {
   newColumnInfoList,
 } from '../column_info';
 import protos from '../../../../protos';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
-import {createFiltersProto, FilterOperation} from '../operations/filter';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../operations/filter';
 
 class SwitchComponent
   implements
@@ -358,8 +361,7 @@ export interface ModifyColumnsSerializedState {
   prevNodeId: string;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters?: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -367,8 +369,7 @@ export interface ModifyColumnsState extends QueryNodeState {
   prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters?: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
 }
 
 export class ModifyColumnsNode implements ModificationNode {
@@ -477,7 +478,7 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Modify Columns';
+    return 'Modify Columns';
   }
 
   nodeDetails(): m.Child {
@@ -919,8 +920,8 @@ export class ModifyColumnsNode implements ModificationNode {
     return m(FilterOperation, {
       filters: this.state.filters,
       sourceCols: this.finalCols,
-      onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-        this.state.filters = newFilters as FilterDefinition[];
+      onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+        this.state.filters = [...newFilters];
         this.state.onchange?.();
       },
     });
@@ -946,6 +947,10 @@ export class ModifyColumnsNode implements ModificationNode {
     }
 
     for (const col of this.state.newColumns) {
+      // Only include valid columns (non-empty expression and name)
+      if (!this.isNewColumnValid(col)) {
+        continue;
+      }
       const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectColumn.columnNameOrExpression = col.expression;
       selectColumn.alias = col.name;
@@ -986,7 +991,6 @@ export class ModifyColumnsNode implements ModificationNode {
       newColumns: this.state.newColumns,
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
   }

@@ -90,6 +90,10 @@ class PerfEventAttr : public RefCounted {
     return id_offset_from_end_;
   }
 
+  tables::PerfSessionTable::Id perf_session_id() const {
+    return perf_session_id_;
+  }
+
   void set_event_name(std::string event_name) {
     event_name_ = std::move(event_name);
   }

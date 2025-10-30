@@ -36,7 +36,7 @@ export interface FormAttrs extends HTMLAttrs {
 
   // Action to take when the form is submitted either by the enter key or
   // the submit button.
-  onSubmit?: () => void;
+  onSubmit?: (e: Event) => void;
 
   // Action to take when the form is cancelled.
   onCancel?: () => void;
@@ -77,7 +77,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
           variant: ButtonVariant.Filled,
           onclick: (e: Event) => {
             preventDefault && e.preventDefault();
-            onSubmit();
+            onSubmit(e);
           },
         }),
         // This cancel button just closes the popup if we are inside one.

@@ -39,7 +39,7 @@ export interface TimelineToolbarAttrs {
 export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
   view({attrs}: m.Vnode<TimelineToolbarAttrs>) {
     const trace = attrs.trace;
-    const workspace = trace.workspace;
+    const workspace = trace.currentWorkspace;
     const allCollapsed = workspace.flatTracks.every((n) => n.collapsed);
     const selection = trace.selection.selection;
 
@@ -54,9 +54,13 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         onclick: (e: Event) => {
           e.preventDefault();
           if (allCollapsed) {
-            trace.workspace.flatTracks.forEach((track) => track.expand());
+            trace.currentWorkspace.flatTracks.forEach((track) =>
+              track.expand(),
+            );
           } else {
-            trace.workspace.flatTracks.forEach((track) => track.collapse());
+            trace.currentWorkspace.flatTracks.forEach((track) =>
+              track.collapse(),
+            );
           }
         },
         title: allCollapsed ? 'Expand all' : 'Collapse all',
@@ -66,13 +70,13 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
       m(Button, {
         onclick: (e: Event) => {
           e.preventDefault();
-          trace.workspace.pinnedTracks.forEach((t) =>
-            trace.workspace.unpinTrack(t),
+          trace.currentWorkspace.pinnedTracks.forEach((t) =>
+            trace.currentWorkspace.unpinTrack(t),
           );
         },
         title: 'Unpin all pinned tracks',
         icon: 'keep_off',
-        disabled: trace.workspace.pinnedTracks.length === 0,
+        disabled: trace.currentWorkspace.pinnedTracks.length === 0,
         compact: COMPACT_BUTTONS,
       }),
       this.renderTrackFilter(trace),
@@ -121,7 +125,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
 
   private renderWorkspaceMenu(trace: TraceImpl) {
     const workspaces = trace.workspaces;
-    const currentWorkspace = trace.workspace;
+    const currentWorkspace = trace.currentWorkspace;
     return m(
       PopupMenu,
       {
@@ -138,7 +142,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
           return m(MenuItem, {
             label: ws.title,
             icon:
-              ws === trace?.workspace
+              ws === trace?.currentWorkspace
                 ? 'radio_button_checked'
                 : 'radio_button_unchecked',
             onclick: () => {
@@ -185,15 +189,15 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         m(MenuItem, {
           icon: 'create_new_folder',
           label: 'New track group',
-          disabled: !trace.workspace.userEditable,
-          title: trace.workspace.userEditable
+          disabled: !trace.currentWorkspace.userEditable,
+          title: trace.currentWorkspace.userEditable
             ? 'Create new group'
             : 'This workspace is not editable - please create a new workspace if you wish to modify it',
           onclick: async () => {
             const result = await trace.omnibox.prompt('Group name...');
             if (result) {
               const group = new TrackNode({name: result, isSummary: true});
-              trace.workspace.addChildLast(group);
+              trace.currentWorkspace.addChildLast(group);
             }
           },
         }),
@@ -384,7 +388,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
       ws = trace.workspaces.createEmptyWorkspace('Untitled Workspace');
     }
     for (const track of selection.tracks) {
-      const node = trace.workspace.getTrackByUri(track.uri);
+      const node = trace.currentWorkspace.getTrackByUri(track.uri);
       if (!node) continue;
       const newNode = node.clone();
       ws.addChildLast(newNode);

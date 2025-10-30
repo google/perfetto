@@ -16,7 +16,7 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {time} from '../base/time';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {TraceInfo} from '../public/trace_info';
-import {Workspace} from '../public/workspace';
+import {WorkspaceManager} from '../public/workspace';
 import {raf} from './raf_scheduler';
 import {TimelineImpl} from './timeline';
 import {TrackManagerImpl} from './track_manager';
@@ -28,7 +28,7 @@ export class ScrollHelper {
   constructor(
     private traceInfo: TraceInfo,
     private timeline: TimelineImpl,
-    private workspace: Workspace,
+    private workspace: WorkspaceManager,
     private trackManager: TrackManagerImpl,
   ) {}
 
@@ -114,7 +114,7 @@ export class ScrollHelper {
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {
     // Find the actual track node that uses that URI, we need various properties
     // from it.
-    const trackNode = this.workspace.getTrackByUri(trackUri);
+    const trackNode = this.workspace.currentWorkspace.getTrackByUri(trackUri);
     if (!trackNode) return;
 
     // Try finding the track directly.

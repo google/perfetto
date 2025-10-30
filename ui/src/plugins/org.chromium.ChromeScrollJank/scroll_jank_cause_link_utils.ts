@@ -30,7 +30,7 @@ import {Trace} from '../../public/trace';
 const UNKNOWN_NAME = 'Unknown';
 
 export interface EventLatencyStage {
-  name: string;
+  name: string | undefined;
   // Slice id of the top level EventLatency slice (not a stage).
   eventLatencyId: SliceSqlId;
   ts: time;

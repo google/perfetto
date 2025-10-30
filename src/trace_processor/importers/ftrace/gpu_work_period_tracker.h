@@ -20,6 +20,7 @@
 #include <cstdint>
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
@@ -32,6 +33,11 @@ class GpuWorkPeriodTracker {
 
  private:
   TraceProcessorContext* context_;
+
+  // Cached string IDs for import log args
+  StringId start_time_ns_key_id_;
+  StringId end_time_ns_key_id_;
+  StringId gpu_id_key_id_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -16,7 +16,7 @@ import protos from '../../protos';
 import m from 'mithril';
 import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
-import {FilterDefinition} from '../../components/widgets/data_grid/common';
+import {UIFilter} from './query_builder/operations/filter';
 import {Engine} from '../../trace_processor/engine';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
@@ -61,14 +61,13 @@ export function singleNodeOperation(type: NodeType): boolean {
 export interface QueryNodeState {
   prevNode?: QueryNode;
   prevNodes?: QueryNode[];
-  customTitle?: string;
   comment?: string;
   trace?: Trace;
   sqlModules?: SqlModules;
   sqlTable?: SqlTable;
 
   // Operations
-  filters?: FilterDefinition[];
+  filters?: UIFilter[];
 
   issues?: NodeIssues;
 
@@ -76,6 +75,11 @@ export interface QueryNodeState {
 
   // Caching
   hasOperationChanged?: boolean;
+
+  // Whether queries should automatically execute when this node changes.
+  // If false, the user must manually click "Run" to execute queries.
+  // Set by the node registry when the node is created.
+  autoExecute?: boolean;
 }
 
 export interface BaseNode {
@@ -103,11 +107,11 @@ export interface BaseNode {
 export interface SourceNode extends BaseNode {}
 
 export interface ModificationNode extends BaseNode {
-  prevNode: QueryNode;
+  prevNode?: QueryNode;
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: QueryNode[];
+  prevNodes: (QueryNode | undefined)[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
@@ -226,13 +230,14 @@ export async function analyzeNode(
 
 export function setOperationChanged(node: QueryNode) {
   let curr: QueryNode | undefined = node;
+  const queue: QueryNode[] = [];
   while (curr) {
     if (curr.state.hasOperationChanged) {
-      // Already marked as changed, and so are the children.
-      break;
+      // Already marked as changed, skip this branch
+      curr = queue.shift();
+      continue;
     }
     curr.state.hasOperationChanged = true;
-    const queue: QueryNode[] = [];
     curr.nextNodes.forEach((child) => {
       queue.push(child);
     });

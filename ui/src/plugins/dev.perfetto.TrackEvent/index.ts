@@ -130,7 +130,10 @@ function computeTrackEventCallstackFlamegraph(
         columnName: 'self_count',
       },
     ],
-    'include perfetto module callstacks.stack_profile',
+    `
+     include perfetto module callstacks.stack_profile;
+     include perfetto module intervals.intersect;
+    `,
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
@@ -340,7 +343,7 @@ export default class implements PerfettoPlugin {
       return assertExists(processGroupsPlugin.getGroupForProcess(upid));
     }
     if (hasChildren) {
-      return ctx.workspace.tracks;
+      return ctx.defaultWorkspace.tracks;
     }
     const id = `/track_event_root`;
     let node = this.parentTrackNodes.get(id);
@@ -349,7 +352,7 @@ export default class implements PerfettoPlugin {
         name: 'Global Track Events',
         isSummary: true,
       });
-      ctx.workspace.addChildInOrder(node);
+      ctx.defaultWorkspace.addChildInOrder(node);
       this.parentTrackNodes.set(id, node);
     }
     return node;

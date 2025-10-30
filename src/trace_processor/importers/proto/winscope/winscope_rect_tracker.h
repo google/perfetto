@@ -17,18 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_RECT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_RECT_TRACKER_H_
 
+#include <cstddef>
+
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
-
-struct RectHasher {
-  size_t operator()(const geometry::Rect& r) const {
-    return base::FnvHasher::Combine(r.x, r.y, r.w, r.h);
-  }
-};
 
 class WinscopeRectTracker {
  public:
@@ -39,7 +36,9 @@ class WinscopeRectTracker {
   const tables::WinscopeRectTable::Id& GetOrInsertRow(geometry::Rect& rect);
 
  private:
-  base::FlatHashMap<geometry::Rect, tables::WinscopeRectTable::Id, RectHasher>
+  base::FlatHashMap<geometry::Rect,
+                    tables::WinscopeRectTable::Id,
+                    base::MurmurHash<geometry::Rect>>
       rows_;
 };
 

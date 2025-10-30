@@ -25,12 +25,11 @@ import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {UIFilter} from '../operations/filter';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
-  filters?: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -55,6 +54,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
     this.nodeId = nextNodeId();
     this.state = {
       ...state,
+      autoExecute: state.autoExecute ?? false,
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
@@ -107,7 +107,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Interval Intersect';
+    return 'Interval Intersect';
   }
 
   nodeSpecificModify(onExecute?: () => void): m.Child {
@@ -153,7 +153,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
       prevNodes: [...this.state.prevNodes],
       allNodes: this.state.allNodes,
       filters: this.state.filters ? [...this.state.filters] : undefined,
-      customTitle: this.state.customTitle,
       onchange: this.state.onchange,
       onExecute: this.state.onExecute,
     };
@@ -185,7 +184,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
     return {
       intervalNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
   }
