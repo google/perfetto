@@ -357,6 +357,13 @@ config("default") {
     ]
   }
 
+  if (is_freebsd) {
+    libs += [
+      "pthread",
+      "rt",
+    ]
+  }
+
   if (is_qnx) {
     cflags += [
       "-D_QNX_SOURCE",
