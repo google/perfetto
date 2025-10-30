@@ -36,7 +36,6 @@ perfetto_proto_library("@TYPE@") {
     "network_trace.proto",
     "packages_list.proto",
     "pixel_modem_events.proto",
-    "user_list.proto",
   ]
 }
 
