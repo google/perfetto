@@ -38,6 +38,8 @@ def run_buildtools_binary(args):
     ext = '.exe'
   elif sys_name == 'darwin':
     os_dir = 'mac'
+  elif sys_name == 'freebsd':
+    os_dir = 'freebsd64'
   elif sys_name == 'linux':
     os_dir = 'linux64'
   else:
