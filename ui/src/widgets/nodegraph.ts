@@ -1592,14 +1592,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
                               canvasState.draggedNode = cId;
 
-                              // Select this node (clear others if not already selected)
-                              if (!canvasState.selectedNodes.has(cId)) {
-                                canvasState.selectedNodes.clear();
-                                canvasState.selectedNodes.add(cId);
-                                const {onNodeSelect} = vnode.attrs;
-                                if (onNodeSelect !== undefined) {
-                                  onNodeSelect(cId);
-                                }
+                              // Always clear and select this node on regular click
+                              canvasState.selectedNodes.clear();
+                              canvasState.selectedNodes.add(cId);
+                              const {onNodeSelect} = vnode.attrs;
+                              if (onNodeSelect !== undefined) {
+                                onNodeSelect(cId);
                               }
 
                               const rect = (
@@ -1987,14 +1985,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         // Start dragging
                         canvasState.draggedNode = id;
 
-                        // Select this node (clear others if not already selected)
-                        if (!canvasState.selectedNodes.has(id)) {
-                          canvasState.selectedNodes.clear();
-                          canvasState.selectedNodes.add(id);
-                          const {onNodeSelect} = vnode.attrs;
-                          if (onNodeSelect !== undefined) {
-                            onNodeSelect(id);
-                          }
+                        // Always clear and select this node on regular click
+                        canvasState.selectedNodes.clear();
+                        canvasState.selectedNodes.add(id);
+                        const {onNodeSelect} = vnode.attrs;
+                        if (onNodeSelect !== undefined) {
+                          onNodeSelect(id);
                         }
 
                         const rect = (
