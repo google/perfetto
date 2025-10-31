@@ -443,6 +443,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         ref: 'slider',
         style: {
           height: `${totalRows * rowHeight}px`,
+          // Ensure the puck cannot escape the slider and affect the height of
+          // the scrollable region.
+          overflowY: 'hidden',
         },
       },
       m(
