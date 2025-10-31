@@ -89,7 +89,9 @@ function isModificationNode(node: QueryNode): node is ModificationNode {
 // Multi-input nodes (have prevNodes array, cannot be docked)
 function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
   return (
-    node.type === NodeType.kIntervalIntersect || node.type === NodeType.kUnion
+    node.type === NodeType.kIntervalIntersect ||
+    node.type === NodeType.kUnion ||
+    node.type === NodeType.kMerge
   );
 }
 
@@ -174,6 +176,17 @@ function getInputLabels(node: QueryNode): string[] {
 
   if (isMultiSourceNode(node)) {
     const multiSourceNode = node as MultiSourceNode;
+
+    // Check if node has custom input labels
+    if (
+      'getInputLabels' in multiSourceNode &&
+      typeof multiSourceNode.getInputLabels === 'function'
+    ) {
+      return (
+        multiSourceNode as MultiSourceNode & {getInputLabels: () => string[]}
+      ).getInputLabels();
+    }
+
     const numConnected = multiSourceNode.prevNodes.filter(
       (it: QueryNode | undefined) => it,
     ).length;
