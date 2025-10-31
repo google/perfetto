@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {
+  CounterRowSchema,
+  CounterTrack,
+} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidCounterTracks';
@@ -25,15 +30,21 @@ export default class implements PerfettoPlugin {
 
     await engine.query(`include perfetto module android.binder;`);
 
-    const counterTrackSource = `
-      select client_ts as ts, count(*) value
-      from android_binder_txns
-      group by ts
-    `;
-
     const trackNode = await this.loadCounterTrack(
       ctx,
-      counterTrackSource,
+      new SourceDataset({
+        src: `
+          SELECT
+            client_ts AS ts,
+            COUNT(*) value
+          FROM android_binder_txns
+          GROUP BY ts
+        `,
+        schema: {
+          ts: LONG,
+          value: NUM,
+        },
+      }),
       '/android_counter_track',
       'Android Counter Track',
     );
@@ -42,17 +53,14 @@ export default class implements PerfettoPlugin {
 
   private async loadCounterTrack(
     ctx: Trace,
-    sqlSource: string,
+    dataset: SourceDataset<CounterRowSchema>,
     uri: string,
     title: string,
   ) {
-    const track = await createQueryCounterTrack({
+    const track = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource,
-        columns: ['ts', 'value'],
-      },
+      dataset,
     });
 
     ctx.tracks.registerTrack({

@@ -27,10 +27,12 @@ import {
   RAW_PREFIX,
   DebugSliceTrackDetailsPanel,
 } from './debug_slice_track_details_panel';
-import {
-  CounterColumnMapping,
-  SqlTableCounterTrack,
-} from './query_counter_track';
+import {BaseCounterTrack, CounterOptions} from './base_counter_track';
+
+export interface CounterColumnMapping {
+  readonly ts: string;
+  readonly value: string;
+}
 
 export interface SqlDataSource {
   // SQL source selecting the necessary data.
@@ -414,4 +416,19 @@ function addSingleCounterTrack(
 
   const trackNode = new TrackNode({uri, name, removable: true});
   trace.currentWorkspace.pinnedTracksNode.addChildLast(trackNode);
+}
+
+export class SqlTableCounterTrack extends BaseCounterTrack {
+  constructor(
+    trace: Trace,
+    uri: string,
+    private readonly sqlSource: string,
+    options?: Partial<CounterOptions>,
+  ) {
+    super(trace, uri, options);
+  }
+
+  getSqlSource(): string {
+    return `select * from (${this.sqlSource})`;
+  }
 }

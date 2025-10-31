@@ -13,13 +13,19 @@
 // limitations under the License.
 
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
 
@@ -77,19 +83,27 @@ export default class implements PerfettoPlugin {
         machine,
       });
       const uri = `/counter_${trackId}`;
-      const track = await createQueryCounterTrack({
+      const track = await CounterTrack.createMaterialized({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
+        dataset: new SourceDataset({
+          src: `
             SELECT
               ts,
-              value / 1000.0 AS value -- convert uJ to mJ
+              value / 1000.0 AS value, -- convert uJ to mJ
+              track_id
             FROM counter
-            WHERE track_id = ${trackId}
           `,
-        },
-        options: {
+          schema: {
+            ts: LONG,
+            value: NUM,
+          },
+          filter: {
+            col: 'track_id',
+            eq: trackId,
+          },
+        }),
+        defaultOptions: {
           yMode: 'rate',
           yRangeSharingKey: 'power_rails',
           unit: 'mJ',
