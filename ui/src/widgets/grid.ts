@@ -729,65 +729,11 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     });
   }
 
-  /**
-   * Optimized cell rendering that detects GridCell components and merges them
-   * with the container div to eliminate unnecessary nesting.
-   */
   private renderCell(
     children: m.Children,
     columnId: number,
     thickRightBorder?: boolean,
   ): m.Children {
-    // Check if children is a vnode for GridCell component
-    if (
-      children !== null &&
-      children !== undefined &&
-      typeof children === 'object' &&
-      'tag' in children &&
-      children.tag === GridCell
-    ) {
-      const gridCellVnode = children as m.Vnode<GridCellAttrs>;
-      const {menuItems, align, nullish, className, padding, ...rest} =
-        gridCellVnode.attrs;
-
-      // Merge GridCell into the container div to eliminate wrapper
-      const mergedCell = m(
-        '.pf-grid__cell-container.pf-grid-cell',
-        {
-          ...rest,
-          'style': {
-            width: `var(--pf-grid-col-${columnId})`,
-          },
-          'role': 'cell',
-          'data-column-id': columnId,
-          'className': classNames(
-            thickRightBorder && 'pf-grid__cell-container--border-right-thick',
-            className,
-            align && `pf-grid-cell--align-${align}`,
-            padding !== false && 'pf-grid-cell--padded',
-            nullish && 'pf-grid-cell--nullish',
-          ),
-        },
-        gridCellVnode.children,
-      );
-
-      // Wrap with PopupMenu if needed
-      if (Boolean(menuItems)) {
-        return m(
-          PopupMenu,
-          {
-            trigger: mergedCell,
-            isContextMenu: true,
-            position: PopupPosition.Bottom,
-          },
-          menuItems,
-        );
-      } else {
-        return mergedCell;
-      }
-    }
-
-    // Fallback: render traditional container + children
     return m(
       '.pf-grid__cell-container',
       {
