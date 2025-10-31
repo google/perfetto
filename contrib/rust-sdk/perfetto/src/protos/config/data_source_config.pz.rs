@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Manually generated with bindings for a limited set of DataSourceConfig
-// fields to limit total amount of proto bindings.
+// fields to limit core proto bindings.
 
 use crate::pb_enum;
 use crate::pb_msg;

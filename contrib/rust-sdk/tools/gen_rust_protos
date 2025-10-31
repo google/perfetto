@@ -27,9 +27,6 @@ SOURCE_FILES = [
     {
         'files': [
             'protos/perfetto/common/builtin_clock.proto',
-            'protos/perfetto/common/data_source_descriptor.proto',
-            'protos/perfetto/common/ftrace_descriptor.proto',
-            'protos/perfetto/common/gpu_counter_descriptor.proto',
             'protos/perfetto/common/track_event_descriptor.proto',
             'protos/perfetto/config/priority_boost/priority_boost_config.proto',
             'protos/perfetto/config/test_config.proto',
@@ -66,6 +63,7 @@ SOURCE_FILES = [
             'protos/perfetto/trace/track_event/track_event.proto',
         ],
         'custom_files': [
+            'protos/perfetto/common/data_source_descriptor.proto',
             'protos/perfetto/config/data_source_config.proto',
             'protos/perfetto/trace/interned_data/interned_data.proto',
             'protos/perfetto/trace/trace_packet.proto',
