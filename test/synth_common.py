@@ -254,7 +254,7 @@ class Trace(object):
     binder_transaction.debug_id = transaction_id
     binder_transaction.to_proc = reply_pid
     binder_transaction.to_thread = reply_tid
-    binder_transaction.reply = False
+    binder_transaction.reply = 0
 
     # Binder reply start
     ftrace = self.__add_ftrace_event(reply_ts_start, reply_tid)
@@ -267,7 +267,7 @@ class Trace(object):
     reply_binder_transaction.debug_id = reply_id
     reply_binder_transaction.to_proc = pid
     reply_binder_transaction.to_thread = tid
-    reply_binder_transaction.reply = True
+    reply_binder_transaction.reply = 1
 
     # Binder transaction finish
     ftrace = self.__add_ftrace_event(ts_end, tid)
