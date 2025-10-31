@@ -72,6 +72,27 @@ SOURCE_FILES = [
         'path_strip_prefix': 'protos/perfetto',
         'path_add_prefix': 'contrib/rust-sdk/perfetto/src/protos',
     },
+    {
+        'files': [
+            'protos/perfetto/common/gpu_counter_descriptor.proto',
+            'protos/perfetto/config/gpu/gpu_counter_config.proto',
+            'protos/perfetto/config/gpu/gpu_renderstages_config.proto',
+            'protos/perfetto/config/gpu/vulkan_memory_config.proto',
+            'protos/perfetto/trace/gpu/gpu_counter_event.proto',
+            'protos/perfetto/trace/gpu/gpu_log.proto',
+            'protos/perfetto/trace/gpu/gpu_render_stage_event.proto',
+            'protos/perfetto/trace/gpu/vulkan_api_event.proto',
+            'protos/perfetto/trace/gpu/vulkan_memory_event.proto',
+        ],
+        'custom_files': [
+            'protos/perfetto/common/data_source_descriptor.proto',
+            'protos/perfetto/config/data_source_config.proto',
+            'protos/perfetto/trace/interned_data/interned_data.proto',
+            'protos/perfetto/trace/trace_packet.proto',
+        ],
+        'path_strip_prefix': 'protos/perfetto',
+        'path_add_prefix': 'contrib/rust-sdk/perfetto-protos-gpu/src/protos',
+    },
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
