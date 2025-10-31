@@ -691,7 +691,14 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             }),
           );
         } else {
-          return undefined;
+          // Return empty spacer instead if row is not present
+          return m('.pf-grid__row', {
+            key: rowIndex,
+            role: 'row',
+            style: {
+              height: `${rowHeight}px`,
+            },
+          });
         }
       })
       .filter(exists);
