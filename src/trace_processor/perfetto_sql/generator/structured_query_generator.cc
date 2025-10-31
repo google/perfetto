@@ -248,8 +248,8 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
-    } else if (q.has_join()) {
-      StructuredQuery::ExperimentalJoin::Decoder join(q.join());
+    } else if (q.has_experimental_join()) {
+      StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
       ASSIGN_OR_RETURN(source, Join(join));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());

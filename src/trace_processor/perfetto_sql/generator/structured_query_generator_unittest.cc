@@ -876,7 +876,7 @@ TEST(StructuredQueryGeneratorTest, ColumnTransformationAndAggregation) {
 TEST(StructuredQueryGeneratorTest, JoinInnerJoin) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
-    join: {
+    experimental_join: {
       left_query: {
         table: {
           table_name: "slice"
@@ -912,7 +912,7 @@ TEST(StructuredQueryGeneratorTest, JoinInnerJoin) {
 TEST(StructuredQueryGeneratorTest, JoinLeftJoin) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
-    join: {
+    experimental_join: {
       left_query: {
         table: {
           table_name: "slice"
@@ -948,7 +948,7 @@ TEST(StructuredQueryGeneratorTest, JoinLeftJoin) {
 TEST(StructuredQueryGeneratorTest, JoinComplex) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
-    join: {
+    experimental_join: {
       left_query: {
         table: {
           table_name: "slice"
@@ -989,7 +989,7 @@ TEST(StructuredQueryGeneratorTest, JoinComplex) {
 TEST(StructuredQueryGeneratorTest, JoinFreeformCondition) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
-    join: {
+    experimental_join: {
       left_query: {
         table: {
           table_name: "slice"
@@ -1026,7 +1026,7 @@ TEST(StructuredQueryGeneratorTest, JoinFreeformCondition) {
 TEST(StructuredQueryGeneratorTest, JoinFreeformConditionComplex) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
-    join: {
+    experimental_join: {
       left_query: {
         table: {
           table_name: "slice"
@@ -1063,7 +1063,7 @@ TEST(StructuredQueryGeneratorTest, JoinFreeformConditionComplex) {
 TEST(StructuredQueryGeneratorTest, JoinFreeformConditionLeftJoin) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
-    join: {
+    experimental_join: {
       left_query: {
         table: {
           table_name: "slice"

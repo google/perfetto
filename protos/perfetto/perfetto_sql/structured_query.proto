@@ -270,7 +270,7 @@ message PerfettoSqlStructuredQuery {
     IntervalIntersect interval_intersect = 7;
 
     // DON'T USE. EXPERIMENTAL.
-    ExperimentalJoin join = 12;
+    ExperimentalJoin experimental_join = 100;
   }
 
   // Represents a single filter on a column.
