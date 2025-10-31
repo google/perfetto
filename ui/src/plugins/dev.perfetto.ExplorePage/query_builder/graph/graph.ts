@@ -49,6 +49,7 @@ import {
   singleNodeOperation,
   SourceNode,
   MultiSourceNode,
+  ModificationNode,
   NodeType,
   addConnection,
   removeConnection,
@@ -68,7 +69,8 @@ type Position = {x: number; y: number};
 type LayoutMap = Map<string, Position>;
 
 const LAYOUT_CONSTANTS = {
-  INITIAL_OFFSET: 100,
+  INITIAL_X: 100,
+  INITIAL_Y: 100,
 };
 
 // ========================================
@@ -197,6 +199,45 @@ function getInputLabels(node: QueryNode): string[] {
     return labels;
   }
 
+  // Check if ModificationNode has inputNodes (additional left-side inputs)
+  if ('inputNodes' in node) {
+    const modNode = node as ModificationNode;
+    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
+      // Check if node has custom input labels
+      if (
+        'getInputLabels' in modNode &&
+        typeof modNode.getInputLabels === 'function'
+      ) {
+        return modNode.getInputLabels();
+      }
+
+      const labels: string[] = [];
+
+      // Add top port for prevNode (main data flow)
+      labels.push('Input');
+
+      // For AddColumnsNode, show exactly one left-side port
+      // (it only supports connecting one table to add columns from)
+      if ('type' in modNode && modNode.type === NodeType.kAddColumns) {
+        labels.push('Table');
+        return labels;
+      }
+
+      // For other nodes with inputNodes, dynamically show ports
+      const numConnected = modNode.inputNodes.filter(
+        (it: QueryNode | undefined) => it,
+      ).length;
+      // Always show one extra empty port for adding new connections
+      const numLeftPorts = numConnected + 1;
+
+      // Add left-side ports for inputNodes (additional table inputs)
+      for (let i = 0; i < numLeftPorts; i++) {
+        labels.push(`Table ${i + 1}`);
+      }
+      return labels;
+    }
+  }
+
   return ['Input'];
 }
 
@@ -239,15 +280,18 @@ function getRootNodes(
 ): QueryNode[] {
   const dockedNodes = new Set<QueryNode>();
 
-  // Find all nodes that are docked to their parent
+  // A node is docked (not a root) if:
+  // 1. It's a single-node operation (modification node)
+  // 2. It has a prevNode (parent in the primary flow)
+  // 3. It doesn't have a layout position (purely visual property)
   for (const node of allNodes) {
     if (
-      node.nextNodes.length === 1 &&
-      node.nextNodes[0] !== undefined &&
-      singleNodeOperation(node.nextNodes[0].type) &&
-      isChildDocked(node.nextNodes[0], nodeLayouts)
+      singleNodeOperation(node.type) &&
+      'prevNode' in node &&
+      node.prevNode !== undefined &&
+      isChildDocked(node, nodeLayouts)
     ) {
-      dockedNodes.add(node.nextNodes[0]);
+      dockedNodes.add(node);
     }
   }
 
@@ -259,27 +303,25 @@ function ensureNodeLayouts(
   attrs: GraphAttrs,
   nodeGraphApi: NodeGraphApi | null,
 ): void {
-  let hasNewNodes = false;
-  // Start counting from existing nodes so new nodes don't overlap
-  let nodeIndex = attrs.nodeLayouts.size;
-
-  // Give new nodes temporary staggered positions - NodeGraph autoLayout will organize them
+  // Assign layouts to new nodes using smart placement
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
-      // Stagger nodes so they don't stack on top of each other
-      attrs.onNodeLayoutChange(qnode.nodeId, {
-        x: LAYOUT_CONSTANTS.INITIAL_OFFSET + nodeIndex * 50,
-        y: LAYOUT_CONSTANTS.INITIAL_OFFSET + nodeIndex * 50,
-      });
-      hasNewNodes = true;
-      nodeIndex++;
-    }
-  }
+      let placement: Position;
 
-  // Let NodeGraph's autoLayout organize all nodes based on connections
-  if (hasNewNodes && nodeGraphApi) {
-    // Defer autoLayout to next tick so nodes are in DOM
-    setTimeout(() => nodeGraphApi.autoLayout(), 0);
+      // Use NodeGraph API to find optimal non-overlapping placement
+      if (nodeGraphApi) {
+        const nodeTemplate = createNodeConfig(qnode, attrs);
+        placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
+      } else {
+        // Fallback to default position if API not ready yet
+        placement = {
+          x: LAYOUT_CONSTANTS.INITIAL_X,
+          y: LAYOUT_CONSTANTS.INITIAL_Y,
+        };
+      }
+
+      attrs.onNodeLayoutChange(qnode.nodeId, placement);
+    }
   }
 }
 
@@ -326,7 +368,12 @@ function getNextDockedNode(
     singleNodeOperation(qnode.nextNodes[0].type) &&
     isChildDocked(qnode.nextNodes[0], attrs.nodeLayouts)
   ) {
-    return renderChildNode(qnode.nextNodes[0], attrs);
+    const child = qnode.nextNodes[0];
+    // Only dock the child if it's part of the primary flow chain
+    // (i.e., the child's prevNode points back to this parent)
+    if ('prevNode' in child && child.prevNode === qnode) {
+      return renderChildNode(child, attrs);
+    }
   }
   return undefined;
 }
@@ -350,6 +397,9 @@ function createNodeConfig(
     }),
     next: getNextDockedNode(qnode, attrs),
     addMenuItems: buildAddMenuItems(qnode, attrs.onAddOperationNode),
+    // Only set allInputsLeft for MultiSourceNodes (nodes with multiple equal inputs)
+    // ModificationNodes with both prevNode + inputNodes should use default layout
+    // (first port on top, rest on left)
     allInputsLeft: isMultiSourceNode(qnode),
   };
 }
@@ -402,12 +452,28 @@ function renderNodes(
 
 // For multi-source nodes, finds which input port (1-indexed) the parent is connected to
 function calculateInputPort(child: QueryNode, parent: QueryNode): number {
-  if (!isMultiSourceNode(child)) {
-    return 0;
+  if (isMultiSourceNode(child)) {
+    const index = child.prevNodes.indexOf(parent);
+    return index !== -1 ? index + 1 : 0;
   }
 
-  const index = child.prevNodes.indexOf(parent);
-  return index !== -1 ? index + 1 : 0;
+  // Check if modification node has inputNodes (additional left-side inputs)
+  if ('inputNodes' in child && 'prevNode' in child) {
+    const modNode = child as ModificationNode;
+    if (modNode.inputNodes !== undefined && Array.isArray(modNode.inputNodes)) {
+      // Check if parent is the main prevNode (port 0)
+      if (modNode.prevNode === parent) {
+        return 0;
+      }
+      // Check if parent is in inputNodes array (ports 1+)
+      const index = modNode.inputNodes.indexOf(parent);
+      if (index !== -1) {
+        return index + 1; // Port 1 = inputNodes[0], Port 2 = inputNodes[1], etc.
+      }
+    }
+  }
+
+  return 0;
 }
 
 // Builds visual connections between nodes (skips docked chains since they use 'next' property)
@@ -423,10 +489,13 @@ function buildConnections(
       if (child === undefined) continue;
 
       // Skip docked children - they're rendered via 'next' property, not as connections
+      // But only skip if it's part of the primary flow chain (child's prevNode points back)
       if (
         qnode.nextNodes.length === 1 &&
         singleNodeOperation(child.type) &&
-        isChildDocked(child, nodeLayouts)
+        isChildDocked(child, nodeLayouts) &&
+        'prevNode' in child &&
+        child.prevNode === qnode
       ) {
         continue;
       }

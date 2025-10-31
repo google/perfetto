@@ -44,7 +44,7 @@ import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {
   AddColumnsNode,
   AddColumnsNodeState,
-} from './query_builder/nodes/dev/add_columns_node';
+} from './query_builder/nodes/add_columns_node';
 import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
