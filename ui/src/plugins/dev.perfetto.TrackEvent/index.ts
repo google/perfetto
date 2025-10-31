@@ -94,7 +94,7 @@ function computeTrackEventCallstackFlamegraph(
             (
               select id, ts, dur
               from slice
-              where track_id in (${trackIds.join()})
+              where track_id in (${trackIds.join()}) and dur >= 0
             )
           )
         )

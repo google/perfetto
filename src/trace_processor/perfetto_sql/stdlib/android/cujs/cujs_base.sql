@@ -119,12 +119,9 @@ SELECT
   ) AS end_vsync,
   -- Extract UI thread UTID from 'UIThread' marker.
   max(CASE WHEN csm.marker_type = 'UIThread' THEN csm.utid ELSE NULL END) AS ui_thread
-FROM _cuj_state_markers AS csm
-JOIN _jank_cujs_slices AS cuj
+FROM _jank_cujs_slices AS cuj
+LEFT JOIN _cuj_state_markers AS csm
   USING (cuj_id)
--- Only consider markers relevant for extracting these values.
-WHERE
-  csm.marker_type IN ('layerId', 'begin', 'end', 'UIThread')
 GROUP BY
   cuj_id;
 
@@ -296,15 +293,15 @@ CREATE PERFETTO TABLE android_jank_cujs (
   end_vsync LONG
 ) AS
 SELECT
-  cujs.*,
-  _extract_cuj_name_from_slice(cujs.cuj_slice_name) AS cuj_name,
+  cuj.*,
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   CASE
     WHEN EXISTS(
       SELECT
         1
       FROM _cuj_state_markers AS csm
       WHERE
-        csm.cuj_id = cujs.cuj_id AND csm.marker_type = 'cancel'
+        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'cancel'
     )
     THEN 'canceled'
     WHEN EXISTS(
@@ -312,50 +309,24 @@ SELECT
         1
       FROM _cuj_state_markers AS csm
       WHERE
-        csm.cuj_id = cujs.cuj_id AND csm.marker_type = 'end'
+        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'end'
     )
     THEN 'completed'
     ELSE NULL
   END AS state,
-  (
-    SELECT
-      CAST(str_split(csm.marker_name, 'layerId#', 1) AS INTEGER)
-    FROM _cuj_state_markers AS csm
-    WHERE
-      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*layerId#*'
-    LIMIT 1
-  ) AS layer_id,
-  (
-    SELECT
-      CAST(str_split(csm.marker_name, 'beginVsync#', 1) AS INTEGER)
-    FROM _cuj_state_markers AS csm
-    WHERE
-      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*beginVsync#*'
-    LIMIT 1
-  ) AS begin_vsync,
-  (
-    SELECT
-      CAST(str_split(csm.marker_name, 'endVsync#', 1) AS INTEGER)
-    FROM _cuj_state_markers AS csm
-    WHERE
-      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*endVsync#*'
-    LIMIT 1
-  ) AS end_vsync,
-  (
-    SELECT
-      utid
-    FROM _cuj_state_markers AS csm
-    WHERE
-      csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB "*#UIThread"
-    LIMIT 1
-  ) AS ui_thread
-FROM _jank_cujs_slices AS cujs
+  cuj_events.ui_thread,
+  cuj_events.layer_id,
+  cuj_events.begin_vsync,
+  cuj_events.end_vsync
+FROM _jank_cujs_slices AS cuj
+JOIN _cuj_instant_events AS cuj_events
+  USING (cuj_id)
 WHERE
   state != 'canceled'
   -- Older builds don't have the state markers so we allow NULL but filter out
   -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
   OR (
-    state IS NULL AND cujs.dur > 4e6
+    state IS NULL AND cuj.dur > 4e6
   )
 ORDER BY
   ts ASC;
