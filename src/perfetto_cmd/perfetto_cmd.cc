@@ -67,11 +67,15 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/default_socket.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/bugreport_path.h"
@@ -593,8 +597,9 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   bool parsed = false;
   bool cfg_could_be_txt = false;
-  const bool will_trace_or_trigger =
-      !is_attach() && !query_service_ && !clone_all_bugreport_traces_ && !upload_after_reboot_flag_;
+  const bool will_trace_or_trigger = !is_attach() && !query_service_ &&
+                                     !clone_all_bugreport_traces_ &&
+                                     !upload_after_reboot_flag_;
   if (!will_trace_or_trigger) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");
@@ -913,6 +918,10 @@ int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
 }
 
 int PerfettoCmd::ConnectToServiceAndRun() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (upload_after_reboot_flag_) {
+  }
+#endif
   // If we are just activating triggers then we don't need to rate limit,
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
@@ -1709,6 +1718,69 @@ void PerfettoCmd::CloneAllBugreportTraces(
       }
     });
   }
+}
+
+// static
+std::optional<PerfettoCmd::ReporterService>
+PerfettoCmd::ParseReporterInfoFromTrace(const std::string& file_path) {
+  std::string trace_data;
+  if (!base::ReadFile(file_path, &trace_data)) {
+    return std::nullopt;
+  }
+
+  if (trace_data.empty()) {
+    return std::nullopt;
+  }
+
+  // Parse the trace using protozero typed decoders
+  protos::pbzero::Trace::Decoder trace_decoder(
+      reinterpret_cast<const uint8_t*>(trace_data.data()), trace_data.size());
+
+  // Iterate through all packets in the trace
+  for (auto packet_field = trace_decoder.packet(); packet_field;
+       ++packet_field) {
+    protos::pbzero::TracePacket::Decoder packet_decoder(*packet_field);
+
+    // Look for trace_config field
+    if (!packet_decoder.has_trace_config()) {
+      continue;
+    }
+
+    if (packet_decoder.has_trusted_uid()) {
+      PERFETTO_LOG("trusted_uid: %d", packet_decoder.trusted_uid());
+    }
+
+    // Decode the TraceConfig
+    protos::pbzero::TraceConfig::Decoder config_decoder(
+        packet_decoder.trace_config());
+
+    // Look for android_report_config field
+    if (!config_decoder.has_android_report_config()) {
+      continue;
+    }
+
+    // Decode the AndroidReportConfig
+    protos::pbzero::TraceConfig::AndroidReportConfig::Decoder
+        report_config_decoder(config_decoder.android_report_config());
+
+    // Extract package and class
+    if (report_config_decoder.has_reporter_service_package() &&
+        report_config_decoder.has_reporter_service_class()) {
+      std::string package =
+          report_config_decoder.reporter_service_package().ToStdString();
+      std::string cls =
+          report_config_decoder.reporter_service_class().ToStdString();
+
+      if (!package.empty() && !cls.empty()) {
+        ReporterService result;
+        result.package = std::move(package);
+        result.cls = std::move(cls);
+        return result;
+      }
+    }
+  }
+
+  return std::nullopt;
 }
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {

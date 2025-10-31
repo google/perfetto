@@ -70,6 +70,14 @@ class PerfettoCmd : public Consumer {
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
+  struct ReporterService {
+    std::string package;
+    std::string cls;
+  };
+
+  static std::optional<ReporterService> ParseReporterInfoFromTrace(
+      const std::string& file_path);
+
  private:
   struct SnapshotTriggerInfo;
 
@@ -139,6 +147,7 @@ class PerfettoCmd : public Consumer {
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();
+  void ReportAllPersistentTracesToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);

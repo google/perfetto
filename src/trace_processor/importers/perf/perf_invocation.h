@@ -106,9 +106,9 @@ class PerfInvocation : public RefCounted {
   };
 
   PerfInvocation(TraceProcessorContext* context,
-              RefPtr<PerfEventAttr> first_attr,
-              base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
-              bool has_single_perf_event_attr)
+                 RefPtr<PerfEventAttr> first_attr,
+                 base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
+                 bool has_single_perf_event_attr)
       : context_(context),
         first_attr_(std::move(first_attr)),
         attrs_by_id_(std::move(attrs_by_id)),
