@@ -203,7 +203,10 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
           help,
         ),
         m('td.pf-trace-info-page__stats-table-cell', `${row.value}`),
-        m('td.pf-trace-info-page__stats-table-cell', `${row.severity} (${row.source})`),
+        m(
+          'td.pf-trace-info-page__stats-table-cell',
+          `${row.severity} (${row.source})`,
+        ),
       );
     });
 

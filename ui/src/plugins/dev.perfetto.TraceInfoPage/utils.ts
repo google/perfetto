@@ -185,7 +185,10 @@ export function renderErrorCategoryCard(
       ),
       m(
         '.pf-trace-info-page__status-link',
-        m(Icon, {icon: 'arrow_downward', className: 'pf-trace-info-page__status-link-icon'}),
+        m(Icon, {
+          icon: 'arrow_downward',
+          className: 'pf-trace-info-page__status-link-icon',
+        }),
       ),
     ),
   );

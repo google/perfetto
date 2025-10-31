@@ -225,7 +225,10 @@ function renderStatusCard(
       isClickable &&
         m(
           '.pf-trace-info-page__status-link',
-          m(Icon, {icon: 'arrow_forward', className: 'pf-trace-info-page__status-link-icon'}),
+          m(Icon, {
+            icon: 'arrow_forward',
+            className: 'pf-trace-info-page__status-link-icon',
+          }),
         ),
     ),
   );
