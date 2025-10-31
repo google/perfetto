@@ -91,10 +91,11 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
-  void HandleIncrementalStateCleared(
-      const protos::pbzero::TracePacket_Decoder&);
+  void HandleIncrementalStateCleared(const protos::pbzero::TracePacket_Decoder&,
+                                     const TraceBlobView& packet);
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
-  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&);
+  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&,
+                                   const TraceBlobView& packet);
   void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
@@ -129,6 +130,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::FlatHashMap<uint32_t, SequenceScopedState> sequence_state_;
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;
+  StringId packet_sequence_id_key_id_;
 
   std::vector<TraceBlobView> eof_deferred_packets_;
   bool received_eof_ = false;

@@ -17,7 +17,7 @@
 #include "src/trace_processor/importers/etm/etm_v4_stream.h"
 
 #include <cstdint>
-#include <memory>
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -29,12 +29,16 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/importers/etm/frame_decoder.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/etm/storage_handle.h"
+#include "src/trace_processor/importers/perf/aux_record.h"
+#include "src/trace_processor/importers/perf/itrace_start_record.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/util.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/etm_tables_py.h"
 
 namespace perfetto::trace_processor::etm {
 namespace {
@@ -129,9 +133,8 @@ base::Status EtmV4Stream::OnItraceStartRecord(
     perf_importer::ItraceStartRecord start) {
   std::optional<int64_t> start_ts;
   if (start.time().has_value()) {
-    ASSIGN_OR_RETURN(start_ts, context_->clock_tracker->ToTraceTime(
-                                   start.attr->clock_id(),
-                                   static_cast<int64_t>(*start.time())));
+    start_ts = context_->clock_tracker->ToTraceTime(
+        start.attr->clock_id(), static_cast<int64_t>(*start.time()));
   }
   if (session_.has_value()) {
     EndSession();

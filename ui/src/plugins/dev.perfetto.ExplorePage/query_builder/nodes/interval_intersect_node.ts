@@ -19,6 +19,7 @@ import {
   nextNodeId,
   NodeType,
   MultiSourceNode,
+  removeConnection,
 } from '../../query_node';
 import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
@@ -61,6 +62,19 @@ export class IntervalIntersectNode implements MultiSourceNode {
   }
 
   validate(): boolean {
+    // Check for undefined entries (disconnected inputs)
+    const validPrevNodes = this.prevNodes.filter(
+      (node): node is QueryNode => node !== undefined,
+    );
+
+    if (validPrevNodes.length < this.prevNodes.length) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error(
+        'Interval intersect node has disconnected inputs. Please connect all inputs or remove this node.',
+      );
+      return false;
+    }
+
     if (this.prevNodes.length < 2) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error(
@@ -75,6 +89,9 @@ export class IntervalIntersectNode implements MultiSourceNode {
     }
 
     for (const prevNode of this.prevNodes) {
+      // Skip undefined entries (already handled above)
+      if (prevNode === undefined) continue;
+
       if (!prevNode.validate()) {
         if (!this.state.issues) this.state.issues = new NodeIssues();
         this.state.issues.queryError =
@@ -129,11 +146,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
               m(Button, {
                 icon: 'delete',
                 onclick: () => {
-                  const nextNodeIndex = intervalNode.nextNodes.indexOf(this);
-                  if (nextNodeIndex > -1) {
-                    intervalNode.nextNodes.splice(nextNodeIndex, 1);
-                  }
-                  this.prevNodes.splice(index + 1, 1);
+                  // Remove the connection between intervalNode and this node
+                  removeConnection(intervalNode, this);
                   this.state.onchange?.();
                 },
               }),
@@ -162,11 +176,13 @@ export class IntervalIntersectNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const baseSq = this.prevNodes[0].getStructuredQuery();
+    // Validate returns false if any prevNodes are undefined, so this is safe
+    const baseSq = this.prevNodes[0]?.getStructuredQuery();
     if (baseSq === undefined) return undefined;
 
     const intervalSqs = this.prevNodes
       .slice(1)
+      .filter((node): node is QueryNode => node !== undefined)
       .map((node) => node.getStructuredQuery());
     if (intervalSqs.some((sq) => sq === undefined)) return undefined;
 
@@ -182,7 +198,10 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   serializeState(): IntervalIntersectSerializedState {
     return {
-      intervalNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
+      intervalNodes: this.prevNodes
+        .slice(1)
+        .filter((n): n is QueryNode => n !== undefined)
+        .map((n) => n.nodeId),
       filters: this.state.filters,
       comment: this.state.comment,
     };

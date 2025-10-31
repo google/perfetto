@@ -68,17 +68,17 @@ ModuleResult TrackEventModule::TokenizePacket(
   switch (field_id) {
     case TracePacket::kTrackEventRangeOfInterestFieldNumber:
       return tokenizer_.TokenizeRangeOfInterestPacket(std::move(state), decoder,
-                                                      packet_timestamp);
+                                                      packet, packet_timestamp);
     case TracePacket::kTrackDescriptorFieldNumber:
       return tokenizer_.TokenizeTrackDescriptorPacket(std::move(state), decoder,
-                                                      packet_timestamp);
+                                                      packet, packet_timestamp);
     case TracePacket::kTrackEventFieldNumber:
       return tokenizer_.TokenizeTrackEventPacket(std::move(state), decoder,
                                                  packet, packet_timestamp);
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
       return tokenizer_.TokenizeThreadDescriptorPacket(std::move(state),
-                                                       decoder);
+                                                       decoder, packet);
   }
   return ModuleResult::Ignored();
 }

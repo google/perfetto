@@ -103,6 +103,7 @@ export interface BuilderAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
+  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;
@@ -214,6 +215,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           devMode: attrs.devMode,
           onDevModeChange: attrs.onDevModeChange,
           onDeleteNode: attrs.onDeleteNode,
+          onConnectionRemove: attrs.onConnectionRemove,
           onImport: attrs.onImport,
           onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,

@@ -47,7 +47,7 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   get sourceCols(): ColumnInfo[] {
-    return this.prevNode.finalCols ?? [];
+    return this.prevNode?.finalCols ?? [];
   }
 
   get finalCols(): ColumnInfo[] {
@@ -108,6 +108,7 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (this.prevNode === undefined) return undefined;
     // TODO(mayzner): Implement this.
     return this.prevNode.getStructuredQuery();
   }

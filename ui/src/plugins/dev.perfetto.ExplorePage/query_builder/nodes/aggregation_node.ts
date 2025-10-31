@@ -134,6 +134,11 @@ export class AggregationNode implements ModificationNode {
     if (this.state.issues) {
       this.state.issues.queryError = undefined;
     }
+    if (this.prevNode === undefined) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error('No input node connected');
+      return false;
+    }
     if (!this.prevNode.validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');

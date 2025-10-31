@@ -73,5 +73,5 @@ $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
 }
 
 @mixin focus {
-  outline: 2px auto var(--pf-color-accent);
+  outline: 2px solid var(--pf-color-accent);
 }

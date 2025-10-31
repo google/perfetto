@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <utility>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -44,12 +45,33 @@ class ImportLogsTracker {
       int64_t byte_offset,
       std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
 
+  // Overload for size_t byte offset (e.g., from TraceBlobView::offset())
+  void RecordTokenizationError(
+      size_t stat_key,
+      size_t byte_offset,
+      std::function<void(ArgsTracker::BoundInserter&)> args_callback = {}) {
+    RecordTokenizationError(stat_key, static_cast<int64_t>(byte_offset),
+                            std::move(args_callback));
+  }
+
   // For "parser" errors (post-parsing, have timestamp + context)
   // Use when you have a parsed event but it's invalid/problematic.
   void RecordParserError(
       size_t stat_key,
       int64_t timestamp,
       std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
+
+  // For "analysis" errors (validation/resolution phase, no specific event)
+  // Use ONLY when the error occurs during analysis/validation, not tied to a
+  // specific packet or event (e.g., track hierarchy validation).
+  // IMPORTANT: This should be rare - prefer RecordTokenizationError or
+  // RecordParserError when you have context (byte offset or timestamp).
+  // IMPORTANT: Since this API has neither timestamp nor byte offset, you MUST
+  // provide args_callback with sufficient context to identify and disambiguate
+  // the specific error occurrence (e.g., track_uuid, utid, upid, etc.).
+  void RecordAnalysisError(
+      size_t stat_key,
+      std::function<void(ArgsTracker::BoundInserter&)> args_callback);
 
  private:
   void RecordImportLog(

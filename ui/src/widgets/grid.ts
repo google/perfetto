@@ -138,6 +138,7 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly align?: CellAlignment;
   readonly nullish?: boolean;
   readonly padding?: boolean;
+  readonly wrap?: boolean;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -148,6 +149,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       nullish,
       className,
       padding = true,
+      wrap,
       ...rest
     } = attrs;
 
@@ -160,6 +162,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
           align && `pf-grid-cell--align-${align}`,
           padding && 'pf-grid-cell--padded',
           nullish && 'pf-grid-cell--nullish',
+          wrap && 'pf-grid-cell--wrap',
         ),
       },
       m('.pf-grid-cell__content-wrapper', children),

@@ -149,8 +149,9 @@ export class SortNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (this.prevNode === undefined) return undefined;
     // TODO(mayzner): Implement this.
-    return this.prevNode?.getStructuredQuery();
+    return this.prevNode.getStructuredQuery();
   }
 
   serializeState(): object {

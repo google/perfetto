@@ -1,0 +1,392 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../assets/theme";
+
+.pf-trace-info-page {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+
+  // Inner container for better structure
+  &__inner {
+    width: 95%;
+    max-width: 1400px;
+    background: var(--pf-color-background);
+    border-radius: $border-radius-large * 3;
+    box-shadow: $box-shadow-1;
+    overflow: hidden;
+  }
+
+  // Header section
+  &__header {
+    padding: 24px 28px 20px;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  &__header-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  &__subtitle {
+    color: var(--pf-color-text-muted);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  // Tab content area
+  &__tab-content {
+    padding: 16px 28px 24px;
+  }
+
+  // Category section headings
+  &__category-heading {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 4px;
+    color: var(--pf-color-text);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  &__category-description {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+    margin-top: 2px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  // Cards (shared base styles)
+  &__metric-card,
+  &__status-card {
+    padding: 12px;
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    background: var(--pf-color-background-secondary);
+  }
+
+  &__metric-card--wide {
+    grid-column: span 2;
+  }
+
+  // Status cards with states
+  &__status-card {
+    justify-content: center;
+  }
+
+  &__status-card--success {
+    border-left: 4px solid var(--pf-color-success);
+  }
+
+  &__status-card--warning {
+    border-left: 4px solid var(--pf-color-warning);
+  }
+
+  &__status-card--danger {
+    border-left: 4px solid var(--pf-color-danger);
+  }
+
+  &__status-card--clickable {
+    cursor: pointer;
+    transition:
+      transform 0.1s ease-in-out,
+      box-shadow 0.1s ease-in-out;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &__status-icon {
+    font-size: 28px;
+  }
+
+  &__status-card-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__status-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Card labels (titles)
+  &__status-title,
+  &__metric-label {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--pf-color-text);
+    opacity: 0.7;
+    line-height: 1.3;
+    margin-bottom: 12px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  // Card values
+  &__status-value {
+    font-size: 36px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  &__metric-value {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  &__status-link {
+    display: flex;
+    align-items: center;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &__status-link-icon {
+    font-size: 20px;
+  }
+
+  // Args rendering (import errors detail)
+  &__args {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  &__arg-item {
+    line-height: 1.4;
+  }
+
+  &__arg-key {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__arg-value {
+    font-family: var(--pf-font-monospace);
+    color: var(--pf-color-text-muted);
+  }
+
+  // Logs grid with virtualization
+  &__logs-grid {
+    max-height: 500px;
+  }
+
+  // Help icon
+  &__help-icon {
+    font-size: 14px;
+    margin-left: 6px;
+    color: var(--pf-color-text-muted);
+    opacity: 0.6;
+    cursor: default;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  // UI Loading errors
+  &__loading-errors {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__loading-error-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    background: var(--pf-color-background-hover);
+    border-radius: 4px;
+    border-left: 3px solid var(--pf-color-danger);
+    font-family: var(--pf-font-monospace);
+  }
+
+  &__loading-error-number {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+    flex-shrink: 0;
+  }
+
+  &__loading-error-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--pf-color-text);
+    word-break: break-word;
+  }
+
+  // Stats tab table
+  &__stats-table {
+    width: 100%;
+    border-spacing: 4px 1px;
+    margin: 0;
+  }
+
+  &__stats-table-head-cell {
+    padding-bottom: 5px;
+    font-weight: 500;
+  }
+
+  &__stats-table-row:nth-child(odd) &__stats-table-cell {
+    background-color: color_hover(transparent);
+  }
+
+  &__stats-table-cell {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+    padding: 5px;
+    word-break: break-all;
+    white-space: pre-wrap;
+    vertical-align: top;
+  }
+
+  &__stats-table-cell--name {
+    font-weight: 800;
+    min-width: 150px;
+  }
+
+  // Stats section wrapper
+  &__stats-section {
+    margin: 0;
+    padding: 0;
+  }
+
+  // ============================================================================
+  // External component overrides
+  // These styles override external components for consistent appearance
+  // ============================================================================
+
+  // Override pf-tabs styling
+  .pf-tabs {
+    border-bottom: 1px solid var(--pf-color-border);
+    padding: 0 28px;
+
+    .pf-tabs__tab {
+      font-size: 16px;
+      font-weight: 500;
+      padding: 14px 18px;
+    }
+  }
+
+  // Override pf-section styling within tab content
+  &__tab-content .pf-section {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 28px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    header {
+      border-bottom: none;
+      margin-bottom: 8px;
+      padding: 0;
+
+      h1 {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--pf-color-text);
+        letter-spacing: -0.01em;
+        margin-bottom: 4px;
+      }
+    }
+
+    .pf-section__subtitle {
+      font-size: 15px;
+      color: var(--pf-color-text-muted);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    article {
+      padding: 0;
+    }
+  }
+
+  // Override pf-grid styling for larger fonts
+  &__tab-content .pf-grid {
+    font-size: 15px;
+
+    .pf-grid-header-cell {
+      font-size: 15px;
+      font-weight: 600;
+
+      .pf-grid-header-cell__title-wrapper {
+        padding: 10px 12px;
+      }
+    }
+
+    .pf-grid-cell {
+      font-size: 15px;
+      padding: 10px 12px;
+    }
+  }
+
+  // Override pf-grid-layout for consistent card layout
+  &__tab-content .pf-grid-layout {
+    margin-bottom: 0;
+    gap: 16px;
+  }
+
+  // Override pf-code-snippet styling
+  &__tab-content .pf-code-snippet pre code {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  // Generic heading overrides for category sections
+  // These are used in utils.ts renderCategorySection
+  &__tab-content h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 4px;
+    color: var(--pf-color-text);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  &__tab-content p {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+    margin-top: 2px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+}

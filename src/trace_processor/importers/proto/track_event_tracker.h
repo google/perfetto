@@ -21,9 +21,12 @@
 #include <optional>
 #include <tuple>
 #include <unordered_set>
+#include <utility>
+#include <variant>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -372,6 +375,9 @@ class TrackEventTracker {
                     bool,
                     ArgsTracker::BoundInserter&);
 
+  // Helper to record analysis errors with track_uuid arg
+  void RecordTrackError(size_t stat_key, uint64_t track_uuid);
+
   base::FlatHashMap<uint64_t /* uuid */, State> descriptor_tracks_state_;
 
   // Stores the descriptor uuid used for the primary process/thread track
@@ -396,6 +402,8 @@ class TrackEventTracker {
   const StringId default_descriptor_track_name_;
   const StringId description_key_;
   const StringId y_axis_share_key_;
+  const StringId track_uuid_key_id_;
+  const StringId parent_uuid_key_id_;
 
   std::optional<int64_t> range_of_interest_start_us_;
   TraceProcessorContext* const context_;

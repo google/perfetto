@@ -17,28 +17,38 @@
 #ifndef SRC_TRACE_REDACTION_REDACTOR_CLOCK_CONVERTER_H_
 #define SRC_TRACE_REDACTION_REDACTOR_CLOCK_CONVERTER_H_
 
-#include <unordered_map>
-#include "perfetto/ext/base/status_macros.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 namespace perfetto::trace_redaction {
 
 class RedactorClockSynchronizerListenerImpl {
  public:
+  using Synchronizer = perfetto::trace_processor::ClockSynchronizer<
+      RedactorClockSynchronizerListenerImpl>;
+
   RedactorClockSynchronizerListenerImpl();
 
   base::Status OnClockSyncCacheMiss();
 
   base::Status OnInvalidClockSnapshot();
 
-  base::Status OnTraceTimeClockIdChanged(
-      perfetto::trace_processor::ClockSynchronizer<
-          RedactorClockSynchronizerListenerImpl>::ClockId trace_time_clock_id);
+  base::Status OnTraceTimeClockIdChanged(Synchronizer::ClockId);
 
-  base::Status OnSetTraceTimeClock(
-      perfetto::trace_processor::ClockSynchronizer<
-          RedactorClockSynchronizerListenerImpl>::ClockId trace_time_clock_id);
+  base::Status OnSetTraceTimeClock(Synchronizer::ClockId);
+
+  void RecordConversionError(Synchronizer::ErrorType,
+                             Synchronizer::ClockId,
+                             Synchronizer::ClockId,
+                             int64_t,
+                             std::optional<size_t>);
 
   // Always returns true as redactor only supports local host clock conversion.
   bool IsLocalHost();
@@ -50,7 +60,6 @@ class RedactorClockSynchronizerListenerImpl {
 
 using RedactorClockSynchronizer = perfetto::trace_processor::ClockSynchronizer<
     RedactorClockSynchronizerListenerImpl>;
-
 using SequenceId = uint32_t;
 using ClockId = RedactorClockSynchronizer::ClockId;
 using ClockTimestamp = RedactorClockSynchronizer::ClockTimestamp;
@@ -102,7 +111,7 @@ class RedactorClockConverter {
    public:
     // Get the Clock Id for the provided clock_type if exists.
     std::optional<ClockId> GetClockId(DataSourceType clock_type) const {
-      auto clock_id = clock_type_to_id_.Find(clock_type);
+      auto* clock_id = clock_type_to_id_.Find(clock_type);
       if (clock_id == nullptr) {
         return std::nullopt;
       }

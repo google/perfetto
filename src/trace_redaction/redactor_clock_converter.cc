@@ -15,6 +15,17 @@
  */
 
 #include "src/trace_redaction/redactor_clock_converter.h"
+#include <cinttypes>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <vector>
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
@@ -32,20 +43,30 @@ base::Status RedactorClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
 }
 
 base::Status RedactorClockSynchronizerListenerImpl::OnTraceTimeClockIdChanged(
-    ClockId trace_time_clock_id [[maybe_unused]]) {
+    ClockId) {
   ++trace_time_updates_;
   if (PERFETTO_UNLIKELY(trace_time_updates_ > 1)) {
     // We expect the trace time to remain constant for a trace.
     return base::ErrStatus(
-        "Redactor clock conversion trace time unexpectedly changed %d times",
+        "Redactor clock conversion trace time unexpectedly changed %u times",
         trace_time_updates_);
   }
   return base::OkStatus();
 }
 
 base::Status RedactorClockSynchronizerListenerImpl::OnSetTraceTimeClock(
-    ClockId trace_time_clock_id [[maybe_unused]]) {
+    ClockId) {
   return base::OkStatus();
+}
+
+void RedactorClockSynchronizerListenerImpl::RecordConversionError(
+    Synchronizer::ErrorType,
+    Synchronizer::ClockId,
+    Synchronizer::ClockId,
+    int64_t,
+    std::optional<size_t>) {
+  // Redactor doesn't need to record conversion errors to a database
+  // Errors are handled via status returns in ConvertToTrace
 }
 
 bool RedactorClockSynchronizerListenerImpl::IsLocalHost() {
@@ -129,10 +150,14 @@ base::Status RedactorClockConverter::AddClockSnapshot(
 base::StatusOr<uint64_t> RedactorClockConverter::ConvertToTrace(
     ClockId source_clock_id,
     uint64_t source_ts) const {
-  ASSIGN_OR_RETURN(int64_t trace_ts,
-                   clock_synchronizer_.ToTraceTime(
-                       source_clock_id, static_cast<int64_t>(source_ts)));
-  return static_cast<uint64_t>(trace_ts);
+  std::optional<int64_t> trace_ts = clock_synchronizer_.ToTraceTime(
+      source_clock_id, static_cast<int64_t>(source_ts));
+  if (!trace_ts.has_value()) {
+    return base::ErrStatus("Failed to convert timestamp from clock id=%" PRId64
+                           " to trace time clock",
+                           source_clock_id);
+  }
+  return static_cast<uint64_t>(trace_ts.value());
 }
 
 }  // namespace perfetto::trace_redaction

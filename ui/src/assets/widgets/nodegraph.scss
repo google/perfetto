@@ -269,6 +269,8 @@ svg {
   transition:
     stroke-width 0.2s,
     stroke 0.2s;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .pf-connection:hover {
