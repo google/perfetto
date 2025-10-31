@@ -156,7 +156,10 @@ class BlockingCallMetricHandler implements MetricHandler {
       ).firstRow({frame_id: LONG});
     } catch (e) {
       throw new Error(
-        `${e.message} caused by: No frame found for the given process, CUJ and blocking call.`,
+        `${e.message} caused by: No frame found for:
+          process: ${metricData.process}
+          CUJ: ${metricData.cujName}
+          blocking call: ${metricData.blockingCallName}`,
       );
     }
 
