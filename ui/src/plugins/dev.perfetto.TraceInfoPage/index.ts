@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,13 +23,20 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/info',
-      render: () => m(TraceInfoPage, {trace}),
+      render: (subpage) => m(TraceInfoPage, {trace, subpage: subpage}),
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      text: 'Info and stats',
+      text: 'Overview',
       href: '#!/info',
       icon: 'info',
+      sortOrder: 15,
+    });
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      text: 'Info and Stats',
+      href: '#!/info/stats',
+      icon: 'query_stats',
       sortOrder: 23,
     });
   }
