@@ -16,7 +16,12 @@ import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {Builder} from './query_builder/builder';
-import {QueryNode, QueryNodeState, singleNodeOperation} from './query_node';
+import {
+  QueryNode,
+  QueryNodeState,
+  addConnection,
+  removeConnection,
+} from './query_node';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, importStateFromJson} from './json_handler';
@@ -98,19 +103,23 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         allNodes: state.rootNodes,
       });
 
-      let lastNodeInChain = node;
-      while (
-        lastNodeInChain.nextNodes.length === 1 &&
-        lastNodeInChain.nextNodes[0] !== undefined &&
-        singleNodeOperation(lastNodeInChain.nextNodes[0].type)
-      ) {
-        lastNodeInChain = lastNodeInChain.nextNodes[0];
-      }
+      // Store the existing next nodes
+      const existingNextNodes = [...node.nextNodes];
 
-      lastNodeInChain.nextNodes = [newNode];
+      // Clear the node's next nodes (we'll reconnect through the new node)
+      node.nextNodes = [];
 
-      if ('prevNode' in newNode) {
-        newNode.prevNode = lastNodeInChain;
+      // Connect: node -> newNode
+      addConnection(node, newNode);
+
+      // Connect: newNode -> each existing next node
+      for (const nextNode of existingNextNodes) {
+        if (nextNode !== undefined) {
+          // First remove the old connection from node to nextNode (if it still exists)
+          removeConnection(node, nextNode);
+          // Then add connection from newNode to nextNode
+          addConnection(newNode, nextNode);
+        }
       }
 
       onStateUpdate((currentState) => ({
@@ -175,34 +184,31 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       newRootNodes = [...newRootNodes, ...node.nextNodes];
     }
 
+    // Get parent nodes before removing connections
+    const parentNodes: QueryNode[] = [];
     if ('prevNode' in node && node.prevNode) {
-      const childIdx = node.prevNode.nextNodes.indexOf(node);
-      if (childIdx !== -1) {
-        node.prevNode.nextNodes.splice(childIdx, 1, ...node.nextNodes);
-        for (const child of node.nextNodes) {
-          if ('prevNode' in child) {
-            child.prevNode = node.prevNode;
-          }
-        }
-      }
+      parentNodes.push(node.prevNode);
     } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
-        if (!prevNode) continue;
+        if (prevNode) parentNodes.push(prevNode);
+      }
+    }
 
-        const childIdx = prevNode.nextNodes.indexOf(node);
-        if (childIdx !== -1) {
-          prevNode.nextNodes.splice(childIdx, 1, ...node.nextNodes);
-          for (const child of node.nextNodes) {
-            if ('prevNode' in child) {
-              child.prevNode = prevNode;
-            } else if ('prevNodes' in child) {
-              const deletedNodeIdx = child.prevNodes.indexOf(node);
-              if (deletedNodeIdx !== -1) {
-                child.prevNodes[deletedNodeIdx] = prevNode;
-              }
-            }
-          }
-        }
+    // Get child nodes
+    const childNodes = [...node.nextNodes];
+
+    // Remove all connections to/from the deleted node
+    for (const parent of parentNodes) {
+      removeConnection(parent, node);
+    }
+    for (const child of childNodes) {
+      removeConnection(node, child);
+    }
+
+    // Reconnect parents to children (bypass the deleted node)
+    for (const parent of parentNodes) {
+      for (const child of childNodes) {
+        addConnection(parent, child);
       }
     }
 
@@ -215,6 +221,46 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       rootNodes: newRootNodes,
       selectedNode: newSelectedNode,
     }));
+  }
+
+  handleConnectionRemove(
+    attrs: ExplorePageAttrs,
+    fromNode: QueryNode,
+    toNode: QueryNode,
+  ) {
+    const {state, onStateUpdate} = attrs;
+
+    // NOTE: The basic connection removal is already handled by graph.ts
+    // This callback handles higher-level logic like reconnection and state updates
+
+    // Check if we should reconnect fromNode to toNode's children (bypass toNode)
+    // Note: We check if fromNode has no next nodes (connection already removed)
+    const shouldReconnect =
+      fromNode.nextNodes.length === 0 && toNode.nextNodes.length > 0;
+
+    if (shouldReconnect) {
+      // Reconnect fromNode to all of toNode's children (bypass toNode)
+      for (const child of toNode.nextNodes) {
+        addConnection(fromNode, child);
+      }
+    }
+
+    // Handle state updates based on node type
+    if ('prevNode' in toNode && toNode.prevNode === undefined) {
+      // toNode is a ModificationNode that's now orphaned
+      // Add it to rootNodes so it remains visible (but invalid)
+      const newRootNodes = state.rootNodes.includes(toNode)
+        ? state.rootNodes
+        : [...state.rootNodes, toNode];
+
+      onStateUpdate((currentState) => ({
+        ...currentState,
+        rootNodes: newRootNodes,
+      }));
+    } else if ('prevNodes' in toNode) {
+      // toNode is a MultiSourceNode - just trigger a state update
+      onStateUpdate((currentState) => ({...currentState}));
+    }
   }
 
   handleExport(state: ExplorePageState, trace: Trace) {
@@ -360,6 +406,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           if (state.selectedNode) {
             this.handleDeleteNode(attrs, state.selectedNode);
           }
+        },
+        onConnectionRemove: (fromNode, toNode) => {
+          this.handleConnectionRemove(attrs, fromNode, toNode);
         },
         onImport: () => this.handleImport(attrs),
         onImportWithStatement: () => this.handleImportWithStatement(attrs),
