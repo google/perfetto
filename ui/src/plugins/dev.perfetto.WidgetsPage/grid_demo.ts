@@ -78,7 +78,7 @@ export function renderGridDemo() {
       column sizing.
     `,
     wide: true,
-    renderWidget: ({virtualize}) => {
+    renderWidget: ({virtualize, wrap}) => {
       if (virtualize) {
         return m(VirtualGridDemo);
       }
@@ -95,16 +95,19 @@ export function renderGridDemo() {
             {key: 'typing', header: m(GridHeaderCell, 'Typing')},
           ],
           rowData: languages.map((row) => [
-            m(GridCell, {align: 'right'}, row.id),
-            m(GridCell, row.lang),
-            m(GridCell, {align: 'right'}, row.year),
-            m(GridCell, row.creator),
-            m(GridCell, row.typing),
+            m(GridCell, {wrap, align: 'right'}, row.id),
+            m(GridCell, {wrap}, row.lang),
+            m(GridCell, {wrap, align: 'right'}, row.year),
+            m(GridCell, {wrap}, row.creator),
+            m(GridCell, {wrap}, row.typing),
           ]),
           fillHeight: true,
         }),
       );
     },
-    initialOpts: {virtualize: false},
+    initialOpts: {
+      virtualize: false,
+      wrap: false,
+    },
   });
 }
