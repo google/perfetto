@@ -168,6 +168,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> IntervalIntersect(
       const StructuredQuery::IntervalIntersect::Decoder&);
 
+  base::StatusOr<std::string> Join(
+      const StructuredQuery::ExperimentalJoin::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
 
@@ -245,6 +248,9 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_experimental_join()) {
+      StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
+      ASSIGN_OR_RETURN(source, Join(join));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -426,6 +432,75 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
   }
   sql += ")";
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::Join(
+    const StructuredQuery::ExperimentalJoin::Decoder& join) {
+  if (!join.has_left_query()) {
+    return base::ErrStatus("Join must specify a left query");
+  }
+  if (!join.has_right_query()) {
+    return base::ErrStatus("Join must specify a right query");
+  }
+  if (!join.has_equality_columns() && !join.has_freeform_condition()) {
+    return base::ErrStatus(
+        "Join must specify either equality_columns or freeform_condition");
+  }
+
+  std::string left_table = NestedSource(join.left_query());
+  std::string right_table = NestedSource(join.right_query());
+
+  std::string join_type_str;
+  switch (join.type()) {
+    case StructuredQuery::ExperimentalJoin::INNER:
+      join_type_str = "INNER";
+      break;
+    case StructuredQuery::ExperimentalJoin::LEFT:
+      join_type_str = "LEFT";
+      break;
+  }
+
+  std::string condition;
+  if (join.has_equality_columns()) {
+    StructuredQuery::ExperimentalJoin::EqualityColumns::Decoder eq_cols(
+        join.equality_columns());
+    if (!eq_cols.has_left_column()) {
+      return base::ErrStatus("EqualityColumns must specify a left column");
+    }
+    if (!eq_cols.has_right_column()) {
+      return base::ErrStatus("EqualityColumns must specify a right column");
+    }
+    condition = left_table + "." + eq_cols.left_column().ToStdString() + " = " +
+                right_table + "." + eq_cols.right_column().ToStdString();
+  } else {
+    StructuredQuery::ExperimentalJoin::FreeformCondition::Decoder free_cond(
+        join.freeform_condition());
+    if (!free_cond.has_left_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a left query alias");
+    }
+    if (!free_cond.has_right_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a right query alias");
+    }
+    if (!free_cond.has_sql_expression()) {
+      return base::ErrStatus("FreeformCondition must specify a sql expression");
+    }
+    std::string left_alias = free_cond.left_query_alias().ToStdString();
+    std::string right_alias = free_cond.right_query_alias().ToStdString();
+    std::string sql_expr = free_cond.sql_expression().ToStdString();
+
+    // Use aliases in the FROM clause
+    condition = sql_expr;
+    std::string sql = "(SELECT * FROM " + left_table + " AS " + left_alias +
+                      " " + join_type_str + " JOIN " + right_table + " AS " +
+                      right_alias + " ON " + condition + ")";
+    return sql;
+  }
+
+  std::string sql = "(SELECT * FROM " + left_table + " " + join_type_str +
+                    " JOIN " + right_table + " ON " + condition + ")";
   return sql;
 }
 
