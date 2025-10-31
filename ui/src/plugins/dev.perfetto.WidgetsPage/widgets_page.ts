@@ -1654,8 +1654,14 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         description:
           'Scroll left and right to pan / pinch to zoom. Drag nodes from output to input ports to connect nodes. Click connectors or drag outputs away from ports to remove connections.',
         wide: true,
-        renderWidget: () => m(NodeGraphDemo),
-        initialOpts: {},
+        renderWidget: (opts) => m(NodeGraphDemo, opts),
+        initialOpts: {
+          titleBars: false,
+          accentBars: false,
+          allInputsLeft: false,
+          allOutputsRight: false,
+          colors: false,
+        },
       }),
     );
   }
