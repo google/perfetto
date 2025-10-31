@@ -90,6 +90,13 @@ class TrackEventTokenizer {
       const protos::pbzero::TrackEvent_LegacyEvent_Decoder&,
       PacketSequenceStateGeneration& state);
 
+  // Helper to record tokenization errors with packet offset
+  void RecordTokenizationError(size_t stat_key, TraceBlobView* packet);
+  // Helper to record tokenization errors with track_uuid arg
+  void RecordTokenizationErrorWithTrackUuid(size_t stat_key,
+                                            uint64_t track_uuid,
+                                            TraceBlobView* packet);
+
   TraceProcessorContext* const context_;
   TrackEventTracker* const track_event_tracker_;
   ProtoImporterModuleContext* const module_context_;
