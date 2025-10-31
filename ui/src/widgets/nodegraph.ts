@@ -557,56 +557,61 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       const from = getPortPosition(conn.fromNode, 'output', conn.fromPort);
       const to = getPortPosition(conn.toNode, 'input', conn.toPort);
 
-      if (from.x !== 0 || from.y !== 0) {
-        const path = document.createElementNS(
-          'http://www.w3.org/2000/svg',
-          'path',
-        );
-        path.setAttribute('class', 'pf-connection');
+      // Validate that both ports exist (return {x: 0, y: 0} if not found)
+      const fromValid = from.x !== 0 || from.y !== 0;
+      const toValid = to.x !== 0 || to.y !== 0;
 
-        const fromPortType = getPortType(
-          conn.fromNode,
-          'output',
-          conn.fromPort,
-          nodes,
+      if (!fromValid || !toValid) {
+        console.warn(
+          `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
+          !fromValid ? `(source port not found)` : `(target port not found)`,
         );
-        const toPortType = getPortType(
-          conn.toNode,
-          'input',
-          conn.toPort,
-          nodes,
-        );
-
-        path.setAttribute(
-          'd',
-          createCurve(
-            from.x,
-            from.y,
-            to.x,
-            to.y,
-            fromPortType,
-            toPortType,
-            shortenLength,
-          ),
-        );
-        path.setAttribute('marker-end', 'url(#arrowhead)');
-        path.style.pointerEvents = 'stroke';
-        path.style.cursor = 'pointer';
-
-        // Prevent canvas pan from starting when clicking connections
-        path.onmousedown = (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-        };
-
-        path.onclick = (e) => {
-          e.stopPropagation();
-          if (onConnectionRemove !== undefined) {
-            onConnectionRemove(idx);
-          }
-        };
-        svg.appendChild(path);
+        return; // Skip rendering this connection
       }
+
+      const path = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'path',
+      );
+      path.setAttribute('class', 'pf-connection');
+
+      const fromPortType = getPortType(
+        conn.fromNode,
+        'output',
+        conn.fromPort,
+        nodes,
+      );
+      const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
+
+      path.setAttribute(
+        'd',
+        createCurve(
+          from.x,
+          from.y,
+          to.x,
+          to.y,
+          fromPortType,
+          toPortType,
+          shortenLength,
+        ),
+      );
+      path.setAttribute('marker-end', 'url(#arrowhead)');
+      path.style.pointerEvents = 'stroke';
+      path.style.cursor = 'pointer';
+
+      // Prevent canvas pan from starting when clicking connections
+      path.onmousedown = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+
+      path.onclick = (e) => {
+        e.stopPropagation();
+        if (onConnectionRemove !== undefined) {
+          onConnectionRemove(idx);
+        }
+      };
+      svg.appendChild(path);
     });
 
     // Render temp connection if connecting
