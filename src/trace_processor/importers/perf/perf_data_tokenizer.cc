@@ -41,6 +41,7 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
@@ -351,37 +352,34 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
   return ParsingResult::kSuccess;
 }
 
-base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
+std::optional<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
     const Record& record) {
   std::optional<uint64_t> time;
   if (!ReadTime(record, time)) {
-    return base::ErrStatus("Failed to read time");
+    return std::nullopt;
   }
-
   // TODO(449973773): `*time > 0` is a temporary hack to work around the fact
   // that some perf record types which actually don't have a timestamp. They
   // should have been procesed during tokenization time (e.g. MMAP/MMAP2/COMM)
   // but were incorrectly written to be handled with at parsing time. So by
   // setting trace_ts to `latest_timestamp_`, we don't try and convert a zero
   // timestamp accidentally, leading to negative timestamps in some clocks.
-  base::StatusOr<int64_t> trace_ts =
+  std::optional<int64_t> trace_ts =
       time && *time > 0
           ? context_->clock_tracker->ToTraceTime(record.attr->clock_id(),
                                                  static_cast<int64_t>(*time))
-          : latest_timestamp_;
-  if (PERFETTO_LIKELY(trace_ts.ok())) {
+          : std::optional<int64_t>(latest_timestamp_);
+  if (PERFETTO_LIKELY(trace_ts.has_value())) {
     latest_timestamp_ = std::max(latest_timestamp_, *trace_ts);
   }
   return trace_ts;
 }
+
 void PerfDataTokenizer::MaybePushRecord(Record record) {
-  base::StatusOr<int64_t> trace_ts = ExtractTraceTimestamp(record);
-  if (!trace_ts.ok()) {
-    context_->storage->IncrementIndexedStats(
-        stats::perf_record_skipped, static_cast<int>(record.header.type));
-    return;
+  std::optional<int64_t> trace_ts = ExtractTraceTimestamp(record);
+  if (trace_ts) {
+    stream_->Push(*trace_ts, std::move(record));
   }
-  stream_->Push(*trace_ts, std::move(record));
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
