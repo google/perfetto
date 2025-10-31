@@ -33,6 +33,7 @@ SOURCE_FILES = [
             'protos/perfetto/config/trace_config.proto',
             'protos/perfetto/config/track_event/track_event_config.proto',
             'protos/perfetto/trace/clock_snapshot.proto',
+            'protos/perfetto/trace/profiling/profile_common.proto',
             'protos/perfetto/trace/test_event.proto',
             'protos/perfetto/trace/trace.proto',
             'protos/perfetto/trace/track_event/chrome_active_processes.proto',
