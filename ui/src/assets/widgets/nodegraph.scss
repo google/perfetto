@@ -71,9 +71,20 @@
   left: 0;
   width: 10px;
   height: 100%;
-  background: hsl(var(--pf-node-hue, 210), 60%, 50%);
+  background-color: var(
+    --pf-color-border
+  ); /* Fallback color when hue not set */
   border-top-left-radius: 6px;
   border-bottom-left-radius: 6px;
+}
+
+/* Override with hue-based color when --pf-node-hue is set via inline styles */
+.pf-node[style*="--pf-node-hue"].pf-node--has-accent-bar::before {
+  background: color-mix(
+    in srgb,
+    hsl(var(--pf-node-hue), 60%, 50%) 50%,
+    var(--pf-color-background)
+  );
 }
 
 .pf-node-body {
@@ -137,19 +148,28 @@
 }
 
 .pf-node-header {
-  background: color-mix(
-    in srgb,
-    hsl(var(--pf-node-hue, 210), 60%, 50%) 50%,
-    var(--pf-color-background)
-  );
-  padding: 8px 12px;
-  font-weight: bold;
+  /* Default background when hue is not set */
+  background: var(--pf-color-background);
+  padding: 6px 12px;
   border-radius: 6px 6px 0 0;
   display: flex;
   border-bottom: 1px solid var(--pf-color-border);
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+/* Override with hue-based color when --pf-node-hue is set via inline styles */
+.pf-node[style*="--pf-node-hue"] .pf-node-header {
+  background: color-mix(
+    in srgb,
+    hsl(var(--pf-node-hue), 60%, 50%) 50%,
+    var(--pf-color-background)
+  );
+}
+
+.pf-node--has-accent-bar .pf-node-header {
+  padding-left: 22px;
 }
 
 .pf-docked-child .pf-node-header {
@@ -269,6 +289,8 @@ svg {
   transition:
     stroke-width 0.2s,
     stroke 0.2s;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .pf-connection:hover {

@@ -37,15 +37,21 @@ import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {Connection, Node, NodeGraph} from '../../../../widgets/nodegraph';
+import {
+  Connection,
+  Node,
+  NodeGraph,
+  NodeGraphApi,
+} from '../../../../widgets/nodegraph';
 import {UIFilter} from '../operations/filter';
 import {
   QueryNode,
   singleNodeOperation,
   SourceNode,
-  ModificationNode,
   MultiSourceNode,
   NodeType,
+  addConnection,
+  removeConnection,
 } from '../../query_node';
 import {EmptyGraph} from '../empty_graph';
 import {nodeRegistry} from '../node_registry';
@@ -62,10 +68,6 @@ type Position = {x: number; y: number};
 type LayoutMap = Map<string, Position>;
 
 const LAYOUT_CONSTANTS = {
-  VERTICAL_SPACING: 150,
-  HORIZONTAL_SPACING: 250,
-  ROW_SPACING: 200,
-  GRID_COLUMNS: 4,
   INITIAL_OFFSET: 100,
 };
 
@@ -81,15 +83,12 @@ function isSourceNode(node: QueryNode): node is SourceNode {
   );
 }
 
-// Single-input nodes that can be "docked" in a vertical chain
-function isModificationNode(node: QueryNode): node is ModificationNode {
-  return singleNodeOperation(node.type);
-}
-
 // Multi-input nodes (have prevNodes array, cannot be docked)
 function isMultiSourceNode(node: QueryNode): node is MultiSourceNode {
   return (
-    node.type === NodeType.kIntervalIntersect || node.type === NodeType.kUnion
+    node.type === NodeType.kIntervalIntersect ||
+    node.type === NodeType.kUnion ||
+    node.type === NodeType.kMerge
   );
 }
 
@@ -109,6 +108,7 @@ export interface GraphAttrs {
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
   readonly onImport: () => void;
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
@@ -174,6 +174,17 @@ function getInputLabels(node: QueryNode): string[] {
 
   if (isMultiSourceNode(node)) {
     const multiSourceNode = node as MultiSourceNode;
+
+    // Check if node has custom input labels
+    if (
+      'getInputLabels' in multiSourceNode &&
+      typeof multiSourceNode.getInputLabels === 'function'
+    ) {
+      return (
+        multiSourceNode as MultiSourceNode & {getInputLabels: () => string[]}
+      ).getInputLabels();
+    }
+
     const numConnected = multiSourceNode.prevNodes.filter(
       (it: QueryNode | undefined) => it,
     ).length;
@@ -243,73 +254,32 @@ function getRootNodes(
   return allNodes.filter((n) => !dockedNodes.has(n));
 }
 
-function findParentLayout(
-  qnode: QueryNode,
-  nodeLayouts: LayoutMap,
-): Position | undefined {
-  if (isModificationNode(qnode) && qnode.prevNode) {
-    return nodeLayouts.get(qnode.prevNode.nodeId);
-  }
-
-  if (isMultiSourceNode(qnode) && qnode.prevNodes.length > 0) {
-    const firstParent = qnode.prevNodes.find((n) => n);
-    if (firstParent) {
-      return nodeLayouts.get(firstParent.nodeId);
-    }
-  }
-
-  return undefined;
-}
-
-// Places nodes in a grid layout (left-to-right, top-to-bottom)
-function calculateGridPosition(
+function ensureNodeLayouts(
   roots: QueryNode[],
-  nodeLayouts: LayoutMap,
-): Position {
-  const existingRootPositions = roots
-    .map((r) => nodeLayouts.get(r.nodeId))
-    .filter((layout): layout is Position => layout !== undefined);
+  attrs: GraphAttrs,
+  nodeGraphApi: NodeGraphApi | null,
+): void {
+  let hasNewNodes = false;
+  // Start counting from existing nodes so new nodes don't overlap
+  let nodeIndex = attrs.nodeLayouts.size;
 
-  const count = existingRootPositions.length;
-  const col = count % LAYOUT_CONSTANTS.GRID_COLUMNS;
-  const row = Math.floor(count / LAYOUT_CONSTANTS.GRID_COLUMNS);
-
-  return {
-    x:
-      LAYOUT_CONSTANTS.INITIAL_OFFSET +
-      col * LAYOUT_CONSTANTS.HORIZONTAL_SPACING,
-    y: LAYOUT_CONSTANTS.INITIAL_OFFSET + row * LAYOUT_CONSTANTS.ROW_SPACING,
-  };
-}
-
-// Calculates position for a new node: below parent if it exists, otherwise in grid
-function calculateDefaultLayout(
-  qnode: QueryNode,
-  roots: QueryNode[],
-  nodeLayouts: LayoutMap,
-): Position {
-  const parentLayout = findParentLayout(qnode, nodeLayouts);
-
-  if (parentLayout) {
-    return {
-      x: parentLayout.x,
-      y: parentLayout.y + LAYOUT_CONSTANTS.VERTICAL_SPACING,
-    };
-  }
-
-  return calculateGridPosition(roots, nodeLayouts);
-}
-
-function ensureNodeLayouts(roots: QueryNode[], attrs: GraphAttrs): void {
+  // Give new nodes temporary staggered positions - NodeGraph autoLayout will organize them
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
-      const defaultLayout = calculateDefaultLayout(
-        qnode,
-        roots,
-        attrs.nodeLayouts,
-      );
-      attrs.onNodeLayoutChange(qnode.nodeId, defaultLayout);
+      // Stagger nodes so they don't stack on top of each other
+      attrs.onNodeLayoutChange(qnode.nodeId, {
+        x: LAYOUT_CONSTANTS.INITIAL_OFFSET + nodeIndex * 50,
+        y: LAYOUT_CONSTANTS.INITIAL_OFFSET + nodeIndex * 50,
+      });
+      hasNewNodes = true;
+      nodeIndex++;
     }
+  }
+
+  // Let NodeGraph's autoLayout organize all nodes based on connections
+  if (hasNewNodes && nodeGraphApi) {
+    // Defer autoLayout to next tick so nodes are in DOM
+    setTimeout(() => nodeGraphApi.autoLayout(), 0);
   }
 }
 
@@ -404,11 +374,15 @@ function renderNodeChain(
 }
 
 // Renders only root nodes; docked children are recursively rendered via 'next' property
-function renderNodes(rootNodes: QueryNode[], attrs: GraphAttrs): Node[] {
+function renderNodes(
+  rootNodes: QueryNode[],
+  attrs: GraphAttrs,
+  nodeGraphApi: NodeGraphApi | null,
+): Node[] {
   const allNodes = getAllNodes(rootNodes);
   const roots = getRootNodes(allNodes, attrs.nodeLayouts);
 
-  ensureNodeLayouts(roots, attrs);
+  ensureNodeLayouts(roots, attrs, nodeGraphApi);
 
   return roots
     .map((qnode) => {
@@ -478,25 +452,9 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     return;
   }
 
-  // Update forward link
-  if (!fromNode.nextNodes.includes(toNode)) {
-    fromNode.nextNodes.push(toNode);
-  }
-
-  // Update backward link based on node type
-  if (isModificationNode(toNode)) {
-    toNode.prevNode = fromNode;
-  } else if (isMultiSourceNode(toNode)) {
-    const arrayIndex = conn.toPort - 1; // Convert from 1-indexed to 0-indexed
-
-    // Expand array if needed to accommodate the new connection
-    while (toNode.prevNodes.length <= arrayIndex) {
-      toNode.prevNodes.push(undefined);
-    }
-
-    toNode.prevNodes[arrayIndex] = fromNode;
-    toNode.onPrevNodesUpdated?.();
-  }
+  // Convert from 1-indexed port to 0-indexed array for multi-source nodes
+  const portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
+  addConnection(fromNode, toNode, portIndex);
 
   m.redraw();
 }
@@ -505,6 +463,7 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
 function handleConnectionRemove(
   conn: Connection,
   rootNodes: QueryNode[],
+  onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void,
 ): void {
   const fromNode = findQueryNode(conn.fromNode, rootNodes);
   const toNode = findQueryNode(conn.toNode, rootNodes);
@@ -513,24 +472,11 @@ function handleConnectionRemove(
     return;
   }
 
-  // Remove forward link
-  const idx = fromNode.nextNodes.indexOf(toNode);
-  if (idx !== -1) {
-    fromNode.nextNodes.splice(idx, 1);
-  }
+  // Use the helper function to cleanly remove the connection
+  removeConnection(fromNode, toNode);
 
-  // Clear backward link
-  if (isModificationNode(toNode) && toNode.prevNode === fromNode) {
-    toNode.prevNode = undefined;
-  } else if (isMultiSourceNode(toNode)) {
-    const prevIndex = toNode.prevNodes.indexOf(fromNode);
-    if (prevIndex !== -1) {
-      toNode.prevNodes[prevIndex] = undefined;
-    }
-    toNode.onPrevNodesUpdated?.();
-  }
-
-  m.redraw();
+  // Call the parent callback for any additional cleanup (e.g., state management)
+  onConnectionRemove(fromNode, toNode);
 }
 
 // ========================================
@@ -538,6 +484,8 @@ function handleConnectionRemove(
 // ========================================
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
+  private nodeGraphApi: NodeGraphApi | null = null;
+
   private renderEmptyNodeGraph(attrs: GraphAttrs) {
     return m(EmptyGraph, {
       onAddSourceNode: attrs.onAddSourceNode,
@@ -633,7 +581,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       );
     }
 
-    const nodes = renderNodes(rootNodes, attrs);
+    const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
 
     return m(
@@ -648,6 +596,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           connections,
           selectedNodeId: selectedNode?.nodeId ?? null,
           hideControls: true,
+          onReady: (api: NodeGraphApi) => {
+            this.nodeGraphApi = api;
+          },
           onNodeSelect: (nodeId: string | null) => {
             if (nodeId === null) {
               attrs.onDeselect();
@@ -665,7 +616,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             handleConnect(conn, rootNodes);
           },
           onConnectionRemove: (index: number) => {
-            handleConnectionRemove(connections[index], rootNodes);
+            handleConnectionRemove(
+              connections[index],
+              rootNodes,
+              attrs.onConnectionRemove,
+            );
           },
           onNodeRemove: (nodeId: string) => {
             const qnode = findQueryNode(nodeId, rootNodes);

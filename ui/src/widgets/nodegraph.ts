@@ -97,6 +97,7 @@ interface CanvasState {
 export interface NodeGraphApi {
   autoLayout: () => void;
   recenter: () => void;
+  findPlacementForNode: (node: Omit<Node, 'x' | 'y'>) => Position;
 }
 
 export interface NodeGraphAttrs {
@@ -1128,9 +1129,104 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         autofit(nodes, canvas);
       };
 
+      // Find a non-overlapping position for a new node
+      const findPlacementForNode = (
+        newNode: Omit<Node, 'x' | 'y'>,
+      ): Position => {
+        if (latestVnode === null || canvasElement === null) {
+          return {x: 0, y: 0};
+        }
+
+        const {nodes = []} = latestVnode.attrs;
+        const canvas = canvasElement;
+
+        // Default starting position (center of viewport in canvas space)
+        const canvasRect = canvas.getBoundingClientRect();
+        const centerX =
+          (canvasRect.width / 2 - canvasState.panOffset.x) / canvasState.zoom;
+        const centerY =
+          (canvasRect.height / 2 - canvasState.panOffset.y) / canvasState.zoom;
+
+        // Create a temporary node with coordinates to render and measure
+        const tempNode: Node = {
+          ...newNode,
+          x: centerX,
+          y: centerY,
+        };
+
+        // Create temporary DOM element to measure size
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.visibility = 'hidden';
+        canvas.appendChild(tempContainer);
+
+        // Render the node into the temporary container
+        m.render(
+          tempContainer,
+          m(
+            '.pf-node',
+            {
+              'data-node': tempNode.id,
+              'style': {
+                ...(tempNode.hue !== undefined
+                  ? {'--pf-node-hue': `${tempNode.hue}`}
+                  : {}),
+              },
+            },
+            [
+              tempNode.titleBar &&
+                m('.pf-node-header', [
+                  m('.pf-node-title', tempNode.titleBar.title),
+                ]),
+              m('.pf-node-body', [
+                tempNode.content !== undefined &&
+                  m('.pf-node-content', tempNode.content),
+                tempNode.inputs
+                  ?.slice(tempNode.allInputsLeft ? 0 : 1)
+                  .map((input: string) =>
+                    m('.pf-port-row.pf-port-input', [m('span', input)]),
+                  ),
+                tempNode.outputs
+                  ?.slice(tempNode.allOutputsRight ? 0 : 1)
+                  .map((output: string) =>
+                    m('.pf-port-row.pf-port-output', [m('span', output)]),
+                  ),
+              ]),
+            ],
+          ),
+        );
+
+        // Get dimensions from the rendered element
+        const dims = getNodeDimensions(tempNode.id);
+
+        // Calculate chain height
+        const chain = getChain(tempNode);
+        let chainHeight = 0;
+        chain.forEach((chainNode) => {
+          const chainDims = getNodeDimensions(chainNode.id);
+          chainHeight += chainDims.height;
+        });
+
+        // Clean up temporary element
+        canvas.removeChild(tempContainer);
+
+        // Find non-overlapping position starting from center
+        const finalPos = findNearestNonOverlappingPosition(
+          centerX,
+          centerY,
+          tempNode.id,
+          nodes,
+          dims.width,
+          chainHeight,
+        );
+
+        return finalPos;
+      };
+
       // Provide API to parent
       if (onReady) {
-        onReady({autoLayout, recenter});
+        onReady({autoLayout, recenter, findPlacementForNode});
       }
     },
 
