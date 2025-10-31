@@ -69,7 +69,7 @@ class SamplePackets {
 
   static protos::Patch PatchWithDelOperation() {
     protos::Patch patch;
-    patch.add_elements_to_delete(0);
+    patch.add_elements_to_delete_by_id(0);
     return patch;
   }
 
