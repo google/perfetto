@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_TABLES_MACROS_INTERNAL_H_
 #define SRC_TRACE_PROCESSOR_TABLES_MACROS_INTERNAL_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -33,6 +34,11 @@ struct BaseId {
   bool operator==(const BaseId& o) const { return o.value == value; }
   bool operator!=(const BaseId& o) const { return !(*this == o); }
   bool operator<(const BaseId& o) const { return value < o.value; }
+
+  template <typename H>
+  friend H PerfettoHashValue(H h, const BaseId& id) {
+    return H::Combine(std::move(h), id.value);
+  }
 
   uint32_t value;
 };

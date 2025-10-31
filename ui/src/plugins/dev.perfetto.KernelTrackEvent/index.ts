@@ -230,7 +230,7 @@ export default class implements PerfettoPlugin {
       return assertExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.workspace, 'CPU'),
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, 'CPU'),
       );
     }
     // custom-scoped event: "Kernel -> Kernel track events".
@@ -238,7 +238,7 @@ export default class implements PerfettoPlugin {
       const kernelGroup = assertExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.workspace, 'KERNEL'),
+          .getOrCreateStandardGroup(ctx.defaultWorkspace, 'KERNEL'),
       );
       this.kernelTrackEventsNode = new TrackNode({
         name: 'Kernel track events',

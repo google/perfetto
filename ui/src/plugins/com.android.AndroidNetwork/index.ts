@@ -35,7 +35,7 @@ export default class implements PerfettoPlugin {
       },
       title: trackName,
       columns: {ts: columns[0], dur: columns[1], name: columns[2]},
-      argColumns: columns.slice(2),
+      rawColumns: columns.slice(2),
     });
   }
 

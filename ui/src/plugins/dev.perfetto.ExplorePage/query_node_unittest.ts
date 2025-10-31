@@ -27,7 +27,7 @@ import {
   QueryNodeState,
 } from './query_node';
 import {ColumnInfo} from './query_builder/column_info';
-import {SqlType} from '../dev.perfetto.SqlModules/sql_modules';
+import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 describe('query_node utilities', () => {
   describe('nextNodeId', () => {
@@ -67,8 +67,8 @@ describe('query_node utilities', () => {
   });
 
   describe('createSelectColumnsProto', () => {
-    const stringType: SqlType = {name: 'STRING', shortName: 'string'};
-    const intType: SqlType = {name: 'INTEGER', shortName: 'int'};
+    const stringType: PerfettoSqlType = {kind: 'string'};
+    const intType: PerfettoSqlType = {kind: 'int'};
 
     function createMockNode(columns: ColumnInfo[]): QueryNode {
       return {
@@ -172,7 +172,7 @@ describe('query_node utilities', () => {
   });
 
   describe('createFinalColumns', () => {
-    const stringType: SqlType = {name: 'STRING', shortName: 'string'};
+    const stringType: PerfettoSqlType = {kind: 'string'};
 
     it('should create final columns with all checked', () => {
       const sourceCols: ColumnInfo[] = [

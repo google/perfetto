@@ -23,11 +23,11 @@
 #include <string>
 #include <tuple>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/util/build_id.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 struct CreateMappingParams {
   AddressRange memory_range;
@@ -51,20 +51,12 @@ struct CreateMappingParams {
     return ToTuple() == o.ToTuple();
   }
 
-  struct Hasher {
-    size_t operator()(const CreateMappingParams& p) const {
-      base::FnvHasher h;
-      h.UpdateAll(p.memory_range.start(), p.memory_range.end(), p.exact_offset,
-                  p.start_offset, p.load_bias, p.name);
-      if (p.build_id) {
-        h.Update(*p.build_id);
-      }
-      return static_cast<size_t>(h.digest());
-    }
-  };
+  template <typename H>
+  friend H PerfettoHashValue(H h, const CreateMappingParams& p) {
+    return H::Combine(std::move(h), p.ToTuple());
+  }
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CREATE_MAPPING_PARAMS_H_

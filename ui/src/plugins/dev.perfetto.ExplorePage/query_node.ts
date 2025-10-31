@@ -61,7 +61,6 @@ export function singleNodeOperation(type: NodeType): boolean {
 export interface QueryNodeState {
   prevNode?: QueryNode;
   prevNodes?: QueryNode[];
-  customTitle?: string;
   comment?: string;
   trace?: Trace;
   sqlModules?: SqlModules;
@@ -76,6 +75,11 @@ export interface QueryNodeState {
 
   // Caching
   hasOperationChanged?: boolean;
+
+  // Whether queries should automatically execute when this node changes.
+  // If false, the user must manually click "Run" to execute queries.
+  // Set by the node registry when the node is created.
+  autoExecute?: boolean;
 }
 
 export interface BaseNode {
@@ -103,11 +107,11 @@ export interface BaseNode {
 export interface SourceNode extends BaseNode {}
 
 export interface ModificationNode extends BaseNode {
-  prevNode: QueryNode;
+  prevNode?: QueryNode;
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: QueryNode[];
+  prevNodes: (QueryNode | undefined)[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;

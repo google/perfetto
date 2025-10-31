@@ -61,7 +61,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_SysStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfoConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventConfig);
-PERFETTO_PB_MSG_DECL(perfetto_protos_UserListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8Config);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanMemoryConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_WindowManagerConfig);
@@ -321,11 +320,6 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_CpuPerUidConfig,
                   cpu_per_uid_config,
                   137);
-PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
-                  MSG,
-                  perfetto_protos_UserListConfig,
-                  user_list_config,
-                  138);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

@@ -24,7 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -82,12 +82,9 @@ class LegacyV8CpuProfileTracker
     base::FlatHashMap<uint32_t, uint32_t> callsite_inferred_parents;
     DummyMemoryMapping* mapping;
   };
-  struct Hasher {
-    uint64_t operator()(const std::pair<uint64_t, uint32_t>& res) {
-      return base::FnvHasher::Combine(res.first, res.second);
-    }
-  };
-  base::FlatHashMap<std::pair<uint64_t, uint32_t>, State, Hasher>
+  base::FlatHashMap<std::pair<uint64_t, uint32_t>,
+                    State,
+                    base::MurmurHash<std::pair<uint64_t, uint32_t>>>
       state_by_session_and_pid_;
 
   TraceProcessorContext* const context_;

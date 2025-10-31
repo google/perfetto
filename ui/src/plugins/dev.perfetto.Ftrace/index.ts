@@ -83,7 +83,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (group.children.length) {
-      ctx.workspace.addChildInOrder(group);
+      ctx.defaultWorkspace.addChildInOrder(group);
     }
 
     const cache: FtraceExplorerCache = {

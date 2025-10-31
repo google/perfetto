@@ -100,7 +100,7 @@ export default class implements PerfettoPlugin {
         name: 'Android logs',
         uri,
       });
-      ctx.workspace.addChildInOrder(track);
+      ctx.defaultWorkspace.addChildInOrder(track);
     }
 
     const androidLogsTabUri = 'perfetto.AndroidLog#tab';

@@ -827,4 +827,50 @@ TEST(StructuredQueryGeneratorTest, AggregateToStringValidation) {
   }
 }
 
+TEST(StructuredQueryGeneratorTest, ColumnTransformationAndAggregation) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "outer_query"
+    inner_query: {
+      table: {
+        table_name: "thread_slice"
+      }
+      select_columns: {
+        alias: "dur_ms"
+        column_name_or_expression: "dur / 1000"
+      }
+      select_columns: {
+        column_name_or_expression: "name"
+      }
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur_ms"
+        op: SUM
+        result_column_name: "total_dur_ms"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH
+      sq_1 AS (
+        SELECT
+          dur / 1000 AS dur_ms,
+          name
+        FROM thread_slice
+      ),
+      sq_outer_query AS (
+        SELECT
+          name,
+          SUM(dur_ms) AS total_dur_ms
+        FROM sq_1
+        GROUP BY name
+      )
+    SELECT * FROM sq_outer_query
+  )"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

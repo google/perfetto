@@ -1,0 +1,28 @@
+[package]
+edition = "2024"
+name = "perfetto-sys"
+version = "0.1.0"
+authors = ["David Reveman <dreveman@gmail.com>"]
+build = "build.rs"
+description = "Low-level FFI bindings for Perfetto"
+readme = "README.md"
+keywords = [
+    "trace processor",
+    "tracing",
+    "perfetto",
+    "ffi",
+]
+categories = ["external-ffi-bindings"]
+license = "Apache-2.0"
+repository = "https://github.com/google/perfetto"
+exclude = ["include/perfetto/public/abi/BUILD.gn"]
+
+[features]
+default = ["vendored"]
+vendored = []
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.71"
+cc = "1.1"

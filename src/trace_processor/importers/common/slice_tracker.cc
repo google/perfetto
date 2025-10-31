@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -473,11 +474,11 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
 
   const auto& slices = context_->storage->slice_table();
 
-  base::FnvHasher hash;
+  base::MurmurHashCombiner hash;
   for (const auto& i : stack) {
     auto ref = i.row.ToRowReference(slices);
-    hash.Update(ref.category().value_or(kNullStringId).raw_id());
-    hash.Update(ref.name().value_or(kNullStringId).raw_id());
+    hash.Combine(ref.category());
+    hash.Combine(ref.name());
   }
 
   // For clients which don't have an integer type (i.e. Javascript), returning

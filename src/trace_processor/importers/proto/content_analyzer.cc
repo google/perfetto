@@ -63,13 +63,13 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
        ++annotated_map) {
     base::FlatHashMap<util::SizeProfileComputer::FieldPath,
                       tables::ExperimentalProtoPathTable::Id,
-                      util::SizeProfileComputer::FieldPathHasher>
+                      base::MurmurHash<util::SizeProfileComputer::FieldPath>>
         path_ids;
     for (auto sample = annotated_map.value().GetIterator(); sample; ++sample) {
       std::string path_string;
       std::optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
       util::SizeProfileComputer::FieldPath path;
-      for (const auto& field : sample.key()) {
+      for (const auto& field : sample.key().fields) {
         if (field.has_field_name()) {
           if (!path_string.empty()) {
             path_string += '.';
@@ -81,7 +81,7 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
         }
         path_string.append(field.type_name());
 
-        path.push_back(field);
+        path.fields.push_back(field);
         // Reuses existing path from |path_ids| if possible.
         {
           auto* path_id = path_ids.Find(path);

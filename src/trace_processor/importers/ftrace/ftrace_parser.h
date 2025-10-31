@@ -531,7 +531,7 @@ class FtraceParser {
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
-      return base::FnvHasher::Combine(p.first, p.second);
+      return base::MurmurHashCombine(p.first, p.second);
     }
   };
 

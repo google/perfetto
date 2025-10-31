@@ -123,7 +123,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (group.children.length > 0) {
-      ctx.workspace.addChildInOrder(group);
+      ctx.defaultWorkspace.addChildInOrder(group);
     }
   }
 }

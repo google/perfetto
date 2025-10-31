@@ -36,6 +36,15 @@
   gap: 4px;
   padding: 2px;
   border-bottom: solid 1px var(--pf-color-border);
+
+  .pf-tabs {
+    .pf-button {
+      padding: 0px;
+    }
+    .pf-tabs__tab-icon--right {
+      margin-left: 0px;
+    }
+  }
 }
 
 .pf-sql-table__table {

@@ -22,7 +22,7 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -71,29 +71,23 @@ class StackProfileSequenceState final
       return upid == o.upid && iid == o.iid;
     }
 
-    struct Hasher {
-      size_t operator()(const OptionalUniquePidAndIid& o) const {
-        base::FnvHasher h;
-        h.Update(o.iid);
-        if (o.upid) {
-          h.Update(*o.upid);
-        }
-        return static_cast<size_t>(h.digest());
-      }
-    };
+    template <typename H>
+    friend H PerfettoHashValue(H h, const OptionalUniquePidAndIid& o) {
+      return H::Combine(std::move(h), o.iid, o.upid);
+    }
   };
 
   base::FlatHashMap<OptionalUniquePidAndIid,
                     VirtualMemoryMapping*,
-                    OptionalUniquePidAndIid::Hasher>
+                    base::MurmurHash<OptionalUniquePidAndIid>>
       cached_mappings_;
   base::FlatHashMap<OptionalUniquePidAndIid,
                     FrameId,
-                    OptionalUniquePidAndIid::Hasher>
+                    base::MurmurHash<OptionalUniquePidAndIid>>
       cached_frames_;
   base::FlatHashMap<OptionalUniquePidAndIid,
                     CallsiteId,
-                    OptionalUniquePidAndIid::Hasher>
+                    base::MurmurHash<OptionalUniquePidAndIid>>
       cached_callstacks_;
 };
 

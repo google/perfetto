@@ -23,36 +23,22 @@ import {
   SqlPackage,
   SqlTable,
   SqlTableFunction,
-  SqlType,
-  TableAndColumn,
-  createTableColumnFromPerfettoSql,
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {TableColumn} from '../../components/widgets/sql/table/table_column';
 import {Trace} from '../../public/trace';
+import {
+  parsePerfettoSqlTypeFromString,
+  PerfettoSqlType,
+} from '../../trace_processor/perfetto_sql_type';
+import {unwrapResult} from '../../base/result';
+import {createTableColumn} from '../../components/widgets/sql/table/create_column';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
 
   constructor(trace: Trace, docs: SqlModulesDocsSchema) {
     this.packages = docs.map((json) => new StdlibPackageImpl(trace, json));
-  }
-
-  findAllTablesWithLinkedId(tableAndColumn: TableAndColumn): SqlTable[] {
-    const linkedIdTables: SqlTable[] = [];
-    for (const t of this.listTables()) {
-      const allLinkedCols = t.linkedIdColumns;
-      if (
-        allLinkedCols.find(
-          (c) =>
-            c.type.tableAndColumn &&
-            c.type.tableAndColumn.isEqual(tableAndColumn),
-        )
-      ) {
-        linkedIdTables.push(t);
-      }
-    }
-    return linkedIdTables;
   }
 
   getTable(tableName: string): SqlTable | undefined {
@@ -246,8 +232,6 @@ class SqlTableImpl implements SqlTable {
   type: string;
   columns: SqlColumn[];
   idColumn: SqlColumn | undefined;
-  linkedIdColumns: SqlColumn[];
-  joinIdColumns: SqlColumn[];
 
   constructor(
     readonly trace: Trace,
@@ -259,69 +243,27 @@ class SqlTableImpl implements SqlTable {
     this.description = docs.desc;
     this.type = docs.type;
     this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
-
-    this.linkedIdColumns = [];
-    this.joinIdColumns = [];
-    for (const c of this.columns) {
-      if (c.type.name === 'id') {
-        this.idColumn = c;
-        continue;
-      }
-      if (c.type.shortName === 'id') {
-        this.linkedIdColumns.push(c);
-        continue;
-      }
-      if (c.type.shortName === 'joinid') {
-        this.joinIdColumns.push(c);
-        continue;
-      }
-    }
-  }
-
-  getIdColumns(): SqlColumn[] {
-    return this.columns.filter((c) => c.type.shortName === 'id');
-  }
-
-  getJoinIdColumns(): SqlColumn[] {
-    return this.columns.filter((c) => c.type.shortName === 'joinid');
-  }
-
-  getIdTables(): TableAndColumn[] {
-    return this.getIdColumns()
-      .map((c) => c.type.tableAndColumn)
-      .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
-  }
-
-  getJoinIdTables(): TableAndColumn[] {
-    return this.getJoinIdColumns()
-      .map((c) => c.type.tableAndColumn)
-      .filter((tAndC) => tAndC !== undefined) as TableAndColumn[];
   }
 
   getTableColumns(): TableColumn[] {
     return this.columns.map((col) =>
-      createTableColumnFromPerfettoSql(this.trace, col, this.name),
+      createTableColumn({
+        trace: this.trace,
+        table: this.name,
+        column: col.name,
+        type: col.type,
+      }),
     );
   }
 }
 
 class StdlibColumnImpl implements SqlColumn {
   name: string;
-  type: SqlType;
+  type: PerfettoSqlType;
   description: string;
 
   constructor(docs: DocsArgOrColSchemaType) {
-    this.type = {
-      name: docs.type.toLowerCase(),
-      shortName: docs.type.split('(')[0].toLowerCase(),
-      tableAndColumn:
-        docs.table && docs.column
-          ? new TableAndColumnImpl(
-              docs.table.toLowerCase(),
-              docs.column.toLowerCase(),
-            )
-          : undefined,
-    };
+    this.type = unwrapResult(parsePerfettoSqlTypeFromString(docs.type));
     this.description = docs.desc;
     this.name = docs.name;
   }
@@ -336,18 +278,6 @@ class StdlibFunctionArgImpl implements SqlArgument {
     this.type = docs.type;
     this.description = docs.desc;
     this.name = docs.name;
-  }
-}
-
-export class TableAndColumnImpl implements TableAndColumn {
-  table: string;
-  column: string;
-  constructor(table: string, column: string) {
-    this.table = table;
-    this.column = column;
-  }
-  isEqual(o: TableAndColumn): boolean {
-    return o.table === this.table && o.column === this.column;
   }
 }
 

@@ -25,6 +25,7 @@ import {AsyncLimiter} from '../../../../base/async_limiter';
 import {areFiltersEqual, Filter, Filters} from './filters';
 import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
+import {uuidv4} from '../../../../base/uuid';
 
 const ROW_LIMIT = 100;
 
@@ -56,6 +57,7 @@ interface RowCount {
 
 export class SqlTableState {
   public readonly filters: Filters;
+  public readonly uuid: string;
 
   private readonly additionalImports: string[];
   private readonly asyncLimiter = new AsyncLimiter();
@@ -88,6 +90,7 @@ export class SqlTableState {
     },
   ) {
     this.additionalImports = args?.imports || [];
+    this.uuid = uuidv4();
 
     this.filters = args?.filters || new Filters();
     this.filters.addObserver(() => this.reload());
