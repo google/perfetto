@@ -50,6 +50,7 @@
 #include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/traced/probes/system_info/system_info_data_source.h"
+#include "src/traced/probes/user_list/user_list_data_source.h"
 
 namespace perfetto {
 namespace {
@@ -296,6 +297,18 @@ ProbesProducer::CreateDSInstance<SystemInfoDataSource>(
 
 template <>
 std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<UserListDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<ProbesDataSource>(new UserListDataSource(
+      config, session_id,
+      endpoint_->CreateTraceWriter(buffer_id,
+                                   perfetto::BufferExhaustedPolicy::kDrop)));
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
 ProbesProducer::CreateDSInstance<InitialDisplayStateDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
@@ -365,6 +378,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
 #endif
     Ds<SysStatsDataSource>(),
     Ds<SystemInfoDataSource>(),
+    Ds<UserListDataSource>(),
 };
 
 }  // namespace
