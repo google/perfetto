@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -223,7 +223,10 @@ function renderStatusCard(
         m('.pf-trace-info-page__status-value', count),
       ),
       isClickable &&
-        m('.pf-trace-info-page__status-link', m(Icon, {icon: 'arrow_forward'})),
+        m(
+          '.pf-trace-info-page__status-link',
+          m(Icon, {icon: 'arrow_forward', className: 'pf-trace-info-page__status-link-icon'}),
+        ),
     ),
   );
 }

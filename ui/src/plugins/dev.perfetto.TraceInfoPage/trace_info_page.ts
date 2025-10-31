@@ -1,4 +1,4 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         '.pf-trace-info-page__inner',
         m(
           '.pf-trace-info-page__header',
-          m('h1', 'Overview'),
+          m('h1.pf-trace-info-page__header-title', 'Overview'),
           m(
             '.pf-trace-info-page__subtitle',
             'High-level summary of trace health, metrics, and system information',

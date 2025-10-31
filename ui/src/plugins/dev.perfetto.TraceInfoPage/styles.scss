@@ -1,4 +1,4 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,17 +31,17 @@
     overflow: hidden;
   }
 
-  // Header
+  // Header section
   &__header {
     padding: 24px 28px 20px;
     border-bottom: 1px solid var(--pf-color-border);
+  }
 
-    h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 8px;
-      letter-spacing: -0.02em;
-    }
+  &__header-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
   }
 
   &__subtitle {
@@ -50,124 +50,28 @@
     line-height: 1.5;
   }
 
-  // Tab bar styling
-  .pf-tabs {
-    border-bottom: 1px solid var(--pf-color-border);
-    padding: 0 28px;
-
-    .pf-tabs__tab {
-      font-size: 16px;
-      font-weight: 500;
-      padding: 14px 18px;
-    }
-  }
-
-  // Tab content
+  // Tab content area
   &__tab-content {
     padding: 16px 28px 24px;
+  }
 
-    // Section overrides - remove borders, adjust styling
-    .pf-section {
-      border: none;
-      border-radius: 0;
-      margin-bottom: 28px;
+  // Category section headings
+  &__category-heading {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 4px;
+    color: var(--pf-color-text);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
 
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      header {
-        border-bottom: none;
-        margin-bottom: 8px;
-        padding: 0;
-
-        h1 {
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--pf-color-text);
-          letter-spacing: -0.01em;
-          margin-bottom: 4px;
-        }
-      }
-
-      &__subtitle {
-        font-size: 15px;
-        color: var(--pf-color-text-muted);
-        line-height: 1.4;
-        margin: 0;
-      }
-
-      article {
-        padding: 0;
-      }
-    }
-
-    // Category section headings
-    h3 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-top: 24px;
-      margin-bottom: 4px;
-      color: var(--pf-color-text);
-      word-break: break-word;
-      overflow-wrap: break-word;
-    }
-
-    p {
-      font-size: 15px;
-      color: var(--pf-color-text-muted);
-      margin-top: 2px;
-      margin-bottom: 12px;
-      line-height: 1.5;
-    }
-
-    // Grid styling overrides for larger fonts
-    .pf-grid {
-      font-size: 15px;
-
-      .pf-grid-header-cell {
-        font-size: 15px;
-        font-weight: 600;
-      }
-
-      .pf-grid-cell {
-        font-size: 15px;
-        padding: 10px 12px;
-      }
-    }
-
-    // Args rendering (import errors detail)
-    &__args {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 13px;
-    }
-
-    &__arg-item {
-      line-height: 1.4;
-    }
-
-    &__arg-key {
-      font-weight: 600;
-      color: var(--pf-color-text);
-    }
-
-    &__arg-value {
-      font-family: var(--pf-font-monospace);
-      color: var(--pf-color-text-muted);
-    }
-
-    // Consistent grid spacing and responsive columns
-    .pf-grid-layout {
-      margin-bottom: 0;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-
-      @media (max-width: 600px) {
-        grid-template-columns: 1fr;
-      }
-    }
+  &__category-description {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+    margin-top: 2px;
+    margin-bottom: 12px;
+    line-height: 1.5;
   }
 
   // Cards (shared base styles)
@@ -184,32 +88,36 @@
     grid-column: span 2;
   }
 
+  // Status cards with states
   &__status-card {
     justify-content: center;
+  }
 
-    &--success {
-      border-left: 4px solid var(--pf-color-success);
-    }
-    &--warning {
-      border-left: 4px solid var(--pf-color-warning);
-    }
-    &--danger {
-      border-left: 4px solid var(--pf-color-danger);
-    }
-    &--clickable {
-      cursor: pointer;
-      transition:
-        transform 0.1s ease-in-out,
-        box-shadow 0.1s ease-in-out;
+  &__status-card--success {
+    border-left: 4px solid var(--pf-color-success);
+  }
 
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-      }
+  &__status-card--warning {
+    border-left: 4px solid var(--pf-color-warning);
+  }
 
-      &:active {
-        transform: translateY(0);
-      }
+  &__status-card--danger {
+    border-left: 4px solid var(--pf-color-danger);
+  }
+
+  &__status-card--clickable {
+    cursor: pointer;
+    transition:
+      transform 0.1s ease-in-out,
+      box-shadow 0.1s ease-in-out;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+      transform: translateY(0);
     }
   }
 
@@ -265,10 +173,32 @@
     &:hover {
       opacity: 1;
     }
+  }
 
-    .pf-icon {
-      font-size: 20px;
-    }
+  &__status-link-icon {
+    font-size: 20px;
+  }
+
+  // Args rendering (import errors detail)
+  &__args {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  &__arg-item {
+    line-height: 1.4;
+  }
+
+  &__arg-key {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__arg-value {
+    font-family: var(--pf-font-monospace);
+    color: var(--pf-color-text-muted);
   }
 
   // Logs grid with virtualization
@@ -287,12 +217,6 @@
     &:hover {
       opacity: 1;
     }
-  }
-
-  // Config tab code snippet
-  .pf-code-snippet pre code {
-    font-size: 14px;
-    line-height: 1.5;
   }
 
   // UI Loading errors
@@ -326,39 +250,143 @@
     word-break: break-word;
   }
 
-  // Table styles for Stats tab
-  section {
+  // Stats tab table
+  &__stats-table {
+    width: 100%;
+    border-spacing: 4px 1px;
+    margin: 0;
+  }
+
+  &__stats-table-head-cell {
+    padding-bottom: 5px;
+    font-weight: 500;
+  }
+
+  &__stats-table-row:nth-child(odd) &__stats-table-cell {
+    background-color: color_hover(transparent);
+  }
+
+  &__stats-table-cell {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+    padding: 5px;
+    word-break: break-all;
+    white-space: pre-wrap;
+    vertical-align: top;
+  }
+
+  &__stats-table-cell--name {
+    font-weight: 800;
+    min-width: 150px;
+  }
+
+  // Stats section wrapper
+  &__stats-section {
     margin: 0;
     padding: 0;
+  }
 
-    table {
-      width: 100%;
-      border-spacing: 4px 1px;
+  // ============================================================================
+  // External component overrides
+  // These styles override external components for consistent appearance
+  // ============================================================================
 
-      thead td {
-        padding-bottom: 5px;
-        font-weight: 500;
-      }
+  // Override pf-tabs styling
+  .pf-tabs {
+    border-bottom: 1px solid var(--pf-color-border);
+    padding: 0 28px;
 
-      tbody {
-        tr:nth-child(odd) td {
-          background-color: color_hover(transparent);
-        }
+    .pf-tabs__tab {
+      font-size: 16px;
+      font-weight: 500;
+      padding: 14px 18px;
+    }
+  }
 
-        td {
-          font-family: var(--pf-font-monospace);
-          font-size: 12px;
-          padding: 5px;
-          word-break: break-all;
-          white-space: pre-wrap;
-          vertical-align: top;
+  // Override pf-section styling within tab content
+  &__tab-content .pf-section {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 28px;
 
-          &:first-of-type {
-            font-weight: 800;
-            min-width: 150px;
-          }
-        }
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    header {
+      border-bottom: none;
+      margin-bottom: 8px;
+      padding: 0;
+
+      h1 {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--pf-color-text);
+        letter-spacing: -0.01em;
+        margin-bottom: 4px;
       }
     }
+
+    .pf-section__subtitle {
+      font-size: 15px;
+      color: var(--pf-color-text-muted);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    article {
+      padding: 0;
+    }
+  }
+
+  // Override pf-grid styling for larger fonts
+  &__tab-content .pf-grid {
+    font-size: 15px;
+
+    .pf-grid-header-cell {
+      font-size: 15px;
+      font-weight: 600;
+
+      .pf-grid-header-cell__title-wrapper {
+        padding: 10px 12px;
+      }
+    }
+
+    .pf-grid-cell {
+      font-size: 15px;
+      padding: 10px 12px;
+    }
+  }
+
+  // Override pf-grid-layout for consistent card layout
+  &__tab-content .pf-grid-layout {
+    margin-bottom: 0;
+    gap: 16px;
+  }
+
+  // Override pf-code-snippet styling
+  &__tab-content .pf-code-snippet pre code {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  // Generic heading overrides for category sections
+  // These are used in utils.ts renderCategorySection
+  &__tab-content h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 4px;
+    color: var(--pf-color-text);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  &__tab-content p {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+    margin-top: 2px;
+    margin-bottom: 12px;
+    line-height: 1.5;
   }
 }

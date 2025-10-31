@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License at
@@ -138,14 +138,28 @@ class TraceMetadata implements m.ClassComponent<TraceMetadataAttrs> {
     }
 
     const tableRows = data.map((row) => {
-      return m('tr', m('td.name', `${row.name}`), m('td', `${row.value}`));
+      return m(
+        'tr.pf-trace-info-page__stats-table-row',
+        m(
+          'td.pf-trace-info-page__stats-table-cell.pf-trace-info-page__stats-table-cell--name',
+          `${row.name}`,
+        ),
+        m('td.pf-trace-info-page__stats-table-cell', `${row.value}`),
+      );
     });
 
     return m(
-      'section',
+      'section.pf-trace-info-page__stats-section',
       m(
-        'table',
-        m('thead', m('tr', m('td', 'Name'), m('td', 'Value'))),
+        'table.pf-trace-info-page__stats-table',
+        m(
+          'thead',
+          m(
+            'tr',
+            m('td.pf-trace-info-page__stats-table-head-cell', 'Name'),
+            m('td.pf-trace-info-page__stats-table-head-cell', 'Value'),
+          ),
+        ),
         m('tbody', tableRows),
       ),
     );
@@ -182,18 +196,30 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       return m(
-        'tr',
-        m('td.name', `${row.name}${idx}`, help),
-        m('td', `${row.value}`),
-        m('td', `${row.severity} (${row.source})`),
+        'tr.pf-trace-info-page__stats-table-row',
+        m(
+          'td.pf-trace-info-page__stats-table-cell.pf-trace-info-page__stats-table-cell--name',
+          `${row.name}${idx}`,
+          help,
+        ),
+        m('td.pf-trace-info-page__stats-table-cell', `${row.value}`),
+        m('td.pf-trace-info-page__stats-table-cell', `${row.severity} (${row.source})`),
       );
     });
 
     return m(
-      'section',
+      'section.pf-trace-info-page__stats-section',
       m(
-        'table',
-        m('thead', m('tr', m('td', 'Name'), m('td', 'Value'), m('td', 'Type'))),
+        'table.pf-trace-info-page__stats-table',
+        m(
+          'thead',
+          m(
+            'tr',
+            m('td.pf-trace-info-page__stats-table-head-cell', 'Name'),
+            m('td.pf-trace-info-page__stats-table-head-cell', 'Value'),
+            m('td.pf-trace-info-page__stats-table-head-cell', 'Type'),
+          ),
+        ),
         m('tbody', tableRows),
       ),
     );
