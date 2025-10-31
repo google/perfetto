@@ -22,7 +22,9 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/stats.h"
@@ -93,7 +95,11 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
                                             StringId raw_name,
                                             int64_t duration,
                                             SetArgsCallback args_callback) {
-  PERFETTO_DCHECK(duration >= 0);
+  if (duration < 0) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::slice_negative_duration, timestamp);
+    return std::nullopt;
+  }
 
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
@@ -468,11 +474,11 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
 
   const auto& slices = context_->storage->slice_table();
 
-  base::FnvHasher hash;
+  base::MurmurHashCombiner hash;
   for (const auto& i : stack) {
     auto ref = i.row.ToRowReference(slices);
-    hash.Update(ref.category().value_or(kNullStringId).raw_id());
-    hash.Update(ref.name().value_or(kNullStringId).raw_id());
+    hash.Combine(ref.category());
+    hash.Combine(ref.name());
   }
 
   // For clients which don't have an integer type (i.e. Javascript), returning

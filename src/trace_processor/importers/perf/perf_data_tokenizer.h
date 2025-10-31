@@ -34,7 +34,7 @@
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
-#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_invocation.h"
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -89,7 +89,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::Status ProcessTimeConvRecord(Record record);
   base::Status ProcessItraceStartRecord(Record record);
 
-  base::StatusOr<int64_t> ExtractTraceTimestamp(const Record& record);
+  std::optional<int64_t> ExtractTraceTimestamp(const Record& record);
 
   TraceProcessorContext* context_;
   PerfTracker perf_tracker_;
@@ -106,7 +106,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   // the sections.
   std::vector<std::pair<uint8_t, PerfFile::Section>> feature_sections_;
 
-  RefPtr<PerfSession> perf_session_;
+  RefPtr<PerfInvocation> perf_invocation_;
 
   util::TraceBlobViewReader buffer_;
 

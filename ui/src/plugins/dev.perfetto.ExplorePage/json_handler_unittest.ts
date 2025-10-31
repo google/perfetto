@@ -24,11 +24,11 @@ import {Trace} from '../../public/trace';
 import {
   SqlModules,
   SqlTable,
-  SqlType,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/dev/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/dev/sort_node';
+import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -41,10 +41,9 @@ describe('JSON serialization/deserialization', () => {
       },
     } as Trace;
 
-    const stringType: SqlType = {name: 'STRING', shortName: 'string'};
-    const timestampType: SqlType = {
-      name: 'TIMESTAMP_NS',
-      shortName: 'timestamp_ns',
+    const stringType: PerfettoSqlType = {kind: 'string'};
+    const timestampType: PerfettoSqlType = {
+      kind: 'timestamp',
     };
 
     const tables = new Map<string, SqlTable>();
@@ -53,14 +52,7 @@ describe('JSON serialization/deserialization', () => {
       description: '',
       type: 'table',
       includeKey: '',
-      idColumn: undefined,
-      linkedIdColumns: [],
-      joinIdColumns: [],
       getTableColumns: () => [],
-      getIdColumns: () => [],
-      getJoinIdColumns: () => [],
-      getIdTables: () => [],
-      getJoinIdTables: () => [],
       columns: [
         {
           name: 'name',
@@ -447,25 +439,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedModifyNode1.prevNode?.nodeId).toBe(
       deserializedTableNode1.nodeId,
     );
-  });
-
-  test('serializes and deserializes custom title', () => {
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-      customTitle: 'My Custom Title',
-    });
-    const initialState: ExplorePageState = {
-      rootNodes: [sliceNode],
-      nodeLayouts: new Map(),
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    expect(deserializedState.rootNodes.length).toBe(1);
-    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
-    expect(deserializedNode.state.customTitle).toBe('My Custom Title');
-    expect(deserializedNode.getTitle()).toBe('My Custom Title');
   });
 
   test('serializes and deserializes modify columns node', () => {

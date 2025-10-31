@@ -42,7 +42,7 @@ export default class Frames implements PerfettoPlugin {
   static onActivate(app: App): void {
     Frames.showExperimentalJankClassification = app.settings.register({
       id: `${app.pluginId}#showExperimentalJankClassification`,
-      name: 'show experimental jank classificaiton track (alpha)',
+      name: 'show experimental jank classification track (alpha)',
       description: 'Use alternative method to classify jank. Not recommented.',
       schema: z.boolean(),
       defaultValue: false,

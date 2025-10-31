@@ -86,7 +86,7 @@ export default class implements PerfettoPlugin {
         uri,
         name: `GPU ${processName}`,
       });
-      ctx.workspace.addChildInOrder(track);
+      ctx.defaultWorkspace.addChildInOrder(track);
     }
   }
 }

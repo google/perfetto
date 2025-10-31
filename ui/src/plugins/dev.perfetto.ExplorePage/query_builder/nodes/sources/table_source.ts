@@ -31,16 +31,19 @@ import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
-import {createFiltersProto, FilterOperation} from '../../operations/filter';
-import {FilterDefinition} from '../../../../../components/widgets/data_grid/common';
+import {
+  createFiltersProto,
+  FilterOperation,
+  UIFilter,
+} from '../../operations/filter';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
+import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
 
 export interface TableSourceSerializedState {
   sqlTable?: string;
-  filters?: FilterDefinition[];
-  customTitle?: string;
+  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -128,7 +131,6 @@ export class TableSourceNode implements SourceNode {
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
       filters: this.state.filters?.map((f) => ({...f})),
-      customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
     return new TableSourceNode(stateCopy);
@@ -166,7 +168,7 @@ export class TableSourceNode implements SourceNode {
                   return m(
                     'tr',
                     m('td', col.name),
-                    m('td', col.type.name),
+                    m('td', perfettoSqlTypeToString(col.type)),
                     m('td', col.description),
                   );
                 }),
@@ -176,8 +178,8 @@ export class TableSourceNode implements SourceNode {
         m(FilterOperation, {
           filters: this.state.filters,
           sourceCols: this.finalCols,
-          onFiltersChanged: (newFilters: ReadonlyArray<FilterDefinition>) => {
-            this.state.filters = newFilters as FilterDefinition[];
+          onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+            this.state.filters = [...newFilters];
             this.state.onchange?.();
           },
         }),
@@ -191,7 +193,7 @@ export class TableSourceNode implements SourceNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? `${this.state.sqlTable?.name}`;
+    return `${this.state.sqlTable?.name}`;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -221,7 +223,6 @@ export class TableSourceNode implements SourceNode {
     return {
       sqlTable: this.state.sqlTable?.name,
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
   }

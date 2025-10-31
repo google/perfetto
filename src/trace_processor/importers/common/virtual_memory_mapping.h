@@ -22,9 +22,11 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -32,8 +34,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // TODO(carlscab): Reconsider whether jit is the best abstraction here. All we
 // really care is about mapping a `rel_pc` to a symbol (aka symbolization) and
@@ -130,14 +131,13 @@ class VirtualMemoryMapping {
       return rel_pc == o.rel_pc && name_id == o.name_id;
     }
 
-    struct Hasher {
-      size_t operator()(const FrameKey& k) const {
-        return static_cast<size_t>(
-            base::FnvHasher::Combine(k.rel_pc, k.name_id.raw_id()));
-      }
-    };
+    template <typename H>
+    friend H PerfettoHashValue(H h, const FrameKey& k) {
+      return H::Combine(std::move(h), k.rel_pc, k.name_id);
+    }
   };
-  base::FlatHashMap<FrameKey, FrameId, FrameKey::Hasher> interned_frames_;
+  base::FlatHashMap<FrameKey, FrameId, base::MurmurHash<FrameKey>>
+      interned_frames_;
   base::FlatHashMap<uint64_t, std::vector<FrameId>> frames_by_rel_pc_;
 };
 
@@ -194,19 +194,16 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
              source_file_id == o.source_file_id && line_number == o.line_number;
     }
 
-    struct Hasher {
-      size_t operator()(const DummyFrameKey& k) const {
-        return static_cast<size_t>(base::FnvHasher::Combine(
-            k.function_name_id.raw_id(), k.source_file_id.raw_id(),
-            k.line_number.value_or(0)));
-      }
-    };
+    template <typename H>
+    friend H PerfettoHashValue(H h, const DummyFrameKey& k) {
+      return H::Combine(std::move(h), k.function_name_id, k.source_file_id,
+                        k.line_number);
+    }
   };
-  base::FlatHashMap<DummyFrameKey, FrameId, DummyFrameKey::Hasher>
+  base::FlatHashMap<DummyFrameKey, FrameId, base::MurmurHash<DummyFrameKey>>
       interned_dummy_frames_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_VIRTUAL_MEMORY_MAPPING_H_

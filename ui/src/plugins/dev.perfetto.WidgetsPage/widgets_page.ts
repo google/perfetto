@@ -79,6 +79,7 @@ import {
 } from './widget_page_utils';
 import {renderGridDemo} from './grid_demo';
 import {renderDataGridDemo} from './data_grid_demo';
+import {NodeGraphDemo} from './nodegraph_demo';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -918,7 +919,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                 checked: value,
               };
             }),
-            popupPosition: PopupPosition.Top,
+            position: PopupPosition.Top,
             label: 'Multi Select',
             icon: arg(icon, Icons.LibraryAddCheck),
             onChange: (diffs: MultiSelectDiff[]) => {
@@ -1012,7 +1013,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             ),
           ),
         initialOpts: {
-          popupPosition: new EnumOption(
+          position: new EnumOption(
             PopupPosition.Bottom,
             Object.values(PopupPosition),
           ),
@@ -1064,7 +1065,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               right: m(
                 PopupMenu,
                 {
-                  popupPosition: PopupPosition.RightStart,
+                  position: PopupPosition.RightStart,
                   trigger: m(
                     Anchor,
                     {
@@ -1646,6 +1647,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         initialOpts: {
           wide: false,
         },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'NodeGraph',
+        description:
+          'Scroll left and right to pan / pinch to zoom. Drag nodes from output to input ports to connect nodes. Click connectors or drag outputs away from ports to remove connections.',
+        wide: true,
+        renderWidget: () => m(NodeGraphDemo),
+        initialOpts: {},
       }),
     );
   }

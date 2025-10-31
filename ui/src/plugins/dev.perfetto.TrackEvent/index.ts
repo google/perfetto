@@ -92,7 +92,14 @@ function computeTrackEventCallstackFlamegraph(
             ${selection.start},
             ${selection.end},
             (
-              select id, ts, dur
+              select
+                id,
+                ts,
+                -- We do this instead of filtering out negative durations
+                -- because we still want to include begin callsites for
+                -- incomplete slices. The code below will take care of
+                -- only looking at begin callsites for such slices.
+                max(dur, 0) as dur
               from slice
               where track_id in (${trackIds.join()})
             )
@@ -130,7 +137,10 @@ function computeTrackEventCallstackFlamegraph(
         columnName: 'self_count',
       },
     ],
-    'include perfetto module callstacks.stack_profile',
+    `
+     include perfetto module callstacks.stack_profile;
+     include perfetto module intervals.intersect;
+    `,
     [{name: 'mapping_name', displayName: 'Mapping'}],
     [
       {
@@ -340,7 +350,7 @@ export default class implements PerfettoPlugin {
       return assertExists(processGroupsPlugin.getGroupForProcess(upid));
     }
     if (hasChildren) {
-      return ctx.workspace.tracks;
+      return ctx.defaultWorkspace.tracks;
     }
     const id = `/track_event_root`;
     let node = this.parentTrackNodes.get(id);
@@ -349,7 +359,7 @@ export default class implements PerfettoPlugin {
         name: 'Global Track Events',
         isSummary: true,
       });
-      ctx.workspace.addChildInOrder(node);
+      ctx.defaultWorkspace.addChildInOrder(node);
       this.parentTrackNodes.set(id, node);
     }
     return node;

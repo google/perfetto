@@ -131,7 +131,7 @@ export default class implements PerfettoPlugin {
       sortOrder: 50,
       isSummary: true,
     });
-    this.ctx.workspace.addChildInOrder(kernelThreadsGroup);
+    this.ctx.defaultWorkspace.addChildInOrder(kernelThreadsGroup);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
@@ -278,7 +278,7 @@ export default class implements PerfettoPlugin {
         });
 
         // Re-insert the child node to sort it
-        this.ctx.workspace.addChildInOrder(group);
+        this.ctx.defaultWorkspace.addChildInOrder(group);
         this.processGroups.set(uid, group);
       } else {
         // Ignore kernel process groups
@@ -295,7 +295,7 @@ export default class implements PerfettoPlugin {
         });
 
         // Re-insert the child node to sort it
-        this.ctx.workspace.addChildInOrder(group);
+        this.ctx.defaultWorkspace.addChildInOrder(group);
         this.threadGroups.set(uid, group);
       }
     }

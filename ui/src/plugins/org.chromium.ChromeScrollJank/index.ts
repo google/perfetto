@@ -50,7 +50,7 @@ export default class implements PerfettoPlugin {
     await ScrollJankCauseMap.initialize(ctx.engine);
     await this.addScrollTimelineTrack(ctx, group);
     await this.addVsyncTracks(ctx, group);
-    ctx.workspace.addChildInOrder(group);
+    ctx.defaultWorkspace.addChildInOrder(group);
     group.expand();
   }
 

@@ -76,20 +76,20 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         // Hide tracks while the trace is loading to prevent thrashing.
         !AppImpl.instance.isLoadingTrace && [
           // Don't render pinned tracks if we have none.
-          trace.workspace.pinnedTracks.length > 0 &&
+          trace.currentWorkspace.pinnedTracks.length > 0 &&
             m(TrackTreeView, {
               trace,
               className: 'pf-timeline-page__pinned-track-tree',
-              rootNode: trace.workspace.pinnedTracksNode,
+              rootNode: trace.currentWorkspace.pinnedTracksNode,
               canReorderNodes: true,
               scrollToNewTracks: true,
             }),
           m(TrackTreeView, {
             trace,
             className: 'pf-timeline-page__scrolling-track-tree',
-            rootNode: trace.workspace.tracks,
-            canReorderNodes: trace.workspace.userEditable,
-            canRemoveNodes: trace.workspace.userEditable,
+            rootNode: trace.currentWorkspace.tracks,
+            canReorderNodes: trace.currentWorkspace.userEditable,
+            canRemoveNodes: trace.currentWorkspace.userEditable,
             trackFilter: (track) => trackMatchesFilter(trace, track),
           }),
         ],
