@@ -225,6 +225,32 @@ message PerfettoSqlStructuredQuery {
     }
   }
 
+  // DON'T USE. EXPERIMENTAL.
+  // Performs a SQL UNION or UNION ALL operation on multiple queries.
+  //
+  // Examples:
+  //  1) Combine slices from different sources:
+  //    * queries contains multiple structured queries, each returning slices
+  //      from different tables or with different filters.
+  //    * use_union_all = false to remove duplicate rows.
+  //  2) Aggregate events from multiple processes:
+  //    * queries contains structured queries for events from different
+  //      processes.
+  //    * use_union_all = true to keep all events even if there are duplicates.
+  //
+  // Schema:
+  //  All queries must have the same number of columns with compatible types.
+  //  The column names from the first query will be used in the result.
+  message ExperimentalUnion {
+    // The queries to union together. At least two queries are required.
+    repeated PerfettoSqlStructuredQuery queries = 1;
+
+    // Whether to use UNION ALL (true) or UNION (false).
+    // UNION removes duplicate rows, UNION ALL keeps all rows.
+    // Default is false (UNION without duplicates).
+    optional bool use_union_all = 2;
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -271,6 +297,9 @@ message PerfettoSqlStructuredQuery {
 
     // DON'T USE. EXPERIMENTAL.
     ExperimentalJoin experimental_join = 100;
+
+    // DON'T USE. EXPERIMENTAL.
+    ExperimentalUnion experimental_union = 101;
   }
 
   // Represents a single filter on a column.
@@ -374,4 +403,36 @@ message PerfettoSqlStructuredQuery {
     optional string column_name = 1 [deprecated = true];
   }
   repeated SelectColumn select_columns = 10;
+
+  // Represents an ORDER BY operation in SQL. Optional.
+  message OrderBy {
+    // The direction of the sort.
+    enum Direction {
+      UNSPECIFIED = 0;
+      ASC = 1;
+      DESC = 2;
+    }
+
+    // A single ordering specification.
+    message OrderingSpec {
+      // The column name to sort by. Required.
+      optional string column_name = 1;
+
+      // The direction to sort. Defaults to ASC if not specified.
+      optional Direction direction = 2;
+    }
+
+    // The list of ordering specifications. At least one is required.
+    repeated OrderingSpec ordering_specs = 1;
+  }
+  optional OrderBy order_by = 14;
+
+  // Limit the number of rows returned by the query. Maps to SQL LIMIT clause.
+  // Optional.
+  optional int64 limit = 12;
+
+  // Skip a number of rows in the result. Maps to SQL OFFSET clause.
+  // Optional. Requires `limit` to be specified (OFFSET without LIMIT returns
+  // zero rows in SQLite).
+  optional int64 offset = 13;
 }
