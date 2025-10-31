@@ -13,554 +13,194 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine, EngineAttrs} from '../../trace_processor/engine';
-import {QueryResult, UNKNOWN} from '../../trace_processor/query_result';
-import {assertExists} from '../../base/logging';
-import {Trace, TraceAttrs} from '../../public/trace';
-import {Icon} from '../../widgets/icon';
-import {Tooltip} from '../../widgets/tooltip';
-
-/**
- * Extracts and copies fields from a source object based on the keys present in
- * a spec object, effectively creating a new object that includes only the
- * fields that are present in the spec object.
- *
- * @template S - A type representing the spec object, a subset of T.
- * @template T - A type representing the source object, a superset of S.
- *
- * @param {T} source - The source object containing the full set of properties.
- * @param {S} spec - The specification object whose keys determine which fields
- * should be extracted from the source object.
- *
- * @returns {S} A new object containing only the fields from the source object
- * that are also present in the specification object.
- *
- * @example
- * const fullObject = { foo: 123, bar: '123', baz: true };
- * const spec = { foo: 0, bar: '' };
- * const result = pickFields(fullObject, spec);
- * console.log(result); // Output: { foo: 123, bar: '123' }
- */
-function pickFields<S extends Record<string, unknown>, T extends S>(
-  source: T,
-  spec: S,
-): S {
-  const result: Record<string, unknown> = {};
-  for (const key of Object.keys(spec)) {
-    result[key] = source[key];
-  }
-  return result as S;
-}
-
-interface StatsSectionAttrs {
-  engine: Engine;
-  title: string;
-  subTitle: string;
-  sqlConstraints: string;
-  cssClass: string;
-  queryId: string;
-}
-
-const statsSpec = {
-  name: UNKNOWN,
-  value: UNKNOWN,
-  description: UNKNOWN,
-  idx: UNKNOWN,
-  severity: UNKNOWN,
-  source: UNKNOWN,
-};
-
-type StatsSectionRow = typeof statsSpec;
-
-// Generic class that generate a <section> + <table> from the stats table.
-// The caller defines the query constraint, title and styling.
-// Used for errors, data losses and debugging sections.
-class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
-  private data?: StatsSectionRow[];
-
-  constructor({attrs}: m.CVnode<StatsSectionAttrs>) {
-    const engine = attrs.engine;
-    if (engine === undefined) {
-      return;
-    }
-    const query = `
-      select
-        name,
-        value,
-        cast(ifnull(idx, '') as text) as idx,
-        description,
-        severity,
-        source from stats
-      where ${attrs.sqlConstraints || '1=1'}
-      order by name, idx
-    `;
-
-    engine.query(query).then((resp) => {
-      const data: StatsSectionRow[] = [];
-      const it = resp.iter(statsSpec);
-      for (; it.valid(); it.next()) {
-        data.push(pickFields(it, statsSpec));
-      }
-      this.data = data;
-    });
-  }
-
-  view({attrs}: m.CVnode<StatsSectionAttrs>) {
-    const data = this.data;
-    if (data === undefined || data.length === 0) {
-      return m('');
-    }
-
-    const tableRows = data.map((row) => {
-      const help = [];
-      if (Boolean(row.description)) {
-        help.push(
-          m(
-            Tooltip,
-            {
-              trigger: m(Icon, {
-                icon: 'help_outline',
-                className: 'pf-trace-info-page__help-icon',
-              }),
-            },
-            `${row.description}`,
-          ),
-        );
-      }
-      const idx = row.idx !== '' ? `[${row.idx}]` : '';
-      return m(
-        'tr',
-        m('td.name', `${row.name}${idx}`, help),
-        m('td', `${row.value}`),
-        m('td', `${row.severity} (${row.source})`),
-      );
-    });
-
-    return m(
-      `section${attrs.cssClass}`,
-      m('h2', attrs.title),
-      m('h4', attrs.subTitle),
-      m(
-        'table',
-        m('thead', m('tr', m('td', 'Name'), m('td', 'Value'), m('td', 'Type'))),
-        m('tbody', tableRows),
-      ),
-    );
-  }
-}
-
-class LoadingErrors implements m.ClassComponent<TraceAttrs> {
-  view({attrs}: m.CVnode<TraceAttrs>) {
-    const errors = attrs.trace.loadingErrors;
-    if (errors.length === 0) return;
-    return m(
-      `section.errors`,
-      m('h2', `Loading errors`),
-      m('h4', `The following errors were encountered while loading the trace:`),
-      m('pre.metric-error', errors.join('\n')),
-    );
-  }
-}
-
-const traceMetadataRowSpec = {name: UNKNOWN, value: UNKNOWN};
-
-type TraceMetadataRow = typeof traceMetadataRowSpec;
-
-class TraceMetadata implements m.ClassComponent<EngineAttrs> {
-  private data?: TraceMetadataRow[];
-
-  oncreate({attrs}: m.CVnodeDOM<EngineAttrs>) {
-    const engine = attrs.engine;
-    const query = `
-      with metadata_with_priorities as (
-        select
-          name,
-          ifnull(str_value, cast(int_value as text)) as value,
-          name in (
-            "trace_size_bytes",
-            "cr-os-arch",
-            "cr-os-name",
-            "cr-os-version",
-            "cr-physical-memory",
-            "cr-product-version",
-            "cr-hardware-class"
-          ) as priority
-        from metadata
-      )
-      select
-        name,
-        value
-      from metadata_with_priorities
-      order by
-        priority desc,
-        name
-    `;
-
-    engine.query(query).then((resp: QueryResult) => {
-      const tableRows: TraceMetadataRow[] = [];
-      const it = resp.iter(traceMetadataRowSpec);
-      for (; it.valid(); it.next()) {
-        tableRows.push(pickFields(it, traceMetadataRowSpec));
-      }
-      this.data = tableRows;
-    });
-  }
-
-  view() {
-    const data = this.data;
-    if (data === undefined || data.length === 0) {
-      return m('');
-    }
-
-    const tableRows = data.map((row) => {
-      return m('tr', m('td.name', `${row.name}`), m('td', `${row.value}`));
-    });
-
-    return m(
-      'section',
-      m('h2', 'System info and metadata'),
-      m(
-        'table',
-        m('thead', m('tr', m('td', 'Name'), m('td', 'Value'))),
-        m('tbody', tableRows),
-      ),
-    );
-  }
-}
-
-const machineRowSpec = {
-  id: UNKNOWN,
-  rawId: UNKNOWN,
-  sysname: UNKNOWN,
-  release: UNKNOWN,
-  version: UNKNOWN,
-  arch: UNKNOWN,
-  numCpus: UNKNOWN,
-  androidBuildFingerprint: UNKNOWN,
-  androidDeviceManufacturer: UNKNOWN,
-  androidSdkVersion: UNKNOWN,
-};
-
-type MachineRow = typeof machineRowSpec;
-
-class MachineListSection implements m.ClassComponent<EngineAttrs> {
-  private data?: MachineRow[];
-
-  oncreate({attrs}: m.CVnodeDOM<EngineAttrs>) {
-    const engine = attrs.engine;
-    const query = `
-      select
-        id,
-        raw_id as rawId,
-        sysname,
-        release,
-        version,
-        arch,
-        num_cpus as numCpus,
-        android_build_fingerprint as androidBuildFingerprint,
-        android_device_manufacturer as androidDeviceManufacturer,
-        android_sdk_version as androidSdkVersion
-      from machine
-    `;
-
-    engine.query(query).then((resp: QueryResult) => {
-      const tableRows: MachineRow[] = [];
-      const it = resp.iter(machineRowSpec);
-      for (; it.valid(); it.next()) {
-        tableRows.push(pickFields(it, machineRowSpec));
-      }
-      this.data = tableRows;
-    });
-  }
-
-  view() {
-    const data = this.data;
-    if (data === undefined || data.length <= 1) {
-      return undefined;
-    }
-
-    const machineTables = data.map((row) => {
-      const tableRows = [];
-      for (const key of Object.keys(machineRowSpec)) {
-        const value = row[key as keyof MachineRow];
-        if (value !== undefined && value !== null) {
-          tableRows.push(m('tr', m('td.name', key), m('td', `${value}`)));
-        }
-      }
-
-      return m(
-        '',
-        m('h3', `Machine ${row.id}`),
-        m(
-          'table',
-          m('thead', m('tr', m('td', 'Name'), m('td', 'Value'))),
-          m('tbody', tableRows),
-        ),
-      );
-    });
-
-    return m(
-      'section',
-      m('h2', 'Machines'),
-      m('h4', 'System information of the machines involved in the trace.'),
-      machineTables,
-    );
-  }
-}
-
-const androidGameInterventionRowSpec = {
-  package_name: UNKNOWN,
-  uid: UNKNOWN,
-  current_mode: UNKNOWN,
-  standard_mode_supported: UNKNOWN,
-  standard_mode_downscale: UNKNOWN,
-  standard_mode_use_angle: UNKNOWN,
-  standard_mode_fps: UNKNOWN,
-  perf_mode_supported: UNKNOWN,
-  perf_mode_downscale: UNKNOWN,
-  perf_mode_use_angle: UNKNOWN,
-  perf_mode_fps: UNKNOWN,
-  battery_mode_supported: UNKNOWN,
-  battery_mode_downscale: UNKNOWN,
-  battery_mode_use_angle: UNKNOWN,
-  battery_mode_fps: UNKNOWN,
-};
-
-type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
-
-class AndroidGameInterventionList implements m.ClassComponent<EngineAttrs> {
-  private data?: AndroidGameInterventionRow[];
-
-  oncreate({attrs}: m.CVnodeDOM<EngineAttrs>) {
-    const engine = attrs.engine;
-    const query = `
-      select
-        package_name,
-        uid,
-        current_mode,
-        standard_mode_supported,
-        standard_mode_downscale,
-        standard_mode_use_angle,
-        standard_mode_fps,
-        perf_mode_supported,
-        perf_mode_downscale,
-        perf_mode_use_angle,
-        perf_mode_fps,
-        battery_mode_supported,
-        battery_mode_downscale,
-        battery_mode_use_angle,
-        battery_mode_fps
-      from android_game_intervention_list
-    `;
-
-    engine.query(query).then((resp) => {
-      const data: AndroidGameInterventionRow[] = [];
-      const it = resp.iter(androidGameInterventionRowSpec);
-      for (; it.valid(); it.next()) {
-        data.push(pickFields(it, androidGameInterventionRowSpec));
-      }
-      this.data = data;
-    });
-  }
-
-  view() {
-    const data = this.data;
-    if (data === undefined || data.length === 0) {
-      return m('');
-    }
-
-    const tableRows = [];
-    let standardInterventions = '';
-    let perfInterventions = '';
-    let batteryInterventions = '';
-
-    for (const row of data) {
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (row.standard_mode_supported) {
-        standardInterventions = `angle=${row.standard_mode_use_angle},downscale=${row.standard_mode_downscale},fps=${row.standard_mode_fps}`;
-      } else {
-        standardInterventions = 'Not supported';
-      }
-
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (row.perf_mode_supported) {
-        perfInterventions = `angle=${row.perf_mode_use_angle},downscale=${row.perf_mode_downscale},fps=${row.perf_mode_fps}`;
-      } else {
-        perfInterventions = 'Not supported';
-      }
-
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (row.battery_mode_supported) {
-        batteryInterventions = `angle=${row.battery_mode_use_angle},downscale=${row.battery_mode_downscale},fps=${row.battery_mode_fps}`;
-      } else {
-        batteryInterventions = 'Not supported';
-      }
-      // Game mode numbers are defined in
-      // https://cs.android.com/android/platform/superproject/+/main:frameworks/base/core/java/android/app/GameManager.java;l=68
-      if (row.current_mode === 1) {
-        row.current_mode = 'Standard';
-      } else if (row.current_mode === 2) {
-        row.current_mode = 'Performance';
-      } else if (row.current_mode === 3) {
-        row.current_mode = 'Battery';
-      }
-      tableRows.push(
-        m(
-          'tr',
-          m('td.name', `${row.package_name}`),
-          m('td', `${row.current_mode}`),
-          m('td', standardInterventions),
-          m('td', perfInterventions),
-          m('td', batteryInterventions),
-        ),
-      );
-    }
-
-    return m(
-      'section',
-      m('h2', 'Game Intervention List'),
-      m(
-        'table',
-        m(
-          'thead',
-          m(
-            'tr',
-            m('td', 'Name'),
-            m('td', 'Current mode'),
-            m('td', 'Standard mode interventions'),
-            m('td', 'Performance mode interventions'),
-            m('td', 'Battery mode interventions'),
-          ),
-        ),
-        m('tbody', tableRows),
-      ),
-    );
-  }
-}
-
-const packageDataSpec = {
-  packageName: UNKNOWN,
-  versionCode: UNKNOWN,
-  debuggable: UNKNOWN,
-  profileableFromShell: UNKNOWN,
-};
-
-type PackageData = typeof packageDataSpec;
-
-class PackageListSection implements m.ClassComponent<EngineAttrs> {
-  private packageList?: PackageData[];
-
-  oncreate({attrs}: m.CVnodeDOM<EngineAttrs>) {
-    const engine = attrs.engine;
-    this.loadData(engine);
-  }
-
-  private async loadData(engine: Engine): Promise<void> {
-    const query = `
-      select
-        package_name as packageName,
-        version_code as versionCode,
-        debuggable,
-        profileable_from_shell as profileableFromShell
-      from package_list
-    `;
-
-    const packageList: PackageData[] = [];
-    const result = await engine.query(query);
-    const it = result.iter(packageDataSpec);
-    for (; it.valid(); it.next()) {
-      packageList.push(pickFields(it, packageDataSpec));
-    }
-
-    this.packageList = packageList;
-  }
-
-  view() {
-    const packageList = this.packageList;
-    if (packageList === undefined || packageList.length === 0) {
-      return undefined;
-    }
-
-    const tableRows = packageList.map((it) => {
-      return m(
-        'tr',
-        m('td.name', `${it.packageName}`),
-        m('td', `${it.versionCode}`),
-        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        m(
-          'td',
-          `${it.debuggable ? 'debuggable' : ''} ${
-            it.profileableFromShell ? 'profileable' : ''
-          }`,
-        ),
-        /* eslint-enable */
-      );
-    });
-
-    return m(
-      'section',
-      m('h2', 'Package list'),
-      m(
-        'table',
-        m(
-          'thead',
-          m('tr', m('td', 'Name'), m('td', 'Version code'), m('td', 'Flags')),
-        ),
-        m('tbody', tableRows),
-      ),
-    );
-  }
-}
+import {Trace} from '../../public/trace';
+import {TabStrip, TabOption} from '../../widgets/tabs';
+import {EmptyState} from '../../widgets/empty_state';
+import type {TabKey} from './utils';
+import {isValidTabKey} from './utils';
+import {OverviewTab, OverviewData, loadOverviewData} from './tabs/overview';
+import {ConfigTab, ConfigData, loadConfigData} from './tabs/config';
+import {AndroidTab, AndroidData, loadAndroidData} from './tabs/android';
+import {MachinesTab, MachinesData, loadMachinesData} from './tabs/machines';
+import {
+  ImportErrorsTab,
+  ImportErrorsData,
+  loadImportErrorsData,
+} from './tabs/import_errors';
+import {
+  DataLossesTab,
+  DataLossesData,
+  loadDataLossesData,
+} from './tabs/data_losses';
+import {
+  TraceErrorsTab,
+  TraceErrorsData,
+  loadTraceErrorsData,
+} from './tabs/trace_errors';
+import {
+  UiLoadingErrorsTab,
+  UiLoadingErrorsData,
+} from './tabs/ui_loading_errors';
+import {StatsTab, StatsData, loadStatsData} from './tabs/stats';
 
 export interface TraceInfoPageAttrs {
   readonly trace: Trace;
+  readonly subpage: string | undefined;
+}
+
+interface AllTabData {
+  overview: OverviewData;
+  config: ConfigData;
+  android: AndroidData;
+  machines: MachinesData;
+  importErrors: ImportErrorsData;
+  traceErrors: TraceErrorsData;
+  dataLosses: DataLossesData;
+  uiLoadingErrors: UiLoadingErrorsData;
+  stats: StatsData;
 }
 
 export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
-  private engine?: Engine;
+  // All tab data
+  private tabData?: AllTabData;
+  private currentTab: TabKey = 'overview';
+  private lastSubpage?: string;
 
   oninit({attrs}: m.CVnode<TraceInfoPageAttrs>) {
-    this.engine = attrs.trace.engine.getProxy('TraceInfoPage');
+    this.loadAllData(attrs.trace);
   }
 
   view({attrs}: m.CVnode<TraceInfoPageAttrs>) {
-    const engine = assertExists(this.engine);
+    if (attrs.subpage !== this.lastSubpage) {
+      this.lastSubpage = attrs.subpage;
+      this.currentTab = getTab(attrs.subpage);
+    }
     return m(
       '.pf-trace-info-page',
-      m(LoadingErrors, {trace: attrs.trace}),
-      m(StatsSection, {
-        engine,
-        queryId: 'info_errors',
-        title: 'Import errors',
-        cssClass: '.pf-trace-info-page__errors',
-        subTitle: `The following errors have been encountered while importing
-               the trace. These errors are usually non-fatal but indicate that
-               one or more tracks might be missing or showing erroneous data.`,
-        sqlConstraints: `severity = 'error' and value > 0`,
-      }),
-      m(StatsSection, {
-        engine,
-        queryId: 'info_data_losses',
-        title: 'Data losses',
-        cssClass: '.pf-trace-info-page__errors',
-        subTitle: `These counters are collected at trace recording time. The
-               trace data for one or more data sources was dropped and hence
-               some track contents will be incomplete.`,
-        sqlConstraints: `severity = 'data_loss' and value > 0`,
-      }),
-      m(TraceMetadata, {engine}),
-      m(MachineListSection, {engine}),
-      m(PackageListSection, {engine}),
-      m(AndroidGameInterventionList, {engine}),
-      m(StatsSection, {
-        engine,
-        queryId: 'info_all',
-        title: 'Debugging stats',
-        cssClass: '',
-        subTitle: `Debugging statistics such as trace buffer usage and metrics
-                     coming from the TraceProcessor importer stages.`,
-        sqlConstraints: '',
-      }),
+      m(
+        '.pf-trace-info-page__inner',
+        m(
+          '.pf-trace-info-page__header',
+          m('h1', 'Overview'),
+          m(
+            '.pf-trace-info-page__subtitle',
+            'High-level summary of trace health, metrics, and system information',
+          ),
+        ),
+        m(TabStrip, {
+          tabs: this.getTabs(),
+          currentTabKey: this.currentTab,
+          onTabChange: (key: string) => {
+            this.currentTab = isValidTabKey(key) ? key : 'overview';
+          },
+        }),
+        this.renderCurrentTab(attrs.trace, this.currentTab),
+      ),
     );
   }
+
+  private renderCurrentTab(trace: Trace, currentTab: TabKey): m.Children {
+    if (!this.tabData) {
+      return m(EmptyState, {
+        icon: 'hourglass_empty',
+        title: 'Loading trace info...',
+      });
+    }
+    switch (currentTab) {
+      case 'overview':
+        return m(OverviewTab, {
+          trace,
+          data: this.tabData.overview,
+          onTabChange: (key: TabKey) => {
+            this.currentTab = key;
+          },
+        });
+      case 'config':
+        return m(ConfigTab, {
+          data: this.tabData.config,
+        });
+      case 'android':
+        return m(AndroidTab, {
+          data: this.tabData.android,
+        });
+      case 'machines':
+        return m(MachinesTab, {
+          data: this.tabData.machines,
+        });
+      case 'import_errors':
+        return m(ImportErrorsTab, {
+          data: this.tabData.importErrors,
+        });
+      case 'trace_errors':
+        return m(TraceErrorsTab, {
+          data: this.tabData.traceErrors,
+        });
+      case 'data_losses':
+        return m(DataLossesTab, {
+          data: this.tabData.dataLosses,
+        });
+      case 'ui_loading_errors':
+        return m(UiLoadingErrorsTab, {
+          data: this.tabData.uiLoadingErrors,
+        });
+      case 'stats':
+        return m(StatsTab, {
+          data: this.tabData.stats,
+        });
+    }
+  }
+
+  private async loadAllData(trace: Trace): Promise<void> {
+    const engine = trace.engine;
+    this.tabData = {
+      overview: await loadOverviewData(trace),
+      config: await loadConfigData(engine),
+      android: await loadAndroidData(engine),
+      machines: await loadMachinesData(engine),
+      importErrors: await loadImportErrorsData(engine),
+      traceErrors: await loadTraceErrorsData(engine),
+      dataLosses: await loadDataLossesData(engine),
+      uiLoadingErrors: {errors: trace.loadingErrors},
+      stats: await loadStatsData(engine),
+    };
+    m.redraw();
+  }
+
+  private getTabs(): TabOption[] {
+    const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
+    if (this.tabData?.config?.configText) {
+      tabs.push({key: 'config', title: 'Trace Config'});
+    }
+    if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
+      tabs.push({key: 'import_errors', title: 'Import Errors'});
+    }
+    if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
+      tabs.push({key: 'trace_errors', title: 'Trace Errors'});
+    }
+    if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
+      tabs.push({key: 'data_losses', title: 'Data Losses'});
+    }
+    if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
+      tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
+    }
+    const hasAndroid =
+      (this.tabData?.android?.packageList?.length ?? 0) > 0 ||
+      (this.tabData?.android?.gameInterventions?.length ?? 0) > 0;
+    if (hasAndroid) {
+      tabs.push({key: 'android', title: 'Android'});
+    }
+    if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
+      tabs.push({key: 'machines', title: 'Machines'});
+    }
+    tabs.push({key: 'stats', title: 'Info and Stats (advanced)'});
+    return tabs;
+  }
+}
+
+function getTab(subpage: string | undefined): TabKey {
+  if (!subpage) {
+    return 'overview';
+  }
+  const res = subpage.substring(1);
+  return isValidTabKey(res) ? res : 'overview';
 }
