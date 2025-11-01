@@ -94,16 +94,22 @@ macro_rules! pb_msg {
 
         impl<'a, 'b> $name<'a, 'b> {
             $(
-                pb_msg!(@setter $name, $field, $id, $kind, $tp);
+                pb_msg!(@setter pub fn $name, $field, $id, $kind, $tp);
             )*
         }
     };
 
     // Cstr
-    (@setter $name:ident, $field:ident, $id: literal, primitive, String) => {
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, String) => {
         paste::paste! {
             #[doc = concat!("Set `", stringify!($field), "` field")]
-            pub fn [<set_ $field>] (&mut self, value: impl Into<String>) -> &mut Self {
+            $vis fn [<set_ $field>] (&mut self, value: impl Into<String>) -> &mut Self;
+        }
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, String) => {
+        paste::paste! {
+            #[doc = concat!("Set `", stringify!($field), "` field")]
+            $vis fn [<set_ $field>] (&mut self, value: impl Into<String>) -> &mut Self {
                 let s: String = value.into();
                 self.msg.append_type2_field($id, s.as_bytes());
                 self
@@ -112,10 +118,16 @@ macro_rules! pb_msg {
     };
 
     // float
-    (@setter $name:ident, $field:ident, $id: literal, primitive, f32) => {
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, String) => {
         paste::paste! {
             #[doc = concat!("Set `", stringify!($field), "` field")]
-            pub fn [<set_ $field>] (&mut self, value: f32) -> &mut Self {
+            $vis fn [<set_ $field>] (&mut self, value: f32) -> &mut Self;
+        }
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, f32) => {
+        paste::paste! {
+            #[doc = concat!("Set `", stringify!($field), "` field")]
+            $vis fn [<set_ $field>] (&mut self, value: f32) -> &mut Self {
                 self.msg.append_float_field($id, value);
                 self
             }
@@ -123,10 +135,16 @@ macro_rules! pb_msg {
     };
 
     // double
-    (@setter $name:ident, $field:ident, $id: literal, primitive, f64) => {
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, String) => {
         paste::paste! {
             #[doc = concat!("Set `", stringify!($field), "` field")]
-            pub fn [<set_ $field>] (&mut self, value: f64) -> &mut Self {
+            $vis fn [<set_ $field>] (&mut self, value: f64) -> &mut Self;
+        }
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, f64) => {
+        paste::paste! {
+            #[doc = concat!("Set `", stringify!($field), "` field")]
+            $vis fn [<set_ $field>] (&mut self, value: f64) -> &mut Self {
                 self.msg.append_double_field($id, value);
                 self
             }
@@ -134,26 +152,47 @@ macro_rules! pb_msg {
     };
 
     // Varint
-    (@setter $name:ident, $field:ident, $id: literal, primitive, u32) => {
-        pb_msg!(@varint_setter $name, $field, $id, u32);
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, u32) => {
+        pb_msg!(@varint_decl $vis fn $name, $field, $id, u32);
     };
-    (@setter $name:ident, $field:ident, $id: literal, primitive, u64) => {
-        pb_msg!(@varint_setter $name, $field, $id, u64);
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, u32) => {
+        pb_msg!(@varint_setter $vis fn $name, $field, $id, u32);
     };
-    (@setter $name:ident, $field:ident, $id: literal, primitive, i32) => {
-        pb_msg!(@varint_setter $name, $field, $id, i32);
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, u64) => {
+        pb_msg!(@varint_decl $vis fn $name, $field, $id, u64);
     };
-    (@setter $name:ident, $field:ident, $id: literal, primitive, i64) => {
-        pb_msg!(@varint_setter $name, $field, $id, i64);
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, u64) => {
+        pb_msg!(@varint_setter $vis fn $name, $field, $id, u64);
     };
-    (@setter $name:ident, $field:ident, $id: literal, primitive, bool) => {
-        pb_msg!(@varint_setter $name, $field, $id, bool);
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, i32) => {
+        pb_msg!(@varint_decl $vis fn $name, $field, $id, i32);
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, i32) => {
+        pb_msg!(@varint_setter $vis fn $name, $field, $id, i32);
+    };
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, i64) => {
+        pb_msg!(@varint_decl $vis fn $name, $field, $id, i64);
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, i64) => {
+        pb_msg!(@varint_setter $vis fn $name, $field, $id, i64);
+    };
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, bool) => {
+        pb_msg!(@varint_decl $vis fn $name, $field, $id, bool);
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, primitive, bool) => {
+        pb_msg!(@varint_setter $vis fn $name, $field, $id, bool);
     };
 
-    (@varint_setter $name:ident, $field:ident, $id: literal, $tp:tt) => {
+    (@varint_decl $vis:vis fn $name:ident, $field:ident, $id: literal, $tp:tt) => {
         paste::paste! {
             #[doc = concat!("Set `", stringify!($field), "` field")]
-            pub fn [<set_ $field>] (&mut self, value: $tp) -> &mut Self {
+            $vis fn [<set_ $field>] (&mut self, value: $tp) -> &mut Self;
+        }
+    };
+    (@varint_setter $vis:vis fn $name:ident, $field:ident, $id: literal, $tp:tt) => {
+        paste::paste! {
+            #[doc = concat!("Set `", stringify!($field), "` field")]
+            $vis fn [<set_ $field>] (&mut self, value: $tp) -> &mut Self {
                 self.msg.append_type0_field($id, value as u64);
                 self
             }
@@ -161,10 +200,16 @@ macro_rules! pb_msg {
     };
 
     // Enum
-    (@setter $name:ident, $field:ident, $id: literal, enum, $tp:tt) => {
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, enum, $tp:tt) => {
         paste::paste! {
             #[doc = concat!("Set `", stringify!($field), "` field")]
-            pub fn [<set_ $field>] (&mut self, value: $tp) -> &mut Self {
+            $vis fn [<set_ $field>] (&mut self, value: $tp) -> &mut Self;
+        }
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, enum, $tp:tt) => {
+        paste::paste! {
+            #[doc = concat!("Set `", stringify!($field), "` field")]
+            $vis fn [<set_ $field>] (&mut self, value: $tp) -> &mut Self {
                 self.msg.append_type0_field($id, value as u64);
                 self
             }
@@ -172,10 +217,18 @@ macro_rules! pb_msg {
     };
 
     // Fallback to message
-    (@setter $name:ident, $field:ident, $id: literal, msg, $tp:tt) => {
+    (@decl $vis:vis fn $name:ident, $field:ident, $id: literal, msg, $tp:tt) => {
         paste::paste! {
             #[doc = concat!("Set `", stringify!($field), "` field")]
-            pub fn [<set_ $field>] <F>(&mut self, cb: F) -> &mut Self
+            $vis fn [<set_ $field>] <F>(&mut self, cb: F) -> &mut Self
+            where
+                F: for<'p> Fn(&'p mut $tp);
+        }
+    };
+    (@setter $vis:vis fn $name:ident, $field:ident, $id: literal, msg, $tp:tt) => {
+        paste::paste! {
+            #[doc = concat!("Set `", stringify!($field), "` field")]
+            $vis fn [<set_ $field>] <F>(&mut self, cb: F) -> &mut Self
             where
                 F: for<'p> Fn(&'p mut $tp),
             {
@@ -186,6 +239,43 @@ macro_rules! pb_msg {
                     cb(&mut msg_field);
                 });
                 self
+            }
+        }
+    };
+}
+
+/// Defines extra fields for a protobuf message.
+#[macro_export]
+macro_rules! pb_msg_ext {
+    (
+        $name:ident {
+            $( $field:ident : $tp:tt, $kind:ident, $id:literal ),+ $(,)?
+        }
+    ) => {
+        paste::paste! {
+            #[doc = concat!("Protobuf extra field numbers for `", stringify!($name), "`")]
+            #[repr(u32)]
+            pub enum [<$name:camel ExtFieldNumber>] {
+                $(
+                    #[doc = concat!("Field number for `", stringify!($field), "`")]
+                    [<$field:camel>] = $id
+                ),*
+            }
+        }
+
+        paste::paste! {
+            #[doc = concat!("Protobuf extra message trait for `", stringify!($name), "`")]
+            #[allow(non_camel_case_types)]
+            pub trait [<$name Ext>]<'a, 'b> {
+                $(
+                    pb_msg!(@decl fn $name, $field, $id, $kind, $tp);
+                )*
+            }
+
+            impl<'a, 'b> [<$name Ext>]<'_, '_> for $name<'a, 'b> {
+                $(
+                    pb_msg!(@setter fn $name, $field, $id, $kind, $tp);
+                )*
             }
         }
     };
