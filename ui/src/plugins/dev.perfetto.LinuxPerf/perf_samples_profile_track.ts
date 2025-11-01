@@ -151,3 +151,36 @@ function renderDetailsPanel(
     ),
   );
 }
+
+export function createProcessNonCallsiteTrack(
+  trace: Trace,
+  uri: string,
+  upid: number,
+) {
+  return SliceTrack.create({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+      },
+      src: `
+       SELECT
+          p.id,
+          ts,
+          upid
+        FROM perf_sample AS p
+        JOIN thread USING (utid)
+        WHERE callsite_id IS NULL
+          AND upid = ${upid}
+        ORDER BY ts
+      `,
+    }),
+    sliceName: () => 'Non-callsite perf sample',
+    instantStyle: {
+      width: 8,
+      render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
+    },
+  });
+}
