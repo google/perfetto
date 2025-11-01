@@ -28,6 +28,7 @@ import {Stack, StackAuto} from '../../../widgets/stack';
 import {
   renderSortMenuItems,
   Grid,
+  GridApi,
   GridColumn,
   GridCell,
   GridHeaderCell,
@@ -275,6 +276,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
+  private gridApi?: GridApi;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -439,6 +441,22 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       if (columnReordering) {
         if (menuItems.length > 0) {
           menuItems.push(m(MenuDivider));
+        }
+
+        if (this.gridApi) {
+          const gridApi = this.gridApi;
+          menuItems.push(
+            m(MenuItem, {
+              label: 'Fit to content',
+              icon: 'fit_page_width',
+              onclick: () => gridApi.autoFitColumn(column.name),
+            }),
+            m(MenuItem, {
+              label: 'Fit all columns',
+              icon: 'fit_screen',
+              onclick: () => gridApi.autoFitAllColumns(),
+            }),
+          );
         }
 
         // Hide current column (only if more than 1 visible)
@@ -760,6 +778,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               onColumnOrderChanged(newOrder);
             }
           : undefined,
+        onReady: (api) => {
+          this.gridApi = api;
+        },
       }),
     );
   }

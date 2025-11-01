@@ -101,7 +101,8 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            className: 'pf-visible-on-hover pf-grid-header-cell__menu-button',
+            className:
+              'pf-visible-on-hover pf-grid-header-cell__menu-button pf-grid--no-measure',
             icon: Icons.ContextMenuAlt,
             rounded: true,
             ariaLabel: 'Column menu',
@@ -228,6 +229,23 @@ export interface GridVirtualization {
 }
 
 /**
+ * Imperative API for Grid component.
+ * Provides methods to control the grid programmatically.
+ */
+export interface GridApi {
+  /**
+   * Auto-fit a column to its content width.
+   * @param columnKey The key of the column to auto-fit
+   */
+  autoFitColumn(columnKey: string): void;
+
+  /**
+   * Auto-fit all columns to their content widths.
+   */
+  autoFitAllColumns(): void;
+}
+
+/**
  * Attributes for the Grid component.
  */
 export interface GridAttrs {
@@ -243,6 +261,7 @@ export interface GridAttrs {
     to: string | number | undefined,
     position: ReorderPosition,
   ) => void;
+  readonly onReady?: (api: GridApi) => void;
 }
 
 /**
@@ -550,6 +569,38 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         },
       },
     ]);
+
+    // Call onReady callback with imperative API
+    if (vnode.attrs.onReady) {
+      vnode.attrs.onReady({
+        autoFitColumn: (columnKey: string) => {
+          const gridDom = vnode.dom as HTMLElement;
+          const column = columns.find((c) => c.key === columnKey);
+          if (!column) return;
+
+          this.measureAndApplyWidths(gridDom, [
+            {
+              key: column.key,
+              minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
+              maxWidth: Infinity,
+            },
+          ]);
+          m.redraw();
+        },
+        autoFitAllColumns: () => {
+          const gridDom = vnode.dom as HTMLElement;
+          this.measureAndApplyWidths(
+            gridDom,
+            columns.map((column) => ({
+              key: column.key,
+              minWidth: column.minWidth ?? COL_WIDTH_MIN_PX,
+              maxWidth: Infinity,
+            })),
+          );
+          m.redraw();
+        },
+      });
+    }
   }
 
   onupdate(vnode: m.VnodeDOM<GridAttrs, this>) {
@@ -596,9 +647,18 @@ export class Grid implements m.ClassComponent<GridAttrs> {
     const gridClone = gridDom.cloneNode(true) as HTMLElement;
     gridDom.appendChild(gridClone);
 
+    // Hide any elements that are not part of the measurement - these are
+    // elements with class .pf-grid--no-measure
+    const noMeasureElements = gridClone.querySelectorAll(
+      '.pf-grid--no-measure',
+    );
+    noMeasureElements.forEach((el) => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
     // Now read the actual widths (this will cause a reflow)
     // Find all the cells in this column (header + data rows)
-    const allCells = gridClone.querySelectorAll(`.pf-grid__cell-container`); // TODO pick a better selector for this
+    const allCells = gridClone.querySelectorAll(`.pf-grid__cell-container`);
 
     // Only continue if we have more cells than just the header
     if (allCells.length <= columns.length) {
