@@ -203,7 +203,9 @@ class StdlibTableFunctionImpl implements SqlTableFunction {
     this.summaryDesc = docs.summary_desc;
     this.description = docs.desc;
     this.args = docs.args.map((json) => new StdlibFunctionArgImpl(json));
-    this.returnCols = docs.cols.map((json) => new StdlibColumnImpl(json));
+    this.returnCols = docs.cols.map(
+      (json) => new StdlibColumnImpl(json, this.name),
+    );
   }
 }
 
@@ -242,14 +244,15 @@ class SqlTableImpl implements SqlTable {
     this.includeKey = includeKey;
     this.description = docs.desc;
     this.type = docs.type;
-    this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
+    this.columns = docs.cols.map(
+      (json) => new StdlibColumnImpl(json, this.name),
+    );
   }
 
   getTableColumns(): TableColumn[] {
     return this.columns.map((col) =>
       createTableColumn({
         trace: this.trace,
-        table: this.name,
         column: col.name,
         type: col.type,
       }),
@@ -262,10 +265,16 @@ class StdlibColumnImpl implements SqlColumn {
   type: PerfettoSqlType;
   description: string;
 
-  constructor(docs: DocsArgOrColSchemaType) {
-    this.type = unwrapResult(parsePerfettoSqlTypeFromString(docs.type));
-    this.description = docs.desc;
+  constructor(docs: DocsArgOrColSchemaType, tableName: string) {
     this.name = docs.name;
+    this.type = unwrapResult(
+      parsePerfettoSqlTypeFromString({
+        type: docs.type,
+        table: tableName,
+        column: this.name,
+      }),
+    );
+    this.description = docs.desc;
   }
 }
 

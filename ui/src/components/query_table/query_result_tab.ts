@@ -24,6 +24,9 @@ import {PopupPosition} from '../../widgets/popup';
 import {QueryTable} from './query_table';
 import {Trace} from '../../public/trace';
 import {Tab} from '../../public/tab';
+import {extensions} from '../extensions';
+import {SqlTableDescription} from '../widgets/sql/table/table_description';
+import {StandardColumn} from '../widgets/sql/table/columns';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -109,7 +112,37 @@ export class QueryResultTab implements Tab {
                 availableColumns: assertExists(this.queryResponse).columns,
               }),
             ),
+        this.sqlViewName === undefined
+          ? null
+          : m(Button, {
+              label: 'Open in table viewer',
+              onclick: () => this.openInTableViewer(),
+            }),
       ],
+    });
+  }
+
+  private openInTableViewer(): void {
+    if (!this.sqlViewName || !this.queryResponse) {
+      return;
+    }
+
+    // Create a table description from the query result columns
+    const columns = this.queryResponse.columns.map((colName) => {
+      // For simplicity, we'll use STRING type for all columns
+      // In a more sophisticated implementation, we could infer types from the data
+      return new StandardColumn(colName, undefined);
+    });
+
+    const tableDescription: SqlTableDescription = {
+      name: this.sqlViewName,
+      displayName: this.args.title,
+      columns: columns,
+    };
+
+    // Open the table viewer tab
+    extensions.addLegacySqlTableTab(this.trace, {
+      table: tableDescription,
     });
   }
 
