@@ -333,3 +333,11 @@ svg {
 .pf-panning {
   cursor: grabbing;
 }
+
+.pf-selection-rect {
+  position: absolute;
+  border: 2px solid var(--pf-color-accent);
+  background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+  pointer-events: none;
+  z-index: 1000;
+}
