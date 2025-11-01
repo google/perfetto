@@ -48,8 +48,6 @@ SELECT
   utid,
   count() AS perf_sample_cnt
 FROM perf_sample
-WHERE
-  callsite_id IS NOT NULL
 GROUP BY
   utid;
 
