@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -171,6 +172,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> Join(
       const StructuredQuery::ExperimentalJoin::Decoder&);
 
+  base::StatusOr<std::string> Union(
+      const StructuredQuery::ExperimentalUnion::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
 
@@ -182,6 +186,10 @@ class GeneratorImpl {
       RepeatedProto select_cols);
   base::StatusOr<std::string> SelectColumnsNoAggregates(
       RepeatedProto select_columns);
+
+  // Sorting.
+  static base::StatusOr<std::string> OrderBy(
+      const StructuredQuery::OrderBy::Decoder&);
 
   // Helpers.
   static base::StatusOr<std::string> OperatorToString(
@@ -251,6 +259,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_experimental_join()) {
       StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
       ASSIGN_OR_RETURN(source, Join(join));
+    } else if (q.has_experimental_union()) {
+      StructuredQuery::ExperimentalUnion::Decoder union_decoder(
+          q.experimental_union());
+      ASSIGN_OR_RETURN(source, Union(union_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -277,12 +289,36 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     ASSIGN_OR_RETURN(select, SelectColumnsNoAggregates(q.select_columns()));
   }
 
+  // Assemble SQL clauses in standard evaluation order:
+  // SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, OFFSET.
   std::string sql = "SELECT " + select + " FROM " + source;
   if (!filters.empty()) {
     sql += " WHERE " + filters;
   }
   if (!group_by.empty()) {
     sql += " " + group_by;
+  }
+  if (q.has_order_by()) {
+    StructuredQuery::OrderBy::Decoder order_by_decoder(q.order_by());
+    ASSIGN_OR_RETURN(std::string order_by, OrderBy(order_by_decoder));
+    sql += " " + order_by;
+  }
+  if (q.has_offset() && !q.has_limit()) {
+    return base::ErrStatus("OFFSET requires LIMIT to be specified");
+  }
+  if (q.has_limit()) {
+    if (q.limit() < 0) {
+      return base::ErrStatus("LIMIT must be non-negative, got %" PRId64,
+                             q.limit());
+    }
+    sql += " LIMIT " + std::to_string(q.limit());
+  }
+  if (q.has_offset()) {
+    if (q.offset() < 0) {
+      return base::ErrStatus("OFFSET must be non-negative, got %" PRId64,
+                             q.offset());
+    }
+    sql += " OFFSET " + std::to_string(q.offset());
   }
   return sql;
 }
@@ -504,6 +540,41 @@ base::StatusOr<std::string> GeneratorImpl::Join(
   return sql;
 }
 
+base::StatusOr<std::string> GeneratorImpl::Union(
+    const StructuredQuery::ExperimentalUnion::Decoder& union_decoder) {
+  auto queries = union_decoder.queries();
+  if (!queries) {
+    return base::ErrStatus("Union must specify at least one query");
+  }
+
+  // Count the number of queries
+  size_t query_count = 0;
+  for (auto it = queries; it; ++it) {
+    query_count++;
+  }
+
+  if (query_count < 2) {
+    return base::ErrStatus("Union must specify at least two queries");
+  }
+
+  // Generate nested sources for all queries
+  std::vector<std::string> query_tables;
+  for (auto it = union_decoder.queries(); it; ++it) {
+    query_tables.push_back(NestedSource(*it));
+  }
+
+  // Build the UNION/UNION ALL query
+  std::string union_keyword =
+      union_decoder.use_union_all() ? " UNION ALL " : " UNION ";
+  std::string sql = "(SELECT * FROM " + query_tables[0];
+  for (size_t i = 1; i < query_tables.size(); ++i) {
+    sql += union_keyword + "SELECT * FROM " + query_tables[i];
+  }
+  sql += ")";
+
+  return sql;
+}
+
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
@@ -594,6 +665,47 @@ base::StatusOr<std::string> GeneratorImpl::GroupBy(
       sql += ", ";
     }
     sql += (*it).ToStdString();
+  }
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::OrderBy(
+    const StructuredQuery::OrderBy::Decoder& order_by) {
+  auto specs = order_by.ordering_specs();
+  if (!specs) {
+    return base::ErrStatus("ORDER BY must specify at least one ordering spec");
+  }
+
+  // The order of ordering_specs is significant: the first spec is the primary
+  // sort key, subsequent specs are used to break ties.
+  // See SQL-92 standard section 7.10 (Sort specification list).
+  std::string sql = "ORDER BY ";
+  bool first = true;
+  for (auto it = specs; it; ++it) {
+    StructuredQuery::OrderBy::OrderingSpec::Decoder spec(*it);
+    if (!first) {
+      sql += ", ";
+    }
+    first = false;
+
+    if (spec.column_name().size == 0) {
+      return base::ErrStatus("ORDER BY column_name cannot be empty");
+    }
+    sql += spec.column_name().ToStdString();
+
+    if (spec.has_direction()) {
+      switch (spec.direction()) {
+        case StructuredQuery::OrderBy::ASC:
+          sql += " ASC";
+          break;
+        case StructuredQuery::OrderBy::DESC:
+          sql += " DESC";
+          break;
+        case StructuredQuery::OrderBy::UNSPECIFIED:
+          // Default to ASC, no need to add anything
+          break;
+      }
+    }
   }
   return sql;
 }
