@@ -36,6 +36,7 @@ import {
 
 export interface PivotTableAttrs {
   readonly state: PivotTableState;
+  readonly getSelectableColumns: () => TableColumn[];
   // Additional button to render at the end of each row. Typically used
   // for adding new filters.
   extraRowButton?(node: PivotTreeNode): m.Children;
@@ -269,7 +270,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Add,
         },
         m(SelectColumnMenu, {
-          columns: state.table.columns.map((column) => ({
+          columns: attrs.getSelectableColumns().map((column) => ({
             key: tableColumnId(column),
             column,
           })),
@@ -365,7 +366,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           icon: Icons.Add,
         },
         m(SelectColumnMenu, {
-          columns: state.table.columns.map((column) => ({
+          columns: attrs.getSelectableColumns().map((column) => ({
             key: tableColumnId(column),
             column,
           })),
@@ -380,7 +381,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               }),
           },
           columnMenu: (column) => ({
-            rightIcon: '',
+            rightIcon: Icons.ContextMenuAlt,
             children: AGGREGATIONS.map((agg) =>
               m(MenuItem, {
                 label: agg,
