@@ -1256,6 +1256,325 @@ TEST(StructuredQueryGeneratorTest, UnionWithSingleQueryFails) {
               testing::HasSubstr("Union must specify at least two queries"));
 }
 
+TEST(StructuredQueryGeneratorTest, AddColumnsWithEqualityColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: "name"
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithFreeformCondition) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "thread"
+        }
+      }
+      input_columns: "name"
+      input_columns: "tid"
+      freeform_condition: {
+        left_query_alias: "core"
+        right_query_alias: "input"
+        sql_expression: "core.utid = input.id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM thread),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name, input.tid
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.utid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsMultipleColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: "name"
+      input_columns: "pid"
+      input_columns: "cmdline"
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name, input.pid, input.cmdline
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+        filters: {
+          column_name: "pid"
+          op: NOT_EQUAL
+          int64_rhs: 0
+        }
+      }
+      input_columns: "name"
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process WHERE pid != 0),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsMissingCoreQueryFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: "name"
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("AddColumns must specify a core query"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsMissingInputQueryFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_columns: "name"
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("AddColumns must specify an input query"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsNoInputColumnsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(
+      ret.status().message(),
+      testing::HasSubstr("AddColumns must specify at least one input column"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsNoConditionFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: "name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("AddColumns must specify either "
+                                 "equality_columns or freeform_condition"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidLeftAliasFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: "name"
+      freeform_condition: {
+        left_query_alias: "left"
+        right_query_alias: "input"
+        sql_expression: "left.upid = input.id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(
+      ret.status().message(),
+      testing::HasSubstr("FreeformCondition left_query_alias must be 'core'"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidRightAliasFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: "name"
+      freeform_condition: {
+        left_query_alias: "core"
+        right_query_alias: "right"
+        sql_expression: "core.upid = right.id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr(
+                  "FreeformCondition right_query_alias must be 'input'"));
+}
+
 TEST(StructuredQueryGeneratorTest, LimitWithoutOffset) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(

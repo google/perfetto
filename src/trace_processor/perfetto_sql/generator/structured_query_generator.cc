@@ -175,6 +175,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> Union(
       const StructuredQuery::ExperimentalUnion::Decoder&);
 
+  base::StatusOr<std::string> AddColumns(
+      const StructuredQuery::ExperimentalAddColumns::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
 
@@ -263,6 +266,11 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalUnion::Decoder union_decoder(
           q.experimental_union());
       ASSIGN_OR_RETURN(source, Union(union_decoder));
+
+    } else if (q.has_experimental_add_columns()) {
+      StructuredQuery::ExperimentalAddColumns::Decoder add_columns_decoder(
+          q.experimental_add_columns());
+      ASSIGN_OR_RETURN(source, AddColumns(add_columns_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -571,6 +579,103 @@ base::StatusOr<std::string> GeneratorImpl::Union(
     sql += union_keyword + "SELECT * FROM " + query_tables[i];
   }
   sql += ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::AddColumns(
+    const StructuredQuery::ExperimentalAddColumns::Decoder& add_columns) {
+  // Validate required fields
+  if (!add_columns.has_core_query()) {
+    return base::ErrStatus("AddColumns must specify a core query");
+  }
+  if (!add_columns.has_input_query()) {
+    return base::ErrStatus("AddColumns must specify an input query");
+  }
+  if (!add_columns.has_equality_columns() &&
+      !add_columns.has_freeform_condition()) {
+    return base::ErrStatus(
+        "AddColumns must specify either equality_columns or "
+        "freeform_condition");
+  }
+
+  // Validate input_columns
+  auto input_columns = add_columns.input_columns();
+  if (!input_columns) {
+    return base::ErrStatus("AddColumns must specify at least one input column");
+  }
+  size_t column_count = 0;
+  for (auto it = input_columns; it; ++it) {
+    column_count++;
+  }
+  if (column_count == 0) {
+    return base::ErrStatus("AddColumns must specify at least one input column");
+  }
+
+  // Generate nested sources
+  std::string core_table = NestedSource(add_columns.core_query());
+  std::string input_table = NestedSource(add_columns.input_query());
+
+  // Build the SELECT clause with all core columns plus input columns
+  std::string select_clause = "core.*";
+  for (auto it = add_columns.input_columns(); it; ++it) {
+    protozero::ConstChars col_name(*it);
+    if (col_name.size == 0) {
+      return base::ErrStatus("Input column name cannot be empty");
+    }
+    select_clause += ", input." + col_name.ToStdString();
+  }
+
+  // Build the join condition
+  std::string condition;
+  if (add_columns.has_equality_columns()) {
+    StructuredQuery::ExperimentalJoin::EqualityColumns::Decoder eq_cols(
+        add_columns.equality_columns());
+    if (!eq_cols.has_left_column()) {
+      return base::ErrStatus("EqualityColumns must specify a left column");
+    }
+    if (!eq_cols.has_right_column()) {
+      return base::ErrStatus("EqualityColumns must specify a right column");
+    }
+    condition = "core." + eq_cols.left_column().ToStdString() + " = input." +
+                eq_cols.right_column().ToStdString();
+  } else {
+    StructuredQuery::ExperimentalJoin::FreeformCondition::Decoder free_cond(
+        add_columns.freeform_condition());
+    if (!free_cond.has_left_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a left query alias");
+    }
+    if (!free_cond.has_right_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a right query alias");
+    }
+    if (!free_cond.has_sql_expression()) {
+      return base::ErrStatus("FreeformCondition must specify a sql expression");
+    }
+
+    std::string left_alias = free_cond.left_query_alias().ToStdString();
+    std::string right_alias = free_cond.right_query_alias().ToStdString();
+
+    // Validate that aliases match "core" and "input"
+    if (left_alias != "core") {
+      return base::ErrStatus(
+          "FreeformCondition left_query_alias must be 'core', got '%s'",
+          left_alias.c_str());
+    }
+    if (right_alias != "input") {
+      return base::ErrStatus(
+          "FreeformCondition right_query_alias must be 'input', got '%s'",
+          right_alias.c_str());
+    }
+
+    condition = free_cond.sql_expression().ToStdString();
+  }
+
+  // Generate the final SQL using LEFT JOIN to keep all core rows
+  std::string sql = "(SELECT " + select_clause + " FROM " + core_table +
+                    " AS core LEFT JOIN " + input_table + " AS input ON " +
+                    condition + ")";
 
   return sql;
 }
