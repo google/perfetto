@@ -251,6 +251,54 @@ message PerfettoSqlStructuredQuery {
     optional bool use_union_all = 2;
   }
 
+  // DON'T USE. EXPERIMENTAL.
+  // Adds columns from an input query to a core query using a join condition.
+  //
+  // This operation returns all columns from the core query plus specified
+  // columns from the input query, joined using a condition similar to
+  // ExperimentalJoin.
+  //
+  // Examples:
+  //  1) Add process name to slices:
+  //    * core_query contains slice data (id, ts, dur, name)
+  //    * input_query contains process data (id, name, pid)
+  //    * input_columns = ["name"] (aliased appropriately)
+  //    * equality_columns matches process id
+  //  2) Enrich counter data with additional metadata:
+  //    * core_query contains counter values
+  //    * input_query contains metadata table
+  //    * input_columns specifies which metadata columns to add
+  //
+  // Schema:
+  //  1) The input_columns list must contain at least one column name.
+  //  2) All column names in input_columns must exist in the input_query result.
+  //  3) One of equality_columns or freeform_condition must be specified.
+  message ExperimentalAddColumns {
+    // The core query. All columns from this query will be returned. Required.
+    optional PerfettoSqlStructuredQuery core_query = 1;
+
+    // The input query. Source of additional columns. Required.
+    optional PerfettoSqlStructuredQuery input_query = 2;
+
+    // List of column names to add from the input query. At least one required.
+    repeated string input_columns = 3;
+
+    // The condition for the join. One of the following is required.
+    oneof condition {
+      // Columns from both queries which must be equal for the join.
+      // Reuses the EqualityColumns message from ExperimentalJoin, where
+      // left_column refers to core_query and right_column refers to
+      // input_query.
+      ExperimentalJoin.EqualityColumns equality_columns = 4;
+
+      // A freeform SQL expression representing the join condition.
+      // Reuses the FreeformCondition message from ExperimentalJoin, where
+      // left_query_alias refers to core_query and right_query_alias refers
+      // to input_query.
+      ExperimentalJoin.FreeformCondition freeform_condition = 5;
+    }
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -300,7 +348,24 @@ message PerfettoSqlStructuredQuery {
 
     // DON'T USE. EXPERIMENTAL.
     ExperimentalUnion experimental_union = 101;
+
+    // DON'T USE. EXPERIMENTAL.
+    ExperimentalAddColumns experimental_add_columns = 102;
   }
+
+  // Evaluation order of operations:
+  // The fields below are evaluated in a specific order following SQL semantics.
+  // The logical evaluation order is:
+  //   1. FROM (source) - determine the source data
+  //   2. WHERE (filters) - filter rows from the source
+  //   3. GROUP BY (group_by) - group rows and compute aggregations
+  //   4. SELECT (select_columns) - select and transform columns
+  //   5. ORDER BY (order_by) - sort the result set
+  //   6. LIMIT/OFFSET (limit, offset) - restrict the number of rows returned
+  //
+  // This follows the standard SQL evaluation order as defined in the SQL
+  // standard (ISO/IEC 9075). For more details, see:
+  // https://www.sqlite.org/lang_select.html
 
   // Represents a single filter on a column.
   message Filter {
