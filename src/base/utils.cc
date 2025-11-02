@@ -39,6 +39,10 @@
 #include <mach/vm_page_size.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
+#include <sys/sysctl.h>
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/prctl.h>
@@ -307,6 +311,18 @@ std::string GetCurExecutablePath() {
   char buf[MAX_PATH];
   auto len = ::GetModuleFileNameA(nullptr /*current*/, buf, sizeof(buf));
   self_path = std::string(buf, len);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD)
+  char buf[PATH_MAX];
+  int mib[4], ret;
+  size_t len = sizeof(buf);
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PATHNAME;
+  mib[3] = -1;
+  ret = sysctl(mib, 4, buf, &len, NULL, 0);
+  PERFETTO_CHECK(ret == 0);
+  // This returns the full path; need to trim the executable
+  self_path = std::string(buf);
 #else
   PERFETTO_FATAL(
       "GetCurExecutableDir() not implemented on the current platform");
