@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Manually generated with bindings for a limited set of InternedData
-// fields to limit total amount of proto bindings.
+// fields to limit core proto bindings.
 
 use crate::pb_msg;
 use crate::protos::trace::track_event::chrome_histogram_sample::*;
