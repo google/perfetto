@@ -423,6 +423,8 @@ message PerfettoSqlStructuredQuery {
     }
 
     // The list of ordering specifications. At least one is required.
+    // The order is significant: the first spec is the primary sort key,
+    // subsequent specs are used to break ties.
     repeated OrderingSpec ordering_specs = 1;
   }
   optional OrderBy order_by = 14;

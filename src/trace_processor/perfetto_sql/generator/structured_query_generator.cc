@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -288,6 +289,8 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     ASSIGN_OR_RETURN(select, SelectColumnsNoAggregates(q.select_columns()));
   }
 
+  // Assemble SQL clauses in standard evaluation order:
+  // SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, OFFSET.
   std::string sql = "SELECT " + select + " FROM " + source;
   if (!filters.empty()) {
     sql += " WHERE " + filters;
@@ -305,13 +308,14 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
   }
   if (q.has_limit()) {
     if (q.limit() < 0) {
-      return base::ErrStatus("LIMIT must be non-negative, got %ld", q.limit());
+      return base::ErrStatus("LIMIT must be non-negative, got %" PRId64,
+                             q.limit());
     }
     sql += " LIMIT " + std::to_string(q.limit());
   }
   if (q.has_offset()) {
     if (q.offset() < 0) {
-      return base::ErrStatus("OFFSET must be non-negative, got %ld",
+      return base::ErrStatus("OFFSET must be non-negative, got %" PRId64,
                              q.offset());
     }
     sql += " OFFSET " + std::to_string(q.offset());
@@ -672,6 +676,9 @@ base::StatusOr<std::string> GeneratorImpl::OrderBy(
     return base::ErrStatus("ORDER BY must specify at least one ordering spec");
   }
 
+  // The order of ordering_specs is significant: the first spec is the primary
+  // sort key, subsequent specs are used to break ties.
+  // See SQL-92 standard section 7.10 (Sort specification list).
   std::string sql = "ORDER BY ";
   bool first = true;
   for (auto it = specs; it; ++it) {
