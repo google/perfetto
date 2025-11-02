@@ -30,6 +30,12 @@ import {
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
 import {MergeNode, MergeNodeState} from './nodes/merge_node';
+import {SortNode, SortNodeState} from './nodes/sort_node';
+import {UnionNode, UnionNodeState} from './nodes/union_node';
+import {
+  LimitAndOffsetNode,
+  LimitAndOffsetNodeState,
+} from './nodes/limit_and_offset_node';
 
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
@@ -126,5 +132,39 @@ export function registerCoreNodes() {
       };
       return new MergeNode(fullState);
     },
+  });
+
+  nodeRegistry.register('sort_node', {
+    name: 'Sort',
+    description: 'Sort rows by one or more columns.',
+    icon: 'sort',
+    type: 'modification',
+    factory: (state) => new SortNode(state as SortNodeState),
+  });
+
+  nodeRegistry.register('union_node', {
+    name: 'Union',
+    description: 'Combine rows from multiple sources.',
+    icon: 'merge_type',
+    type: 'multisource',
+    factory: (state) => {
+      const fullState: UnionNodeState = {
+        ...state,
+        prevNodes: state.prevNodes ?? [],
+        selectedColumns: [],
+      };
+      const node = new UnionNode(fullState);
+      node.onPrevNodesUpdated();
+      return node;
+    },
+  });
+
+  nodeRegistry.register('limit_and_offset_node', {
+    name: 'Limit and Offset',
+    description: 'Limit the number of rows returned and optionally skip rows.',
+    icon: 'filter_list',
+    type: 'modification',
+    factory: (state) =>
+      new LimitAndOffsetNode(state as LimitAndOffsetNodeState),
   });
 }

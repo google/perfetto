@@ -19,12 +19,6 @@ import {
 } from './nodes/dev/add_columns_node';
 import {modalForTableSelection} from './nodes/sources/table_source';
 import {TestNode} from './nodes/dev/test_node';
-import {
-  LimitAndOffsetNode,
-  LimitAndOffsetNodeState,
-} from './nodes/dev/limit_and_offset_node';
-import {SortNode, SortNodeState} from './nodes/dev/sort_node';
-import {UnionNode, UnionNodeState} from './nodes/dev/union_node';
 
 export function registerDevNodes() {
   nodeRegistry.register('test_source', {
@@ -50,43 +44,6 @@ export function registerDevNodes() {
       return {
         sqlTable: table.sqlTable,
       };
-    },
-    devOnly: true,
-  });
-
-  nodeRegistry.register('limit_and_offset_node', {
-    name: 'Limit and Offset',
-    description: 'Limits number of rows and offsets them.',
-    icon: 'filter_list',
-    type: 'modification',
-    factory: (state) =>
-      new LimitAndOffsetNode(state as LimitAndOffsetNodeState),
-    devOnly: true,
-  });
-
-  nodeRegistry.register('sort_node', {
-    name: 'Sort',
-    description: 'Sorts by a column.',
-    icon: 'sort',
-    type: 'modification',
-    factory: (state) => new SortNode(state as SortNodeState),
-    devOnly: true,
-  });
-
-  nodeRegistry.register('union_node', {
-    name: 'Union',
-    description: 'Union multiple sources.',
-    icon: 'merge_type',
-    type: 'multisource',
-    factory: (state) => {
-      const fullState: UnionNodeState = {
-        ...state,
-        prevNodes: state.prevNodes ?? [],
-        selectedColumns: [],
-      };
-      const node = new UnionNode(fullState);
-      node.onPrevNodesUpdated();
-      return node;
     },
     devOnly: true,
   });

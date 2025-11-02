@@ -48,8 +48,8 @@ import {
 import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
-} from './query_builder/nodes/dev/limit_and_offset_node';
-import {SortNode, SortNodeState} from './query_builder/nodes/dev/sort_node';
+} from './query_builder/nodes/limit_and_offset_node';
+import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState

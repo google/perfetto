@@ -26,8 +26,8 @@ import {
   SqlTable,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
-import {LimitAndOffsetNode} from './query_builder/nodes/dev/limit_and_offset_node';
-import {SortNode} from './query_builder/nodes/dev/sort_node';
+import {LimitAndOffsetNode} from './query_builder/nodes/limit_and_offset_node';
+import {SortNode} from './query_builder/nodes/sort_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 describe('JSON serialization/deserialization', () => {
