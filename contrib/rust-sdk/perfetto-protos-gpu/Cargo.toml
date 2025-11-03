@@ -1,9 +1,9 @@
 [package]
 edition = "2024"
-name = "perfetto-derive"
+name = "perfetto-protos-gpu"
 version = "0.1.0"
 authors = ["David Reveman <dreveman@gmail.com>"]
-description = "Procedural macros for Perfetto"
+description = "Extra protobuf bindings for GPU events"
 readme = "README.md"
 keywords = [
     "tracing",
@@ -13,19 +13,10 @@ categories = ["profiling"]
 license = "Apache-2.0"
 repository = "https://github.com/google/perfetto"
 
-[lib]
-proc-macro = true
-
-[features]
-default = ["vendored"]
-vendored = ["perfetto/vendored"]
-
 [dependencies]
 perfetto = { path = "../perfetto", version = "0.1.0", default-features = false }
-syn = { version = "1.0.5", features = ["full"] }
-quote = "1.0.8"
-proc-macro2 = "1.0"
+paste = "1"
 
 [[example]]
-name = "derive"
-path = "examples/derive.rs"
+name = "gpu_counters"
+path = "examples/gpu_counters.rs"
