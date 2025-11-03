@@ -1656,6 +1656,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         wide: true,
         renderWidget: (opts) => m(NodeGraphDemo, opts),
         initialOpts: {
+          multiselect: true,
           titleBars: false,
           accentBars: false,
           allInputsLeft: false,
