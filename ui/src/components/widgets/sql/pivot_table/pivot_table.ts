@@ -20,7 +20,7 @@ import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
 import {TableColumn, tableColumnId} from '../table/table_column';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
-import {SelectColumnMenu} from '../table/select_column_menu';
+import {SelectColumnMenu} from '../table/menus/select_column_menu';
 import {SqlColumn} from '../table/sql_column';
 import {buildSqlQuery} from '../table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';

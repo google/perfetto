@@ -49,6 +49,13 @@ export interface TableColumn<
   // TODO(altimin): This should return m.Children, but a bunch of things, including low-level widgets (Button, MenuItem, Anchor) need to be fixed first.
   getTitle?(): string | undefined;
 
+  // Get column-specific menu items for this column.
+  // This allows columns to provide their own menu items in the table header menu.
+  // For example, a CastColumn can provide an "Undo cast" menu item.
+  getColumnSpecificMenuItems?(args: {
+    replaceColumn: (column: TableColumn) => void;
+  }): m.Children;
+
   // In some cases to render a value in a table, we need information from additional columns.
   // For example, args have three related columns: int_value, string_value and real_value. From the user perspective, we want to coalesce them into a single "value" column,
   // but to do this correctly we need to fetch the `type` column.

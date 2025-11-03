@@ -36,8 +36,9 @@ import {
   tableColumnId,
 } from './table_column';
 import {SqlColumn, sqlColumnId} from './sql_column';
-import {SelectColumnMenu} from './select_column_menu';
-import {renderColumnFilterOptions} from './add_column_filter_menu';
+import {SelectColumnMenu} from './menus/select_column_menu';
+import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
+import {renderCastColumnMenu} from './menus/cast_column_menu';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -150,10 +151,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     });
   }
 
-  renderColumnFilterOptions(c: TableColumn): m.Children {
-    return renderColumnFilterOptions(c, this.state);
-  }
-
   getAdditionalColumnMenuItems(
     addColumnMenuItems?: (
       column: TableColumn,
@@ -198,10 +195,20 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             icon: Icons.Hide,
             onclick: () => this.state.hideColumnAtIndex(i),
           }),
+        // Use the new getColumnSpecificMenuItems method if available
+        column.getColumnSpecificMenuItems?.({
+          replaceColumn: (newColumn: TableColumn) =>
+            this.state.replaceColumnAtIndex(i, newColumn),
+        }),
+        m(
+          MenuItem,
+          {label: 'Cast', icon: Icons.Change},
+          renderCastColumnMenu(column, i, this.state),
+        ),
         m(
           MenuItem,
           {label: 'Add filter', icon: Icons.Filter},
-          this.renderColumnFilterOptions(column),
+          renderColumnFilterOptions(column, this.state),
         ),
         additionalColumnMenuItems &&
           additionalColumnMenuItems[
@@ -216,7 +223,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           index: i,
         }),
       ];
-
       const columnKey = tableColumnId(column);
 
       const gridColumn: GridColumn = {
