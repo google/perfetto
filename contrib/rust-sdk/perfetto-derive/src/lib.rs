@@ -93,7 +93,7 @@ impl MacroArgs {
 /// Example:
 ///
 ///  ```
-/// use perfetto::*;
+/// use perfetto_sdk::*;
 ///
 /// track_event_categories! {
 ///     pub mod my_derive_te_ns {
@@ -103,7 +103,7 @@ impl MacroArgs {
 ///
 /// use my_derive_te_ns as perfetto_te_ns;
 ///
-/// use perfetto_derive::tracefn;
+/// use perfetto_sdk_derive::tracefn;
 ///
 /// #[tracefn("c1")]
 /// fn atoi(string_arg: String) -> Result<i32, std::num::ParseIntError> {
@@ -166,7 +166,7 @@ pub fn tracefn(
     let result = quote! {
         #( #fn_attrs )*
         #fn_vis #fn_abi fn #fn_name(#fn_args) #fn_output {
-            use perfetto::track_event::*;
+            use perfetto_sdk::track_event::*;
             use std::os::raw::c_char;
             const CATEGORY_INDEX: usize = perfetto_te_ns::category_index(#category);
             let is_category_enabled = perfetto_te_ns::is_category_enabled(CATEGORY_INDEX);

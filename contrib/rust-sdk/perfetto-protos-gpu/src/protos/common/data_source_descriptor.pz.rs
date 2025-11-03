@@ -19,7 +19,7 @@ use crate::pb_msg;
 use crate::pb_msg_ext;
 use crate::protos::common::gpu_counter_descriptor::*;
 
-use perfetto::protos::common::data_source_descriptor::DataSourceDescriptor;
+use perfetto_sdk::protos::common::data_source_descriptor::DataSourceDescriptor;
 
 pb_msg_ext!(DataSourceDescriptor {
     gpu_counter_descriptor: GpuCounterDescriptor, msg, 5,

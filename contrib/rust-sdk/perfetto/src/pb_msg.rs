@@ -14,7 +14,7 @@
 
 use crate::pb_utils::*;
 use crate::stream_writer::StreamWriter;
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{
     cell::RefCell,
     ptr,

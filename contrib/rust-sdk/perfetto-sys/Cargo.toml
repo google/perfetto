@@ -1,6 +1,6 @@
 [package]
 edition = "2024"
-name = "perfetto-sys"
+name = "perfetto-sdk-sys"
 version = "0.1.0"
 authors = ["David Reveman <dreveman@gmail.com>"]
 build = "build.rs"
