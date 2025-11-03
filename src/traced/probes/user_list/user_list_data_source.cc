@@ -16,15 +16,20 @@
 
 #include "src/traced/probes/user_list/user_list_data_source.h"
 
+#include <cinttypes>
+#include <optional>
+#include <set>
+#include <string>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#include "src/traced/probes/user_list/user_list_parser.h"
-
-using perfetto::protos::pbzero::UserListConfig;
+using perfetto::protos::pbzero::AndroidUserListConfig;
 
 namespace perfetto {
 
@@ -35,57 +40,44 @@ const ProbesDataSource::Descriptor UserListDataSource::descriptor = {
     /*fill_descriptor_func*/ nullptr,
 };
 
-bool ParseUserListStream(protos::pbzero::UserList* user_list_packet,
-                         const base::ScopedFstream& fs,
-                         const std::set<std::string>& user_type_filter) {
-  bool parsed_fully = true;
-  char line[2048];
-  while (fgets(line, sizeof(line), *fs) != nullptr) {
-    User pkg_struct;
-    if (!ReadUserListLine(line, &pkg_struct)) {
-      parsed_fully = false;
-      continue;
-    }
-    if (!user_type_filter.empty() &&
-        user_type_filter.count(pkg_struct.type) == 0) {
-      continue;
-    }
-    auto* user = user_list_packet->add_users();
-    user->set_type(pkg_struct.type.c_str(), pkg_struct.type.size());
-    user->set_uid(pkg_struct.uid);
-  }
-  return parsed_fully;
-}
-
 UserListDataSource::UserListDataSource(const DataSourceConfig& ds_config,
                                        TracingSessionID session_id,
                                        std::unique_ptr<TraceWriter> writer)
     : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {
-  UserListConfig::Decoder cfg(ds_config.user_list_config_raw());
+  AndroidUserListConfig::Decoder cfg(ds_config.user_list_config_raw());
   for (auto type = cfg.user_type_filter(); type; ++type) {
     user_type_filter_.emplace((*type).ToStdString());
   }
 }
 
 void UserListDataSource::Start() {
-  base::ScopedFstream fs(fopen("/data/system/users/user.list", "r"));
   auto trace_packet = writer_->NewTracePacket();
   auto* user_list_packet = trace_packet->set_user_list();
+  int error_code = 0;
+
+  base::ScopedFstream fs(fopen("/data/system/users/user.list", "r"));
   if (!fs) {
-    PERFETTO_ELOG("Failed to open user.list");
-    user_list_packet->set_read_error(true);
+    error_code = errno;  // Capture errno from fopen failure
+    PERFETTO_ELOG("Failed to open user.list: %s", strerror(error_code));
+    user_list_packet->set_error(error_code);
     trace_packet->Finalize();
     writer_->Flush();
     return;
   }
 
-  bool parsed_fully =
-      ParseUserListStream(user_list_packet, fs, user_type_filter_);
-  if (!parsed_fully)
-    user_list_packet->set_parse_error(true);
+  error_code = ParseUserListStream(user_list_packet, fs, user_type_filter_);
+  if (error_code != 0) {
+    PERFETTO_DLOG("Failed to parse user.list content: %s",
+                  strerror(error_code));
+    user_list_packet->set_error(error_code);
+  }
 
-  if (ferror(*fs))
-    user_list_packet->set_read_error(true);
+  if (ferror(*fs)) {
+    error_code = errno;  // Capture errno from stream error
+    PERFETTO_ELOG("Error reading user.list: %s", strerror(error_code));
+    // Overwrite any previous error, as read error is more fundamental.
+    user_list_packet->set_error(error_code);
+  }
 
   trace_packet->Finalize();
   writer_->Flush();
@@ -97,5 +89,58 @@ void UserListDataSource::Flush(FlushRequestID, std::function<void()> callback) {
 }
 
 UserListDataSource::~UserListDataSource() = default;
+
+// parser
+
+// Returns 0 on success, EPROTO on parsing failure.
+int ReadUserListLine(char* line, User* user) {
+  size_t idx = 0;
+  for (base::StringSplitter str_splitter(line, ' '); str_splitter.Next();) {
+    switch (idx) {
+      case 0:
+        user->type = std::string(str_splitter.cur_token(),
+                                 str_splitter.cur_token_size());
+        break;
+      case 1: {
+        std::optional<uint32_t> cur_uid =
+            base::CStringToUInt32(str_splitter.cur_token());
+        if (cur_uid == std::nullopt) {
+          PERFETTO_DLOG("Failed to parse user.list cur_uid.");
+          return EPROTO;  // Protocol error
+        }
+        user->uid = cur_uid.value();
+        break;
+      }
+    }
+    ++idx;
+  }
+  if (idx < 2) {
+    PERFETTO_DLOG("Incomplete line in user.list.");
+    return EPROTO;
+  }
+  return 0;  // Success
+}
+
+// Definition of the function declared in user_list_data_source.h
+// Returns 0 on success, EPROTO if any line fails to parse.
+int ParseUserListStream(protos::pbzero::AndroidUserList* user_list_packet,
+                        const base::ScopedFstream& fs,
+                        const std::set<std::string>& user_type_filter) {
+  char line[2048];
+  while (fgets(line, sizeof(line), *fs) != nullptr) {
+    User usr_struct;
+    if (ReadUserListLine(line, &usr_struct) != 0) {
+      return EPROTO;  // Return on first line parse error
+    }
+    if (!user_type_filter.empty() &&
+        user_type_filter.count(usr_struct.type) == 0) {
+      continue;
+    }
+    auto* user = user_list_packet->add_users();
+    user->set_type(usr_struct.type.c_str(), usr_struct.type.size());
+    user->set_uid(usr_struct.uid);
+  }
+  return 0;  // Success
+}
 
 }  // namespace perfetto

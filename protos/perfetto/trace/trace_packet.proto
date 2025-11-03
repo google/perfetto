@@ -269,7 +269,7 @@ message TracePacket {
 
     EvdevEvent evdev_event = 121;
 
-    UserList user_list = 123;
+    AndroidUserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

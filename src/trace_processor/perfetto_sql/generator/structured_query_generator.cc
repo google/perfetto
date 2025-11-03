@@ -222,7 +222,21 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
     }
     state_[state_index_].sql = *sql;
   }
+
+  // Check if the root query is just an inner_query wrapper with operations
+  // (ORDER BY, LIMIT, OFFSET). If so, we should apply those in the final
+  // SELECT instead of creating a duplicate CTE.
+  StructuredQuery::Decoder root_query(state_[0].bytes);
+  bool root_only_has_inner_query_and_operations =
+      root_query.has_inner_query() && !root_query.has_table() &&
+      !root_query.has_simple_slices() && !root_query.has_interval_intersect() &&
+      !root_query.has_experimental_join() &&
+      !root_query.has_experimental_union() && !root_query.has_sql() &&
+      !root_query.has_inner_query_id() && !root_query.filters() &&
+      !root_query.has_group_by() && !root_query.select_columns();
+
   std::string sql = "WITH ";
+  size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
     if (state.type == QueryType::kShared) {
@@ -230,12 +244,25 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
           Query{state.id_from_proto.value(), state.table_name, state.sql});
       continue;
     }
-    sql += state.table_name + " AS (" + state.sql + ")";
-    if (i < state_.size() - 1) {
+    // Skip the root query if it's just a wrapper for inner_query + operations
+    if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
+      continue;
+    }
+    if (cte_count > 0) {
       sql += ", ";
     }
+    sql += state.table_name + " AS (" + state.sql + ")";
+    cte_count++;
   }
-  sql += " SELECT * FROM " + state_[0].table_name;
+
+  // Build the final SELECT
+  if (root_only_has_inner_query_and_operations) {
+    // The root query is just wrapping an inner query with operations.
+    // Apply those operations directly in the final SELECT.
+    sql += " " + state_[0].sql;
+  } else {
+    sql += " SELECT * FROM " + state_[0].table_name;
+  }
   return sql;
 }
 
@@ -619,11 +646,27 @@ base::StatusOr<std::string> GeneratorImpl::AddColumns(
   // Build the SELECT clause with all core columns plus input columns
   std::string select_clause = "core.*";
   for (auto it = add_columns.input_columns(); it; ++it) {
-    protozero::ConstChars col_name(*it);
-    if (col_name.size == 0) {
+    StructuredQuery::SelectColumn::Decoder col_decoder(*it);
+
+    // Get the column name or expression
+    if (!col_decoder.has_column_name_or_expression()) {
+      return base::ErrStatus(
+          "SelectColumn must specify column_name_or_expression");
+    }
+    std::string col_expr =
+        col_decoder.column_name_or_expression().ToStdString();
+    if (col_expr.empty()) {
       return base::ErrStatus("Input column name cannot be empty");
     }
-    select_clause += ", input." + col_name.ToStdString();
+
+    // Add the column with optional alias
+    select_clause += ", input." + col_expr;
+    if (col_decoder.has_alias()) {
+      std::string alias = col_decoder.alias().ToStdString();
+      if (!alias.empty()) {
+        select_clause += " AS " + alias;
+      }
+    }
   }
 
   // Build the join condition

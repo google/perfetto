@@ -634,7 +634,6 @@ cc_library_shared {
         ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_user_list_user_list",
-        ":perfetto_src_traced_probes_user_list_user_list_parser",
         ":perfetto_src_traced_service_builtin_producer",
         ":perfetto_src_traced_service_service",
         ":perfetto_src_tracing_common",
@@ -1764,7 +1763,6 @@ cc_library_static {
         ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_user_list_user_list",
-        ":perfetto_src_traced_probes_user_list_user_list_parser",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",
@@ -2095,7 +2093,6 @@ cc_library_static {
         ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_user_list_user_list",
-        ":perfetto_src_traced_probes_user_list_user_list_parser",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",
@@ -2813,7 +2810,6 @@ cc_test {
         ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_user_list_user_list",
-        ":perfetto_src_traced_probes_user_list_user_list_parser",
         ":perfetto_src_traced_relay_integrationtests",
         ":perfetto_src_traced_relay_lib",
         ":perfetto_src_tracing_client_api_without_backends",
@@ -16547,14 +16543,6 @@ filegroup {
     ],
 }
 
-// GN: //src/traced/probes/user_list:user_list_parser
-filegroup {
-    name: "perfetto_src_traced_probes_user_list_user_list_parser",
-    srcs: [
-        "src/traced/probes/user_list/user_list_parser.cc",
-    ],
-}
-
 // GN: //src/traced_relay:integrationtests
 filegroup {
     name: "perfetto_src_traced_relay_integrationtests",
@@ -17808,7 +17796,6 @@ cc_test {
         ":perfetto_src_traced_probes_unittests",
         ":perfetto_src_traced_probes_user_list_unittests",
         ":perfetto_src_traced_probes_user_list_user_list",
-        ":perfetto_src_traced_probes_user_list_user_list_parser",
         ":perfetto_src_traced_relay_lib",
         ":perfetto_src_traced_relay_unittests",
         ":perfetto_src_traced_service_builtin_producer",
@@ -18186,7 +18173,6 @@ cc_library_static {
         ":perfetto_src_traced_probes_system_info_cpu_info_features_allowlist",
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_user_list_user_list",
-        ":perfetto_src_traced_probes_user_list_user_list_parser",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",

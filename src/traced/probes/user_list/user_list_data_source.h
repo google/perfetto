@@ -17,9 +17,11 @@
 #ifndef SRC_TRACED_PROBES_USER_LIST_USER_LIST_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_USER_LIST_USER_LIST_DATA_SOURCE_H_
 
+#include <cinttypes>
 #include <functional>
 #include <memory>
 #include <set>
+#include <string>
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -35,9 +37,14 @@ namespace perfetto {
 
 class TraceWriter;
 
-bool ParseUserListStream(protos::pbzero::UserList* user_list,
-                         const base::ScopedFstream& fs,
-                         const std::set<std::string>& user_type_filter);
+struct User {
+  std::string type;
+  uint64_t uid = 0;
+};
+
+int ParseUserListStream(protos::pbzero::AndroidUserList* user_list,
+                        const base::ScopedFstream& fs,
+                        const std::set<std::string>& user_type_filter);
 
 class UserListDataSource : public ProbesDataSource {
  public:

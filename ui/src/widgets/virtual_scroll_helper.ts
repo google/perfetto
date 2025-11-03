@@ -15,7 +15,7 @@
 import {DisposableStack} from '../base/disposable_stack';
 import {Bounds2D, Rect2D, Vector2D} from '../base/geom';
 
-export interface VirtualScrollHelperOpts {
+export interface VirtualScrollHelperZoneConfig {
   overdrawPx: number;
 
   // How close we can get to undrawn regions before updating
@@ -24,8 +24,8 @@ export interface VirtualScrollHelperOpts {
   callback: (r: Rect2D) => void;
 }
 
-export interface Data {
-  opts: VirtualScrollHelperOpts;
+interface ZoneCache {
+  readonly config: VirtualScrollHelperZoneConfig;
   rect?: Bounds2D;
 }
 
@@ -54,15 +54,16 @@ function calculatePredictiveOffset(
 
 export class VirtualScrollHelper {
   private readonly _trash = new DisposableStack();
-  private readonly _data: Data[] = [];
+  private readonly _data: ReadonlyArray<ZoneCache>;
 
   constructor(
     sliderElement: HTMLElement,
     containerElement: Element,
-    opts: VirtualScrollHelperOpts[] = [],
+    zones: ReadonlyArray<VirtualScrollHelperZoneConfig>,
+    useScrollVelocityCompensation: boolean = false,
   ) {
-    this._data = opts.map((opts) => {
-      return {opts};
+    this._data = zones.map((zone) => {
+      return {config: zone};
     });
 
     let previousScrollOffset = 0;
@@ -70,7 +71,6 @@ export class VirtualScrollHelper {
     let previousScrollVelocity = 0;
 
     const recalculateRects = (scrollVelocity: number) => {
-      // Update velocity for each data level with smoothing
       this._data.forEach((data) => {
         recalculatePuckRect(
           sliderElement,
@@ -82,6 +82,11 @@ export class VirtualScrollHelper {
     };
 
     const handleScroll = (e: Event) => {
+      if (!useScrollVelocityCompensation) {
+        recalculateRects(0);
+        return;
+      }
+
       const target = e.target as Element;
       const delta = target.scrollTop - previousScrollOffset;
       const timeDelta =
@@ -126,10 +131,10 @@ export class VirtualScrollHelper {
 function recalculatePuckRect(
   sliderElement: HTMLElement,
   containerElement: Element,
-  data: Data,
+  data: ZoneCache,
   velocity: Vector2D,
 ): void {
-  const {tolerancePx, overdrawPx, callback} = data.opts;
+  const {tolerancePx, overdrawPx, callback} = data.config;
 
   if (!data.rect) {
     const targetPuckRect = getTargetPuckRect(

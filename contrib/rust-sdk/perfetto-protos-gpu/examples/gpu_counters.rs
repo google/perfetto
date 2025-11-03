@@ -121,7 +121,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .lock()
             .unwrap()
             .counter_period_ns
-            .map(|ns| Duration::from_nanos(ns))
+            .map(Duration::from_nanos)
             .unwrap_or(Duration::from_secs(1));
         std::thread::sleep(counter_period);
     }

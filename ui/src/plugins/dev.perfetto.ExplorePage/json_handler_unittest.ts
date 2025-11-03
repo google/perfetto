@@ -25,9 +25,11 @@ import {
   SqlModules,
   SqlTable,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
-import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
-import {LimitAndOffsetNode} from './query_builder/nodes/dev/limit_and_offset_node';
-import {SortNode} from './query_builder/nodes/dev/sort_node';
+import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
+import {LimitAndOffsetNode} from './query_builder/nodes/limit_and_offset_node';
+import {SortNode} from './query_builder/nodes/sort_node';
+import {MergeNode} from './query_builder/nodes/merge_node';
+import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 describe('JSON serialization/deserialization', () => {
@@ -573,5 +575,604 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedNode = deserializedTableNode.nextNodes[0] as SortNode;
     expect(deserializedNode.state.sortColNames).toEqual(['name', 'ts']);
+  });
+
+  test('serializes and deserializes merge node with equality condition', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const mergeNode = new MergeNode({
+      prevNodes: [tableNode1, tableNode2],
+      leftQueryAlias: 'left',
+      rightQueryAlias: 'right',
+      conditionType: 'equality',
+      leftColumn: 'name',
+      rightColumn: 'name',
+      sqlExpression: '',
+    });
+    tableNode1.nextNodes.push(mergeNode);
+    tableNode2.nextNodes.push(mergeNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedMergeNode = deserializedTableNode1
+      .nextNodes[0] as MergeNode;
+    expect(deserializedMergeNode.prevNodes).toBeDefined();
+    expect(deserializedMergeNode.prevNodes?.length).toBe(2);
+    expect(deserializedMergeNode.prevNodes?.[0].nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
+    expect(deserializedMergeNode.prevNodes?.[1].nodeId).toBe(
+      deserializedTableNode2.nodeId,
+    );
+    expect(deserializedMergeNode.state.leftQueryAlias).toBe('left');
+    expect(deserializedMergeNode.state.rightQueryAlias).toBe('right');
+    expect(deserializedMergeNode.state.conditionType).toBe('equality');
+    expect(deserializedMergeNode.state.leftColumn).toBe('name');
+    expect(deserializedMergeNode.state.rightColumn).toBe('name');
+  });
+
+  test('serializes and deserializes merge node with freeform condition', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const mergeNode = new MergeNode({
+      prevNodes: [tableNode1, tableNode2],
+      leftQueryAlias: 't1',
+      rightQueryAlias: 't2',
+      conditionType: 'freeform',
+      leftColumn: '',
+      rightColumn: '',
+      sqlExpression: 't1.id = t2.parent_id',
+    });
+    tableNode1.nextNodes.push(mergeNode);
+    tableNode2.nextNodes.push(mergeNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedMergeNode = deserializedTableNode1
+      .nextNodes[0] as MergeNode;
+    expect(deserializedMergeNode.state.leftQueryAlias).toBe('t1');
+    expect(deserializedMergeNode.state.rightQueryAlias).toBe('t2');
+    expect(deserializedMergeNode.state.conditionType).toBe('freeform');
+    expect(deserializedMergeNode.state.sqlExpression).toBe(
+      't1.id = t2.parent_id',
+    );
+  });
+
+  test('serializes and deserializes union node', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode3 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const unionNode = new UnionNode({
+      prevNodes: [tableNode1, tableNode2, tableNode3],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+        {
+          name: 'ts',
+          type: 'TIMESTAMP_NS',
+          checked: true,
+          column: sliceTable.columns[1],
+        },
+      ],
+    });
+    tableNode1.nextNodes.push(unionNode);
+    tableNode2.nextNodes.push(unionNode);
+    tableNode3.nextNodes.push(unionNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, tableNode3],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(3);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+    const deserializedTableNode3 = deserializedState.rootNodes[2];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedUnionNode = deserializedTableNode1
+      .nextNodes[0] as UnionNode;
+    expect(deserializedUnionNode.prevNodes).toBeDefined();
+    expect(deserializedUnionNode.prevNodes?.length).toBe(3);
+    expect(deserializedUnionNode.prevNodes?.[0].nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
+    expect(deserializedUnionNode.prevNodes?.[1].nodeId).toBe(
+      deserializedTableNode2.nodeId,
+    );
+    expect(deserializedUnionNode.prevNodes?.[2].nodeId).toBe(
+      deserializedTableNode3.nodeId,
+    );
+    expect(deserializedUnionNode.state.selectedColumns.length).toBe(2);
+    expect(deserializedUnionNode.state.selectedColumns[0].name).toBe('name');
+    expect(deserializedUnionNode.state.selectedColumns[0].checked).toBe(true);
+    expect(deserializedUnionNode.state.selectedColumns[1].name).toBe('ts');
+    expect(deserializedUnionNode.state.selectedColumns[1].checked).toBe(true);
+  });
+
+  test('serializes and deserializes merge node with filters and comment', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const mergeNode = new MergeNode({
+      prevNodes: [tableNode1, tableNode2],
+      leftQueryAlias: 'left',
+      rightQueryAlias: 'right',
+      conditionType: 'equality',
+      leftColumn: 'name',
+      rightColumn: 'name',
+      sqlExpression: '',
+      filters: [
+        {
+          column: 'dur',
+          op: '>',
+          value: '1000',
+        },
+      ],
+      comment: 'Join on matching names with duration filter',
+    });
+    tableNode1.nextNodes.push(mergeNode);
+    tableNode2.nextNodes.push(mergeNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedMergeNode = deserializedTableNode1
+      .nextNodes[0] as MergeNode;
+    expect(deserializedMergeNode.state.filters).toBeDefined();
+    expect(deserializedMergeNode.state.filters?.length).toBe(1);
+    expect(deserializedMergeNode.state.filters?.[0].column).toBe('dur');
+    expect(deserializedMergeNode.state.filters?.[0].op).toBe('>');
+    expect(deserializedMergeNode.state.comment).toBe(
+      'Join on matching names with duration filter',
+    );
+  });
+
+  test('serializes and deserializes union node with filters and comment', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const unionNode = new UnionNode({
+      prevNodes: [tableNode1, tableNode2],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+        {
+          name: 'ts',
+          type: 'TIMESTAMP_NS',
+          checked: false,
+          column: sliceTable.columns[1],
+        },
+      ],
+    });
+    unionNode.filters = [
+      {
+        column: 'name',
+        op: '!=',
+        value: 'idle',
+      },
+    ];
+    unionNode.comment = 'Union of slice sources excluding idle';
+    tableNode1.nextNodes.push(unionNode);
+    tableNode2.nextNodes.push(unionNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedUnionNode = deserializedTableNode1
+      .nextNodes[0] as UnionNode;
+    expect(deserializedUnionNode.filters).toBeDefined();
+    expect(deserializedUnionNode.filters?.length).toBe(1);
+    expect(deserializedUnionNode.filters?.[0].column).toBe('name');
+    expect(deserializedUnionNode.filters?.[0].op).toBe('!=');
+    expect(deserializedUnionNode.comment).toBe(
+      'Union of slice sources excluding idle',
+    );
+    // Verify unchecked column is preserved
+    expect(deserializedUnionNode.state.selectedColumns[1].checked).toBe(false);
+  });
+
+  test('serializes and deserializes modify columns node with selected columns', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const modifyColumnsNode = new ModifyColumnsNode({
+      prevNode: tableNode,
+      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+        {
+          name: 'ts',
+          type: 'TIMESTAMP_NS',
+          checked: true,
+          column: sliceTable.columns[1],
+        },
+      ],
+    });
+    tableNode.nextNodes.push(modifyColumnsNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode
+      .nextNodes[0] as ModifyColumnsNode;
+    expect(deserializedNode.state.selectedColumns.length).toBe(2);
+    expect(deserializedNode.state.selectedColumns[0].name).toBe('name');
+    expect(deserializedNode.state.selectedColumns[1].name).toBe('ts');
+    expect(deserializedNode.state.newColumns.length).toBe(1);
+    expect(deserializedNode.state.newColumns[0].expression).toBe('dur / 1000');
+  });
+
+  test('serializes and deserializes aggregation node with multiple aggregations', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const aggregationNode = new AggregationNode({
+      prevNode: tableNode,
+      groupByColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+        {
+          name: 'ts',
+          type: 'TIMESTAMP_NS',
+          checked: true,
+          column: sliceTable.columns[1],
+        },
+      ],
+      aggregations: [
+        {
+          column: {
+            name: 'dur',
+            type: 'TIMESTAMP_NS',
+            checked: true,
+            column: sliceTable.columns[2],
+          },
+          aggregationOp: 'SUM',
+          newColumnName: 'total_dur',
+        },
+        {
+          column: {
+            name: 'dur',
+            type: 'TIMESTAMP_NS',
+            checked: true,
+            column: sliceTable.columns[2],
+          },
+          aggregationOp: 'AVG',
+          newColumnName: 'avg_dur',
+        },
+        {
+          column: {
+            name: 'dur',
+            type: 'TIMESTAMP_NS',
+            checked: true,
+            column: sliceTable.columns[2],
+          },
+          aggregationOp: 'COUNT',
+          newColumnName: 'count',
+        },
+      ],
+    });
+    tableNode.nextNodes.push(aggregationNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedAggregationNode = deserializedTableNode
+      .nextNodes[0] as AggregationNode;
+    expect(deserializedAggregationNode.state.groupByColumns.length).toBe(2);
+    expect(deserializedAggregationNode.state.groupByColumns[1].name).toBe('ts');
+    expect(deserializedAggregationNode.state.aggregations.length).toBe(3);
+    expect(
+      deserializedAggregationNode.state.aggregations[0].aggregationOp,
+    ).toBe('SUM');
+    expect(
+      deserializedAggregationNode.state.aggregations[0].newColumnName,
+    ).toBe('total_dur');
+    expect(
+      deserializedAggregationNode.state.aggregations[1].aggregationOp,
+    ).toBe('AVG');
+    expect(
+      deserializedAggregationNode.state.aggregations[1].newColumnName,
+    ).toBe('avg_dur');
+    expect(
+      deserializedAggregationNode.state.aggregations[2].aggregationOp,
+    ).toBe('COUNT');
+  });
+
+  test('serializes and deserializes complex multi-node chain', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+      filters: [
+        {
+          column: 'name',
+          op: '!=',
+          value: 'idle',
+        },
+      ],
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const modifyNode = new ModifyColumnsNode({
+      prevNode: tableNode,
+      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+    });
+    tableNode.nextNodes.push(modifyNode);
+
+    const aggregationNode = new AggregationNode({
+      prevNode: modifyNode,
+      groupByColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+      aggregations: [
+        {
+          column: {
+            name: 'dur_ms',
+            type: 'TIMESTAMP_NS',
+            checked: true,
+            column: sliceTable.columns[2],
+          },
+          aggregationOp: 'SUM',
+          newColumnName: 'total_dur_ms',
+        },
+      ],
+    });
+    modifyNode.nextNodes.push(aggregationNode);
+
+    const sortNode = new SortNode({
+      prevNode: aggregationNode,
+      sortColNames: ['total_dur_ms'],
+    });
+    aggregationNode.nextNodes.push(sortNode);
+
+    const limitNode = new LimitAndOffsetNode({
+      prevNode: sortNode,
+      limit: 10,
+      offset: 0,
+    });
+    sortNode.nextNodes.push(limitNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map([
+        [tableNode.nodeId, {x: 0, y: 0}],
+        [modifyNode.nodeId, {x: 0, y: 100}],
+        [aggregationNode.nodeId, {x: 0, y: 200}],
+        [sortNode.nodeId, {x: 0, y: 300}],
+        [limitNode.nodeId, {x: 0, y: 400}],
+      ]),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Verify chain structure
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const node1 = deserializedState.rootNodes[0] as TableSourceNode;
+    expect(node1.nextNodes.length).toBe(1);
+    expect(node1.state.filters?.length).toBe(1);
+
+    const node2 = node1.nextNodes[0] as ModifyColumnsNode;
+    expect(node2.prevNode?.nodeId).toBe(node1.nodeId);
+    expect(node2.nextNodes.length).toBe(1);
+
+    const node3 = node2.nextNodes[0] as AggregationNode;
+    expect(node3.prevNode?.nodeId).toBe(node2.nodeId);
+    expect(node3.nextNodes.length).toBe(1);
+
+    const node4 = node3.nextNodes[0] as SortNode;
+    expect(node4.prevNode?.nodeId).toBe(node3.nodeId);
+    expect(node4.nextNodes.length).toBe(1);
+
+    const node5 = node4.nextNodes[0] as LimitAndOffsetNode;
+    expect(node5.prevNode?.nodeId).toBe(node4.nodeId);
+    expect(node5.state.limit).toBe(10);
+
+    // Verify all layouts preserved
+    expect(deserializedState.nodeLayouts.size).toBe(5);
+  });
+
+  test('serializes and deserializes branching graph', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const sliceTable = sqlModules.getTable('slice')!;
+    const modifyNode1 = new ModifyColumnsNode({
+      prevNode: tableNode,
+      newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
+      selectedColumns: [
+        {
+          name: 'name',
+          type: 'STRING',
+          checked: true,
+          column: sliceTable.columns[0],
+        },
+      ],
+    });
+
+    const modifyNode2 = new ModifyColumnsNode({
+      prevNode: tableNode,
+      newColumns: [{expression: 'ts / 1000000', name: 'ts_ms'}],
+      selectedColumns: [
+        {
+          name: 'ts',
+          type: 'TIMESTAMP_NS',
+          checked: true,
+          column: sliceTable.columns[1],
+        },
+      ],
+    });
+
+    tableNode.nextNodes.push(modifyNode1, modifyNode2);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(2);
+
+    const branch1 = deserializedTableNode.nextNodes[0] as ModifyColumnsNode;
+    const branch2 = deserializedTableNode.nextNodes[1] as ModifyColumnsNode;
+
+    expect(branch1.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
+    expect(branch2.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
+    expect(branch1.state.newColumns[0].name).toBe('dur_ms');
+    expect(branch2.state.newColumns[0].name).toBe('ts_ms');
   });
 });

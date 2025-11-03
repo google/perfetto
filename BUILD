@@ -717,7 +717,6 @@ perfetto_cc_library(
             ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_traced_probes_user_list_user_list",
-            ":src_traced_probes_user_list_user_list_parser",
             ":src_tracing_ipc_producer_producer",
         ],
     }),
@@ -4392,15 +4391,6 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/user_list/user_list_data_source.cc",
         "src/traced/probes/user_list/user_list_data_source.h",
-    ],
-)
-
-# GN target: //src/traced/probes/user_list:user_list_parser
-perfetto_filegroup(
-    name = "src_traced_probes_user_list_user_list_parser",
-    srcs = [
-        "src/traced/probes/user_list/user_list_parser.cc",
-        "src/traced/probes/user_list/user_list_parser.h",
     ],
 )
 

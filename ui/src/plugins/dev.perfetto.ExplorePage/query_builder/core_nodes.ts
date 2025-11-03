@@ -25,11 +25,18 @@ import {
   ModifyColumnsNode,
   ModifyColumnsState,
 } from './nodes/modify_columns_node';
+import {AddColumnsNode, AddColumnsNodeState} from './nodes/add_columns_node';
 import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
 } from './nodes/interval_intersect_node';
 import {MergeNode, MergeNodeState} from './nodes/merge_node';
+import {SortNode, SortNodeState} from './nodes/sort_node';
+import {UnionNode, UnionNodeState} from './nodes/union_node';
+import {
+  LimitAndOffsetNode,
+  LimitAndOffsetNodeState,
+} from './nodes/limit_and_offset_node';
 
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
@@ -87,6 +94,25 @@ export function registerCoreNodes() {
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
   });
 
+  nodeRegistry.register('add_columns', {
+    name: 'Add Columns',
+    description:
+      'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
+    icon: 'add_box',
+    type: 'modification',
+    factory: (state) => {
+      const fullState: AddColumnsNodeState = {
+        ...state,
+        prevNode: state.prevNode!,
+        selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
+        leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
+        rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
+        autoExecute: false,
+      };
+      return new AddColumnsNode(fullState);
+    },
+  });
+
   nodeRegistry.register('interval_intersect', {
     name: 'Interval Intersect',
     description: 'Intersect the intervals with another table.',
@@ -126,5 +152,39 @@ export function registerCoreNodes() {
       };
       return new MergeNode(fullState);
     },
+  });
+
+  nodeRegistry.register('sort_node', {
+    name: 'Sort',
+    description: 'Sort rows by one or more columns.',
+    icon: 'sort',
+    type: 'modification',
+    factory: (state) => new SortNode(state as SortNodeState),
+  });
+
+  nodeRegistry.register('union_node', {
+    name: 'Union',
+    description: 'Combine rows from multiple sources.',
+    icon: 'merge_type',
+    type: 'multisource',
+    factory: (state) => {
+      const fullState: UnionNodeState = {
+        ...state,
+        prevNodes: state.prevNodes ?? [],
+        selectedColumns: [],
+      };
+      const node = new UnionNode(fullState);
+      node.onPrevNodesUpdated();
+      return node;
+    },
+  });
+
+  nodeRegistry.register('limit_and_offset_node', {
+    name: 'Limit and Offset',
+    description: 'Limit the number of rows returned and optionally skip rows.',
+    icon: 'filter_list',
+    type: 'modification',
+    factory: (state) =>
+      new LimitAndOffsetNode(state as LimitAndOffsetNodeState),
   });
 }

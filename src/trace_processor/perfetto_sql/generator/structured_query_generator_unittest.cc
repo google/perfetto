@@ -1270,7 +1270,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsWithEqualityColumns) {
           table_name: "process"
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
       equality_columns: {
         left_column: "upid"
         right_column: "id"
@@ -1308,8 +1308,8 @@ TEST(StructuredQueryGeneratorTest, AddColumnsWithFreeformCondition) {
           table_name: "thread"
         }
       }
-      input_columns: "name"
-      input_columns: "tid"
+      input_columns: {column_name_or_expression: "name"}
+      input_columns: {column_name_or_expression: "tid"}
       freeform_condition: {
         left_query_alias: "core"
         right_query_alias: "input"
@@ -1348,9 +1348,9 @@ TEST(StructuredQueryGeneratorTest, AddColumnsMultipleColumns) {
           table_name: "process"
         }
       }
-      input_columns: "name"
-      input_columns: "pid"
-      input_columns: "cmdline"
+      input_columns: {column_name_or_expression: "name"}
+      input_columns: {column_name_or_expression: "pid"}
+      input_columns: {column_name_or_expression: "cmdline"}
       equality_columns: {
         left_column: "upid"
         right_column: "id"
@@ -1398,7 +1398,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsWithFilters) {
           int64_rhs: 0
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
       equality_columns: {
         left_column: "upid"
         right_column: "id"
@@ -1431,7 +1431,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsMissingCoreQueryFails) {
           table_name: "process"
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
       equality_columns: {
         left_column: "upid"
         right_column: "id"
@@ -1453,7 +1453,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsMissingInputQueryFails) {
           table_name: "slice"
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
       equality_columns: {
         left_column: "upid"
         right_column: "id"
@@ -1507,7 +1507,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsNoConditionFails) {
           table_name: "process"
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
     }
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
@@ -1531,7 +1531,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidLeftAliasFails) {
           table_name: "process"
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
       freeform_condition: {
         left_query_alias: "left"
         right_query_alias: "input"
@@ -1560,7 +1560,7 @@ TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidRightAliasFails) {
           table_name: "process"
         }
       }
-      input_columns: "name"
+      input_columns: {column_name_or_expression: "name"}
       freeform_condition: {
         left_query_alias: "core"
         right_query_alias: "right"
@@ -1573,6 +1573,51 @@ TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidRightAliasFails) {
   ASSERT_THAT(ret.status().message(),
               testing::HasSubstr(
                   "FreeformCondition right_query_alias must be 'input'"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithAlias) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {
+        column_name_or_expression: "name"
+        alias: "process_name"
+      }
+      input_columns: {
+        column_name_or_expression: "pid"
+        alias: "process_id"
+      }
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name AS process_name, input.pid AS process_id
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
 }
 
 TEST(StructuredQueryGeneratorTest, LimitWithoutOffset) {
@@ -1901,6 +1946,43 @@ TEST(StructuredQueryGeneratorTest, OffsetZeroIsValid) {
     )
     SELECT * FROM sq_0
   )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByWithInnerQuerySimpleSlices) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    inner_query: {
+      id: "0"
+      simple_slices: {
+      }
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "slice_name"
+        direction: ASC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT
+          id,
+          ts,
+          dur,
+          name AS slice_name,
+          thread_name,
+          process_name,
+          track_name
+        FROM thread_or_process_slice
+      )
+    )
+    SELECT * FROM sq_0 ORDER BY slice_name ASC
+  )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("slices.with_context"));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

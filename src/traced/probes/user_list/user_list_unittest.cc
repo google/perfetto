@@ -25,7 +25,6 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/android/user_list.gen.h"
 #include "protos/perfetto/trace/android/user_list.pbzero.h"
-#include "src/traced/probes/user_list/user_list_parser.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -51,16 +50,15 @@ TEST(UserListDataSourceTest, ParseLineProfileNonDebug) {
   auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
   pipe.rd.release();  // now owned by |fs|
 
-  protozero::HeapBuffered<protos::pbzero::UserList> user_list;
+  protozero::HeapBuffered<protos::pbzero::AndroidUserList> user_list;
   std::set<std::string> filter{};
 
   ASSERT_TRUE(ParseUserListStream(user_list.get(), fs, filter));
 
-  protos::gen::UserList parsed_list;
+  protos::gen::AndroidUserList parsed_list;
   parsed_list.ParseFromString(user_list.SerializeAsString());
 
-  EXPECT_FALSE(parsed_list.read_error());
-  EXPECT_FALSE(parsed_list.parse_error());
+  EXPECT_EQ(parsed_list.error(), 0);
   // all entries
   EXPECT_EQ(parsed_list.users_size(), 2);
   EXPECT_EQ(parsed_list.users()[0].type(), "SYSTEM");
