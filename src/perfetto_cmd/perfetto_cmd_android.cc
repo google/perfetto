@@ -38,6 +38,8 @@
 namespace perfetto {
 namespace {
 
+// traced runs as 'user nobody' (AID_NOBODY) that is 9999.
+// We only trust packages written by traced.
 static constexpr int32_t kTrustedUid = 9999;
 
 // Directory for local state and temporary files. This is automatically
