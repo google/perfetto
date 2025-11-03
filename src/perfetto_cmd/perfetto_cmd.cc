@@ -53,7 +53,6 @@
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -68,7 +67,6 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
-#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -80,9 +78,6 @@
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 #include "src/trace_config_utils/txt_to_pb.h"
-
-#include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
@@ -100,8 +95,6 @@
 
 namespace perfetto {
 namespace {
-
-static constexpr int32_t kTrustedUid = 9999;
 
 std::atomic<perfetto::PerfettoCmd*> g_perfetto_cmd;
 
@@ -1722,59 +1715,6 @@ void PerfettoCmd::CloneAllBugreportTraces(
       }
     });
   }
-}
-
-// static
-std::optional<TraceConfig::AndroidReportConfig>
-PerfettoCmd::ParseReporterInfoFromTrace(const std::string& file_path) {
-  base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path.c_str());
-  if (!mapped.IsValid()) {
-    return std::nullopt;
-  }
-
-  protozero::ProtoDecoder trace_decoder(mapped.data(), mapped.length());
-
-  for (auto packet = trace_decoder.ReadField(); packet;
-       packet = trace_decoder.ReadField()) {
-    if (packet.id() != protos::pbzero::Trace::kPacketFieldNumber ||
-        packet.type() !=
-            protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-      return std::nullopt;
-    }
-
-    protozero::ProtoDecoder packet_decoder(packet.as_bytes());
-
-    auto trace_config_field = packet_decoder.FindField(
-        protos::pbzero::TracePacket::kTraceConfigFieldNumber);
-    if (!trace_config_field)
-      continue;
-
-    auto trusted_uid_field = packet_decoder.FindField(
-        protos::pbzero::TracePacket::kTrustedUidFieldNumber);
-    if (!trusted_uid_field)
-      continue;
-
-    int32_t uid_value = trusted_uid_field.as_int32();
-
-    if (uid_value != kTrustedUid)
-      continue;
-
-    PERFETTO_LOG("trace_config found, trusted uid: %d", uid_value);
-
-    // We already have a dependency on a 'gen::TraceConfig', so we use it
-    // here to parse the full config packet, instead of adding a dependency on
-    // a 'pbzero::TraceConfig' and using the one more nested
-    // 'protozero::ProtoDecoder' to directly access 'AndroidReportConfig'.
-    protos::gen::TraceConfig trace_config;
-    trace_config.ParseFromArray(trace_config_field.data(),
-                                trace_config_field.size());
-
-    if (trace_config.has_android_report_config()) {
-      return trace_config.android_report_config();
-    }
-  }
-
-  return std::nullopt;
 }
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {

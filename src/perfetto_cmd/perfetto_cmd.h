@@ -72,10 +72,9 @@ class PerfettoCmd : public Consumer {
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
-  static std::optional<TraceConfig::AndroidReportConfig>
-  ParseReporterInfoFromTrace(const std::string& file_path);
-
  private:
+  friend class PerfettoCmdlineUnitTest;
+
   struct SnapshotTriggerInfo;
 
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
@@ -138,6 +137,8 @@ class PerfettoCmd : public Consumer {
                                       const SnapshotTriggerInfo& trigger);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  static std::optional<TraceConfig::AndroidReportConfig>
+  ParseAndroidReportConfigFromTrace(const std::string& file_path);
   static base::ScopedFile CreateUnlinkedTmpFile();
   static base::ScopedFile CreatePersistentTraceFile(
       const std::string& unique_session_name);

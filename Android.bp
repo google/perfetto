@@ -12795,6 +12795,7 @@ filegroup {
     srcs: [
         "src/perfetto_cmd/config_unittest.cc",
         "src/perfetto_cmd/packet_writer_unittest.cc",
+        "src/perfetto_cmd/perfetto_cmd_unittest.cc",
     ],
 }
 

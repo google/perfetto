@@ -33,7 +33,6 @@
 #include "src/perfetto_cmd/bugreport_path.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
-#include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -1432,38 +1431,6 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   ASSERT_TRUE(ParseNotEmptyTraceFromFile(fpath, trace)) << fpath;
   ExpectTraceContainsTestMessages(trace, kMsgCount);
   ExpectTraceContainsTestMessagesWithSize(trace, kMsgSize);
-}
-
-TEST_F(PerfettoCmdlineTest, ParseReporterInfoFromTrace) {
-  // TraceWriterForTesting writer;
-  {
-    std::string path =
-        "/usr/local/google/home/ktimofeev/Work/perfetto-standalone/test/data/"
-        "wip-wip-wip/some_file.txt";
-    ASSERT_TRUE(base::FileExists(path));
-    auto res = PerfettoCmd::ParseReporterInfoFromTrace(path);
-    EXPECT_FALSE(res.has_value());
-  }
-  {
-    std::string path =
-        "/usr/local/google/home/ktimofeev/Work/perfetto-standalone/test/data/"
-        "wip-wip-wip/persistent_session.pftrace";
-    auto res = PerfettoCmd::ParseReporterInfoFromTrace(path);
-    ASSERT_TRUE(base::FileExists(path));
-    EXPECT_TRUE(res.has_value());
-    const auto& data = res.value();
-    EXPECT_EQ(data.reporter_service_package(), "android.perfetto.cts.reporter");
-    EXPECT_EQ(data.reporter_service_class(),
-              "android.perfetto.cts.reporter.PerfettoReportService");
-  }
-  {
-    std::string path =
-        "/usr/local/google/home/ktimofeev/Work/perfetto-standalone/test/data/"
-        "wip-wip-wip/android_boot.pftrace";
-    auto res = PerfettoCmd::ParseReporterInfoFromTrace(path);
-    ASSERT_TRUE(base::FileExists(path));
-    EXPECT_FALSE(res.has_value());
-  }
 }
 
 }  // namespace perfetto
