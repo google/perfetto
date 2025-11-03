@@ -40,6 +40,8 @@
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
+
 namespace perfetto {
 
 class PerfettoCmd : public Consumer {
@@ -70,13 +72,8 @@ class PerfettoCmd : public Consumer {
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
-  struct ReporterService {
-    std::string package;
-    std::string cls;
-  };
-
-  static std::optional<ReporterService> ParseReporterInfoFromTrace(
-      const std::string& file_path);
+  static std::optional<TraceConfig::AndroidReportConfig>
+  ParseReporterInfoFromTrace(const std::string& file_path);
 
  private:
   struct SnapshotTriggerInfo;
