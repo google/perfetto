@@ -19,6 +19,7 @@ This workspace consists of three crates:
 | [`perfetto-sdk-sys`](./perfetto-sys) | Low-level FFI bindings to the C API (`perfetto_c`). Can link against system or vendored builds. |
 | [`perfetto-sdk`](./perfetto) | Safe and ergonomic wrapper around the raw FFI. Exposes the tracing session, data source, and track event APIs. |
 | [`perfetto-sdk-derive`](./perfetto-derive) | Procedural macros for tracing the scope of function calls and automatically capturing all input parameters. |
+| [`perfetto-sdk-protos-gpu`](./perfetto-protos-gpu) | Extra protobuf bindings for GPU events. |
 
 ---
 
