@@ -1903,4 +1903,41 @@ TEST(StructuredQueryGeneratorTest, OffsetZeroIsValid) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, OrderByWithInnerQuerySimpleSlices) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    inner_query: {
+      id: "0"
+      simple_slices: {
+      }
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "slice_name"
+        direction: ASC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT
+          id,
+          ts,
+          dur,
+          name AS slice_name,
+          thread_name,
+          process_name,
+          track_name
+        FROM thread_or_process_slice
+      )
+    )
+    SELECT * FROM sq_0 ORDER BY slice_name ASC
+  )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("slices.with_context"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
