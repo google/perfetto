@@ -1121,7 +1121,8 @@ TEST(StructuredQueryGeneratorTest, UnionBasic) {
     sq_1 AS (SELECT * FROM slice),
     sq_0 AS (
       SELECT * FROM (
-        SELECT * FROM sq_1 UNION SELECT * FROM sq_2
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2)
+        SELECT * FROM union_query_0 UNION SELECT * FROM union_query_1
       )
     )
     SELECT * FROM sq_0
@@ -1153,7 +1154,8 @@ TEST(StructuredQueryGeneratorTest, UnionAll) {
     sq_1 AS (SELECT * FROM slice),
     sq_0 AS (
       SELECT * FROM (
-        SELECT * FROM sq_1 UNION ALL SELECT * FROM sq_2
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2)
+        SELECT * FROM union_query_0 UNION ALL SELECT * FROM union_query_1
       )
     )
     SELECT * FROM sq_0
@@ -1191,7 +1193,8 @@ TEST(StructuredQueryGeneratorTest, UnionMultipleQueries) {
     sq_1 AS (SELECT * FROM slice),
     sq_0 AS (
       SELECT * FROM (
-        SELECT * FROM sq_1 UNION ALL SELECT * FROM sq_2 UNION ALL SELECT * FROM sq_3
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2), union_query_2 AS (SELECT * FROM sq_3)
+        SELECT * FROM union_query_0 UNION ALL SELECT * FROM union_query_1 UNION ALL SELECT * FROM union_query_2
       )
     )
     SELECT * FROM sq_0
@@ -1232,7 +1235,8 @@ TEST(StructuredQueryGeneratorTest, UnionWithFilters) {
     sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
     sq_0 AS (
       SELECT * FROM (
-        SELECT * FROM sq_1 UNION SELECT * FROM sq_2
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2)
+        SELECT * FROM union_query_0 UNION SELECT * FROM union_query_1
       )
     )
     SELECT * FROM sq_0
@@ -1254,6 +1258,163 @@ TEST(StructuredQueryGeneratorTest, UnionWithSingleQueryFails) {
   ASSERT_FALSE(ret.ok());
   ASSERT_THAT(ret.status().message(),
               testing::HasSubstr("Union must specify at least two queries"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithMatchingColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK(ret);
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnCountFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("different column counts"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnNamesFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "name"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("different column sets"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnOrderSucceeds) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_TRUE(ret.ok()) << ret.status().message();
+  ASSERT_THAT(*ret, testing::HasSubstr("WITH union_query_0 AS"));
+  ASSERT_THAT(*ret, testing::HasSubstr("union_query_1 AS"));
+  ASSERT_THAT(*ret, testing::HasSubstr("SELECT * FROM union_query_0 UNION "
+                                       "SELECT * FROM union_query_1"));
 }
 
 TEST(StructuredQueryGeneratorTest, AddColumnsWithEqualityColumns) {

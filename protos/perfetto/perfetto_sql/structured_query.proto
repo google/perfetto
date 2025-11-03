@@ -238,9 +238,17 @@ message PerfettoSqlStructuredQuery {
   //      processes.
   //    * use_union_all = true to keep all events even if there are duplicates.
   //
-  // Schema:
-  //  All queries must have the same number of columns with compatible types.
-  //  The column names from the first query will be used in the result.
+  // Schema Requirements:
+  //  IMPORTANT: All queries MUST have the same set of columns.
+  //  - All queries must have the same number of columns
+  //  - Column names must match exactly (after applying aliases)
+  //  - Columns can be in any order - the order from the first query will be
+  //    used in the result
+  //  - If select_columns is specified, the validation is performed at query
+  //    generation time. Otherwise, validation happens at SQL execution time.
+  //
+  // The generator will return an error if queries have mismatched columns
+  // when explicit select_columns are specified.
   message ExperimentalUnion {
     // The queries to union together. At least two queries are required.
     repeated PerfettoSqlStructuredQuery queries = 1;

@@ -34,13 +34,11 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
-import {Intent} from '../../../widgets/common';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
   readonly onQueryAnalyzed: (query: Query | Error) => void;
-  readonly onExecute: () => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
 }
@@ -61,12 +59,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
 
-  private renderTitleRow(
-    node: QueryNode,
-    attrs: NodeExplorerAttrs,
-    renderMenu: () => m.Child,
-  ): m.Child {
-    const autoExecute = node.state.autoExecute ?? true;
+  private renderTitleRow(node: QueryNode, renderMenu: () => m.Child): m.Child {
     return m(
       '.pf-exp-node-explorer__title-row',
       m(
@@ -86,12 +79,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         ),
       ),
       m('span.spacer'), // Added spacer to push menu to the right
-      !autoExecute &&
-        m(Button, {
-          label: 'Run',
-          onclick: attrs.onExecute,
-          intent: Intent.Primary,
-        }),
       renderMenu(),
     );
   }
@@ -151,7 +138,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
   }
 
-  private renderContent(node: QueryNode, attrs: NodeExplorerAttrs): m.Child {
+  private renderContent(node: QueryNode): m.Child {
     const sql: string =
       this.sqlForDisplay ??
       (isAQuery(this.currentQuery)
@@ -166,7 +153,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     return m(
       'article',
       this.selectedView === SelectedView.kModify && [
-        node.nodeSpecificModify(attrs.onExecute),
+        node.nodeSpecificModify(),
         m('textarea.pf-exp-node-explorer__comment', {
           'aria-label': 'Comment',
           'placeholder': 'Add a comment...',
@@ -231,8 +218,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       `.pf-exp-node-explorer${
         node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
       }`,
-      this.renderTitleRow(node, attrs, renderModeMenu),
-      this.renderContent(node, attrs),
+      this.renderTitleRow(node, renderModeMenu),
+      this.renderContent(node),
     );
   }
 }

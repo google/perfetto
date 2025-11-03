@@ -26,14 +26,16 @@ import {
   renderCell,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Spinner} from '../../../widgets/spinner';
+import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
-import {Query, QueryNode} from '../query_node';
+import {Query, QueryNode, isAQuery} from '../query_node';
 import {QueryService} from './query_service';
+import {Intent} from '../../../widgets/common';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
@@ -45,6 +47,7 @@ export interface DataExplorerAttrs {
   readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
+  readonly onExecute: () => void;
   readonly onchange?: () => void;
 }
 
@@ -54,16 +57,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     const statusText = this.getStatusText(attrs.query, attrs.response);
     const message = errors ? `Error: ${errors.message}` : statusText;
 
-    // Show spinner when data is updating (query exists but response hasn't arrived yet)
-    const isUpdating =
-      attrs.query !== undefined &&
-      !(attrs.query instanceof Error) &&
-      attrs.response === undefined;
-
     return m(
       DetailsShell,
       {
-        title: ['Query data', isUpdating && m(Spinner)],
+        title: 'Query data',
         fillHeight: true,
         buttons: this.renderMenu(attrs),
       },
@@ -84,14 +81,38 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   }
 
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
-    const fullScreenButton = m(Button, {
-      label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-      onclick: () => attrs.onFullScreenToggle(),
-    });
+    const autoExecute = attrs.node.state.autoExecute ?? true;
 
-    if (attrs.isFullScreen) {
-      return fullScreenButton;
-    }
+    // Show spinner when data is updating (query exists, is valid, but response hasn't arrived yet)
+    const isUpdating =
+      attrs.query !== undefined &&
+      !(attrs.query instanceof Error) &&
+      attrs.response === undefined &&
+      attrs.node.validate();
+
+    const runButton =
+      !autoExecute &&
+      isAQuery(attrs.query) &&
+      m(Button, {
+        label: 'Run Query',
+        icon: 'play_arrow',
+        intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
+        disabled: !attrs.node.validate(),
+        onclick: () => attrs.onExecute(),
+      });
+
+    const spinner = isUpdating && m(Spinner);
+
+    const autoExecuteSwitch = m(Switch, {
+      label: 'Auto Execute',
+      checked: autoExecute,
+      onchange: (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        attrs.node.state.autoExecute = target.checked;
+        attrs.onchange?.();
+      },
+    });
 
     const positionMenu = m(
       PopupMenu,
@@ -102,27 +123,43 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: 'Left',
-          onclick: () => attrs.onPositionChange('left'),
+          label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
+          onclick: () => attrs.onFullScreenToggle(),
         }),
-        m(MenuItem, {
-          label: 'Right',
-          onclick: () => attrs.onPositionChange('right'),
-        }),
-        m(MenuItem, {
-          label: 'Bottom',
-          onclick: () => attrs.onPositionChange('bottom'),
-        }),
+        !attrs.isFullScreen &&
+          m(MenuItem, {
+            label: 'Left',
+            onclick: () => attrs.onPositionChange('left'),
+          }),
+        !attrs.isFullScreen &&
+          m(MenuItem, {
+            label: 'Right',
+            onclick: () => attrs.onPositionChange('right'),
+          }),
+        !attrs.isFullScreen &&
+          m(MenuItem, {
+            label: 'Bottom',
+            onclick: () => attrs.onPositionChange('bottom'),
+          }),
       ],
     );
 
-    return [fullScreenButton, positionMenu];
+    return [runButton, spinner, autoExecuteSwitch, positionMenu];
   }
 
   private renderContent(
     attrs: DataExplorerAttrs,
     message?: string,
   ): m.Children {
+    // Show validation errors as callouts
+    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      return m(
+        Callout,
+        {icon: 'info'},
+        attrs.node.state.issues.queryError.message,
+      );
+    }
+
     if (message) {
       return m(TextParagraph, {text: message});
     }
