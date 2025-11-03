@@ -30,6 +30,8 @@
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/tracing_service_proxy.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
+
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -196,7 +198,7 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 // static
-std::optional<TraceConfig::AndroidReportConfig>
+std::optional<protos::gen::TraceConfig_AndroidReportConfig>
 PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
   base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path.c_str());
   if (!mapped.IsValid()) {

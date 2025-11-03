@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
