@@ -18,6 +18,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -76,7 +77,8 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
   }
 
-  base::FlatHashMap<std::string, std::string> args;
+  base::FlatHashMap<std::string, std::string, base::MurmurHash<std::string>>
+      args;
   for (base::StringSplitter ss(line.args_str, ' '); ss.Next();) {
     std::string key;
     std::string value;
