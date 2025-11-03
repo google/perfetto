@@ -209,7 +209,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       }`,
       m(
         '.pf-exp-node-explorer__header',
-        this.renderTitleRow(node, attrs, renderModeMenu),
+        this.renderTitleRow(node, renderModeMenu),
         m(
           '.pf-exp-node-explorer__collapse-button',
           m(Button, {
@@ -220,7 +220,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           }),
         ),
       ),
-      this.renderContent(node, attrs),
+      this.renderContent(node),
     );
   }
 }

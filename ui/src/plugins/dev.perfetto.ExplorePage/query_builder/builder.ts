@@ -228,6 +228,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   this.drawerVisibility = SplitPanelDrawerVisibility.FULLSCREEN;
                 }
               },
+              onExecute: () => {
+                this.runQuery(selectedNode);
+              },
             })
           : null,
       },

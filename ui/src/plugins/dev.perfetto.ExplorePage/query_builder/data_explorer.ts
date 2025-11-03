@@ -34,6 +34,8 @@ import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode, isAQuery} from '../query_node';
 import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
+import {Icons} from '../../../base/semantic_icons';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
@@ -123,21 +125,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
           onclick: () => attrs.onFullScreenToggle(),
         }),
-        !attrs.isFullScreen &&
-          m(MenuItem, {
-            label: 'Left',
-            onclick: () => attrs.onPositionChange('left'),
-          }),
-        !attrs.isFullScreen &&
-          m(MenuItem, {
-            label: 'Right',
-            onclick: () => attrs.onPositionChange('right'),
-          }),
-        !attrs.isFullScreen &&
-          m(MenuItem, {
-            label: 'Bottom',
-            onclick: () => attrs.onPositionChange('bottom'),
-          }),
       ],
     );
 

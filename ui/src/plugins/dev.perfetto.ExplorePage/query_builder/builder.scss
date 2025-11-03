@@ -42,8 +42,9 @@
 
   .pf-qb-explorer {
     grid-column: 2;
-    overflow: auto;
+    overflow: hidden;
     width: 500px;
+    height: 100%;
     transition:
       width 0.3s ease,
       border-left 0.3s ease;
@@ -53,7 +54,6 @@
     position: absolute;
     top: 1rem;
     right: 1rem;
-    z-index: 10;
     display: flex;
     align-items: center;
     gap: 0.75rem;
