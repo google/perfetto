@@ -128,7 +128,7 @@ export class SqlSourceNode implements MultiSourceNode {
     return sq;
   }
 
-  nodeSpecificModify(onExecute: () => void): m.Child {
+  nodeSpecificModify(): m.Child {
     const runQuery = (sql: string) => {
       this.state.sql = sql.trim();
       m.redraw();
@@ -154,7 +154,8 @@ export class SqlSourceNode implements MultiSourceNode {
           onExecute: (text: string) => {
             queryHistoryStorage.saveQuery(text);
             this.state.sql = text.trim();
-            onExecute();
+            // Note: Execution is now handled by the Run button in DataExplorer
+            // This callback only saves to query history and updates the SQL text
             m.redraw();
           },
           autofocus: true,

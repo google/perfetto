@@ -127,7 +127,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
     return 'Interval Intersect';
   }
 
-  nodeSpecificModify(onExecute?: () => void): m.Child {
+  nodeSpecificModify(): m.Child {
     this.validate();
     const error = this.state.issues?.queryError;
 
@@ -153,10 +153,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
               }),
             ),
           ),
-          m(Button, {
-            label: 'Run',
-            onclick: onExecute,
-          }),
         ),
       ),
     );

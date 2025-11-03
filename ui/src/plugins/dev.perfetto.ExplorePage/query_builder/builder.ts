@@ -172,11 +172,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               this.runQuery(selectedNode);
             }
           },
-          onExecute: () => {
-            this.queryExecuted = false;
-            this.runQuery(selectedNode);
-            m.redraw();
-          },
           onchange: () => {},
         })
       : m(ExplorePageHelp, {
@@ -240,6 +235,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             onFullScreenToggle: () => {
               this.isNodeDataViewerFullScreen =
                 !this.isNodeDataViewerFullScreen;
+            },
+            onExecute: () => {
+              this.queryExecuted = false;
+              this.runQuery(selectedNode);
+              m.redraw();
             },
           }),
         ),

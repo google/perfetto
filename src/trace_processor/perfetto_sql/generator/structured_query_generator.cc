@@ -23,6 +23,7 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -575,6 +576,39 @@ base::StatusOr<std::string> GeneratorImpl::Join(
   return sql;
 }
 
+// Helper function to validate that all queries in a UNION have matching columns
+base::Status ValidateUnionColumns(
+    const std::vector<std::vector<std::string>>& query_columns) {
+  if (query_columns.empty() || query_columns[0].empty()) {
+    return base::OkStatus();
+  }
+
+  const auto& reference_cols = query_columns[0];
+  std::set<std::string> reference_set(reference_cols.begin(),
+                                      reference_cols.end());
+
+  for (size_t i = 1; i < query_columns.size(); ++i) {
+    if (query_columns[i].empty()) {
+      continue;
+    }
+
+    const auto& cols = query_columns[i];
+    if (cols.size() != reference_cols.size()) {
+      return base::ErrStatus(
+          "Union queries have different column counts (query %zu vs query 0)",
+          i);
+    }
+
+    std::set<std::string> cols_set(cols.begin(), cols.end());
+    if (cols_set != reference_set) {
+      return base::ErrStatus(
+          "Union queries have different column sets (query %zu vs query 0)", i);
+    }
+  }
+
+  return base::OkStatus();
+}
+
 base::StatusOr<std::string> GeneratorImpl::Union(
     const StructuredQuery::ExperimentalUnion::Decoder& union_decoder) {
   auto queries = union_decoder.queries();
@@ -582,28 +616,64 @@ base::StatusOr<std::string> GeneratorImpl::Union(
     return base::ErrStatus("Union must specify at least one query");
   }
 
-  // Count the number of queries
+  // Count the number of queries and collect column information for validation
   size_t query_count = 0;
+  std::vector<std::vector<std::string>> query_columns;
+
   for (auto it = queries; it; ++it) {
     query_count++;
+    StructuredQuery::Decoder query(*it);
+
+    // Extract column names from select_columns if present
+    std::vector<std::string> cols;
+    if (auto select_cols = query.select_columns(); select_cols) {
+      for (auto col_it = select_cols; col_it; ++col_it) {
+        StructuredQuery::SelectColumn::Decoder column(*col_it);
+        std::string col_name;
+
+        // Use alias if present, otherwise use column name or expression
+        if (column.has_alias()) {
+          col_name = column.alias().ToStdString();
+        } else if (column.has_column_name_or_expression()) {
+          col_name = column.column_name_or_expression().ToStdString();
+        } else if (column.has_column_name()) {
+          col_name = column.column_name().ToStdString();
+        }
+
+        if (!col_name.empty()) {
+          cols.push_back(col_name);
+        }
+      }
+    }
+
+    query_columns.push_back(cols);
   }
 
   if (query_count < 2) {
     return base::ErrStatus("Union must specify at least two queries");
   }
 
-  // Generate nested sources for all queries
-  std::vector<std::string> query_tables;
-  for (auto it = union_decoder.queries(); it; ++it) {
-    query_tables.push_back(NestedSource(*it));
+  // Validate that all queries have the same columns (if columns are specified)
+  RETURN_IF_ERROR(ValidateUnionColumns(query_columns));
+
+  // Build a local WITH clause to avoid CTE name conflicts with global scope.
+  // Similar to IntervalIntersect, we create local CTEs with unique names.
+  std::string sql = "(WITH ";
+  size_t idx = 0;
+  for (auto it = union_decoder.queries(); it; ++it, ++idx) {
+    if (idx > 0) {
+      sql += ", ";
+    }
+    sql += "union_query_" + std::to_string(idx) + " AS (SELECT * FROM " +
+           NestedSource(*it) + ")";
   }
 
   // Build the UNION/UNION ALL query
   std::string union_keyword =
       union_decoder.use_union_all() ? " UNION ALL " : " UNION ";
-  std::string sql = "(SELECT * FROM " + query_tables[0];
-  for (size_t i = 1; i < query_tables.size(); ++i) {
-    sql += union_keyword + "SELECT * FROM " + query_tables[i];
+  sql += " SELECT * FROM union_query_0";
+  for (size_t i = 1; i < query_count; ++i) {
+    sql += union_keyword + "SELECT * FROM union_query_" + std::to_string(i);
   }
   sql += ")";
 

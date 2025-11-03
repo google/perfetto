@@ -107,7 +107,7 @@ export interface BaseNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(onExecute?: () => void): m.Child;
+  nodeSpecificModify(): m.Child;
   nodeDetails?(): m.Child | undefined;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
