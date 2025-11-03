@@ -126,6 +126,16 @@ class SqlTableTab implements Tab {
               this.tableState.clone(),
             ),
         }),
+        m(
+          MenuItem,
+          {
+            label: 'Add',
+            icon: Icons.Add,
+          },
+          m(MenuItem, {
+            label: 'Flamegraph',
+          }),
+        ),
         m(MenuItem, {
           label: 'Copy SQL query',
           icon: Icons.Copy,
