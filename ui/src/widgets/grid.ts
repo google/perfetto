@@ -166,7 +166,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
           wrap && 'pf-grid-cell--wrap',
         ),
       },
-      m('.pf-grid-cell__content-wrapper', children),
+      children,
     );
 
     if (Boolean(menuItems)) {
@@ -462,6 +462,9 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         ref: 'slider',
         style: {
           height: `${totalRows * rowHeight}px`,
+          // Ensure the puck cannot escape the slider and affect the height of
+          // the scrollable region.
+          overflowY: 'hidden',
         },
       },
       m(
@@ -740,25 +743,22 @@ export class Grid implements m.ClassComponent<GridAttrs> {
               const children = row[index];
               const columnId = this.getColumnId(column.key);
 
-              return m(
-                '.pf-grid__cell-container',
-                {
-                  'style': {
-                    width: `var(--pf-grid-col-${columnId})`,
-                  },
-                  'role': 'cell',
-                  'data-column-id': columnId,
-                  'className': classNames(
-                    column.thickRightBorder &&
-                      'pf-grid__cell-container--border-right-thick',
-                  ),
-                },
+              return this.renderCell(
                 children,
+                columnId,
+                column.thickRightBorder,
               );
             }),
           );
         } else {
-          return undefined;
+          // Return empty spacer instead if row is not present
+          return m('.pf-grid__row', {
+            key: rowIndex,
+            role: 'row',
+            style: {
+              height: `${rowHeight}px`,
+            },
+          });
         }
       })
       .filter(exists);
@@ -783,24 +783,31 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           const children = row[index];
           const columnId = this.getColumnId(column.key);
 
-          return m(
-            '.pf-grid__cell-container',
-            {
-              'style': {
-                width: `var(--pf-grid-col-${columnId})`,
-              },
-              'role': 'cell',
-              'data-column-id': columnId,
-              'className': classNames(
-                column.thickRightBorder &&
-                  'pf-grid__cell-container--border-right-thick',
-              ),
-            },
-            children,
-          );
+          return this.renderCell(children, columnId, column.thickRightBorder);
         }),
       );
     });
+  }
+
+  private renderCell(
+    children: m.Children,
+    columnId: number,
+    thickRightBorder?: boolean,
+  ): m.Children {
+    return m(
+      '.pf-grid__cell-container',
+      {
+        'style': {
+          width: `var(--pf-grid-col-${columnId})`,
+        },
+        'role': 'cell',
+        'data-column-id': columnId,
+        'className': classNames(
+          thickRightBorder && 'pf-grid__cell-container--border-right-thick',
+        ),
+      },
+      children,
+    );
   }
 
   private renderHeaderCell(
