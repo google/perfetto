@@ -129,6 +129,7 @@ export function parsePerfettoSqlTypeFromString(args: {
     });
   }
   if (value === 'id') {
+    // The plain `ID` are resolved into `ID($current_table.$current_column)`.
     return okResult({
       kind: 'id',
       source: {
