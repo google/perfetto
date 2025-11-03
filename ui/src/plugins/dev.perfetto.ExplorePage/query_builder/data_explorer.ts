@@ -44,6 +44,7 @@ export interface DataExplorerAttrs {
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
+  readonly isQueryRunning: boolean;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
@@ -82,22 +83,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
     const autoExecute = attrs.node.state.autoExecute ?? true;
 
-    // Show spinner when data is updating (query exists, is valid, but response hasn't arrived yet)
-    const isUpdating =
-      attrs.query !== undefined &&
-      !(attrs.query instanceof Error) &&
-      attrs.response === undefined &&
-      attrs.node.validate();
+    // Show spinner only when a query is actually running
+    // Don't show spinner before user clicks "Run Query" button
+    const isUpdating = attrs.isQueryRunning;
 
     const runButton =
       !autoExecute &&
-      isAQuery(attrs.query) &&
       m(Button, {
         label: 'Run Query',
         icon: 'play_arrow',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
-        disabled: !attrs.node.validate(),
+        disabled: !isAQuery(attrs.query) || !attrs.node.validate(),
         onclick: () => attrs.onExecute(),
       });
 

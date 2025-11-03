@@ -101,7 +101,18 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
 
     const sq = node.getStructuredQuery();
-    if (sq === undefined) return;
+    if (sq === undefined) {
+      // Report error instead of silently returning
+      const error = new Error(
+        'Cannot generate structured query. This usually means:\n' +
+          '• Multi-source nodes (Union/Merge/Intersect) need at least 2 connected inputs\n' +
+          '• All input ports must be connected\n' +
+          '• Previous nodes must be valid',
+      );
+      this.currentQuery = error;
+      attrs.onQueryAnalyzed(error);
+      return;
+    }
 
     const curSqString = JSON.stringify(sq.toJSON(), null, 2);
 

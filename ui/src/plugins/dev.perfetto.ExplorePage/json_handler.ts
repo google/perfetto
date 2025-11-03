@@ -208,7 +208,6 @@ function createNodeInstance(
       const nodeState: IntervalIntersectNodeState = {
         ...(state as IntervalIntersectSerializedState),
         prevNodes: [],
-        allNodes: [],
       };
       return new IntervalIntersectNode(nodeState);
     case NodeType.kMerge:
