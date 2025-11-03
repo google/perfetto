@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../base/disposable_stack';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
@@ -22,16 +21,14 @@ import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {AppImpl} from '../core/app_impl';
 import {CookieConsent} from '../core/cookie_consent';
 import {featureFlags} from '../core/feature_flags';
-import {OmniboxMode} from '../core/omnibox_manager';
+import {OmniboxManagerImpl, OmniboxMode} from '../core/omnibox_manager';
 import {TraceImpl} from '../core/trace_impl';
-import {Command} from '../public/command';
 import {Button} from '../widgets/button';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {LinearProgress} from '../widgets/linear_progress';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 import {initCssConstants} from './css_constants';
-import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {Sidebar} from './sidebar';
 import {renderStatusBar} from './statusbar';
@@ -43,67 +40,63 @@ const showStatusBarFlag = featureFlags.register({
   description: 'Enable status bar at the bottom of the window',
   defaultValue: true,
 });
-
 const OMNIBOX_INPUT_REF = 'omnibox';
+const APP_TITLE = 'Perfetto UI';
+const RECENT_COMMANDS_LIMIT = 6;
 
-// This wrapper creates a new instance of UiMainPerTrace for each new trace
-// loaded (including the case of no trace at the beginning).
-export class UiMain implements m.ClassComponent {
-  oncreate({dom}: m.CVnodeDOM) {
-    initCssConstants(dom);
-  }
-  view() {
-    const currentTraceId = AppImpl.instance.trace?.engine.engineId ?? '';
-    return [m(UiMainPerTrace, {key: currentTraceId})];
-  }
-}
+// List of recent commands stored in ascending chronological order.
 
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
-export class UiMainPerTrace implements m.ClassComponent {
-  // NOTE: this should NOT need to be an AsyncDisposableStack. If you feel the
-  // need of making it async because you want to clean up SQL resources, that
-  // will cause bugs (see comments in oncreate()).
-  private trash = new DisposableStack();
+export class UiMain implements m.ClassComponent {
   private omniboxInputEl?: HTMLInputElement;
-  private recentCommands: string[] = [];
-  private trace?: TraceImpl;
+  private recentCommands: ReadonlyArray<string> = [];
 
   // This function is invoked once per trace.
   constructor() {
     const app = AppImpl.instance;
     const trace = app.trace;
-    this.trace = trace;
 
-    // Register global commands (commands that are useful even without a trace
-    // loaded).
-    const globalCmds: Command[] = [
-      {
-        id: 'dev.perfetto.OpenCommandPalette',
-        name: 'Open command palette',
-        callback: () => app.omnibox.setMode(OmniboxMode.Command),
-        defaultHotkey: '!Mod+Shift+P',
-      },
-
-      {
-        id: 'dev.perfetto.ShowHelp',
-        name: 'Show help',
-        callback: () => toggleHelp(),
-        defaultHotkey: '?',
-      },
-    ];
-    globalCmds.forEach((cmd) => {
-      this.trash.use(app.commands.registerCommand(cmd));
-    });
-
-    // When the UI loads there is no trace. There is no point registering
-    // commands or anything in this state as they will be useless.
-    if (trace === undefined) return;
-    document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
+    // Update the title bar to reflect the loaded trace's title
+    if (trace) {
+      document.title = `${trace.traceInfo.traceTitle || 'Trace'} - ${APP_TITLE}`;
+    } else {
+      document.title = APP_TITLE;
+    }
   }
 
-  private renderOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+  view(): m.Children {
+    // Update the trace reference on each render so that it's kept up to date.
+    const app = AppImpl.instance;
+    const trace = app.trace;
+
+    const isSomethingLoading =
+      app.isLoadingTrace ||
+      (trace?.engine.numRequestsPending ?? 0) > 0 ||
+      taskTracker.hasPendingTasks();
+
+    return m('main.pf-ui-main', [
+      m(Sidebar),
+      m(Topbar, {
+        omnibox: this.renderOmnibox(trace, app.omnibox),
+        trace,
+      }),
+      m(LinearProgress, {
+        className: 'pf-ui-main__loading',
+        state: isSomethingLoading ? 'indeterminate' : 'none',
+      }),
+      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
+      m(CookieConsent),
+      maybeRenderFullscreenModalDialog(),
+      showStatusBarFlag.get() && renderStatusBar(trace),
+      app.perfDebugging.renderPerfStats(),
+    ]);
+  }
+
+  private renderOmnibox(
+    trace: TraceImpl | undefined,
+    omnibox: OmniboxManagerImpl,
+  ): m.Children {
     const omniboxMode = omnibox.mode;
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
@@ -119,15 +112,15 @@ export class UiMainPerTrace implements m.ClassComponent {
     } else if (omniboxMode === OmniboxMode.Prompt) {
       return this.renderPromptOmnibox();
     } else if (omniboxMode === OmniboxMode.Query) {
-      return this.renderQueryOmnibox();
+      return this.renderQueryOmnibox(trace);
     } else if (omniboxMode === OmniboxMode.Search) {
-      return this.renderSearchOmnibox();
+      return this.renderSearchOmnibox(trace);
     } else {
       assertUnreachable(omniboxMode);
     }
   }
 
-  renderPromptOmnibox(): m.Children {
+  private renderPromptOmnibox(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
     const prompt = assertExists(omnibox.pendingPrompt);
 
@@ -171,7 +164,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
   }
 
-  renderCommandOmnibox(): m.Children {
+  private renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
     const {commands, omnibox} = AppImpl.instance;
     const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
@@ -238,14 +231,13 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   private addRecentCommand(id: string): void {
-    this.recentCommands = this.recentCommands.filter((x) => x !== id);
-    this.recentCommands.push(id);
-    while (this.recentCommands.length > 6) {
-      this.recentCommands.shift();
-    }
+    this.recentCommands = this.recentCommands
+      .filter((x) => x !== id) // Remove duplicates
+      .concat(id) // Add to the end
+      .splice(-RECENT_COMMANDS_LIMIT); // Limit items
   }
 
-  renderQueryOmnibox(): m.Children {
+  private renderQueryOmnibox(trace: TraceImpl | undefined): m.Children {
     const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
     return m(Omnibox, {
       value: AppImpl.instance.omnibox.text,
@@ -262,8 +254,8 @@ export class UiMainPerTrace implements m.ClassComponent {
           title: alt ? 'Pinned query' : 'Omnibox query',
         };
         const tag = alt ? undefined : 'omnibox_query';
-        if (this.trace === undefined) return; // No trace loaded
-        addQueryResultsTab(this.trace, config, tag);
+        if (trace === undefined) return;
+        addQueryResultsTab(trace, config, tag);
       },
       onClose: () => {
         AppImpl.instance.omnibox.setText('');
@@ -278,7 +270,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
   }
 
-  renderSearchOmnibox(): m.Children {
+  private renderSearchOmnibox(trace: TraceImpl | undefined): m.Children {
     return m(Omnibox, {
       value: AppImpl.instance.omnibox.text,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
@@ -292,11 +284,11 @@ export class UiMainPerTrace implements m.ClassComponent {
           return;
         }
         AppImpl.instance.omnibox.setText(value);
-        if (this.trace === undefined) return; // No trace loaded.
+        if (trace === undefined) return; // No trace loaded.
         if (value.length >= 4) {
-          this.trace.search.search(value);
+          trace.search.search(value);
         } else {
-          this.trace.search.reset();
+          trace.search.reset();
         }
       },
       onClose: () => {
@@ -305,28 +297,28 @@ export class UiMainPerTrace implements m.ClassComponent {
         }
       },
       onSubmit: (value, _mod, shift) => {
-        if (this.trace === undefined) return; // No trace loaded.
-        this.trace.search.search(value);
+        if (trace === undefined) return; // No trace loaded.
+        trace.search.search(value);
         if (shift) {
-          this.trace.search.stepBackwards();
+          trace.search.stepBackwards();
         } else {
-          this.trace.search.stepForward();
+          trace.search.stepForward();
         }
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
       },
-      rightContent: this.renderStepThrough(),
+      rightContent: trace && this.renderStepThrough(trace),
     });
   }
 
-  private renderStepThrough() {
+  private renderStepThrough(trace: TraceImpl) {
     const children = [];
-    const results = this.trace?.search.searchResults;
-    if (this.trace?.search.searchInProgress) {
+    const results = trace.search.searchResults;
+    if (trace?.search.searchInProgress) {
       children.push(m('.pf-omnibox__stepthrough-current', m(Spinner)));
     } else if (results !== undefined) {
-      const searchMgr = assertExists(this.trace).search;
+      const searchMgr = trace.search;
       const index = searchMgr.resultIndex;
       const total = results.totalResults ?? 0;
       children.push(
@@ -347,56 +339,15 @@ export class UiMainPerTrace implements m.ClassComponent {
     return m('.pf-omnibox__stepthrough', children);
   }
 
-  oncreate(vnode: m.VnodeDOM) {
-    this.updateOmniboxInputRef(vnode.dom);
+  oncreate({dom}: m.VnodeDOM) {
+    this.updateOmniboxInputRef(dom);
     this.maybeFocusOmnibar();
-  }
-
-  view(): m.Children {
-    const app = AppImpl.instance;
-    const isSomethingLoading =
-      AppImpl.instance.isLoadingTrace ||
-      (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
-      taskTracker.hasPendingTasks();
-
-    return m('main.pf-ui-main', [
-      m(Sidebar, {trace: this.trace}),
-      m(Topbar, {
-        omnibox: this.renderOmnibox(),
-        trace: this.trace,
-      }),
-      m(LinearProgress, {
-        className: 'pf-ui-main__loading',
-        state: isSomethingLoading ? 'indeterminate' : 'none',
-      }),
-      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
-      m(CookieConsent),
-      maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(app.trace),
-      app.perfDebugging.renderPerfStats(),
-    ]);
+    initCssConstants(dom);
   }
 
   onupdate({dom}: m.VnodeDOM) {
     this.updateOmniboxInputRef(dom);
     this.maybeFocusOmnibar();
-  }
-
-  onremove(_: m.VnodeDOM) {
-    this.omniboxInputEl = undefined;
-
-    // NOTE: if this becomes ever an asyncDispose(), then the promise needs to
-    // be returned to onbeforeremove, so mithril delays the removal until
-    // the promise is resolved, but then also the UiMain wrapper needs to be
-    // more complex to linearize the destruction of the old instane with the
-    // creation of the new one, without overlaps.
-    // However, we should not add disposables that issue cleanup queries on the
-    // Engine. Doing so is: (1) useless: we throw away the whole wasm instance
-    // on each trace load, so what's the point of deleting tables from a TP
-    // instance that is going to be destroyed?; (2) harmful: we don't have
-    // precise linearization with the wasm teardown, so we might end up awaiting
-    // forever for the asyncDispose() because the query will never run.
-    this.trash.dispose();
   }
 
   private updateOmniboxInputRef(dom: Element): void {
