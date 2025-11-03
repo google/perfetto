@@ -25,6 +25,7 @@ import {
   ModifyColumnsNode,
   ModifyColumnsState,
 } from './nodes/modify_columns_node';
+import {AddColumnsNode, AddColumnsNodeState} from './nodes/add_columns_node';
 import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
@@ -91,6 +92,25 @@ export function registerCoreNodes() {
     icon: 'edit',
     type: 'modification',
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
+  });
+
+  nodeRegistry.register('add_columns', {
+    name: 'Add Columns',
+    description:
+      'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
+    icon: 'add_box',
+    type: 'modification',
+    factory: (state) => {
+      const fullState: AddColumnsNodeState = {
+        ...state,
+        prevNode: state.prevNode!,
+        selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
+        leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
+        rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
+        autoExecute: false,
+      };
+      return new AddColumnsNode(fullState);
+    },
   });
 
   nodeRegistry.register('interval_intersect', {

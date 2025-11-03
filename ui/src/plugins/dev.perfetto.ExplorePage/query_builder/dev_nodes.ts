@@ -13,11 +13,6 @@
 // limitations under the License.
 
 import {nodeRegistry} from './node_registry';
-import {
-  AddColumnsNode,
-  AddColumnsNodeState,
-} from './nodes/dev/add_columns_node';
-import {modalForTableSelection} from './nodes/sources/table_source';
 import {TestNode} from './nodes/dev/test_node';
 
 export function registerDevNodes() {
@@ -27,24 +22,6 @@ export function registerDevNodes() {
     icon: 'bug_report',
     type: 'source',
     factory: (state) => new TestNode(state),
-    devOnly: true,
-  });
-
-  nodeRegistry.register('add_columns_node', {
-    name: 'Add Columns',
-    description: 'Adds new columns.',
-    icon: 'add_box',
-    type: 'modification',
-    factory: (state) => new AddColumnsNode(state as AddColumnsNodeState),
-    preCreate: async ({sqlModules}) => {
-      const table = await modalForTableSelection(sqlModules);
-      if (table === undefined) {
-        return null;
-      }
-      return {
-        sqlTable: table.sqlTable,
-      };
-    },
     devOnly: true,
   });
 }

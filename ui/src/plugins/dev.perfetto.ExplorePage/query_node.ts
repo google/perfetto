@@ -58,6 +58,13 @@ export function singleNodeOperation(type: NodeType): boolean {
   }
 }
 
+// Actions that can be performed by nodes on the parent graph.
+// These are optional callbacks provided by the parent component.
+export interface NodeActions {
+  // Create and connect a table node to a target node's input port
+  onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
+}
+
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNode?: QueryNode;
@@ -73,6 +80,9 @@ export interface QueryNodeState {
   issues?: NodeIssues;
 
   onchange?: () => void;
+
+  // Actions that can be performed on the parent graph
+  actions?: NodeActions;
 
   // Caching
   hasOperationChanged?: boolean;
@@ -109,6 +119,9 @@ export interface SourceNode extends BaseNode {}
 
 export interface ModificationNode extends BaseNode {
   prevNode?: QueryNode;
+  // Optional input nodes that appear on the left side of the node
+  // (as opposed to prevNode which comes from above)
+  inputNodes?: (QueryNode | undefined)[];
 }
 
 export interface MultiSourceNode extends BaseNode {
@@ -278,8 +291,26 @@ export function addConnection(
 
   // Update backward link based on node type
   if ('prevNode' in toNode && singleNodeOperation(toNode.type)) {
-    // ModificationNode - single input
-    (toNode as ModificationNode).prevNode = fromNode;
+    // ModificationNode
+    const modNode = toNode as ModificationNode;
+
+    // If portIndex is specified and node supports inputNodes
+    if (portIndex !== undefined && 'inputNodes' in modNode) {
+      // portIndex maps directly to inputNodes array
+      // portIndex=0 → inputNodes[0], portIndex=1 → inputNodes[1], etc.
+      if (!modNode.inputNodes) {
+        modNode.inputNodes = [];
+      }
+      // Expand array if needed
+      while (modNode.inputNodes.length <= portIndex) {
+        modNode.inputNodes.push(undefined);
+      }
+      modNode.inputNodes[portIndex] = fromNode;
+      modNode.onPrevNodesUpdated?.();
+    } else {
+      // Otherwise connect to prevNode (default single input from above)
+      modNode.prevNode = fromNode;
+    }
   } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
     // MultiSourceNode - multiple inputs
     const multiSourceNode = toNode as MultiSourceNode;
@@ -308,10 +339,21 @@ export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
 
   // Remove backward link based on node type
   if ('prevNode' in toNode && singleNodeOperation(toNode.type)) {
-    // ModificationNode - single input
+    // ModificationNode
     const modNode = toNode as ModificationNode;
+
+    // Check if it's in prevNode
     if (modNode.prevNode === fromNode) {
       modNode.prevNode = undefined;
+    }
+
+    // Also check if it's in inputNodes
+    if ('inputNodes' in modNode && modNode.inputNodes) {
+      const inputIndex = modNode.inputNodes.indexOf(fromNode);
+      if (inputIndex !== -1) {
+        modNode.inputNodes[inputIndex] = undefined;
+        modNode.onPrevNodesUpdated?.();
+      }
     }
   } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
     // MultiSourceNode - multiple inputs
@@ -334,7 +376,22 @@ export function removeAllIncomingConnections(node: QueryNode): void {
   // Find all parent nodes
   if ('prevNode' in node && node.prevNode) {
     parentsToRemove.push(node.prevNode);
-  } else if ('prevNodes' in node && Array.isArray(node.prevNodes)) {
+  }
+
+  // Check for inputNodes in ModificationNode
+  if ('inputNodes' in node) {
+    const modNode = node as ModificationNode;
+    if (modNode.inputNodes) {
+      for (const parent of modNode.inputNodes) {
+        if (parent !== undefined) {
+          parentsToRemove.push(parent);
+        }
+      }
+    }
+  }
+
+  // Check for prevNodes in MultiSourceNode
+  if ('prevNodes' in node && Array.isArray(node.prevNodes)) {
     const multiSourceNode = node as MultiSourceNode;
     for (const parent of multiSourceNode.prevNodes) {
       if (parent !== undefined) {

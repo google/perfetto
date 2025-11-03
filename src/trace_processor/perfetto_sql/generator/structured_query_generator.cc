@@ -646,11 +646,27 @@ base::StatusOr<std::string> GeneratorImpl::AddColumns(
   // Build the SELECT clause with all core columns plus input columns
   std::string select_clause = "core.*";
   for (auto it = add_columns.input_columns(); it; ++it) {
-    protozero::ConstChars col_name(*it);
-    if (col_name.size == 0) {
+    StructuredQuery::SelectColumn::Decoder col_decoder(*it);
+
+    // Get the column name or expression
+    if (!col_decoder.has_column_name_or_expression()) {
+      return base::ErrStatus(
+          "SelectColumn must specify column_name_or_expression");
+    }
+    std::string col_expr =
+        col_decoder.column_name_or_expression().ToStdString();
+    if (col_expr.empty()) {
       return base::ErrStatus("Input column name cannot be empty");
     }
-    select_clause += ", input." + col_name.ToStdString();
+
+    // Add the column with optional alias
+    select_clause += ", input." + col_expr;
+    if (col_decoder.has_alias()) {
+      std::string alias = col_decoder.alias().ToStdString();
+      if (!alias.empty()) {
+        select_clause += " AS " + alias;
+      }
+    }
   }
 
   // Build the join condition

@@ -25,7 +25,7 @@ import {
   SqlModules,
   SqlTable,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
-import {AddColumnsNode} from './query_builder/nodes/dev/add_columns_node';
+import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/sort_node';
 import {MergeNode} from './query_builder/nodes/merge_node';

@@ -280,8 +280,10 @@ message PerfettoSqlStructuredQuery {
     // The input query. Source of additional columns. Required.
     optional PerfettoSqlStructuredQuery input_query = 2;
 
-    // List of column names to add from the input query. At least one required.
-    repeated string input_columns = 3;
+    // List of columns to add from the input query. At least one required.
+    // Each SelectColumn specifies the column name and optional alias for
+    // renaming.
+    repeated SelectColumn input_columns = 3;
 
     // The condition for the join. One of the following is required.
     oneof condition {
