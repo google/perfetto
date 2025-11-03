@@ -220,6 +220,18 @@ function createCurve(
   let cx2: number;
   let cy2: number;
 
+  if (shortenEnd > 0) {
+    if (toPortType === 'bottom') {
+      y2 += shortenEnd;
+    } else if (toPortType === 'top') {
+      y2 -= shortenEnd;
+    } else if (toPortType === 'left') {
+      x2 -= shortenEnd;
+    } else if (toPortType === 'right') {
+      x2 += shortenEnd;
+    }
+  }
+
   // For top/bottom ports, control points extend vertically
   // For left/right ports, control points extend horizontally
   if (fromPortType === 'bottom' || fromPortType === 'top') {
@@ -246,17 +258,17 @@ function createCurve(
     cy2 = y2; // Keep Y constant for horizontal extension
   }
 
-  if (shortenEnd > 0) {
-    const tangentX = x2 - cx2;
-    const tangentY = y2 - cy2;
-    const tangentLength = Math.sqrt(tangentX * tangentX + tangentY * tangentY);
-    if (tangentLength > shortenEnd) {
-      const unitTangentX = tangentX / tangentLength;
-      const unitTangentY = tangentY / tangentLength;
-      x2 -= unitTangentX * shortenEnd;
-      y2 -= unitTangentY * shortenEnd;
-    }
-  }
+  // if (shortenEnd > 0) {
+  //   const tangentX = x2 - cx2;
+  //   const tangentY = y2 - cy2;
+  //   const tangentLength = Math.sqrt(tangentX * tangentX + tangentY * tangentY);
+  //   if (tangentLength > shortenEnd) {
+  //     const unitTangentX = tangentX / tangentLength;
+  //     const unitTangentY = tangentY / tangentLength;
+  //     x2 -= unitTangentX * shortenEnd;
+  //     y2 -= unitTangentY * shortenEnd;
+  //   }
+  // }
 
   return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
 }
@@ -705,8 +717,17 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
       path.setAttribute(
         'd',
-        createCurve(fromX, fromY, toX, toY, fromPortType, toPortType),
+        createCurve(
+          fromX,
+          fromY,
+          toX,
+          toY,
+          fromPortType,
+          toPortType,
+          shortenLength,
+        ),
       );
+      path.setAttribute('marker-end', 'url(#arrowhead)');
       svg.appendChild(path);
     }
   }
