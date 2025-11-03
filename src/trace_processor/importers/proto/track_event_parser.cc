@@ -1409,8 +1409,10 @@ class TrackEventParser::EventImporter {
             args_writer.AddString(debug_key.key(), *flags);
           }
         }
-        if (!is_load_template_event && (annotation_name == "instance_id" ||
-                                        annotation_name == "instance_id_")) {
+        // Skip processing the empty name event such as counter event
+        if (!name.empty() && !is_load_template_event &&
+            (annotation_name == "instance_id" ||
+             annotation_name == "instance_id_")) {
           std::string id = "";
           if (annotation.has_string_value()) {
             id = annotation.string_value().ToStdString();
