@@ -40,6 +40,8 @@
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
+
 namespace perfetto {
 
 class PerfettoCmd : public Consumer {
@@ -71,6 +73,8 @@ class PerfettoCmd : public Consumer {
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
+  friend class PerfettoCmdlineUnitTest;
+
   struct SnapshotTriggerInfo;
 
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
@@ -134,6 +138,8 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
+  static std::optional<TraceConfig::AndroidReportConfig>
+  ParseAndroidReportConfigFromTrace(const std::string& file_path);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();
