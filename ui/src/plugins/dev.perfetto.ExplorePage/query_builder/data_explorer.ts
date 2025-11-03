@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -29,7 +28,6 @@ import {SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
@@ -44,7 +42,6 @@ export interface DataExplorerAttrs {
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
-  readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
