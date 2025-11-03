@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {classNames} from '../../../base/classnames';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {ExplorePageHelp} from './help';
 import {
@@ -25,8 +24,7 @@ import {
   queryToRun,
   addConnection,
 } from '../query_node';
-import {Button} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -41,6 +39,8 @@ export interface NodeExplorerAttrs {
   readonly onQueryAnalyzed: (query: Query | Error) => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
+  readonly isCollapsed?: boolean;
+  readonly onToggleCollapse?: () => void;
 }
 
 enum SelectedView {
@@ -62,22 +62,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private renderTitleRow(node: QueryNode, renderMenu: () => m.Child): m.Child {
     return m(
       '.pf-exp-node-explorer__title-row',
-      m(
-        '.title',
-        m(
-          'h2',
-          !node.validate() &&
-            m(Icon, {
-              icon: Icons.Warning,
-              filled: true,
-              className: classNames(
-                'pf-exp-node-explorer__warning-icon--error',
-              ),
-              title: `Invalid node: \n${node.state.issues?.getTitle() ?? ''}`,
-            }),
-          node.getTitle(),
-        ),
-      ),
+      m('.title', m('h2', node.getTitle())),
       m('span.spacer'), // Added spacer to push menu to the right
       renderMenu(),
     );
@@ -176,7 +161,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   }
 
   view({attrs}: m.CVnode<NodeExplorerAttrs>) {
-    const {node} = attrs;
+    const {node, isCollapsed, onToggleCollapse} = attrs;
     if (!node) {
       return m(ExplorePageHelp);
     }
@@ -214,11 +199,27 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       );
     };
 
+    if (isCollapsed) {
+      return m('.pf-exp-node-explorer.collapsed');
+    }
+
     return m(
       `.pf-exp-node-explorer${
         node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
       }`,
-      this.renderTitleRow(node, renderModeMenu),
+      m(
+        '.pf-exp-node-explorer__header',
+        this.renderTitleRow(node, renderModeMenu),
+        m(
+          '.pf-exp-node-explorer__collapse-button',
+          m(Button, {
+            icon: Icons.GoForward,
+            title: 'Collapse panel',
+            onclick: onToggleCollapse,
+            variant: ButtonVariant.Filled,
+          }),
+        ),
+      ),
       this.renderContent(node),
     );
   }

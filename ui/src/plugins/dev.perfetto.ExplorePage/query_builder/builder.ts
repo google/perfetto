@@ -54,6 +54,10 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
+import {Intent} from '../../../widgets/common';
+import {Icon} from '../../../widgets/icon';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
@@ -62,6 +66,10 @@ import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
 import {Trace} from 'src/public/trace';
 import {DataExplorer} from './data_explorer';
+import {
+  SplitPanel,
+  SplitPanelDrawerVisibility,
+} from '../../../widgets/split_panel';
 import {
   DataGridDataSource,
   DataGridModel,
@@ -116,11 +124,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private queryService: QueryService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
-  private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
   private previousSelectedNode?: QueryNode;
-  private isNodeDataViewerFullScreen: boolean = false;
+  private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
+  private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.queryService = new QueryService(attrs.trace.engine);
@@ -137,11 +145,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     } = attrs;
 
     if (selectedNode && selectedNode !== this.previousSelectedNode) {
-      if (selectedNode instanceof SqlSourceNode) {
-        this.tablePosition = 'left';
-      } else {
-        this.tablePosition = 'bottom';
-      }
       this.response = undefined;
       this.dataSource = undefined;
     }
@@ -150,9 +153,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const layoutClasses =
       classNames(
         'pf-query-builder-layout',
-        selectedNode ? 'selection' : 'no-selection',
-        selectedNode && `selection-${this.tablePosition}`,
-        this.isNodeDataViewerFullScreen && 'full-page',
+        this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
     const explorer = selectedNode
@@ -173,6 +174,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             }
           },
           onchange: () => {},
+          isCollapsed: this.isExplorerCollapsed,
+          onToggleCollapse: () => {
+            this.isExplorerCollapsed = !this.isExplorerCollapsed;
+          },
         })
       : m(ExplorePageHelp, {
           sqlModules,
@@ -193,7 +198,42 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         });
 
     return m(
-      `.${layoutClasses.split(' ').join('.')}`,
+      SplitPanel,
+      {
+        className: layoutClasses,
+        visibility: selectedNode
+          ? this.drawerVisibility
+          : SplitPanelDrawerVisibility.COLLAPSED,
+        onVisibilityChange: (v) => {
+          this.drawerVisibility = v;
+        },
+        startingHeight: 300,
+        drawerContent: selectedNode
+          ? m(DataExplorer, {
+              queryService: this.queryService,
+              query: this.query,
+              node: selectedNode,
+              response: this.response,
+              dataSource: this.dataSource,
+              onchange: () => {},
+              isFullScreen:
+                this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
+              onFullScreenToggle: () => {
+                if (
+                  this.drawerVisibility ===
+                  SplitPanelDrawerVisibility.FULLSCREEN
+                ) {
+                  this.drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+                } else {
+                  this.drawerVisibility = SplitPanelDrawerVisibility.FULLSCREEN;
+                }
+              },
+              onExecute: () => {
+                this.runQuery(selectedNode);
+              },
+            })
+          : null,
+      },
       m(
         '.pf-qb-node-graph',
         m(Graph, {
@@ -216,33 +256,34 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onExport: attrs.onExport,
           onRemoveFilter: attrs.onRemoveFilter,
         }),
+        selectedNode &&
+          m(
+            '.pf-qb-floating-controls',
+            !selectedNode.validate() &&
+              m(
+                '.pf-qb-floating-warning',
+                m(Icon, {
+                  icon: Icons.Warning,
+                  filled: true,
+                  className: 'pf-qb-warning-icon',
+                  title: `Invalid node: ${selectedNode.state.issues?.getTitle() ?? ''}`,
+                }),
+              ),
+            this.isExplorerCollapsed &&
+              m(Button, {
+                icon: Icons.GoBack,
+                title: 'Expand panel',
+                onclick: () => {
+                  this.isExplorerCollapsed = false;
+                },
+                variant: ButtonVariant.Filled,
+                rounded: true,
+                iconFilled: true,
+                intent: Intent.Primary,
+              }),
+          ),
       ),
       m('.pf-qb-explorer', explorer),
-      selectedNode &&
-        m(
-          '.pf-qb-viewer',
-          m(DataExplorer, {
-            queryService: this.queryService,
-            query: this.query,
-            node: selectedNode,
-            response: this.response,
-            dataSource: this.dataSource,
-            onchange: () => {},
-            onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
-              this.tablePosition = pos;
-            },
-            isFullScreen: this.isNodeDataViewerFullScreen,
-            onFullScreenToggle: () => {
-              this.isNodeDataViewerFullScreen =
-                !this.isNodeDataViewerFullScreen;
-            },
-            onExecute: () => {
-              this.queryExecuted = false;
-              this.runQuery(selectedNode);
-              m.redraw();
-            },
-          }),
-        ),
     );
   }
 

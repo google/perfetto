@@ -36,7 +36,12 @@ import m from 'mithril';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
-import {MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {
+  MenuItem,
+  MenuDivider,
+  MenuTitle,
+  PopupMenu,
+} from '../../../../widgets/menu';
 import {
   Connection,
   Node,
@@ -578,6 +583,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       attrs.onAddSourceNode,
     );
 
+    const addNodeMenuItems = [
+      m(MenuTitle, {label: 'Sources'}),
+      ...sourceMenuItems,
+      m(MenuDivider),
+      m(MenuTitle, {label: 'Operations'}),
+      ...operationMenuItems,
+    ];
+
     const moreMenuItems = [
       m(MenuItem, {
         label: 'Export',
@@ -598,24 +611,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         PopupMenu,
         {
           trigger: m(Button, {
-            label: 'Add Source',
+            label: 'Add Node',
             icon: Icons.Add,
             variant: ButtonVariant.Filled,
           }),
         },
-        sourceMenuItems,
-      ),
-      m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            label: 'Add Operation',
-            icon: Icons.Add,
-            variant: ButtonVariant.Filled,
-            style: {marginLeft: '8px'},
-          }),
-        },
-        operationMenuItems,
+        addNodeMenuItems,
       ),
       m(
         PopupMenu,
@@ -659,7 +660,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         tabindex: 0,
       },
       [
-        this.renderControls(attrs),
         m(NodeGraph, {
           nodes,
           connections,
@@ -708,6 +708,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             m.redraw();
           },
         }),
+        this.renderControls(attrs),
       ],
     );
   }

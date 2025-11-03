@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -29,13 +28,14 @@ import {SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
 import {Query, QueryNode, isAQuery} from '../query_node';
 import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
+import {Icons} from '../../../base/semantic_icons';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
@@ -44,7 +44,6 @@ export interface DataExplorerAttrs {
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
-  readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
@@ -126,21 +125,6 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
           onclick: () => attrs.onFullScreenToggle(),
         }),
-        !attrs.isFullScreen &&
-          m(MenuItem, {
-            label: 'Left',
-            onclick: () => attrs.onPositionChange('left'),
-          }),
-        !attrs.isFullScreen &&
-          m(MenuItem, {
-            label: 'Right',
-            onclick: () => attrs.onPositionChange('right'),
-          }),
-        !attrs.isFullScreen &&
-          m(MenuItem, {
-            label: 'Bottom',
-            onclick: () => attrs.onPositionChange('bottom'),
-          }),
       ],
     );
 
