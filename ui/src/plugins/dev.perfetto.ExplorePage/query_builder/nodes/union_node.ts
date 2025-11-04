@@ -39,7 +39,6 @@ export interface UnionSerializedState {
 export interface UnionNodeState extends QueryNodeState {
   readonly prevNodes: QueryNode[];
   selectedColumns: ColumnInfo[];
-  onExecute?: () => void;
 }
 
 export class UnionNode implements MultiSourceNode {
@@ -170,12 +169,24 @@ export class UnionNode implements MultiSourceNode {
     const cards: m.Child[] = [];
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
     if (selectedCols.length > 0) {
-      const selectedItems = selectedCols.map((c) => {
-        return m('div', c.column.name);
-      });
-      cards.push(
-        m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
-      );
+      // If more than 3 columns, just show the count
+      if (selectedCols.length > 3) {
+        cards.push(
+          m(
+            Card,
+            {className: 'pf-node-details-card'},
+            m('div', `${selectedCols.length} common columns`),
+          ),
+        );
+      } else {
+        // Show individual column names for 3 or fewer
+        const selectedItems = selectedCols.map((c) => {
+          return m('div', c.column.name);
+        });
+        cards.push(
+          m(Card, {className: 'pf-node-details-card'}, ...selectedItems),
+        );
+      }
     }
 
     if (cards.length === 0) {
@@ -230,7 +241,6 @@ export class UnionNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: UnionNodeState = {
       prevNodes: [...this.state.prevNodes],
-      onExecute: this.state.onExecute,
       selectedColumns: this.state.selectedColumns.map((c) => ({...c})),
     };
     const clone = new UnionNode(stateCopy);
@@ -251,10 +261,12 @@ export class UnionNode implements MultiSourceNode {
     }
 
     return protos.PerfettoSqlStructuredQuery.create({
-      experimentalUnion: protos.PerfettoSqlStructuredQuery.ExperimentalUnion.create({
-        queries,
-        useUnionAll: true,
-      }),
+      id: this.nodeId,
+      experimentalUnion:
+        protos.PerfettoSqlStructuredQuery.ExperimentalUnion.create({
+          queries,
+          useUnionAll: true,
+        }),
     });
   }
 

@@ -124,6 +124,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private queryService: QueryService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
+  private isQueryRunning: boolean = false;
   private previousSelectedNode?: QueryNode;
   private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
@@ -147,6 +148,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     if (selectedNode && selectedNode !== this.previousSelectedNode) {
       this.response = undefined;
       this.dataSource = undefined;
+      this.query = undefined;
+      this.queryExecuted = false;
+      this.isQueryRunning = false;
     }
     this.previousSelectedNode = selectedNode;
 
@@ -215,6 +219,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               node: selectedNode,
               response: this.response,
               dataSource: this.dataSource,
+              isQueryRunning: this.isQueryRunning,
               onchange: () => {},
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
@@ -319,6 +324,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       return;
     }
 
+    this.isQueryRunning = true;
     this.queryService.runQuery(queryToRun(this.query)).then((response) => {
       this.response = response;
       const ds = new InMemoryDataSource(this.response.rows);
@@ -359,6 +365,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       if (node instanceof SqlSourceNode) {
         node.onQueryExecuted(this.response.columns);
       }
+      this.isQueryRunning = false;
       m.redraw();
     });
   }

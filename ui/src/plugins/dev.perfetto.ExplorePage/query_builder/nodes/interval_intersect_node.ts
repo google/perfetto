@@ -36,8 +36,6 @@ export interface IntervalIntersectSerializedState {
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
   readonly prevNodes: QueryNode[];
-  readonly allNodes: QueryNode[];
-  onExecute?: () => void;
 }
 
 export class IntervalIntersectNode implements MultiSourceNode {
@@ -161,10 +159,8 @@ export class IntervalIntersectNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: IntervalIntersectNodeState = {
       prevNodes: [...this.state.prevNodes],
-      allNodes: this.state.allNodes,
       filters: this.state.filters ? [...this.state.filters] : undefined,
       onchange: this.state.onchange,
-      onExecute: this.state.onExecute,
     };
     return new IntervalIntersectNode(stateCopy);
   }

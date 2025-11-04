@@ -225,7 +225,6 @@ describe('JSON serialization/deserialization', () => {
 
     const intervalIntersectNode = new IntervalIntersectNode({
       prevNodes: [tableNode1, tableNode2],
-      allNodes: [tableNode1, tableNode2],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
