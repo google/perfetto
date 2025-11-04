@@ -94,14 +94,39 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         return;
       }
 
+      const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+      if (!sqlModules) return;
+
+      // Use a wrapper object to hold the node reference (allows mutation without 'let')
+      const nodeRef: {current?: QueryNode} = {};
+
       const nodeState: QueryNodeState = {
         ...initialState,
         prevNode: node,
+        sqlModules,
+        trace: attrs.trace,
+        // Provide actions for nodes that need to interact with the graph
+        actions: {
+          onAddAndConnectTable: (tableName: string, portIndex: number) => {
+            // Use the closure to access nodeRef.current which will be set below
+            if (nodeRef.current !== undefined) {
+              this.handleAddAndConnectTable(
+                attrs,
+                tableName,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
+        },
       };
 
       const newNode = descriptor.factory(nodeState, {
         allNodes: state.rootNodes,
       });
+
+      // Set the reference so the callback can use it
+      nodeRef.current = newNode;
 
       // Store the existing next nodes
       const existingNextNodes = [...node.nextNodes];
@@ -157,6 +182,46 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [...currentState.rootNodes, newNode],
       selectedNode: newNode,
+    }));
+  }
+
+  private async handleAddAndConnectTable(
+    attrs: ExplorePageAttrs,
+    tableName: string,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    // Get the table descriptor
+    const descriptor = nodeRegistry.get('table');
+    if (!descriptor) return;
+
+    // Find the table in SQL modules
+    const sqlTable = sqlModules.listTables().find((t) => t.name === tableName);
+    if (!sqlTable) {
+      console.warn(`Table ${tableName} not found in SQL modules`);
+      return;
+    }
+
+    // Create the table node with the specific table (bypass the modal)
+    const newNode = descriptor.factory(
+      {
+        sqlTable,
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Add connection from the new table node to the target node
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
     }));
   }
 

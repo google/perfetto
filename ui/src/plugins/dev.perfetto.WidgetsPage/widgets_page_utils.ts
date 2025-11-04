@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
 import {isString} from '../../base/object_utils';
-import {Anchor} from '../../widgets/anchor';
 import {Checkbox} from '../../widgets/checkbox';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
@@ -24,33 +22,25 @@ export type Options = {
   [key: string]: EnumOption | boolean | string | number;
 };
 
-export class EnumOption {
+export class EnumOption<T extends readonly string[] = string[]> {
   constructor(
-    public initial: string,
-    public options: string[],
+    public initial: T[number],
+    public options: T,
   ) {}
 }
 
-interface WidgetTitleAttrs {
-  label: string;
-}
+// Type helper to extract the string union from EnumOption
+type ExtractEnumValue<T> = T extends EnumOption<infer U> ? U[number] : T;
 
-class WidgetTitle implements m.ClassComponent<WidgetTitleAttrs> {
-  view({attrs}: m.CVnode<WidgetTitleAttrs>) {
-    const {label} = attrs;
-    const id = label.replaceAll(' ', '').toLowerCase();
-    const href = `#!/widgets#${id}`;
-    return m(Anchor, {id, href}, m('h2', label));
-  }
-}
+// Type helper to transform all properties in Options
+type TransformOptions<T extends Options> = {
+  [K in keyof T]: ExtractEnumValue<T[K]>;
+};
 
 export interface WidgetShowcaseAttrs {
-  label: string;
-  description?: string;
   initialOpts?: Options;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderWidget: (options: any) => any;
-  wide?: boolean;
 }
 
 // A little helper class to render any vnode with a dynamic set of options
@@ -60,10 +50,13 @@ export class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   private opts?: Options;
 
   renderOptions(listItems: m.Child[]): m.Child {
-    if (listItems.length === 0) {
-      return null;
-    }
-    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
+    return m(
+      '.pf-widget-controls',
+      m('.pf-widgets-page__options-title', 'Options'),
+      listItems.length === 0
+        ? m('.pf-widgets-page__option', 'No options available')
+        : m('', listItems),
+    );
   }
 
   oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
@@ -84,32 +77,23 @@ export class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   }
 
   view({attrs}: m.CVnode<WidgetShowcaseAttrs>) {
-    const {renderWidget, wide, label, description} = attrs;
+    const {renderWidget} = attrs;
     const listItems = [];
 
     if (this.opts) {
       for (const key in this.opts) {
         if (Object.prototype.hasOwnProperty.call(this.opts, key)) {
-          listItems.push(m('li', this.renderControlForOption(key)));
+          listItems.push(
+            m('.pf-widgets-page__option', this.renderControlForOption(key)),
+          );
         }
       }
     }
 
     return [
-      m(WidgetTitle, {label}),
-      description && m('p', description),
       m(
         '.pf-widget-block',
-        m(
-          'div',
-          {
-            class: classNames(
-              'pf-widget-container',
-              wide && 'pf-widget-container--wide',
-            ),
-          },
-          renderWidget(this.optValues),
-        ),
+        m('.pf-widget-container', renderWidget(this.optValues)),
         this.renderOptions(listItems),
       ),
     ];
@@ -178,7 +162,7 @@ export class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     });
     return m(
       'label',
-      `${key}:`,
+      `${key}: `,
       m(
         Select,
         {
@@ -195,11 +179,16 @@ export class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
 }
 
 export function renderWidgetShowcase<T extends Options = {}>(attrs: {
-  label: string;
-  description?: string;
-  renderWidget(opts: T): m.Children;
+  renderWidget(opts: TransformOptions<T>): m.Children;
   initialOpts?: T;
-  wide?: boolean;
 }) {
   return m(WidgetShowcase, attrs);
+}
+
+// Helper to render documentation sections
+export function renderDocSection(
+  title: string,
+  content: m.Children,
+): m.Children {
+  return m('.pf-widget-doc-section', [m('h2', title), content]);
 }

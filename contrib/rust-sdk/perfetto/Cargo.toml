@@ -19,7 +19,7 @@ intrinsics = []
 vendored = ["perfetto-sys/vendored"]
 
 [dependencies]
-perfetto-sys = { path = "../perfetto-sys", default-features = false }
+perfetto-sys = { path = "../perfetto-sys", version = "0.1.0", default-features = false }
 bitflags = "2"
 paste = "1"
 thiserror = "1"

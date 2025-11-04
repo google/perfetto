@@ -21,7 +21,7 @@ out, and A and D pan left and right respectively.
   <source src="https://storage.googleapis.com/perfetto-misc/keyboard-nav.webm" type="video/webm">
 </video>
 
-Alternatively you can use Shit+Drag to pan using the mouse. Ctrl+MouseWheel
+Alternatively you can use Shift+Drag to pan using the mouse. Ctrl+MouseWheel
 zooms in and out.
 
 <video width="800" controls>

@@ -17,6 +17,10 @@
   overflow: hidden;
   height: 100%;
 
+  .pf-resize-handle {
+    flex-shrink: 0;
+  }
+
   &__overview {
     z-index: 3;
 
@@ -41,14 +45,20 @@
   }
 
   &__pinned-track-tree {
+    isolation: isolate; // Keeps any internally high z-indexes contained
     flex: 0 0 auto;
-    max-height: 40%;
     z-index: 1;
     box-shadow: $box-shadow-1;
-    scrollbar-gutter: stable;
+    overflow: hidden;
+
+    .pf-track-tree {
+      height: 100%;
+      scrollbar-gutter: stable;
+    }
   }
 
   &__scrolling-track-tree {
+    isolation: isolate; // Keeps any internally high z-indexes contained
     flex: 1 1 auto;
     scrollbar-gutter: stable;
   }

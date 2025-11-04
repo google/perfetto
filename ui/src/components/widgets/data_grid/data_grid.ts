@@ -23,11 +23,12 @@ import {Box} from '../../../widgets/box';
 import {Button} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {LinearProgress} from '../../../widgets/linear_progress';
-import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {MenuDivider, MenuItem, MenuTitle} from '../../../widgets/menu';
 import {Stack, StackAuto} from '../../../widgets/stack';
 import {
   renderSortMenuItems,
   Grid,
+  GridApi,
   GridColumn,
   GridCell,
   GridHeaderCell,
@@ -275,6 +276,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
+  private gridApi?: GridApi;
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialSorting) {
@@ -391,6 +393,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       })();
 
       const menuItems: m.Children = [];
+      sortControls && menuItems.push(m(MenuTitle, {label: 'Sorting'}));
       sortControls &&
         menuItems.push(
           ...renderSortMenuItems(sort, (direction) => {
@@ -409,6 +412,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       if (filterControls && sortControls && menuItems.length > 0) {
         menuItems.push(m(MenuDivider));
+        menuItems.push(m(MenuTitle, {label: 'Filters'}));
       }
 
       if (filterControls) {
@@ -439,13 +443,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       if (columnReordering) {
         if (menuItems.length > 0) {
           menuItems.push(m(MenuDivider));
+          menuItems.push(m(MenuTitle, {label: 'Column'}));
+        }
+
+        if (this.gridApi) {
+          const gridApi = this.gridApi;
+          menuItems.push(
+            m(MenuItem, {
+              label: 'Fit to content',
+              icon: 'fit_width',
+              onclick: () => gridApi.autoFitColumn(column.name),
+            }),
+          );
         }
 
         // Hide current column (only if more than 1 visible)
         if (orderedColumns.length > 1) {
           menuItems.push(
             m(MenuItem, {
-              label: 'Hide column',
+              label: 'Hide',
               icon: Icons.Hide,
               onclick: () => {
                 const newOrder = columnOrder.filter(
@@ -760,6 +776,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               onColumnOrderChanged(newOrder);
             }
           : undefined,
+        onReady: (api) => {
+          this.gridApi = api;
+        },
       }),
     );
   }

@@ -44,12 +44,20 @@ import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {
   AddColumnsNode,
   AddColumnsNodeState,
-} from './query_builder/nodes/dev/add_columns_node';
+} from './query_builder/nodes/add_columns_node';
 import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
-} from './query_builder/nodes/dev/limit_and_offset_node';
-import {SortNode, SortNodeState} from './query_builder/nodes/dev/sort_node';
+} from './query_builder/nodes/limit_and_offset_node';
+import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
+import {
+  MergeNode,
+  MergeSerializedState,
+} from './query_builder/nodes/merge_node';
+import {
+  UnionNode,
+  UnionSerializedState,
+} from './query_builder/nodes/union_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -60,7 +68,9 @@ type SerializedNodeState =
   | IntervalIntersectSerializedState
   | AddColumnsNodeState
   | LimitAndOffsetNodeState
-  | SortNodeState;
+  | SortNodeState
+  | MergeSerializedState
+  | UnionSerializedState;
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -201,6 +211,28 @@ function createNodeInstance(
         allNodes: [],
       };
       return new IntervalIntersectNode(nodeState);
+    case NodeType.kMerge:
+      const mergeState = state as MergeSerializedState;
+      return new MergeNode({
+        prevNodes: [],
+        leftQueryAlias: mergeState.leftQueryAlias,
+        rightQueryAlias: mergeState.rightQueryAlias,
+        conditionType: mergeState.conditionType,
+        leftColumn: mergeState.leftColumn ?? '',
+        rightColumn: mergeState.rightColumn ?? '',
+        sqlExpression: mergeState.sqlExpression ?? '',
+        filters: mergeState.filters,
+        comment: mergeState.comment,
+      });
+    case NodeType.kUnion:
+      const unionState = state as UnionSerializedState;
+      const unionNode = new UnionNode({
+        prevNodes: [],
+        selectedColumns: unionState.selectedColumns,
+      });
+      unionNode.filters = unionState.filters;
+      unionNode.comment = unionState.comment;
+      return unionNode;
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);
   }
@@ -302,6 +334,29 @@ export function deserializeState(
         );
         intervalNode.prevNodes.length = 0;
         intervalNode.prevNodes.push(...deserializedState.prevNodes);
+      }
+    }
+    if (serializedNode.type === NodeType.kMerge) {
+      const mergeNode = node as MergeNode;
+      if (mergeNode.prevNodes.length > 0) {
+        const deserializedState = MergeNode.deserializeState(
+          nodes,
+          serializedNode.state as MergeSerializedState,
+        );
+        mergeNode.prevNodes.length = 0;
+        mergeNode.prevNodes.push(...deserializedState.prevNodes);
+      }
+    }
+    if (serializedNode.type === NodeType.kUnion) {
+      const unionNode = node as UnionNode;
+      if (unionNode.prevNodes.length > 0) {
+        const deserializedState = UnionNode.deserializeState(
+          nodes,
+          serializedNode.state as UnionSerializedState,
+          unionNode.prevNodes[0],
+        );
+        unionNode.prevNodes.length = 0;
+        unionNode.prevNodes.push(...deserializedState.prevNodes);
       }
     }
   }

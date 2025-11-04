@@ -27,6 +27,7 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {ResizeHandle} from '../../widgets/resize_handle';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -52,6 +53,7 @@ interface TimelinePageAttrs {
 class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
   private timelineBounds?: Rect2D;
+  private pinnedTracksHeight: number | 'auto' = 'auto';
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
@@ -76,14 +78,40 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         // Hide tracks while the trace is loading to prevent thrashing.
         !AppImpl.instance.isLoadingTrace && [
           // Don't render pinned tracks if we have none.
-          trace.currentWorkspace.pinnedTracks.length > 0 &&
-            m(TrackTreeView, {
-              trace,
-              className: 'pf-timeline-page__pinned-track-tree',
-              rootNode: trace.currentWorkspace.pinnedTracksNode,
-              canReorderNodes: true,
-              scrollToNewTracks: true,
+          trace.currentWorkspace.pinnedTracks.length > 0 && [
+            m(
+              '.pf-timeline-page__pinned-track-tree',
+              {
+                style:
+                  this.pinnedTracksHeight === 'auto'
+                    ? {maxHeight: '40%'}
+                    : {height: `${this.pinnedTracksHeight}px`},
+              },
+              m(TrackTreeView, {
+                trace,
+                rootNode: trace.currentWorkspace.pinnedTracksNode,
+                canReorderNodes: true,
+                scrollToNewTracks: true,
+              }),
+            ),
+            m(ResizeHandle, {
+              onResize: (deltaPx: number) => {
+                if (this.pinnedTracksHeight === 'auto') {
+                  this.pinnedTracksHeight = toHTMLElement(
+                    document.querySelector(
+                      '.pf-timeline-page__pinned-track-tree',
+                    )!,
+                  ).getBoundingClientRect().height;
+                }
+                this.pinnedTracksHeight = this.pinnedTracksHeight + deltaPx;
+                m.redraw();
+              },
+              ondblclick: () => {
+                this.pinnedTracksHeight = 'auto';
+              },
             }),
+          ],
+
           m(TrackTreeView, {
             trace,
             className: 'pf-timeline-page__scrolling-track-tree',

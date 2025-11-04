@@ -20,14 +20,14 @@ import {
   NodeType,
   MultiSourceNode,
   notifyNextNodes,
-} from '../../../query_node';
-import protos from '../../../../../protos';
-import {ColumnInfo, newColumnInfoList} from '../../column_info';
-import {Callout} from '../../../../../widgets/callout';
-import {NodeIssues} from '../../node_issues';
-import {UIFilter} from '../../operations/filter';
-import {Card, CardStack} from '../../../../../widgets/card';
-import {Checkbox} from '../../../../../widgets/checkbox';
+} from '../../query_node';
+import protos from '../../../../protos';
+import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {Callout} from '../../../../widgets/callout';
+import {NodeIssues} from '../node_issues';
+import {UIFilter} from '../operations/filter';
+import {Card, CardStack} from '../../../../widgets/card';
+import {Checkbox} from '../../../../widgets/checkbox';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -240,7 +240,22 @@ export class UnionNode implements MultiSourceNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    return undefined;
+    if (this.prevNodes.length < 2) return undefined;
+
+    const queries: protos.IPerfettoSqlStructuredQuery[] = [];
+    for (const prevNode of this.prevNodes) {
+      if (prevNode === undefined) return undefined;
+      const query = prevNode.getStructuredQuery();
+      if (!query) return undefined;
+      queries.push(query);
+    }
+
+    return protos.PerfettoSqlStructuredQuery.create({
+      experimentalUnion: protos.PerfettoSqlStructuredQuery.ExperimentalUnion.create({
+        queries,
+        useUnionAll: true,
+      }),
+    });
   }
 
   serializeState(): UnionSerializedState {

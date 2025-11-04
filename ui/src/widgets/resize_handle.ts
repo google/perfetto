@@ -24,10 +24,18 @@ export interface ResizeHandleAttrs extends HTMLAttrs {
 
 export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
   private handleElement?: HTMLElement;
-  private dragging = false;
+  private previousY: number | undefined;
 
   oncreate(vnode: m.VnodeDOM<ResizeHandleAttrs, this>) {
     this.handleElement = vnode.dom as HTMLElement;
+  }
+
+  private endDrag(attrs: ResizeHandleAttrs, pointerId: number) {
+    if (this.previousY !== undefined) {
+      this.previousY = undefined;
+      this.handleElement!.releasePointerCapture(pointerId);
+      attrs.onResizeEnd?.();
+    }
   }
 
   view({attrs}: m.CVnode<ResizeHandleAttrs>): m.Children {
@@ -39,25 +47,42 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
     } = attrs;
 
     return m('.pf-resize-handle', {
+      oncontextmenu: (e: Event) => {
+        e.preventDefault();
+      },
       onpointerdown: (e: PointerEvent) => {
-        this.dragging = true;
+        const offsetParent = this.handleElement?.offsetParent as HTMLElement;
+        const offsetTop = offsetParent?.getBoundingClientRect().top ?? 0;
+        const mouseOffsetY = e.clientY - offsetTop;
+        this.previousY = mouseOffsetY;
+
         this.handleElement!.setPointerCapture(e.pointerId);
         attrs.onResizeStart?.();
       },
       onpointermove: (e: MithrilEvent<PointerEvent>) => {
+        const offsetParent = this.handleElement?.offsetParent as HTMLElement;
+        const offsetTop = offsetParent?.getBoundingClientRect().top ?? 0;
+        const mouseOffsetY = e.clientY - offsetTop;
+
         // We typically just resize some element when dragging the handle, so we
         // tell Mithril not to redraw after this event.
         e.redraw = false;
-        if (this.dragging) {
-          attrs.onResize(e.movementY);
+        if (
+          this.previousY !== undefined
+          // && this.handleElement!.hasPointerCapture(e.pointerId)
+        ) {
+          attrs.onResize(mouseOffsetY - this.previousY);
+          this.previousY = mouseOffsetY;
         }
       },
       onpointerup: (e: PointerEvent) => {
-        if (this.dragging) {
-          this.dragging = false;
-          this.handleElement!.releasePointerCapture(e.pointerId);
-          attrs.onResizeEnd?.();
-        }
+        this.endDrag(attrs, e.pointerId);
+      },
+      onpointercancel: (e: PointerEvent) => {
+        this.endDrag(attrs, e.pointerId);
+      },
+      onpointercapturelost: (e: PointerEvent) => {
+        this.endDrag(attrs, e.pointerId);
       },
       ...rest,
     });

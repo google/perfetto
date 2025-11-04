@@ -19,15 +19,22 @@ import {
   nextNodeId,
   NodeType,
   ModificationNode,
-} from '../../../query_node';
-import {ColumnInfo} from '../../column_info';
-import protos from '../../../../../protos';
-import {Card} from '../../../../../widgets/card';
-import {MultiselectInput} from '../../../../../widgets/multiselect_input';
+} from '../../query_node';
+import {ColumnInfo} from '../column_info';
+import protos from '../../../../protos';
+import {Card} from '../../../../widgets/card';
+import {MultiselectInput} from '../../../../widgets/multiselect_input';
+import {Button} from '../../../../widgets/button';
+
+export interface SortCriterion {
+  colName: string;
+  direction: 'ASC' | 'DESC';
+}
 
 export interface SortNodeState extends QueryNodeState {
   prevNode: QueryNode;
-  sortColNames?: string[];
+  sortColNames?: string[]; // For backwards compatibility
+  sortCriteria?: SortCriterion[];
 }
 
 export class SortNode implements ModificationNode {
@@ -43,17 +50,18 @@ export class SortNode implements ModificationNode {
     this.state = state;
     this.prevNode = state.prevNode;
     this.nextNodes = [];
-    this.state.sortColNames = this.state.sortColNames ?? [];
+
+    this.state.sortCriteria = this.state.sortCriteria ?? [];
     this.sortCols = this.resolveSortCols();
   }
 
   private resolveSortCols(): ColumnInfo[] {
-    if (!this.state.sortColNames) {
+    if (!this.state.sortCriteria) {
       return [];
     }
     const sourceCols = this.sourceCols;
-    return this.state.sortColNames
-      .map((name) => sourceCols.find((c) => c.name === name))
+    return this.state.sortCriteria
+      .map((criterion) => sourceCols.find((c) => c.name === criterion.colName))
       .filter((c): c is ColumnInfo => c !== undefined);
   }
 
@@ -70,8 +78,10 @@ export class SortNode implements ModificationNode {
   }
 
   nodeDetails(): m.Child {
-    if (this.sortCols.length > 0) {
-      const criteria = this.sortCols.map((c) => c.column.name).join(', ');
+    if (this.sortCols.length > 0 && this.state.sortCriteria) {
+      const criteria = this.state.sortCriteria
+        .map((c) => c.direction === 'DESC' ? `${c.colName} DESC` : c.colName)
+        .join(', ');
       return m(
         '.pf-aggregation-node-details',
         `Sort by `,
@@ -88,24 +98,24 @@ export class SortNode implements ModificationNode {
         options: this.sourceCols.map((c) => ({key: c.name, label: c.name})),
         selectedOptions: this.sortCols?.map((c) => c.column.name) ?? [],
         onOptionAdd: (key: string) => {
-          if (!this.state.sortColNames) {
-            this.state.sortColNames = [];
+          if (!this.state.sortCriteria) {
+            this.state.sortCriteria = [];
           }
-          this.state.sortColNames.push(key);
+          this.state.sortCriteria.push({colName: key, direction: 'ASC'});
           this.sortCols = this.resolveSortCols();
           m.redraw();
         },
         onOptionRemove: (key: string) => {
-          if (this.state.sortColNames) {
-            this.state.sortColNames = this.state.sortColNames.filter(
-              (c) => c !== key,
+          if (this.state.sortCriteria) {
+            this.state.sortCriteria = this.state.sortCriteria.filter(
+              (c) => c.colName !== key,
             );
             this.sortCols = this.resolveSortCols();
             m.redraw();
           }
         },
       }),
-      this.sortCols?.map((criterion, index) =>
+      this.state.sortCriteria?.map((criterion, index) =>
         m(
           '.sort-criterion',
           {
@@ -118,19 +128,32 @@ export class SortNode implements ModificationNode {
             },
             ondrop: (e: DragEvent) => {
               e.preventDefault();
-              if (!this.state.sortColNames) return;
+              if (!this.state.sortCriteria) return;
               const from = parseInt(e.dataTransfer!.getData('text/plain'), 10);
               const to = index;
 
-              const newSortCriteria = [...this.state.sortColNames];
+              const newSortCriteria = [...this.state.sortCriteria];
               const [removed] = newSortCriteria.splice(from, 1);
               newSortCriteria.splice(to, 0, removed);
-              this.state.sortColNames = newSortCriteria;
+              this.state.sortCriteria = newSortCriteria;
               this.sortCols = this.resolveSortCols();
               m.redraw();
             },
           },
-          [m('span.pf-drag-handle', '☰'), m('span', criterion.column.name)],
+          [
+            m('span.pf-drag-handle', '☰'),
+            m('span', criterion.colName),
+            m(Button, {
+              label: criterion.direction,
+              onclick: () => {
+                if (this.state.sortCriteria) {
+                  this.state.sortCriteria[index].direction =
+                    criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                  m.redraw();
+                }
+              },
+            }),
+          ],
         ),
       ),
     ]);
@@ -150,8 +173,40 @@ export class SortNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
-    // TODO(mayzner): Implement this.
-    return this.prevNode.getStructuredQuery();
+    const prevQuery = this.prevNode.getStructuredQuery();
+    if (!prevQuery) return undefined;
+
+    if (this.sortCols.length === 0) {
+      return prevQuery;
+    }
+
+    const orderingSpecs: protos.PerfettoSqlStructuredQuery.OrderBy.IOrderingSpec[] =
+      [];
+    for (const criterion of this.state.sortCriteria ?? []) {
+      const col = this.sortCols.find(
+        (c) => c.column.name === criterion.colName,
+      );
+      if (!col) continue;
+
+      orderingSpecs.push({
+        columnName: col.column.name,
+        direction:
+          criterion.direction === 'DESC'
+            ? protos.PerfettoSqlStructuredQuery.OrderBy.Direction.DESC
+            : protos.PerfettoSqlStructuredQuery.OrderBy.Direction.ASC,
+      });
+    }
+
+    if (orderingSpecs.length === 0) {
+      return prevQuery;
+    }
+
+    return protos.PerfettoSqlStructuredQuery.create({
+      innerQuery: prevQuery,
+      orderBy: protos.PerfettoSqlStructuredQuery.OrderBy.create({
+        orderingSpecs,
+      }),
+    });
   }
 
   serializeState(): object {

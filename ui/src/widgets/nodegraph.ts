@@ -74,12 +74,19 @@ interface UndockCandidate {
   renderY: number;
 }
 
+interface SelectionRect {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
 interface CanvasState {
   draggedNode: string | null;
   dragOffset: Position;
   connecting: ConnectingState | null;
   mousePos: Position;
-  selectedNode: string | null;
+  selectedNodes: Set<string>;
   panOffset: Position;
   isPanning: boolean;
   panStart: Position;
@@ -92,6 +99,8 @@ interface CanvasState {
     portIndex: number;
     type: 'input' | 'output';
   } | null;
+  selectionRect: SelectionRect | null; // Box selection state
+  canvasMouseDownPos: Position;
 }
 
 export interface NodeGraphApi {
@@ -107,8 +116,11 @@ export interface NodeGraphAttrs {
   readonly onNodeDrag?: (nodeId: string, x: number, y: number) => void;
   readonly onConnectionRemove?: (index: number) => void;
   readonly onReady?: (api: NodeGraphApi) => void;
-  readonly selectedNodeId?: string | null;
-  readonly onNodeSelect?: (nodeId: string | null) => void;
+  readonly selectedNodeIds?: string[];
+  readonly onNodeSelect?: (nodeId: string) => void;
+  readonly onNodeAddToSelection?: (nodeId: string) => void;
+  readonly onNodeRemoveFromSelection?: (nodeId: string) => void;
+  readonly onSelectionClear?: () => void;
   readonly onDock?: (
     parentId: string,
     childNode: Omit<Node, 'x' | 'y'>,
@@ -116,6 +128,10 @@ export interface NodeGraphAttrs {
   readonly onUndock?: (parentId: string) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
   readonly hideControls?: boolean;
+  readonly multiselect?: boolean; // Enable multi-node selection (default: true)
+  readonly fillHeight?: boolean;
+  readonly toolbarItems?: m.Children;
+  readonly style?: Partial<CSSStyleDeclaration>;
 }
 
 // ========================================
@@ -281,7 +297,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     dragOffset: {x: 0, y: 0},
     connecting: null,
     mousePos: {x: 0, y: 0},
-    selectedNode: null,
+    selectedNodes: new Set<string>(),
     panOffset: {x: 0, y: 0},
     isPanning: false,
     panStart: {x: 0, y: 0},
@@ -290,6 +306,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     isDockZone: false,
     undockCandidate: null,
     hoveredPort: null,
+    selectionRect: null,
+    canvasMouseDownPos: {x: 0, y: 0},
   };
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
@@ -343,7 +361,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       }
     }
 
-    if (canvasState.isPanning) {
+    if (canvasState.selectionRect) {
+      // Update selection rectangle
+      canvasState.selectionRect.currentX =
+        canvasState.mousePos.transformedX ?? 0;
+      canvasState.selectionRect.currentY =
+        canvasState.mousePos.transformedY ?? 0;
+      m.redraw();
+    } else if (canvasState.isPanning) {
       // Pan the canvas
       const dx = e.clientX - canvasState.panStart.x;
       const dy = e.clientY - canvasState.panStart.y;
@@ -409,6 +434,69 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   const handleMouseUp = () => {
     if (!latestVnode) return;
     const vnode = latestVnode;
+
+    // Handle box selection completion
+    if (canvasState.selectionRect) {
+      const {nodes = []} = vnode.attrs;
+      const rect = canvasState.selectionRect;
+      const minX = Math.min(rect.startX, rect.currentX);
+      const maxX = Math.max(rect.startX, rect.currentX);
+      const minY = Math.min(rect.startY, rect.currentY);
+      const maxY = Math.max(rect.startY, rect.currentY);
+
+      // Helper to check if a node at given position overlaps with selection rectangle
+      const nodeOverlapsRect = (
+        nodeX: number,
+        nodeY: number,
+        nodeId: string,
+      ): boolean => {
+        const dims = getNodeDimensions(nodeId);
+        const nodeRight = nodeX + dims.width;
+        const nodeBottom = nodeY + dims.height;
+
+        return (
+          nodeX < maxX && nodeRight > minX && nodeY < maxY && nodeBottom > minY
+        );
+      };
+
+      // Find all nodes (including chained/docked nodes) that intersect with the selection rectangle
+      const selectedInRect: string[] = [];
+      nodes.forEach((node) => {
+        // Check root node
+        if (nodeOverlapsRect(node.x, node.y, node.id)) {
+          selectedInRect.push(node.id);
+        }
+
+        // Check all chained nodes
+        const chain = getChain(node);
+        let currentY = node.y;
+        chain.slice(1).forEach((chainNode) => {
+          // For chained nodes, calculate their Y position
+          const previousNodeId = chain[chain.indexOf(chainNode) - 1].id;
+          currentY += getNodeDimensions(previousNodeId).height;
+
+          if (nodeOverlapsRect(node.x, currentY, chainNode.id)) {
+            selectedInRect.push(chainNode.id);
+          }
+        });
+      });
+
+      // Add all selected nodes to selection
+      const {onNodeAddToSelection} = vnode.attrs;
+      selectedInRect.forEach((nodeId) => {
+        if (!canvasState.selectedNodes.has(nodeId)) {
+          canvasState.selectedNodes.add(nodeId);
+          if (onNodeAddToSelection !== undefined) {
+            onNodeAddToSelection(nodeId);
+          }
+        }
+      });
+
+      canvasState.selectionRect = null;
+      m.redraw();
+      return;
+    }
+
     // Handle docking if in dock zone
     if (
       canvasState.draggedNode &&
@@ -557,56 +645,61 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       const from = getPortPosition(conn.fromNode, 'output', conn.fromPort);
       const to = getPortPosition(conn.toNode, 'input', conn.toPort);
 
-      if (from.x !== 0 || from.y !== 0) {
-        const path = document.createElementNS(
-          'http://www.w3.org/2000/svg',
-          'path',
-        );
-        path.setAttribute('class', 'pf-connection');
+      // Validate that both ports exist (return {x: 0, y: 0} if not found)
+      const fromValid = from.x !== 0 || from.y !== 0;
+      const toValid = to.x !== 0 || to.y !== 0;
 
-        const fromPortType = getPortType(
-          conn.fromNode,
-          'output',
-          conn.fromPort,
-          nodes,
+      if (!fromValid || !toValid) {
+        console.warn(
+          `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
+          !fromValid ? `(source port not found)` : `(target port not found)`,
         );
-        const toPortType = getPortType(
-          conn.toNode,
-          'input',
-          conn.toPort,
-          nodes,
-        );
-
-        path.setAttribute(
-          'd',
-          createCurve(
-            from.x,
-            from.y,
-            to.x,
-            to.y,
-            fromPortType,
-            toPortType,
-            shortenLength,
-          ),
-        );
-        path.setAttribute('marker-end', 'url(#arrowhead)');
-        path.style.pointerEvents = 'stroke';
-        path.style.cursor = 'pointer';
-
-        // Prevent canvas pan from starting when clicking connections
-        path.onmousedown = (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-        };
-
-        path.onclick = (e) => {
-          e.stopPropagation();
-          if (onConnectionRemove !== undefined) {
-            onConnectionRemove(idx);
-          }
-        };
-        svg.appendChild(path);
+        return; // Skip rendering this connection
       }
+
+      const path = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'path',
+      );
+      path.setAttribute('class', 'pf-connection');
+
+      const fromPortType = getPortType(
+        conn.fromNode,
+        'output',
+        conn.fromPort,
+        nodes,
+      );
+      const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
+
+      path.setAttribute(
+        'd',
+        createCurve(
+          from.x,
+          from.y,
+          to.x,
+          to.y,
+          fromPortType,
+          toPortType,
+          shortenLength,
+        ),
+      );
+      path.setAttribute('marker-end', 'url(#arrowhead)');
+      path.style.pointerEvents = 'stroke';
+      path.style.cursor = 'pointer';
+
+      // Prevent canvas pan from starting when clicking connections
+      path.onmousedown = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+
+      path.onclick = (e) => {
+        e.stopPropagation();
+        if (onConnectionRemove !== undefined) {
+          onConnectionRemove(idx);
+        }
+      };
+      svg.appendChild(path);
     });
 
     // Render temp connection if connecting
@@ -1258,11 +1351,17 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         nodes = [],
         connections = [],
         onConnect,
-        selectedNodeId,
+        selectedNodeIds = [],
         hideControls = false,
+        multiselect = true,
+        fillHeight,
       } = vnode.attrs;
 
+      // Sync internal state with prop
+      canvasState.selectedNodes = new Set(selectedNodeIds);
+
       const className = classNames(
+        fillHeight && 'pf-canvas--fill-height',
         canvasState.connecting && 'pf-connecting',
         canvasState.connecting &&
           `connecting-from-${canvasState.connecting.type}`,
@@ -1280,36 +1379,82 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               target.classList.contains('pf-canvas') ||
               target.tagName === 'svg'
             ) {
-              // Start panning if clicking on canvas background or SVG
-              canvasState.selectedNode = null;
-
-              // Call onNodeSelect callback with null to indicate deselection
-              const {onNodeSelect} = vnode.attrs;
-              if (onNodeSelect !== undefined) {
-                onNodeSelect(null);
+              // Start box selection with Shift (only if multiselect is enabled)
+              if (multiselect && e.shiftKey) {
+                const transformedX = canvasState.mousePos.transformedX ?? 0;
+                const transformedY = canvasState.mousePos.transformedY ?? 0;
+                canvasState.selectionRect = {
+                  startX: transformedX,
+                  startY: transformedY,
+                  currentX: transformedX,
+                  currentY: transformedY,
+                };
+                e.preventDefault();
+                return;
               }
 
+              // Start panning and store position to detect click vs drag
               canvasState.isPanning = true;
               canvasState.panStart = {x: e.clientX, y: e.clientY};
+              canvasState.canvasMouseDownPos = {x: e.clientX, y: e.clientY};
               e.preventDefault();
             }
           },
+          onclick: (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Clear selection on canvas click (only if mouse didn't move significantly)
+            if (
+              target.classList.contains('pf-canvas') ||
+              target.tagName === 'svg'
+            ) {
+              const dx = Math.abs(e.clientX - canvasState.canvasMouseDownPos.x);
+              const dy = Math.abs(e.clientY - canvasState.canvasMouseDownPos.y);
+              const threshold = 3; // Pixels of movement tolerance
+
+              // Only clear if it was a click (not a drag)
+              if (dx <= threshold && dy <= threshold) {
+                canvasState.selectedNodes.clear();
+                const {onSelectionClear} = vnode.attrs;
+                if (onSelectionClear !== undefined) {
+                  onSelectionClear();
+                }
+              }
+            }
+          },
           onkeydown: (e: KeyboardEvent) => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-              const {selectedNodeId, onNodeRemove} = vnode.attrs;
-              if (selectedNodeId && onNodeRemove) {
-                onNodeRemove(selectedNodeId);
+            if (e.key === 'Escape') {
+              // Deselect all nodes with Escape key
+              if (canvasState.selectedNodes.size > 0) {
+                canvasState.selectedNodes.clear();
+                const {onSelectionClear} = vnode.attrs;
+                if (onSelectionClear !== undefined) {
+                  onSelectionClear();
+                }
+                e.preventDefault();
+              }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+              const {onNodeRemove} = vnode.attrs;
+              if (canvasState.selectedNodes.size > 0 && onNodeRemove) {
+                // Delete all selected nodes
+                canvasState.selectedNodes.forEach((nodeId) => {
+                  onNodeRemove(nodeId);
+                });
+                canvasState.selectedNodes.clear();
                 e.preventDefault();
               }
             }
           },
-          style: `background-size: ${20 * canvasState.zoom}px ${20 * canvasState.zoom}px;
-            background-position: ${canvasState.panOffset.x}px ${canvasState.panOffset.y}px;`,
+          style: {
+            backgroundSize: `${20 * canvasState.zoom}px ${20 * canvasState.zoom}px`,
+            backgroundPosition: `${canvasState.panOffset.x}px ${canvasState.panOffset.y}px`,
+            ...vnode.attrs.style,
+          },
         },
         [
           // Control buttons (can be hidden via hideControls prop)
           !hideControls &&
             m('.pf-nodegraph-controls', [
+              vnode.attrs.toolbarItems,
               m(Button, {
                 label: 'Auto Layout',
                 icon: 'account_tree',
@@ -1349,6 +1494,17 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               // SVG container for connections (rendered imperatively in oncreate/onupdate)
               m('svg'),
 
+              // Selection rectangle overlay
+              canvasState.selectionRect &&
+                m('.pf-selection-rect', {
+                  style: {
+                    left: `${Math.min(canvasState.selectionRect.startX, canvasState.selectionRect.currentX)}px`,
+                    top: `${Math.min(canvasState.selectionRect.startY, canvasState.selectionRect.currentY)}px`,
+                    width: `${Math.abs(canvasState.selectionRect.currentX - canvasState.selectionRect.startX)}px`,
+                    height: `${Math.abs(canvasState.selectionRect.currentY - canvasState.selectionRect.startY)}px`,
+                  },
+                }),
+
               // Render all nodes - wrap dock chains in flex container
               nodes
                 .map((node: Node) => {
@@ -1385,7 +1541,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         const cHasAccentBar = chainNode.accentBar;
 
                         const cClasses = classNames(
-                          selectedNodeId === cId && 'pf-selected',
+                          canvasState.selectedNodes.has(cId) && 'pf-selected',
                           cIsDockedChild && 'pf-docked-child',
                           cHasDockedChild && 'pf-has-docked-child',
                           cIsDockTarget && 'pf-dock-target',
@@ -1413,6 +1569,30 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                                 return;
                               }
                               e.stopPropagation();
+
+                              // Handle multi-selection with Shift or Cmd/Ctrl (only if multiselect is enabled)
+                              if (
+                                multiselect &&
+                                (e.shiftKey || e.metaKey || e.ctrlKey)
+                              ) {
+                                // Toggle selection
+                                if (canvasState.selectedNodes.has(cId)) {
+                                  canvasState.selectedNodes.delete(cId);
+                                  const {onNodeRemoveFromSelection} =
+                                    vnode.attrs;
+                                  if (onNodeRemoveFromSelection !== undefined) {
+                                    onNodeRemoveFromSelection(cId);
+                                  }
+                                } else {
+                                  canvasState.selectedNodes.add(cId);
+                                  const {onNodeAddToSelection} = vnode.attrs;
+                                  if (onNodeAddToSelection !== undefined) {
+                                    onNodeAddToSelection(cId);
+                                  }
+                                }
+                                m.redraw();
+                                return;
+                              }
 
                               // Check if this is a chained node (not root)
                               if (!('x' in chainNode)) {
@@ -1444,8 +1624,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                               }
 
                               canvasState.draggedNode = cId;
-                              canvasState.selectedNode = cId;
 
+                              // Always clear and select this node on regular click
+                              canvasState.selectedNodes.clear();
+                              canvasState.selectedNodes.add(cId);
                               const {onNodeSelect} = vnode.attrs;
                               if (onNodeSelect !== undefined) {
                                 onNodeSelect(cId);
@@ -1780,7 +1962,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   const cHasAccentBar = node.accentBar;
 
                   const classes = classNames(
-                    selectedNodeId === id && 'pf-selected',
+                    canvasState.selectedNodes.has(id) && 'pf-selected',
                     isDockTarget && 'pf-dock-target',
                     cHasAccentBar && 'pf-node--has-accent-bar',
                   );
@@ -1810,11 +1992,35 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         }
                         e.stopPropagation();
 
+                        // Handle multi-selection with Shift or Cmd/Ctrl (only if multiselect is enabled)
+                        if (
+                          multiselect &&
+                          (e.shiftKey || e.metaKey || e.ctrlKey)
+                        ) {
+                          // Toggle selection
+                          if (canvasState.selectedNodes.has(id)) {
+                            canvasState.selectedNodes.delete(id);
+                            const {onNodeRemoveFromSelection} = vnode.attrs;
+                            if (onNodeRemoveFromSelection !== undefined) {
+                              onNodeRemoveFromSelection(id);
+                            }
+                          } else {
+                            canvasState.selectedNodes.add(id);
+                            const {onNodeAddToSelection} = vnode.attrs;
+                            if (onNodeAddToSelection !== undefined) {
+                              onNodeAddToSelection(id);
+                            }
+                          }
+                          m.redraw();
+                          return;
+                        }
+
                         // Start dragging
                         canvasState.draggedNode = id;
-                        canvasState.selectedNode = id;
 
-                        // Call onNodeSelect callback
+                        // Always clear and select this node on regular click
+                        canvasState.selectedNodes.clear();
+                        canvasState.selectedNodes.add(id);
                         const {onNodeSelect} = vnode.attrs;
                         if (onNodeSelect !== undefined) {
                           onNodeSelect(id);

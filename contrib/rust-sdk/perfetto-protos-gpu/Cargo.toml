@@ -1,0 +1,22 @@
+[package]
+edition = "2024"
+name = "perfetto-protos-gpu"
+version = "0.1.0"
+authors = ["David Reveman <dreveman@gmail.com>"]
+description = "Extra protobuf bindings for GPU events"
+readme = "README.md"
+keywords = [
+    "tracing",
+    "perfetto",
+]
+categories = ["profiling"]
+license = "Apache-2.0"
+repository = "https://github.com/google/perfetto"
+
+[dependencies]
+perfetto = { path = "../perfetto", version = "0.1.0", default-features = false }
+paste = "1"
+
+[[example]]
+name = "gpu_counters"
+path = "examples/gpu_counters.rs"
