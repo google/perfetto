@@ -177,6 +177,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               '<=',
               '>',
               '>=',
+              'glob',
               'is null',
               'is not null',
             ];
