@@ -29,60 +29,40 @@ import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 
-// Node template definition
-interface NodeTemplate {
-  readonly inputs: ReadonlyArray<NodePort>;
-  readonly outputs: ReadonlyArray<NodePort>;
+interface NodeModelKernel<StateT = unknown> {
+  readonly name: string;
+  readonly inputs?: ReadonlyArray<NodePort>;
+  readonly outputs?: ReadonlyArray<NodePort>;
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
-  readonly content?: m.Children;
   readonly hue: number;
+  readonly state?: StateT;
+  renderContent?: () => m.Children;
 }
 
-interface NodeGraphDemoAttrs {
-  readonly multiselect?: boolean;
-  readonly titleBars?: boolean;
-  readonly accentBars?: boolean;
-  readonly colors?: boolean;
+interface NodeModel {
+  readonly id: string;
+  readonly kernel: NodeModelKernel;
+
+  // The following properties are mutable and modified by the NodeGraph
+  x: number;
+  y: number;
+  nextId?: string; // ID of next node in chain
 }
 
-export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
-  let graphApi: NodeGraphApi | undefined;
-  const selectedNodeIds = new Set<string>();
-
-  // State for select node checkboxes
-  const columnOptions = {
-    id: true,
-    name: true,
-    ts: false,
-    dur: false,
-  };
-
-  // State for join type
-  let joinType = 'INNER';
-
-  // State for join condition
-  let joinOn = '';
-
+function tableNode(): NodeModelKernel<{table: string}> {
   let table = 'slice';
 
-  // State for filter expression
-  let filterExpression = '';
-
-  function createConfig<const T extends Record<string, NodeTemplate>>(
-    config: T,
-  ): Record<keyof T, NodeTemplate> {
-    return config;
-  }
-
-  // Template renderers - map from type to node template
-  const nodeTemplates = createConfig({
-    table: {
-      inputs: [],
-      outputs: [{content: 'Output', direction: 'bottom'}],
-      canDockBottom: true,
-      hue: 200,
-      content: m(
+  return {
+    name: 'table',
+    outputs: [{content: 'Output', direction: 'bottom'}],
+    canDockBottom: true,
+    hue: 200,
+    get state() {
+      return {table};
+    },
+    renderContent: () =>
+      m(
         Select,
         {
           value: table,
@@ -97,120 +77,314 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           m('option', {value: 'process'}, 'process'),
         ],
       ),
+  };
+}
+
+function selectNode(): NodeModelKernel<{columns: Record<string, boolean>}> {
+  const columns: Record<string, boolean> = {
+    id: true,
+    name: true,
+    cpu: false,
+    duration: false,
+    timestamp: false,
+  };
+
+  return {
+    name: 'select',
+    inputs: [{content: 'Input', direction: 'top'}],
+    outputs: [{content: 'Output', direction: 'bottom'}],
+    canDockTop: true,
+    canDockBottom: true,
+    hue: 100,
+    get state() {
+      return {columns};
     },
-    select: {
-      inputs: [{content: 'Input', direction: 'top'}],
-      outputs: [{content: 'Output', direction: 'bottom'}],
-      canDockTop: true,
-      canDockBottom: true,
-      hue: 100,
-      content: m(
+    renderContent: () =>
+      m(
         '',
         {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
-        Object.entries(columnOptions).map(([col, checked]) =>
+        Object.entries(columns).map(([col, checked]) =>
           m(Checkbox, {
             label: col,
             checked,
             onchange: () => {
-              columnOptions[col as keyof typeof columnOptions] = !checked;
+              columns[col as keyof typeof columns] = !checked;
             },
           }),
         ),
       ),
+  };
+}
+
+function resultNode(): NodeModelKernel {
+  return {
+    name: 'result',
+    inputs: [{content: 'Input', direction: 'top'}],
+    canDockTop: true,
+    hue: 0,
+    renderContent: () => 'Result',
+  };
+}
+
+function filterNode(): NodeModelKernel<{filterExpression: string}> {
+  let filterExpression = '';
+
+  return {
+    name: 'filter',
+    inputs: [{content: 'Input', direction: 'top'}],
+    outputs: [{content: 'Output', direction: 'bottom'}],
+    canDockTop: true,
+    canDockBottom: true,
+    hue: 50,
+    get state() {
+      return {filterExpression};
     },
-    filter: {
-      inputs: [{content: 'Input', direction: 'top'}],
-      outputs: [{content: 'Output', direction: 'bottom'}],
-      canDockTop: true,
-      canDockBottom: true,
-      hue: 50,
-      content: m(TextInput, {
+    renderContent: () =>
+      m(TextInput, {
         placeholder: 'Filter expression...',
         value: filterExpression,
-        onInput: (value: string) => {
-          filterExpression = value;
+        oninput: (e: InputEvent) => {
+          const target = e.target as HTMLInputElement;
+          filterExpression = target.value;
+          console.log('Filter expression updated to:', filterExpression);
         },
       }),
+  };
+}
+
+function joinNode(): NodeModelKernel<{joinType: string; joinOn: string}> {
+  let joinType = 'INNER';
+  let joinOn = '';
+
+  return {
+    name: 'join',
+    inputs: [
+      {content: 'Left', direction: 'top'},
+      {content: 'Right', direction: 'left'},
+    ],
+    outputs: [{content: 'Output', direction: 'bottom'}],
+    canDockTop: true,
+    canDockBottom: true,
+    hue: 300,
+    get state() {
+      return {joinType, joinOn};
     },
-    join: {
-      inputs: [
-        {content: 'Left', direction: 'top'},
-        {content: 'Right', direction: 'left'},
-      ],
-      outputs: [{content: 'Output', direction: 'bottom'}],
-      canDockTop: true,
-      canDockBottom: true,
-      hue: 300,
-      content: m(
-        '',
-        {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
+    renderContent: () =>
+      m('', {style: {display: 'flex', flexDirection: 'column', gap: '4px'}}, [
+        m(
+          Select,
+          {
+            value: joinType,
+            onchange: (e: Event) => {
+              joinType = (e.target as HTMLSelectElement).value;
+            },
+          },
+          [
+            m('option', {value: 'INNER'}, 'INNER'),
+            m('option', {value: 'LEFT'}, 'LEFT'),
+            m('option', {value: 'RIGHT'}, 'RIGHT'),
+            m('option', {value: 'FULL'}, 'FULL'),
+          ],
+        ),
+        m(TextInput, {
+          placeholder: 'ON condition...',
+          value: joinOn,
+          onInput: (value: string) => {
+            joinOn = value;
+          },
+        }),
+      ]),
+  };
+}
+
+function unionNode(): NodeModelKernel {
+  let unionType: string = 'UNION ALL';
+
+  return {
+    name: 'union',
+    inputs: [
+      {content: 'Input 1', direction: 'top'},
+      {content: 'Input 2', direction: 'left'},
+    ],
+    outputs: [{content: 'Output', direction: 'bottom'}],
+    canDockTop: true,
+    canDockBottom: true,
+    hue: 240,
+    get state() {
+      return {unionType};
+    },
+    renderContent: () =>
+      m(
+        Select,
+        {
+          value: unionType,
+          onchange: (e: Event) => {
+            unionType = (e.target as HTMLSelectElement).value;
+          },
+        },
         [
-          m(
-            Select,
-            {
-              value: joinType,
-              onchange: (e: Event) => {
-                joinType = (e.target as HTMLSelectElement).value;
-              },
-            },
-            [
-              m('option', {value: 'INNER'}, 'INNER'),
-              m('option', {value: 'LEFT'}, 'LEFT'),
-              m('option', {value: 'RIGHT'}, 'RIGHT'),
-              m('option', {value: 'FULL'}, 'FULL'),
-            ],
-          ),
-          m(TextInput, {
-            placeholder: 'ON condition...',
-            value: joinOn,
-            onInput: (value: string) => {
-              joinOn = value;
-            },
-          }),
+          m('option', {value: 'UNION'}, 'UNION'),
+          m('option', {value: 'UNION ALL'}, 'UNION ALL'),
         ],
       ),
-    },
-    result: {
-      inputs: [{content: 'Input', direction: 'top'}],
-      outputs: [],
-      canDockTop: true,
-      hue: 0,
-      content: 'Result',
-    },
-    union: {
-      inputs: [
-        {content: 'Input 1', direction: 'top'},
-        {content: 'Input 2', direction: 'left'},
-        {content: 'Input 3', direction: 'left'},
-      ],
-      outputs: [{content: 'Output', direction: 'bottom'}],
-      canDockTop: true,
-      canDockBottom: true,
-      hue: 240,
-      content: 'Union',
-    },
-  });
+  };
+}
 
-  // Helper to create a node template for placement calculation
-  function createNodeTemplate(
-    id: string,
-    type: keyof typeof nodeTemplates,
-  ): Omit<Node, 'x' | 'y'> {
-    const template = nodeTemplates[type];
-    return {id, ...template};
+interface NodeGraphDemoAttrs {
+  readonly multiselect?: boolean;
+  readonly titleBars?: boolean;
+  readonly accentBars?: boolean;
+  readonly colors?: boolean;
+}
+
+export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
+  let graphApi: NodeGraphApi | undefined;
+  const selectedNodeIds = new Set<string>();
+
+  // Helper to find the parent node (node that has this node as nextId)
+  function findDockedParent(nodeId: string): NodeModel | undefined {
+    for (const node of nodes.values()) {
+      if (node.nextId === nodeId) {
+        return node;
+      }
+    }
+    return undefined;
   }
 
-  // Simple model state - just data
-  interface ModelNode {
-    id: string;
-    type: keyof typeof nodeTemplates;
-    x: number;
-    y: number;
-    nextId?: string; // ID of next node in chain
+  // Helper to find input nodes via connections
+  function findConnectedInputs(nodeId: string): Map<number, NodeModel> {
+    const inputs = new Map<number, NodeModel>();
+    for (const conn of connections) {
+      if (conn.toNode === nodeId) {
+        const inputNode = nodes.get(conn.fromNode);
+        if (inputNode) {
+          inputs.set(conn.toPort, inputNode);
+        }
+      }
+    }
+    return inputs;
+  }
+
+  // Build SQL query from a node by traversing upwards
+  function buildSqlFromNode(nodeId: string): string {
+    const node = nodes.get(nodeId);
+    if (!node) return '';
+
+    // First check for docked parent
+    const dockedParent = findDockedParent(nodeId);
+    const connectedInputs = findConnectedInputs(nodeId);
+
+    switch (node.kernel.name) {
+      case 'table': {
+        const state = node.kernel.state as {table: string} | undefined;
+        return state?.table || 'unknown_table';
+      }
+
+      case 'select': {
+        const state = node.kernel.state as
+          | {columns: Record<string, boolean>}
+          | undefined;
+        const selectedCols = state
+          ? Object.entries(state.columns)
+              .filter(([_, checked]) => checked)
+              .map(([col]) => col)
+          : [];
+        const colList = selectedCols.length > 0 ? selectedCols.join(', ') : '*';
+
+        const inputSql = dockedParent
+          ? buildSqlFromNode(dockedParent.id)
+          : connectedInputs.get(0)
+            ? buildSqlFromNode(connectedInputs.get(0)!.id)
+            : '';
+
+        if (!inputSql) return `SELECT ${colList}`;
+        return `SELECT ${colList} FROM (${inputSql})`;
+      }
+
+      case 'filter': {
+        const state = node.kernel.state as
+          | {filterExpression: string}
+          | undefined;
+        const filterExpr = state?.filterExpression || '';
+
+        const inputSql = dockedParent
+          ? buildSqlFromNode(dockedParent.id)
+          : connectedInputs.get(0)
+            ? buildSqlFromNode(connectedInputs.get(0)!.id)
+            : '';
+
+        if (!inputSql) return '';
+        if (!filterExpr) return inputSql;
+        return `SELECT * FROM (${inputSql}) WHERE ${filterExpr}`;
+      }
+
+      case 'join': {
+        const state = node.kernel.state as
+          | {joinType: string; joinOn: string}
+          | undefined;
+        const joinType = state?.joinType || 'INNER';
+        const joinOn = state?.joinOn || 'true';
+
+        // Join needs two inputs: one docked (or from top connection) and one from left connection
+        const leftInput = dockedParent
+          ? buildSqlFromNode(dockedParent.id)
+          : connectedInputs.get(0)
+            ? buildSqlFromNode(connectedInputs.get(0)!.id)
+            : '';
+
+        const rightInput = connectedInputs.get(1)
+          ? buildSqlFromNode(connectedInputs.get(1)!.id)
+          : '';
+
+        if (!leftInput || !rightInput) return leftInput || rightInput || '';
+        return `SELECT * FROM (${leftInput}) ${joinType} JOIN (${rightInput}) ON ${joinOn}`;
+      }
+
+      case 'union': {
+        const state = node.kernel.state as {unionType: string} | undefined;
+        const unionType = state?.unionType || '';
+
+        const inputs: string[] = [];
+
+        // Collect all inputs (docked + connections)
+        if (dockedParent) {
+          inputs.push(buildSqlFromNode(dockedParent.id));
+        }
+        for (const [_, inputNode] of connectedInputs) {
+          inputs.push(buildSqlFromNode(inputNode.id));
+        }
+
+        const validInputs = inputs.filter((sql) => sql);
+        if (validInputs.length === 0) return '';
+        if (validInputs.length === 1) return validInputs[0];
+        return validInputs.map((sql) => `(${sql})`).join(` ${unionType} `);
+      }
+
+      case 'result': {
+        const inputSql = dockedParent
+          ? buildSqlFromNode(dockedParent.id)
+          : connectedInputs.get(0)
+            ? buildSqlFromNode(connectedInputs.get(0)!.id)
+            : '';
+        return inputSql;
+      }
+
+      default:
+        return '';
+    }
+  }
+
+  // Helper to create a node template for placement calculation
+  function createNodeModel(
+    id: string,
+    factory: () => NodeModelKernel,
+  ): Omit<NodeModel, 'x' | 'y'> {
+    const kernel = factory();
+    return {id, kernel};
   }
 
   // Function to add a new node
-  function addNode(type: keyof typeof nodeTemplates, toNodeId?: string) {
+  function addNode(factory: () => NodeModelKernel, toNodeId?: string) {
     const id = uuidv4();
 
     let x: number;
@@ -218,7 +392,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
     // Use API to find optimal placement if available
     if (graphApi && !toNodeId) {
-      const nodeTemplate = createNodeTemplate(id, type);
+      const nodeTemplate = createNodeModel(id, factory);
       const placement = graphApi.findPlacementForNode(nodeTemplate);
       x = placement.x;
       y = placement.y;
@@ -228,15 +402,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       y = 50 + Math.random() * 200;
     }
 
-    const newNode: ModelNode = {
-      id: id,
-      type: type,
+    const newNode: NodeModel = {
+      ...createNodeModel(id, factory),
       x,
       y,
     };
-    modelNodes.set(newNode.id, newNode);
+    nodes.set(newNode.id, newNode);
     if (toNodeId) {
-      const parentNode = modelNodes.get(toNodeId);
+      const parentNode = nodes.get(toNodeId);
       if (parentNode) {
         parentNode.nextId = id;
       }
@@ -244,65 +417,76 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   }
 
   // Model state - persists across renders
-  const modelNodes: Map<string, ModelNode> = new Map();
-  addNode('table');
+  const nodes: Map<string, NodeModel> = new Map();
+  const connections: Connection[] = [];
+
+  // Add a single table node to start with
+  addNode(tableNode);
 
   // Find root nodes (not referenced by any other node's nextId)
   function getRootNodeIds(): string[] {
     const referenced = new Set<string>();
-    for (const node of modelNodes.values()) {
+    for (const node of nodes.values()) {
       if (node.nextId) referenced.add(node.nextId);
     }
-    return Array.from(modelNodes.keys()).filter((id) => !referenced.has(id));
+    return Array.from(nodes.keys()).filter((id) => !referenced.has(id));
   }
-
-  const connections: Connection[] = [];
 
   return {
     view: ({attrs}: m.Vnode<NodeGraphDemoAttrs>) => {
+      // Log the SQL queries for all result nodes
+      const queries = [];
+      for (const node of nodes.values()) {
+        if (node.kernel.name === 'result') {
+          const sql = buildSqlFromNode(node.id);
+          queries.push(sql);
+        }
+      }
+      if (queries.length > 0) {
+        console.log('Generated SQL queries for result nodes:', queries);
+      }
+
       // Render a model node and its chain
-      function renderNodeChain(model: ModelNode): Node {
-        const template = nodeTemplates[model.type];
+      function renderNodeChain(model: NodeModel): Node {
         const hasNext = model.nextId !== undefined;
-        const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+        const nextModel = hasNext ? nodes.get(model.nextId!) : undefined;
 
         return {
           id: model.id,
           x: model.x,
           y: model.y,
-          inputs: template.inputs,
-          outputs: template.outputs,
-          content: template.content,
-          canDockBottom: template.canDockBottom,
-          canDockTop: template.canDockTop,
+          inputs: model.kernel.inputs,
+          outputs: model.kernel.outputs,
+          content: model.kernel.renderContent?.(),
+          canDockBottom: model.kernel.canDockBottom,
+          canDockTop: model.kernel.canDockTop,
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: model.type.toUpperCase()}
+            ? {title: model.kernel.name.toUpperCase()}
             : undefined,
-          hue: attrs.colors ? template.hue : undefined,
+          hue: attrs.colors ? model.kernel.hue : undefined,
         };
       }
 
       // Render child node (keep all ports visible)
-      function renderChildNode(model: ModelNode): Omit<Node, 'x' | 'y'> {
-        const template = nodeTemplates[model.type];
+      function renderChildNode(model: NodeModel): Omit<Node, 'x' | 'y'> {
         const hasNext = model.nextId !== undefined;
-        const nextModel = hasNext ? modelNodes.get(model.nextId!) : undefined;
+        const nextModel = hasNext ? nodes.get(model.nextId!) : undefined;
 
         return {
           id: model.id,
-          inputs: template.inputs,
-          outputs: template.outputs,
-          content: template.content,
-          canDockBottom: template.canDockBottom,
-          canDockTop: template.canDockTop,
+          inputs: model.kernel.inputs,
+          outputs: model.kernel.outputs,
+          content: model.kernel.renderContent?.(),
+          canDockBottom: model.kernel.canDockBottom,
+          canDockTop: model.kernel.canDockTop,
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: model.type.toUpperCase()}
+            ? {title: model.kernel.name.toUpperCase()}
             : undefined,
-          hue: attrs.colors ? template.hue : undefined,
+          hue: attrs.colors ? model.kernel.hue : undefined,
         };
       }
 
@@ -311,7 +495,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const rootIds = getRootNodeIds();
         return rootIds
           .map((id) => {
-            const model = modelNodes.get(id);
+            const model = nodes.get(id);
             if (!model) return null;
             return renderNodeChain(model);
           })
@@ -332,32 +516,32 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             m(MenuItem, {
               label: 'Table',
               icon: 'table_chart',
-              onclick: () => addNode('table'),
+              onclick: () => addNode(tableNode),
             }),
             m(MenuItem, {
               label: 'Select',
               icon: 'filter_alt',
-              onclick: () => addNode('select'),
+              onclick: () => addNode(selectNode),
             }),
             m(MenuItem, {
               label: 'Filter',
               icon: 'filter_list',
-              onclick: () => addNode('filter'),
+              onclick: () => addNode(filterNode),
             }),
             m(MenuItem, {
               label: 'Join',
               icon: 'join',
-              onclick: () => addNode('join'),
+              onclick: () => addNode(joinNode),
             }),
             m(MenuItem, {
               label: 'Union',
               icon: 'merge',
-              onclick: () => addNode('union'),
+              onclick: () => addNode(unionNode),
             }),
             m(MenuItem, {
               label: 'Result',
               icon: 'output',
-              onclick: () => addNode('result'),
+              onclick: () => addNode(resultNode),
             }),
           ],
         ),
@@ -369,7 +553,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           graphApi = api;
         },
         onNodeDrag: (nodeId: string, x: number, y: number) => {
-          const model = modelNodes.get(nodeId);
+          const model = nodes.get(nodeId);
           if (model) {
             model.x = x;
             model.y = y;
@@ -385,11 +569,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         },
         onNodeRemove: (nodeId: string) => {
           // Find the node to remove
-          const nodeToDelete = modelNodes.get(nodeId);
+          const nodeToDelete = nodes.get(nodeId);
           if (!nodeToDelete) return;
 
           // Dock any child node to its parent
-          for (const parent of modelNodes.values()) {
+          for (const parent of nodes.values()) {
             if (parent.nextId === nodeId) {
               parent.nextId = nodeToDelete.nextId;
             }
@@ -409,7 +593,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }
 
           // Finally remove the node
-          modelNodes.delete(nodeId);
+          nodes.delete(nodeId);
 
           console.log(`onNodeRemove: ${nodeId}`);
         },
@@ -435,8 +619,8 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           console.log(`onSelectionClear`);
         },
         onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
-          const target = modelNodes.get(targetId);
-          const child = modelNodes.get(childNode.id);
+          const target = nodes.get(targetId);
+          const child = nodes.get(childNode.id);
 
           if (target && child) {
             target.nextId = child.id;
@@ -455,24 +639,15 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }
         },
         onUndock: (parentId: string) => {
-          const parent = modelNodes.get(parentId);
+          const parent = nodes.get(parentId);
 
           if (parent && parent.nextId) {
-            const child = modelNodes.get(parent.nextId);
+            const child = nodes.get(parent.nextId);
 
             if (child) {
               child.x = parent.x;
               child.y = parent.y + 150;
               parent.nextId = undefined;
-
-              // Connect the previously docker nodes together with a
-              // connection
-              connections.push({
-                fromNode: parent.id,
-                fromPort: 0,
-                toNode: child.id,
-                toPort: 0,
-              });
 
               console.log(`onUndock: ${child.id} from ${parentId}`);
             }
@@ -500,9 +675,9 @@ export function renderNodeGraph() {
       renderWidget: (opts) => m(NodeGraphDemo, opts),
       initialOpts: {
         multiselect: true,
-        accentBars: false,
+        accentBars: true,
         titleBars: false,
-        colors: false,
+        colors: true,
       },
       noPadding: true,
     }),
