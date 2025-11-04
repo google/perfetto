@@ -56,7 +56,7 @@ CREATE VIRTUAL TABLE _android_active_sched_joined USING SPAN_JOIN (_cpu_active_f
 
 -- Table which groups scheduling information along with the CPU idle state
 -- information. This is meant to be used in conjunciton with the android_cpu_uptime_cost
--- calculation macro
+-- calculation macro.
 CREATE PERFETTO TABLE android_active_sched_joined (
   -- timestamp
   ts LONG,
@@ -87,12 +87,45 @@ SELECT
   *
 FROM _android_active_sched_joined;
 
--- Calculates the CPU uptime based on the duration of idle required to
--- enter the deeper C-states
--- Use active_sched_joined table generated from this module along with the expected
--- costs of entering C states
+-- Macro: android_cpu_uptime_cost
+--
+-- This macro calculates the theoretical CPU uptime cost attributed to each thread/process.
+-- It works by assigning the "cost" (idle duration required) to enter deeper C-states (C2, C3, etc.)
+-- to the thread that kept the CPU active during that time, preventing the C-state entry.
+--
+-- Prerequisite Table: Use this macro in conjunction with the android_cpu_sched_joined
+-- table, which provides thread scheduling and active/idle durations.
+--
+-- Arguments: The costs to enter C2 and C3 states (expressed as required idle duration in microseconds).
+--
+-- Usage Example:
+-- -- Assuming C2 entry cost is 1000 microseconds and C3 entry cost is 10000 microseconds:
+--
+--     android_cpu_uptime_cost!(
+--         android_active_sched_joined,  -- Input table
+--         1000,                         -- C2 entry cost (microseconds)
+--         10000                         -- C3 entry cost (microseconds)
+--     )
+--
+-- This generates a table of the CPU uptime cost grouped by each thread/process.
+--
+-- Underlying Calculation Logic:
+-- The cost (C2_cost + C3_cost) is assigned to the first thread that causes the CPU to become
+-- active and exits the idle state. Subsequent threads in the active duration are only
+-- assigned their own scheduled duration.
+--
+-- Given:
+-- * Active_dur: Duration where the CPU is continuously active.
+-- * Sched1_dur: Scheduled duration of the first process after the CPU becomes active.
+-- * SchedN_dur: Scheduled duration of the Nth process in the active window.
+-- * C2_cost: Idle duration needed to enter C2 state.
+-- * C3_cost: Idle duration needed to enter C3 state.
+--
+-- Calculation:
+-- * Uptime1 (First Process): Sched1_dur + C2_cost + C3_cost
+-- * UptimeN (Subsequent Processes, N > 1): SchedN_dur
 CREATE PERFETTO MACRO android_cpu_uptime_cost(
-    -- table generated from android_cpu_uptime
+    -- Generated table from android_active_sched_joined
     active_sched_joined TableOrSubquery,
     -- cost to enter the C2 state in microseconds
     c2_cost Expr,
