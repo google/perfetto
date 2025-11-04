@@ -181,6 +181,10 @@ class GeneratorImpl {
 
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
+  static base::StatusOr<std::string> ExperimentalFilterGroup(
+      const StructuredQuery::ExperimentalFilterGroup::Decoder&);
+  static base::StatusOr<std::string> SingleFilter(
+      const StructuredQuery::Filter::Decoder&);
 
   // Aggregation.
   static base::StatusOr<std::string> GroupBy(RepeatedString group_by);
@@ -234,6 +238,7 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       !root_query.has_experimental_join() &&
       !root_query.has_experimental_union() && !root_query.has_sql() &&
       !root_query.has_inner_query_id() && !root_query.filters() &&
+      !root_query.has_experimental_filter_group() &&
       !root_query.has_group_by() && !root_query.select_columns();
 
   std::string sql = "WITH ";
@@ -311,7 +316,14 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     }
   }
 
-  ASSIGN_OR_RETURN(std::string filters, Filters(q.filters()));
+  std::string filters;
+  if (q.has_experimental_filter_group()) {
+    StructuredQuery::ExperimentalFilterGroup::Decoder exp_filter_group(
+        q.experimental_filter_group());
+    ASSIGN_OR_RETURN(filters, ExperimentalFilterGroup(exp_filter_group));
+  } else {
+    ASSIGN_OR_RETURN(filters, Filters(q.filters()));
+  }
 
   std::string select;
   std::string group_by;
@@ -827,6 +839,41 @@ std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
   return state_.back().table_name;
 }
 
+base::StatusOr<std::string> GeneratorImpl::SingleFilter(
+    const StructuredQuery::Filter::Decoder& filter) {
+  std::string column_name = filter.column_name().ToStdString();
+  auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
+  ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
+
+  if (op == StructuredQuery::Filter::Operator::IS_NULL ||
+      op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
+    return column_name + " " + op_str;
+  }
+
+  std::string sql = column_name + " " + op_str + " ";
+
+  if (auto srhs = filter.string_rhs(); srhs) {
+    sql += "'" + (*srhs++).ToStdString() + "'";
+    for (; srhs; ++srhs) {
+      sql += " OR " + column_name + " " + op_str + " '" +
+             (*srhs).ToStdString() + "'";
+    }
+  } else if (auto drhs = filter.double_rhs(); drhs) {
+    sql += std::to_string((*drhs++));
+    for (; drhs; ++drhs) {
+      sql += " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
+    }
+  } else if (auto irhs = filter.int64_rhs(); irhs) {
+    sql += std::to_string(*irhs++);
+    for (; irhs; ++irhs) {
+      sql += " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
+    }
+  } else {
+    return base::ErrStatus("Filter must specify a right-hand side");
+  }
+  return sql;
+}
+
 base::StatusOr<std::string> GeneratorImpl::Filters(
     protozero::RepeatedFieldIterator<protozero::ConstBytes> filters) {
   std::string sql;
@@ -835,41 +882,74 @@ base::StatusOr<std::string> GeneratorImpl::Filters(
     if (!sql.empty()) {
       sql += " AND ";
     }
-
-    std::string column_name = filter.column_name().ToStdString();
-    auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
-    ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
-
-    if (op == StructuredQuery::Filter::Operator::IS_NULL ||
-        op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
-      sql += column_name + " " + op_str;
-      continue;
-    }
-
-    sql += column_name + " " + op_str + " ";
-
-    if (auto srhs = filter.string_rhs(); srhs) {
-      sql += "'" + (*srhs++).ToStdString() + "'";
-      for (; srhs; ++srhs) {
-        sql += " OR " + column_name + " " + op_str + " '" +
-               (*srhs).ToStdString() + "'";
-      }
-    } else if (auto drhs = filter.double_rhs(); drhs) {
-      sql += std::to_string((*drhs++));
-      for (; drhs; ++drhs) {
-        sql +=
-            " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
-      }
-    } else if (auto irhs = filter.int64_rhs(); irhs) {
-      sql += std::to_string(*irhs++);
-      for (; irhs; ++irhs) {
-        sql +=
-            " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
-      }
-    } else {
-      return base::ErrStatus("Filter must specify a right-hand side");
-    }
+    ASSIGN_OR_RETURN(std::string filter_sql, SingleFilter(filter));
+    sql += filter_sql;
   }
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::ExperimentalFilterGroup(
+    const StructuredQuery::ExperimentalFilterGroup::Decoder& exp_filter_group) {
+  auto op = static_cast<StructuredQuery::ExperimentalFilterGroup::Operator>(
+      exp_filter_group.op());
+  if (op == StructuredQuery::ExperimentalFilterGroup::UNSPECIFIED) {
+    return base::ErrStatus(
+        "ExperimentalFilterGroup must specify an operator (AND or OR)");
+  }
+
+  std::string op_str;
+  switch (op) {
+    case StructuredQuery::ExperimentalFilterGroup::AND:
+      op_str = " AND ";
+      break;
+    case StructuredQuery::ExperimentalFilterGroup::OR:
+      op_str = " OR ";
+      break;
+    case StructuredQuery::ExperimentalFilterGroup::UNSPECIFIED:
+      return base::ErrStatus(
+          "ExperimentalFilterGroup operator cannot be UNSPECIFIED");
+  }
+
+  std::string sql;
+  size_t item_count = 0;
+
+  // Process simple filters
+  for (auto it = exp_filter_group.filters(); it; ++it) {
+    StructuredQuery::Filter::Decoder filter(*it);
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    ASSIGN_OR_RETURN(std::string filter_sql, SingleFilter(filter));
+    sql += filter_sql;
+    item_count++;
+  }
+
+  // Process nested groups (wrap in parentheses)
+  for (auto it = exp_filter_group.groups(); it; ++it) {
+    StructuredQuery::ExperimentalFilterGroup::Decoder group(*it);
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    ASSIGN_OR_RETURN(std::string group_sql, ExperimentalFilterGroup(group));
+    sql += "(" + group_sql + ")";
+    item_count++;
+  }
+
+  // Process SQL expressions
+  for (auto it = exp_filter_group.sql_expressions(); it; ++it) {
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    sql += (*it).ToStdString();
+    item_count++;
+  }
+
+  if (item_count == 0) {
+    return base::ErrStatus(
+        "ExperimentalFilterGroup must have at least one filter, group, or SQL "
+        "expression");
+  }
+
   return sql;
 }
 

@@ -2146,4 +2146,593 @@ TEST(StructuredQueryGeneratorTest, OrderByWithInnerQuerySimpleSlices) {
               UnorderedElementsAre("slices.with_context"));
 }
 
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupSimpleOr) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "foo"
+      }
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "bar"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR name = 'bar'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupSimpleAnd) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+    }
+    experimental_filter_group: {
+      op: AND
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+      filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' AND dur > 1000
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupNestedAndOr) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+    }
+    experimental_filter_group: {
+      op: AND
+      groups: {
+        op: OR
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "bar"
+        }
+      }
+      groups: {
+        op: OR
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+        filters: {
+          column_name: "dur"
+          op: LESS_THAN
+          int64_rhs: 100
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE (name = 'foo' OR name = 'bar') AND (dur > 1000 OR dur < 100)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupComplexNested) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+      column_names: "ts"
+    }
+    experimental_filter_group: {
+      op: OR
+      groups: {
+        op: AND
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "critical"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 5000
+        }
+      }
+      groups: {
+        op: AND
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "important"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 10000
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE (name = 'critical' AND dur > 5000) OR (name = 'important' AND dur > 10000)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithMultipleValues) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+          string_rhs: "bar"
+          string_rhs: "baz"
+        }
+      filters: {
+          column_name: "name"
+          op: GLOB
+          string_rhs: "test*"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR name = 'bar' OR name = 'baz' OR name GLOB 'test*'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterGroupTakesPrecedenceOverFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    filters: {
+      column_name: "name"
+      op: EQUAL
+      string_rhs: "should_not_appear"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "bar"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR name = 'bar'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithIsNull) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: IS_NULL
+        }
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name IS NULL OR name = 'foo'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterGroupMissingOperatorFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an operator"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterGroupUnspecifiedOperatorFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: UNSPECIFIED
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an operator"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupEmptyItemsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: AND
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must have at least one"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupSingleItem) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithInt64AndDouble) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "dur"
+      column_names: "cpu"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+          int64_rhs: 5000
+        }
+      filters: {
+          column_name: "cpu"
+          op: LESS_THAN
+          double_rhs: 50.5
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE dur > 1000 OR dur > 5000 OR cpu < 50.500000
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupDeepNesting) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+      column_names: "ts"
+    }
+    experimental_filter_group: {
+      op: OR
+      groups: {
+        op: AND
+        groups: {
+          op: OR
+          filters: {
+            column_name: "name"
+            op: EQUAL
+            string_rhs: "a"
+          }
+          filters: {
+            column_name: "name"
+            op: EQUAL
+            string_rhs: "b"
+          }
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 100
+        }
+      }
+      filters: {
+        column_name: "ts"
+        op: LESS_THAN
+        int64_rhs: 1000
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE ts < 1000 OR (dur > 100 AND (name = 'a' OR name = 'b'))
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterGroupMissingOperatorFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: AND
+      groups: {
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an operator"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterGroupEmptyItemsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: AND
+      groups: {
+        op: OR
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must have at least one"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterWithoutRhsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify a right-hand side"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithSqlExpression) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "foo"
+      }
+      sql_expressions: "LENGTH(name) > 10"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR LENGTH(name) > 10
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupMixedTypes) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "critical"
+      }
+      sql_expressions: "dur * 2 > ts"
+      groups: {
+        op: AND
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+        sql_expressions: "name LIKE '%slow%'"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'critical' OR (dur > 1000 AND name LIKE '%slow%') OR dur * 2 > ts
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
