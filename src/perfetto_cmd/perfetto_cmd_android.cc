@@ -18,6 +18,7 @@
 
 #include <sys/sendfile.h>
 
+#include <unistd.h>
 #include <cinttypes>
 
 #include "perfetto/base/logging.h"
@@ -43,13 +44,13 @@ namespace {
 // We only trust packages written by traced.
 static constexpr int32_t kTrustedUid = 9999;
 
-// Directory for local state and temporary files. This is automatically
+// Directories for local state and temporary files. These are automatically
 // created by the system by setting setprop persist.traced.enable=1.
 const char* kStateDir = "/data/misc/perfetto-traces";
 const char* kStatePersistentRunningDir =
     "/data/misc/perfetto-traces/persistent/running";
-// const char* kStatePersistentUploadingDir =
-//     "/data/misc/perfetto-traces/persistent/uploading";
+const char* kStatePersistentUploadingDir =
+    "/data/misc/perfetto-traces/persistent/uploading";
 
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
@@ -127,6 +128,54 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
                  trace_config_->unique_session_name().c_str(), bytes_written_);
   }
   LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportHandoff);
+}
+
+using AndroidReportConfig = protos::gen::TraceConfig_AndroidReportConfig;
+
+// static
+void PerfettoCmd::ReportAllPersistentTracesToAndroidFrameworkOrCrash() {
+  std::vector<std::string> file_names;
+  auto status =
+      base::ListFilesRecursive(kStatePersistentUploadingDir, file_names);
+  if (!status.ok()) {
+    PERFETTO_DLOG("Failed to get the list of persistent traces to upload: %s",
+                  status.c_message());
+    return;
+  }
+
+  std::vector<std::string> file_paths;
+  for (const std::string& name : file_names) {
+    file_paths.push_back(std::string(kStatePersistentUploadingDir) + "/" +
+                         name);
+  }
+
+  std::vector<std::pair<base::ScopedFile, AndroidReportConfig>>
+      traces_to_upload;
+  for (const std::string& path : file_paths) {
+    bool is_empty_file = base::GetFileSize(path).value_or(0) == 0;
+    if (is_empty_file)
+      continue;
+    base::ScopedMmap mmaped_file = base::ReadMmapWholeFile(path.c_str());
+    if (!mmaped_file.IsValid()) {
+      PERFETTO_PLOG("Failed to mmap trace file '%s'", path.c_str());
+      continue;
+    }
+    auto maybe_report_config =
+        ParseAndroidReportConfigFromMmapedTrace(std::move(mmaped_file));
+    if (maybe_report_config) {
+      base::ScopedFile fd = base::OpenFile(path, O_RDONLY | O_CLOEXEC);
+      if (!fd) {
+        PERFETTO_PLOG("Failed to open trace file '%s' for upload",
+                      path.c_str());
+        continue;
+      }
+      traces_to_upload.emplace_back(std::move(fd), *maybe_report_config);
+    }
+  }
+
+  for (const std::string& path : file_paths) {
+    unlink(path.c_str());
+  }
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace
@@ -233,13 +282,12 @@ base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
 
 // static
 std::optional<protos::gen::TraceConfig_AndroidReportConfig>
-PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
-  base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path.c_str());
-  if (!mapped.IsValid()) {
-    return std::nullopt;
-  }
+PerfettoCmd::ParseAndroidReportConfigFromMmapedTrace(
+    base::ScopedMmap mapped_trace) {
+  PERFETTO_CHECK(mapped_trace.IsValid());
 
-  protozero::ProtoDecoder trace_decoder(mapped.data(), mapped.length());
+  protozero::ProtoDecoder trace_decoder(mapped_trace.data(),
+                                        mapped_trace.length());
 
   for (auto packet = trace_decoder.ReadField(); packet;
        packet = trace_decoder.ReadField()) {

@@ -32,8 +32,9 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
  protected:
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<TraceConfig::AndroidReportConfig>
-  ParseAndroidReportConfigFromTrace(const std::string& file_path) {
-    return PerfettoCmd::ParseAndroidReportConfigFromTrace(file_path);
+  ParseAndroidReportConfigFromMmapedTrace(base::ScopedMmap mapped_trace) {
+    return PerfettoCmd::ParseAndroidReportConfigFromMmapedTrace(
+        std::move(mapped_trace));
   }
 #endif
 };
@@ -64,15 +65,21 @@ static void WritePacketsToFile(const std::vector<TracePacket>& packets,
 
 TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromInvalidTrace) {
   {
+    // We want to also treat empty files as invalid traces, but mmap-ing an
+    // empty file returns error, so we always check if the file is empty before
+    // mmap-ing it.
     base::TempFile empty_file = base::TempFile::Create();
-    std::optional result = ParseAndroidReportConfigFromTrace(empty_file.path());
-    ASSERT_FALSE(result.has_value());
+    base::ScopedMmap mmaped =
+        base::ReadMmapWholeFile(empty_file.path().c_str());
+    ASSERT_FALSE(mmaped.IsValid());
   }
   {
     base::TempFile text_file = base::TempFile::Create();
     std::string data = "This is a text file!";
     base::WriteAll(text_file.fd(), data.data(), data.size());
-    std::optional result = ParseAndroidReportConfigFromTrace(text_file.path());
+    base::ScopedMmap mmaped = base::ReadMmapWholeFile(text_file.path().c_str());
+    std::optional result =
+        ParseAndroidReportConfigFromMmapedTrace(std::move(mmaped));
     ASSERT_FALSE(result.has_value());
   }
 }
@@ -96,7 +103,10 @@ TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
       WritePacketsToFile(packets, trace_file.path());
     }
 
-    std::optional result = ParseAndroidReportConfigFromTrace(trace_file.path());
+    base::ScopedMmap mmaped =
+        base::ReadMmapWholeFile(trace_file.path().c_str());
+    std::optional result =
+        ParseAndroidReportConfigFromMmapedTrace(std::move(mmaped));
     EXPECT_EQ(result->reporter_service_class(), "reporter");
   }
 
@@ -116,7 +126,10 @@ TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
       WritePacketsToFile(packets, trace_file.path());
     }
 
-    std::optional result = ParseAndroidReportConfigFromTrace(trace_file.path());
+    base::ScopedMmap mmaped =
+        base::ReadMmapWholeFile(trace_file.path().c_str());
+    std::optional result =
+        ParseAndroidReportConfigFromMmapedTrace(std::move(mmaped));
     EXPECT_FALSE(result.has_value());
   }
 
@@ -144,11 +157,38 @@ TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
       WritePacketsToFile(packets, trace_file.path());
     }
 
-    std::optional result = ParseAndroidReportConfigFromTrace(trace_file.path());
+    base::ScopedMmap mmaped =
+        base::ReadMmapWholeFile(trace_file.path().c_str());
+    std::optional result =
+        ParseAndroidReportConfigFromMmapedTrace(std::move(mmaped));
     EXPECT_EQ(result->reporter_service_class(), "good_reporter");
     EXPECT_EQ(result->use_pipe_in_framework_for_testing(), true);
   }
 }
+
+TEST_F(PerfettoCmdlineUnitTest, ListPersistentTracesToUpload) {
+  const char* kStatePersistentUploadingDir =
+      "/data/misc/perfetto-traces/persistent/uploading";
+  PERFETTO_CHECK(base::Rmdir(kStatePersistentUploadingDir));
+  PERFETTO_CHECK(base::Mkdir(kStatePersistentUploadingDir));
+  {
+    std::string file_txt_path =
+        std::string(kStatePersistentUploadingDir) + "/file.txt";
+    auto file_txt = base::OpenFile(file_txt_path, O_CREAT | O_RDWR, 0666);
+    std::string payload = "payload";
+    base::WriteAll(*file_txt, payload.data(), payload.size());
+  }
+  {
+    std::string empty_file_path =
+        std::string(kStatePersistentUploadingDir) + "/empty_file.txt";
+    auto file_empty = base::OpenFile(empty_file_path, O_CREAT | O_RDWR, 06666);
+  }
+
+  PERFETTO_LOG("vvvvvvv ReportAllPersistentTracesToAndroidFrameworkOrCrash");
+  PerfettoCmd::ReportAllPersistentTracesToAndroidFrameworkOrCrash();
+  PERFETTO_LOG("^^^^^^^ ReportAllPersistentTracesToAndroidFrameworkOrCrash");
+}
+
 #endif
 
 }  // namespace

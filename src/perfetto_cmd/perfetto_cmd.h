@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -141,13 +142,18 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<protos::gen::TraceConfig_AndroidReportConfig>
-  ParseAndroidReportConfigFromTrace(const std::string& file_path);
+  ParseAndroidReportConfigFromMmapedTrace(base::ScopedMmap mapped_trace);
   static base::ScopedFile CreateUnlinkedTmpFile();
   static base::ScopedFile CreatePersistentTraceFile(
       const std::string& unique_session_name);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();
+
+ public:
+  static void ReportAllPersistentTracesToAndroidFrameworkOrCrash();
+
+ private:
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
