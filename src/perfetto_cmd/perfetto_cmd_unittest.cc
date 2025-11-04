@@ -31,9 +31,9 @@ namespace perfetto {
 class PerfettoCmdlineUnitTest : public ::testing::Test {
  protected:
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static std::optional<TraceConfig::AndroidReportConfig>
-  ParseAndroidReportConfigFromTrace(const std::string& file_path) {
-    return PerfettoCmd::ParseAndroidReportConfigFromTrace(file_path);
+  static std::optional<TraceConfig> ParseTraceConfigFromTrace(
+      const std::string& file_path) {
+    return PerfettoCmd::ParseTraceConfigFromTrace(file_path);
   }
 #endif
 };
@@ -62,22 +62,22 @@ static void WritePacketsToFile(const std::vector<TracePacket>& packets,
   pw.WritePackets(packets);
 }
 
-TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromInvalidTrace) {
+TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromInvalidTrace) {
   {
     base::TempFile empty_file = base::TempFile::Create();
-    std::optional result = ParseAndroidReportConfigFromTrace(empty_file.path());
+    std::optional result = ParseTraceConfigFromTrace(empty_file.path());
     ASSERT_FALSE(result.has_value());
   }
   {
     base::TempFile text_file = base::TempFile::Create();
     std::string data = "This is a text file!";
     base::WriteAll(text_file.fd(), data.data(), data.size());
-    std::optional result = ParseAndroidReportConfigFromTrace(text_file.path());
+    std::optional result = ParseTraceConfigFromTrace(text_file.path());
     ASSERT_FALSE(result.has_value());
   }
 }
 
-TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
+TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
   // Trace with a reporter config and correct trusted_uid.
   {
     base::TempFile trace_file = base::TempFile::Create();
@@ -85,9 +85,12 @@ TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
         msg->set_trusted_uid(9999);
-        msg->mutable_trace_config()
-            ->mutable_android_report_config()
-            ->set_reporter_service_class("reporter");
+        auto config = msg->mutable_trace_config();
+        config->set_trace_uuid_lsb(555);
+        config->set_trace_uuid_msb(888);
+        config->set_unique_session_name("my_name");
+        config->mutable_android_report_config()->set_reporter_service_class(
+            "reporter");
       }));
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
         msg->mutable_for_testing()->set_str("payload");
@@ -96,57 +99,67 @@ TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
       WritePacketsToFile(packets, trace_file.path());
     }
 
-    std::optional result = ParseAndroidReportConfigFromTrace(trace_file.path());
-    EXPECT_EQ(result->reporter_service_class(), "reporter");
+    std::optional result = ParseTraceConfigFromTrace(trace_file.path());
+    EXPECT_EQ(result->trace_uuid_lsb(), 555);
+    EXPECT_EQ(result->trace_uuid_msb(), 888);
+    EXPECT_EQ(result->unique_session_name(), "my_name");
+    EXPECT_EQ(result->android_report_config().reporter_service_class(),
+              "reporter");
   }
 
-  // Trace without an android reporter config.
+  // Trace without an config.
   {
     base::TempFile trace_file = base::TempFile::Create();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
         msg->set_trusted_uid(9999);
-        msg->mutable_trace_config()->set_bugreport_filename("file.txt");
+        msg->mutable_for_testing()->set_str("payload#1");
       }));
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
-        msg->mutable_for_testing()->set_str("payload");
+        msg->mutable_for_testing()->set_str("payload#2");
       }));
 
       WritePacketsToFile(packets, trace_file.path());
     }
 
-    std::optional result = ParseAndroidReportConfigFromTrace(trace_file.path());
+    std::optional result = ParseTraceConfigFromTrace(trace_file.path());
     EXPECT_FALSE(result.has_value());
   }
 
-  // Trace with a potentially harmful config without trusted_uid.
+  // Trace with a potentially harmful android reporter config without
+  // trusted_uid.
   {
     base::TempFile trace_file = base::TempFile::Create();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
-        msg->mutable_trace_config()
-            ->mutable_android_report_config()
-            ->set_reporter_service_class("bad_reporter");
+        auto config = msg->mutable_trace_config();
+        config->set_unique_session_name("my_session");
+        config->mutable_android_report_config()->set_reporter_service_class(
+            "bad_reporter");
       }));
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
         msg->mutable_for_testing()->set_str("payload");
       }));
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
         msg->set_trusted_uid(9999);
-        auto config =
+        auto android_config =
             msg->mutable_trace_config()->mutable_android_report_config();
-        config->set_reporter_service_class("good_reporter");
-        config->set_use_pipe_in_framework_for_testing(true);
+        android_config->set_reporter_service_class("good_reporter");
+        android_config->set_use_pipe_in_framework_for_testing(true);
       }));
 
       WritePacketsToFile(packets, trace_file.path());
     }
 
-    std::optional result = ParseAndroidReportConfigFromTrace(trace_file.path());
-    EXPECT_EQ(result->reporter_service_class(), "good_reporter");
-    EXPECT_EQ(result->use_pipe_in_framework_for_testing(), true);
+    std::optional result = ParseTraceConfigFromTrace(trace_file.path());
+    EXPECT_FALSE(result->has_unique_session_name());
+    EXPECT_EQ(result->android_report_config().reporter_service_class(),
+              "good_reporter");
+    EXPECT_EQ(
+        result->android_report_config().use_pipe_in_framework_for_testing(),
+        true);
   }
 }
 #endif

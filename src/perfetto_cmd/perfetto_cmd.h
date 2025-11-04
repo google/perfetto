@@ -42,11 +42,6 @@
 
 namespace perfetto {
 
-// Forward declaration for a proto.
-namespace protos::gen {
-class TraceConfig_AndroidReportConfig;
-}  // namespace protos::gen
-
 class PerfettoCmd : public Consumer {
  public:
   PerfettoCmd();
@@ -141,8 +136,8 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static std::optional<protos::gen::TraceConfig_AndroidReportConfig>
-  ParseAndroidReportConfigFromTrace(const std::string& file_path);
+  static std::optional<TraceConfig> ParseTraceConfigFromTrace(
+      const std::string& file_path);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();

@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/tracing_service_proxy.h"
@@ -201,8 +202,8 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 // static
-std::optional<protos::gen::TraceConfig_AndroidReportConfig>
-PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
+std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromTrace(
+    const std::string& file_path) {
   base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path);
   if (!mapped.IsValid()) {
     return std::nullopt;
@@ -235,17 +236,10 @@ PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
     if (uid_value != kTrustedUid)
       continue;
 
-    // We already have a dependency on a 'gen::TraceConfig', so we use it here
-    // to parse the full config packet, instead of adding a dependency on a
-    // 'pbzero::TraceConfig' and using the one more nested
-    // 'protozero::ProtoDecoder' to directly access 'AndroidReportConfig'.
-    protos::gen::TraceConfig trace_config;
+    TraceConfig trace_config;
     trace_config.ParseFromArray(trace_config_field.data(),
                                 trace_config_field.size());
-
-    if (trace_config.has_android_report_config()) {
-      return trace_config.android_report_config();
-    }
+    return trace_config;
   }
 
   return std::nullopt;
