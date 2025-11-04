@@ -38,7 +38,8 @@
 namespace perfetto {
 namespace {
 
-// traced runs as 'user nobody' (AID_NOBODY) that is 9999.
+// traced runs as 'user nobody' (AID_NOBODY), defined here:
+// https://cs.android.com/android/platform/superproject/+/android-latest-release:system/core/libcutils/include/private/android_filesystem_config.h;l=203;drc=f5b540e2b7b9b325d99486d49c0ac57bdd0c5344
 // We only trust packages written by traced.
 static constexpr int32_t kTrustedUid = 9999;
 
