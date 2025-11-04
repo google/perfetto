@@ -622,6 +622,51 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 );
               }
 
+              // Add glob filter option for string columns with text selection
+              if (typeof value === 'string') {
+                const selectedText = window.getSelection()?.toString().trim();
+                if (selectedText && selectedText.length > 0) {
+                  menuItems.push(
+                    m(
+                      MenuItem,
+                      {
+                        label: 'Filter glob',
+                      },
+                      m(MenuItem, {
+                        label: `"${selectedText}*"`,
+                        onclick: () => {
+                          onFilterAdd({
+                            column: column.name,
+                            op: 'glob',
+                            value: `${selectedText}*`,
+                          });
+                        },
+                      }),
+                      m(MenuItem, {
+                        label: `"*${selectedText}"`,
+                        onclick: () => {
+                          onFilterAdd({
+                            column: column.name,
+                            op: 'glob',
+                            value: `*${selectedText}`,
+                          });
+                        },
+                      }),
+                      m(MenuItem, {
+                        label: `"*${selectedText}*"`,
+                        onclick: () => {
+                          onFilterAdd({
+                            column: column.name,
+                            op: 'glob',
+                            value: `*${selectedText}*`,
+                          });
+                        },
+                      }),
+                    ),
+                  );
+                }
+              }
+
               if (isNumeric(value)) {
                 menuItems.push(
                   m(MenuItem, {

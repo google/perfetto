@@ -225,7 +225,6 @@ describe('JSON serialization/deserialization', () => {
 
     const intervalIntersectNode = new IntervalIntersectNode({
       prevNodes: [tableNode1, tableNode2],
-      allNodes: [tableNode1, tableNode2],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -1174,5 +1173,33 @@ describe('JSON serialization/deserialization', () => {
     expect(branch2.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
     expect(branch1.state.newColumns[0].name).toBe('dur_ms');
     expect(branch2.state.newColumns[0].name).toBe('ts_ms');
+  });
+
+  test('deserializes graph without nodeLayouts field (auto-layout)', () => {
+    // Create a real node and serialize it
+    const sliceNode = new SlicesSourceNode({
+      slice_name: 'test_slice',
+    });
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+    };
+    const serialized = serializeState(initialState);
+
+    // Parse the JSON and remove the nodeLayouts field
+    const parsed = JSON.parse(serialized);
+    delete parsed.nodeLayouts;
+    const jsonWithoutLayouts = JSON.stringify(parsed);
+
+    const deserializedState = deserializeState(
+      jsonWithoutLayouts,
+      trace,
+      sqlModules,
+    );
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    expect(deserializedState.nodeLayouts.size).toBe(0);
+    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
+    expect(deserializedNode.state.slice_name).toBe('test_slice');
   });
 });

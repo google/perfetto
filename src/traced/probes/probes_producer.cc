@@ -541,6 +541,10 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   // were acked), and therefore the kill would race against the tracefs
   // cleanup.
   endpoint_->NotifyDataSourceStopped(id);
+
+  // This is to reduce the noise in Android performance benchmarks that measure
+  // the memory of perfetto processes.
+  base::MaybeReleaseAllocatorMemToOS();
 }
 
 void ProbesProducer::OnTracingSetup() {
