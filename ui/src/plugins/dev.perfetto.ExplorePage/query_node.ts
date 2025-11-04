@@ -76,6 +76,7 @@ export interface QueryNodeState {
 
   // Operations
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR'; // How to combine filters (default: AND)
 
   issues?: NodeIssues;
 

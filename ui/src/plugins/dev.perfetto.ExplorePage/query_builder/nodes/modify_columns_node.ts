@@ -34,8 +34,8 @@ import {
 } from '../column_info';
 import protos from '../../../../protos';
 import {
-  createFiltersProto,
-  FilterOperation,
+  createExperimentalFiltersProto,
+  renderFilterOperation,
   UIFilter,
 } from '../operations/filter';
 
@@ -362,6 +362,7 @@ export interface ModifyColumnsSerializedState {
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -920,14 +921,19 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   private renderFilterOperation(): m.Child {
-    return m(FilterOperation, {
-      filters: this.state.filters,
-      sourceCols: this.finalCols,
-      onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+    return renderFilterOperation(
+      this.state.filters,
+      this.state.filterOperator,
+      this.finalCols,
+      (newFilters) => {
         this.state.filters = [...newFilters];
         this.state.onchange?.();
       },
-    });
+      (operator) => {
+        this.state.filterOperator = operator;
+        this.state.onchange?.();
+      },
+    );
   }
 
   clone(): QueryNode {
@@ -974,13 +980,17 @@ export class ModifyColumnsNode implements ModificationNode {
       prevSq.referencedModules = referencedModules;
     }
 
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
+    const filtersProto = createExperimentalFiltersProto(
+      this.state.filters,
+      this.finalCols,
+      this.state.filterOperator,
+    );
 
     if (filtersProto) {
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
       outerSq.innerQuery = prevSq;
-      outerSq.filters = filtersProto;
+      outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
     }
 
@@ -996,6 +1006,7 @@ export class ModifyColumnsNode implements ModificationNode {
       newColumns: this.state.newColumns,
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,
+      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }
