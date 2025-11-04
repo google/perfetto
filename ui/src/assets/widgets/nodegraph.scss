@@ -32,6 +32,7 @@
   isolation: isolate;
   cursor: grab;
   height: 450px; // Give the canvas some intrinsic height by default
+  touch-action: none; // Disable default touch actions for panning
 
   &--fill-height {
     height: 100%;
@@ -284,6 +285,7 @@ svg {
 
 .pf-connection {
   stroke: var(--pf-color-accent);
+  color: var(--pf-color-accent);
   stroke-width: 2;
   fill: none;
   filter: drop-shadow(
@@ -308,6 +310,7 @@ svg {
   stroke: var(--pf-color-text-muted);
   stroke-width: 2;
   fill: none;
+  color: var(--pf-color-text-muted);
   stroke-dasharray: 5, 5;
 }
 

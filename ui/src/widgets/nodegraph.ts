@@ -295,7 +295,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = (e: PointerEvent) => {
     m.redraw();
     if (!latestVnode || !canvasElement) return;
     const vnode = latestVnode;
@@ -596,27 +596,47 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     // Create arrow marker definition
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    const marker = document.createElementNS(
-      'http://www.w3.org/2000/svg',
-      'marker',
-    );
-    marker.setAttribute('id', 'arrowhead');
-    marker.setAttribute('viewBox', `0 0 ${arrowheadLength} 10`);
-    marker.setAttribute('refX', '0');
-    marker.setAttribute('refY', '5');
-    marker.setAttribute('markerWidth', `${arrowheadLength}`);
-    marker.setAttribute('markerHeight', '10');
-    marker.setAttribute('orient', 'auto');
 
-    const polygon = document.createElementNS(
-      'http://www.w3.org/2000/svg',
-      'polygon',
-    );
-    polygon.setAttribute('points', `0 2.5, ${arrowheadLength} 5, 0 7.5`);
-    polygon.setAttribute('fill', 'var(--pf-color-accent)');
+    function createArrowheadMarker(
+      id: string,
+      color: string,
+    ): SVGMarkerElement {
+      const marker = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'marker',
+      );
+      marker.setAttribute('id', id);
+      marker.setAttribute('viewBox', `0 0 ${arrowheadLength} 10`);
+      marker.setAttribute('refX', '0');
+      marker.setAttribute('refY', '5');
+      marker.setAttribute('markerWidth', `${arrowheadLength}`);
+      marker.setAttribute('markerHeight', '10');
+      marker.setAttribute('orient', 'auto');
 
-    marker.appendChild(polygon);
-    defs.appendChild(marker);
+      const polygon = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'polygon',
+      );
+      polygon.setAttribute('points', `0 2.5, ${arrowheadLength} 5, 0 7.5`);
+      polygon.setAttribute('fill', color);
+
+      marker.appendChild(polygon);
+
+      return marker;
+    }
+
+    const arrowhead = createArrowheadMarker(
+      'arrowhead',
+      'var(--pf-color-accent)',
+    );
+    defs.appendChild(arrowhead);
+
+    const arrowheadTemp = createArrowheadMarker(
+      'arrowhead-temp',
+      'var(--pf-color-text-muted)',
+    );
+    defs.appendChild(arrowheadTemp);
+
     svg.appendChild(defs);
 
     // Only render explicit connections (not implicit dock connections)
@@ -667,7 +687,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       path.style.cursor = 'pointer';
 
       // Prevent canvas pan from starting when clicking connections
-      path.onmousedown = (e) => {
+      path.onpointerdown = (e) => {
         e.stopPropagation();
         e.preventDefault();
       };
@@ -727,7 +747,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           shortenLength,
         ),
       );
-      path.setAttribute('marker-end', 'url(#arrowhead)');
+      path.setAttribute('marker-end', 'url(#arrowhead-temp)');
       svg.appendChild(path);
     }
   }
@@ -1228,7 +1248,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         {
           'data-port': portId,
           'class': cssClass,
-          'onmousedown': (e: MouseEvent) => {
+          'onpointerdown': (e: PointerEvent) => {
             e.stopPropagation();
             if (portType === 'input') {
               // Input port - check for existing connection
@@ -1278,7 +1298,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               };
             }
           },
-          'onmouseup': (e: MouseEvent) => {
+          'onpointerup': (e: PointerEvent) => {
             e.stopPropagation();
             if (portType === 'input') {
               if (
@@ -1344,7 +1364,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           ...style,
           ...position,
         },
-        'onmousedown': (e: MouseEvent) => {
+        'onpointerdown': (e: PointerEvent) => {
           if ((e.target as HTMLElement).closest('.pf-port')) {
             return;
           }
@@ -1473,8 +1493,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     oncreate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
       latestVnode = vnode;
       canvasElement = vnode.dom as HTMLElement;
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('pointermove', handleMouseMove);
+      document.addEventListener('pointerup', handleMouseUp);
       canvasElement.addEventListener('wheel', handleWheel, {passive: false});
 
       const {connections, nodes, onConnectionRemove, onReady} = vnode.attrs;
@@ -1627,8 +1647,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     },
 
     onremove: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
       (vnode.dom as HTMLElement).removeEventListener('wheel', handleWheel);
     },
 
@@ -1658,7 +1678,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         {
           className,
           tabindex: 0, // Make div focusable to capture keyboard events
-          onmousedown: (e: MouseEvent) => {
+          oncontextmenu: (e: Event) => {
+            e.preventDefault(); // Disable default context menu
+          },
+          onpointerdown: (e: PointerEvent) => {
             const target = e.target as HTMLElement;
             if (
               target.classList.contains('pf-canvas') ||
@@ -1674,7 +1697,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   currentX: transformedX,
                   currentY: transformedY,
                 };
-                e.preventDefault();
                 return;
               }
 
@@ -1682,10 +1704,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               canvasState.isPanning = true;
               canvasState.panStart = {x: e.clientX, y: e.clientY};
               canvasState.canvasMouseDownPos = {x: e.clientX, y: e.clientY};
-              e.preventDefault();
             }
           },
-          onclick: (e: MouseEvent) => {
+          onclick: (e: PointerEvent) => {
             const target = e.target as HTMLElement;
             // Clear selection on canvas click (only if mouse didn't move significantly)
             if (
@@ -1713,7 +1734,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 if (onSelectionClear !== undefined) {
                   onSelectionClear();
                 }
-                e.preventDefault();
               }
             } else if (e.key === 'Delete' || e.key === 'Backspace') {
               const {onNodeRemove} = vnode.attrs;
@@ -1722,7 +1742,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 canvasState.selectedNodes.forEach((nodeId) => {
                   onNodeRemove(nodeId);
                 });
-                e.preventDefault();
               }
             }
           },
@@ -1754,7 +1773,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 label: 'Fit to Screen',
                 icon: 'center_focus_strong',
                 variant: ButtonVariant.Filled,
-                onclick: (e: MouseEvent) => {
+                onclick: (e: PointerEvent) => {
                   const {nodes = []} = vnode.attrs;
                   const canvas = (e.currentTarget as HTMLElement).closest(
                     '.pf-canvas',

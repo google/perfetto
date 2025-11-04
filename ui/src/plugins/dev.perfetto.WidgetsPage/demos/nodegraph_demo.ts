@@ -29,15 +29,6 @@ import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 
-// Simple model state - just data
-interface ModelNode {
-  id: string;
-  type: 'table' | 'select' | 'filter' | 'join';
-  x: number;
-  y: number;
-  nextId?: string; // ID of next node in chain
-}
-
 // Node template definition
 interface NodeTemplate {
   readonly inputs: ReadonlyArray<NodePort>;
@@ -78,58 +69,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   // State for filter expression
   let filterExpression = '';
 
-  // Helper to create a node template for placement calculation
-  function createNodeTemplate(
-    id: string,
-    type: 'table' | 'select' | 'filter' | 'join',
-  ): Omit<Node, 'x' | 'y'> {
-    const template = nodeTemplates[type];
-    return {id, ...template};
+  function createConfig<const T extends Record<string, NodeTemplate>>(
+    config: T,
+  ): Record<keyof T, NodeTemplate> {
+    return config;
   }
-
-  // Function to add a new node
-  function addNode(
-    type: 'table' | 'select' | 'filter' | 'join',
-    toNodeId?: string,
-  ) {
-    const id = uuidv4();
-
-    let x: number;
-    let y: number;
-
-    // Use API to find optimal placement if available
-    if (graphApi && !toNodeId) {
-      const nodeTemplate = createNodeTemplate(id, type);
-      const placement = graphApi.findPlacementForNode(nodeTemplate);
-      x = placement.x;
-      y = placement.y;
-    } else {
-      // Fallback to random position
-      x = 100 + Math.random() * 200;
-      y = 50 + Math.random() * 200;
-    }
-
-    const newNode: ModelNode = {
-      id: id,
-      type: type,
-      x,
-      y,
-    };
-    modelNodes.set(newNode.id, newNode);
-    if (toNodeId) {
-      const parentNode = modelNodes.get(toNodeId);
-      if (parentNode) {
-        parentNode.nextId = id;
-      }
-    }
-  }
-
-  // Model state - persists across renders
-  const modelNodes: Map<string, ModelNode> = new Map();
-  addNode('table');
 
   // Template renderers - map from type to node template
-  const nodeTemplates: Record<string, NodeTemplate> = {
+  const nodeTemplates = createConfig({
     table: {
       inputs: [],
       outputs: [{content: 'Output', direction: 'bottom'}],
@@ -223,7 +170,82 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         ],
       ),
     },
-  };
+    result: {
+      inputs: [{content: 'Input', direction: 'top'}],
+      outputs: [],
+      canDockTop: true,
+      hue: 0,
+      content: 'Result',
+    },
+    union: {
+      inputs: [
+        {content: 'Input 1', direction: 'top'},
+        {content: 'Input 2', direction: 'left'},
+        {content: 'Input 3', direction: 'left'},
+      ],
+      outputs: [{content: 'Output', direction: 'bottom'}],
+      canDockTop: true,
+      canDockBottom: true,
+      hue: 240,
+      content: 'Union',
+    },
+  });
+
+  // Helper to create a node template for placement calculation
+  function createNodeTemplate(
+    id: string,
+    type: keyof typeof nodeTemplates,
+  ): Omit<Node, 'x' | 'y'> {
+    const template = nodeTemplates[type];
+    return {id, ...template};
+  }
+
+  // Simple model state - just data
+  interface ModelNode {
+    id: string;
+    type: keyof typeof nodeTemplates;
+    x: number;
+    y: number;
+    nextId?: string; // ID of next node in chain
+  }
+
+  // Function to add a new node
+  function addNode(type: keyof typeof nodeTemplates, toNodeId?: string) {
+    const id = uuidv4();
+
+    let x: number;
+    let y: number;
+
+    // Use API to find optimal placement if available
+    if (graphApi && !toNodeId) {
+      const nodeTemplate = createNodeTemplate(id, type);
+      const placement = graphApi.findPlacementForNode(nodeTemplate);
+      x = placement.x;
+      y = placement.y;
+    } else {
+      // Fallback to random position
+      x = 100 + Math.random() * 200;
+      y = 50 + Math.random() * 200;
+    }
+
+    const newNode: ModelNode = {
+      id: id,
+      type: type,
+      x,
+      y,
+    };
+    modelNodes.set(newNode.id, newNode);
+    if (toNodeId) {
+      const parentNode = modelNodes.get(toNodeId);
+      if (parentNode) {
+        parentNode.nextId = id;
+      }
+    }
+  }
+
+  // Model state - persists across renders
+  const modelNodes: Map<string, ModelNode> = new Map();
+  addNode('table');
 
   // Find root nodes (not referenced by any other node's nextId)
   function getRootNodeIds(): string[] {
@@ -326,6 +348,16 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               label: 'Join',
               icon: 'join',
               onclick: () => addNode('join'),
+            }),
+            m(MenuItem, {
+              label: 'Union',
+              icon: 'merge',
+              onclick: () => addNode('union'),
+            }),
+            m(MenuItem, {
+              label: 'Result',
+              icon: 'output',
+              onclick: () => addNode('result'),
             }),
           ],
         ),
