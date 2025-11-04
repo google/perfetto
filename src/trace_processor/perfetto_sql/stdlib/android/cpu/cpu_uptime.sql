@@ -16,44 +16,48 @@
 INCLUDE PERFETTO MODULE linux.cpu.idle;
 
 CREATE PERFETTO TABLE _sched_processes_for_span AS
-  SELECT
-    ss.ts,
-    ss.dur,
-    ss.cpu,
-    ss.id,
-    t.tid,
-    t.name AS thread_name,
-    p.pid,
-    p.name AS process_name
-  FROM sched_slice ss
-  JOIN thread t USING (utid)
-  JOIN process p USING (upid)
-  WHERE p.name IS NOT NULL;
+SELECT
+  ss.ts,
+  ss.dur,
+  ss.cpu,
+  ss.id,
+  t.tid,
+  t.name AS thread_name,
+  p.pid,
+  p.name AS process_name
+FROM sched_slice AS ss
+JOIN thread AS t
+  USING (utid)
+JOIN process AS p
+  USING (upid)
+WHERE
+  p.name IS NOT NULL;
 
 CREATE PERFETTO TABLE _cpu_active_for_span AS
-WITH step1 AS (
-  SELECT
-    ts,
-    dur,
-    cpu,
-    ts AS group_ts,
-    dur AS group_dur,
-    LEAD(ts) OVER (PARTITION BY cpu ORDER BY ts) AS next_group_ts
-  FROM cpu_idle_counters
-  WHERE idle = -1 -- cpu is active
-)
+WITH
+  step1 AS (
+    SELECT
+      ts,
+      dur,
+      cpu,
+      ts AS group_ts,
+      dur AS group_dur,
+      lead(ts) OVER (PARTITION BY cpu ORDER BY ts) AS next_group_ts
+    FROM cpu_idle_counters
+    WHERE
+      idle = -1
+  )
 SELECT
   *,
-  ROW_NUMBER() OVER (ORDER BY ts) AS group_id
+  row_number() OVER (ORDER BY ts) AS group_id
 FROM step1;
 
-CREATE VIRTUAL TABLE _android_active_sched_joined USING SPAN_JOIN(_cpu_active_for_span PARTITIONED cpu, _sched_processes_for_span PARTITIONED cpu);
+CREATE VIRTUAL TABLE _android_active_sched_joined USING SPAN_JOIN (_cpu_active_for_span PARTITIONED cpu, _sched_processes_for_span PARTITIONED cpu);
 
 -- Table which groups scheduling information along with the CPU idle state
 -- information. This is meant to be used in conjunciton with the android_cpu_uptime_cost
 -- calculation macro
-CREATE PERFETTO TABLE android_active_sched_joined
-(
+CREATE PERFETTO TABLE android_active_sched_joined (
   -- timestamp
   ts LONG,
   -- duration
@@ -78,61 +82,71 @@ CREATE PERFETTO TABLE android_active_sched_joined
   pid LONG,
   -- process name
   process_name STRING
-)
-AS
-SELECT * FROM _android_active_sched_joined;
+) AS
+SELECT
+  *
+FROM _android_active_sched_joined;
 
 -- Calculates the CPU uptime based on the duration of idle required to
 -- enter the deeper C-states
 -- Use active_sched_joined table generated from this module along with the expected
 -- costs of entering C states
 CREATE PERFETTO MACRO android_cpu_uptime_cost(
-  -- table generated from android_cpu_uptime
-  active_sched_joined TableOrSubquery,
-  -- cost to enter the C2 state in microseconds
-  c2_cost Expr,
-  -- cost to enter the C3 state in microseconds
-  C3_cost Expr
+    -- table generated from android_cpu_uptime
+    active_sched_joined TableOrSubquery,
+    -- cost to enter the C2 state in microseconds
+    c2_cost Expr,
+    -- cost to enter the C3 state in microseconds
+    c3_cost Expr
 )
 RETURNS TableOrSubquery AS
 (
- WITH step1 AS (
-  SELECT
-    *,
-    -- Determine within the span of active durations, which is the first
-    -- process to perform work
-    CASE
-      WHEN ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY ts ASC) = 1
-        THEN TRUE
-        ELSE FALSE
-    END AS is_first_work
-  FROM
-    $active_sched_joined
-  ), step2 AS (
-  SELECT *,
-    next_group_ts,
-    next_group_ts - (group_ts + group_dur) AS diff,
-    -- Assign the cost of going into C2 to the first thread in the active duration
-    CASE
-      WHEN is_first_work=TRUE
-        THEN MIN($c2_cost * 1000, next_group_ts - (group_ts + group_dur))
-        ELSE 0
-      END AS first_work_cost_c2,
-    -- Assign the cost of going into C3 into the first thread in active duration
-    CASE
-      WHEN is_first_work=TRUE
-        THEN MIN($c3_cost * 1000, next_group_ts - (group_ts + group_dur))
-        ELSE 0
-      END AS first_work_cost_c3,
-    dur AS work_cost
-  FROM step1
-  ), step3 AS (
-  SELECT
-    *,
-    dur+first_work_cost_c2 AS uptime_cost_c2,
-    dur+first_work_cost_c3 AS uptime_cost_c3
-  FROM step2
-  )
+  WITH
+    step1 AS (
+      SELECT
+        *,
+        -- Determine within the span of active durations, which is the first
+        -- process to perform work
+        CASE
+          WHEN row_number() OVER (PARTITION BY group_id ORDER BY ts ASC) = 1
+          THEN TRUE
+          ELSE FALSE
+        END AS is_first_work
+      FROM $active_sched_joined
+    ),
+    step2 AS (
+      SELECT
+        *,
+        next_group_ts,
+        next_group_ts - (
+          group_ts + group_dur
+        ) AS diff,
+        -- Assign the cost of going into C2 to the first thread in the active duration
+        CASE
+          WHEN is_first_work = TRUE
+          THEN min($c2_cost * 1000, next_group_ts - (
+            group_ts + group_dur
+          ))
+          ELSE 0
+        END AS first_work_cost_c2,
+        -- Assign the cost of going into C3 into the first thread in active duration
+        CASE
+          WHEN is_first_work = TRUE
+          THEN min($c3_cost * 1000, next_group_ts - (
+            group_ts + group_dur
+          ))
+          ELSE 0
+        END AS first_work_cost_c3,
+        dur AS work_cost
+      FROM step1
+    ),
+    step3 AS (
+      SELECT
+        *,
+        dur + first_work_cost_c2 AS uptime_cost_c2,
+        dur + first_work_cost_c3 AS uptime_cost_c3
+      FROM step2
+    )
   SELECT
     sum(uptime_cost_c2) AS uptime_cost_c2,
     sum(uptime_cost_c3) AS uptime_cost_c3,
@@ -140,6 +154,9 @@ RETURNS TableOrSubquery AS
     thread_name,
     process_name
   FROM step3
-  GROUP BY thread_name, process_name
-  ORDER BY uptime_cost_c2 DESC
+  GROUP BY
+    thread_name,
+    process_name
+  ORDER BY
+    uptime_cost_c2 DESC
 );
