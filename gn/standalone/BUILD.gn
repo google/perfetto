@@ -107,6 +107,16 @@ config("extra_warnings") {
       "-Wno-switch-default",
     ]
 
+    # This is required for at least upstream and FreeBSD clang 19.
+    # See https://github.com/llvm/llvm-project/issues/76375 for more
+    # information.
+    if (is_freebsd) {
+      cflags += [
+        "-Wno-c23-extensions",
+        "-Wno-c++20-extensions",
+      ]
+    }
+
     if (perfetto_thread_safety_annotations) {
       cflags += [
         "-Wthread-safety",
