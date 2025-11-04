@@ -86,7 +86,7 @@ export interface SerializedGraph {
   nodes: SerializedNode[];
   rootNodeIds: string[];
   selectedNodeId?: string;
-  nodeLayouts: {[key: string]: {x: number; y: number}};
+  nodeLayouts?: {[key: string]: {x: number; y: number}};
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -249,12 +249,20 @@ export function deserializeState(
     serializedGraph == null ||
     typeof serializedGraph !== 'object' ||
     !Array.isArray(serializedGraph.nodes) ||
-    !Array.isArray(serializedGraph.rootNodeIds) ||
-    serializedGraph.nodeLayouts == null ||
-    typeof serializedGraph.nodeLayouts !== 'object'
+    !Array.isArray(serializedGraph.rootNodeIds)
   ) {
     throw new Error(
       'Invalid file format. The selected file is not a valid Perfetto graph.',
+    );
+  }
+
+  // Validate nodeLayouts if present
+  if (
+    serializedGraph.nodeLayouts != null &&
+    typeof serializedGraph.nodeLayouts !== 'object'
+  ) {
+    throw new Error(
+      'Invalid file format. nodeLayouts must be an object if provided.',
     );
   }
 
@@ -378,10 +386,16 @@ export function deserializeState(
     ? nodes.get(serializedGraph.selectedNodeId)
     : undefined;
 
+  // Use provided nodeLayouts if present, otherwise use empty map (will trigger auto-layout)
+  const nodeLayouts =
+    serializedGraph.nodeLayouts != null
+      ? new Map(Object.entries(serializedGraph.nodeLayouts))
+      : new Map<string, {x: number; y: number}>();
+
   return {
     rootNodes,
     selectedNode,
-    nodeLayouts: new Map(Object.entries(serializedGraph.nodeLayouts)),
+    nodeLayouts,
   };
 }
 
