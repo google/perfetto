@@ -23,6 +23,7 @@
 .venv
 .vscode
 *.code-workspace
+*.core
 *.iml
 *.LOCAL.md
 *.pyc
