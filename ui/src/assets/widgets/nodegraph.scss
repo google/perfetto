@@ -13,7 +13,20 @@
 // limitations under the License.
 
 .pf-canvas {
-  overflow: hidden;
+  isolation: isolate; // Don't allow z-index to escape container.
+  overflow: hidden; // Clip overflowing content.
+  position: relative; // Place absolute children relative to this container.
+  height: 450px; // Give the canvas some intrinsic height by default.
+
+  touch-action: none; // Disable default touch actions for panning.
+  user-select: none; // Disable text selection during dragging.
+
+  font-family: var(--pf-font-compact); // Consistent font.
+  cursor: grab; // Indicate panning by default.
+
+  // Square grid background.
+  background-size: 20px 20px;
+  background-color: var(--pf-color-background);
   background: linear-gradient(
       0deg,
       var(--pf-color-border-secondary) 1px,
@@ -24,18 +37,9 @@
       var(--pf-color-border-secondary) 1px,
       transparent 1px
     );
-  background-size: 20px 20px;
-  background-color: var(--pf-color-background);
-  position: relative;
-  user-select: none;
-  font-family: var(--pf-font-compact);
-  isolation: isolate;
-  cursor: grab;
-  height: 450px; // Give the canvas some intrinsic height by default
-  touch-action: none; // Disable default touch actions for panning
 
   &--fill-height {
-    height: 100%;
+    height: 100%; // Fill parent height when modifier class applied.
   }
 }
 
@@ -310,7 +314,6 @@ svg {
   stroke: var(--pf-color-text-muted);
   stroke-width: 2;
   fill: none;
-  color: var(--pf-color-text-muted);
   stroke-dasharray: 5, 5;
 }
 
@@ -345,5 +348,5 @@ svg {
   border: 2px solid var(--pf-color-accent);
   background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
   pointer-events: none;
-  z-index: 2; // Above nodes
+  z-index: 2; // Render selection rectangle above nodes.
 }
