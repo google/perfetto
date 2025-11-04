@@ -1174,4 +1174,30 @@ describe('JSON serialization/deserialization', () => {
     expect(branch1.state.newColumns[0].name).toBe('dur_ms');
     expect(branch2.state.newColumns[0].name).toBe('ts_ms');
   });
+
+  test('deserializes graph without nodeLayouts field (auto-layout)', () => {
+    // Create a JSON string manually without nodeLayouts
+    const jsonWithoutLayouts = JSON.stringify({
+      nodes: [
+        {
+          nodeId: '1',
+          type: 'simpleSlices',
+          state: {slice_name: 'test_slice'},
+          nextNodes: [],
+        },
+      ],
+      rootNodeIds: ['1'],
+    });
+
+    const deserializedState = deserializeState(
+      jsonWithoutLayouts,
+      trace,
+      sqlModules,
+    );
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    expect(deserializedState.nodeLayouts.size).toBe(0);
+    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
+    expect(deserializedNode.state.slice_name).toBe('test_slice');
+  });
 });

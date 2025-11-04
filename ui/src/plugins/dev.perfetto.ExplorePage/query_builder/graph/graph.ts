@@ -559,6 +559,7 @@ function handleConnectionRemove(
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
+  private hasPerformedInitialLayout: boolean = false;
 
   private renderEmptyNodeGraph(attrs: GraphAttrs) {
     return m(EmptyGraph, {
@@ -653,6 +654,30 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
+
+    // Perform auto-layout if nodeLayouts is empty and API is available
+    if (
+      !this.hasPerformedInitialLayout &&
+      this.nodeGraphApi &&
+      attrs.nodeLayouts.size === 0 &&
+      nodes.length > 0
+    ) {
+      this.hasPerformedInitialLayout = true;
+      // Defer autoLayout to next tick to ensure DOM nodes are fully rendered
+      setTimeout(() => {
+        if (this.nodeGraphApi) {
+          // Call autoLayout to arrange nodes hierarchically
+          this.nodeGraphApi.autoLayout();
+          // After autoLayout, the nodes array will have updated x,y coordinates
+          // Update the nodeLayouts map with these new positions
+          for (const node of nodes) {
+            attrs.onNodeLayoutChange(node.id, {x: node.x, y: node.y});
+          }
+          // Trigger a redraw to reflect the new positions
+          m.redraw();
+        }
+      }, 0);
+    }
 
     return m(
       '.pf-exp-node-graph',
