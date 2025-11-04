@@ -235,9 +235,10 @@ std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromMmapedTrace(
       continue;
 
     TraceConfig trace_config;
-    trace_config.ParseFromArray(trace_config_field.data(),
-                                trace_config_field.size());
-    return trace_config;
+    if (trace_config.ParseFromArray(trace_config_field.data(),
+                                    trace_config_field.size())) {
+      return trace_config;
+    }
   }
 
   return std::nullopt;
