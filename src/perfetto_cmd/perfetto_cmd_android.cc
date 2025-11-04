@@ -203,7 +203,7 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 // static
 std::optional<protos::gen::TraceConfig_AndroidReportConfig>
 PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
-  base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path.c_str());
+  base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path);
   if (!mapped.IsValid()) {
     return std::nullopt;
   }
