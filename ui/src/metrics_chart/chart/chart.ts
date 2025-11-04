@@ -71,7 +71,6 @@ export class Chart {
     this.config = merge(defaultConfig, config);
     this.events = events;
     this.chartDataProvider = new ChartDataProvider(data);
-    this.flow = new Flow(data);
     this.collapsedHeight =
       (this.config?.node?.height ?? 0) + (this.config?.node?.margin ?? 0);
     this.viewPort = new ViewPort(
@@ -82,6 +81,7 @@ export class Chart {
       this,
     );
     this.groups = this.chartDataProvider.groups(this.config);
+    this.flow = new Flow(data);
     this.tooltip = new Tooltip(this.config);
     this.draw();
   }

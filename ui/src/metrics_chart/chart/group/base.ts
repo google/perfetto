@@ -159,6 +159,10 @@ export class CommonBase {
     });
   }
 
+  containsMarkNodes() {
+    return this.nodes.find((node) => node instanceof MarkNode) !== undefined;
+  }
+
   drawLineInMarkNodes(
     ctx: CanvasRenderingContext2D | undefined | null,
     scale: ScaleLinear<number, number, never> | undefined,

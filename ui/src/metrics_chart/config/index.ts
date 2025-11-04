@@ -46,11 +46,19 @@ export const defaultConfig: IChartConfig = {
   tooltip: {
     nodeFormatter: (val, _config) => {
       const {nodeData, nodeType} = val;
+      let argsTip = '';
+      if (nodeData._internal && nodeData._internal.raw && nodeData._internal.raw.length > 0) {
+        const args = nodeData._internal.raw[0].args;
+        for(const [key,value] of Object.entries(args ?? {})) {
+          argsTip += `<br>${key}: ${value}`;
+        }
+      }
+
       if (nodeType === ENodeType.ZeroDuration) {
         const {name, ts: start} = nodeData as TZeroDurationNodeData;
         return `<b style="white-space:pre-line;word-wrap:break-word;">${name}</b><br>start: ${formatTime(
           start,
-        )} ms<br>duration: 0 ms`;
+        )} ms<br>duration: 0 ms${argsTip}`;
       } else if (
         nodeType === ENodeType.Instance ||
         nodeType === ENodeType.Mark
@@ -58,12 +66,12 @@ export const defaultConfig: IChartConfig = {
         const {name, ts} = nodeData as TInstanceNodeData | TMarkNodeData;
         return `<b style="white-space:pre-line;word-wrap:break-word;">${name}</b><br>timing: ${formatTime(
           ts,
-        )} ms`;
+        )} ms${argsTip}`;
       } else if (nodeType === ENodeType.Duration) {
         const {name, ts: start, dur} = nodeData as TDurationNodeData;
         return `<b style="white-space:pre-line;word-wrap:break-word;">${name}</b><br>start: ${formatTime(
           start,
-        )} ms<br>duration: ${formatTime(dur)} ms`;
+        )} ms<br>duration: ${formatTime(dur)} ms${argsTip}`;
       }
       return `${JSON.stringify(nodeData, null, 4)}`;
     },

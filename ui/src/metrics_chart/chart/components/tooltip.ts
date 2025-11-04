@@ -107,7 +107,7 @@ export class Tooltip {
           ? 'transform: translate(-100%, 0); right: 20px; top: 20px;'
           : 'transform: translate(-100%, -100%); right: 20px; bottom: 20px;';
 
-    style += `max-width: ${Math.min(width / 2, pageX)}px`;
+    style += `max-width: ${Math.max(width / 2, pageX)}px`;
 
     return style;
   }
@@ -119,7 +119,9 @@ export class Tooltip {
       box-shadow: 0 0 10px rgba(0,0,0,.25); 
       border-radius: 6px; 
       padding: 10px; 
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-break: break-word;
       pointer-events: none;
       ${style}">
       ${content}

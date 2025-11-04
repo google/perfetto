@@ -113,7 +113,7 @@ export class Flow {
   findBindEvent(data: TTraceEvent[], startIdx: number, isFlowStart: boolean) {
     let idx = startIdx;
     let res: TTraceEvent | undefined = undefined;
-    while (res != undefined && idx < data.length) {
+    while (!res && idx < data.length) {
       if (!isFlowTraceEvent(data[idx])) {
         res = data[idx];
         break;
@@ -152,10 +152,12 @@ export class Flow {
           ((config.node?.height ?? 0) + (config.node?.margin ?? 0))
       );
     }
+    // The mark node's height is greater than that of a normal node, which introduces an additional half of the node's height.
+    const markHeight = node.group.containsMarkNodes() ? (config.node?.height ?? 0) / 2 : 0;
     return (
       node.group.y +
       (node.level + 0.5) *
-        ((config.node?.height ?? 0) + (config.node?.margin ?? 0))
+      ((config.node?.height ?? 0) + (config.node?.margin ?? 0)) + markHeight
     );
   }
 
