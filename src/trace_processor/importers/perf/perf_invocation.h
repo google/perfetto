@@ -26,12 +26,12 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
-#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::trace_processor {
@@ -83,7 +83,7 @@ class PerfInvocation : public RefCounted {
   // not. This method returns true if we need to convert return addresses to
   // call sites when parsing call chains (i.e. if the trace comes from linux
   // perf).
-  bool needs_pc_adjustment() const { return is_simpleperf_ == false; }
+  bool needs_pc_adjustment() const { return !is_simpleperf_; }
 
   void SetIsSimpleperf() { is_simpleperf_ = true; }
 
@@ -94,14 +94,13 @@ class PerfInvocation : public RefCounted {
     int32_t pid;
     std::string filename;
 
-    struct Hasher {
-      size_t operator()(const BuildIdMapKey& k) const {
-        return static_cast<size_t>(base::FnvHasher::Combine(k.pid, k.filename));
-      }
-    };
-
     bool operator==(const BuildIdMapKey& o) const {
       return pid == o.pid && filename == o.filename;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const BuildIdMapKey& k) {
+      return H::Combine(std::move(h), k.pid, k.filename);
     }
   };
 
@@ -130,7 +129,8 @@ class PerfInvocation : public RefCounted {
 
   bool is_simpleperf_ = false;
 
-  base::FlatHashMap<BuildIdMapKey, BuildId, BuildIdMapKey::Hasher> build_ids_;
+  base::FlatHashMap<BuildIdMapKey, BuildId, base::MurmurHash<BuildIdMapKey>>
+      build_ids_;
 };
 
 }  // namespace perf_importer

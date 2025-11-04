@@ -17,11 +17,13 @@
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -168,8 +170,21 @@ class GeneratorImpl {
   base::StatusOr<std::string> IntervalIntersect(
       const StructuredQuery::IntervalIntersect::Decoder&);
 
+  base::StatusOr<std::string> Join(
+      const StructuredQuery::ExperimentalJoin::Decoder&);
+
+  base::StatusOr<std::string> Union(
+      const StructuredQuery::ExperimentalUnion::Decoder&);
+
+  base::StatusOr<std::string> AddColumns(
+      const StructuredQuery::ExperimentalAddColumns::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
+  static base::StatusOr<std::string> ExperimentalFilterGroup(
+      const StructuredQuery::ExperimentalFilterGroup::Decoder&);
+  static base::StatusOr<std::string> SingleFilter(
+      const StructuredQuery::Filter::Decoder&);
 
   // Aggregation.
   static base::StatusOr<std::string> GroupBy(RepeatedString group_by);
@@ -179,6 +194,10 @@ class GeneratorImpl {
       RepeatedProto select_cols);
   base::StatusOr<std::string> SelectColumnsNoAggregates(
       RepeatedProto select_columns);
+
+  // Sorting.
+  static base::StatusOr<std::string> OrderBy(
+      const StructuredQuery::OrderBy::Decoder&);
 
   // Helpers.
   static base::StatusOr<std::string> OperatorToString(
@@ -208,7 +227,22 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
     }
     state_[state_index_].sql = *sql;
   }
+
+  // Check if the root query is just an inner_query wrapper with operations
+  // (ORDER BY, LIMIT, OFFSET). If so, we should apply those in the final
+  // SELECT instead of creating a duplicate CTE.
+  StructuredQuery::Decoder root_query(state_[0].bytes);
+  bool root_only_has_inner_query_and_operations =
+      root_query.has_inner_query() && !root_query.has_table() &&
+      !root_query.has_simple_slices() && !root_query.has_interval_intersect() &&
+      !root_query.has_experimental_join() &&
+      !root_query.has_experimental_union() && !root_query.has_sql() &&
+      !root_query.has_inner_query_id() && !root_query.filters() &&
+      !root_query.has_experimental_filter_group() &&
+      !root_query.has_group_by() && !root_query.select_columns();
+
   std::string sql = "WITH ";
+  size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
     if (state.type == QueryType::kShared) {
@@ -216,12 +250,25 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
           Query{state.id_from_proto.value(), state.table_name, state.sql});
       continue;
     }
-    sql += state.table_name + " AS (" + state.sql + ")";
-    if (i < state_.size() - 1) {
+    // Skip the root query if it's just a wrapper for inner_query + operations
+    if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
+      continue;
+    }
+    if (cte_count > 0) {
       sql += ", ";
     }
+    sql += state.table_name + " AS (" + state.sql + ")";
+    cte_count++;
   }
-  sql += " SELECT * FROM " + state_[0].table_name;
+
+  // Build the final SELECT
+  if (root_only_has_inner_query_and_operations) {
+    // The root query is just wrapping an inner query with operations.
+    // Apply those operations directly in the final SELECT.
+    sql += " " + state_[0].sql;
+  } else {
+    sql += " SELECT * FROM " + state_[0].table_name;
+  }
   return sql;
 }
 
@@ -245,6 +292,18 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_experimental_join()) {
+      StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
+      ASSIGN_OR_RETURN(source, Join(join));
+    } else if (q.has_experimental_union()) {
+      StructuredQuery::ExperimentalUnion::Decoder union_decoder(
+          q.experimental_union());
+      ASSIGN_OR_RETURN(source, Union(union_decoder));
+
+    } else if (q.has_experimental_add_columns()) {
+      StructuredQuery::ExperimentalAddColumns::Decoder add_columns_decoder(
+          q.experimental_add_columns());
+      ASSIGN_OR_RETURN(source, AddColumns(add_columns_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -257,7 +316,14 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     }
   }
 
-  ASSIGN_OR_RETURN(std::string filters, Filters(q.filters()));
+  std::string filters;
+  if (q.has_experimental_filter_group()) {
+    StructuredQuery::ExperimentalFilterGroup::Decoder exp_filter_group(
+        q.experimental_filter_group());
+    ASSIGN_OR_RETURN(filters, ExperimentalFilterGroup(exp_filter_group));
+  } else {
+    ASSIGN_OR_RETURN(filters, Filters(q.filters()));
+  }
 
   std::string select;
   std::string group_by;
@@ -271,12 +337,36 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     ASSIGN_OR_RETURN(select, SelectColumnsNoAggregates(q.select_columns()));
   }
 
+  // Assemble SQL clauses in standard evaluation order:
+  // SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, OFFSET.
   std::string sql = "SELECT " + select + " FROM " + source;
   if (!filters.empty()) {
     sql += " WHERE " + filters;
   }
   if (!group_by.empty()) {
     sql += " " + group_by;
+  }
+  if (q.has_order_by()) {
+    StructuredQuery::OrderBy::Decoder order_by_decoder(q.order_by());
+    ASSIGN_OR_RETURN(std::string order_by, OrderBy(order_by_decoder));
+    sql += " " + order_by;
+  }
+  if (q.has_offset() && !q.has_limit()) {
+    return base::ErrStatus("OFFSET requires LIMIT to be specified");
+  }
+  if (q.has_limit()) {
+    if (q.limit() < 0) {
+      return base::ErrStatus("LIMIT must be non-negative, got %" PRId64,
+                             q.limit());
+    }
+    sql += " LIMIT " + std::to_string(q.limit());
+  }
+  if (q.has_offset()) {
+    if (q.offset() < 0) {
+      return base::ErrStatus("OFFSET must be non-negative, got %" PRId64,
+                             q.offset());
+    }
+    sql += " OFFSET " + std::to_string(q.offset());
   }
   return sql;
 }
@@ -429,6 +519,292 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
   return sql;
 }
 
+base::StatusOr<std::string> GeneratorImpl::Join(
+    const StructuredQuery::ExperimentalJoin::Decoder& join) {
+  if (!join.has_left_query()) {
+    return base::ErrStatus("Join must specify a left query");
+  }
+  if (!join.has_right_query()) {
+    return base::ErrStatus("Join must specify a right query");
+  }
+  if (!join.has_equality_columns() && !join.has_freeform_condition()) {
+    return base::ErrStatus(
+        "Join must specify either equality_columns or freeform_condition");
+  }
+
+  std::string left_table = NestedSource(join.left_query());
+  std::string right_table = NestedSource(join.right_query());
+
+  std::string join_type_str;
+  switch (join.type()) {
+    case StructuredQuery::ExperimentalJoin::INNER:
+      join_type_str = "INNER";
+      break;
+    case StructuredQuery::ExperimentalJoin::LEFT:
+      join_type_str = "LEFT";
+      break;
+  }
+
+  std::string condition;
+  if (join.has_equality_columns()) {
+    StructuredQuery::ExperimentalJoin::EqualityColumns::Decoder eq_cols(
+        join.equality_columns());
+    if (!eq_cols.has_left_column()) {
+      return base::ErrStatus("EqualityColumns must specify a left column");
+    }
+    if (!eq_cols.has_right_column()) {
+      return base::ErrStatus("EqualityColumns must specify a right column");
+    }
+    condition = left_table + "." + eq_cols.left_column().ToStdString() + " = " +
+                right_table + "." + eq_cols.right_column().ToStdString();
+  } else {
+    StructuredQuery::ExperimentalJoin::FreeformCondition::Decoder free_cond(
+        join.freeform_condition());
+    if (!free_cond.has_left_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a left query alias");
+    }
+    if (!free_cond.has_right_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a right query alias");
+    }
+    if (!free_cond.has_sql_expression()) {
+      return base::ErrStatus("FreeformCondition must specify a sql expression");
+    }
+    std::string left_alias = free_cond.left_query_alias().ToStdString();
+    std::string right_alias = free_cond.right_query_alias().ToStdString();
+    std::string sql_expr = free_cond.sql_expression().ToStdString();
+
+    // Use aliases in the FROM clause
+    condition = sql_expr;
+    std::string sql = "(SELECT * FROM " + left_table + " AS " + left_alias +
+                      " " + join_type_str + " JOIN " + right_table + " AS " +
+                      right_alias + " ON " + condition + ")";
+    return sql;
+  }
+
+  std::string sql = "(SELECT * FROM " + left_table + " " + join_type_str +
+                    " JOIN " + right_table + " ON " + condition + ")";
+  return sql;
+}
+
+// Helper function to validate that all queries in a UNION have matching columns
+base::Status ValidateUnionColumns(
+    const std::vector<std::vector<std::string>>& query_columns) {
+  if (query_columns.empty() || query_columns[0].empty()) {
+    return base::OkStatus();
+  }
+
+  const auto& reference_cols = query_columns[0];
+  std::set<std::string> reference_set(reference_cols.begin(),
+                                      reference_cols.end());
+
+  for (size_t i = 1; i < query_columns.size(); ++i) {
+    if (query_columns[i].empty()) {
+      continue;
+    }
+
+    const auto& cols = query_columns[i];
+    if (cols.size() != reference_cols.size()) {
+      return base::ErrStatus(
+          "Union queries have different column counts (query %zu vs query 0)",
+          i);
+    }
+
+    std::set<std::string> cols_set(cols.begin(), cols.end());
+    if (cols_set != reference_set) {
+      return base::ErrStatus(
+          "Union queries have different column sets (query %zu vs query 0)", i);
+    }
+  }
+
+  return base::OkStatus();
+}
+
+base::StatusOr<std::string> GeneratorImpl::Union(
+    const StructuredQuery::ExperimentalUnion::Decoder& union_decoder) {
+  auto queries = union_decoder.queries();
+  if (!queries) {
+    return base::ErrStatus("Union must specify at least one query");
+  }
+
+  // Count the number of queries and collect column information for validation
+  size_t query_count = 0;
+  std::vector<std::vector<std::string>> query_columns;
+
+  for (auto it = queries; it; ++it) {
+    query_count++;
+    StructuredQuery::Decoder query(*it);
+
+    // Extract column names from select_columns if present
+    std::vector<std::string> cols;
+    if (auto select_cols = query.select_columns(); select_cols) {
+      for (auto col_it = select_cols; col_it; ++col_it) {
+        StructuredQuery::SelectColumn::Decoder column(*col_it);
+        std::string col_name;
+
+        // Use alias if present, otherwise use column name or expression
+        if (column.has_alias()) {
+          col_name = column.alias().ToStdString();
+        } else if (column.has_column_name_or_expression()) {
+          col_name = column.column_name_or_expression().ToStdString();
+        } else if (column.has_column_name()) {
+          col_name = column.column_name().ToStdString();
+        }
+
+        if (!col_name.empty()) {
+          cols.push_back(col_name);
+        }
+      }
+    }
+
+    query_columns.push_back(cols);
+  }
+
+  if (query_count < 2) {
+    return base::ErrStatus("Union must specify at least two queries");
+  }
+
+  // Validate that all queries have the same columns (if columns are specified)
+  RETURN_IF_ERROR(ValidateUnionColumns(query_columns));
+
+  // Build a local WITH clause to avoid CTE name conflicts with global scope.
+  // Similar to IntervalIntersect, we create local CTEs with unique names.
+  std::string sql = "(WITH ";
+  size_t idx = 0;
+  for (auto it = union_decoder.queries(); it; ++it, ++idx) {
+    if (idx > 0) {
+      sql += ", ";
+    }
+    sql += "union_query_" + std::to_string(idx) + " AS (SELECT * FROM " +
+           NestedSource(*it) + ")";
+  }
+
+  // Build the UNION/UNION ALL query
+  std::string union_keyword =
+      union_decoder.use_union_all() ? " UNION ALL " : " UNION ";
+  sql += " SELECT * FROM union_query_0";
+  for (size_t i = 1; i < query_count; ++i) {
+    sql += union_keyword + "SELECT * FROM union_query_" + std::to_string(i);
+  }
+  sql += ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::AddColumns(
+    const StructuredQuery::ExperimentalAddColumns::Decoder& add_columns) {
+  // Validate required fields
+  if (!add_columns.has_core_query()) {
+    return base::ErrStatus("AddColumns must specify a core query");
+  }
+  if (!add_columns.has_input_query()) {
+    return base::ErrStatus("AddColumns must specify an input query");
+  }
+  if (!add_columns.has_equality_columns() &&
+      !add_columns.has_freeform_condition()) {
+    return base::ErrStatus(
+        "AddColumns must specify either equality_columns or "
+        "freeform_condition");
+  }
+
+  // Validate input_columns
+  auto input_columns = add_columns.input_columns();
+  if (!input_columns) {
+    return base::ErrStatus("AddColumns must specify at least one input column");
+  }
+  size_t column_count = 0;
+  for (auto it = input_columns; it; ++it) {
+    column_count++;
+  }
+  if (column_count == 0) {
+    return base::ErrStatus("AddColumns must specify at least one input column");
+  }
+
+  // Generate nested sources
+  std::string core_table = NestedSource(add_columns.core_query());
+  std::string input_table = NestedSource(add_columns.input_query());
+
+  // Build the SELECT clause with all core columns plus input columns
+  std::string select_clause = "core.*";
+  for (auto it = add_columns.input_columns(); it; ++it) {
+    StructuredQuery::SelectColumn::Decoder col_decoder(*it);
+
+    // Get the column name or expression
+    if (!col_decoder.has_column_name_or_expression()) {
+      return base::ErrStatus(
+          "SelectColumn must specify column_name_or_expression");
+    }
+    std::string col_expr =
+        col_decoder.column_name_or_expression().ToStdString();
+    if (col_expr.empty()) {
+      return base::ErrStatus("Input column name cannot be empty");
+    }
+
+    // Add the column with optional alias
+    select_clause += ", input." + col_expr;
+    if (col_decoder.has_alias()) {
+      std::string alias = col_decoder.alias().ToStdString();
+      if (!alias.empty()) {
+        select_clause += " AS " + alias;
+      }
+    }
+  }
+
+  // Build the join condition
+  std::string condition;
+  if (add_columns.has_equality_columns()) {
+    StructuredQuery::ExperimentalJoin::EqualityColumns::Decoder eq_cols(
+        add_columns.equality_columns());
+    if (!eq_cols.has_left_column()) {
+      return base::ErrStatus("EqualityColumns must specify a left column");
+    }
+    if (!eq_cols.has_right_column()) {
+      return base::ErrStatus("EqualityColumns must specify a right column");
+    }
+    condition = "core." + eq_cols.left_column().ToStdString() + " = input." +
+                eq_cols.right_column().ToStdString();
+  } else {
+    StructuredQuery::ExperimentalJoin::FreeformCondition::Decoder free_cond(
+        add_columns.freeform_condition());
+    if (!free_cond.has_left_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a left query alias");
+    }
+    if (!free_cond.has_right_query_alias()) {
+      return base::ErrStatus(
+          "FreeformCondition must specify a right query alias");
+    }
+    if (!free_cond.has_sql_expression()) {
+      return base::ErrStatus("FreeformCondition must specify a sql expression");
+    }
+
+    std::string left_alias = free_cond.left_query_alias().ToStdString();
+    std::string right_alias = free_cond.right_query_alias().ToStdString();
+
+    // Validate that aliases match "core" and "input"
+    if (left_alias != "core") {
+      return base::ErrStatus(
+          "FreeformCondition left_query_alias must be 'core', got '%s'",
+          left_alias.c_str());
+    }
+    if (right_alias != "input") {
+      return base::ErrStatus(
+          "FreeformCondition right_query_alias must be 'input', got '%s'",
+          right_alias.c_str());
+    }
+
+    condition = free_cond.sql_expression().ToStdString();
+  }
+
+  // Generate the final SQL using LEFT JOIN to keep all core rows
+  std::string sql = "(SELECT " + select_clause + " FROM " + core_table +
+                    " AS core LEFT JOIN " + input_table + " AS input ON " +
+                    condition + ")";
+
+  return sql;
+}
+
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
@@ -463,6 +839,41 @@ std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
   return state_.back().table_name;
 }
 
+base::StatusOr<std::string> GeneratorImpl::SingleFilter(
+    const StructuredQuery::Filter::Decoder& filter) {
+  std::string column_name = filter.column_name().ToStdString();
+  auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
+  ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
+
+  if (op == StructuredQuery::Filter::Operator::IS_NULL ||
+      op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
+    return column_name + " " + op_str;
+  }
+
+  std::string sql = column_name + " " + op_str + " ";
+
+  if (auto srhs = filter.string_rhs(); srhs) {
+    sql += "'" + (*srhs++).ToStdString() + "'";
+    for (; srhs; ++srhs) {
+      sql += " OR " + column_name + " " + op_str + " '" +
+             (*srhs).ToStdString() + "'";
+    }
+  } else if (auto drhs = filter.double_rhs(); drhs) {
+    sql += std::to_string((*drhs++));
+    for (; drhs; ++drhs) {
+      sql += " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
+    }
+  } else if (auto irhs = filter.int64_rhs(); irhs) {
+    sql += std::to_string(*irhs++);
+    for (; irhs; ++irhs) {
+      sql += " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
+    }
+  } else {
+    return base::ErrStatus("Filter must specify a right-hand side");
+  }
+  return sql;
+}
+
 base::StatusOr<std::string> GeneratorImpl::Filters(
     protozero::RepeatedFieldIterator<protozero::ConstBytes> filters) {
   std::string sql;
@@ -471,41 +882,74 @@ base::StatusOr<std::string> GeneratorImpl::Filters(
     if (!sql.empty()) {
       sql += " AND ";
     }
-
-    std::string column_name = filter.column_name().ToStdString();
-    auto op = static_cast<StructuredQuery::Filter::Operator>(filter.op());
-    ASSIGN_OR_RETURN(std::string op_str, OperatorToString(op));
-
-    if (op == StructuredQuery::Filter::Operator::IS_NULL ||
-        op == StructuredQuery::Filter::Operator::IS_NOT_NULL) {
-      sql += column_name + " " + op_str;
-      continue;
-    }
-
-    sql += column_name + " " + op_str + " ";
-
-    if (auto srhs = filter.string_rhs(); srhs) {
-      sql += "'" + (*srhs++).ToStdString() + "'";
-      for (; srhs; ++srhs) {
-        sql += " OR " + column_name + " " + op_str + " '" +
-               (*srhs).ToStdString() + "'";
-      }
-    } else if (auto drhs = filter.double_rhs(); drhs) {
-      sql += std::to_string((*drhs++));
-      for (; drhs; ++drhs) {
-        sql +=
-            " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
-      }
-    } else if (auto irhs = filter.int64_rhs(); irhs) {
-      sql += std::to_string(*irhs++);
-      for (; irhs; ++irhs) {
-        sql +=
-            " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
-      }
-    } else {
-      return base::ErrStatus("Filter must specify a right-hand side");
-    }
+    ASSIGN_OR_RETURN(std::string filter_sql, SingleFilter(filter));
+    sql += filter_sql;
   }
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::ExperimentalFilterGroup(
+    const StructuredQuery::ExperimentalFilterGroup::Decoder& exp_filter_group) {
+  auto op = static_cast<StructuredQuery::ExperimentalFilterGroup::Operator>(
+      exp_filter_group.op());
+  if (op == StructuredQuery::ExperimentalFilterGroup::UNSPECIFIED) {
+    return base::ErrStatus(
+        "ExperimentalFilterGroup must specify an operator (AND or OR)");
+  }
+
+  std::string op_str;
+  switch (op) {
+    case StructuredQuery::ExperimentalFilterGroup::AND:
+      op_str = " AND ";
+      break;
+    case StructuredQuery::ExperimentalFilterGroup::OR:
+      op_str = " OR ";
+      break;
+    case StructuredQuery::ExperimentalFilterGroup::UNSPECIFIED:
+      return base::ErrStatus(
+          "ExperimentalFilterGroup operator cannot be UNSPECIFIED");
+  }
+
+  std::string sql;
+  size_t item_count = 0;
+
+  // Process simple filters
+  for (auto it = exp_filter_group.filters(); it; ++it) {
+    StructuredQuery::Filter::Decoder filter(*it);
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    ASSIGN_OR_RETURN(std::string filter_sql, SingleFilter(filter));
+    sql += filter_sql;
+    item_count++;
+  }
+
+  // Process nested groups (wrap in parentheses)
+  for (auto it = exp_filter_group.groups(); it; ++it) {
+    StructuredQuery::ExperimentalFilterGroup::Decoder group(*it);
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    ASSIGN_OR_RETURN(std::string group_sql, ExperimentalFilterGroup(group));
+    sql += "(" + group_sql + ")";
+    item_count++;
+  }
+
+  // Process SQL expressions
+  for (auto it = exp_filter_group.sql_expressions(); it; ++it) {
+    if (item_count > 0) {
+      sql += op_str;
+    }
+    sql += (*it).ToStdString();
+    item_count++;
+  }
+
+  if (item_count == 0) {
+    return base::ErrStatus(
+        "ExperimentalFilterGroup must have at least one filter, group, or SQL "
+        "expression");
+  }
+
   return sql;
 }
 
@@ -519,6 +963,47 @@ base::StatusOr<std::string> GeneratorImpl::GroupBy(
       sql += ", ";
     }
     sql += (*it).ToStdString();
+  }
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::OrderBy(
+    const StructuredQuery::OrderBy::Decoder& order_by) {
+  auto specs = order_by.ordering_specs();
+  if (!specs) {
+    return base::ErrStatus("ORDER BY must specify at least one ordering spec");
+  }
+
+  // The order of ordering_specs is significant: the first spec is the primary
+  // sort key, subsequent specs are used to break ties.
+  // See SQL-92 standard section 7.10 (Sort specification list).
+  std::string sql = "ORDER BY ";
+  bool first = true;
+  for (auto it = specs; it; ++it) {
+    StructuredQuery::OrderBy::OrderingSpec::Decoder spec(*it);
+    if (!first) {
+      sql += ", ";
+    }
+    first = false;
+
+    if (spec.column_name().size == 0) {
+      return base::ErrStatus("ORDER BY column_name cannot be empty");
+    }
+    sql += spec.column_name().ToStdString();
+
+    if (spec.has_direction()) {
+      switch (spec.direction()) {
+        case StructuredQuery::OrderBy::ASC:
+          sql += " ASC";
+          break;
+        case StructuredQuery::OrderBy::DESC:
+          sql += " DESC";
+          break;
+        case StructuredQuery::OrderBy::UNSPECIFIED:
+          // Default to ASC, no need to add anything
+          break;
+      }
+    }
   }
   return sql;
 }

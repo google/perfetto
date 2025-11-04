@@ -91,7 +91,6 @@ FrameId VirtualMemoryMapping::InternFrame(
           : InternFrameImpl(rel_pc, function_name, source_file, line_number);
   if (was_inserted) {
     frames_by_rel_pc_[rel_pc].push_back(frame_id);
-    context_->stack_profile_tracker->OnFrameCreated(frame_id);
   }
   return frame_id;
 }

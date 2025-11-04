@@ -70,6 +70,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -534,6 +535,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context()->heap_graph_tracker =
       std::make_unique<HeapGraphTracker>(context()->storage.get());
 
+  // Initialize deobfuscation tracker.
+  context()->deobfuscation_tracker =
+      std::make_unique<DeobfuscationTracker>(context());
+
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(config_.skip_builtin_metric_paths);
   std::vector<std::string> skip_prefixes;
@@ -635,7 +640,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // Last opportunity to flush all pending data.
   FlushInternal(false);
 
+  HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
+  DeobfuscationTracker::Get(context())->NotifyEndOfFile();
 
   // Rebuild the bounds table once everything has been completed: we do this
   // so that if any data was added to tables in
@@ -1082,6 +1089,7 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(
       tables, storage->mutable_surfaceflinger_transaction_flag_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_trace_file_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_trace_import_logs_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_isolate_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_function_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_script_table());

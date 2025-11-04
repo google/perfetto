@@ -340,7 +340,7 @@ function onCssLoaded() {
     description: 'Warning: Dark mode is not fully supported yet.',
     schema: z.enum(['dark', 'light']),
     defaultValue: 'light',
-  });
+  } as const);
 
   AppImpl.instance.settings.register({
     id: TRACK_MIN_HEIGHT_SETTING,
@@ -376,7 +376,17 @@ function onCssLoaded() {
         }
       }
 
-      return m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
+      const currentTraceId = app.trace?.engine.engineId ?? 'no-trace';
+
+      // Trace data is cached inside many components on the tree. To avoid
+      // issues with stale data when reloading a trace, we force-remount the
+      // entire tree whenever the trace changes by using the trace ID as part of
+      // the key. We also know that UIMain reloads the theme CSS variables on
+      // mount, so include the theme in the key so that changing the theme also
+      // forces a remount.
+      const uiMainKey = `${currentTraceId}-${themeSetting.get()}`;
+
+      return m(ThemeProvider, {theme: themeSetting.get()}, [
         m(
           HotkeyContext,
           {
@@ -388,11 +398,7 @@ function onCssLoaded() {
             // behavior).
             focusable: false,
           },
-          [
-            m(OverlayContainer, {fillHeight: true}, [
-              m(UiMain, {key: themeSetting.get()}),
-            ]),
-          ],
+          m(OverlayContainer, {fillHeight: true}, m(UiMain, {key: uiMainKey})),
         ),
       ]);
     },

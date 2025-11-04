@@ -16,7 +16,10 @@
 
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 
+#include <atomic>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -26,6 +29,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -145,14 +149,10 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     protos::pbzero::AndroidLogPacket::Decoder pkt(android_log);
     for (auto it = pkt.events(); it; ++it) {
       protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(*it);
-      int64_t realtime_ts = static_cast<int64_t>(evt.timestamp());
-      base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+      auto realtime_ts = static_cast<int64_t>(evt.timestamp());
+      std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
           protos::pbzero::BUILTIN_CLOCK_REALTIME, realtime_ts);
-      if (!trace_ts.ok()) {
-        static std::atomic<uint32_t> dlog_count(0);
-        if (dlog_count++ < 10) {
-          PERFETTO_DLOG("%s", trace_ts.status().c_message());
-        }
+      if (!trace_ts.has_value()) {
         continue;
       }
       int64_t actual_ts = *trace_ts;

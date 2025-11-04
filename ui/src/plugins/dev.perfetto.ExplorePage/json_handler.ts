@@ -44,13 +44,20 @@ import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {
   AddColumnsNode,
   AddColumnsNodeState,
-} from './query_builder/nodes/dev/add_columns_node';
+} from './query_builder/nodes/add_columns_node';
 import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
-} from './query_builder/nodes/dev/limit_and_offset_node';
-import {SortNode, SortNodeState} from './query_builder/nodes/dev/sort_node';
-import {NodeContainerLayout} from './query_builder/graph/node_container';
+} from './query_builder/nodes/limit_and_offset_node';
+import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
+import {
+  MergeNode,
+  MergeSerializedState,
+} from './query_builder/nodes/merge_node';
+import {
+  UnionNode,
+  UnionSerializedState,
+} from './query_builder/nodes/union_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -61,7 +68,9 @@ type SerializedNodeState =
   | IntervalIntersectSerializedState
   | AddColumnsNodeState
   | LimitAndOffsetNodeState
-  | SortNodeState;
+  | SortNodeState
+  | MergeSerializedState
+  | UnionSerializedState;
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -77,7 +86,7 @@ export interface SerializedGraph {
   nodes: SerializedNode[];
   rootNodeIds: string[];
   selectedNodeId?: string;
-  nodeLayouts: {[key: string]: NodeContainerLayout};
+  nodeLayouts?: {[key: string]: {x: number; y: number}};
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -94,10 +103,12 @@ function serializeNode(node: QueryNode): SerializedNode {
     nextNodes: node.nextNodes.map((n: QueryNode) => n.nodeId),
   };
 
-  if ('prevNode' in node) {
+  if ('prevNode' in node && node.prevNode) {
     serialized.prevNode = node.prevNode.nodeId;
   } else if ('prevNodes' in node) {
-    serialized.prevNodes = node.prevNodes.map((n: QueryNode) => n.nodeId);
+    serialized.prevNodes = node.prevNodes
+      .filter((n) => n !== undefined)
+      .map((n) => n!.nodeId);
   }
 
   return serialized;
@@ -197,9 +208,30 @@ function createNodeInstance(
       const nodeState: IntervalIntersectNodeState = {
         ...(state as IntervalIntersectSerializedState),
         prevNodes: [],
-        allNodes: [],
       };
       return new IntervalIntersectNode(nodeState);
+    case NodeType.kMerge:
+      const mergeState = state as MergeSerializedState;
+      return new MergeNode({
+        prevNodes: [],
+        leftQueryAlias: mergeState.leftQueryAlias,
+        rightQueryAlias: mergeState.rightQueryAlias,
+        conditionType: mergeState.conditionType,
+        leftColumn: mergeState.leftColumn ?? '',
+        rightColumn: mergeState.rightColumn ?? '',
+        sqlExpression: mergeState.sqlExpression ?? '',
+        filters: mergeState.filters,
+        comment: mergeState.comment,
+      });
+    case NodeType.kUnion:
+      const unionState = state as UnionSerializedState;
+      const unionNode = new UnionNode({
+        prevNodes: [],
+        selectedColumns: unionState.selectedColumns,
+      });
+      unionNode.filters = unionState.filters;
+      unionNode.comment = unionState.comment;
+      return unionNode;
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);
   }
@@ -217,12 +249,20 @@ export function deserializeState(
     serializedGraph == null ||
     typeof serializedGraph !== 'object' ||
     !Array.isArray(serializedGraph.nodes) ||
-    !Array.isArray(serializedGraph.rootNodeIds) ||
-    serializedGraph.nodeLayouts == null ||
-    typeof serializedGraph.nodeLayouts !== 'object'
+    !Array.isArray(serializedGraph.rootNodeIds)
   ) {
     throw new Error(
       'Invalid file format. The selected file is not a valid Perfetto graph.',
+    );
+  }
+
+  // Validate nodeLayouts if present
+  if (
+    serializedGraph.nodeLayouts != null &&
+    typeof serializedGraph.nodeLayouts !== 'object'
+  ) {
+    throw new Error(
+      'Invalid file format. nodeLayouts must be an object if provided.',
     );
   }
 
@@ -303,6 +343,29 @@ export function deserializeState(
         intervalNode.prevNodes.push(...deserializedState.prevNodes);
       }
     }
+    if (serializedNode.type === NodeType.kMerge) {
+      const mergeNode = node as MergeNode;
+      if (mergeNode.prevNodes.length > 0) {
+        const deserializedState = MergeNode.deserializeState(
+          nodes,
+          serializedNode.state as MergeSerializedState,
+        );
+        mergeNode.prevNodes.length = 0;
+        mergeNode.prevNodes.push(...deserializedState.prevNodes);
+      }
+    }
+    if (serializedNode.type === NodeType.kUnion) {
+      const unionNode = node as UnionNode;
+      if (unionNode.prevNodes.length > 0) {
+        const deserializedState = UnionNode.deserializeState(
+          nodes,
+          serializedNode.state as UnionSerializedState,
+          unionNode.prevNodes[0],
+        );
+        unionNode.prevNodes.length = 0;
+        unionNode.prevNodes.push(...deserializedState.prevNodes);
+      }
+    }
   }
 
   // Third pass: resolve columns
@@ -323,10 +386,16 @@ export function deserializeState(
     ? nodes.get(serializedGraph.selectedNodeId)
     : undefined;
 
+  // Use provided nodeLayouts if present, otherwise use empty map (will trigger auto-layout)
+  const nodeLayouts =
+    serializedGraph.nodeLayouts != null
+      ? new Map(Object.entries(serializedGraph.nodeLayouts))
+      : new Map<string, {x: number; y: number}>();
+
   return {
     rootNodes,
     selectedNode,
-    nodeLayouts: new Map(Object.entries(serializedGraph.nodeLayouts)),
+    nodeLayouts,
   };
 }
 

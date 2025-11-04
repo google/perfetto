@@ -38,7 +38,6 @@ import {UIFilter} from '../../operations/filter';
 export interface SqlSourceSerializedState {
   sql?: string;
   filters?: UIFilter[];
-  customTitle?: string;
   comment?: string;
 }
 
@@ -56,7 +55,11 @@ export class SqlSourceNode implements MultiSourceNode {
 
   constructor(attrs: SqlSourceState) {
     this.nodeId = nextNodeId();
-    this.state = attrs;
+    this.state = {
+      ...attrs,
+      // SQL source nodes require manual execution since users write SQL
+      autoExecute: attrs.autoExecute ?? false,
+    };
     this.finalCols = createFinalColumns([]);
     this.nextNodes = [];
     this.prevNodes = attrs.prevNodes ?? [];
@@ -81,7 +84,6 @@ export class SqlSourceNode implements MultiSourceNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
       filters: this.state.filters ? [...this.state.filters] : undefined,
-      customTitle: this.state.customTitle,
       issues: this.state.issues,
       trace: this.state.trace,
     };
@@ -93,14 +95,13 @@ export class SqlSourceNode implements MultiSourceNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Sql source';
+    return 'Sql source';
   }
 
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
   }
@@ -127,7 +128,7 @@ export class SqlSourceNode implements MultiSourceNode {
     return sq;
   }
 
-  nodeSpecificModify(onExecute: () => void): m.Child {
+  nodeSpecificModify(): m.Child {
     const runQuery = (sql: string) => {
       this.state.sql = sql.trim();
       m.redraw();
@@ -153,7 +154,8 @@ export class SqlSourceNode implements MultiSourceNode {
           onExecute: (text: string) => {
             queryHistoryStorage.saveQuery(text);
             this.state.sql = text.trim();
-            onExecute();
+            // Note: Execution is now handled by the Run button in DataExplorer
+            // This callback only saves to query history and updates the SQL text
             m.redraw();
           },
           autofocus: true,

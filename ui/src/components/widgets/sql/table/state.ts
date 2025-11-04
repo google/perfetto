@@ -25,6 +25,7 @@ import {AsyncLimiter} from '../../../../base/async_limiter';
 import {areFiltersEqual, Filter, Filters} from './filters';
 import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
+import {uuidv4} from '../../../../base/uuid';
 
 const ROW_LIMIT = 100;
 
@@ -56,6 +57,7 @@ interface RowCount {
 
 export class SqlTableState {
   public readonly filters: Filters;
+  public readonly uuid: string;
 
   private readonly additionalImports: string[];
   private readonly asyncLimiter = new AsyncLimiter();
@@ -88,6 +90,7 @@ export class SqlTableState {
     },
   ) {
     this.additionalImports = args?.imports || [];
+    this.uuid = uuidv4();
 
     this.filters = args?.filters || new Filters();
     this.filters.addObserver(() => this.reload());
@@ -405,13 +408,23 @@ export class SqlTableState {
   hideColumnAtIndex(index: number) {
     const column = this.columns[index];
     this.columns.splice(index, 1);
-    // We can only filter by the visibile columns to avoid confusing the user,
+    this.willRemoveColumn(column);
+    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
+    this.reload({offset: 'keep'});
+  }
+
+  replaceColumnAtIndex(index: number, column: TableColumn) {
+    this.willRemoveColumn(this.columns[index]);
+    this.columns[index] = column;
+    this.reload({offset: 'keep'});
+  }
+
+  private willRemoveColumn(column: TableColumn) {
+    // We can only filter by the visible columns to avoid confusing the user,
     // so we remove order by clauses that refer to the hidden column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) !== tableColumnId(column),
     );
-    // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
-    this.reload({offset: 'keep'});
   }
 
   moveColumn(fromIndex: number, toIndex: number) {

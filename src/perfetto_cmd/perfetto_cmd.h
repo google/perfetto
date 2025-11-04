@@ -40,9 +40,12 @@
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
-#include "protos/perfetto/config/trace_config.gen.h"
-
 namespace perfetto {
+
+// Forward declaration for a proto.
+namespace protos::gen {
+class TraceConfig_AndroidReportConfig;
+}  // namespace protos::gen
 
 class PerfettoCmd : public Consumer {
  public:
@@ -137,7 +140,7 @@ class PerfettoCmd : public Consumer {
                                       const SnapshotTriggerInfo& trigger);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static std::optional<TraceConfig::AndroidReportConfig>
+  static std::optional<protos::gen::TraceConfig_AndroidReportConfig>
   ParseAndroidReportConfigFromTrace(const std::string& file_path);
   static base::ScopedFile CreateUnlinkedTmpFile();
   static base::ScopedFile CreatePersistentTraceFile(
@@ -145,7 +148,6 @@ class PerfettoCmd : public Consumer {
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();
-  void ReportAllPersistentTracesToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);

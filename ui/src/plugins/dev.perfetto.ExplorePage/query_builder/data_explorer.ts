@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {Icons} from '../../../base/semantic_icons';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {
   DataGridDataSource,
@@ -26,31 +25,29 @@ import {
   renderCell,
 } from '../../../components/widgets/data_grid/data_grid';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Spinner} from '../../../widgets/spinner';
+import {Switch} from '../../../widgets/switch';
 import {TextParagraph} from '../../../widgets/text_paragraph';
-import {Query, QueryNode} from '../query_node';
+import {Query, QueryNode, isAQuery} from '../query_node';
 import {QueryService} from './query_service';
+import {Intent} from '../../../widgets/common';
+import {Icons} from '../../../base/semantic_icons';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
   readonly queryService: QueryService;
   readonly node: QueryNode;
   readonly query?: Query | Error;
-  readonly executeQuery: boolean;
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
-  readonly onQueryExecuted: (result: {
-    columns: string[];
-    error?: Error;
-    warning?: Error;
-    noDataWarning?: Error;
-  }) => void;
-  readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
+  readonly isQueryRunning: boolean;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
+  readonly onExecute: () => void;
   readonly onchange?: () => void;
 }
 
@@ -84,14 +81,34 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   }
 
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
-    const fullScreenButton = m(Button, {
-      label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
-      onclick: () => attrs.onFullScreenToggle(),
-    });
+    const autoExecute = attrs.node.state.autoExecute ?? true;
 
-    if (attrs.isFullScreen) {
-      return fullScreenButton;
-    }
+    // Show spinner only when a query is actually running
+    // Don't show spinner before user clicks "Run Query" button
+    const isUpdating = attrs.isQueryRunning;
+
+    const runButton =
+      !autoExecute &&
+      m(Button, {
+        label: 'Run Query',
+        icon: 'play_arrow',
+        intent: Intent.Primary,
+        variant: ButtonVariant.Filled,
+        disabled: !isAQuery(attrs.query) || !attrs.node.validate(),
+        onclick: () => attrs.onExecute(),
+      });
+
+    const spinner = isUpdating && m(Spinner);
+
+    const autoExecuteSwitch = m(Switch, {
+      label: 'Auto Execute',
+      checked: autoExecute,
+      onchange: (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        attrs.node.state.autoExecute = target.checked;
+        attrs.onchange?.();
+      },
+    });
 
     const positionMenu = m(
       PopupMenu,
@@ -102,27 +119,28 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
       [
         m(MenuItem, {
-          label: 'Left',
-          onclick: () => attrs.onPositionChange('left'),
-        }),
-        m(MenuItem, {
-          label: 'Right',
-          onclick: () => attrs.onPositionChange('right'),
-        }),
-        m(MenuItem, {
-          label: 'Bottom',
-          onclick: () => attrs.onPositionChange('bottom'),
+          label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
+          onclick: () => attrs.onFullScreenToggle(),
         }),
       ],
     );
 
-    return [fullScreenButton, positionMenu];
+    return [runButton, spinner, autoExecuteSwitch, positionMenu];
   }
 
   private renderContent(
     attrs: DataExplorerAttrs,
     message?: string,
   ): m.Children {
+    // Show validation errors as callouts
+    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+      return m(
+        Callout,
+        {icon: 'info'},
+        attrs.node.state.issues.queryError.message,
+      );
+    }
+
     if (message) {
       return m(TextParagraph, {text: message});
     }
@@ -159,6 +177,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               '<=',
               '>',
               '>=',
+              'glob',
               'is null',
               'is not null',
             ];

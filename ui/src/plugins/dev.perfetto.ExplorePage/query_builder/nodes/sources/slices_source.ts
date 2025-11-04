@@ -27,7 +27,6 @@ import protos from '../../../../../protos';
 import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
-import {TableAndColumnImpl} from '../../../../dev.perfetto.SqlModules/sql_modules_impl';
 import {
   createFiltersProto,
   FilterOperation,
@@ -40,7 +39,6 @@ export interface SlicesSourceSerializedState {
   process_name?: string;
   track_name?: string;
   filters?: UIFilter[];
-  customTitle?: string;
   comment?: string;
 }
 
@@ -81,13 +79,12 @@ export class SlicesSourceNode implements SourceNode {
       process_name: this.state.process_name?.slice(),
       track_name: this.state.track_name?.slice(),
       filters: this.state.filters ? [...this.state.filters] : undefined,
-      customTitle: this.state.customTitle,
     };
     return new SlicesSourceNode(stateCopy);
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Simple slices';
+    return 'Simple slices';
   }
 
   serializeState(): SlicesSourceSerializedState {
@@ -97,7 +94,6 @@ export class SlicesSourceNode implements SourceNode {
       process_name: this.state.process_name,
       track_name: this.state.track_name,
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
   }
@@ -233,51 +229,47 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
     {
       name: 'id',
       type: {
-        name: 'ID(slice.id)',
-        shortName: 'id',
-        tableAndColumn: new TableAndColumnImpl('string', 'id'),
+        kind: 'id',
+        source: {
+          table: 'slice',
+          column: 'id',
+        },
       },
     },
     {
       name: 'ts',
       type: {
-        name: 'TIMESTAMP',
-        shortName: 'TIMESTAMP',
+        kind: 'timestamp',
       },
     },
     {
       name: 'dur',
       type: {
-        name: 'DURATION',
-        shortName: 'DURATION',
+        kind: 'duration',
       },
     },
     {
       name: 'slice_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'thread_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'process_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
     {
       name: 'track_name',
       type: {
-        name: 'STRING',
-        shortName: 'STRING',
+        kind: 'string',
       },
     },
   ];

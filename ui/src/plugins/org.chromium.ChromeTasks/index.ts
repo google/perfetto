@@ -90,7 +90,7 @@ export default class implements PerfettoPlugin {
       });
       const track = new TrackNode({uri, name});
       group.addChildInOrder(track);
-      ctx.workspace.addChildInOrder(group);
+      ctx.defaultWorkspace.addChildInOrder(group);
     }
   }
 }

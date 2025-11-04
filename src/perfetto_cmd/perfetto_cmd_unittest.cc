@@ -22,21 +22,25 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 
 class PerfettoCmdlineUnitTest : public ::testing::Test {
- public:
-  // Helper to access private method via friend access
+ protected:
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<TraceConfig::AndroidReportConfig>
   ParseAndroidReportConfigFromTrace(const std::string& file_path) {
     return PerfettoCmd::ParseAndroidReportConfigFromTrace(file_path);
   }
+#endif
 };
 
 namespace {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 // Copied from src/perfetto_cmd/packet_writer_unittest.cc
 template <typename F>
@@ -57,8 +61,6 @@ static void WritePacketsToFile(const std::vector<TracePacket>& packets,
   PacketWriter pw(*fstream);
   pw.WritePackets(packets);
 }
-
-// #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromInvalidTrace) {
   {
@@ -147,8 +149,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseAndroidReportConfigFromTrace) {
     EXPECT_EQ(result->use_pipe_in_framework_for_testing(), true);
   }
 }
-
-// #endif
+#endif
 
 }  // namespace
 }  // namespace perfetto

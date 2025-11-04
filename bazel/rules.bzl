@@ -358,6 +358,28 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
         **kwargs
     )
 
+def perfetto_protozero_descriptor_diff(name, minuend, subtrahend, outs, **kwargs):
+    cmd = [
+        "$(location src_protozero_descriptor_diff_protozero_descriptor_diff)",
+        "--minuend=$(location " + minuend + ")",
+        "--subtrahend=$(location " + subtrahend + ")",
+        "--out",
+        "$@",
+    ]
+    perfetto_genrule(
+        name = name,
+        cmd = " ".join(cmd),
+        tools = [
+            ":src_protozero_descriptor_diff_protozero_descriptor_diff",
+        ],
+        srcs = [
+          minuend,
+          subtrahend,
+        ],
+        outs = outs,
+        **kwargs
+    )
+
 def perfetto_cc_amalgamated_sql(name, deps, outs, namespace, **kwargs):
     if PERFETTO_CONFIG.root[:2] != "//":
         fail("Expected PERFETTO_CONFIG.root to start with //")

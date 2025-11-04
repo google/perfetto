@@ -16,21 +16,25 @@ import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {Builder} from './query_builder/builder';
-import {QueryNode, QueryNodeState} from './query_node';
+import {
+  QueryNode,
+  QueryNodeState,
+  addConnection,
+  removeConnection,
+} from './query_node';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
-import {NodeContainerLayout} from './query_builder/graph/node_container';
 
 registerCoreNodes();
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
-  nodeLayouts: Map<string, NodeContainerLayout>;
+  nodeLayouts: Map<string, {x: number; y: number}>;
   devMode?: boolean;
 }
 
@@ -90,34 +94,57 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         return;
       }
 
+      const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+      if (!sqlModules) return;
+
+      // Use a wrapper object to hold the node reference (allows mutation without 'let')
+      const nodeRef: {current?: QueryNode} = {};
+
       const nodeState: QueryNodeState = {
         ...initialState,
         prevNode: node,
+        sqlModules,
+        trace: attrs.trace,
+        // Provide actions for nodes that need to interact with the graph
+        actions: {
+          onAddAndConnectTable: (tableName: string, portIndex: number) => {
+            // Use the closure to access nodeRef.current which will be set below
+            if (nodeRef.current !== undefined) {
+              this.handleAddAndConnectTable(
+                attrs,
+                tableName,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
+        },
       };
 
       const newNode = descriptor.factory(nodeState, {
         allNodes: state.rootNodes,
       });
 
-      // Insert the new node between the selected node and its children,
-      // carefully re-linking all parent/child connections.
-      if (node.nextNodes.length > 0) {
-        const children = [...node.nextNodes];
-        node.nextNodes = [newNode];
-        newNode.nextNodes = children;
-        for (const child of children) {
-          if ('prevNode' in child && child.prevNode === node) {
-            child.prevNode = newNode;
-          }
-          if ('prevNodes' in child) {
-            const index = child.prevNodes.indexOf(node);
-            if (index > -1) {
-              child.prevNodes[index] = newNode;
-            }
-          }
+      // Set the reference so the callback can use it
+      nodeRef.current = newNode;
+
+      // Store the existing next nodes
+      const existingNextNodes = [...node.nextNodes];
+
+      // Clear the node's next nodes (we'll reconnect through the new node)
+      node.nextNodes = [];
+
+      // Connect: node -> newNode
+      addConnection(node, newNode);
+
+      // Connect: newNode -> each existing next node
+      for (const nextNode of existingNextNodes) {
+        if (nextNode !== undefined) {
+          // First remove the old connection from node to nextNode (if it still exists)
+          removeConnection(node, nextNode);
+          // Then add connection from newNode to nextNode
+          addConnection(newNode, nextNode);
         }
-      } else {
-        node.nextNodes.push(newNode);
       }
 
       onStateUpdate((currentState) => ({
@@ -158,6 +185,46 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  private async handleAddAndConnectTable(
+    attrs: ExplorePageAttrs,
+    tableName: string,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    // Get the table descriptor
+    const descriptor = nodeRegistry.get('table');
+    if (!descriptor) return;
+
+    // Find the table in SQL modules
+    const sqlTable = sqlModules.listTables().find((t) => t.name === tableName);
+    if (!sqlTable) {
+      console.warn(`Table ${tableName} not found in SQL modules`);
+      return;
+    }
+
+    // Create the table node with the specific table (bypass the modal)
+    const newNode = descriptor.factory(
+      {
+        sqlTable,
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Add connection from the new table node to the target node
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
+    }));
+  }
+
   handleClearAllNodes(attrs: ExplorePageAttrs) {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
@@ -177,22 +244,36 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
 
-    // If the node is a root node, remove it from the root nodes array.
-    const newRootNodes = state.rootNodes.filter((n) => n !== node);
+    let newRootNodes = state.rootNodes.filter((n) => n !== node);
+    if (state.rootNodes.includes(node) && node.nextNodes.length > 0) {
+      newRootNodes = [...newRootNodes, ...node.nextNodes];
+    }
 
-    // If the node is a child of another node, remove it from the parent's
-    // nextNodes array.
-    if ('prevNode' in node) {
-      const childIdx = node.prevNode.nextNodes.indexOf(node);
-      if (childIdx !== -1) {
-        node.prevNode.nextNodes.splice(childIdx, 1);
-      }
+    // Get parent nodes before removing connections
+    const parentNodes: QueryNode[] = [];
+    if ('prevNode' in node && node.prevNode) {
+      parentNodes.push(node.prevNode);
     } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
-        const childIdx = prevNode.nextNodes.indexOf(node);
-        if (childIdx !== -1) {
-          prevNode.nextNodes.splice(childIdx, 1);
-        }
+        if (prevNode) parentNodes.push(prevNode);
+      }
+    }
+
+    // Get child nodes
+    const childNodes = [...node.nextNodes];
+
+    // Remove all connections to/from the deleted node
+    for (const parent of parentNodes) {
+      removeConnection(parent, node);
+    }
+    for (const child of childNodes) {
+      removeConnection(node, child);
+    }
+
+    // Reconnect parents to children (bypass the deleted node)
+    for (const parent of parentNodes) {
+      for (const child of childNodes) {
+        addConnection(parent, child);
       }
     }
 
@@ -205,6 +286,46 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       rootNodes: newRootNodes,
       selectedNode: newSelectedNode,
     }));
+  }
+
+  handleConnectionRemove(
+    attrs: ExplorePageAttrs,
+    fromNode: QueryNode,
+    toNode: QueryNode,
+  ) {
+    const {state, onStateUpdate} = attrs;
+
+    // NOTE: The basic connection removal is already handled by graph.ts
+    // This callback handles higher-level logic like reconnection and state updates
+
+    // Check if we should reconnect fromNode to toNode's children (bypass toNode)
+    // Note: We check if fromNode has no next nodes (connection already removed)
+    const shouldReconnect =
+      fromNode.nextNodes.length === 0 && toNode.nextNodes.length > 0;
+
+    if (shouldReconnect) {
+      // Reconnect fromNode to all of toNode's children (bypass toNode)
+      for (const child of toNode.nextNodes) {
+        addConnection(fromNode, child);
+      }
+    }
+
+    // Handle state updates based on node type
+    if ('prevNode' in toNode && toNode.prevNode === undefined) {
+      // toNode is a ModificationNode that's now orphaned
+      // Add it to rootNodes so it remains visible (but invalid)
+      const newRootNodes = state.rootNodes.includes(toNode)
+        ? state.rootNodes
+        : [...state.rootNodes, toNode];
+
+      onStateUpdate((currentState) => ({
+        ...currentState,
+        rootNodes: newRootNodes,
+      }));
+    } else if ('prevNodes' in toNode) {
+      // toNode is a MultiSourceNode - just trigger a state update
+      onStateUpdate((currentState) => ({...currentState}));
+    }
   }
 
   handleExport(state: ExplorePageState, trace: Trace) {
@@ -337,10 +458,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onAddSourceNode: (id) => {
           this.handleAddSourceNode(attrs, id);
         },
-        onAddOperationNode: (id) => {
-          if (state.selectedNode) {
-            this.handleAddOperationNode(attrs, state.selectedNode, id);
-          }
+        onAddOperationNode: (id, node) => {
+          this.handleAddOperationNode(attrs, node, id);
         },
         onClearAllNodes: () => this.handleClearAllNodes(attrs),
         onDuplicateNode: () => {
@@ -352,6 +471,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           if (state.selectedNode) {
             this.handleDeleteNode(attrs, state.selectedNode);
           }
+        },
+        onConnectionRemove: (fromNode, toNode) => {
+          this.handleConnectionRemove(attrs, fromNode, toNode);
         },
         onImport: () => this.handleImport(attrs),
         onImportWithStatement: () => this.handleImportWithStatement(attrs),

@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include "perfetto/protozero/proto_decoder.h"
-#include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
@@ -28,17 +25,25 @@
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/tracing_service_proxy.h"
 
+#include "protos/perfetto/config/trace_config.gen.h"
+
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
 namespace perfetto {
 namespace {
 
-// TODO(ktimofeev): add doc.
+// traced runs as 'user nobody' (AID_NOBODY), defined here:
+// https://cs.android.com/android/platform/superproject/+/android-latest-release:system/core/libcutils/include/private/android_filesystem_config.h;l=203;drc=f5b540e2b7b9b325d99486d49c0ac57bdd0c5344
+// We only trust packages written by traced.
 static constexpr int32_t kTrustedUid = 9999;
 
-// Directories for local state and temporary files. These are automatically
+// Directory for local state and temporary files. This is automatically
 // created by the system by setting setprop persist.traced.enable=1.
 const char* kStateDir = "/data/misc/perfetto-traces";
 const char* kStatePersistentRunningDir =
@@ -200,7 +205,34 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 // static
-std::optional<TraceConfig::AndroidReportConfig>
+base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
+    const std::string& unique_session_name) {
+  std::string name =
+      unique_session_name.empty() ? "trace" : unique_session_name.substr(0, 64);
+  base::StackString<256> file_path("%s/%s.pftrace", kStatePersistentRunningDir,
+                                   name.c_str());
+  // TODO(ktimofeev): use flock(2) to check if the trace file is currently opend
+  // by the traced or just wasn't rm-ed on the reboot. If it wasn't rm-ed
+  // overwrite it.
+  // we can use base::OpenFile with "O_CREAT | O_EXCL" flags to check if file
+  // exists.
+  if (base::FileExists(file_path.ToStdString())) {
+    PERFETTO_ELOG(
+        "Could not create a persistent trace file '%s' for session name: '%s', "
+        "file already exists",
+        file_path.c_str(), name.c_str());
+    return base::ScopedFile{};  // Invalid file.
+  }
+  auto fd = base::OpenFile(file_path.ToStdString(), O_CREAT | O_RDWR, 0600);
+  if (!fd) {
+    PERFETTO_PLOG("Could not create a persistent trace file '%s'",
+                  file_path.c_str());
+  }
+  return fd;
+}
+
+// static
+std::optional<protos::gen::TraceConfig_AndroidReportConfig>
 PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
   base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path.c_str());
   if (!mapped.IsValid()) {
@@ -234,9 +266,9 @@ PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
     if (uid_value != kTrustedUid)
       continue;
 
-    // In perfetto_cmd.cc we already have a dependency on a 'gen::TraceConfig',
-    // so we use it here to parse the full config packet, instead of adding a
-    // dependency on a 'pbzero::TraceConfig' and using the one more nested
+    // We already have a dependency on a 'gen::TraceConfig', so we use it here
+    // to parse the full config packet, instead of adding a dependency on a
+    // 'pbzero::TraceConfig' and using the one more nested
     // 'protozero::ProtoDecoder' to directly access 'AndroidReportConfig'.
     protos::gen::TraceConfig trace_config;
     trace_config.ParseFromArray(trace_config_field.data(),
@@ -248,33 +280,6 @@ PerfettoCmd::ParseAndroidReportConfigFromTrace(const std::string& file_path) {
   }
 
   return std::nullopt;
-}
-
-// static
-base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
-    const std::string& unique_session_name) {
-  std::string name =
-      unique_session_name.empty() ? "trace" : unique_session_name.substr(0, 64);
-  base::StackString<256> file_path("%s/%s.pftrace", kStatePersistentRunningDir,
-                                   name.c_str());
-  // TODO(ktimofeev): use flock(2) to check if the trace file is currently opend
-  // by the traced or just wasn't rm-ed on the reboot. If it wasn't rm-ed
-  // overwrite it.
-  // we can use base::OpenFile with "O_CREAT | O_EXCL" flags to check if file
-  // exists.
-  if (base::FileExists(file_path.ToStdString())) {
-    PERFETTO_ELOG(
-        "Could not create a persistent trace file '%s' for session name: '%s', "
-        "file already exists",
-        file_path.c_str(), name.c_str());
-    return base::ScopedFile{};  // Invalid file.
-  }
-  auto fd = base::OpenFile(file_path.ToStdString(), O_CREAT | O_RDWR, 0600);
-  if (!fd) {
-    PERFETTO_PLOG("Could not create a persistent trace file '%s'",
-                  file_path.c_str());
-  }
-  return fd;
 }
 
 }  // namespace perfetto

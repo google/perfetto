@@ -39,6 +39,7 @@ import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {Card} from '../../../../widgets/card';
 import {NodeIssues} from '../node_issues';
+import {Icons} from '../../../../base/semantic_icons';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -50,7 +51,6 @@ export interface AggregationSerializedState {
     isEditing?: boolean;
   }[];
   filters?: UIFilter[];
-  customTitle?: string;
   comment?: string;
 }
 
@@ -135,6 +135,11 @@ export class AggregationNode implements ModificationNode {
     if (this.state.issues) {
       this.state.issues.queryError = undefined;
     }
+    if (this.prevNode === undefined) {
+      if (!this.state.issues) this.state.issues = new NodeIssues();
+      this.state.issues.queryError = new Error('No input node connected');
+      return false;
+    }
     if (!this.prevNode.validate()) {
       if (!this.state.issues) this.state.issues = new NodeIssues();
       this.state.issues.queryError = new Error('Previous node is invalid');
@@ -169,7 +174,7 @@ export class AggregationNode implements ModificationNode {
   }
 
   getTitle(): string {
-    return this.state.customTitle ?? 'Aggregation';
+    return 'Aggregation';
   }
 
   nodeDetails?(): m.Child | undefined {
@@ -223,7 +228,6 @@ export class AggregationNode implements ModificationNode {
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: this.state.filters ? [...this.state.filters] : undefined,
-      customTitle: this.state.customTitle,
       onchange: this.state.onchange,
       issues: this.state.issues,
     };
@@ -303,7 +307,6 @@ export class AggregationNode implements ModificationNode {
         isEditing: a.isEditing,
       })),
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
       comment: this.state.comment,
     };
   }
@@ -448,7 +451,7 @@ class AggregationOperationComponent
       );
     };
 
-    const aggregationEditor = (agg: Aggregation, index: number): m.Child => {
+    const aggregationEditor = (agg: Aggregation): m.Child => {
       const columnOptions = attrs.groupByColumns.map((col) =>
         m(
           'option',
@@ -510,15 +513,7 @@ class AggregationOperationComponent
           value: agg.newColumnName,
         }),
         m(Button, {
-          className: 'delete-button',
-          icon: 'delete',
-          onclick: () => {
-            attrs.aggregations.splice(index, 1);
-            attrs.onchange?.();
-          },
-        }),
-        m(Button, {
-          label: 'Done',
+          icon: Icons.Check,
           className: 'is-primary',
           disabled: !agg.isValid,
           onclick: () => {
@@ -535,15 +530,26 @@ class AggregationOperationComponent
     const aggregationViewer = (agg: Aggregation, index: number): m.Child => {
       return m(
         '.pf-exp-aggregation-viewer',
-        {
-          onclick: () => {
-            attrs.aggregations.forEach((a, i) => {
-              a.isEditing = i === index;
-            });
-            m.redraw();
+        m(
+          'span',
+          {
+            onclick: () => {
+              attrs.aggregations.forEach((a, i) => {
+                a.isEditing = i === index;
+              });
+              m.redraw();
+            },
           },
-        },
-        `${agg.aggregationOp}(${agg.column?.name}) AS ${agg.newColumnName}`,
+          `${agg.aggregationOp}(${agg.column?.name}) AS ${agg.newColumnName}`,
+        ),
+        m(Button, {
+          icon: Icons.Close,
+          onclick: (e: Event) => {
+            e.stopPropagation();
+            attrs.aggregations.splice(index, 1);
+            attrs.onchange?.();
+          },
+        }),
       );
     };
 
@@ -558,7 +564,7 @@ class AggregationOperationComponent
       return [
         ...attrs.aggregations.map((agg, index) => {
           if (agg.isEditing) {
-            return aggregationEditor(agg, index);
+            return aggregationEditor(agg);
           } else {
             return aggregationViewer(agg, index);
           }

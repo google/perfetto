@@ -470,6 +470,14 @@ class TraceStorage {
 
   tables::ModulesTable* mutable_modules_table() { return &modules_table_; }
 
+  const tables::TraceImportLogsTable& trace_import_logs_table() const {
+    return trace_import_logs_table_;
+  }
+
+  tables::TraceImportLogsTable* mutable_trace_import_logs_table() {
+    return &trace_import_logs_table_;
+  }
+
   const tables::ClockSnapshotTable& clock_snapshot_table() const {
     return clock_snapshot_table_;
   }
@@ -1110,6 +1118,8 @@ class TraceStorage {
 
   tables::ModulesTable modules_table_{&string_pool_};
 
+  tables::TraceImportLogsTable trace_import_logs_table_{&string_pool_};
+
   // Contains data from all the clock snapshots in the trace.
   tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_};
 
@@ -1352,21 +1362,6 @@ struct std::hash<
            std::hash<std::optional<::perfetto::trace_processor::MappingId>>{}(
                r.mapping) ^
            std::hash<int64_t>{}(r.rel_pc);
-  }
-};
-
-template <>
-struct std::hash<
-    ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row> {
-  using argument_type =
-      ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row;
-  using result_type = size_t;
-
-  result_type operator()(const argument_type& r) const {
-    return std::hash<int64_t>{}(r.depth) ^
-           std::hash<std::optional<::perfetto::trace_processor::CallsiteId>>{}(
-               r.parent_id) ^
-           std::hash<::perfetto::trace_processor::FrameId>{}(r.frame_id);
   }
 };
 

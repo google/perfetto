@@ -110,7 +110,7 @@ export default class implements PerfettoPlugin {
     if (group.hasChildren) {
       const cpuGroup = ctx.plugins
         .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(ctx.workspace, 'CPU');
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'CPU');
       cpuGroup.addChildInOrder(group);
     }
 
@@ -131,7 +131,7 @@ export default class implements PerfettoPlugin {
     if (perCpuGroup.hasChildren) {
       const cpuGroup = ctx.plugins
         .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(ctx.workspace, 'CPU');
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'CPU');
       cpuGroup.addChildInOrder(perCpuGroup);
     }
   }

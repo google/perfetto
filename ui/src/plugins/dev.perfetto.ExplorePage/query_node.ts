@@ -42,6 +42,7 @@ export enum NodeType {
   // Multi node operations
   kIntervalIntersect,
   kUnion,
+  kMerge,
 }
 
 export function singleNodeOperation(type: NodeType): boolean {
@@ -57,11 +58,17 @@ export function singleNodeOperation(type: NodeType): boolean {
   }
 }
 
+// Actions that can be performed by nodes on the parent graph.
+// These are optional callbacks provided by the parent component.
+export interface NodeActions {
+  // Create and connect a table node to a target node's input port
+  onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
+}
+
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNode?: QueryNode;
   prevNodes?: QueryNode[];
-  customTitle?: string;
   comment?: string;
   trace?: Trace;
   sqlModules?: SqlModules;
@@ -74,8 +81,16 @@ export interface QueryNodeState {
 
   onchange?: () => void;
 
+  // Actions that can be performed on the parent graph
+  actions?: NodeActions;
+
   // Caching
   hasOperationChanged?: boolean;
+
+  // Whether queries should automatically execute when this node changes.
+  // If false, the user must manually click "Run" to execute queries.
+  // Set by the node registry when the node is created.
+  autoExecute?: boolean;
 }
 
 export interface BaseNode {
@@ -92,7 +107,7 @@ export interface BaseNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(onExecute?: () => void): m.Child;
+  nodeSpecificModify(): m.Child;
   nodeDetails?(): m.Child | undefined;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
@@ -103,11 +118,14 @@ export interface BaseNode {
 export interface SourceNode extends BaseNode {}
 
 export interface ModificationNode extends BaseNode {
-  prevNode: QueryNode;
+  prevNode?: QueryNode;
+  // Optional input nodes that appear on the left side of the node
+  // (as opposed to prevNode which comes from above)
+  inputNodes?: (QueryNode | undefined)[];
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: QueryNode[];
+  prevNodes: (QueryNode | undefined)[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
@@ -226,13 +244,14 @@ export async function analyzeNode(
 
 export function setOperationChanged(node: QueryNode) {
   let curr: QueryNode | undefined = node;
+  const queue: QueryNode[] = [];
   while (curr) {
     if (curr.state.hasOperationChanged) {
-      // Already marked as changed, and so are the children.
-      break;
+      // Already marked as changed, skip this branch
+      curr = queue.shift();
+      continue;
     }
     curr.state.hasOperationChanged = true;
-    const queue: QueryNode[] = [];
     curr.nextNodes.forEach((child) => {
       queue.push(child);
     });
@@ -248,4 +267,101 @@ export function isAQuery(
     !(maybeQuery instanceof Error) &&
     maybeQuery.sql !== undefined
   );
+}
+
+// ========================================
+// GRAPH CONNECTION OPERATIONS
+// ========================================
+// These functions encapsulate the bidirectional relationship management
+// between nodes, ensuring consistency when adding/removing connections.
+
+/**
+ * Adds a connection from one node to another, updating both forward and
+ * backward links. For multi-source nodes, adds to the specified port index.
+ */
+export function addConnection(
+  fromNode: QueryNode,
+  toNode: QueryNode,
+  portIndex?: number,
+): void {
+  // Update forward link (fromNode -> toNode)
+  if (!fromNode.nextNodes.includes(toNode)) {
+    fromNode.nextNodes.push(toNode);
+  }
+
+  // Update backward link based on node type
+  if ('prevNode' in toNode && singleNodeOperation(toNode.type)) {
+    // ModificationNode
+    const modNode = toNode as ModificationNode;
+
+    // If portIndex is specified and node supports inputNodes
+    if (portIndex !== undefined && 'inputNodes' in modNode) {
+      // portIndex maps directly to inputNodes array
+      // portIndex=0 → inputNodes[0], portIndex=1 → inputNodes[1], etc.
+      if (!modNode.inputNodes) {
+        modNode.inputNodes = [];
+      }
+      // Expand array if needed
+      while (modNode.inputNodes.length <= portIndex) {
+        modNode.inputNodes.push(undefined);
+      }
+      modNode.inputNodes[portIndex] = fromNode;
+      modNode.onPrevNodesUpdated?.();
+    } else {
+      // Otherwise connect to prevNode (default single input from above)
+      modNode.prevNode = fromNode;
+    }
+  } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
+    // MultiSourceNode - multiple inputs
+    const multiSourceNode = toNode as MultiSourceNode;
+    const arrayIndex = portIndex ?? multiSourceNode.prevNodes.length;
+
+    // Expand array if needed to accommodate the new connection
+    while (multiSourceNode.prevNodes.length <= arrayIndex) {
+      multiSourceNode.prevNodes.push(undefined);
+    }
+
+    multiSourceNode.prevNodes[arrayIndex] = fromNode;
+    multiSourceNode.onPrevNodesUpdated?.();
+  }
+}
+
+/**
+ * Removes a connection from one node to another, cleaning up both forward
+ * and backward links.
+ */
+export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
+  // Remove forward link (fromNode -> toNode)
+  const nextIndex = fromNode.nextNodes.indexOf(toNode);
+  if (nextIndex !== -1) {
+    fromNode.nextNodes.splice(nextIndex, 1);
+  }
+
+  // Remove backward link based on node type
+  if ('prevNode' in toNode && singleNodeOperation(toNode.type)) {
+    // ModificationNode
+    const modNode = toNode as ModificationNode;
+
+    // Check if it's in prevNode
+    if (modNode.prevNode === fromNode) {
+      modNode.prevNode = undefined;
+    }
+
+    // Also check if it's in inputNodes
+    if ('inputNodes' in modNode && modNode.inputNodes) {
+      const inputIndex = modNode.inputNodes.indexOf(fromNode);
+      if (inputIndex !== -1) {
+        modNode.inputNodes[inputIndex] = undefined;
+        modNode.onPrevNodesUpdated?.();
+      }
+    }
+  } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
+    // MultiSourceNode - multiple inputs
+    const multiSourceNode = toNode as MultiSourceNode;
+    const prevIndex = multiSourceNode.prevNodes.indexOf(fromNode);
+    if (prevIndex !== -1) {
+      multiSourceNode.prevNodes[prevIndex] = undefined;
+      multiSourceNode.onPrevNodesUpdated?.();
+    }
+  }
 }

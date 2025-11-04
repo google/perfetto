@@ -24,21 +24,21 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <queue>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_intersector.h"
+#include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
@@ -59,22 +59,23 @@
 namespace perfetto::trace_processor {
 namespace {
 
-inline void HashSqlValue(base::FnvHasher& h, const SqlValue& v) {
+inline void HashSqlValue(base::MurmurHashCombiner& h, const SqlValue& v) {
+  h.Combine(v.type);
   switch (v.type) {
     case SqlValue::Type::kString:
-      h.Update(v.AsString());
+      h.Combine(v.AsString());
       break;
     case SqlValue::Type::kDouble:
-      h.Update(v.AsDouble());
+      h.Combine(v.AsDouble());
       break;
     case SqlValue::Type::kLong:
-      h.Update(v.AsLong());
+      h.Combine(v.AsLong());
       break;
     case SqlValue::Type::kBytes:
       PERFETTO_FATAL("Wrong type");
       break;
     case SqlValue::Type::kNull:
-      h.Update(nullptr);
+      h.Combine(0);
       break;
   }
   return;
@@ -377,7 +378,7 @@ struct IntervalTreeIntervalsAgg
     }
 
     // Create a partition key and save SqlValues of the partition.
-    base::FnvHasher h;
+    base::MurmurHashCombiner h;
     uint32_t j = 0;
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
