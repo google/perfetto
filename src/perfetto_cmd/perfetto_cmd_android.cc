@@ -202,14 +202,12 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 // static
-std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromTrace(
-    const std::string& file_path) {
-  base::ScopedMmap mapped = base::ReadMmapWholeFile(file_path);
-  if (!mapped.IsValid()) {
-    return std::nullopt;
-  }
+std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromMmapedTrace(
+    base::ScopedMmap mmapped_trace) {
+  PERFETTO_CHECK(mmapped_trace.IsValid());
 
-  protozero::ProtoDecoder trace_decoder(mapped.data(), mapped.length());
+  protozero::ProtoDecoder trace_decoder(mmapped_trace.data(),
+                                        mmapped_trace.length());
 
   for (auto packet = trace_decoder.ReadField(); packet;
        packet = trace_decoder.ReadField()) {
