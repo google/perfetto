@@ -395,7 +395,8 @@ public final class PerfettoTrackEventBuilder {
     }
 
     NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name)) {
+    if (track == null || !track.getName().equals(name) || track.getId() != id
+          || track.getParentUuid() != parentUuid) {
       track = new NamedTrack(id, name, parentUuid, mNativeMemoryCleaner);
       mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
     }
