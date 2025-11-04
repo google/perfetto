@@ -649,7 +649,7 @@ base::Status TrackEventTokenizer::HandleExtraArgsValues(
         pipeline_id = "";
       }
 
-      if (!instance_id.empty() && !url.empty()) {
+      if (!instance_id.empty() && !url.empty() && event_name == "LynxLoadTemplate") {
         context_->storage->SetInstanceUrl(instance_id, url);
         instance_id = "";
         url = "";
