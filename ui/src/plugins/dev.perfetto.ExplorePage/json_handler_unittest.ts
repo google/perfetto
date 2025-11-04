@@ -1176,18 +1176,20 @@ describe('JSON serialization/deserialization', () => {
   });
 
   test('deserializes graph without nodeLayouts field (auto-layout)', () => {
-    // Create a JSON string manually without nodeLayouts
-    const jsonWithoutLayouts = JSON.stringify({
-      nodes: [
-        {
-          nodeId: '1',
-          type: 'simpleSlices',
-          state: {slice_name: 'test_slice'},
-          nextNodes: [],
-        },
-      ],
-      rootNodeIds: ['1'],
+    // Create a real node and serialize it
+    const sliceNode = new SlicesSourceNode({
+      slice_name: 'test_slice',
     });
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+    };
+    const serialized = serializeState(initialState);
+
+    // Parse the JSON and remove the nodeLayouts field
+    const parsed = JSON.parse(serialized);
+    delete parsed.nodeLayouts;
+    const jsonWithoutLayouts = JSON.stringify(parsed);
 
     const deserializedState = deserializeState(
       jsonWithoutLayouts,
