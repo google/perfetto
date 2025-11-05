@@ -343,13 +343,12 @@ class ErrorPrinter : public google::protobuf::io::ErrorCollector {
 #endif
 };
 
-// This function returns an identifier for a metric suitable for use
-// as an SQL table name (i.e. containing no forward or backward slashes).
-std::string BaseName(std::string metric_path) {
-  std::replace(metric_path.begin(), metric_path.end(), '\\', '/');
-  auto slash_idx = metric_path.rfind('/');
-  return slash_idx == std::string::npos ? metric_path
-                                        : metric_path.substr(slash_idx + 1);
+// This function returns the file name component form the file path.
+std::string BaseName(std::string file_path) {
+  std::replace(file_path.begin(), file_path.end(), '\\', '/');
+  auto slash_idx = file_path.rfind('/');
+  return slash_idx == std::string::npos ? file_path
+                                        : file_path.substr(slash_idx + 1);
 }
 
 base::Status RegisterMetric(TraceProcessor* trace_processor,
@@ -1445,7 +1444,7 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
     if (base::GetFileExtension(file_path) != ".sql") {
       continue;
     }
-    std::string file_name = file_path.substr(file_path.rfind('/'));
+    std::string file_name = BaseName(file_path);
     std::string file_name_no_extension =
         file_name.substr(0, file_name.rfind('.'));
     if (file_name_no_extension.find('.') != std::string_view::npos) {
@@ -1495,7 +1494,7 @@ base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
     if (!base::ReadFile(path, &module_file)) {
       return base::ErrStatus("Cannot read file '%s'", path.c_str());
     }
-    std::string file_name = path.substr(path.rfind('/'));
+    std::string file_name = BaseName(path);
     std::string module_name = sql_modules::GetIncludeKey(file_name);
     std::string package_name = sql_modules::GetPackageName(module_name);
     packages.Insert(package_name, {})
