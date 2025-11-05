@@ -60,30 +60,28 @@ export class IntervalIntersectNode implements MultiSourceNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
     // Check for undefined entries (disconnected inputs)
     const validPrevNodes = this.prevNodes.filter(
       (node): node is QueryNode => node !== undefined,
     );
 
     if (validPrevNodes.length < this.prevNodes.length) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Interval intersect node has disconnected inputs. Please connect all inputs or remove this node.',
       );
       return false;
     }
 
     if (this.prevNodes.length < 2) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Interval intersect node requires one base source and at least one interval source.',
       );
       return false;
-    }
-
-    // If the basic structure is valid, we can clear any previous validation error.
-    if (this.state.issues) {
-      this.state.issues.queryError = undefined;
     }
 
     for (const prevNode of this.prevNodes) {
@@ -91,10 +89,10 @@ export class IntervalIntersectNode implements MultiSourceNode {
       if (prevNode === undefined) continue;
 
       if (!prevNode.validate()) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError =
-          prevNode.state.issues?.queryError ??
-          new Error(`Previous node '${prevNode.getTitle()}' is invalid`);
+        this.setValidationError(
+          prevNode.state.issues?.queryError?.message ??
+            `Previous node '${prevNode.getTitle()}' is invalid`,
+        );
         return false;
       }
     }
@@ -103,8 +101,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
       const cols = new Set(node.finalCols.map((c) => c.name));
       const missing = required.filter((r) => !cols.has(r));
       if (missing.length > 0) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError = new Error(
+        this.setValidationError(
           `Node '${node.getTitle()}' is missing required columns: ${missing.join(
             ', ',
           )}`,
@@ -119,6 +116,13 @@ export class IntervalIntersectNode implements MultiSourceNode {
     }
 
     return true;
+  }
+
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
   }
 
   getTitle(): string {

@@ -133,17 +133,17 @@ export class AggregationNode implements ModificationNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
     if (this.state.issues) {
-      this.state.issues.queryError = undefined;
+      this.state.issues.clear();
     }
+
     if (this.prevNode === undefined) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error('No input node connected');
+      this.setValidationError('No input node connected');
       return false;
     }
     if (!this.prevNode.validate()) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error('Previous node is invalid');
+      this.setValidationError('Previous node is invalid');
       return false;
     }
     const sourceColNames = new Set(
@@ -157,21 +157,26 @@ export class AggregationNode implements ModificationNode {
     }
 
     if (missingCols.length > 0) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         `Group by columns ['${missingCols.join(', ')}'] not found in input`,
       );
       return false;
     }
 
     if (!this.state.groupByColumns.find((c) => c.checked)) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Aggregation node has no group by columns selected',
       );
       return false;
     }
     return true;
+  }
+
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
