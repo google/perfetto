@@ -62,6 +62,7 @@ void PerfettoProducerInProcessInit(
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kInProcessBackend;
   args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
+  args.shmem_page_size_hint_kb = 4;
   perfetto::Tracing::Initialize(args);
 }
 
@@ -70,6 +71,7 @@ void PerfettoProducerSystemInit(
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
   args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
+  args.shmem_page_size_hint_kb = 4;
   perfetto::Tracing::Initialize(args);
 }
 
