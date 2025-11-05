@@ -35,6 +35,7 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect2D, Size2D} from '../base/geom';
 import {assertExists} from '../base/logging';
 import {VirtualCanvas} from '../base/virtual_canvas';
+import {HTMLAttrs} from './common';
 
 const CANVAS_CONTAINER_REF = 'canvas-container';
 const CANVAS_OVERDRAW_PX = 300;
@@ -53,7 +54,7 @@ export interface VirtualOverlayCanvasDrawContext {
 
 export type Overflow = 'hidden' | 'visible' | 'auto';
 
-export interface VirtualOverlayCanvasAttrs {
+export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Additional class names applied to the root element.
   readonly className?: string;
 
@@ -77,6 +78,10 @@ export interface VirtualOverlayCanvasAttrs {
   // be called to redraw the canvas synchronously at any time. Any returned
   // disposable will be disposed of when the component is removed.
   onMount?(redrawCanvas: () => void): Disposable | void;
+
+  // Override styles from base interface, only allowing object type styles
+  // rather than strings.
+  style?: Partial<CSSStyleDeclaration>;
 }
 
 function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
@@ -105,16 +110,23 @@ export class VirtualOverlayCanvas
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
-    const {overflowX = 'visible', overflowY = 'visible'} = attrs;
+    const {
+      overflowX = 'visible',
+      overflowY = 'visible',
+      style = {},
+      ...rest
+    } = attrs;
 
     return m(
       '.pf-virtual-overlay-canvas', // The scrolling container
       {
         className: attrs.className,
         style: {
+          ...style,
           overflowX,
           overflowY,
         },
+        ...rest,
       },
       m(
         '.pf-virtual-overlay-canvas__content', // Container for scrolling element, used for sizing the canvas

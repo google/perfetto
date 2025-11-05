@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {
-  createSelectColumnsProto,
   QueryNode,
   QueryNodeState,
   NodeType,
@@ -24,8 +23,6 @@ import {
 } from '../../../query_node';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
-import {Card} from '../../../../../widgets/card';
-import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {
   createExperimentalFiltersProto,
@@ -34,20 +31,12 @@ import {
 } from '../../operations/filter';
 
 export interface SlicesSourceSerializedState {
-  slice_name?: string;
-  thread_name?: string;
-  process_name?: string;
-  track_name?: string;
   filters?: UIFilter[];
   filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
 export interface SlicesSourceState extends QueryNodeState {
-  slice_name?: string;
-  thread_name?: string;
-  process_name?: string;
-  track_name?: string;
   onchange?: () => void;
 }
 
@@ -63,6 +52,7 @@ export class SlicesSourceNode implements SourceNode {
     this.state.onchange = attrs.onchange;
     this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
     this.nextNodes = [];
+    this.state.filters = attrs.filters ?? [];
   }
 
   get type() {
@@ -75,25 +65,18 @@ export class SlicesSourceNode implements SourceNode {
 
   clone(): QueryNode {
     const stateCopy: SlicesSourceState = {
-      slice_name: this.state.slice_name?.slice(),
-      thread_name: this.state.thread_name?.slice(),
-      process_name: this.state.process_name?.slice(),
-      track_name: this.state.track_name?.slice(),
-      filters: this.state.filters ? [...this.state.filters] : undefined,
+      filters: this.state.filters?.map((f) => ({...f})),
+      onchange: this.state.onchange,
     };
     return new SlicesSourceNode(stateCopy);
   }
 
   getTitle(): string {
-    return 'Simple slices';
+    return 'Slices with details';
   }
 
   serializeState(): SlicesSourceSerializedState {
     return {
-      slice_name: this.state.slice_name,
-      thread_name: this.state.thread_name,
-      process_name: this.state.process_name,
-      track_name: this.state.track_name,
       filters: this.state.filters,
       filterOperator: this.state.filterOperator,
       comment: this.state.comment,
@@ -105,14 +88,9 @@ export class SlicesSourceNode implements SourceNode {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = this.nodeId;
-    const ss = new protos.PerfettoSqlStructuredQuery.SimpleSlices();
-
-    if (this.state.slice_name) ss.sliceNameGlob = this.state.slice_name;
-    if (this.state.thread_name) ss.threadNameGlob = this.state.thread_name;
-    if (this.state.process_name) ss.processNameGlob = this.state.process_name;
-    if (this.state.track_name) ss.trackNameGlob = this.state.track_name;
-
-    sq.simpleSlices = ss;
+    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
+    sq.table.tableName = 'thread_or_process_slice';
+    sq.table.moduleName = 'slices.with_context';
 
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,
@@ -121,116 +99,31 @@ export class SlicesSourceNode implements SourceNode {
     );
     if (filtersProto) sq.experimentalFilterGroup = filtersProto;
 
-    const selectedColumns = createSelectColumnsProto(this);
-    if (selectedColumns) sq.selectColumns = selectedColumns;
+    // Manually create selectColumns for the specific columns we want
+    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
+    for (const col of this.finalCols) {
+      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+      selectColumn.columnName = col.column.name;
+      selectColumns.push(selectColumn);
+    }
+    sq.selectColumns = selectColumns;
 
     return sq;
   }
 
-  nodeDetails?(): m.Child | undefined {
-    const details: m.Child[] = [];
-    if (this.state.slice_name) {
-      details.push(m('div', `slice_name: ${this.state.slice_name}`));
-    }
-    if (this.state.thread_name) {
-      details.push(m('div', `thread_name: ${this.state.thread_name}`));
-    }
-    if (this.state.process_name) {
-      details.push(m('div', `process_name: ${this.state.process_name}`));
-    }
-    if (this.state.track_name) {
-      details.push(m('div', `track_name: ${this.state.track_name}`));
-    }
-
-    if (details.length === 0) {
-      return;
-    }
-    return m('.pf-slice-source-details', details);
-  }
-
   nodeSpecificModify(): m.Child {
-    return m(
-      '',
-      m(
-        Card,
-        m(
-          '.pf-slice-source-label',
-          m('span', 'Slice name'),
-          m(TextInput, {
-            id: 'slice_name_glob',
-            type: 'string',
-            value: this.state.slice_name ?? '',
-            placeholder: 'MySlice*',
-            oninput: (e: Event) => {
-              if (!e.target) return;
-              this.state.slice_name = (
-                e.target as HTMLInputElement
-              ).value.trim();
-            },
-          }),
-        ),
-        m(
-          '.pf-slice-source-label',
-          m('span', 'Thread name'),
-          m(TextInput, {
-            id: 'thread_name_glob',
-            type: 'string',
-            value: this.state.thread_name ?? '',
-            placeholder: 'RenderThread',
-            oninput: (e: Event) => {
-              if (!e.target) return;
-              this.state.thread_name = (
-                e.target as HTMLInputElement
-              ).value.trim();
-            },
-          }),
-        ),
-        m(
-          '.pf-slice-source-label',
-          m('span', 'Process name'),
-          m(TextInput, {
-            id: 'process_name_glob',
-            type: 'string',
-            value: this.state.process_name ?? '',
-            placeholder: '*chrome*',
-            oninput: (e: Event) => {
-              if (!e.target) return;
-              this.state.process_name = (
-                e.target as HTMLInputElement
-              ).value.trim();
-            },
-          }),
-        ),
-        m(
-          '.pf-slice-source-label',
-          m('span', 'Track name'),
-          m(TextInput, {
-            id: 'track_name_glob',
-            type: 'string',
-            value: this.state.track_name ?? '',
-            placeholder: 'SurfaceFlinger',
-            oninput: (e: Event) => {
-              if (!e.target) return;
-              this.state.track_name = (
-                e.target as HTMLInputElement
-              ).value.trim();
-            },
-          }),
-        ),
-      ),
-      renderFilterOperation(
-        this.state.filters,
-        this.state.filterOperator,
-        this.finalCols,
-        (newFilters) => {
-          this.state.filters = [...newFilters];
-          this.state.onchange?.();
-        },
-        (operator) => {
-          this.state.filterOperator = operator;
-          this.state.onchange?.();
-        },
-      ),
+    return renderFilterOperation(
+      this.state.filters,
+      this.state.filterOperator,
+      this.finalCols,
+      (newFilters) => {
+        this.state.filters = [...newFilters];
+        this.state.onchange?.();
+      },
+      (operator) => {
+        this.state.filterOperator = operator;
+        this.state.onchange?.();
+      },
     );
   }
 }
@@ -260,15 +153,19 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
-      name: 'slice_name',
+      name: 'name',
       type: {
         kind: 'string',
       },
     },
     {
-      name: 'thread_name',
+      name: 'track_id',
       type: {
-        kind: 'string',
+        kind: 'joinid',
+        source: {
+          table: 'track',
+          column: 'id',
+        },
       },
     },
     {
@@ -278,9 +175,45 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
-      name: 'track_name',
+      name: 'upid',
+      type: {
+        kind: 'joinid',
+        source: {
+          table: 'process',
+          column: 'id',
+        },
+      },
+    },
+    {
+      name: 'thread_name',
       type: {
         kind: 'string',
+      },
+    },
+    {
+      name: 'utid',
+      type: {
+        kind: 'joinid',
+        source: {
+          table: 'thread',
+          column: 'id',
+        },
+      },
+    },
+    {
+      name: 'depth',
+      type: {
+        kind: 'int',
+      },
+    },
+    {
+      name: 'parent_id',
+      type: {
+        kind: 'joinid',
+        source: {
+          table: 'slice',
+          column: 'id',
+        },
       },
     },
   ];

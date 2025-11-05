@@ -25,6 +25,7 @@ import {languages} from '../sample_data';
 import {MenuItem} from '../../../widgets/menu';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {EmptyState} from '../../../widgets/empty_state';
 
 type QueryDataGridAttrs = Omit<DataGridAttrs, 'data'> & {
   readonly query: string;
@@ -117,6 +118,7 @@ export function renderDataGrid(app: App): m.Children {
         showResetButton: false,
         demoToolbarItems: false,
       },
+      noPadding: true,
     }),
 
     renderDocSection('DataGrid + SqlDataSource', [
@@ -171,7 +173,16 @@ export function renderDataGrid(app: App): m.Children {
             ],
           });
         } else {
-          return 'Load a trace to start';
+          return m(
+            EmptyState,
+            {
+              style: {
+                height: '100%',
+              },
+              icon: 'search_off',
+            },
+            'Load a trace to start',
+          );
         }
       },
       initialOpts: {
@@ -180,6 +191,7 @@ export function renderDataGrid(app: App): m.Children {
         readonlySorting: false,
         aggregation: false,
       },
+      noPadding: true,
     }),
   ];
 }
