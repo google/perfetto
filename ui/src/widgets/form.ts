@@ -53,8 +53,8 @@ export interface FormAttrs extends HTMLAttrs {
 export class Form implements m.ClassComponent<FormAttrs> {
   view({attrs, children}: m.CVnode<FormAttrs>) {
     const {
-      submitIcon = undefined,
-      submitLabel = 'Submit',
+      submitIcon,
+      submitLabel,
       cancelLabel,
       resetLabel,
       onSubmit = () => {},
@@ -66,36 +66,38 @@ export class Form implements m.ClassComponent<FormAttrs> {
       'form.pf-form',
       htmlAttrs,
       children,
-      m(
-        '.pf-form-button-bar',
-        m(Button, {
-          type: 'submit',
-          label: submitLabel,
-          rightIcon: submitIcon,
-          className: Popup.DISMISS_POPUP_GROUP_CLASS,
-          intent: Intent.Primary,
-          variant: ButtonVariant.Filled,
-          onclick: (e: Event) => {
-            preventDefault && e.preventDefault();
-            onSubmit(e);
-          },
-        }),
-        // This cancel button just closes the popup if we are inside one.
-        cancelLabel &&
-          m(Button, {
-            type: 'button',
-            label: cancelLabel,
-            variant: ButtonVariant.Filled,
-            className: Popup.DISMISS_POPUP_GROUP_CLASS,
-          }),
-        // This reset button just clears the form.
-        resetLabel &&
-          m(Button, {
-            label: resetLabel,
-            variant: ButtonVariant.Filled,
-            type: 'reset',
-          }),
-      ),
+      (submitLabel || cancelLabel || resetLabel) &&
+        m(
+          '.pf-form__button-bar',
+          submitLabel &&
+            m(Button, {
+              type: 'submit',
+              label: submitLabel,
+              rightIcon: submitIcon,
+              className: Popup.DISMISS_POPUP_GROUP_CLASS,
+              intent: Intent.Primary,
+              variant: ButtonVariant.Filled,
+              onclick: (e: Event) => {
+                preventDefault && e.preventDefault();
+                onSubmit(e);
+              },
+            }),
+          // This cancel button just closes the popup if we are inside one.
+          cancelLabel &&
+            m(Button, {
+              type: 'button',
+              label: cancelLabel,
+              variant: ButtonVariant.Filled,
+              className: Popup.DISMISS_POPUP_GROUP_CLASS,
+            }),
+          // This reset button just clears the form.
+          resetLabel &&
+            m(Button, {
+              label: resetLabel,
+              variant: ButtonVariant.Filled,
+              type: 'reset',
+            }),
+        ),
     );
   }
 
@@ -130,6 +132,6 @@ export class Form implements m.ClassComponent<FormAttrs> {
 // or by referencing the input's "id" tag with a "for" tag.
 export class FormLabel implements m.ClassComponent<HTMLLabelAttrs> {
   view({attrs, children}: m.CVnode<HTMLLabelAttrs>) {
-    return m('label.pf-form-label', attrs, children);
+    return m('label.pf-form__label', attrs, children);
   }
 }
