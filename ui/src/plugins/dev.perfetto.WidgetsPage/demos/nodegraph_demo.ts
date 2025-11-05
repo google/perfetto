@@ -230,11 +230,21 @@ function unionNode(): NodeModelKernel {
   };
 }
 
+function renderNodeContextMenu() {
+  return [
+    m(MenuItem, {
+      label: 'Delete',
+      icon: 'delete',
+    }),
+  ];
+}
+
 interface NodeGraphDemoAttrs {
   readonly multiselect?: boolean;
   readonly titleBars?: boolean;
   readonly accentBars?: boolean;
   readonly colors?: boolean;
+  readonly contextMenus?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
@@ -466,6 +476,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             ? {title: model.kernel.name.toUpperCase()}
             : undefined,
           hue: attrs.colors ? model.kernel.hue : undefined,
+          contextMenuItems: attrs.contextMenus
+            ? renderNodeContextMenu()
+            : undefined,
         };
       }
 
@@ -487,6 +500,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             ? {title: model.kernel.name.toUpperCase()}
             : undefined,
           hue: attrs.colors ? model.kernel.hue : undefined,
+          contextMenuItems: attrs.contextMenus
+            ? renderNodeContextMenu()
+            : undefined,
         };
       }
 
@@ -678,6 +694,7 @@ export function renderNodeGraph() {
         accentBars: true,
         titleBars: false,
         colors: true,
+        contextMenus: true,
       },
     }),
 

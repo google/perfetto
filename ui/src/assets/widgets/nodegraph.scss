@@ -160,7 +160,7 @@
 .pf-node-header {
   /* Default background when hue is not set */
   background: var(--pf-color-background);
-  padding: 6px 12px;
+  padding: 6px 6px;
   border-radius: 6px 6px 0 0;
   display: flex;
   border-bottom: 1px solid var(--pf-color-border);
@@ -201,6 +201,14 @@
 
 .pf-node-title {
   flex: 1;
+  padding-left: 6px;
+}
+
+.pf-node-context-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
 }
 
 .pf-node-content {
