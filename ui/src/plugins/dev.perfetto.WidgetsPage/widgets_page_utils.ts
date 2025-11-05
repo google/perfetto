@@ -105,7 +105,7 @@ class WidgetShowcase<T extends Options>
           '.pf-widgets-page__widget-container',
           {
             className: classNames(
-              noPadding && 'pf-widget-container--no-padding',
+              noPadding && 'pf-widgets-page__widget-container--no-padding',
             ),
           },
           renderWidget(this.optionValues as TransformOptions<T>),

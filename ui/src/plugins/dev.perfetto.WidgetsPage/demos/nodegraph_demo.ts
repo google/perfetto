@@ -679,7 +679,6 @@ export function renderNodeGraph() {
         titleBars: false,
         colors: true,
       },
-      noPadding: true,
     }),
 
     renderDocSection('User Interaction Guide', [
