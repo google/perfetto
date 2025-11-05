@@ -27,6 +27,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
@@ -342,6 +343,10 @@ int ClosePlatformHandle(PlatformHandle handle) {
 
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+  return base::ErrStatus("ListFilesRecursive not supported yet");
+#endif
+
   std::string root_dir_path = dir_path;
   if (root_dir_path.back() == '\\') {
     root_dir_path.back() = '/';
@@ -354,12 +359,15 @@ base::Status ListFilesRecursive(const std::string& dir_path,
   std::deque<std::string> dir_queue;
   dir_queue.push_back(root_dir_path);
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Used to avoid infinite loops with circular symlinks.
+  base::FlatSet<std::pair<dev_t, ino_t>> visited_dirs;
+#endif
+
   while (!dir_queue.empty()) {
     const std::string cur_dir = std::move(dir_queue.front());
     dir_queue.pop_front();
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
-    return base::ErrStatus("ListFilesRecursive not supported yet");
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     std::string glob_path = cur_dir + "*";
     // + 1 because we also have to count the NULL terminator.
     if (glob_path.length() + 1 > MAX_PATH)
@@ -400,8 +408,21 @@ base::Status ListFilesRecursive(const std::string& dir_path,
       }
       struct stat dirstat;
       std::string full_path = cur_dir + dirent->d_name;
-      PERFETTO_CHECK(stat(full_path.c_str(), &dirstat) == 0);
+
+      if (stat(full_path.c_str(), &dirstat) != 0) {
+        // skip broken symlinks.
+        if (errno == ENOENT) {
+          continue;
+        }
+        PERFETTO_FATAL("stat %s", full_path.c_str());
+      }
+
       if (S_ISDIR(dirstat.st_mode)) {
+        auto dir_id = std::make_pair(dirstat.st_dev, dirstat.st_ino);
+        if (visited_dirs.find(dir_id) != visited_dirs.end()) {
+          continue;
+        }
+        visited_dirs.insert(dir_id);
         dir_queue.push_back(full_path + '/');
       } else if (S_ISREG(dirstat.st_mode)) {
         PERFETTO_CHECK(full_path.length() > root_dir_path.length());

@@ -35,10 +35,12 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "test/gtest_and_gmock.h"
 #include "test/status_matchers.h"
 
 using testing::StartsWith;
+using testing::UnorderedElementsAre;
 
 namespace perfetto {
 namespace base {
@@ -340,6 +342,170 @@ TEST(UtilsTest, GetFileSize) {
   auto maybe_size = GetFileSize(file.path());
   ASSERT_TRUE(maybe_size.has_value());
   ASSERT_EQ(maybe_size.value(), payload.size());
+}
+
+TEST(UtilsTest, ListFilesRecursive) {
+  // Test empty directory
+  {
+    TmpDirTree tree;
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    EXPECT_TRUE(files.empty());
+  }
+
+  // Test non-existent directory
+  {
+    TmpDirTree tree;
+    std::string nonexistent_dir_path = tree.AbsolutePath("nonexistent");
+    std::vector<std::string> files;
+    auto status = ListFilesRecursive(nonexistent_dir_path, files);
+    EXPECT_FALSE(status.ok());
+  }
+
+  // Test traverse a file, not a directory
+  {
+    TmpDirTree tree;
+    tree.AddFile("file.txt", "content");
+    std::string file_path = tree.AbsolutePath("file.txt");
+    std::vector<std::string> files;
+    auto status = ListFilesRecursive(file_path, files);
+    EXPECT_FALSE(status.ok());
+  }
+
+  // Test nested directories with files
+  {
+    TmpDirTree tree;
+    tree.AddFile("root.txt", "root");
+    tree.AddDir("dir1");
+    tree.AddFile("dir1/file1.txt", "content1");
+    tree.AddDir("dir2");
+    tree.AddFile("dir2/file2.txt", "content2");
+    tree.AddDir("dir1/subdir");
+    tree.AddFile("dir1/subdir/nested.txt", "nested");
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    EXPECT_THAT(files, UnorderedElementsAre("root.txt", "dir1/file1.txt",
+                                            "dir2/file2.txt",
+                                            "dir1/subdir/nested.txt"));
+  }
+
+  // Test empty subdirectories (should not appear in output)
+  {
+    TmpDirTree tree;
+    tree.AddFile("file.txt", "content");
+    tree.AddDir("empty_dir");
+    tree.AddDir("dir_with_file");
+    tree.AddFile("dir_with_file/file.txt", "content");
+    tree.AddDir("dir_with_file/empty_subdir");
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    EXPECT_THAT(files,
+                UnorderedElementsAre("file.txt", "dir_with_file/file.txt"));
+  }
+
+  // Test path with trailing slashes
+  {
+    TmpDirTree tree;
+    tree.AddFile("file.txt", "content");
+    std::string path_with_slash = tree.path() + "/";
+    std::string path_with_backslash = tree.path() + "\\";
+    {
+      std::vector<std::string> files;
+      ASSERT_OK(ListFilesRecursive(path_with_slash, files));
+      EXPECT_THAT(files, UnorderedElementsAre("file.txt"));
+    }
+    {
+      std::vector<std::string> files;
+      ASSERT_OK(ListFilesRecursive(path_with_backslash, files));
+      EXPECT_THAT(files, UnorderedElementsAre("file.txt"));
+    }
+  }
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Test symlinks to files
+  {
+    TmpDirTree tree;
+    tree.AddFile("target.txt", "target content");
+    tree.AddDir("dir");
+    tree.AddFile("dir/file.txt", "file content");
+
+    // Create symlink to file in root
+    std::string symlink_path = tree.AbsolutePath("link_to_target.txt");
+    std::string target_path = tree.AbsolutePath("target.txt");
+    ASSERT_EQ(symlink(target_path.c_str(), symlink_path.c_str()), 0);
+    tree.TrackFile("link_to_target.txt");
+
+    // Create symlink to file in subdirectory
+    std::string symlink_in_dir = tree.AbsolutePath("dir/link_to_file.txt");
+    std::string target_in_dir = tree.AbsolutePath("dir/file.txt");
+    ASSERT_EQ(symlink(target_in_dir.c_str(), symlink_in_dir.c_str()), 0);
+    tree.TrackFile("dir/link_to_file.txt");
+
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    EXPECT_THAT(files,
+                UnorderedElementsAre("target.txt", "link_to_target.txt",
+                                     "dir/file.txt", "dir/link_to_file.txt"));
+  }
+
+  // Test symlinks to directories
+  {
+    TmpDirTree second_tree;
+    second_tree.AddFile("second_file.txt", "content");
+
+    TmpDirTree tree;
+    tree.AddDir("real_dir");
+    tree.AddFile("real_dir/file.txt", "content");
+
+    // Create symlink to directory
+    std::string symlink_path = tree.AbsolutePath("link_to_second_dir");
+    ASSERT_EQ(symlink(second_tree.path().c_str(), symlink_path.c_str()), 0);
+    tree.TrackFile("link_to_second_dir");
+
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    EXPECT_THAT(files,
+                UnorderedElementsAre("link_to_second_dir/second_file.txt",
+                                     "real_dir/file.txt"));
+  }
+
+  // Test broken symlink (symlink to non-existent file)
+  // Should skip broken symlinks instead of crashing
+  {
+    TmpDirTree tree;
+    tree.AddFile("valid.txt", "content");
+
+    // Create symlink to non-existent file
+    std::string symlink_path = tree.AbsolutePath("broken_link");
+    std::string nonexistent_path = tree.AbsolutePath("nonexistent");
+    ASSERT_EQ(symlink(nonexistent_path.c_str(), symlink_path.c_str()), 0);
+    tree.TrackFile("broken_link");
+
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    // Broken symlinks should be skipped
+    EXPECT_THAT(files, UnorderedElementsAre("valid.txt"));
+  }
+
+  // Test circular symlinks
+  // Should detect and avoid infinite loops
+  {
+    TmpDirTree tree;
+    tree.AddDir("dir1");
+    tree.AddFile("dir1/file.txt", "content");
+
+    // Create circular symlink: dir1/link -> dir1
+    std::string symlink_path = tree.AbsolutePath("dir1/link");
+    std::string target_path = tree.AbsolutePath("dir1");
+    ASSERT_EQ(symlink(target_path.c_str(), symlink_path.c_str()), 0);
+    tree.TrackFile("dir1/link");
+
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    // Should only get the file once, not infinitely loop
+    EXPECT_THAT(files, UnorderedElementsAre("dir1/file.txt"));
+  }
+#endif  // !PERFETTO_OS_WIN
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
