@@ -392,7 +392,7 @@ base::Status ListFilesRecursive(const std::string& dir_path,
       } else {
         const std::string full_path = cur_dir + ffd.cFileName;
         PERFETTO_CHECK(full_path.length() > root_dir_path.length());
-        output.push_back(full_path.substr(root_dir_path.length()));
+        output.push_back(full_path);
       }
     } while (FindNextFileA(*hFind, &ffd));
 #else
@@ -426,7 +426,7 @@ base::Status ListFilesRecursive(const std::string& dir_path,
         dir_queue.push_back(full_path + '/');
       } else if (S_ISREG(dirstat.st_mode)) {
         PERFETTO_CHECK(full_path.length() > root_dir_path.length());
-        output.push_back(full_path.substr(root_dir_path.length()));
+        output.push_back(full_path);
       }
     }
 #endif

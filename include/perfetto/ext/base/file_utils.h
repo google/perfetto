@@ -96,10 +96,10 @@ bool FileExists(const std::string& path);
 // extension.
 std::string GetFileExtension(const std::string& filename);
 
-// Puts the path to all files under |dir_path| in |output|, recursively walking
-// subdirectories. File paths are relative to |dir_path|. Only files are
-// included, not directories. Path separator is always '/', even on windows (not
-// '\').
+// Add absolute paths of all files under |dir_path| to |output|, recursively
+// walking subdirectories. This function follows files and directories symlinks
+// . Only files are included, not directories. Path separator is always '/',
+// even on Windows (not '\').
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output);
 

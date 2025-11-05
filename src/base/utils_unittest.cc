@@ -40,7 +40,7 @@
 #include "test/status_matchers.h"
 
 using testing::StartsWith;
-using testing::UnorderedElementsAre;
+using testing::UnorderedElementsAreArray;
 
 namespace perfetto {
 namespace base {
@@ -345,6 +345,15 @@ TEST(UtilsTest, GetFileSize) {
 }
 
 TEST(UtilsTest, ListFilesRecursive) {
+  auto UnorderedRelativePathsAre =
+      [](TmpDirTree& tree, std::initializer_list<std::string> paths) {
+        std::vector<std::string> absolute_paths;
+        for (const std::string& path : paths) {
+          absolute_paths.push_back(tree.AbsolutePath(path));
+        }
+        return UnorderedElementsAreArray(absolute_paths);
+      };
+
   // Test empty directory
   {
     TmpDirTree tree;
@@ -384,9 +393,9 @@ TEST(UtilsTest, ListFilesRecursive) {
     tree.AddFile("dir1/subdir/nested.txt", "nested");
     std::vector<std::string> files;
     ASSERT_OK(ListFilesRecursive(tree.path(), files));
-    EXPECT_THAT(files, UnorderedElementsAre("root.txt", "dir1/file1.txt",
-                                            "dir2/file2.txt",
-                                            "dir1/subdir/nested.txt"));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(
+                           tree, {"root.txt", "dir1/file1.txt",
+                                  "dir2/file2.txt", "dir1/subdir/nested.txt"}));
   }
 
   // Test empty subdirectories (should not appear in output)
@@ -399,8 +408,8 @@ TEST(UtilsTest, ListFilesRecursive) {
     tree.AddDir("dir_with_file/empty_subdir");
     std::vector<std::string> files;
     ASSERT_OK(ListFilesRecursive(tree.path(), files));
-    EXPECT_THAT(files,
-                UnorderedElementsAre("file.txt", "dir_with_file/file.txt"));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(
+                           tree, {"file.txt", "dir_with_file/file.txt"}));
   }
 
   // Test path with trailing slashes
@@ -412,12 +421,12 @@ TEST(UtilsTest, ListFilesRecursive) {
     {
       std::vector<std::string> files;
       ASSERT_OK(ListFilesRecursive(path_with_slash, files));
-      EXPECT_THAT(files, UnorderedElementsAre("file.txt"));
+      EXPECT_THAT(files, UnorderedRelativePathsAre(tree, {"file.txt"}));
     }
     {
       std::vector<std::string> files;
       ASSERT_OK(ListFilesRecursive(path_with_backslash, files));
-      EXPECT_THAT(files, UnorderedElementsAre("file.txt"));
+      EXPECT_THAT(files, UnorderedRelativePathsAre(tree, {"file.txt"}));
     }
   }
 
@@ -443,9 +452,9 @@ TEST(UtilsTest, ListFilesRecursive) {
 
     std::vector<std::string> files;
     ASSERT_OK(ListFilesRecursive(tree.path(), files));
-    EXPECT_THAT(files,
-                UnorderedElementsAre("target.txt", "link_to_target.txt",
-                                     "dir/file.txt", "dir/link_to_file.txt"));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(
+                           tree, {"target.txt", "link_to_target.txt",
+                                  "dir/file.txt", "dir/link_to_file.txt"}));
   }
 
   // Test symlinks to directories
@@ -464,9 +473,9 @@ TEST(UtilsTest, ListFilesRecursive) {
 
     std::vector<std::string> files;
     ASSERT_OK(ListFilesRecursive(tree.path(), files));
-    EXPECT_THAT(files,
-                UnorderedElementsAre("link_to_second_dir/second_file.txt",
-                                     "real_dir/file.txt"));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(
+                           tree, {"link_to_second_dir/second_file.txt",
+                                  "real_dir/file.txt"}));
   }
 
   // Test broken symlink (symlink to non-existent file)
@@ -484,7 +493,7 @@ TEST(UtilsTest, ListFilesRecursive) {
     std::vector<std::string> files;
     ASSERT_OK(ListFilesRecursive(tree.path(), files));
     // Broken symlinks should be skipped
-    EXPECT_THAT(files, UnorderedElementsAre("valid.txt"));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(tree, {"valid.txt"}));
   }
 
   // Test circular symlinks
@@ -503,7 +512,7 @@ TEST(UtilsTest, ListFilesRecursive) {
     std::vector<std::string> files;
     ASSERT_OK(ListFilesRecursive(tree.path(), files));
     // Should only get the file once, not infinitely loop
-    EXPECT_THAT(files, UnorderedElementsAre("dir1/file.txt"));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(tree, {"dir1/file.txt"}));
   }
 #endif  // !PERFETTO_OS_WIN
 }
