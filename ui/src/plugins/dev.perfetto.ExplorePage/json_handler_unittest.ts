@@ -77,9 +77,7 @@ describe('JSON serialization/deserialization', () => {
   });
 
   test('serializes and deserializes a simple graph', () => {
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-    });
+    const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
       nodeLayouts: new Map(),
@@ -90,9 +88,7 @@ describe('JSON serialization/deserialization', () => {
 
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0];
-    expect((deserializedNode as SlicesSourceNode).state.slice_name).toBe(
-      'test_slice',
-    );
+    expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
   });
 
   test('handles multiple nodes and connections', () => {
@@ -328,9 +324,7 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
 
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-    });
+    const sliceNode = new SlicesSourceNode({});
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode, sliceNode],
@@ -1177,9 +1171,7 @@ describe('JSON serialization/deserialization', () => {
 
   test('deserializes graph without nodeLayouts field (auto-layout)', () => {
     // Create a real node and serialize it
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-    });
+    const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
       nodeLayouts: new Map(),
@@ -1200,6 +1192,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     expect(deserializedState.nodeLayouts.size).toBe(0);
     const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
-    expect(deserializedNode.state.slice_name).toBe('test_slice');
+    expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
   });
 });
