@@ -1441,26 +1441,25 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
   sql_modules::NameToPackage modules;
-  for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql") {
+  for (const auto& file_path : paths) {
+    if (base::GetFileExtension(file_path) != ".sql") {
       continue;
     }
-
-    std::string path_no_extension = path.substr(0, path.rfind('.'));
-    if (path_no_extension.find('.') != std::string_view::npos) {
+    std::string file_name = file_path.substr(file_path.rfind('/'));
+    std::string file_name_no_extension = file_name.substr(0, file_path.rfind('.'));
+    if (file_name_no_extension.find('.') != std::string_view::npos) {
       PERFETTO_ELOG("Skipping module %s as it contains a dot in its path.",
-                    path_no_extension.c_str());
+                    file_name_no_extension.c_str());
       continue;
     }
 
-    std::string filename = root + "/" + path;
     std::string file_contents;
-    if (!base::ReadFile(filename, &file_contents)) {
-      return base::ErrStatus("Cannot read file %s", filename.c_str());
+    if (!base::ReadFile(file_path, &file_contents)) {
+      return base::ErrStatus("Cannot read file %s", file_path.c_str());
     }
 
     std::string import_key =
-        package_name + "." + sql_modules::GetIncludeKey(path);
+        package_name + "." + sql_modules::GetIncludeKey(file_name);
     modules.Insert(package_name, {})
         .first->push_back({import_key, file_contents});
   }
@@ -1491,12 +1490,12 @@ base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
     if (base::GetFileExtension(path) != ".sql") {
       continue;
     }
-    std::string filename = root + "/" + path;
     std::string module_file;
-    if (!base::ReadFile(filename, &module_file)) {
-      return base::ErrStatus("Cannot read file '%s'", filename.c_str());
+    if (!base::ReadFile(path, &module_file)) {
+      return base::ErrStatus("Cannot read file '%s'", path.c_str());
     }
-    std::string module_name = sql_modules::GetIncludeKey(path);
+    std::string file_name = path.substr(path.rfind('/'));
+    std::string module_name = sql_modules::GetIncludeKey(file_name);
     std::string package_name = sql_modules::GetPackageName(module_name);
     packages.Insert(package_name, {})
         .first->push_back({module_name, module_file});
@@ -1528,7 +1527,7 @@ base::Status LoadMetricExtensionProtos(TraceProcessor* trace_processor,
     if (base::GetFileExtension(file_path) != ".proto")
       continue;
     auto* file_desc = parsed_protos.add_file();
-    ParseToFileDescriptorProto(proto_root + file_path, file_desc);
+    ParseToFileDescriptorProto(file_path, file_desc);
     file_desc->set_name(mount_path + file_path);
   }
 
@@ -1563,7 +1562,7 @@ base::Status LoadMetricExtensionSql(TraceProcessor* trace_processor,
     if (base::GetFileExtension(file_path) != ".sql")
       continue;
     std::string file_contents;
-    if (!base::ReadFile(sql_root + file_path, &file_contents)) {
+    if (!base::ReadFile(file_path, &file_contents)) {
       return base::ErrStatus("Cannot read file %s", file_path.c_str());
     }
     RETURN_IF_ERROR(
@@ -1841,16 +1840,15 @@ base::Status MaybeUpdateSqlPackages(TraceProcessor* trace_processor,
 
 base::Status RegisterAllFilesInFolder(const std::string& path,
                                       TraceProcessor& tp) {
-  std::vector<std::string> files;
-  RETURN_IF_ERROR(base::ListFilesRecursive(path, files));
-  for (const std::string& file : files) {
-    std::string file_full_path = path + "/" + file;
-    base::ScopedMmap mmap = base::ReadMmapWholeFile(file_full_path);
+  std::vector<std::string> file_paths;
+  RETURN_IF_ERROR(base::ListFilesRecursive(path, file_paths));
+  for (const std::string& file_path : file_paths) {
+    base::ScopedMmap mmap = base::ReadMmapWholeFile(file_path);
     if (!mmap.IsValid()) {
-      return base::ErrStatus("Failed to mmap file: %s", file_full_path.c_str());
+      return base::ErrStatus("Failed to mmap file: %s", file_path.c_str());
     }
     RETURN_IF_ERROR(tp.RegisterFileContent(
-        file_full_path, TraceBlob::FromMmap(std::move(mmap))));
+        file_path, TraceBlob::FromMmap(std::move(mmap))));
   }
   return base::OkStatus();
 }

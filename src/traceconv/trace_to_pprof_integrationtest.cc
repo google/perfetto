@@ -50,11 +50,11 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   auto conv_stdout = base::SplitString(ss.str(), " ");
   PERFETTO_CHECK(!conv_stdout.empty());
   std::string out_dirname = base::TrimWhitespace(conv_stdout.back());
-  std::vector<std::string> filenames;
-  base::ListFilesRecursive(out_dirname, filenames);
+  std::vector<std::string> file_paths;
+  base::ListFilesRecursive(out_dirname, file_paths);
   // assumption: all test inputs contain exactly one profile
-  PERFETTO_CHECK(filenames.size() == 1);
-  std::string profile_path = out_dirname + "/" + filenames[0];
+  PERFETTO_CHECK(file_paths.size() == 1);
+  std::string profile_path = file_paths[0];
 
   // read in the profile contents and then clean up the temp files
   pprof::PprofProfileReader pprof_reader(profile_path);
