@@ -1244,6 +1244,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           canvasState.connecting.portIndex === portIndex &&
           canvasState.connecting.type === portType &&
           'pf-active',
+        port.contextMenuItems !== undefined && 'pf-port--with-context-menu',
       );
 
       const portElement = m(

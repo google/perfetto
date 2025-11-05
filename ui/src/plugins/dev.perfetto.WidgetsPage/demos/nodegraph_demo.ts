@@ -468,6 +468,36 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   // Add a single table node to start with
   addNode(tableNode);
 
+  function renderAddNodeMenu(toNode: string) {
+    return [
+      m(MenuItem, {
+        label: 'Select',
+        icon: 'filter_alt',
+        onclick: () => addNode(selectNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Filter',
+        icon: 'filter_list',
+        onclick: () => addNode(filterNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Join',
+        icon: 'join',
+        onclick: () => addNode(joinNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Union',
+        icon: 'merge',
+        onclick: () => addNode(unionNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Result',
+        icon: 'output',
+        onclick: () => addNode(resultNode, toNode),
+      }),
+    ];
+  }
+
   // Find root nodes (not referenced by any other node's nextId)
   function getRootNodeIds(): string[] {
     const referenced = new Set<string>();
@@ -501,7 +531,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           x: model.x,
           y: model.y,
           inputs: model.kernel.inputs,
-          outputs: model.kernel.outputs,
+          outputs: model.kernel.outputs?.map((out) => {
+            return {...out, contextMenuItems: renderAddNodeMenu(model.id)};
+          }),
           content: model.kernel.renderContent?.(),
           canDockBottom: model.kernel.canDockBottom,
           canDockTop: model.kernel.canDockTop,
@@ -525,7 +557,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return {
           id: model.id,
           inputs: model.kernel.inputs,
-          outputs: model.kernel.outputs,
+          outputs: model.kernel.outputs?.map((out) => {
+            return {...out, contextMenuItems: renderAddNodeMenu(model.id)};
+          }),
           content: model.kernel.renderContent?.(),
           canDockBottom: model.kernel.canDockBottom,
           canDockTop: model.kernel.canDockTop,
