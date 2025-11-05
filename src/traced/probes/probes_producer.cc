@@ -61,7 +61,7 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 // Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
 
-constexpr size_t kTracingSharedMemSizeHintBytes = 1024 * 1024;
+constexpr size_t kTracingSharedMemSizeHintBytes = 2 * 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
 
 base::CrashKey g_crash_key_ds_count("ds_instance_count");
