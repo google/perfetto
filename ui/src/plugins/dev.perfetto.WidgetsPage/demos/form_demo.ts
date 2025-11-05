@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Form, FormLabel} from '../../../widgets/form';
+import {Form, FormLabel, FormSection} from '../../../widgets/form';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
@@ -58,35 +58,43 @@ function renderFormContent(
       required: true,
       placeholder: 'This field is required',
     }),
-    m(FormLabel, {for: `${id}-email`}, 'Email (*)'),
-    m(TextInput, {
-      id: `${id}-email`,
-      type: 'email',
-      required: true,
-      placeholder: 'Enter a valid email',
-    }),
-    m(FormLabel, {for: `${id}-pattern`}, 'Pattern (5 digits)'),
-    m(TextInput, {
-      id: `${id}-pattern`,
-      pattern: '[0-9]{5}',
-      placeholder: 'Enter exactly 5 digits',
-      title: 'Please enter exactly 5 digits',
-    }),
-    m(FormLabel, {for: `${id}-required-select`}, 'Required Select (*)'),
-    m(Select, {id: `${id}-required-select`, required: true}, [
-      m('option', {value: '', label: '-- Select an option --'}),
-      m('option', {value: 'option1', label: 'Option 1'}),
-      m('option', {value: 'option2', label: 'Option 2'}),
-      m('option', {value: 'option3', label: 'Option 3'}),
-    ]),
-    m(Checkbox, {
-      label: 'I agree to the terms and conditions',
-      id: `${id}-checkbox`,
-    }),
-    m(Switch, {
-      label: 'Enable notifications',
-      id: `${id}-switch`,
-    }),
+    m(
+      FormSection,
+      {label: 'Form Section'},
+      m(FormLabel, {for: `${id}-email`}, 'Email (*)'),
+      m(TextInput, {
+        id: `${id}-email`,
+        type: 'email',
+        required: true,
+        placeholder: 'Enter a valid email',
+      }),
+      m(
+        FormSection,
+        {label: 'Nested form section'},
+        m(FormLabel, {for: `${id}-pattern`}, 'Pattern (5 digits)'),
+        m(TextInput, {
+          id: `${id}-pattern`,
+          pattern: '[0-9]{5}',
+          placeholder: 'Enter exactly 5 digits',
+          title: 'Please enter exactly 5 digits',
+        }),
+      ),
+      m(FormLabel, {for: `${id}-required-select`}, 'Required Select (*)'),
+      m(Select, {id: `${id}-required-select`, required: true}, [
+        m('option', {value: '', label: '-- Select an option --'}),
+        m('option', {value: 'option1', label: 'Option 1'}),
+        m('option', {value: 'option2', label: 'Option 2'}),
+        m('option', {value: 'option3', label: 'Option 3'}),
+      ]),
+      m(Checkbox, {
+        label: 'I agree to the terms and conditions',
+        id: `${id}-checkbox`,
+      }),
+      m(Switch, {
+        label: 'Enable notifications',
+        id: `${id}-switch`,
+      }),
+    ),
   );
 }
 

@@ -135,3 +135,19 @@ export class FormLabel implements m.ClassComponent<HTMLLabelAttrs> {
     return m('label.pf-form__label', attrs, children);
   }
 }
+
+export interface FormSectionAttrs extends HTMLLabelAttrs {
+  readonly label: string;
+}
+
+export class FormSection implements m.ClassComponent<FormSectionAttrs> {
+  view({attrs, children}: m.CVnode<FormSectionAttrs>) {
+    const {label, ...rest} = attrs;
+    return m(
+      '.pf-form__section',
+      rest,
+      m('.pf-form__section-label', label),
+      children,
+    );
+  }
+}

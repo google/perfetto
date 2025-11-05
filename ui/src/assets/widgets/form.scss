@@ -27,9 +27,34 @@
   }
 
   &__label {
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     font-size: smaller;
     font-weight: 500;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__section {
+    border: 1px solid var(--pf-color-border);
+    display: flex;
+    flex-direction: column;
+    border-radius: 4px;
+    padding-inline: 8px;
+    padding-top: 16px;
+    position: relative;
+    margin-block: 8px;
+
+    &-label {
+      position: absolute;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.7em;
+      margin-bottom: 8px;
+      top: -0.5em;
+      left: 4px;
+      background: var(--pf-color-background);
+      color: var(--pf-color-text-muted);
+      padding: 0 2px;
+    }
   }
 
   // Styles for common input elements
