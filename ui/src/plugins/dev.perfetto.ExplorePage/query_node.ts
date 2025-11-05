@@ -126,7 +126,7 @@ export interface ModificationNode extends BaseNode {
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: (QueryNode | undefined)[];
+  prevNodes: QueryNode[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
@@ -315,14 +315,17 @@ export function addConnection(
   } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
     // MultiSourceNode - multiple inputs
     const multiSourceNode = toNode as MultiSourceNode;
-    const arrayIndex = portIndex ?? multiSourceNode.prevNodes.length;
 
-    // Expand array if needed to accommodate the new connection
-    while (multiSourceNode.prevNodes.length <= arrayIndex) {
-      multiSourceNode.prevNodes.push(undefined);
+    if (
+      portIndex !== undefined &&
+      portIndex < multiSourceNode.prevNodes.length
+    ) {
+      // Replace existing connection at this port
+      multiSourceNode.prevNodes[portIndex] = fromNode;
+    } else {
+      // Append to end (ignore portIndex if out of bounds)
+      multiSourceNode.prevNodes.push(fromNode);
     }
-
-    multiSourceNode.prevNodes[arrayIndex] = fromNode;
     multiSourceNode.onPrevNodesUpdated?.();
   }
 }
@@ -361,7 +364,8 @@ export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
     const multiSourceNode = toNode as MultiSourceNode;
     const prevIndex = multiSourceNode.prevNodes.indexOf(fromNode);
     if (prevIndex !== -1) {
-      multiSourceNode.prevNodes[prevIndex] = undefined;
+      // Remove from array, compacting it (no undefined holes)
+      multiSourceNode.prevNodes.splice(prevIndex, 1);
       multiSourceNode.onPrevNodesUpdated?.();
     }
   }

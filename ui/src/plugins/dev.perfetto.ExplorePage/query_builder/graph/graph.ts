@@ -195,11 +195,8 @@ function getInputLabels(node: QueryNode): NodePort[] {
         .map((label) => ({content: label, direction: 'left'}));
     }
 
-    const numConnected = multiSourceNode.prevNodes.filter(
-      (it: QueryNode | undefined) => it,
-    ).length;
     // Always show one extra empty port for adding new connections
-    const numPorts = numConnected + 1;
+    const numPorts = multiSourceNode.prevNodes.length + 1;
     const labels: NodePort[] = [];
     for (let i = 0; i < numPorts; i++) {
       labels.push({content: `Input ${i + 1}`, direction: 'left'});
@@ -459,11 +456,11 @@ function renderNodes(
 // CONNECTION HANDLING
 // ========================================
 
-// For multi-source nodes, finds which input port (1-indexed) the parent is connected to
+// For multi-source nodes, finds which input port (0-indexed) the parent is connected to
 function calculateInputPort(child: QueryNode, parent: QueryNode): number {
   if (isMultiSourceNode(child)) {
     const index = child.prevNodes.indexOf(parent);
-    return index !== -1 ? index + 1 : 0;
+    return index !== -1 ? index : 0;
   }
 
   // Check if modification node has inputNodes (additional left-side inputs)
@@ -530,8 +527,14 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     return;
   }
 
-  // Convert from 1-indexed port to 0-indexed array for multi-source nodes
-  const portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
+  // For multisource nodes, all ports are left-side and 0-indexed (port 0 = prevNodes[0])
+  // For modification nodes, port 0 is top (prevNode), ports 1+ are left-side (inputNodes[0], inputNodes[1], ...)
+  let portIndex: number | undefined;
+  if (isMultiSourceNode(toNode)) {
+    portIndex = conn.toPort;
+  } else {
+    portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
+  }
   addConnection(fromNode, toNode, portIndex);
 
   m.redraw();
