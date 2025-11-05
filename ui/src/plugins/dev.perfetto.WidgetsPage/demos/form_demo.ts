@@ -13,32 +13,80 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Form, FormLabel} from '../../../widgets/form';
-import {TextInput} from '../../../widgets/text_input';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Select} from '../../../widgets/select';
-import {Button} from '../../../widgets/button';
-import {PopupMenu} from '../../../widgets/menu';
-import {MenuItem} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
+import {Checkbox} from '../../../widgets/checkbox';
+import {Switch} from '../../../widgets/switch';
 
-function renderFormContent(id: string) {
+function renderFormContent(
+  id: string,
+  options: {
+    submitButton?: boolean;
+    cancelButton?: boolean;
+    resetButton?: boolean;
+  } = {},
+): m.Children {
+  const {submitButton, cancelButton, resetButton} = options;
   return m(
     Form,
     {
-      submitLabel: 'Submit',
+      submitLabel: submitButton ? 'Submit' : undefined,
       submitIcon: 'send',
-      cancelLabel: 'Cancel',
-      resetLabel: 'Reset',
+      cancelLabel: cancelButton ? 'Cancel' : undefined,
+      resetLabel: resetButton ? 'Reset' : undefined,
       onSubmit: () => window.alert('Form submitted!'),
     },
-    m(FormLabel, {for: `${id}-foo`}, 'Foo'),
-    m(TextInput, {id: `${id}-foo`}),
-    m(FormLabel, {for: `${id}-bar`}, 'Bar'),
-    m(Select, {id: `${id}-bar`}, [
+    m(FormLabel, {for: `${id}-text-input`}, 'Text Input'),
+    m(TextInput, {
+      id: `${id}-text-input`,
+      placeholder: 'Enter some text...',
+    }),
+    m(FormLabel, {for: `${id}-select`}, 'Select'),
+    m(Select, {id: `${id}-select`}, [
       m('option', {value: 'foo', label: 'Foo'}),
       m('option', {value: 'bar', label: 'Bar'}),
       m('option', {value: 'baz', label: 'Baz'}),
     ]),
+    m(FormLabel, {for: `${id}-required-text`}, 'Required Text (*)'),
+    m(TextInput, {
+      id: `${id}-required-text`,
+      required: true,
+      placeholder: 'This field is required',
+    }),
+    m(FormLabel, {for: `${id}-email`}, 'Email (*)'),
+    m(TextInput, {
+      id: `${id}-email`,
+      type: 'email',
+      required: true,
+      placeholder: 'Enter a valid email',
+    }),
+    m(FormLabel, {for: `${id}-pattern`}, 'Pattern (5 digits)'),
+    m(TextInput, {
+      id: `${id}-pattern`,
+      pattern: '[0-9]{5}',
+      placeholder: 'Enter exactly 5 digits',
+      title: 'Please enter exactly 5 digits',
+    }),
+    m(FormLabel, {for: `${id}-required-select`}, 'Required Select (*)'),
+    m(Select, {id: `${id}-required-select`, required: true}, [
+      m('option', {value: '', label: '-- Select an option --'}),
+      m('option', {value: 'option1', label: 'Option 1'}),
+      m('option', {value: 'option2', label: 'Option 2'}),
+      m('option', {value: 'option3', label: 'Option 3'}),
+    ]),
+    m(Checkbox, {
+      label: 'I agree to the terms and conditions',
+      id: `${id}-checkbox`,
+    }),
+    m(Switch, {
+      label: 'Enable notifications',
+      id: `${id}-switch`,
+    }),
   );
 }
 
@@ -53,7 +101,17 @@ export function renderForm(): m.Children {
       ),
     ),
     renderWidgetShowcase({
-      renderWidget: () => renderFormContent('form'),
+      renderWidget: ({submitButton, cancelButton, resetButton}) =>
+        renderFormContent('inline-form', {
+          submitButton,
+          cancelButton,
+          resetButton,
+        }),
+      initialOpts: {
+        submitButton: true,
+        cancelButton: true,
+        resetButton: false,
+      },
     }),
 
     renderDocSection('Form with a Popup', [
@@ -69,7 +127,11 @@ export function renderForm(): m.Children {
         m(
           PopupMenu,
           {
-            trigger: m(Button, {label: 'Popup!'}),
+            trigger: m(Button, {
+              label: 'Click me',
+              icon: Icons.ContextMenu,
+              variant: ButtonVariant.Filled,
+            }),
           },
           m(
             MenuItem,
