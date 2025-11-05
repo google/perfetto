@@ -500,6 +500,7 @@ export function renderNodeGraph() {
         titleBars: false,
         colors: false,
       },
+      noPadding: true,
     }),
 
     renderDocSection('User Interaction Guide', [

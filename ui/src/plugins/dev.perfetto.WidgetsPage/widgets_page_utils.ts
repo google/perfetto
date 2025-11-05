@@ -13,10 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {isString} from '../../base/object_utils';
-import {Checkbox} from '../../widgets/checkbox';
+import {classNames} from '../../base/classnames';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
+import {Form, FormLabel} from '../../widgets/form';
+import {Switch} from '../../widgets/switch';
 
 export type Options = {
   [key: string]: EnumOption | boolean | string | number;
@@ -37,152 +38,173 @@ type TransformOptions<T extends Options> = {
   [K in keyof T]: ExtractEnumValue<T[K]>;
 };
 
-export interface WidgetShowcaseAttrs {
-  initialOpts?: Options;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  renderWidget: (options: any) => any;
+export interface WidgetShowcaseAttrs<T extends Options> {
+  readonly renderWidget: (options: TransformOptions<T>) => m.Children;
+  readonly initialOpts?: T;
+
+  // Options for styling the widget container
+  readonly noPadding?: boolean;
 }
 
-// A little helper class to render any vnode with a dynamic set of options
-export class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private optValues: any = {};
-  private opts?: Options;
+/**
+ * A Mithril component that showcases a widget with dynamic options. It renders
+ * the widget along with controls to modify its options.
+ *
+ * @template T - A type extending the Options interface, representing the widget
+ * options.
+ *
+ * @param renderWidget - A function that takes the current options and returns
+ * the widget to be rendered.
+ * @param initialOpts - An optional object defining the initial options for the
+ * widget.
+ * @param noPadding - An optional boolean to control padding around the widget
+ * container.
+ *
+ * @see renderWidgetShowcase Use the helper function to create an instance of
+ * this component as using the component directly can be fiddly to get right
+ * with the generics.
+ */
+class WidgetShowcase<T extends Options>
+  implements m.ClassComponent<WidgetShowcaseAttrs<T>>
+{
+  private options?: Options;
+  private optionValues: Record<string, unknown> = {};
 
-  renderOptions(listItems: m.Child[]): m.Child {
-    return m(
-      '.pf-widget-controls',
-      m('.pf-widgets-page__options-title', 'Options'),
-      listItems.length === 0
-        ? m('.pf-widgets-page__option', 'No options available')
-        : m('', listItems),
-    );
-  }
-
-  oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
-    this.opts = opts;
+  oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs<T>>) {
+    this.options = opts;
     if (opts) {
       // Make the initial options values
       for (const key in opts) {
         if (Object.prototype.hasOwnProperty.call(opts, key)) {
           const option = opts[key];
           if (option instanceof EnumOption) {
-            this.optValues[key] = option.initial;
+            this.optionValues[key] = option.initial;
           } else {
-            this.optValues[key] = option;
+            this.optionValues[key] = option;
           }
         }
       }
     }
   }
 
-  view({attrs}: m.CVnode<WidgetShowcaseAttrs>) {
-    const {renderWidget} = attrs;
-    const listItems = [];
+  view({attrs}: m.CVnode<WidgetShowcaseAttrs<T>>) {
+    const {renderWidget, noPadding} = attrs;
+    const formInputs = [];
 
-    if (this.opts) {
-      for (const key in this.opts) {
-        if (Object.prototype.hasOwnProperty.call(this.opts, key)) {
-          listItems.push(
-            m('.pf-widgets-page__option', this.renderControlForOption(key)),
-          );
+    if (this.options) {
+      for (const key in this.options) {
+        if (Object.prototype.hasOwnProperty.call(this.options, key)) {
+          formInputs.push(this.renderControlForOption(key));
         }
       }
     }
 
     return [
-      m(
-        '.pf-widget-block',
-        m('.pf-widget-container', renderWidget(this.optValues)),
-        this.renderOptions(listItems),
-      ),
+      m('.pf-widgets-page__showcase', [
+        m(
+          '.pf-widgets-page__widget-container',
+          {
+            className: classNames(
+              noPadding && 'pf-widget-container--no-padding',
+            ),
+          },
+          renderWidget(this.optionValues as TransformOptions<T>),
+        ),
+        m(
+          '.pf-widgets-page__options',
+          m('.pf-widgets-page__options-title', 'Options'),
+          formInputs.length === 0
+            ? 'No options available'
+            : m(Form, formInputs),
+        ),
+      ]),
     ];
   }
 
   private renderControlForOption(key: string) {
-    if (!this.opts) return null;
-    const value = this.opts[key];
-    if (value instanceof EnumOption) {
-      return this.renderEnumOption(key, value);
-    } else if (typeof value === 'boolean') {
-      return this.renderBooleanOption(key);
-    } else if (isString(value)) {
-      return this.renderStringOption(key);
-    } else if (typeof value === 'number') {
-      return this.renderNumberOption(key);
+    if (!this.options) return null;
+    const option = this.options[key];
+    const currentValue = this.optionValues[key];
+    if (option instanceof EnumOption) {
+      return this.renderEnumOption(key, option, currentValue as string);
+    } else if (typeof currentValue === 'boolean') {
+      return this.renderBooleanOption(key, currentValue);
+    } else if (typeof currentValue === 'string') {
+      return this.renderStringOption(key, currentValue);
+    } else if (typeof currentValue === 'number') {
+      return this.renderNumberOption(key, currentValue);
     } else {
       return null;
     }
   }
 
-  private renderBooleanOption(key: string) {
-    return m(Checkbox, {
-      checked: this.optValues[key],
+  private renderBooleanOption(key: string, value: boolean) {
+    return m(Switch, {
+      checked: value,
       label: key,
       onchange: () => {
-        this.optValues[key] = !Boolean(this.optValues[key]);
+        this.optionValues[key] = !Boolean(this.optionValues[key]);
       },
     });
   }
 
-  private renderStringOption(key: string) {
-    return m(
-      'label',
-      `${key}:`,
+  private renderStringOption(key: string, value: string) {
+    return [
+      m(FormLabel, {for: key}, key),
       m(TextInput, {
+        id: key,
         placeholder: key,
-        value: this.optValues[key],
+        value: value,
         oninput: (e: Event) => {
-          this.optValues[key] = (e.target as HTMLInputElement).value;
+          this.optionValues[key] = (e.target as HTMLInputElement).value;
         },
       }),
-    );
+    ];
   }
 
-  private renderNumberOption(key: string) {
-    return m(
-      'label',
-      `${key}:`,
+  private renderNumberOption(key: string, value: number) {
+    return [
+      m(FormLabel, {for: key}, key),
       m(TextInput, {
+        id: key,
         type: 'number',
         placeholder: key,
-        value: this.optValues[key],
+        value: value,
         oninput: (e: Event) => {
-          this.optValues[key] = Number.parseInt(
+          this.optionValues[key] = Number.parseInt(
             (e.target as HTMLInputElement).value,
           );
         },
       }),
-    );
+    ];
   }
 
-  private renderEnumOption(key: string, opt: EnumOption) {
+  private renderEnumOption(key: string, opt: EnumOption, value: string) {
     const optionElements = opt.options.map((option: string) => {
       return m('option', {value: option}, option);
     });
-    return m(
-      'label',
-      `${key}: `,
+    return [
+      m(FormLabel, {for: key}, key),
       m(
         Select,
         {
-          value: this.optValues[key],
+          id: key,
+          value: value,
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
-            this.optValues[key] = el.value;
+            this.optionValues[key] = el.value;
           },
         },
         optionElements,
       ),
-    );
+    ];
   }
 }
 
-export function renderWidgetShowcase<T extends Options = {}>(attrs: {
-  renderWidget(opts: TransformOptions<T>): m.Children;
-  initialOpts?: T;
-}) {
-  return m(WidgetShowcase, attrs);
+export function renderWidgetShowcase<T extends Options = {}>(
+  attrs: WidgetShowcaseAttrs<T>,
+) {
+  return m(WidgetShowcase<T>, attrs);
 }
 
 // Helper to render documentation sections
