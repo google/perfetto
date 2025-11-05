@@ -1446,7 +1446,8 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
       continue;
     }
     std::string file_name = file_path.substr(file_path.rfind('/'));
-    std::string file_name_no_extension = file_name.substr(0, file_path.rfind('.'));
+    std::string file_name_no_extension =
+        file_name.substr(0, file_path.rfind('.'));
     if (file_name_no_extension.find('.') != std::string_view::npos) {
       PERFETTO_ELOG("Skipping module %s as it contains a dot in its path.",
                     file_name_no_extension.c_str());
