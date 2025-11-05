@@ -29,8 +29,8 @@ import {
   newColumnInfoList,
 } from '../column_info';
 import {
-  createFiltersProto,
-  FilterOperation,
+  createExperimentalFiltersProto,
+  renderFilterOperation,
   UIFilter,
 } from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
@@ -51,6 +51,7 @@ export interface AggregationSerializedState {
     isEditing?: boolean;
   }[];
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -211,14 +212,19 @@ export class AggregationNode implements ModificationNode {
         aggregations: this.state.aggregations,
         onchange: this.state.onchange,
       }),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+      renderFilterOperation(
+        this.state.filters,
+        this.state.filterOperator,
+        this.finalCols,
+        (newFilters) => {
           this.state.filters = [...newFilters];
           this.state.onchange?.();
         },
-      }),
+        (operator) => {
+          this.state.filterOperator = operator;
+          this.state.onchange?.();
+        },
+      ),
     );
   }
 
@@ -243,7 +249,11 @@ export class AggregationNode implements ModificationNode {
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
+    const filtersProto = createExperimentalFiltersProto(
+      this.state.filters,
+      this.finalCols,
+      this.state.filterOperator,
+    );
 
     // If the previous node already has an aggregation, we need to create a
     // subquery.
@@ -268,7 +278,7 @@ export class AggregationNode implements ModificationNode {
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
       outerSq.innerQuery = sq;
-      outerSq.filters = filtersProto;
+      outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
     }
 
@@ -307,6 +317,7 @@ export class AggregationNode implements ModificationNode {
         isEditing: a.isEditing,
       })),
       filters: this.state.filters,
+      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }

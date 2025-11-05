@@ -28,8 +28,8 @@ import {Card} from '../../../../../widgets/card';
 import {TextInput} from '../../../../../widgets/text_input';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {
-  createFiltersProto,
-  FilterOperation,
+  createExperimentalFiltersProto,
+  renderFilterOperation,
   UIFilter,
 } from '../../operations/filter';
 
@@ -39,6 +39,7 @@ export interface SlicesSourceSerializedState {
   process_name?: string;
   track_name?: string;
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -94,6 +95,7 @@ export class SlicesSourceNode implements SourceNode {
       process_name: this.state.process_name,
       track_name: this.state.track_name,
       filters: this.state.filters,
+      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }
@@ -112,8 +114,12 @@ export class SlicesSourceNode implements SourceNode {
 
     sq.simpleSlices = ss;
 
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
-    if (filtersProto) sq.filters = filtersProto;
+    const filtersProto = createExperimentalFiltersProto(
+      this.state.filters,
+      this.finalCols,
+      this.state.filterOperator,
+    );
+    if (filtersProto) sq.experimentalFilterGroup = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
@@ -212,14 +218,19 @@ export class SlicesSourceNode implements SourceNode {
           }),
         ),
       ),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+      renderFilterOperation(
+        this.state.filters,
+        this.state.filterOperator,
+        this.finalCols,
+        (newFilters) => {
           this.state.filters = [...newFilters];
           this.state.onchange?.();
         },
-      }),
+        (operator) => {
+          this.state.filterOperator = operator;
+          this.state.onchange?.();
+        },
+      ),
     );
   }
 }

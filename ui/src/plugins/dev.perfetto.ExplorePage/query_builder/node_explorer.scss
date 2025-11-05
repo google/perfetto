@@ -89,6 +89,9 @@
     border-radius: 4px;
     background-color: var(--pf-color-background);
     resize: vertical;
+    font-family: var(--pf-font);
+    font-size: var(--pf-exp-font-size-sm);
+    padding: 0.5rem;
   }
 }
 
