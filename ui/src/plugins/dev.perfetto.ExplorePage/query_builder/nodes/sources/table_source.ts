@@ -32,8 +32,8 @@ import {TextParagraph} from '../../../../../widgets/text_paragraph';
 import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
 import {
-  createFiltersProto,
-  FilterOperation,
+  createExperimentalFiltersProto,
+  renderFilterOperation,
   UIFilter,
 } from '../../operations/filter';
 import {closeModal, showModal} from '../../../../../widgets/modal';
@@ -44,6 +44,7 @@ import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_s
 export interface TableSourceSerializedState {
   sqlTable?: string;
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -175,14 +176,19 @@ export class TableSourceNode implements SourceNode {
               ),
             ),
         ),
-        m(FilterOperation, {
-          filters: this.state.filters,
-          sourceCols: this.finalCols,
-          onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+        renderFilterOperation(
+          this.state.filters,
+          this.state.filterOperator,
+          this.finalCols,
+          (newFilters) => {
             this.state.filters = [...newFilters];
             this.state.onchange?.();
           },
-        }),
+          (operator) => {
+            this.state.filterOperator = operator;
+            this.state.onchange?.();
+          },
+        ),
       );
     }
     return m(TextParagraph, 'No description available for this table.');
@@ -211,8 +217,12 @@ export class TableSourceNode implements SourceNode {
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
-    if (filtersProto) sq.filters = filtersProto;
+    const filtersProto = createExperimentalFiltersProto(
+      this.state.filters,
+      this.finalCols,
+      this.state.filterOperator,
+    );
+    if (filtersProto) sq.experimentalFilterGroup = filtersProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
@@ -223,6 +233,7 @@ export class TableSourceNode implements SourceNode {
     return {
       sqlTable: this.state.sqlTable?.name,
       filters: this.state.filters,
+      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }

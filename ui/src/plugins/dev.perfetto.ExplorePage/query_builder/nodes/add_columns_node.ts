@@ -23,7 +23,7 @@ import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {Card, CardStack} from '../../../../widgets/card';
-import {FilterOperation, UIFilter} from '../operations/filter';
+import {renderFilterOperation} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
@@ -177,15 +177,19 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   nodeDetails(): m.Child {
+    const details: m.Child[] = [];
+
     if (this.rightNode) {
       if (this.state.mode === 'free') {
         // Free mode: show that all columns are being added
         const numCols = this.rightCols.length;
         const plural = numCols > 1 ? 's' : '';
-        return m(
-          '.pf-aggregation-node-details',
-          `Adding all ${numCols} column${plural} using `,
-          m('strong', 'id = id'),
+        details.push(
+          m(
+            'div',
+            `Adding all ${numCols} column${plural} using `,
+            m('strong', 'id = id'),
+          ),
         );
       } else {
         // Guided mode: show selected columns and join condition
@@ -205,22 +209,24 @@ export class AddColumnsNode implements ModificationNode {
               return alias ? `${col} as ${alias}` : col;
             })
             .join(', ');
-          return m(
-            '.pf-aggregation-node-details',
-            `Add column${plural} `,
-            m('strong', columnDisplay),
-            ' using ',
-            m('strong', joinCondition),
+          details.push(
+            m(
+              'div',
+              `Add column${plural} `,
+              m('strong', columnDisplay),
+              ' using ',
+              m('strong', joinCondition),
+            ),
           );
         } else {
-          return m('.pf-aggregation-node-details', `No columns selected`);
+          details.push(m('div', `No columns selected`));
         }
       }
+    } else {
+      details.push(m('div', 'Connect a node to add columns from'));
     }
-    return m(
-      '.pf-aggregation-node-details',
-      'Connect a node to add columns from',
-    );
+
+    return m('.pf-aggregation-node-details', details);
   }
 
   nodeSpecificModify(): m.Child {
@@ -657,13 +663,19 @@ export class AddColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+      renderFilterOperation(
+        this.state.filters,
+        this.state.filterOperator,
+        this.finalCols,
+        (newFilters) => {
           this.state.filters = [...newFilters];
+          this.state.onchange?.();
         },
-      }),
+        (operator) => {
+          this.state.filterOperator = operator;
+          this.state.onchange?.();
+        },
+      ),
     ]);
   }
 
