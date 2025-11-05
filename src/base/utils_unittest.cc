@@ -381,6 +381,18 @@ TEST(UtilsTest, ListFilesRecursive) {
     EXPECT_FALSE(status.ok());
   }
 
+  // Test can open a file using returned absolute path
+  {
+    TmpDirTree tree;
+    tree.AddFile("file.txt", "content");
+    std::vector<std::string> files;
+    ASSERT_OK(ListFilesRecursive(tree.path(), files));
+    EXPECT_THAT(files, UnorderedRelativePathsAre(tree, {"file.txt"}));
+    std::string file_content;
+    ASSERT_TRUE(ReadFile(files[0], &file_content));
+    ASSERT_EQ(file_content, "content");
+  }
+
   // Test nested directories with files
   {
     TmpDirTree tree;
