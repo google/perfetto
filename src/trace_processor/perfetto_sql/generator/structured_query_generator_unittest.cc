@@ -2735,4 +2735,677 @@ TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupMixedTypes) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, IntervalIntersectWithPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+        referenced_modules: "linux.memory.process"
+      }
+      interval_intersect: {
+        simple_slices: {
+          slice_name_glob: "baz"
+          process_name_glob: "system_server"
+        }
+      }
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_2 AS (
+                  SELECT * FROM (
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
+                    FROM thread_or_process_slice
+                    WHERE slice_name GLOB 'baz'
+                      AND process_name GLOB 'system_server'
+                  )
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2)
+                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*
+                    FROM _interval_intersect!((iibase, iisource0), (utid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("intervals.intersect", "linux.memory.process",
+                           "slices.with_context"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMultiplePartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "upid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_2 AS (
+                  SELECT * FROM slice
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2)
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*
+                    FROM _interval_intersect!((iibase, iisource0), (utid, upid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectWithEmptyPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {
+          slice_name_glob: "baz"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_2 AS (
+                  SELECT * FROM (
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
+                    FROM thread_or_process_slice
+                    WHERE slice_name GLOB 'baz'
+                  )
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2)
+                    SELECT ii.ts, ii.dur, iibase.*, iisource0.*
+                    FROM _interval_intersect!((iibase, iisource0), ()) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithReservedPartitionColumnIdFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'id' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithReservedPartitionColumnTsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ts' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithReservedPartitionColumnDurFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'dur' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMixedPartitionColumnsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "utid"
+      partition_columns: "ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ts' is reserved"));
+}
+
+// Edge case 1: Duplicate partition columns
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithDuplicatePartitionColumnsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'utid' is duplicated"));
+}
+
+// Edge case 2: Empty string partition column
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithEmptyStringPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: ""
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column cannot be empty"));
+}
+
+// Edge case 3: Case variations of reserved columns
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithUppercaseIdPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "ID"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ID' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMixedCaseTsPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "Ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'Ts' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithUppercaseDurPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "DUR"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'DUR' is reserved"));
+}
+
+// Edge case 4: Whitespace in column names
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithLeadingWhitespacePartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: " utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include the space in the generated SQL
+  ASSERT_THAT(
+      res.c_str(),
+      testing::HasSubstr("_interval_intersect!((iibase, iisource0), ( utid))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithTrailingWhitespacePartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "utid "
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include the space in the generated SQL
+  ASSERT_THAT(
+      res.c_str(),
+      testing::HasSubstr("_interval_intersect!((iibase, iisource0), (utid ))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithWhitespaceOnlyPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "   "
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include the whitespace in the generated SQL
+  ASSERT_THAT(
+      res.c_str(),
+      testing::HasSubstr("_interval_intersect!((iibase, iisource0), (   ))"));
+}
+
+// Edge case 5: Multiple interval_intersect sources with partition columns
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMultipleSourcesAndPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {
+          slice_name_glob: "foo"
+        }
+      }
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_3 AS (
+                  SELECT * FROM (
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
+                    FROM thread_or_process_slice
+                    WHERE slice_name GLOB 'foo'
+                  )
+                ),
+                sq_2 AS (
+                  SELECT * FROM slice
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2),
+                      iisource1 AS (SELECT * FROM sq_3)
+                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*, iisource1.*
+                    FROM _interval_intersect!((iibase, iisource0, iisource1), (utid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iisource1 ON ii.id_2 = iisource1.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("intervals.intersect", "slices.with_context"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMultipleSourcesAndMultiplePartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "base_table"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "source1"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "source2"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "source3"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "upid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_4 AS (
+                  SELECT * FROM source3
+                ),
+                sq_3 AS (
+                  SELECT * FROM source2
+                ),
+                sq_2 AS (
+                  SELECT * FROM source1
+                ),
+                sq_1 AS (
+                  SELECT * FROM base_table
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2),
+                      iisource1 AS (SELECT * FROM sq_3),
+                      iisource2 AS (SELECT * FROM sq_4)
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*, iisource1.*, iisource2.*
+                    FROM _interval_intersect!((iibase, iisource0, iisource1, iisource2), (utid, upid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iisource1 ON ii.id_2 = iisource1.id
+                    JOIN iisource2 ON ii.id_3 = iisource2.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+}
+
+// Edge case 7: Special characters in column names
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithHyphenInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col-name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape special characters
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col-name))"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectWithDotInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col.name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape special characters
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col.name))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithSpaceInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape or modify the space
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col name))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithBacktickInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col`name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape the backtick
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col`name))"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
