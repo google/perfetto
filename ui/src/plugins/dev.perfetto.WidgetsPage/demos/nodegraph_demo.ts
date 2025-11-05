@@ -230,6 +230,15 @@ function unionNode(): NodeModelKernel {
   };
 }
 
+function renderNodeContextMenu() {
+  return [
+    m(MenuItem, {
+      label: 'Delete',
+      icon: 'delete',
+    }),
+  ];
+}
+
 interface NodeGraphDemoAttrs {
   readonly multiselect?: boolean;
   readonly titleBars?: boolean;
