@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {
-  createSelectColumnsProto,
   QueryNode,
   QueryNodeState,
   NodeType,
@@ -92,9 +91,6 @@ export class SlicesSourceNode implements SourceNode {
     sq.table = new protos.PerfettoSqlStructuredQuery.Table();
     sq.table.tableName = 'thread_or_process_slice';
     sq.table.moduleName = 'slices.with_context';
-    sq.table.columnNames = this.finalCols
-      .filter((c) => c.checked)
-      .map((c) => c.column.name);
 
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,
@@ -103,8 +99,14 @@ export class SlicesSourceNode implements SourceNode {
     );
     if (filtersProto) sq.experimentalFilterGroup = filtersProto;
 
-    const selectedColumns = createSelectColumnsProto(this);
-    if (selectedColumns) sq.selectColumns = selectedColumns;
+    // Manually create selectColumns for the specific columns we want
+    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
+    for (const col of this.finalCols) {
+      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+      selectColumn.columnName = col.column.name;
+      selectColumns.push(selectColumn);
+    }
+    sq.selectColumns = selectColumns;
 
     return sq;
   }
