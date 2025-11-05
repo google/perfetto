@@ -125,6 +125,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
+  private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
   private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
@@ -151,6 +152,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.query = undefined;
       this.queryExecuted = false;
       this.isQueryRunning = false;
+      this.isAnalyzing = false;
     }
     this.previousSelectedNode = selectedNode;
 
@@ -176,6 +178,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               this.queryExecuted = false;
               this.runQuery(selectedNode);
             }
+          },
+          onAnalysisStateChange: (isAnalyzing: boolean) => {
+            this.isAnalyzing = isAnalyzing;
           },
           onchange: () => {},
           isCollapsed: this.isExplorerCollapsed,
@@ -220,6 +225,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               response: this.response,
               dataSource: this.dataSource,
               isQueryRunning: this.isQueryRunning,
+              isAnalyzing: this.isAnalyzing,
               onchange: () => {},
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
