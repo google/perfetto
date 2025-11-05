@@ -22,6 +22,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -62,6 +63,9 @@ constexpr uint32_t kFlushTimeoutMs = 1000;
 
 constexpr size_t kTracingSharedMemSizeHintBytes = 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
+
+base::CrashKey g_crash_key_ds_count("ds_instance_count");
+base::CrashKey g_crash_key_session_count("tracing_session_count");
 
 }  // namespace
 
@@ -466,6 +470,11 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
   session_data_sources_[session_id].emplace(data_source->descriptor,
                                             data_source.get());
   data_sources_[instance_id] = std::move(data_source);
+
+  // Set crash keys for debugging overload crashes.
+  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
+  g_crash_key_session_count.Set(
+      static_cast<int64_t>(session_data_sources_.size()));
 }
 
 void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
@@ -545,6 +554,11 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   // This is to reduce the noise in Android performance benchmarks that measure
   // the memory of perfetto processes.
   base::MaybeReleaseAllocatorMemToOS();
+
+  // Set crash keys for debugging overload crashes.
+  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
+  g_crash_key_session_count.Set(
+      static_cast<int64_t>(session_data_sources_.size()));
 }
 
 void ProbesProducer::OnTracingSetup() {
