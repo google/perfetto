@@ -59,8 +59,8 @@ override_dh_auto_build:
 	# Generate manpages.
 	${PANDOC_CMD} docs/reference/perfetto-cli.md > debian/perfetto.1
 	${PANDOC_CMD} docs/reference/tracebox.md > debian/tracebox.1
-	${PANDOC_CMD} docs/getting-started/system-tracing.md > debian/traced.8
-	${PANDOC_CMD} docs/getting-started/system-tracing.md > debian/traced_probes.8
+	${PANDOC_CMD} docs/reference/traced.md > debian/traced.8
+	${PANDOC_CMD} docs/reference/traced_probes.md > debian/traced_probes.8
 
 override_dh_auto_clean:
 	rm -rf ${BUILD_DIR}
