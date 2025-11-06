@@ -51,6 +51,7 @@ import m from 'mithril';
 import {Button, ButtonVariant} from './button';
 import {PopupMenu} from './menu';
 import {classNames} from '../base/classnames';
+import {Icons} from '../base/semantic_icons';
 
 interface Position {
   x: number;
@@ -91,6 +92,7 @@ export interface Node {
   readonly next?: DockedNode; // Next node in chain
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
+  readonly contextMenuItems?: m.Children;
 }
 
 interface ConnectingState {
@@ -1205,6 +1207,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       content,
       hue,
       accentBar,
+      contextMenuItems,
     } = node;
     const {isDockedChild, hasDockedChild, isDockTarget, rootNode, multiselect} =
       options;
@@ -1433,7 +1436,37 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       [
         // Render node title if it exists
         titleBar !== undefined &&
-          m('.pf-node-header', [m('.pf-node-title', titleBar.title)]),
+          m('.pf-node-header', [
+            m('.pf-node-title', titleBar.title),
+            contextMenuItems !== undefined &&
+              m(
+                PopupMenu,
+                {
+                  trigger: m(Button, {
+                    rounded: true,
+                    icon: Icons.ContextMenuAlt,
+                  }),
+                },
+                contextMenuItems,
+              ),
+          ]),
+
+        // Context menu button for nodes without titlebar
+        titleBar === undefined &&
+          contextMenuItems !== undefined &&
+          m(
+            '.pf-node-context-menu',
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  rounded: true,
+                  icon: Icons.ContextMenuAlt,
+                }),
+              },
+              contextMenuItems,
+            ),
+          ),
 
         // Top input ports (if not docked child)
         !isDockedChild &&
