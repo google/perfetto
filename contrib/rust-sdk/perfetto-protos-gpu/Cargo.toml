@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk-protos-gpu"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["David Reveman <dreveman@gmail.com>"]
 description = "Extra protobuf bindings for GPU events"
 readme = "README.md"
@@ -19,7 +19,7 @@ default = ["vendored"]
 vendored = ["perfetto-sdk/vendored"]
 
 [dependencies]
-perfetto-sdk = { path = "../perfetto", version = "0.1.0", default-features = false }
+perfetto-sdk = { path = "../perfetto", version = "0.1.1", default-features = false }
 paste = "1"
 
 [[example]]
