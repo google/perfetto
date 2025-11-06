@@ -315,9 +315,7 @@ export class AggregationNode implements ModificationNode {
         checked: c.checked,
       })),
       aggregations: this.state.aggregations.map((a) => ({
-        column: a.column
-          ? {name: a.column.name, checked: a.column.checked}
-          : undefined,
+        column: a.column,
         aggregationOp: a.aggregationOp,
         newColumnName: a.newColumnName,
         isValid: a.isValid,
