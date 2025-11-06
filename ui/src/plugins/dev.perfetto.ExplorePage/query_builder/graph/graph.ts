@@ -47,6 +47,7 @@ import {
   Node,
   NodeGraph,
   NodeGraphApi,
+  NodePort,
 } from '../../../../widgets/nodegraph';
 import {UIFilter} from '../operations/filter';
 import {
@@ -174,7 +175,7 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // NODE PORT AND MENU UTILITIES
 // ========================================
 
-function getInputLabels(node: QueryNode): string[] {
+function getInputLabels(node: QueryNode): NodePort[] {
   if (isSourceNode(node)) {
     return [];
   }
@@ -189,17 +190,16 @@ function getInputLabels(node: QueryNode): string[] {
     ) {
       return (
         multiSourceNode as MultiSourceNode & {getInputLabels: () => string[]}
-      ).getInputLabels();
+      )
+        .getInputLabels()
+        .map((label) => ({content: label, direction: 'left'}));
     }
 
-    const numConnected = multiSourceNode.prevNodes.filter(
-      (it: QueryNode | undefined) => it,
-    ).length;
     // Always show one extra empty port for adding new connections
-    const numPorts = numConnected + 1;
-    const labels: string[] = [];
+    const numPorts = multiSourceNode.prevNodes.length + 1;
+    const labels: NodePort[] = [];
     for (let i = 0; i < numPorts; i++) {
-      labels.push(`Input ${i + 1}`);
+      labels.push({content: `Input ${i + 1}`, direction: 'left'});
     }
     return labels;
   }
@@ -216,15 +216,15 @@ function getInputLabels(node: QueryNode): string[] {
         return modNode.getInputLabels();
       }
 
-      const labels: string[] = [];
+      const labels: NodePort[] = [];
 
       // Add top port for prevNode (main data flow)
-      labels.push('Input');
+      labels.push({content: 'Input', direction: 'top'});
 
       // For AddColumnsNode, show exactly one left-side port
       // (it only supports connecting one table to add columns from)
       if ('type' in modNode && modNode.type === NodeType.kAddColumns) {
-        labels.push('Table');
+        labels.push({content: 'Table', direction: 'left'});
         return labels;
       }
 
@@ -237,13 +237,13 @@ function getInputLabels(node: QueryNode): string[] {
 
       // Add left-side ports for inputNodes (additional table inputs)
       for (let i = 0; i < numLeftPorts; i++) {
-        labels.push(`Table ${i + 1}`);
+        labels.push({content: `Table ${i + 1}`, direction: 'left'});
       }
       return labels;
     }
   }
 
-  return ['Input'];
+  return [{content: 'Input', direction: 'top'}];
 }
 
 function buildMenuItems(
@@ -269,9 +269,18 @@ function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  return buildMenuItems('modification', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', undefined, (id) =>
     onAddOperationNode(id, targetNode),
   );
+  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+    onAddOperationNode(id, targetNode),
+  );
+
+  // Add a divider between modification and multisource nodes if both exist
+  if (modificationItems.length > 0 && multisourceItems.length > 0) {
+    return [...modificationItems, m(MenuDivider), ...multisourceItems];
+  }
+  return [...modificationItems, ...multisourceItems];
 }
 
 // ========================================
@@ -387,10 +396,20 @@ function createNodeConfig(
   qnode: QueryNode,
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
+  const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+
   return {
     id: qnode.nodeId,
     inputs: getInputLabels(qnode),
-    outputs: ['Output'],
+    outputs: [
+      {
+        content: 'Output',
+        direction: 'bottom',
+        contextMenuItems: buildAddMenuItems(qnode, attrs.onAddOperationNode),
+      },
+    ],
+    canDockBottom: true,
+    canDockTop: !noTopPort,
     hue: getNodeHue(qnode),
     accentBar: true,
     content: m(NodeBox, {
@@ -401,11 +420,6 @@ function createNodeConfig(
       onRemoveFilter: attrs.onRemoveFilter,
     }),
     next: getNextDockedNode(qnode, attrs),
-    addMenuItems: buildAddMenuItems(qnode, attrs.onAddOperationNode),
-    // Only set allInputsLeft for MultiSourceNodes (nodes with multiple equal inputs)
-    // ModificationNodes with both prevNode + inputNodes should use default layout
-    // (first port on top, rest on left)
-    allInputsLeft: isMultiSourceNode(qnode),
   };
 }
 
@@ -455,11 +469,11 @@ function renderNodes(
 // CONNECTION HANDLING
 // ========================================
 
-// For multi-source nodes, finds which input port (1-indexed) the parent is connected to
+// For multi-source nodes, finds which input port (0-indexed) the parent is connected to
 function calculateInputPort(child: QueryNode, parent: QueryNode): number {
   if (isMultiSourceNode(child)) {
     const index = child.prevNodes.indexOf(parent);
-    return index !== -1 ? index + 1 : 0;
+    return index !== -1 ? index : 0;
   }
 
   // Check if modification node has inputNodes (additional left-side inputs)
@@ -526,8 +540,14 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     return;
   }
 
-  // Convert from 1-indexed port to 0-indexed array for multi-source nodes
-  const portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
+  // For multisource nodes, all ports are left-side and 0-indexed (port 0 = prevNodes[0])
+  // For modification nodes, port 0 is top (prevNode), ports 1+ are left-side (inputNodes[0], inputNodes[1], ...)
+  let portIndex: number | undefined;
+  if (isMultiSourceNode(toNode)) {
+    portIndex = conn.toPort;
+  } else {
+    portIndex = conn.toPort > 0 ? conn.toPort - 1 : undefined;
+  }
   addConnection(fromNode, toNode, portIndex);
 
   m.redraw();
@@ -688,7 +708,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         m(NodeGraph, {
           nodes,
           connections,
-          selectedNodeIds: selectedNode?.nodeId ? [selectedNode.nodeId] : [],
+          selectedNodeIds: new Set(
+            selectedNode?.nodeId ? [selectedNode.nodeId] : [],
+          ),
           hideControls: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;

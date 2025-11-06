@@ -490,6 +490,36 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
   }
   referenced_modules_.Insert("intervals.intersect", nullptr);
 
+  // Validate and collect partition columns
+  std::vector<std::string> partition_cols;
+  std::set<std::string> seen_cols;
+  for (auto it = interval.partition_columns(); it; ++it) {
+    std::string col = it->as_std_string();
+
+    // Validate that partition columns are not empty
+    if (col.empty()) {
+      return base::ErrStatus("Partition column cannot be empty");
+    }
+
+    // Validate that partition columns are not id, ts, or dur (case-insensitive)
+    if (base::CaseInsensitiveEqual(col, "id") ||
+        base::CaseInsensitiveEqual(col, "ts") ||
+        base::CaseInsensitiveEqual(col, "dur")) {
+      return base::ErrStatus(
+          "Partition column '%s' is reserved and cannot be used for "
+          "partitioning",
+          col.c_str());
+    }
+
+    // Check for duplicates
+    if (seen_cols.count(col) > 0) {
+      return base::ErrStatus("Partition column '%s' is duplicated",
+                             col.c_str());
+    }
+    seen_cols.insert(col);
+    partition_cols.push_back(col);
+  }
+
   std::string sql =
       "(WITH iibase AS (SELECT * FROM " + NestedSource(interval.base()) + ")";
   auto ii = interval.interval_intersect();
@@ -498,20 +528,34 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            NestedSource(*ii) + ") ";
   }
 
-  sql += "SELECT ii.ts, ii.dur, iibase.*";
+  sql += "SELECT ii.ts, ii.dur";
+  // Add partition columns from ii
+  for (const auto& col : partition_cols) {
+    sql += ", ii." + col;
+  }
+  sql += ", iibase.*";
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i) + ".*";
   }
   sql += " FROM _interval_intersect!((iibase";
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i);
   }
-  sql += "), ()) ii JOIN iibase ON ii.id_0 = iibase.id";
+
+  // Add partition columns to the macro call
+  sql += "), (";
+  for (size_t i = 0; i < partition_cols.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += partition_cols[i];
+  }
+  sql += ")) ii JOIN iibase ON ii.id_0 = iibase.id";
 
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += " JOIN iisource" + std::to_string(i) + " ON ii.id_" +
            std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
   }
