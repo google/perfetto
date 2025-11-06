@@ -13,6 +13,7 @@ FINAL_LDFLAGS := ${LDFLAGS} -Wl,-rpath=/usr/lib/perfetto
 BUILD_DIR := out/release
 
 PANDOC_CMD := pandoc -s -t man --shift-heading-level-by=-1
+MARKDOWN_PREPROCESS_CMD := sed -e 's/\[\([^]]*\)\]([^)]*\.md[^)]*)/\1/g' -e '/^!\[.*\](.*\.png)$$/d'
 
 %:
 	dh $@
@@ -57,10 +58,10 @@ override_dh_auto_build:
 	ninja -v -C ${BUILD_DIR} perfetto tracebox traced traced_probes
 
 	# Generate manpages.
-	${PANDOC_CMD} docs/reference/perfetto-cli.md > debian/perfetto.1
-	${PANDOC_CMD} docs/reference/tracebox.md > debian/tracebox.1
-	${PANDOC_CMD} docs/reference/traced.md > debian/traced.8
-	${PANDOC_CMD} docs/reference/traced_probes.md > debian/traced_probes.8
+	cat docs/reference/perfetto-cli.md | ${MARKDOWN_PREPROCESS_CMD} | ${PANDOC_CMD} > debian/perfetto.1
+	cat docs/reference/tracebox.md | ${MARKDOWN_PREPROCESS_CMD} | ${PANDOC_CMD} > debian/tracebox.1
+	cat docs/reference/traced.md | ${MARKDOWN_PREPROCESS_CMD} | ${PANDOC_CMD} > debian/traced.8
+	cat docs/reference/traced_probes.md | ${MARKDOWN_PREPROCESS_CMD} | ${PANDOC_CMD} > debian/traced_probes.8
 
 override_dh_auto_clean:
 	rm -rf ${BUILD_DIR}

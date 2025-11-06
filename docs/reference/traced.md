@@ -88,9 +88,22 @@ Entities interact with `traced` primarily through two channels:
 
 ## Built-in Producer
 
-On Android, `traced` also includes a built-in producer. This producer is used
-for specific use cases, such as dynamically starting other services like
-`heapprofd` in response to trace configurations.
+On Android, `traced` also includes a built-in producer with several key
+responsibilities:
+
+*   **Metatracing**: It provides the `perfetto.metatrace` data source, which
+    enables tracing of the `traced` service itself. This is useful for
+    debugging Perfetto and capturing internal statistics, such as clock
+    snapshots and details about connected producers.
+*   **Lazy Service Starting**: It can dynamically start other tracing daemons
+    (like `heapprofd` and `traced_perf`) on-demand. When a trace configuration
+    requests a data source provided by one of these daemons, the built-in
+    producer ensures the corresponding service is started. It also stops the
+    service after a delay once it's no longer needed.
+*   **System-level Integrations**: It handles various other integrations with
+    the Android platform, such as managing counters for out-of-memory heap
+    profiling sessions and controlling system properties to enable tracing in
+    graphics components.
 
 ## Security
 
