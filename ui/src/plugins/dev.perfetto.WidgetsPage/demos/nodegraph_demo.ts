@@ -243,6 +243,7 @@ function unionNode(): NodeModelKernel {
 
   return {
     name: 'union',
+    // Note: inputs are computed dynamically in rendering based on connections
     inputs: [
       {content: 'Input 1', direction: 'top'},
       {content: 'Input 2', direction: 'left'},
@@ -304,6 +305,36 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         }
       }
     }
+    return inputs;
+  }
+
+  // Helper to count connected left ports for a union node
+  function countConnectedLeftPorts(nodeId: string): number {
+    let count = 0;
+    for (const conn of connections) {
+      if (conn.toNode === nodeId && conn.toPort > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  // Helper to compute dynamic inputs for union nodes
+  function computeUnionInputs(nodeId: string): ReadonlyArray<NodePort> {
+    const connectedLeftPorts = countConnectedLeftPorts(nodeId);
+    const numLeftPorts = connectedLeftPorts + 1; // Always N+1
+
+    const inputs: NodePort[] = [
+      {content: 'Input 1', direction: 'top'},
+    ];
+
+    for (let i = 0; i < numLeftPorts; i++) {
+      inputs.push({
+        content: `Input ${i + 2}`,
+        direction: 'left',
+      });
+    }
+
     return inputs;
   }
 
@@ -603,11 +634,17 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const hasNext = model.nextId !== undefined;
         const nextModel = hasNext ? nodes.get(model.nextId!) : undefined;
 
+        // Compute inputs dynamically for union nodes
+        const inputs =
+          model.kernel.name === 'union'
+            ? computeUnionInputs(model.id)
+            : model.kernel.inputs;
+
         return {
           id: model.id,
           x: model.x,
           y: model.y,
-          inputs: model.kernel.inputs,
+          inputs: inputs,
           outputs: model.kernel.outputs?.map((out) => {
             return {...out, contextMenuItems: renderAddNodeMenu(model.id)};
           }),
@@ -631,9 +668,15 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const hasNext = model.nextId !== undefined;
         const nextModel = hasNext ? nodes.get(model.nextId!) : undefined;
 
+        // Compute inputs dynamically for union nodes
+        const inputs =
+          model.kernel.name === 'union'
+            ? computeUnionInputs(model.id)
+            : model.kernel.inputs;
+
         return {
           id: model.id,
-          inputs: model.kernel.inputs,
+          inputs: inputs,
           outputs: model.kernel.outputs?.map((out) => {
             return {...out, contextMenuItems: renderAddNodeMenu(model.id)};
           }),
