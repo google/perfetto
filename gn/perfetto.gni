@@ -64,6 +64,11 @@ import("wasm_vars.gni")
 # Chromium sets this to true in its //build_overrides/build.gni.
 if (!defined(build_with_chromium)) {
   build_with_chromium = false
+} else {
+  # Chromium intentionally doesn't define variables for BSD:
+  # https://source.chromium.org/chromium/chromium/src/+/main:build/config/BUILDCONFIG.gn;l=310;drc=594261419885cb87360c6b2d124412a00bc1717f
+  # But perfetto needs this one for the build to work.
+  is_freebsd = current_os == "freebsd"
 }
 
 if (!defined(is_nacl)) {
