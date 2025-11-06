@@ -230,15 +230,6 @@ function unionNode(): NodeModelKernel {
   };
 }
 
-function renderNodeContextMenu() {
-  return [
-    m(MenuItem, {
-      label: 'Delete',
-      icon: 'delete',
-    }),
-  ];
-}
-
 interface NodeGraphDemoAttrs {
   readonly multiselect?: boolean;
   readonly titleBars?: boolean;
@@ -273,6 +264,50 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       }
     }
     return inputs;
+  }
+
+  function renderNodeContextMenu(model: NodeModel) {
+    return [
+      m(MenuItem, {
+        label: 'Delete',
+        icon: 'delete',
+        onclick: () => {
+          removeNode(model.id);
+          console.log(`Context Menu: onNodeRemove: ${model.id}`);
+        },
+      }),
+    ];
+  }
+
+  function removeNode(nodeId: string) {
+    // Find the node to remove
+    const nodeToDelete = nodes.get(nodeId);
+    if (!nodeToDelete) return;
+
+    // Dock any child node to its parent
+    for (const parent of nodes.values()) {
+      if (parent.nextId === nodeId) {
+        parent.nextId = nodeToDelete.nextId;
+      }
+    }
+
+    // Clear selection if needed
+    selectedNodeIds.delete(nodeId);
+
+    // Remove any connections to/from this node
+    for (let i = connections.length - 1; i >= 0; i--) {
+      if (
+        connections[i].fromNode === nodeId ||
+        connections[i].toNode === nodeId
+      ) {
+        connections.splice(i, 1);
+      }
+    }
+
+    // Finally remove the node
+    nodes.delete(nodeId);
+
+    console.log(`removeNode: ${nodeId}`);
   }
 
   // Build SQL query from a node by traversing upwards
@@ -477,7 +512,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             : undefined,
           hue: attrs.colors ? model.kernel.hue : undefined,
           contextMenuItems: attrs.contextMenus
-            ? renderNodeContextMenu()
+            ? renderNodeContextMenu(model)
             : undefined,
         };
       }
@@ -501,7 +536,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             : undefined,
           hue: attrs.colors ? model.kernel.hue : undefined,
           contextMenuItems: attrs.contextMenus
-            ? renderNodeContextMenu()
+            ? renderNodeContextMenu(model)
             : undefined,
         };
       }
@@ -584,33 +619,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           connections.splice(index, 1);
         },
         onNodeRemove: (nodeId: string) => {
-          // Find the node to remove
-          const nodeToDelete = nodes.get(nodeId);
-          if (!nodeToDelete) return;
-
-          // Dock any child node to its parent
-          for (const parent of nodes.values()) {
-            if (parent.nextId === nodeId) {
-              parent.nextId = nodeToDelete.nextId;
-            }
-          }
-
-          // Clear selection if needed
-          selectedNodeIds.delete(nodeId);
-
-          // Remove any connections to/from this node
-          for (let i = connections.length - 1; i >= 0; i--) {
-            if (
-              connections[i].fromNode === nodeId ||
-              connections[i].toNode === nodeId
-            ) {
-              connections.splice(i, 1);
-            }
-          }
-
-          // Finally remove the node
-          nodes.delete(nodeId);
-
+          removeNode(nodeId);
           console.log(`onNodeRemove: ${nodeId}`);
         },
         onNodeSelect: (nodeId: string) => {
