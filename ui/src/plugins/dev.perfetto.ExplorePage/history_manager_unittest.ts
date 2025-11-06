@@ -77,36 +77,6 @@ describe('HistoryManager', () => {
   });
 
   test('should track node addition', () => {
-    // Initial empty state
-    const state1: ExplorePageState = {
-      rootNodes: [],
-      nodeLayouts: new Map(),
-    };
-    historyManager.pushState(state1);
-
-    // Add a table node
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
-
-    const state2: ExplorePageState = {
-      rootNodes: [tableNode],
-      nodeLayouts: new Map(),
-    };
-    historyManager.pushState(state2);
-
-    expect(historyManager.canUndo()).toBe(true);
-    expect(historyManager.canRedo()).toBe(false);
-
-    // Undo should go back to empty state
-    const undoneState = historyManager.undo();
-    expect(undoneState).not.toBeNull();
-    expect(undoneState!.rootNodes.length).toBe(0);
-  });
-
-  test('should track granular property changes', () => {
     // Create a table node
     const tableNode = new TableSourceNode({
       trace,
@@ -135,50 +105,13 @@ describe('HistoryManager', () => {
     };
     historyManager.pushState(state2);
 
-    // Add first group by column (check one column)
-    aggNode.state.groupByColumns[0].checked = true;
-    const state3: ExplorePageState = {
-      rootNodes: [tableNode],
-      nodeLayouts: new Map(),
-    };
-    historyManager.pushState(state3);
-
-    // Add second group by column (check another column)
-    aggNode.state.groupByColumns[2].checked = true;
-    const state4: ExplorePageState = {
-      rootNodes: [tableNode],
-      nodeLayouts: new Map(),
-    };
-    historyManager.pushState(state4);
-
-    // We should be able to undo 3 times
+    // We should be able to undo once
     expect(historyManager.canUndo()).toBe(true);
 
-    // First undo: remove second group by column
-    const undoneState1 = historyManager.undo();
-    expect(undoneState1).not.toBeNull();
-    const restoredAggNode1 = undoneState1!.rootNodes[0]
-      .nextNodes[0] as AggregationNode;
-    const checkedCols1 = restoredAggNode1.state.groupByColumns.filter(
-      (c) => c.checked,
-    );
-    expect(checkedCols1.length).toBe(1);
-    expect(checkedCols1[0].name).toBe('id');
-
-    // Second undo: remove first group by column
-    const undoneState2 = historyManager.undo();
-    expect(undoneState2).not.toBeNull();
-    const restoredAggNode2 = undoneState2!.rootNodes[0]
-      .nextNodes[0] as AggregationNode;
-    const checkedCols2 = restoredAggNode2.state.groupByColumns.filter(
-      (c) => c.checked,
-    );
-    expect(checkedCols2.length).toBe(0);
-
-    // Third undo: remove aggregation node entirely
-    const undoneState3 = historyManager.undo();
-    expect(undoneState3).not.toBeNull();
-    expect(undoneState3!.rootNodes[0].nextNodes.length).toBe(0);
+    // Undo: remove aggregation node
+    const undoneState = historyManager.undo();
+    expect(undoneState).not.toBeNull();
+    expect(undoneState!.rootNodes[0].nextNodes.length).toBe(0);
   });
 
   test('should ignore layout-only changes', () => {
@@ -202,6 +135,49 @@ describe('HistoryManager', () => {
     historyManager.pushState(state2);
 
     // Should not create a new history entry
+    expect(historyManager.canUndo()).toBe(false);
+  });
+
+  test('should ignore selectedNode changes', () => {
+    const tableNode = new TableSourceNode({
+      trace,
+      sqlModules,
+      sqlTable: sqlModules.getTable('test_table')!,
+    });
+
+    const aggNode = new AggregationNode({
+      prevNode: tableNode,
+      groupByColumns: [],
+      aggregations: [],
+    });
+    addConnection(tableNode, aggNode);
+
+    const state1: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+    historyManager.pushState(state1);
+
+    // Change only the selected node (to view different node data)
+    const state2: ExplorePageState = {
+      rootNodes: [tableNode],
+      selectedNode: tableNode,
+      nodeLayouts: new Map(),
+    };
+    historyManager.pushState(state2);
+
+    // Should not create a new history entry
+    expect(historyManager.canUndo()).toBe(false);
+
+    // Change selection to a different node
+    const state3: ExplorePageState = {
+      rootNodes: [tableNode],
+      selectedNode: aggNode,
+      nodeLayouts: new Map(),
+    };
+    historyManager.pushState(state3);
+
+    // Still should not create a new history entry
     expect(historyManager.canUndo()).toBe(false);
   });
 

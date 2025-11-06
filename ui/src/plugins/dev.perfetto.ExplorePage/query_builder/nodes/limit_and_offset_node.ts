@@ -85,6 +85,14 @@ export class LimitAndOffsetNode implements ModificationNode {
           this.state.limit = Number(target.value);
           m.redraw();
         },
+        onblur: () => {
+          this.state.onchange?.();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.state.onchange?.();
+          }
+        },
         value: this.state.limit?.toString() ?? '10',
       }),
       m('label', 'Offset '),
@@ -93,6 +101,14 @@ export class LimitAndOffsetNode implements ModificationNode {
           const target = e.target as HTMLInputElement;
           this.state.offset = Number(target.value);
           m.redraw();
+        },
+        onblur: () => {
+          this.state.onchange?.();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.state.onchange?.();
+          }
         },
         value: this.state.offset?.toString() ?? undefined,
       }),
@@ -135,7 +151,13 @@ export class LimitAndOffsetNode implements ModificationNode {
   }
 
   serializeState(): object {
-    return this.state;
+    // Only return serializable fields, excluding callbacks and objects
+    // that might contain circular references
+    return {
+      limit: this.state.limit,
+      offset: this.state.offset,
+      comment: this.state.comment,
+    };
   }
 
   static deserializeState(

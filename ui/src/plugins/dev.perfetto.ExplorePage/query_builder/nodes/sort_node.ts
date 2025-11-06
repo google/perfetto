@@ -80,7 +80,7 @@ export class SortNode implements ModificationNode {
   nodeDetails(): m.Child {
     if (this.sortCols.length > 0 && this.state.sortCriteria) {
       const criteria = this.state.sortCriteria
-        .map((c) => c.direction === 'DESC' ? `${c.colName} DESC` : c.colName)
+        .map((c) => (c.direction === 'DESC' ? `${c.colName} DESC` : c.colName))
         .join(', ');
       return m(
         '.pf-aggregation-node-details',
@@ -103,6 +103,7 @@ export class SortNode implements ModificationNode {
           }
           this.state.sortCriteria.push({colName: key, direction: 'ASC'});
           this.sortCols = this.resolveSortCols();
+          this.state.onchange?.();
           m.redraw();
         },
         onOptionRemove: (key: string) => {
@@ -111,6 +112,7 @@ export class SortNode implements ModificationNode {
               (c) => c.colName !== key,
             );
             this.sortCols = this.resolveSortCols();
+            this.state.onchange?.();
             m.redraw();
           }
         },
@@ -137,6 +139,7 @@ export class SortNode implements ModificationNode {
               newSortCriteria.splice(to, 0, removed);
               this.state.sortCriteria = newSortCriteria;
               this.sortCols = this.resolveSortCols();
+              this.state.onchange?.();
               m.redraw();
             },
           },
@@ -149,6 +152,7 @@ export class SortNode implements ModificationNode {
                 if (this.state.sortCriteria) {
                   this.state.sortCriteria[index].direction =
                     criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                  this.state.onchange?.();
                   m.redraw();
                 }
               },
@@ -210,7 +214,13 @@ export class SortNode implements ModificationNode {
   }
 
   serializeState(): object {
-    return this.state;
+    // Only return serializable fields, excluding callbacks and objects
+    // that might contain circular references
+    return {
+      sortColNames: this.state.sortColNames,
+      sortCriteria: this.state.sortCriteria,
+      comment: this.state.comment,
+    };
   }
 
   static deserializeState(state: SortNodeState): SortNodeState {

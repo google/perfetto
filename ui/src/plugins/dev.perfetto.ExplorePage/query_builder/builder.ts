@@ -237,7 +237,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               dataSource: this.dataSource,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
-              onchange: () => {},
+              onchange: () => {
+                attrs.onNodeStateChange?.();
+              },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
               onFullScreenToggle: () => {

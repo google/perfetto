@@ -425,7 +425,23 @@ export class IntervalIntersectNode implements MultiSourceNode {
         .slice(1)
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
-      filters: this.state.filters,
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields to avoid circular references
+        if ('value' in f) {
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       comment: this.state.comment,
       filterNegativeDur: this.state.filterNegativeDur,
       partitionColumns: this.state.partitionColumns,

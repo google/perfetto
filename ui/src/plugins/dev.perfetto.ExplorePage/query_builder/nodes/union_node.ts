@@ -276,7 +276,23 @@ export class UnionNode implements MultiSourceNode {
     return {
       unionNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
       selectedColumns: this.state.selectedColumns,
-      filters: this.filters,
+      filters: this.filters?.map((f) => {
+        // Explicitly extract only serializable fields to avoid circular references
+        if ('value' in f) {
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       comment: this.comment,
     };
   }

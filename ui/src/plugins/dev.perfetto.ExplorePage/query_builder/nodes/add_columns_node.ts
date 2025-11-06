@@ -801,7 +801,44 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   serializeState(): object {
-    return this.state;
+    return {
+      selectedColumns: this.state.selectedColumns,
+      leftColumn: this.state.leftColumn,
+      rightColumn: this.state.rightColumn,
+      mode: this.state.mode,
+      suggestionSelections: this.state.suggestionSelections
+        ? Object.fromEntries(this.state.suggestionSelections)
+        : undefined,
+      expandedSuggestions: this.state.expandedSuggestions
+        ? Array.from(this.state.expandedSuggestions)
+        : undefined,
+      columnAliases: this.state.columnAliases
+        ? Object.fromEntries(this.state.columnAliases)
+        : undefined,
+      isGuidedConnection: this.state.isGuidedConnection,
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields from filters
+        if ('value' in f) {
+          // FilterValue type
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          // FilterNull type
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
+      filterOperator: this.state.filterOperator,
+      comment: this.state.comment,
+      autoExecute: this.state.autoExecute,
+    };
   }
 
   static deserializeState(
@@ -810,6 +847,37 @@ export class AddColumnsNode implements ModificationNode {
     return {
       ...serializedState,
       prevNode: undefined as unknown as QueryNode,
+      suggestionSelections:
+        (serializedState.suggestionSelections as unknown as Record<
+          string,
+          string[]
+        >) !== undefined
+          ? new Map(
+              Object.entries(
+                serializedState.suggestionSelections as unknown as Record<
+                  string,
+                  string[]
+                >,
+              ),
+            )
+          : undefined,
+      expandedSuggestions:
+        (serializedState.expandedSuggestions as unknown as string[]) !==
+        undefined
+          ? new Set(serializedState.expandedSuggestions as unknown as string[])
+          : undefined,
+      columnAliases:
+        (serializedState.columnAliases as unknown as Record<string, string>) !==
+        undefined
+          ? new Map(
+              Object.entries(
+                serializedState.columnAliases as unknown as Record<
+                  string,
+                  string
+                >,
+              ),
+            )
+          : undefined,
     };
   }
 }
