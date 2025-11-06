@@ -17,6 +17,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {Trace} from '../../../../public/trace';
 import {SqlColumn, sqlColumnId} from './sql_column';
 import {Filters} from './filters';
+import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
 export interface TableManager {
@@ -40,12 +41,20 @@ export interface TableColumn<
   SupportingColumns extends {[key: string]: SqlColumn} = {},
 > {
   readonly column: SqlColumn;
+  readonly type: PerfettoSqlType | undefined;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.
   // If `alias` is not set as well, then `sqlColumnId(primaryColumn())` will be used.
   // TODO(altimin): This should return m.Children, but a bunch of things, including low-level widgets (Button, MenuItem, Anchor) need to be fixed first.
   getTitle?(): string | undefined;
+
+  // Get column-specific menu items for this column.
+  // This allows columns to provide their own menu items in the table header menu.
+  // For example, a CastColumn can provide an "Undo cast" menu item.
+  getColumnSpecificMenuItems?(args: {
+    replaceColumn: (column: TableColumn) => void;
+  }): m.Children;
 
   // In some cases to render a value in a table, we need information from additional columns.
   // For example, args have three related columns: int_value, string_value and real_value. From the user perspective, we want to coalesce them into a single "value" column,
@@ -84,7 +93,12 @@ export function tableColumnId(column: TableColumn): string {
 }
 
 export function tableColumnAlias(column: TableColumn): string {
-  return tableColumnId(column).replace(/[^a-zA-Z0-9_]/g, '__');
+  return tableColumnId(column).replace(/[^a-zA-Z0-9_]/g, (char) => {
+    if (char === '_') {
+      return '__';
+    }
+    return '_' + char.charCodeAt(0);
+  });
 }
 
 export function columnTitle(column: TableColumn): string {

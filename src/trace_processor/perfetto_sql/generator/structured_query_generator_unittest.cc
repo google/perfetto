@@ -827,4 +827,2585 @@ TEST(StructuredQueryGeneratorTest, AggregateToStringValidation) {
   }
 }
 
+TEST(StructuredQueryGeneratorTest, ColumnTransformationAndAggregation) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "outer_query"
+    inner_query: {
+      table: {
+        table_name: "thread_slice"
+      }
+      select_columns: {
+        alias: "dur_ms"
+        column_name_or_expression: "dur / 1000"
+      }
+      select_columns: {
+        column_name_or_expression: "name"
+      }
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur_ms"
+        op: SUM
+        result_column_name: "total_dur_ms"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH
+      sq_1 AS (
+        SELECT
+          dur / 1000 AS dur_ms,
+          name
+        FROM thread_slice
+      ),
+      sq_outer_query AS (
+        SELECT
+          name,
+          SUM(dur_ms) AS total_dur_ms
+        FROM sq_1
+        GROUP BY name
+      )
+    SELECT * FROM sq_outer_query
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinInnerJoin) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      equality_columns: {
+        left_column: "track_id"
+        right_column: "id"
+      }
+      type: INNER
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 INNER JOIN sq_2 ON sq_1.track_id = sq_2.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinLeftJoin) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      equality_columns: {
+        left_column: "track_id"
+        right_column: "id"
+      }
+      type: LEFT
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 LEFT JOIN sq_2 ON sq_1.track_id = sq_2.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinComplex) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      equality_columns: {
+        left_column: "track_id"
+        right_column: "id"
+      }
+      type: INNER
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 INNER JOIN sq_2 ON sq_1.track_id = sq_2.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinFreeformCondition) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      freeform_condition: {
+        left_query_alias: "s"
+        right_query_alias: "t"
+        sql_expression: "s.track_id = t.id"
+      }
+      type: INNER
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 AS s INNER JOIN sq_2 AS t ON s.track_id = t.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinFreeformConditionComplex) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      freeform_condition: {
+        left_query_alias: "parent"
+        right_query_alias: "child"
+        sql_expression: "child.parent_id = parent.id AND child.ts >= parent.ts AND child.ts < parent.ts + parent.dur"
+      }
+      type: INNER
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM slice),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 AS parent INNER JOIN sq_2 AS child ON child.parent_id = parent.id AND child.ts >= parent.ts AND child.ts < parent.ts + parent.dur
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, JoinFreeformConditionLeftJoin) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_join: {
+      left_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      right_query: {
+        table: {
+          table_name: "track"
+        }
+      }
+      freeform_condition: {
+        left_query_alias: "s"
+        right_query_alias: "t"
+        sql_expression: "s.track_id = t.id AND t.name LIKE '%gpu%'"
+      }
+      type: LEFT
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT * FROM sq_1 AS s LEFT JOIN sq_2 AS t ON s.track_id = t.id AND t.name LIKE '%gpu%'
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionBasic) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "track"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2)
+        SELECT * FROM union_query_0 UNION SELECT * FROM union_query_1
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionAll) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "track"
+        }
+      }
+      use_union_all: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2)
+        SELECT * FROM union_query_0 UNION ALL SELECT * FROM union_query_1
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionMultipleQueries) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "track"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "thread"
+        }
+      }
+      use_union_all: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_3 AS (SELECT * FROM thread),
+    sq_2 AS (SELECT * FROM track),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2), union_query_2 AS (SELECT * FROM sq_3)
+        SELECT * FROM union_query_0 UNION ALL SELECT * FROM union_query_1 UNION ALL SELECT * FROM union_query_2
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "name"
+          op: GLOB
+          string_rhs: "*gpu*"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM slice WHERE name GLOB '*gpu*'),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH union_query_0 AS (SELECT * FROM sq_1), union_query_1 AS (SELECT * FROM sq_2)
+        SELECT * FROM union_query_0 UNION SELECT * FROM union_query_1
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithSingleQueryFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Union must specify at least two queries"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithMatchingColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK(ret);
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnCountFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("different column counts"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnNamesFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "name"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("different column sets"));
+}
+
+TEST(StructuredQueryGeneratorTest, UnionWithDifferentColumnOrderSucceeds) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_union: {
+      queries: {
+        table: {
+          table_name: "slice"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+      }
+      queries: {
+        table: {
+          table_name: "sched"
+        }
+        select_columns: {
+          column_name: "dur"
+        }
+        select_columns: {
+          column_name: "id"
+        }
+        select_columns: {
+          column_name: "ts"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_TRUE(ret.ok()) << ret.status().message();
+  ASSERT_THAT(*ret, testing::HasSubstr("WITH union_query_0 AS"));
+  ASSERT_THAT(*ret, testing::HasSubstr("union_query_1 AS"));
+  ASSERT_THAT(*ret, testing::HasSubstr("SELECT * FROM union_query_0 UNION "
+                                       "SELECT * FROM union_query_1"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithEqualityColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithFreeformCondition) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "thread"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      input_columns: {column_name_or_expression: "tid"}
+      freeform_condition: {
+        left_query_alias: "core"
+        right_query_alias: "input"
+        sql_expression: "core.utid = input.id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM thread),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name, input.tid
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.utid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsMultipleColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      input_columns: {column_name_or_expression: "pid"}
+      input_columns: {column_name_or_expression: "cmdline"}
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name, input.pid, input.cmdline
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+        filters: {
+          column_name: "pid"
+          op: NOT_EQUAL
+          int64_rhs: 0
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process WHERE pid != 0),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsMissingCoreQueryFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("AddColumns must specify a core query"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsMissingInputQueryFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("AddColumns must specify an input query"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsNoInputColumnsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(
+      ret.status().message(),
+      testing::HasSubstr("AddColumns must specify at least one input column"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsNoConditionFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("AddColumns must specify either "
+                                 "equality_columns or freeform_condition"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidLeftAliasFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      freeform_condition: {
+        left_query_alias: "left"
+        right_query_alias: "input"
+        sql_expression: "left.upid = input.id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(
+      ret.status().message(),
+      testing::HasSubstr("FreeformCondition left_query_alias must be 'core'"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithInvalidRightAliasFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {column_name_or_expression: "name"}
+      freeform_condition: {
+        left_query_alias: "core"
+        right_query_alias: "right"
+        sql_expression: "core.upid = right.id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr(
+                  "FreeformCondition right_query_alias must be 'input'"));
+}
+
+TEST(StructuredQueryGeneratorTest, AddColumnsWithAlias) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_add_columns: {
+      core_query: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      input_query: {
+        table: {
+          table_name: "process"
+        }
+      }
+      input_columns: {
+        column_name_or_expression: "name"
+        alias: "process_name"
+      }
+      input_columns: {
+        column_name_or_expression: "pid"
+        alias: "process_id"
+      }
+      equality_columns: {
+        left_column: "upid"
+        right_column: "id"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM process),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT core.*, input.name AS process_name, input.pid AS process_id
+        FROM sq_1 AS core
+        LEFT JOIN sq_2 AS input ON core.upid = input.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, LimitWithoutOffset) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    limit: 10
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice LIMIT 10
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, LimitAndOffset) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    limit: 100
+    offset: 50
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice LIMIT 100 OFFSET 50
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, LimitWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    filters: {
+      column_name: "dur"
+      op: GREATER_THAN
+      int64_rhs: 1000
+    }
+    limit: 5
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice WHERE dur > 1000 LIMIT 5
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, LimitWithGroupBy) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur"
+        op: SUM
+        result_column_name: "total_dur"
+      }
+    }
+    limit: 20
+    offset: 10
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT name, SUM(dur) AS total_dur
+      FROM slice
+      GROUP BY name
+      LIMIT 20 OFFSET 10
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OffsetWithoutLimitFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    offset: 10
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("OFFSET requires LIMIT"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByAsc) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "ts"
+        direction: ASC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice ORDER BY ts ASC
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByDesc) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "dur"
+        direction: DESC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice ORDER BY dur DESC
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByMultipleColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "name"
+        direction: ASC
+      }
+      ordering_specs: {
+        column_name: "ts"
+        direction: DESC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice ORDER BY name ASC, ts DESC
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByWithFiltersAndLimit) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    filters: {
+      column_name: "dur"
+      op: GREATER_THAN
+      int64_rhs: 1000
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "dur"
+        direction: DESC
+      }
+    }
+    limit: 10
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice WHERE dur > 1000 ORDER BY dur DESC LIMIT 10
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByWithGroupBy) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur"
+        op: SUM
+        result_column_name: "total_dur"
+      }
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "total_dur"
+        direction: DESC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT name, SUM(dur) AS total_dur
+      FROM slice
+      GROUP BY name
+      ORDER BY total_dur DESC
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByWithoutDirectionDefaultsToAsc) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "ts"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice ORDER BY ts
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, NegativeLimitFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    limit: -10
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("LIMIT must be non-negative"));
+}
+
+TEST(StructuredQueryGeneratorTest, NegativeOffsetFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    limit: 10
+    offset: -5
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("OFFSET must be non-negative"));
+}
+
+TEST(StructuredQueryGeneratorTest, LimitZeroIsValid) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    limit: 0
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice LIMIT 0
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OffsetZeroIsValid) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+    }
+    limit: 10
+    offset: 0
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice LIMIT 10 OFFSET 0
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, OrderByWithInnerQuerySimpleSlices) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    inner_query: {
+      id: "0"
+      simple_slices: {
+      }
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "slice_name"
+        direction: ASC
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT
+          id,
+          ts,
+          dur,
+          name AS slice_name,
+          thread_name,
+          process_name,
+          track_name
+        FROM thread_or_process_slice
+      )
+    )
+    SELECT * FROM sq_0 ORDER BY slice_name ASC
+  )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("slices.with_context"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupSimpleOr) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "foo"
+      }
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "bar"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR name = 'bar'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupSimpleAnd) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+    }
+    experimental_filter_group: {
+      op: AND
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+      filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' AND dur > 1000
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupNestedAndOr) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+    }
+    experimental_filter_group: {
+      op: AND
+      groups: {
+        op: OR
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "bar"
+        }
+      }
+      groups: {
+        op: OR
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+        filters: {
+          column_name: "dur"
+          op: LESS_THAN
+          int64_rhs: 100
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE (name = 'foo' OR name = 'bar') AND (dur > 1000 OR dur < 100)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupComplexNested) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+      column_names: "ts"
+    }
+    experimental_filter_group: {
+      op: OR
+      groups: {
+        op: AND
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "critical"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 5000
+        }
+      }
+      groups: {
+        op: AND
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "important"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 10000
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE (name = 'critical' AND dur > 5000) OR (name = 'important' AND dur > 10000)
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithMultipleValues) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+          string_rhs: "bar"
+          string_rhs: "baz"
+        }
+      filters: {
+          column_name: "name"
+          op: GLOB
+          string_rhs: "test*"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR name = 'bar' OR name = 'baz' OR name GLOB 'test*'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterGroupTakesPrecedenceOverFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    filters: {
+      column_name: "name"
+      op: EQUAL
+      string_rhs: "should_not_appear"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "bar"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR name = 'bar'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithIsNull) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: IS_NULL
+        }
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name IS NULL OR name = 'foo'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterGroupMissingOperatorFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an operator"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterGroupUnspecifiedOperatorFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: UNSPECIFIED
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an operator"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupEmptyItemsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: AND
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must have at least one"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupSingleItem) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo'
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithInt64AndDouble) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "dur"
+      column_names: "cpu"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+          int64_rhs: 5000
+        }
+      filters: {
+          column_name: "cpu"
+          op: LESS_THAN
+          double_rhs: 50.5
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE dur > 1000 OR dur > 5000 OR cpu < 50.500000
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupDeepNesting) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+      column_names: "ts"
+    }
+    experimental_filter_group: {
+      op: OR
+      groups: {
+        op: AND
+        groups: {
+          op: OR
+          filters: {
+            column_name: "name"
+            op: EQUAL
+            string_rhs: "a"
+          }
+          filters: {
+            column_name: "name"
+            op: EQUAL
+            string_rhs: "b"
+          }
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 100
+        }
+      }
+      filters: {
+        column_name: "ts"
+        op: LESS_THAN
+        int64_rhs: 1000
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE ts < 1000 OR (dur > 100 AND (name = 'a' OR name = 'b'))
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterGroupMissingOperatorFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: AND
+      groups: {
+        filters: {
+          column_name: "name"
+          op: EQUAL
+          string_rhs: "foo"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an operator"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterGroupEmptyItemsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: AND
+      groups: {
+        op: OR
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must have at least one"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterWithoutRhsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+          column_name: "name"
+          op: EQUAL
+        }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify a right-hand side"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithSqlExpression) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "foo"
+      }
+      sql_expressions: "LENGTH(name) > 10"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'foo' OR LENGTH(name) > 10
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupMixedTypes) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+      column_names: "dur"
+    }
+    experimental_filter_group: {
+      op: OR
+      filters: {
+        column_name: "name"
+        op: EQUAL
+        string_rhs: "critical"
+      }
+      sql_expressions: "dur * 2 > ts"
+      groups: {
+        op: AND
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+        sql_expressions: "name LIKE '%slow%'"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE name = 'critical' OR (dur > 1000 AND name LIKE '%slow%') OR dur * 2 > ts
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectWithPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+        referenced_modules: "linux.memory.process"
+      }
+      interval_intersect: {
+        simple_slices: {
+          slice_name_glob: "baz"
+          process_name_glob: "system_server"
+        }
+      }
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_2 AS (
+                  SELECT * FROM (
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
+                    FROM thread_or_process_slice
+                    WHERE slice_name GLOB 'baz'
+                      AND process_name GLOB 'system_server'
+                  )
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2)
+                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*
+                    FROM _interval_intersect!((iibase, iisource0), (utid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("intervals.intersect", "linux.memory.process",
+                           "slices.with_context"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMultiplePartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "upid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_2 AS (
+                  SELECT * FROM slice
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2)
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*
+                    FROM _interval_intersect!((iibase, iisource0), (utid, upid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectWithEmptyPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {
+          slice_name_glob: "baz"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_2 AS (
+                  SELECT * FROM (
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
+                    FROM thread_or_process_slice
+                    WHERE slice_name GLOB 'baz'
+                  )
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2)
+                    SELECT ii.ts, ii.dur, iibase.*, iisource0.*
+                    FROM _interval_intersect!((iibase, iisource0), ()) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithReservedPartitionColumnIdFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'id' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithReservedPartitionColumnTsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ts' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithReservedPartitionColumnDurFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'dur' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMixedPartitionColumnsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "utid"
+      partition_columns: "ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ts' is reserved"));
+}
+
+// Edge case 1: Duplicate partition columns
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithDuplicatePartitionColumnsFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'utid' is duplicated"));
+}
+
+// Edge case 2: Empty string partition column
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithEmptyStringPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: ""
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column cannot be empty"));
+}
+
+// Edge case 3: Case variations of reserved columns
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithUppercaseIdPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "ID"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ID' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMixedCaseTsPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "Ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'Ts' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithUppercaseDurPartitionColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {}
+      }
+      partition_columns: "DUR"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'DUR' is reserved"));
+}
+
+// Edge case 4: Whitespace in column names
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithLeadingWhitespacePartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: " utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include the space in the generated SQL
+  ASSERT_THAT(
+      res.c_str(),
+      testing::HasSubstr("_interval_intersect!((iibase, iisource0), ( utid))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithTrailingWhitespacePartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "utid "
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include the space in the generated SQL
+  ASSERT_THAT(
+      res.c_str(),
+      testing::HasSubstr("_interval_intersect!((iibase, iisource0), (utid ))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithWhitespaceOnlyPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "   "
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include the whitespace in the generated SQL
+  ASSERT_THAT(
+      res.c_str(),
+      testing::HasSubstr("_interval_intersect!((iibase, iisource0), (   ))"));
+}
+
+// Edge case 5: Multiple interval_intersect sources with partition columns
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMultipleSourcesAndPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      interval_intersect: {
+        simple_slices: {
+          slice_name_glob: "foo"
+        }
+      }
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_3 AS (
+                  SELECT * FROM (
+                    SELECT
+                      id,
+                      ts,
+                      dur,
+                      name AS slice_name,
+                      thread_name,
+                      process_name,
+                      track_name
+                    FROM thread_or_process_slice
+                    WHERE slice_name GLOB 'foo'
+                  )
+                ),
+                sq_2 AS (
+                  SELECT * FROM slice
+                ),
+                sq_1 AS (
+                  SELECT * FROM thread_slice_cpu_time
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2),
+                      iisource1 AS (SELECT * FROM sq_3)
+                    SELECT ii.ts, ii.dur, ii.utid, iibase.*, iisource0.*, iisource1.*
+                    FROM _interval_intersect!((iibase, iisource0, iisource1), (utid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iisource1 ON ii.id_2 = iisource1.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+  ASSERT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("intervals.intersect", "slices.with_context"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithMultipleSourcesAndMultiplePartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "base_table"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "source1"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "source2"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "source3"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "upid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+                WITH sq_4 AS (
+                  SELECT * FROM source3
+                ),
+                sq_3 AS (
+                  SELECT * FROM source2
+                ),
+                sq_2 AS (
+                  SELECT * FROM source1
+                ),
+                sq_1 AS (
+                  SELECT * FROM base_table
+                ),
+                sq_0 AS (
+                  SELECT * FROM (
+                    WITH
+                      iibase AS (SELECT * FROM sq_1),
+                      iisource0 AS (SELECT * FROM sq_2),
+                      iisource1 AS (SELECT * FROM sq_3),
+                      iisource2 AS (SELECT * FROM sq_4)
+                    SELECT ii.ts, ii.dur, ii.utid, ii.upid, iibase.*, iisource0.*, iisource1.*, iisource2.*
+                    FROM _interval_intersect!((iibase, iisource0, iisource1, iisource2), (utid, upid)) ii
+                    JOIN iibase ON ii.id_0 = iibase.id
+                    JOIN iisource0 ON ii.id_1 = iisource0.id
+                    JOIN iisource1 ON ii.id_2 = iisource1.id
+                    JOIN iisource2 ON ii.id_3 = iisource2.id
+                  )
+                )
+                SELECT * FROM sq_0
+              )"));
+}
+
+// Edge case 7: Special characters in column names
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithHyphenInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col-name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape special characters
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col-name))"));
+}
+
+TEST(StructuredQueryGeneratorTest, IntervalIntersectWithDotInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col.name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape special characters
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col.name))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithSpaceInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape or modify the space
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col name))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     IntervalIntersectWithBacktickInPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        table: {
+          table_name: "thread_slice_cpu_time"
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      partition_columns: "col`name"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should not escape the backtick
+  ASSERT_THAT(res.c_str(),
+              testing::HasSubstr(
+                  "_interval_intersect!((iibase, iisource0), (col`name))"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

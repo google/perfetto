@@ -17,17 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_TRANSFORM_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_TRANSFORM_TRACKER_H_
 
+#include <cstddef>
+
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
-
-struct TransformMatrixHasher {
-  size_t operator()(const geometry::TransformMatrix& r) const {
-    return base::FnvHasher::Combine(r.dsdx, r.dtdx, r.tx, r.dsdy, r.dtdy, r.ty);
-  }
-};
 
 class WinscopeTransformTracker {
  public:
@@ -41,7 +39,7 @@ class WinscopeTransformTracker {
  private:
   base::FlatHashMap<geometry::TransformMatrix,
                     tables::WinscopeTransformTable::Id,
-                    TransformMatrixHasher>
+                    base::MurmurHash<geometry::TransformMatrix>>
       rows_;
 };
 

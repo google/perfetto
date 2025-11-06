@@ -34,10 +34,11 @@ import {
 } from '../column_info';
 import protos from '../../../../protos';
 import {
-  createFiltersProto,
-  FilterOperation,
+  createExperimentalFiltersProto,
+  renderFilterOperation,
   UIFilter,
 } from '../operations/filter';
+import {NodeIssues} from '../node_issues';
 
 class SwitchComponent
   implements
@@ -362,7 +363,7 @@ export interface ModifyColumnsSerializedState {
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: UIFilter[];
-  customTitle?: string;
+  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -371,7 +372,6 @@ export interface ModifyColumnsState extends QueryNodeState {
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
   filters?: UIFilter[];
-  customTitle?: string;
 }
 
 export class ModifyColumnsNode implements ModificationNode {
@@ -392,7 +392,10 @@ export class ModifyColumnsNode implements ModificationNode {
       selectedColumns: state.selectedColumns ?? [],
     };
 
-    if (this.state.selectedColumns.length === 0) {
+    if (
+      this.state.selectedColumns.length === 0 &&
+      this.prevNode !== undefined
+    ) {
       this.state.selectedColumns = newColumnInfoList(this.prevNode.finalCols);
     }
 
@@ -449,12 +452,21 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
     const colNames = new Set<string>();
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
       const name = col.alias ? col.alias.trim() : col.column.name;
-      if (col.alias && name === '') return false; // Disallow empty alias
+      if (col.alias && name === '') {
+        this.setValidationError('Empty alias not allowed');
+        return false;
+      }
       if (colNames.has(name)) {
+        this.setValidationError('Duplicate column names');
         return false;
       }
       colNames.add(name);
@@ -467,20 +479,37 @@ export class ModifyColumnsNode implements ModificationNode {
       // If a column has an expression, it must have a name and be unique.
       if (expression !== '') {
         if (name === '') {
+          this.setValidationError('New column must have a name');
           return false;
         }
         if (colNames.has(name)) {
+          this.setValidationError('Duplicate column names');
           return false;
         }
         colNames.add(name);
       }
     }
 
+    // Check if there are no columns selected and no valid new columns
+    if (colNames.size === 0) {
+      this.setValidationError(
+        'No columns selected. Select at least one column or add a new column.',
+      );
+      return false;
+    }
+
     return true;
   }
 
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
+  }
+
   getTitle(): string {
-    return this.state.customTitle ?? 'Modify Columns';
+    return 'Modify Columns';
   }
 
   nodeDetails(): m.Child {
@@ -502,16 +531,51 @@ export class ModifyColumnsNode implements ModificationNode {
     if (hasUnselected || hasAlias) {
       const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
       if (selectedCols.length > 0) {
-        const selectedItems = selectedCols.map((c) => {
-          if (c.alias) {
-            return m('div', `${c.column.name} AS ${c.alias}`);
+        // If there are too many selected columns and some are unselected, show a summary.
+        const maxColumnsToShow = 5;
+        const shouldShowSummary =
+          hasUnselected && selectedCols.length > maxColumnsToShow;
+
+        if (shouldShowSummary) {
+          const renamedCols = selectedCols.filter((c) => c.alias);
+          const totalCols = this.state.selectedColumns.length;
+          const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
+
+          // Show up to 3 renamed columns explicitly even in summary mode
+          if (renamedCols.length > 0 && renamedCols.length <= 3) {
+            const renamedItems = renamedCols.map((c) =>
+              m('div', `${c.column.name} AS ${c.alias}`),
+            );
+            cards.push(
+              m(
+                Card,
+                {className: 'pf-exp-node-details-card'},
+                m('div', summaryText),
+                m('div', {style: 'height: 8px'}), // spacing
+                ...renamedItems,
+              ),
+            );
           } else {
-            return m('div', c.column.name);
+            cards.push(
+              m(
+                Card,
+                {className: 'pf-exp-node-details-card'},
+                m('div', summaryText),
+              ),
+            );
           }
-        });
-        cards.push(
-          m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
-        );
+        } else {
+          const selectedItems = selectedCols.map((c) => {
+            if (c.alias) {
+              return m('div', `${c.column.name} AS ${c.alias}`);
+            } else {
+              return m('div', c.column.name);
+            }
+          });
+          cards.push(
+            m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
+          );
+        }
       }
     }
 
@@ -612,7 +676,28 @@ export class ModifyColumnsNode implements ModificationNode {
         CardStack,
         m(
           Card,
-          m('h2.pf-columns-box-title', 'Selected Columns'),
+          m(
+            'div',
+            {
+              style:
+                'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px',
+            },
+            m(
+              'h2.pf-columns-box-title',
+              {style: 'margin: 0'},
+              'Selected Columns',
+            ),
+            m(Button, {
+              label: 'Deselect All',
+              variant: ButtonVariant.Outlined,
+              onclick: () => {
+                this.state.selectedColumns = this.state.selectedColumns.map(
+                  (col) => ({...col, checked: false}),
+                );
+                this.state.onchange?.();
+              },
+            }),
+          ),
           m(
             'div.pf-column-list',
             this.state.selectedColumns.map((col, index) =>
@@ -773,7 +858,7 @@ export class ModifyColumnsNode implements ModificationNode {
           {style: 'flex-grow: 1'},
           m(SwitchComponent, {
             column: col,
-            columns: this.prevNode.finalCols,
+            columns: this.prevNode?.finalCols ?? [],
             onchange: () => {
               const newNewColumns = [...this.state.newColumns];
               newNewColumns[index] = {...col};
@@ -919,14 +1004,19 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   private renderFilterOperation(): m.Child {
-    return m(FilterOperation, {
-      filters: this.state.filters,
-      sourceCols: this.finalCols,
-      onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+    return renderFilterOperation(
+      this.state.filters,
+      this.state.filterOperator,
+      this.finalCols,
+      (newFilters) => {
         this.state.filters = [...newFilters];
         this.state.onchange?.();
       },
-    });
+      (operator) => {
+        this.state.filterOperator = operator;
+        this.state.onchange?.();
+      },
+    );
   }
 
   clone(): QueryNode {
@@ -934,6 +1024,8 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
+    if (this.prevNode === undefined) return undefined;
+
     const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
     const referencedModules: string[] = [];
 
@@ -949,6 +1041,10 @@ export class ModifyColumnsNode implements ModificationNode {
     }
 
     for (const col of this.state.newColumns) {
+      // Only include valid columns (non-empty expression and name)
+      if (!this.isNewColumnValid(col)) {
+        continue;
+      }
       const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectColumn.columnNameOrExpression = col.expression;
       selectColumn.alias = col.name;
@@ -967,13 +1063,17 @@ export class ModifyColumnsNode implements ModificationNode {
       prevSq.referencedModules = referencedModules;
     }
 
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
+    const filtersProto = createExperimentalFiltersProto(
+      this.state.filters,
+      this.finalCols,
+      this.state.filterOperator,
+    );
 
     if (filtersProto) {
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
       outerSq.innerQuery = prevSq;
-      outerSq.filters = filtersProto;
+      outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
     }
 
@@ -989,7 +1089,7 @@ export class ModifyColumnsNode implements ModificationNode {
       newColumns: this.state.newColumns,
       selectedColumns: this.state.selectedColumns,
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
+      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }

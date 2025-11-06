@@ -700,16 +700,27 @@ def CheckPythonVenv():
   with open(PYTHON_STATUS_FILE, 'r') as f:
     actual = f.read()
   expected = HashLocalFile(PYTHON_REQUIREMENTS)
-  return expected == actual
+  if expected != actual:
+    return False
+  # The venv can be invalidated if the version of python in the system is
+  # upgraded. Detect that by trying to find its own pip.
+  venv_python = os.path.join(PYTHON_VENV_BIN_DIR, 'python3')
+  cmd = [venv_python, '-c', 'import pip']
+  if subprocess.call(cmd, stderr=subprocess.DEVNULL) != 0:
+    logging.warning('The python venv is stale due an upgrade of the system ' +
+                    'python package and needs regeneration')
+    return False
+  return True
 
 
 def InstallPythonVenv():
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
   cur_python_interpreter = sys.executable
-  if not os.path.exists(venv_pip):
-    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
-    logging.info(f'Installing python venv {" ".join(cmd)}')
-    subprocess.check_call(cmd)
+
+  shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
+  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  logging.info(f'Installing python venv {" ".join(cmd)}')
+  subprocess.check_call(cmd)
 
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')

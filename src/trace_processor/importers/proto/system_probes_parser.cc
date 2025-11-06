@@ -693,10 +693,10 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
 
     // note: early kernel threads can have an age of zero (at tick resolution)
     if (proc.has_process_start_from_boot()) {
-      base::StatusOr<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
+      std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
           protos::pbzero::BUILTIN_CLOCK_BOOTTIME,
           static_cast<int64_t>(proc.process_start_from_boot()));
-      if (start_ts.ok()) {
+      if (start_ts) {
         context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
       }
     }

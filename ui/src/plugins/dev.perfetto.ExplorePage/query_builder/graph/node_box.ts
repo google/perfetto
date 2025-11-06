@@ -19,8 +19,7 @@ import {Icons} from '../../../../base/semantic_icons';
 import {Button} from '../../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
-import {UIFilter} from '../operations/filter';
-import {Chip} from '../../../../widgets/chip';
+import {UIFilter, formatFilterDetails} from '../operations/filter';
 import {Icon} from '../../../../widgets/icon';
 import {Callout} from '../../../../widgets/callout';
 import {Intent} from '../../../../widgets/common';
@@ -103,29 +102,18 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
 
 export function renderFilters(attrs: NodeBoxAttrs): m.Child {
   const {node, onRemoveFilter} = attrs;
-  if (!node.state.filters || node.state.filters.length === 0) return null;
-
-  return m(
-    '.pf-exp-node-box__filters',
-    node.state.filters?.map((filter) => {
-      const label =
-        'value' in filter
-          ? `${filter.column} ${filter.op} ${filter.value}`
-          : `${filter.column} ${filter.op}`;
-      return m(Chip, {
-        label,
-        removable: true,
-        onRemove: () => onRemoveFilter(node, filter),
-      });
-    }),
+  return formatFilterDetails(
+    node.state.filters,
+    node.state.filterOperator,
+    node.state,
+    (filter) => onRemoveFilter(node, filter),
   );
 }
 
 export const NodeBox: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
-    const hasCustomTitle = node.state.customTitle !== undefined;
-    const shouldShowTitle = !singleNodeOperation(node.type) || hasCustomTitle;
+    const shouldShowTitle = !singleNodeOperation(node.type);
 
     return [
       m(

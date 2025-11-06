@@ -29,8 +29,8 @@ import {
   newColumnInfoList,
 } from '../column_info';
 import {
-  createFiltersProto,
-  FilterOperation,
+  createExperimentalFiltersProto,
+  renderFilterOperation,
   UIFilter,
 } from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
@@ -39,6 +39,7 @@ import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {Card} from '../../../../widgets/card';
 import {NodeIssues} from '../node_issues';
+import {Icons} from '../../../../base/semantic_icons';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -50,7 +51,7 @@ export interface AggregationSerializedState {
     isEditing?: boolean;
   }[];
   filters?: UIFilter[];
-  customTitle?: string;
+  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -132,12 +133,17 @@ export class AggregationNode implements ModificationNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
     if (this.state.issues) {
-      this.state.issues.queryError = undefined;
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      this.setValidationError('No input node connected');
+      return false;
     }
     if (!this.prevNode.validate()) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error('Previous node is invalid');
+      this.setValidationError('Previous node is invalid');
       return false;
     }
     const sourceColNames = new Set(
@@ -151,16 +157,14 @@ export class AggregationNode implements ModificationNode {
     }
 
     if (missingCols.length > 0) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         `Group by columns ['${missingCols.join(', ')}'] not found in input`,
       );
       return false;
     }
 
     if (!this.state.groupByColumns.find((c) => c.checked)) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Aggregation node has no group by columns selected',
       );
       return false;
@@ -168,8 +172,15 @@ export class AggregationNode implements ModificationNode {
     return true;
   }
 
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
+  }
+
   getTitle(): string {
-    return this.state.customTitle ?? 'Aggregation';
+    return 'Aggregation';
   }
 
   nodeDetails?(): m.Child | undefined {
@@ -206,14 +217,19 @@ export class AggregationNode implements ModificationNode {
         aggregations: this.state.aggregations,
         onchange: this.state.onchange,
       }),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+      renderFilterOperation(
+        this.state.filters,
+        this.state.filterOperator,
+        this.finalCols,
+        (newFilters) => {
           this.state.filters = [...newFilters];
           this.state.onchange?.();
         },
-      }),
+        (operator) => {
+          this.state.filterOperator = operator;
+          this.state.onchange?.();
+        },
+      ),
     );
   }
 
@@ -223,7 +239,6 @@ export class AggregationNode implements ModificationNode {
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       filters: this.state.filters ? [...this.state.filters] : undefined,
-      customTitle: this.state.customTitle,
       onchange: this.state.onchange,
       issues: this.state.issues,
     };
@@ -239,7 +254,11 @@ export class AggregationNode implements ModificationNode {
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    const filtersProto = createFiltersProto(this.state.filters, this.finalCols);
+    const filtersProto = createExperimentalFiltersProto(
+      this.state.filters,
+      this.finalCols,
+      this.state.filterOperator,
+    );
 
     // If the previous node already has an aggregation, we need to create a
     // subquery.
@@ -264,7 +283,7 @@ export class AggregationNode implements ModificationNode {
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
       outerSq.innerQuery = sq;
-      outerSq.filters = filtersProto;
+      outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
     }
 
@@ -303,7 +322,7 @@ export class AggregationNode implements ModificationNode {
         isEditing: a.isEditing,
       })),
       filters: this.state.filters,
-      customTitle: this.state.customTitle,
+      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }
@@ -448,7 +467,7 @@ class AggregationOperationComponent
       );
     };
 
-    const aggregationEditor = (agg: Aggregation, index: number): m.Child => {
+    const aggregationEditor = (agg: Aggregation): m.Child => {
       const columnOptions = attrs.groupByColumns.map((col) =>
         m(
           'option',
@@ -510,15 +529,7 @@ class AggregationOperationComponent
           value: agg.newColumnName,
         }),
         m(Button, {
-          className: 'delete-button',
-          icon: 'delete',
-          onclick: () => {
-            attrs.aggregations.splice(index, 1);
-            attrs.onchange?.();
-          },
-        }),
-        m(Button, {
-          label: 'Done',
+          icon: Icons.Check,
           className: 'is-primary',
           disabled: !agg.isValid,
           onclick: () => {
@@ -535,15 +546,26 @@ class AggregationOperationComponent
     const aggregationViewer = (agg: Aggregation, index: number): m.Child => {
       return m(
         '.pf-exp-aggregation-viewer',
-        {
-          onclick: () => {
-            attrs.aggregations.forEach((a, i) => {
-              a.isEditing = i === index;
-            });
-            m.redraw();
+        m(
+          'span',
+          {
+            onclick: () => {
+              attrs.aggregations.forEach((a, i) => {
+                a.isEditing = i === index;
+              });
+              m.redraw();
+            },
           },
-        },
-        `${agg.aggregationOp}(${agg.column?.name}) AS ${agg.newColumnName}`,
+          `${agg.aggregationOp}(${agg.column?.name}) AS ${agg.newColumnName}`,
+        ),
+        m(Button, {
+          icon: Icons.Close,
+          onclick: (e: Event) => {
+            e.stopPropagation();
+            attrs.aggregations.splice(index, 1);
+            attrs.onchange?.();
+          },
+        }),
       );
     };
 
@@ -558,7 +580,7 @@ class AggregationOperationComponent
       return [
         ...attrs.aggregations.map((agg, index) => {
           if (agg.isEditing) {
-            return aggregationEditor(agg, index);
+            return aggregationEditor(agg);
           } else {
             return aggregationViewer(agg, index);
           }

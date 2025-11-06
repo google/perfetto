@@ -1089,6 +1089,7 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(
       tables, storage->mutable_surfaceflinger_transaction_flag_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_trace_file_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_trace_import_logs_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_isolate_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_function_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_script_table());
@@ -1337,7 +1338,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
-    base::Status status = RegisterTypeBuilderFunctions(*engine);
+    base::Status status =
+        RegisterTypeBuilderFunctions(*engine, storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

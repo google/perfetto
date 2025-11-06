@@ -33,7 +33,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -69,15 +69,15 @@ using PerfettoSqlStructuredQuery = protos::pbzero::PerfettoSqlStructuredQuery;
 using InternedDimensionSpec = TraceMetricV2Spec::InternedDimensionSpec;
 
 base::StatusOr<uint64_t> HashOf(const SqlValue& val) {
-  base::FnvHasher hasher;
-  hasher.Update(val.type);
+  base::MurmurHashCombiner hasher;
+  hasher.Combine(val.type);
   if (val.is_null()) {
   } else if (val.type == SqlValue::kLong) {
-    hasher.Update(val.long_value);
+    hasher.Combine(val.long_value);
   } else if (val.type == SqlValue::kDouble) {
-    hasher.Update(val.double_value);
+    hasher.Combine(val.double_value);
   } else if (val.type == SqlValue::kString) {
-    hasher.Update(val.string_value);
+    hasher.Combine(std::string_view(val.string_value));
   } else {
     return base::ErrStatus("Unsupported SqlValue type %d for hashing",
                            static_cast<int>(val.type));
@@ -308,9 +308,9 @@ base::Status WriteDimension(
     const std::string& metric_or_bundle_name,
     Iterator& query_it,
     protos::pbzero::TraceMetricV2Bundle::Row::Dimension* dimension,
-    base::FnvHasher* hasher) {
+    base::MurmurHashCombiner* hasher) {
   const auto& dimension_value = query_it.Get(dim_with_index.index);
-  hasher->Update(dimension_value.type);
+  hasher->Combine(dimension_value.type);
   if (dimension_value.is_null()) {
     // Accept null value for all dimension types.
     dimension->set_null_value();
@@ -326,7 +326,7 @@ base::Status WriteDimension(
             dimension_value.type);
       }
       const char* dimension_str = dimension_value.string_value;
-      hasher->Update(dimension_str);
+      hasher->Combine(dimension_str);
       dimension->set_string_value(dimension_str);
       break;
     }
@@ -339,7 +339,7 @@ base::Status WriteDimension(
             dimension_value.type);
       }
       int64_t dim_value = dimension_value.long_value;
-      hasher->Update(dim_value);
+      hasher->Combine(dim_value);
       dimension->set_int64_value(dim_value);
       break;
     }
@@ -352,7 +352,7 @@ base::Status WriteDimension(
             dimension_value.type);
       }
       double dim_value = dimension_value.AsDouble();
-      hasher->Update(dim_value);
+      hasher->Combine(dim_value);
       dimension->set_double_value(dim_value);
       break;
     }
@@ -372,22 +372,22 @@ base::Status WriteDimension(
             dimension_value.long_value);
       }
       bool dim_value = dimension_value.long_value != 0;
-      hasher->Update(dim_value);
+      hasher->Combine(dim_value);
       dimension->set_bool_value(dim_value);
       break;
     }
     case TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED:
       if (dimension_value.type == SqlValue::kLong) {
         int64_t dim_value = dimension_value.long_value;
-        hasher->Update(dim_value);
+        hasher->Combine(dim_value);
         dimension->set_int64_value(dim_value);
       } else if (dimension_value.type == SqlValue::kDouble) {
         double dim_value = dimension_value.AsDouble();
-        hasher->Update(dim_value);
+        hasher->Combine(dim_value);
         dimension->set_double_value(dim_value);
       } else if (dimension_value.type == SqlValue::kString) {
         const char* dimension_str = dimension_value.string_value;
-        hasher->Update(dimension_str);
+        hasher->Combine(dimension_str);
         dimension->set_string_value(dimension_str);
       } else if (dimension_value.type == SqlValue::kBytes) {
         return base::ErrStatus(
@@ -410,10 +410,7 @@ struct InternedDimensionKey {
   }
   struct Hasher {
     size_t operator()(const InternedDimensionKey& k) const {
-      base::FnvHasher h;
-      h.Update(k.key_column_name.data(), k.key_column_name.size());
-      h.Update(k.key_hash);
-      return static_cast<size_t>(h.digest());
+      return base::MurmurHashCombine(k.key_column_name, k.key_hash);
     }
   };
 };
@@ -771,7 +768,7 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
         continue;
       }
       auto* row = bundle->add_row();
-      base::FnvHasher hasher;
+      base::MurmurHashCombiner hasher;
       for (const auto& dim : dimensions_with_index) {
         RETURN_IF_ERROR(WriteDimension(dim, bundle_id, query_it,
                                        row->add_dimension(), &hasher));
