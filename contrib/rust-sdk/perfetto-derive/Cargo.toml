@@ -22,7 +22,7 @@ vendored = ["perfetto/vendored"]
 
 [dependencies]
 perfetto = { path = "../perfetto", version = "0.1.0", default-features = false }
-syn = { version = "1.0.5", features = ["full"] }
+syn = { version = "2", features = ["full"] }
 quote = "1.0.8"
 proc-macro2 = "1.0"
 
