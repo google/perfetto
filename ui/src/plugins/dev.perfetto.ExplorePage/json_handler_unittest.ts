@@ -596,7 +596,6 @@ describe('JSON serialization/deserialization', () => {
 
     const addColumnsNode = new AddColumnsNode({
       prevNode: tableNode,
-      sqlTable: sqlModules.getTable('slice')!,
       selectedColumns: ['name'],
     });
     tableNode.nextNodes.push(addColumnsNode);
@@ -615,7 +614,7 @@ describe('JSON serialization/deserialization', () => {
     const deserializedNode = deserializedTableNode
       .nextNodes[0] as AddColumnsNode;
     expect(deserializedNode.state.selectedColumns).toEqual(['name']);
-    expect(deserializedNode.state.sqlTable?.name).toEqual('slice');
+    // Note: sqlTable is no longer part of AddColumnsNodeState
   });
 
   test('serializes and deserializes limit and offset node', () => {
