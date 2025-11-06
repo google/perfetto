@@ -1,6 +1,6 @@
 [package]
 edition = "2024"
-name = "perfetto-derive"
+name = "perfetto-sdk-derive"
 version = "0.1.0"
 authors = ["David Reveman <dreveman@gmail.com>"]
 description = "Procedural macros for Perfetto"
@@ -18,10 +18,10 @@ proc-macro = true
 
 [features]
 default = ["vendored"]
-vendored = ["perfetto/vendored"]
+vendored = ["perfetto-sdk/vendored"]
 
 [dependencies]
-perfetto = { path = "../perfetto", version = "0.1.0", default-features = false }
+perfetto-sdk = { path = "../perfetto", version = "0.1.0", default-features = false }
 syn = { version = "2", features = ["full"] }
 quote = "1.0.8"
 proc-macro2 = "1.0"
