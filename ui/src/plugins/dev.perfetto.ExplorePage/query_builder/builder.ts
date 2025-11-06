@@ -240,6 +240,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
+                // Reset queryExecuted flag to allow re-execution after errors or config changes
+                this.queryExecuted = false;
                 this.runQuery(selectedNode);
               },
             })

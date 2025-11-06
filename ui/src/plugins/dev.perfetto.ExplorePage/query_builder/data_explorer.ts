@@ -140,6 +140,24 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       );
     }
 
+    // Show spinner overlay when query is running
+    if (attrs.isQueryRunning) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(
+          '.pf-exp-query-running-spinner',
+          {
+            style: {
+              fontSize: '64px',
+            },
+          },
+          m(Spinner, {
+            easing: true,
+          }),
+        ),
+      );
+    }
+
     if (message) {
       return m(TextParagraph, {text: message});
     }
