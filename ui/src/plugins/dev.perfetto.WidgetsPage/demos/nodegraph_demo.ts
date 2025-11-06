@@ -138,7 +138,6 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
     hue: 300,
   },
   union: {
-    // Note: inputs computed dynamically
     inputs: [
       {content: 'Input 1', direction: 'top'},
       {content: 'Input 2', direction: 'left'},
@@ -470,40 +469,6 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         }
       }
     }
-    return inputs;
-  }
-
-  // Helper to count connected left ports for a union node
-  function countConnectedLeftPorts(
-    connections: Connection[],
-    nodeId: string,
-  ): number {
-    let count = 0;
-    for (const conn of connections) {
-      if (conn.toNode === nodeId && conn.toPort > 0) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  // Helper to compute dynamic inputs for union nodes
-  function computeUnionInputs(
-    connections: Connection[],
-    nodeId: string,
-  ): ReadonlyArray<NodePort> {
-    const connectedLeftPorts = countConnectedLeftPorts(connections, nodeId);
-    const numLeftPorts = connectedLeftPorts + 1; // Always N+1
-
-    const inputs: NodePort[] = [{content: 'Input 1', direction: 'top'}];
-
-    for (let i = 0; i < numLeftPorts; i++) {
-      inputs.push({
-        content: `Input ${i + 2}`,
-        direction: 'left',
-      });
-    }
-
     return inputs;
   }
 
@@ -848,17 +813,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
         const config = NODE_CONFIGS[nodeData.type];
 
-        // Compute inputs dynamically for union nodes
-        const inputs =
-          nodeData.type === 'union'
-            ? computeUnionInputs(store.connections, nodeData.id)
-            : config.inputs;
-
         return {
           id: nodeData.id,
           x: nodeData.x,
           y: nodeData.y,
-          inputs: inputs,
+          inputs: config.inputs,
           outputs: config.outputs?.map((out) => {
             return {...out, contextMenuItems: renderAddNodeMenu(nodeData.id)};
           }),
@@ -888,15 +847,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
         const config = NODE_CONFIGS[nodeData.type];
 
-        // Compute inputs dynamically for union nodes
-        const inputs =
-          nodeData.type === 'union'
-            ? computeUnionInputs(store.connections, nodeData.id)
-            : config.inputs;
-
         return {
           id: nodeData.id,
-          inputs: inputs,
+          inputs: config.inputs,
           outputs: config.outputs?.map((out) => {
             return {...out, contextMenuItems: renderAddNodeMenu(nodeData.id)};
           }),
