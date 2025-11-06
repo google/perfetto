@@ -57,21 +57,21 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 4;
+  z-index: 3;
   pointer-events: auto;
   display: flex;
   gap: 8px;
 }
 
 .pf-node {
-  position: absolute;
+  position: relative;
   background: var(--pf-color-background-secondary);
   border: 2px solid var(--pf-color-border);
   border-radius: 8px;
   min-width: 180px;
-  box-shadow: 0 4px 12px var(--pf-color-box-shadow);
   cursor: move;
   pointer-events: auto;
+  width: 100%;
 }
 
 .pf-node--has-accent-bar::before {
@@ -102,7 +102,8 @@
 }
 
 // Wrapper for dock chains - uses flexbox to make children same width
-.pf-dock-chain {
+.pf-node-wrapper {
+  isolation: isolate; // Don't allow z-index to escape container.
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -110,13 +111,13 @@
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
   border-radius: 8px;
 
-  // All nodes in chain stretch to same width (determined by widest node)
-  .pf-node {
-    width: 100%;
-    position: relative !important;
-    left: auto !important;
-    top: auto !important;
-    box-shadow: none; // No box shadow for docked nodes
+  &--dragging {
+    z-index: 1; // Ensure dragging entire chain appears above other nodes.
+
+    // TODO Might want to add some visual indication of dragging entire chain
+    // using box shadow, and maybe make slightly transparent.
+    // opacity: 0.8;
+    // box-shadow: 6px 6px 24px var(--pf-color-box-shadow);
   }
 }
 
@@ -209,7 +210,6 @@
   position: absolute;
   top: 6px;
   right: 6px;
-  z-index: 1;
 }
 
 .pf-node-content {
@@ -258,7 +258,7 @@
     cursor: pointer;
     &::after {
       // Render a little plus button to indicate context menu availability
-      @include material-icon('add');
+      @include material-icon("add");
       position: absolute;
       font-size: 15px;
       top: 50%;
@@ -266,21 +266,23 @@
       transform: translate(-50%, -50%);
     }
   }
+
+  &.pf-connected {
+    background: var(--pf-color-accent);
+    border-color: var(--pf-color-accent);
+    color: var(--pf-color-text-on-accent);
+  }
 }
 
 .pf-output {
   background: var(--pf-color-border);
-  z-index: 2;
+  z-index: 2; // Make outputs appear above inputs when docked.
 }
 
 .pf-output:hover {
   background: var(--pf-color-accent);
   border-color: var(--pf-color-accent);
-}
-
-.pf-port.pf-connected {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
+  color: var(--pf-color-text-on-accent);
 }
 
 .pf-port.pf-input {
@@ -363,6 +365,7 @@ svg {
 .pf-output.pf-active:hover {
   background: var(--pf-color-accent);
   border-color: var(--pf-color-accent);
+  color: var(--pf-color-text-on-accent);
   cursor: crosshair;
 }
 
@@ -375,5 +378,5 @@ svg {
   border: 2px solid var(--pf-color-accent);
   background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
   pointer-events: none;
-  z-index: 3; // Render selection rectangle above nodes.
+  z-index: 2; // Render selection rectangle above nodes.
 }

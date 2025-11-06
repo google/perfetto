@@ -773,7 +773,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       if (nodeElement !== null) {
         // Check if node is in a dock chain (flexbox positioning)
         const chainContainer = nodeElement.closest(
-          '.pf-dock-chain',
+          '.pf-node-wrapper',
         ) as HTMLElement | null;
 
         let nodeLeft: number;
@@ -1344,17 +1344,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       return portElement;
     };
 
-    const isPositioned = (node: Node | Omit<Node, 'x' | 'y'>): node is Node => {
-      return (node as Node).x !== undefined && (node as Node).y !== undefined;
-    };
-
-    const position = isPositioned(node)
-      ? {
-          left: `${node.x}px`,
-          top: `${node.y}px`,
-        }
-      : undefined;
-
     const style = hue !== undefined ? {'--pf-node-hue': `${hue}`} : undefined;
 
     return m(
@@ -1365,7 +1354,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         'class': classes,
         'style': {
           ...style,
-          ...position,
         },
         'onpointerdown': (e: PointerEvent) => {
           if ((e.target as HTMLElement).closest('.pf-port')) {
@@ -1850,12 +1838,18 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   const renderPos = {x: node.x, y: node.y};
 
                   // If this is a chain root, wrap all chain nodes in flex container
+                  // Always wrap in a chain root container for consistency
+
                   if (isChainRoot) {
                     return m(
-                      '.pf-dock-chain',
+                      '.pf-node-wrapper',
                       {
                         key: `chain-${id}`,
-                        style: `left: ${renderPos.x}px; top: ${renderPos.y}px; z-index: ${canvasState.draggedNode === id ? 1000 : 10}`,
+                        style: `left: ${renderPos.x}px; top: ${renderPos.y}px;`,
+                        className: classNames(
+                          canvasState.draggedNode === id &&
+                            'pf-node-wrapper--dragging',
+                        ),
                       },
                       chain.map((chainNode) => {
                         const cIsDockedChild = 'x' in chainNode === false;
@@ -1873,22 +1867,30 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         });
                       }),
                     );
+                  } else {
+                    // Render standalone node (not part of a chain)
+                    const isDockTarget =
+                      canvasState.dockTarget === id && canvasState.isDockZone;
+
+                    return m(
+                      '.pf-node-wrapper',
+                      {
+                        key: `chain-${id}`,
+                        style: `left: ${renderPos.x}px; top: ${renderPos.y}px;`,
+                        className: classNames(
+                          canvasState.draggedNode === id &&
+                            'pf-node-wrapper--dragging',
+                        ),
+                      },
+                      renderNode(node, vnode, {
+                        isDockedChild: false,
+                        hasDockedChild: false,
+                        isDockTarget,
+                        rootNode: undefined,
+                        multiselect,
+                      }),
+                    );
                   }
-
-                  // Render standalone node (not part of a chain)
-                  const isDockTarget =
-                    canvasState.dockTarget === id && canvasState.isDockZone;
-
-                  // Wrap renderNode result with positioning
-                  const nodeVnode = renderNode(node, vnode, {
-                    isDockedChild: false,
-                    hasDockedChild: false,
-                    isDockTarget,
-                    rootNode: undefined,
-                    multiselect,
-                  });
-
-                  return nodeVnode;
                 })
                 .filter((vnode) => vnode !== null),
             ],
