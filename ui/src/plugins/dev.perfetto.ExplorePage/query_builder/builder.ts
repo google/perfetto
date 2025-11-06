@@ -82,6 +82,7 @@ import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
+import {MaterializationService} from './materialization_service';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -122,6 +123,7 @@ export interface BuilderAttrs {
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
   private queryService: QueryService;
+  private materializationService: MaterializationService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
@@ -134,6 +136,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.queryService = new QueryService(attrs.trace.engine);
+    this.materializationService = new MaterializationService(
+      attrs.trace.engine,
+    );
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -323,7 +328,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return undefined;
   }
 
-  private runQuery(node: QueryNode) {
+  private async runQuery(node: QueryNode) {
     if (
       this.query === undefined ||
       this.query instanceof Error ||
@@ -333,7 +338,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     }
 
     this.isQueryRunning = true;
-    this.queryService.runQuery(queryToRun(this.query)).then((response) => {
+
+    try {
+      const response = await this.queryService.runQuery(queryToRun(this.query));
       this.response = response;
       const ds = new InMemoryDataSource(this.response.rows);
       this.dataSource = {
@@ -373,8 +380,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       if (node instanceof SqlSourceNode) {
         node.onQueryExecuted(this.response.columns);
       }
+
+      // Automatically materialize the node after successful execution
+      if (isAQuery(this.query) && !error && !warning) {
+        try {
+          await this.materializationService.materializeNode(node, this.query);
+        } catch (e) {
+          console.error('Failed to materialize node:', e);
+          // Don't block the UI on materialization errors
+        }
+      }
+    } catch (e) {
+      console.error('Failed to run query:', e);
+      // Set error state on the node
+      if (!node.state.issues) {
+        node.state.issues = new NodeIssues();
+      }
+      node.state.issues.queryError =
+        e instanceof Error ? e : new Error(String(e));
+    } finally {
       this.isQueryRunning = false;
       m.redraw();
-    });
+    }
   }
 }

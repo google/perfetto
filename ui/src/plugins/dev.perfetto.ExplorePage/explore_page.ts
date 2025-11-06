@@ -28,6 +28,7 @@ import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
+import {MaterializationService} from './query_builder/materialization_service';
 
 registerCoreNodes();
 
@@ -50,6 +51,8 @@ interface ExplorePageAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
+  private materializationService?: MaterializationService;
+
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
@@ -241,12 +244,68 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  handleClearAllNodes(attrs: ExplorePageAttrs) {
+  async handleClearAllNodes(attrs: ExplorePageAttrs) {
+    // Clean up materialized tables for all nodes
+    if (this.materializationService !== undefined) {
+      const allNodes = this.getAllNodes(attrs.state.rootNodes);
+      const materialized = allNodes.filter(
+        (node) => node.state.materialized === true,
+      );
+
+      // Drop all materializations in parallel
+      const results = await Promise.allSettled(
+        materialized.map((node) =>
+          this.materializationService!.dropMaterialization(node),
+        ),
+      );
+
+      // Log any failures but don't block the clear operation
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(
+            `Failed to drop materialization for node ${materialized[index].nodeId}:`,
+            result.reason,
+          );
+        }
+      });
+    }
+
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [],
       selectedNode: undefined,
     }));
+  }
+
+  private getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
+    const allNodes: QueryNode[] = [];
+    const visited = new Set<string>();
+    const queue = [...rootNodes];
+
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      if (visited.has(node.nodeId)) {
+        continue;
+      }
+      visited.add(node.nodeId);
+      allNodes.push(node);
+
+      // Traverse forward edges
+      queue.push(...node.nextNodes);
+
+      // Traverse backward edges
+      if ('prevNode' in node && node.prevNode) {
+        queue.push(node.prevNode);
+      } else if ('prevNodes' in node) {
+        for (const prevNode of node.prevNodes) {
+          if (prevNode !== undefined) {
+            queue.push(prevNode);
+          }
+        }
+      }
+    }
+
+    return allNodes;
   }
 
   handleDuplicateNode(attrs: ExplorePageAttrs, node: QueryNode) {
@@ -257,8 +316,24 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
+  async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
     const {state, onStateUpdate} = attrs;
+
+    // Clean up materialized table if it exists
+    if (
+      this.materializationService !== undefined &&
+      node.state.materialized === true
+    ) {
+      try {
+        await this.materializationService.dropMaterialization(node);
+      } catch (e) {
+        console.error(
+          `Failed to drop materialization for node ${node.nodeId}:`,
+          e,
+        );
+        // Continue with node deletion even if materialization cleanup fails
+      }
+    }
 
     let newRootNodes = state.rootNodes.filter((n) => n !== node);
     if (state.rootNodes.includes(node) && node.nextNodes.length > 0) {
@@ -271,7 +346,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       parentNodes.push(node.prevNode);
     } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
-        if (prevNode) parentNodes.push(prevNode);
+        if (prevNode !== undefined) parentNodes.push(prevNode);
       }
     }
 
@@ -438,6 +513,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       {
         onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, attrs),
         oncreate: (vnode) => {
+          // Initialize materialization service
+          if (this.materializationService === undefined) {
+            this.materializationService = new MaterializationService(
+              attrs.trace.engine,
+            );
+          }
           (vnode.dom as HTMLElement).focus();
         },
         tabindex: 0,

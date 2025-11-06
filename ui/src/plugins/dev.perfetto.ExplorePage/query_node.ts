@@ -92,6 +92,10 @@ export interface QueryNodeState {
   // If false, the user must manually click "Run" to execute queries.
   // Set by the node registry when the node is created.
   autoExecute?: boolean;
+
+  // Materialization state
+  materialized?: boolean;
+  materializationTableName?: string;
 }
 
 export interface BaseNode {

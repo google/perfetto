@@ -36,6 +36,8 @@ import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Icon} from '../../../widgets/icon';
+import {Tooltip} from '../../../widgets/tooltip';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
@@ -109,6 +111,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
     });
 
+    // Add materialization indicator icon with tooltip
+    const materializationIndicator =
+      attrs.node.state.materialized && attrs.node.state.materializationTableName
+        ? m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'database'}),
+            },
+            `Materialized as ${attrs.node.state.materializationTableName}`,
+          )
+        : null;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -124,7 +138,13 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ],
     );
 
-    return [runButton, statusIndicator, autoExecuteSwitch, positionMenu];
+    return [
+      runButton,
+      statusIndicator,
+      materializationIndicator,
+      autoExecuteSwitch,
+      positionMenu,
+    ];
   }
 
   private renderContent(
