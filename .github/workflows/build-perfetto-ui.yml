@@ -1,0 +1,64 @@
+name: Build Perfetto UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name'
+        required: true
+        default: 'v0.0.1'
+        type: string
+      upload_artifacts:
+        description: 'Upload UI build artifacts'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  build-ui:
+    name: Build Perfetto UI
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install pnpm
+      run: npm install -g pnpm
+
+    - name: Patch install script
+      run: |
+        sed -i "s/'--frozen-lockfile'//g" tools/install-build-deps
+
+    - name: Install UI build dependencies
+      run: |
+        tools/install-build-deps --ui
+
+    - name: Build UI
+      run: |
+        ui/build --out out/dist
+
+    - name: Package UI artifacts
+      if: ${{ github.event.inputs.upload_artifacts }}
+      run: |
+        cd out/dist/ui/dist
+        tar -czf perfetto-ui-${{ github.sha }}.tar.gz ./*
+
+    - name: Create Release
+      if: ${{ github.event.inputs.upload_artifacts }}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag_name }}
+        name: Perfetto UI ${{ github.event.inputs.tag_name }}
+        body: |
+          Perfetto UI build
+          - Build date: ${{ steps.build-info.outputs.build_date }}
+          - Commit: ${{ github.sha }}
+        draft: false
+        prerelease: false
+        files: |
+          out/dist/ui/dist/perfetto-ui-${{ github.sha }}.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
