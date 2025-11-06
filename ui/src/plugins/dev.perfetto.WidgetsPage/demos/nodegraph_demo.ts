@@ -146,7 +146,6 @@ function filterNode(): NodeModelKernel<{filterExpression: string}> {
         oninput: (e: InputEvent) => {
           const target = e.target as HTMLInputElement;
           filterExpression = target.value;
-          console.log('Filter expression updated to:', filterExpression);
         },
       }),
   };
@@ -189,8 +188,9 @@ function joinNode(): NodeModelKernel<{joinType: string; joinOn: string}> {
         m(TextInput, {
           placeholder: 'ON condition...',
           value: joinOn,
-          onInput: (value: string) => {
-            joinOn = value;
+          oninput: (e: InputEvent) => {
+            const target = e.target as HTMLInputElement;
+            joinOn = target.value;
           },
         }),
       ]),
@@ -456,7 +456,20 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     if (toNodeId) {
       const parentNode = nodes.get(toNodeId);
       if (parentNode) {
+        newNode.nextId = parentNode.nextId;
         parentNode.nextId = id;
+      }
+
+      // Find any connection connected to the bottom port of this node
+      const bottomConnectionIdx = connections.findIndex(
+        (c) => c.fromNode === toNodeId && c.fromPort === 0,
+      );
+      if (bottomConnectionIdx > -1) {
+        connections[bottomConnectionIdx] = {
+          ...connections[bottomConnectionIdx],
+          fromNode: id,
+          fromPort: 0,
+        };
       }
     }
   }

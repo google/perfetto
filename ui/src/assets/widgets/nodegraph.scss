@@ -57,7 +57,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 3;
+  z-index: 4;
   pointer-events: auto;
   display: flex;
   gap: 8px;
@@ -129,6 +129,7 @@
 
 // Docked child: flush top edge with no rounded corners or border
 .pf-node.pf-docked-child {
+  border-top-color: var(--pf-color-accent);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   margin-top: -2px; // Overlap border with parent
@@ -269,6 +270,7 @@
 
 .pf-output {
   background: var(--pf-color-border);
+  z-index: 2;
 }
 
 .pf-output:hover {
@@ -373,5 +375,5 @@ svg {
   border: 2px solid var(--pf-color-accent);
   background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
   pointer-events: none;
-  z-index: 2; // Render selection rectangle above nodes.
+  z-index: 3; // Render selection rectangle above nodes.
 }
