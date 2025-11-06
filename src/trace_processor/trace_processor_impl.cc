@@ -1338,7 +1338,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
-    base::Status status = RegisterTypeBuilderFunctions(*engine);
+    base::Status status =
+        RegisterTypeBuilderFunctions(*engine, storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
