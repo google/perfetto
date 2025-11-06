@@ -396,6 +396,8 @@ function createNodeConfig(
   qnode: QueryNode,
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
+  const noTopPort = isSourceNode(qnode) || isMultiSourceNode(qnode);
+
   return {
     id: qnode.nodeId,
     inputs: getInputLabels(qnode),
@@ -406,6 +408,8 @@ function createNodeConfig(
         contextMenuItems: buildAddMenuItems(qnode, attrs.onAddOperationNode),
       },
     ],
+    canDockBottom: true,
+    canDockTop: !noTopPort,
     hue: getNodeHue(qnode),
     accentBar: true,
     content: m(NodeBox, {
