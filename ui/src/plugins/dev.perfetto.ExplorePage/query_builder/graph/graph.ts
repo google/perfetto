@@ -272,9 +272,18 @@ function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  return buildMenuItems('modification', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', undefined, (id) =>
     onAddOperationNode(id, targetNode),
   );
+  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+    onAddOperationNode(id, targetNode),
+  );
+
+  // Add a divider between modification and multisource nodes if both exist
+  if (modificationItems.length > 0 && multisourceItems.length > 0) {
+    return [...modificationItems, m(MenuDivider), ...multisourceItems];
+  }
+  return [...modificationItems, ...multisourceItems];
 }
 
 // ========================================

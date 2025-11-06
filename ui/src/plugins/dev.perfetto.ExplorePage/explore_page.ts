@@ -100,9 +100,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // Use a wrapper object to hold the node reference (allows mutation without 'let')
       const nodeRef: {current?: QueryNode} = {};
 
+      const isMultisource = descriptor.type === 'multisource';
+
       const nodeState: QueryNodeState = {
         ...initialState,
-        prevNode: node,
+        // For modification nodes, set prevNode; multisource nodes will be connected via addConnection
+        ...(isMultisource ? {} : {prevNode: node}),
         sqlModules,
         trace: attrs.trace,
         // Provide actions for nodes that need to interact with the graph
@@ -128,29 +131,42 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // Set the reference so the callback can use it
       nodeRef.current = newNode;
 
-      // Store the existing next nodes
-      const existingNextNodes = [...node.nextNodes];
+      if (isMultisource) {
+        // For multisource nodes: just connect and add to root nodes
+        // Don't insert in-between - the node combines multiple sources
+        addConnection(node, newNode);
 
-      // Clear the node's next nodes (we'll reconnect through the new node)
-      node.nextNodes = [];
+        onStateUpdate((currentState) => ({
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, newNode],
+          selectedNode: newNode,
+        }));
+      } else {
+        // For modification nodes: insert between the target and its children
+        // Store the existing next nodes
+        const existingNextNodes = [...node.nextNodes];
 
-      // Connect: node -> newNode
-      addConnection(node, newNode);
+        // Clear the node's next nodes (we'll reconnect through the new node)
+        node.nextNodes = [];
 
-      // Connect: newNode -> each existing next node
-      for (const nextNode of existingNextNodes) {
-        if (nextNode !== undefined) {
-          // First remove the old connection from node to nextNode (if it still exists)
-          removeConnection(node, nextNode);
-          // Then add connection from newNode to nextNode
-          addConnection(newNode, nextNode);
+        // Connect: node -> newNode
+        addConnection(node, newNode);
+
+        // Connect: newNode -> each existing next node
+        for (const nextNode of existingNextNodes) {
+          if (nextNode !== undefined) {
+            // First remove the old connection from node to nextNode (if it still exists)
+            removeConnection(node, nextNode);
+            // Then add connection from newNode to nextNode
+            addConnection(newNode, nextNode);
+          }
         }
-      }
 
-      onStateUpdate((currentState) => ({
-        ...currentState,
-        selectedNode: newNode,
-      }));
+        onStateUpdate((currentState) => ({
+          ...currentState,
+          selectedNode: newNode,
+        }));
+      }
     }
   }
 
