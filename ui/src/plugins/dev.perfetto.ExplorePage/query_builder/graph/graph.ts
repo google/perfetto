@@ -47,6 +47,7 @@ import {
   Node,
   NodeGraph,
   NodeGraphApi,
+  NodeGraphAttrs,
   NodePort,
 } from '../../../../widgets/nodegraph';
 import {UIFilter} from '../operations/filter';
@@ -725,7 +726,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           onSelectionClear: () => {
             attrs.onDeselect();
           },
-          onNodeDrag: (nodeId: string, x: number, y: number) => {
+          onNodeMove: (nodeId: string, x: number, y: number) => {
             attrs.onNodeLayoutChange(nodeId, {x, y});
           },
           onConnect: (conn: Connection) => {
@@ -754,7 +755,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             attrs.nodeLayouts.delete(childNode.id);
             m.redraw();
           },
-        }),
+        } satisfies NodeGraphAttrs),
         this.renderControls(attrs),
       ],
     );

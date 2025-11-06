@@ -472,13 +472,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     return inputs;
   }
 
-  // Update store without adding to history (for real-time updates like dragging)
-  const updateStoreNoHistory = (updater: (draft: NodeGraphStore) => void) => {
-    store = produce(store, updater);
-    m.redraw();
-  };
-
-  // Update store with history (for final updates)
+  // Update store with history
   const updateStore = (updater: (draft: NodeGraphStore) => void) => {
     // Apply the update
     const newStore = produce(store, updater);
@@ -990,20 +984,10 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
         },
-        onNodeDrag: (nodeId: string, x: number, y: number) => {
-          // Update position in real-time for visual feedback (no history entry)
-          updateStoreNoHistory((draft) => {
-            const node = draft.nodes.get(nodeId);
-            if (node) {
-              node.x = x;
-              node.y = y;
-            }
-          });
-        },
-        onNodeDragEnd: (nodeId: string, x: number, y: number) => {
-          // Update position in store with history entry when drag completes
+        onNodeMove: (nodeId: string, x: number, y: number) => {
+          // Update position in store with history entry when node is dropped
           updateNode(nodeId, {x, y});
-          console.log(`onNodeDragEnd: ${nodeId} to (${x}, ${y})`);
+          console.log(`onNodeMove: ${nodeId} to (${x}, ${y})`);
         },
         onConnect: (conn: Connection) => {
           console.log('onConnect:', conn);
@@ -1068,20 +1052,19 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             }
           });
         },
-        onUndock: (parentId: string) => {
+        onUndock: (parentId: string, nodeId: string, x: number, y: number) => {
           updateStore((draft) => {
             const parent = draft.nodes.get(parentId);
+            const child = draft.nodes.get(nodeId);
 
-            if (parent && parent.nextId) {
-              const child = draft.nodes.get(parent.nextId);
+            if (parent && child) {
+              child.x = x;
+              child.y = y;
+              parent.nextId = undefined;
 
-              if (child) {
-                child.x = parent.x;
-                child.y = parent.y + 150;
-                parent.nextId = undefined;
-
-                console.log(`onUndock: ${child.id} from ${parentId}`);
-              }
+              console.log(
+                `onUndock: ${nodeId} from ${parentId} at (${x}, ${y})`,
+              );
             }
           });
         },
