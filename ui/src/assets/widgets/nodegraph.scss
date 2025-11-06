@@ -57,7 +57,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 3;
+  z-index: 4;
   pointer-events: auto;
   display: flex;
   gap: 8px;
@@ -379,5 +379,5 @@ svg {
   border: 2px solid var(--pf-color-accent);
   background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
   pointer-events: none;
-  z-index: 2; // Render selection rectangle above nodes.
+  z-index: 3; // Render selection rectangle above nodes.
 }
