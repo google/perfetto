@@ -752,31 +752,49 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         label: 'Select',
         icon: 'filter_alt',
         onclick: () => addNode(createSelectNode, toNode),
+        style: {
+          borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
+        },
       }),
       m(MenuItem, {
         label: 'Filter',
         icon: 'filter_list',
         onclick: () => addNode(createFilterNode, toNode),
+        style: {
+          borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
+        },
       }),
       m(MenuItem, {
         label: 'Sort',
         icon: 'sort',
         onclick: () => addNode(createSortNode, toNode),
+        style: {
+          borderLeft: `4px solid hsl(${NODE_CONFIGS.sort.hue}, 60%, 50%)`,
+        },
       }),
       m(MenuItem, {
         label: 'Join',
         icon: 'join',
         onclick: () => addNode(createJoinNode, toNode),
+        style: {
+          borderLeft: `4px solid hsl(${NODE_CONFIGS.join.hue}, 60%, 50%)`,
+        },
       }),
       m(MenuItem, {
         label: 'Union',
         icon: 'merge',
         onclick: () => addNode(createUnionNode, toNode),
+        style: {
+          borderLeft: `4px solid hsl(${NODE_CONFIGS.union.hue}, 60%, 50%)`,
+        },
       }),
       m(MenuItem, {
         label: 'Result',
         icon: 'output',
         onclick: () => addNode(createResultNode, toNode),
+        style: {
+          borderLeft: `4px solid hsl(${NODE_CONFIGS.result.hue}, 60%, 50%)`,
+        },
       }),
     ];
   }
@@ -910,36 +928,57 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
                 label: 'Table',
                 icon: 'table_chart',
                 onclick: () => addNode(createTableNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.table.hue}, 60%, 50%)`,
+                },
               }),
               m(MenuItem, {
                 label: 'Select',
                 icon: 'filter_alt',
                 onclick: () => addNode(createSelectNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
+                },
               }),
               m(MenuItem, {
                 label: 'Filter',
                 icon: 'filter_list',
                 onclick: () => addNode(createFilterNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
+                },
               }),
               m(MenuItem, {
                 label: 'Sort',
                 icon: 'sort',
                 onclick: () => addNode(createSortNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.sort.hue}, 60%, 50%)`,
+                },
               }),
               m(MenuItem, {
                 label: 'Join',
                 icon: 'join',
                 onclick: () => addNode(createJoinNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.join.hue}, 60%, 50%)`,
+                },
               }),
               m(MenuItem, {
                 label: 'Union',
                 icon: 'merge',
                 onclick: () => addNode(createUnionNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.union.hue}, 60%, 50%)`,
+                },
               }),
               m(MenuItem, {
                 label: 'Result',
                 icon: 'output',
                 onclick: () => addNode(createResultNode),
+                style: {
+                  borderLeft: `4px solid hsl(${NODE_CONFIGS.result.hue}, 60%, 50%)`,
+                },
               }),
             ],
           ),
