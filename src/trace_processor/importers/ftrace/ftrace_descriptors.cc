@@ -5966,11 +5966,13 @@ std::array<FtraceMessageDescriptor, 596> descriptors{{
     },
     {
         "pixel_mm_kswapd_done",
-        2,
+        4,
         {
             {},
             {"delta_nr_scanned", ProtoSchemaType::kUint64},
             {"delta_nr_reclaimed", ProtoSchemaType::kUint64},
+            {"delta_nr_allocated", ProtoSchemaType::kUint64},
+            {"duration_ns", ProtoSchemaType::kUint64},
         },
     },
     {
