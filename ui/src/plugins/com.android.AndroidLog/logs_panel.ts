@@ -21,17 +21,7 @@ import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {
   escapeQuery,
   escapeSearchQuery,
-  escapeRegexQuery,
 } from '../../trace_processor/query_utils';
-import {Select} from '../../widgets/select';
-import {
-  type MultiSelectDiff,
-  type MultiSelectOption,
-  PopupMultiSelect,
-} from '../../widgets/multiselect';
-import {PopupPosition} from '../../widgets/popup';
-import {Button} from '../../widgets/button';
-import {TextInput} from '../../widgets/text_input';
 import {
   Grid,
   type GridColumn,
@@ -40,19 +30,26 @@ import {
   GridCell,
 } from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
-import {TagInput} from '../../widgets/tag_input';
+import {
+  FilterInput,
+  type TagDefinition,
+  type SelectedTag,
+} from '../../widgets/filter_input';
 import type {Store} from '../../base/store';
 import type {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
 import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
+import {Button} from '../../widgets/button';
+import {EmptyState} from '../../widgets/empty_state';
 
 const ROW_H = 24;
 
 export interface LogFilteringCriteria {
-  readonly minimumLevel: number;
+  readonly minimumLevel?: number;
   readonly tags: string[];
-  readonly isTagRegex?: boolean;
+  readonly pids: bigint[];
+  readonly tids: bigint[];
   readonly textEntry: string;
   readonly hideNonMatching: boolean;
   readonly machineExcludeList: number[];
@@ -85,7 +82,7 @@ interface LogEntries {
   readonly messages: string[];
   readonly isHighlighted: boolean[];
   readonly processName: string[];
-  readonly totalEvents: number; // Count of the total number of events within this window
+  readonly totalEvents: number;
 }
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
@@ -139,13 +136,14 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       {
         title: 'Android Logs',
         description: `Total messages: ${totalEvents}`,
+        fillButtonsSpace: true,
         buttons: m(LogsFilters, {
           trace: attrs.trace,
           cache: attrs.cache,
           store: attrs.filterStore,
         }),
       },
-      this.renderGrid(attrs.trace, entries, attrs.cache),
+      this.renderGrid(attrs.trace, entries, attrs.cache, attrs),
     );
   }
 
@@ -153,6 +151,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     trace: Trace,
     entries: LogEntries | undefined,
     cache: LogPanelCache,
+    attrs: LogPanelAttrs,
   ) {
     if (entries) {
       const hasMachineIds = cache.uniqueMachineIds.length > 1;
@@ -206,6 +205,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         onRowOut: () => {
           trace.timeline.hoverCursorTimestamp = undefined;
         },
+        emptyState: this.renderEmptyState(attrs, entries),
       });
     } else {
       return null;
@@ -274,6 +274,49 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
     return rows;
   }
+
+  private renderEmptyState(
+    attrs: LogPanelAttrs,
+    entries: LogEntries,
+  ): m.Children {
+    const totalEvents = entries?.totalEvents ?? 0;
+    if (totalEvents > 0) {
+      return undefined;
+    }
+
+    const filterState = attrs.filterStore.state;
+    const hasFilters =
+      filterState.minimumLevel !== undefined ||
+      filterState.tags.length > 0 ||
+      filterState.pids.length > 0 ||
+      filterState.tids.length > 0 ||
+      filterState.textEntry !== '' ||
+      filterState.machineExcludeList.length > 0;
+
+    return m(
+      EmptyState,
+      {
+        icon: hasFilters ? 'filter_list_off' : 'article',
+        title: hasFilters ? 'No logs match your filters' : 'No logs available',
+        fillHeight: true,
+      },
+      hasFilters &&
+        m(Button, {
+          label: 'Clear all filters',
+          onclick: () => {
+            attrs.filterStore.edit((draft) => {
+              draft.minimumLevel = undefined;
+              draft.tags = [];
+              draft.pids = [];
+              draft.tids = [];
+              draft.textEntry = '';
+              draft.hideNonMatching = false;
+              draft.machineExcludeList = [];
+            });
+          },
+        }),
+    );
+  }
 }
 
 function classForPriority(priority: number) {
@@ -307,54 +350,10 @@ export const LOG_PRIORITIES = [
 ];
 const IGNORED_STATES = 2;
 
-interface LogPriorityWidgetAttrs {
+interface LogsFiltersAttrs {
   readonly trace: Trace;
-  readonly options: string[];
-  readonly selectedIndex: number;
-  readonly onSelect: (id: number) => void;
-}
-
-class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
-  view(vnode: m.Vnode<LogPriorityWidgetAttrs>) {
-    const attrs = vnode.attrs;
-    const optionComponents = [];
-    for (let i = IGNORED_STATES; i < attrs.options.length; i++) {
-      const selected = i === attrs.selectedIndex;
-      optionComponents.push(
-        m('option', {value: i, selected}, attrs.options[i]),
-      );
-    }
-    return m(
-      Select,
-      {
-        onchange: (e: Event) => {
-          const selectionValue = (e.target as HTMLSelectElement).value;
-          attrs.onSelect(Number(selectionValue));
-        },
-      },
-      optionComponents,
-    );
-  }
-}
-
-interface LogTextWidgetAttrs {
-  readonly trace: Trace;
-  readonly onChange: (value: string) => void;
-}
-
-class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
-  view({attrs}: m.CVnode<LogTextWidgetAttrs>) {
-    return m(TextInput, {
-      leftIcon: 'search',
-      placeholder: 'Search logs...',
-      onkeyup: (e: KeyboardEvent) => {
-        // We want to use the value of the input field after it has been
-        // updated with the latest key (onkeyup).
-        const htmlElement = e.target as HTMLInputElement;
-        attrs.onChange(htmlElement.value);
-      },
-    });
-  }
+  readonly cache: LogPanelCache;
+  readonly store: Store<LogFilteringCriteria>;
 }
 
 interface FilterByTextWidgetAttrs {
@@ -376,58 +375,81 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   }
 }
 
-interface LogsFiltersAttrs {
-  readonly trace: Trace;
-  readonly cache: LogPanelCache;
-  readonly store: Store<LogFilteringCriteria>;
-}
-
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
+  private uniqueTags: string[] = [];
+  private uniquePids: bigint[] = [];
+  private uniqueTids: bigint[] = [];
+
+  async oncreate({attrs}: m.CVnode<LogsFiltersAttrs>) {
+    const engine = attrs.trace.engine;
+
+    // Fetch unique tags from the database
+    const tagsResult = await engine.query(`
+      select distinct tag
+      from android_logs
+      where tag is not null
+      order by tag
+    `);
+    const tags: string[] = [];
+    const tagsIt = tagsResult.iter({tag: STR});
+    for (; tagsIt.valid(); tagsIt.next()) {
+      tags.push(tagsIt.tag);
+    }
+    this.uniqueTags = tags;
+
+    // Fetch unique PIDs from the database
+    const pidsResult = await engine.query(`
+      select distinct pid
+      from android_logs
+      left join thread using(utid)
+      left join process using(upid)
+      where pid is not null
+      order by pid
+    `);
+    const pids: bigint[] = [];
+    const pidsIt = pidsResult.iter({pid: LONG});
+    for (; pidsIt.valid(); pidsIt.next()) {
+      pids.push(pidsIt.pid);
+    }
+    this.uniquePids = pids;
+
+    // Fetch unique TIDs from the database
+    const tidsResult = await engine.query(`
+      select distinct tid
+      from android_logs
+      left join thread using(utid)
+      where tid is not null
+      order by tid
+    `);
+    const tids: bigint[] = [];
+    const tidsIt = tidsResult.iter({tid: LONG});
+    for (; tidsIt.valid(); tidsIt.next()) {
+      tids.push(tidsIt.tid);
+    }
+    this.uniqueTids = tids;
+
+    m.redraw();
+  }
+
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
-    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
+    const tagDefinitions = this.buildTagDefinitions(attrs);
+    const selectedTags = this.convertStateToTags(attrs.store.state, attrs);
 
     return [
-      m('span', 'Log Level'),
-      m(LogPriorityWidget, {
-        trace: attrs.trace,
-        options: LOG_PRIORITIES,
-        selectedIndex: attrs.store.state.minimumLevel,
-        onSelect: (minimumLevel) => {
+      m(FilterInput, {
+        className: 'pf-logs-panel__filter',
+        tags: tagDefinitions,
+        selectedTags,
+        placeholder:
+          'Add filters (e.g., level:info, tag:ActivityManager) or type to search...',
+        onTagAdd: (tag: SelectedTag) => {
           attrs.store.edit((draft) => {
-            draft.minimumLevel = minimumLevel;
+            this.applyTagAddition(tag, draft, attrs);
           });
         },
-      }),
-      m(TagInput, {
-        leftIcon: 'label',
-        placeholder: 'Filter by tag...',
-        tags: attrs.store.state.tags,
-        onTagAdd: (tag) => {
+        onTagRemove: (tag: SelectedTag) => {
           attrs.store.edit((draft) => {
-            draft.tags.push(tag);
-          });
-        },
-        onTagRemove: (index) => {
-          attrs.store.edit((draft) => {
-            draft.tags.splice(index, 1);
-          });
-        },
-      }),
-      m(Button, {
-        icon: 'regular_expression',
-        tooltip: 'Use regex',
-        active: !!attrs.store.state.isTagRegex,
-        onclick: () => {
-          attrs.store.edit((draft) => {
-            draft.isTagRegex = !draft.isTagRegex;
-          });
-        },
-      }),
-      m(LogTextWidget, {
-        trace: attrs.trace,
-        onChange: (text) => {
-          attrs.store.edit((draft) => {
-            draft.textEntry = text;
+            this.applyTagRemoval(tag, draft, attrs);
           });
         },
       }),
@@ -439,44 +461,167 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
           });
         },
       }),
-      hasMachineIds && this.renderFilterPanel(attrs),
     ];
   }
 
-  private renderFilterPanel(attrs: LogsFiltersAttrs) {
-    const machineExcludeList = attrs.store.state.machineExcludeList;
-    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds.map(
-      (uMachineId) => {
-        return {
-          id: String(uMachineId),
-          name: `Machine ${uMachineId}`,
-          checked: !machineExcludeList.some(
-            (excluded: number) => excluded === uMachineId,
-          ),
-        };
+  private buildTagDefinitions(attrs: LogsFiltersAttrs): TagDefinition[] {
+    const definitions: TagDefinition[] = [
+      {
+        key: 'search',
+        freeform: true,
+        isDefault: true, // search is the default tag
       },
-    );
+      {
+        key: 'level',
+        values: LOG_PRIORITIES.slice(IGNORED_STATES).map((name, idx) => ({
+          key: String(idx + IGNORED_STATES),
+          label: name,
+        })),
+      },
+      {
+        key: 'tag',
+        values: this.uniqueTags.map((tag) => ({
+          key: tag,
+        })),
+      },
+      {
+        key: 'pid',
+        values: this.uniquePids.map((pid) => ({
+          key: String(pid),
+        })),
+      },
+      {
+        key: 'tid',
+        values: this.uniqueTids.map((tid) => ({
+          key: String(tid),
+        })),
+      },
+    ];
 
-    return m(PopupMultiSelect, {
-      label: 'Filter by machine',
-      icon: Icons.Filter,
-      position: PopupPosition.Top,
-      options,
-      onChange: (diffs: MultiSelectDiff[]) => {
-        const newList = new Set<number>(machineExcludeList);
-        diffs.forEach(({checked, id}) => {
-          const machineId = Number(id);
-          if (checked) {
-            newList.delete(machineId);
-          } else {
-            newList.add(machineId);
-          }
-        });
-        attrs.store.edit((draft) => {
-          draft.machineExcludeList = Array.from(newList);
-        });
-      },
-    });
+    if (attrs.cache.uniqueMachineIds.length > 1) {
+      definitions.push({
+        key: 'machine',
+        values: attrs.cache.uniqueMachineIds.map((id) => ({
+          key: String(id),
+          label: `${id}`,
+        })),
+      });
+    }
+
+    return definitions;
+  }
+
+  private convertStateToTags(
+    state: LogFilteringCriteria,
+    attrs: LogsFiltersAttrs,
+  ): SelectedTag[] {
+    const tags: SelectedTag[] = [];
+
+    // Add level only if it's set
+    if (state.minimumLevel !== undefined) {
+      tags.push({tagKey: 'level', valueKey: String(state.minimumLevel)});
+    }
+
+    // Add tags
+    for (const tag of state.tags) {
+      tags.push({tagKey: 'tag', valueKey: tag});
+    }
+
+    // Add PIDs
+    for (const pid of state.pids) {
+      tags.push({tagKey: 'pid', valueKey: String(pid)});
+    }
+
+    // Add TIDs
+    for (const tid of state.tids) {
+      tags.push({tagKey: 'tid', valueKey: String(tid)});
+    }
+
+    // Add search text as a tag if present
+    if (state.textEntry) {
+      tags.push({tagKey: 'search', valueKey: state.textEntry});
+    }
+
+    // Add included machines (opposite of exclude list)
+    if (attrs.cache.uniqueMachineIds.length > 1) {
+      for (const machineId of attrs.cache.uniqueMachineIds) {
+        if (!state.machineExcludeList.includes(machineId)) {
+          tags.push({tagKey: 'machine', valueKey: String(machineId)});
+        }
+      }
+    }
+
+    return tags;
+  }
+
+  private applyTagAddition(
+    tag: SelectedTag,
+    draft: {
+      -readonly [K in keyof LogFilteringCriteria]: LogFilteringCriteria[K];
+    },
+    _attrs: LogsFiltersAttrs,
+  ): void {
+    if (tag.tagKey === 'level') {
+      draft.minimumLevel = Number(tag.valueKey);
+    } else if (tag.tagKey === 'tag') {
+      if (!draft.tags.includes(tag.valueKey)) {
+        draft.tags.push(tag.valueKey);
+      }
+    } else if (tag.tagKey === 'pid') {
+      const pid = BigInt(tag.valueKey);
+      if (!draft.pids.includes(pid)) {
+        draft.pids.push(pid);
+      }
+    } else if (tag.tagKey === 'tid') {
+      const tid = BigInt(tag.valueKey);
+      if (!draft.tids.includes(tid)) {
+        draft.tids.push(tid);
+      }
+    } else if (tag.tagKey === 'search') {
+      draft.textEntry = tag.valueKey;
+    } else if (tag.tagKey === 'machine') {
+      const machineId = Number(tag.valueKey);
+      const idx = draft.machineExcludeList.indexOf(machineId);
+      if (idx !== -1) {
+        draft.machineExcludeList.splice(idx, 1);
+      }
+    }
+  }
+
+  private applyTagRemoval(
+    tag: SelectedTag,
+    draft: {
+      -readonly [K in keyof LogFilteringCriteria]: LogFilteringCriteria[K];
+    },
+    _attrs: LogsFiltersAttrs,
+  ): void {
+    if (tag.tagKey === 'level') {
+      draft.minimumLevel = undefined; // Remove level filter
+    } else if (tag.tagKey === 'tag') {
+      const idx = draft.tags.indexOf(tag.valueKey);
+      if (idx !== -1) {
+        draft.tags.splice(idx, 1);
+      }
+    } else if (tag.tagKey === 'pid') {
+      const pid = BigInt(tag.valueKey);
+      const idx = draft.pids.indexOf(pid);
+      if (idx !== -1) {
+        draft.pids.splice(idx, 1);
+      }
+    } else if (tag.tagKey === 'tid') {
+      const tid = BigInt(tag.valueKey);
+      const idx = draft.tids.indexOf(tid);
+      if (idx !== -1) {
+        draft.tids.splice(idx, 1);
+      }
+    } else if (tag.tagKey === 'search') {
+      draft.textEntry = '';
+    } else if (tag.tagKey === 'machine') {
+      const machineId = Number(tag.valueKey);
+      if (!draft.machineExcludeList.includes(machineId)) {
+        draft.machineExcludeList.push(machineId);
+      }
+    }
   }
 }
 
@@ -540,7 +685,7 @@ async function updateLogEntries(
       it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1,
     );
     processName.push(it.processName);
-    machineIds.push(it.machineId);
+    machineIds.push(it.machineId ?? 0);
   }
 
   const queryRes = await engine.query(`
@@ -567,10 +712,17 @@ async function updateLogEntries(
   };
 }
 
+function getMinimumLevel(filter: LogFilteringCriteria): number {
+  return filter.minimumLevel ?? 2; // Default to Verbose if not set
+}
+
 async function updateLogView(
   engine: Engine,
   filter: LogFilteringCriteria,
 ): Promise<AsyncDisposable> {
+  await engine.query('drop view if exists filtered_logs');
+
+  const minLevel = getMinimumLevel(filter);
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
   let selectedRows = `select android_logs.id, prio, ts, pid, tid, tag, msg,
       process.name as process_name,
@@ -578,16 +730,15 @@ async function updateLogView(
       from android_logs
       left join thread using(utid)
       left join process using(upid)
-      where prio >= ${filter.minimumLevel}`;
+      where prio >= ${minLevel}`;
   if (filter.tags.length) {
-    if (filter.isTagRegex) {
-      const tagGlobClauses = filter.tags.map(
-        (pattern) => `tag glob ${escapeRegexQuery(pattern)}`,
-      );
-      selectedRows += ` and (${tagGlobClauses.join(' OR ')})`;
-    } else {
-      selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
-    }
+    selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+  }
+  if (filter.pids.length) {
+    selectedRows += ` and pid in (${filter.pids.join(',')})`;
+  }
+  if (filter.tids.length) {
+    selectedRows += ` and tid in (${filter.tids.join(',')})`;
   }
   if (filter.machineExcludeList.length) {
     selectedRows += ` and process.machine_id not in (${filter.machineExcludeList.join(',')})`;
@@ -611,7 +762,6 @@ function serializeTags(tags: string[]) {
 
 function composeGlobMatch(isCollaped: boolean, textEntry: string) {
   if (isCollaped) {
-    // If the entries are collapsed, we won't highlight any lines.
     return `msg glob ${escapeSearchQuery(textEntry)} as is_msg_chosen,
       (process.name is not null and process.name glob ${escapeSearchQuery(
         textEntry,
@@ -619,8 +769,6 @@ function composeGlobMatch(isCollaped: boolean, textEntry: string) {
       0 as is_msg_highlighted,
       0 as is_process_highlighted`;
   } else if (!textEntry) {
-    // If there is no text entry, we will show all lines, but won't highlight.
-    // any.
     return `1 as is_msg_chosen,
       1 as is_process_chosen,
       0 as is_msg_highlighted,
