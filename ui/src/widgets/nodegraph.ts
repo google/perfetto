@@ -154,6 +154,7 @@ export interface NodeGraphAttrs {
   readonly connections: ReadonlyArray<Connection>;
   readonly onConnect?: (connection: Connection) => void;
   readonly onNodeDrag?: (nodeId: string, x: number, y: number) => void;
+  readonly onNodeDragEnd?: (nodeId: string, x: number, y: number) => void;
   readonly onConnectionRemove?: (index: number) => void;
   readonly onReady?: (api: NodeGraphApi) => void;
   readonly selectedNodeIds?: ReadonlySet<string>;
@@ -294,6 +295,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     canvasMouseDownPos: {x: 0, y: 0},
   };
 
+  // Track drag state for batching updates
+  let dragStartPosition: {nodeId: string; x: number; y: number} | null = null;
+  let currentDragPosition: {x: number; y: number} | null = null;
+
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
 
@@ -394,8 +399,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           canvasState.zoom -
         canvasState.dragOffset.y / canvasState.zoom;
 
-      // ONLY move the dragged node itself
-      // Children follow automatically via render position calculation
+      // Store current position for batched update
+      currentDragPosition = {x: newX, y: newY};
+
+      // Call onNodeDrag for real-time visual updates (optional)
       const {onNodeDrag, nodes} = vnode.attrs;
       if (onNodeDrag !== undefined) {
         onNodeDrag(canvasState.draggedNode, newX, newY);
@@ -493,13 +500,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       }
     }
 
-    // Check for collision (only for non-docked nodes)
+    // Check for collision and finalize drag (only for non-docked nodes)
     if (canvasState.draggedNode !== null) {
-      const {nodes = [], onNodeDrag} = vnode.attrs;
+      const {nodes = [], onNodeDrag, onNodeDragEnd} = vnode.attrs;
       const draggedNode = nodes.find((n) => n.id === canvasState.draggedNode);
 
       // Only do overlap checking if NOT being docked
-      if (draggedNode && !canvasState.isDockZone && onNodeDrag) {
+      if (draggedNode && !canvasState.isDockZone) {
         // Get actual node dimensions from DOM
         const dims = getNodeDimensions(draggedNode.id);
 
@@ -531,12 +538,36 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             chainHeight,
           );
           // Update to the non-overlapping position
-          onNodeDrag(draggedNode.id, newPos.x, newPos.y);
+          currentDragPosition = newPos;
+          if (onNodeDrag !== undefined) {
+            onNodeDrag(draggedNode.id, newPos.x, newPos.y);
+          }
+        }
+      }
+
+      // Call onNodeDragEnd with final position if it changed
+      if (
+        onNodeDragEnd !== undefined &&
+        dragStartPosition !== null &&
+        currentDragPosition !== null &&
+        canvasState.draggedNode === dragStartPosition.nodeId
+      ) {
+        const moved =
+          Math.abs(currentDragPosition.x - dragStartPosition.x) > 0.5 ||
+          Math.abs(currentDragPosition.y - dragStartPosition.y) > 0.5;
+        if (moved) {
+          onNodeDragEnd(
+            canvasState.draggedNode,
+            currentDragPosition.x,
+            currentDragPosition.y,
+          );
         }
       }
     }
 
     canvasState.draggedNode = null;
+    dragStartPosition = null;
+    currentDragPosition = null;
     canvasState.connecting = null;
     canvasState.hoveredPort = null;
     canvasState.isPanning = false;
@@ -1408,6 +1439,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           }
 
           canvasState.draggedNode = id;
+
+          // Store initial drag position for batching
+          // Check if node has x,y properties (root nodes) vs docked children (no x,y)
+          if ('x' in node && 'y' in node) {
+            dragStartPosition = {nodeId: id, x: node.x, y: node.y};
+            currentDragPosition = {x: node.x, y: node.y};
+          }
 
           const {onNodeSelect} = vnode.attrs;
           if (onNodeSelect !== undefined) {

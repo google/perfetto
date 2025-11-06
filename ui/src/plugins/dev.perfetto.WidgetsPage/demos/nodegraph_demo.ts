@@ -1,4 +1,3 @@
-
 // Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,11 +85,10 @@ type NodeData =
   | UnionNodeData
   | ResultNodeData;
 
-// Store interface
+// Store interface (only data that should be in undo/redo history)
 interface NodeGraphStore {
   readonly nodes: Map<string, NodeData>;
   readonly connections: Connection[];
-  readonly selectedNodeIds: Set<string>;
 }
 
 // Node metadata configuration
@@ -299,62 +297,75 @@ function renderSortNode(
   node: SortNodeData,
   updateNode: (updates: Partial<Omit<SortNodeData, 'type' | 'id'>>) => void,
 ): m.Children {
-  return m('', {style: {display: 'flex', flexDirection: 'column', gap: '4px'}}, [
-    m(TextInput, {
-      placeholder: 'Sort column...',
-      value: node.sortColumn,
-      oninput: (e: InputEvent) => {
-        const target = e.target as HTMLInputElement;
-        updateNode({sortColumn: target.value});
-      },
-    }),
-    m(
-      Select,
-      {
-        value: node.sortOrder,
-        onchange: (e: Event) => {
-          updateNode({
-            sortOrder: (e.target as HTMLSelectElement).value as 'ASC' | 'DESC',
-          });
+  return m(
+    '',
+    {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
+    [
+      m(TextInput, {
+        placeholder: 'Sort column...',
+        value: node.sortColumn,
+        oninput: (e: InputEvent) => {
+          const target = e.target as HTMLInputElement;
+          updateNode({sortColumn: target.value});
         },
-      },
-      [m('option', {value: 'ASC'}, 'ASC'), m('option', {value: 'DESC'}, 'DESC')],
-    ),
-  ]);
+      }),
+      m(
+        Select,
+        {
+          value: node.sortOrder,
+          onchange: (e: Event) => {
+            updateNode({
+              sortOrder: (e.target as HTMLSelectElement).value as
+                | 'ASC'
+                | 'DESC',
+            });
+          },
+        },
+        [
+          m('option', {value: 'ASC'}, 'ASC'),
+          m('option', {value: 'DESC'}, 'DESC'),
+        ],
+      ),
+    ],
+  );
 }
 
 function renderJoinNode(
   node: JoinNodeData,
   updateNode: (updates: Partial<Omit<JoinNodeData, 'type' | 'id'>>) => void,
 ): m.Children {
-  return m('', {style: {display: 'flex', flexDirection: 'column', gap: '4px'}}, [
-    m(
-      Select,
-      {
-        value: node.joinType,
-        onchange: (e: Event) => {
-          updateNode({
-            joinType: (e.target as HTMLSelectElement)
-              .value as JoinNodeData['joinType'],
-          });
+  return m(
+    '',
+    {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
+    [
+      m(
+        Select,
+        {
+          value: node.joinType,
+          onchange: (e: Event) => {
+            updateNode({
+              joinType: (e.target as HTMLSelectElement)
+                .value as JoinNodeData['joinType'],
+            });
+          },
         },
-      },
-      [
-        m('option', {value: 'INNER'}, 'INNER'),
-        m('option', {value: 'LEFT'}, 'LEFT'),
-        m('option', {value: 'RIGHT'}, 'RIGHT'),
-        m('option', {value: 'FULL'}, 'FULL'),
-      ],
-    ),
-    m(TextInput, {
-      placeholder: 'ON condition...',
-      value: node.joinOn,
-      oninput: (e: InputEvent) => {
-        const target = e.target as HTMLInputElement;
-        updateNode({joinOn: target.value});
-      },
-    }),
-  ]);
+        [
+          m('option', {value: 'INNER'}, 'INNER'),
+          m('option', {value: 'LEFT'}, 'LEFT'),
+          m('option', {value: 'RIGHT'}, 'RIGHT'),
+          m('option', {value: 'FULL'}, 'FULL'),
+        ],
+      ),
+      m(TextInput, {
+        placeholder: 'ON condition...',
+        value: node.joinOn,
+        oninput: (e: InputEvent) => {
+          const target = e.target as HTMLInputElement;
+          updateNode({joinOn: target.value});
+        },
+      }),
+    ],
+  );
 }
 
 function renderUnionNode(
@@ -422,8 +433,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   let store: NodeGraphStore = {
     nodes: new Map([[initialId, createTableNode(initialId, 150, 100)]]),
     connections: [],
-    selectedNodeIds: new Set<string>(),
   };
+
+  // History management
+  const history: NodeGraphStore[] = [store];
+  let historyIndex = 0;
+
+  // Selection state (separate from undo/redo history)
+  const selectedNodeIds = new Set<string>();
 
   // Helper to find the parent node (node that has this node as nextId)
   function findDockedParent(
@@ -490,11 +507,57 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     return inputs;
   }
 
-  // Update helpers using Immer
-  const updateStore = (updater: (draft: NodeGraphStore) => void) => {
+  // Update store without adding to history (for real-time updates like dragging)
+  const updateStoreNoHistory = (updater: (draft: NodeGraphStore) => void) => {
     store = produce(store, updater);
     m.redraw();
   };
+
+  // Update store with history (for final updates)
+  const updateStore = (updater: (draft: NodeGraphStore) => void) => {
+    // Apply the update
+    const newStore = produce(store, updater);
+
+    store = newStore;
+
+    // Remove any future history if we're not at the end
+    if (historyIndex < history.length - 1) {
+      history.splice(historyIndex + 1);
+    }
+
+    // Add new state to history
+    history.push(store);
+    historyIndex = history.length - 1;
+
+    // Limit history to prevent memory issues (keep last 50 states)
+    if (history.length > 50) {
+      history.shift();
+      historyIndex--;
+    }
+
+    m.redraw();
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      historyIndex--;
+      store = history[historyIndex];
+      m.redraw();
+      console.log(`Undo to state ${historyIndex}`);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      historyIndex++;
+      store = history[historyIndex];
+      m.redraw();
+      console.log(`Redo to state ${historyIndex}`);
+    }
+  };
+
+  const canUndo = () => historyIndex > 0;
+  const canRedo = () => historyIndex < history.length - 1;
 
   const updateNode = (
     nodeId: string,
@@ -575,9 +638,6 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         }
       }
 
-      // Clear selection if needed
-      draft.selectedNodeIds.delete(nodeId);
-
       // Remove any connections to/from this node
       for (let i = draft.connections.length - 1; i >= 0; i--) {
         const c = draft.connections[i];
@@ -589,6 +649,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       // Finally remove the node
       draft.nodes.delete(nodeId);
     });
+
+    // Clear from selection (outside of store update)
+    selectedNodeIds.delete(nodeId);
 
     console.log(`removeNode: ${nodeId}`);
   };
@@ -779,7 +842,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       // Render a model node and its chain
       function renderNodeChain(nodeData: NodeData): Node {
         const hasNext = nodeData.nextId !== undefined;
-        const nextModel = hasNext ? store.nodes.get(nodeData.nextId!) : undefined;
+        const nextModel = hasNext
+          ? store.nodes.get(nodeData.nextId!)
+          : undefined;
 
         const config = NODE_CONFIGS[nodeData.type];
 
@@ -817,7 +882,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       // Render child node (keep all ports visible)
       function renderChildNode(nodeData: NodeData): Omit<Node, 'x' | 'y'> {
         const hasNext = nodeData.nextId !== undefined;
-        const nextModel = hasNext ? store.nodes.get(nodeData.nextId!) : undefined;
+        const nextModel = hasNext
+          ? store.nodes.get(nodeData.nextId!)
+          : undefined;
 
         const config = NODE_CONFIGS[nodeData.type];
 
@@ -863,62 +930,88 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       }
 
       const nodeGraphAttrs: NodeGraphAttrs = {
-        toolbarItems: m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              label: 'Add Node',
-              icon: 'add',
-              variant: ButtonVariant.Filled,
-            }),
-          },
-          [
-            m(MenuItem, {
-              label: 'Table',
-              icon: 'table_chart',
-              onclick: () => addNode(createTableNode),
-            }),
-            m(MenuItem, {
-              label: 'Select',
-              icon: 'filter_alt',
-              onclick: () => addNode(createSelectNode),
-            }),
-            m(MenuItem, {
-              label: 'Filter',
-              icon: 'filter_list',
-              onclick: () => addNode(createFilterNode),
-            }),
-            m(MenuItem, {
-              label: 'Sort',
-              icon: 'sort',
-              onclick: () => addNode(createSortNode),
-            }),
-            m(MenuItem, {
-              label: 'Join',
-              icon: 'join',
-              onclick: () => addNode(createJoinNode),
-            }),
-            m(MenuItem, {
-              label: 'Union',
-              icon: 'merge',
-              onclick: () => addNode(createUnionNode),
-            }),
-            m(MenuItem, {
-              label: 'Result',
-              icon: 'output',
-              onclick: () => addNode(createResultNode),
-            }),
-          ],
-        ),
+        toolbarItems: [
+          m(Button, {
+            label: 'Undo',
+            icon: 'undo',
+            disabled: !canUndo(),
+            onclick: undo,
+          }),
+          m(Button, {
+            label: 'Redo',
+            icon: 'redo',
+            disabled: !canRedo(),
+            onclick: redo,
+          }),
+          m(
+            PopupMenu,
+            {
+              trigger: m(Button, {
+                label: 'Add Node',
+                icon: 'add',
+                variant: ButtonVariant.Filled,
+              }),
+            },
+            [
+              m(MenuItem, {
+                label: 'Table',
+                icon: 'table_chart',
+                onclick: () => addNode(createTableNode),
+              }),
+              m(MenuItem, {
+                label: 'Select',
+                icon: 'filter_alt',
+                onclick: () => addNode(createSelectNode),
+              }),
+              m(MenuItem, {
+                label: 'Filter',
+                icon: 'filter_list',
+                onclick: () => addNode(createFilterNode),
+              }),
+              m(MenuItem, {
+                label: 'Sort',
+                icon: 'sort',
+                onclick: () => addNode(createSortNode),
+              }),
+              m(MenuItem, {
+                label: 'Join',
+                icon: 'join',
+                onclick: () => addNode(createJoinNode),
+              }),
+              m(MenuItem, {
+                label: 'Union',
+                icon: 'merge',
+                onclick: () => addNode(createUnionNode),
+              }),
+              m(MenuItem, {
+                label: 'Result',
+                icon: 'output',
+                onclick: () => addNode(createResultNode),
+              }),
+            ],
+          ),
+        ],
         nodes: renderNodes(),
         connections: store.connections,
-        selectedNodeIds: store.selectedNodeIds,
+        selectedNodeIds: selectedNodeIds,
         multiselect: attrs.multiselect,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
         },
         onNodeDrag: (nodeId: string, x: number, y: number) => {
+          // Update position in real-time for visual feedback (no history entry)
+          updateStoreNoHistory((draft) => {
+            const node = draft.nodes.get(nodeId);
+            if (node) {
+              node.x = x;
+              node.y = y;
+            }
+          });
+        },
+        onNodeDragEnd: (nodeId: string, x: number, y: number) => {
+          // Update position in store with history entry when drag completes
           updateNode(nodeId, {x, y});
+          console.log(`onNodeDragEnd: ${nodeId} to (${x}, ${y})`);
         },
         onConnect: (conn: Connection) => {
           console.log('onConnect:', conn);
@@ -937,32 +1030,28 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           console.log(`onNodeRemove: ${nodeId}`);
         },
         onNodeSelect: (nodeId: string) => {
-          updateStore((draft) => {
-            draft.selectedNodeIds.clear();
-            draft.selectedNodeIds.add(nodeId);
-          });
+          selectedNodeIds.clear();
+          selectedNodeIds.add(nodeId);
+          m.redraw();
           console.log(`onNodeSelect: ${nodeId}`);
         },
         onNodeAddToSelection: (nodeId: string) => {
-          updateStore((draft) => {
-            draft.selectedNodeIds.add(nodeId);
-          });
+          selectedNodeIds.add(nodeId);
+          m.redraw();
           console.log(
-            `onNodeAddToSelection: ${nodeId} (total: ${store.selectedNodeIds.size})`,
+            `onNodeAddToSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
           );
         },
         onNodeRemoveFromSelection: (nodeId: string) => {
-          updateStore((draft) => {
-            draft.selectedNodeIds.delete(nodeId);
-          });
+          selectedNodeIds.delete(nodeId);
+          m.redraw();
           console.log(
-            `onNodeRemoveFromSelection: ${nodeId} (total: ${store.selectedNodeIds.size})`,
+            `onNodeRemoveFromSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
           );
         },
         onSelectionClear: () => {
-          updateStore((draft) => {
-            draft.selectedNodeIds.clear();
-          });
+          selectedNodeIds.clear();
+          m.redraw();
           console.log(`onSelectionClear`);
         },
         onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
