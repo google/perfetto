@@ -66,6 +66,10 @@ if (!defined(build_with_chromium)) {
   build_with_chromium = false
 }
 
+if (!defined(is_freebsd)) {
+  is_freebsd = false
+}
+
 if (!defined(is_nacl)) {
   is_nacl = false
 }
