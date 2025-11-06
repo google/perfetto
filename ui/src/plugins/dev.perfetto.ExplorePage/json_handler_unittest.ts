@@ -249,6 +249,113 @@ describe('JSON serialization/deserialization', () => {
     );
   });
 
+  test('serializes and deserializes interval intersect node with partition columns and filters', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode3 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const intervalIntersectNode = new IntervalIntersectNode({
+      prevNodes: [tableNode1, tableNode2, tableNode3],
+      partitionColumns: ['name'],
+      filterNegativeDur: [true, false, true],
+      comment: 'Intersect intervals partitioned by name',
+      filters: [
+        {
+          column: 'dur',
+          op: '>',
+          value: '1000',
+        },
+      ],
+    });
+    tableNode1.nextNodes.push(intervalIntersectNode);
+    tableNode2.nextNodes.push(intervalIntersectNode);
+    tableNode3.nextNodes.push(intervalIntersectNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, tableNode3],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(3);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+    const deserializedTableNode3 = deserializedState.rootNodes[2];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedIntervalIntersectNode = deserializedTableNode1
+      .nextNodes[0] as IntervalIntersectNode;
+
+    // Verify prevNodes connections
+    expect(deserializedIntervalIntersectNode.prevNodes).toBeDefined();
+    expect(deserializedIntervalIntersectNode.prevNodes?.length).toBe(3);
+    expect(deserializedIntervalIntersectNode.prevNodes?.[0].nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
+    expect(deserializedIntervalIntersectNode.prevNodes?.[1].nodeId).toBe(
+      deserializedTableNode2.nodeId,
+    );
+    expect(deserializedIntervalIntersectNode.prevNodes?.[2].nodeId).toBe(
+      deserializedTableNode3.nodeId,
+    );
+
+    // Verify partition columns
+    expect(
+      deserializedIntervalIntersectNode.state.partitionColumns,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.state.partitionColumns?.length,
+    ).toBe(1);
+    expect(deserializedIntervalIntersectNode.state.partitionColumns?.[0]).toBe(
+      'name',
+    );
+
+    // Verify filterNegativeDur array
+    expect(
+      deserializedIntervalIntersectNode.state.filterNegativeDur,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
+    ).toBe(3);
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
+      true,
+    );
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
+      false,
+    );
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[2]).toBe(
+      true,
+    );
+
+    // Verify comment
+    expect(deserializedIntervalIntersectNode.state.comment).toBe(
+      'Intersect intervals partitioned by name',
+    );
+
+    // Verify filters
+    expect(deserializedIntervalIntersectNode.state.filters).toBeDefined();
+    expect(deserializedIntervalIntersectNode.state.filters?.length).toBe(1);
+    expect(deserializedIntervalIntersectNode.state.filters?.[0].column).toBe(
+      'dur',
+    );
+    expect(deserializedIntervalIntersectNode.state.filters?.[0].op).toBe('>');
+  });
+
   test('serializes and deserializes sql source node with reference', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),

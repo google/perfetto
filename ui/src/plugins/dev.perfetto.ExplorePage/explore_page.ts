@@ -28,6 +28,7 @@ import {exportStateAsJson, importStateFromJson} from './json_handler';
 import {showImportWithStatementModal} from './sql_json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
+import {HistoryManager} from './history_manager';
 
 registerCoreNodes();
 
@@ -50,6 +51,8 @@ interface ExplorePageAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
+  private historyManager?: HistoryManager;
+
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
@@ -271,7 +274,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       parentNodes.push(node.prevNode);
     } else if ('prevNodes' in node) {
       for (const prevNode of node.prevNodes) {
-        if (prevNode) parentNodes.push(prevNode);
+        if (prevNode !== undefined) parentNodes.push(prevNode);
       }
     }
 
@@ -386,6 +389,28 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
+    // Handle undo/redo shortcuts
+    if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+      if (event.shiftKey) {
+        // Ctrl+Shift+Z or Cmd+Shift+Z for Redo
+        this.handleRedo(attrs);
+        event.preventDefault();
+        return;
+      } else {
+        // Ctrl+Z or Cmd+Z for Undo
+        this.handleUndo(attrs);
+        event.preventDefault();
+        return;
+      }
+    }
+
+    // Also support Ctrl+Y for Redo on Windows/Linux
+    if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
+      this.handleRedo(attrs);
+      event.preventDefault();
+      return;
+    }
+
     // Handle source node creation shortcuts
     for (const [id, descriptor] of nodeRegistry.list()) {
       if (
@@ -418,6 +443,24 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     showImportWithStatementModal(trace, sqlModules, onStateUpdate);
   }
 
+  private handleUndo(attrs: ExplorePageAttrs) {
+    if (!this.historyManager) return;
+
+    const previousState = this.historyManager.undo();
+    if (previousState) {
+      attrs.onStateUpdate(previousState);
+    }
+  }
+
+  private handleRedo(attrs: ExplorePageAttrs) {
+    if (!this.historyManager) return;
+
+    const nextState = this.historyManager.redo();
+    if (nextState) {
+      attrs.onStateUpdate(nextState);
+    }
+  }
+
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
     const {trace, state} = attrs;
 
@@ -433,10 +476,38 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       );
     }
 
+    // Initialize history manager if not already done
+    if (!this.historyManager) {
+      this.historyManager = new HistoryManager(trace, sqlModules);
+      // Push initial state
+      this.historyManager.pushState(state);
+    }
+
+    // Wrap onStateUpdate to track history
+    const wrappedOnStateUpdate = (
+      update:
+        | ExplorePageState
+        | ((currentState: ExplorePageState) => ExplorePageState),
+    ) => {
+      attrs.onStateUpdate((currentState) => {
+        const newState =
+          typeof update === 'function' ? update(currentState) : update;
+        // Push state to history after update
+        this.historyManager?.pushState(newState);
+        return newState;
+      });
+    };
+
+    // Create wrapped attrs to track history
+    const wrappedAttrs = {
+      ...attrs,
+      onStateUpdate: wrappedOnStateUpdate,
+    };
+
     return m(
       '.pf-explore-page',
       {
-        onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, attrs),
+        onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, wrappedAttrs),
         oncreate: (vnode) => {
           (vnode.dom as HTMLElement).focus();
         },
@@ -449,20 +520,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
         devMode: state.devMode,
-        onDevModeChange: (enabled) => this.handleDevModeChange(attrs, enabled),
+        onDevModeChange: (enabled) =>
+          this.handleDevModeChange(wrappedAttrs, enabled),
         onRootNodeCreated: (node) => {
-          attrs.onStateUpdate((currentState) => ({
+          wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
             rootNodes: [...currentState.rootNodes, node],
             selectedNode: node,
           }));
         },
         onNodeSelected: (node) => {
-          if (node) this.selectNode(attrs, node);
+          if (node) this.selectNode(wrappedAttrs, node);
         },
-        onDeselect: () => this.deselectNode(attrs),
+        onDeselect: () => this.deselectNode(wrappedAttrs),
         onNodeLayoutChange: (nodeId, layout) => {
-          attrs.onStateUpdate((currentState) => {
+          wrappedAttrs.onStateUpdate((currentState) => {
             const newNodeLayouts = new Map(currentState.nodeLayouts);
             newNodeLayouts.set(nodeId, layout);
             return {
@@ -472,27 +544,28 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           });
         },
         onAddSourceNode: (id) => {
-          this.handleAddSourceNode(attrs, id);
+          this.handleAddSourceNode(wrappedAttrs, id);
         },
         onAddOperationNode: (id, node) => {
-          this.handleAddOperationNode(attrs, node, id);
+          this.handleAddOperationNode(wrappedAttrs, node, id);
         },
-        onClearAllNodes: () => this.handleClearAllNodes(attrs),
+        onClearAllNodes: () => this.handleClearAllNodes(wrappedAttrs),
         onDuplicateNode: () => {
           if (state.selectedNode) {
-            this.handleDuplicateNode(attrs, state.selectedNode);
+            this.handleDuplicateNode(wrappedAttrs, state.selectedNode);
           }
         },
         onDeleteNode: () => {
           if (state.selectedNode) {
-            this.handleDeleteNode(attrs, state.selectedNode);
+            this.handleDeleteNode(wrappedAttrs, state.selectedNode);
           }
         },
         onConnectionRemove: (fromNode, toNode) => {
-          this.handleConnectionRemove(attrs, fromNode, toNode);
+          this.handleConnectionRemove(wrappedAttrs, fromNode, toNode);
         },
-        onImport: () => this.handleImport(attrs),
-        onImportWithStatement: () => this.handleImportWithStatement(attrs),
+        onImport: () => this.handleImport(wrappedAttrs),
+        onImportWithStatement: () =>
+          this.handleImportWithStatement(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
         onRemoveFilter: (node, filter) => {
           if (node.state.filters) {
@@ -501,8 +574,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               node.state.filters.splice(filterIndex, 1);
             }
           }
-          attrs.onStateUpdate((currentState) => ({...currentState}));
+          wrappedAttrs.onStateUpdate((currentState) => ({...currentState}));
         },
+        onNodeStateChange: () => {
+          // Trigger a state update when node properties change (e.g., selecting group by columns)
+          // This ensures these granular changes are captured in history
+          wrappedAttrs.onStateUpdate((currentState) => {
+            return {...currentState};
+          });
+        },
+        onUndo: () => this.handleUndo(attrs),
+        onRedo: () => this.handleRedo(attrs),
+        canUndo: this.historyManager?.canUndo() ?? false,
+        canRedo: this.historyManager?.canRedo() ?? false,
       }),
     );
   }

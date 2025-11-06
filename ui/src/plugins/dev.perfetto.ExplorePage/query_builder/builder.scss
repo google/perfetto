@@ -71,6 +71,27 @@
     }
   }
 
+  .pf-qb-floating-controls-bottom {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .pf-button {
+      width: 40px;
+      height: 40px;
+      font-size: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+      &:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transform: scale(1.05);
+      }
+    }
+  }
+
   .pf-qb-floating-warning {
     display: flex;
     align-items: center;
