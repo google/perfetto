@@ -16,6 +16,13 @@ $border-radius: 2px;
 $border-radius-large: 4px;
 $anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
+@mixin background-surface {
+  background-color: var(--pf-color-background);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+  background-size: 100%;
+}
+
+$box-shadow-0: 0px 1px 3px var(--pf-color-box-shadow);
 $box-shadow-1: 0px 2px 6px var(--pf-color-box-shadow);
 $box-shadow-2: 0px 4px 12px var(--pf-color-box-shadow);
 $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
