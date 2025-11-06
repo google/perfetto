@@ -26,17 +26,32 @@ interface DetailsShellAttrs {
   readonly buttons?: m.Children;
   // Vertically fill parent container and disable scrolling
   readonly fillHeight?: boolean;
+  // Make the buttons section fill remaining horizontal space
+  readonly fillButtonsSpace?: boolean;
 }
 
 // A shell for details panels to be more visually consistent.
 // It provides regular placement for the header bar and placement of buttons
 export class DetailsShell implements m.ClassComponent<DetailsShellAttrs> {
   view({attrs, children}: m.Vnode<DetailsShellAttrs>) {
-    const {title, description, buttons, fillHeight = true, className} = attrs;
+    const {
+      title,
+      description,
+      buttons,
+      fillHeight = true,
+      fillButtonsSpace = false,
+      className,
+    } = attrs;
 
     return m(
       'section.pf-details-shell',
-      {class: classNames(fillHeight && 'pf-fill-height', className)},
+      {
+        class: classNames(
+          fillHeight && 'pf-fill-height',
+          fillButtonsSpace && 'pf-fill-buttons-space',
+          className,
+        ),
+      },
       m(
         'header.pf-header-bar',
         m('h1.pf-header-title', title),

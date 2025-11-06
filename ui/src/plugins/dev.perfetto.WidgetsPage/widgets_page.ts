@@ -31,6 +31,7 @@ import {renderDataGrid} from './demos/datagrid_demo';
 import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
+import {filterInputDemo} from './demos/filter_input_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
 import {renderCharts} from './demos/charts_demo';
@@ -85,6 +86,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
+  {id: 'filterinput', label: 'FilterInput', view: filterInputDemo},
   {id: 'form', label: 'Form', view: renderForm},
   {id: 'grid', label: 'Grid', view: renderGrid},
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},

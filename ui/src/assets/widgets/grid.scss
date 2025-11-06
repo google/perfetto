@@ -181,6 +181,9 @@ $indent-guide-offset: 12px;
   font-size: var(--pf-font-size-m);
   overflow: auto;
   isolation: isolate; // Improves layerization performance.
+  background-color: var(--pf-color-background);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.2'/%3E%3C/svg%3E");
+  background-size: 100%;
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
@@ -245,6 +248,10 @@ $indent-guide-offset: 12px;
   &__cell-container {
     position: relative; // Positioned element in order to place absolutely positioned children relative to this.
     border-right: $border-2;
+
+    &:last-child {
+      margin-right: 10px;
+    }
 
     &[draggable="true"] {
       cursor: grab;
