@@ -14,9 +14,7 @@
 
 use {
     quote::quote,
-    syn::{
-        AttributeArgs, Error, ItemFn, Lit, Meta, NestedMeta, parse_macro_input, spanned::Spanned,
-    },
+    syn::{Error, Expr, ExprLit, ItemFn, Lit, Token, parse_macro_input, punctuated::Punctuated},
 };
 
 #[derive(Debug, Default)]
@@ -27,40 +25,58 @@ struct MacroArgs {
 }
 
 impl MacroArgs {
-    fn from_list(args: &[NestedMeta]) -> Result<Self, Error> {
+    fn from_exprs(exprs: &Punctuated<Expr, Token![,]>) -> Result<Self, Error> {
         let mut category: Option<String> = None;
         let mut prefix: Option<String> = None;
         let mut flush = false;
-        for arg in args {
-            match arg {
-                NestedMeta::Lit(Lit::Str(lit)) => {
+        for expr in exprs {
+            match expr {
+                Expr::Lit(ExprLit {
+                    lit: Lit::Str(s), ..
+                }) => {
                     if category.is_some() {
-                        return Err(Error::new(lit.span(), "duplicate `category` argument"));
+                        return Err(Error::new_spanned(s, "duplicate `category` argument"));
                     }
-                    category = Some(lit.value());
+                    category = Some(s.value());
                 }
-                NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("prefix") => {
-                    if let Lit::Str(litstr) = &meta.lit {
-                        prefix = Some(litstr.value());
+                Expr::Assign(assign) => {
+                    if let Expr::Path(path) = &*assign.left {
+                        if path.path.is_ident("prefix") {
+                            if let Expr::Lit(ExprLit {
+                                lit: Lit::Str(s), ..
+                            }) = &*assign.right
+                            {
+                                prefix = Some(s.value());
+                            } else {
+                                return Err(Error::new_spanned(
+                                    &*assign.right,
+                                    "expected string literal, e.g., prefix = \"toplevel\"",
+                                ));
+                            }
+                        } else if path.path.is_ident("flush") {
+                            if let Expr::Lit(ExprLit {
+                                lit: Lit::Bool(b), ..
+                            }) = &*assign.right
+                            {
+                                flush = b.value();
+                            } else {
+                                return Err(Error::new_spanned(
+                                    &*assign.right,
+                                    "expected boolean literal, e.g., flush = true",
+                                ));
+                            }
+                        } else {
+                            return Err(Error::new_spanned(path, "invalid attribute argument"));
+                        }
                     } else {
-                        return Err(Error::new(
-                            meta.lit.span(),
-                            "expected a string literal for `prefix`",
-                        ));
-                    }
-                }
-                NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("flush") => {
-                    if let Lit::Bool(litbool) = &meta.lit {
-                        flush = litbool.value();
-                    } else {
-                        return Err(Error::new(
-                            meta.lit.span(),
-                            "expected a boolean literal for `flush`",
+                        return Err(Error::new_spanned(
+                            &*assign.left,
+                            "invalid left-hand side; expected identifier",
                         ));
                     }
                 }
                 _ => {
-                    return Err(Error::new(arg.span(), "unknown attribute argument"));
+                    return Err(Error::new_spanned(expr, "unknown attribute expression"));
                 }
             }
         }
@@ -115,8 +131,8 @@ pub fn tracefn(
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let input = parse_macro_input!(item as ItemFn);
-    let attr_args = parse_macro_input!(attr as AttributeArgs);
-    let macro_args = match MacroArgs::from_list(&attr_args) {
+    let attr_exprs = parse_macro_input!(attr with Punctuated<Expr, Token![,]>::parse_terminated);
+    let macro_args = match MacroArgs::from_exprs(&attr_exprs) {
         Ok(v) => v,
         Err(e) => return e.to_compile_error().into(),
     };
