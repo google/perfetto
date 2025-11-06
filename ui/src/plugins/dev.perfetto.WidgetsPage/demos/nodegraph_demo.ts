@@ -151,6 +151,47 @@ function filterNode(): NodeModelKernel<{filterExpression: string}> {
   };
 }
 
+function sortNode(): NodeModelKernel<{sortColumn: string; sortOrder: string}> {
+  let sortColumn = '';
+  let sortOrder = 'ASC';
+
+  return {
+    name: 'sort',
+    inputs: [{content: 'Input', direction: 'top'}],
+    outputs: [{content: 'Output', direction: 'bottom'}],
+    canDockTop: true,
+    canDockBottom: true,
+    hue: 150,
+    get state() {
+      return {sortColumn, sortOrder};
+    },
+    renderContent: () =>
+      m('', {style: {display: 'flex', flexDirection: 'column', gap: '4px'}}, [
+        m(TextInput, {
+          placeholder: 'Sort column...',
+          value: sortColumn,
+          oninput: (e: InputEvent) => {
+            const target = e.target as HTMLInputElement;
+            sortColumn = target.value;
+          },
+        }),
+        m(
+          Select,
+          {
+            value: sortOrder,
+            onchange: (e: Event) => {
+              sortOrder = (e.target as HTMLSelectElement).value;
+            },
+          },
+          [
+            m('option', {value: 'ASC'}, 'ASC'),
+            m('option', {value: 'DESC'}, 'DESC'),
+          ],
+        ),
+      ]),
+  };
+}
+
 function joinNode(): NodeModelKernel<{joinType: string; joinOn: string}> {
   let joinType = 'INNER';
   let joinOn = '';
@@ -363,6 +404,24 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return `SELECT * FROM (${inputSql}) WHERE ${filterExpr}`;
       }
 
+      case 'sort': {
+        const state = node.kernel.state as
+          | {sortColumn: string; sortOrder: string}
+          | undefined;
+        const sortColumn = state?.sortColumn || '';
+        const sortOrder = state?.sortOrder || 'ASC';
+
+        const inputSql = dockedParent
+          ? buildSqlFromNode(dockedParent.id)
+          : connectedInputs.get(0)
+            ? buildSqlFromNode(connectedInputs.get(0)!.id)
+            : '';
+
+        if (!inputSql) return '';
+        if (!sortColumn) return inputSql;
+        return `SELECT * FROM (${inputSql}) ORDER BY ${sortColumn} ${sortOrder}`;
+      }
+
       case 'join': {
         const state = node.kernel.state as
           | {joinType: string; joinOn: string}
@@ -492,6 +551,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         label: 'Filter',
         icon: 'filter_list',
         onclick: () => addNode(filterNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Sort',
+        icon: 'sort',
+        onclick: () => addNode(sortNode, toNode),
       }),
       m(MenuItem, {
         label: 'Join',
@@ -625,6 +689,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               label: 'Filter',
               icon: 'filter_list',
               onclick: () => addNode(filterNode),
+            }),
+            m(MenuItem, {
+              label: 'Sort',
+              icon: 'sort',
+              onclick: () => addNode(sortNode),
             }),
             m(MenuItem, {
               label: 'Join',
