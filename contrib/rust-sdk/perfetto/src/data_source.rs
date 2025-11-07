@@ -197,6 +197,7 @@ struct DsCallbacks {
 pub struct DataSourceArgs {
     callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
+    buffer_exhausted_policy_configurable: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
 }
@@ -221,6 +222,16 @@ impl DataSourceArgsBuilder {
         buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     ) -> Self {
         self.args.buffer_exhausted_policy = buffer_exhausted_policy;
+        self
+    }
+
+    /// Set buffer exhausted policy configurable flag.
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn buffer_exhausted_policy_configurable(
+        mut self,
+        buffer_exhausted_policy_configurable: bool,
+    ) -> Self {
+        self.args.buffer_exhausted_policy_configurable = buffer_exhausted_policy_configurable;
         self
     }
 
@@ -605,12 +616,14 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
             PerfettoDsSetOnCreateIncr(ds_impl, Some(on_create_incr_trampoline::<IncrT>));
             PerfettoDsSetOnDeleteIncr(ds_impl, Some(on_delete_incr_trampoline::<IncrT>));
             PerfettoDsSetCbUserArg(ds_impl, user_arg);
-            if args.buffer_exhausted_policy != DataSourceBufferExhaustedPolicy::Drop {
-                PerfettoDsSetBufferExhaustedPolicy(
-                    ds_impl,
-                    args.buffer_exhausted_policy.to_ds_policy(),
-                );
-            }
+            PerfettoDsSetBufferExhaustedPolicy(
+                ds_impl,
+                args.buffer_exhausted_policy.to_ds_policy(),
+            );
+            PerfettoDsSetBufferExhaustedPolicyConfigurable(
+                ds_impl,
+                args.buffer_exhausted_policy_configurable,
+            );
             let success = PerfettoDsImplRegister(
                 ds_impl,
                 &raw mut self.enabled,
