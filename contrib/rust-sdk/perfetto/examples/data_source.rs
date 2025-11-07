@@ -137,13 +137,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let producer_args = ProducerInitArgsBuilder::new().backends(Backends::SYSTEM);
     Producer::init(producer_args.build());
     let mut data_source = DataSource::new();
-    let test_config = Arc::new(Mutex::new(TestConfig::default()));
-    let test_config_for_setup = Arc::clone(&test_config);
     let setup_data = 1234;
-    let stop_data = 4321;
+    let test_configs: Arc<Mutex<[Option<TestConfig>; 8]>> =
+        Arc::new(Mutex::new([None, None, None, None, None, None, None, None]));
+    let test_configs_for_on_setup = Arc::clone(&test_configs);
+    let stop_guards: Arc<Mutex<[Option<StopGuard>; 8]>> =
+        Arc::new(Mutex::new([None, None, None, None, None, None, None, None]));
+    let stop_guards_for_on_stop = Arc::clone(&stop_guards);
     let data_source_args = DataSourceArgsBuilder::new()
-        .on_setup(move |inst_id, config| {
-            let mut test_config = test_config_for_setup.lock().unwrap();
+        .on_setup(move |inst_id, config, _| {
+            let mut test_configs = test_configs_for_on_setup.lock().unwrap();
+            let mut test_config = TestConfig::default();
             for item in PbDecoder::new(config) {
                 if let (FOR_TESTING_ID, PbDecoderField::Delimited(value)) =
                     item.unwrap_or_else(|e| panic!("Error: {}", e))
@@ -151,13 +155,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                     test_config.decode(value);
                 }
             }
+            test_configs[inst_id as usize] = Some(test_config);
             println!("OnSetup id: {} data: {}", inst_id, setup_data);
         })
-        .on_start(move |inst_id| {
-            println!("OnStart id: {} {:?}", inst_id, test_config.lock().unwrap());
+        .on_start(move |inst_id, _| {
+            println!(
+                "OnStart id: {} {:?}",
+                inst_id,
+                test_configs.lock().unwrap()[inst_id as usize]
+            );
         })
-        .on_stop(move |inst_id| {
-            println!("OnStop id: {} data: {}", inst_id, stop_data);
+        .on_stop(move |inst_id, args| {
+            let mut stop_guards = stop_guards_for_on_stop.lock().unwrap();
+            stop_guards[inst_id as usize] = Some(args.postpone());
+            println!("OnStop id: {}", inst_id);
         });
     data_source.register("com.example.custom_data_source", data_source_args.build())?;
     loop {
@@ -206,7 +217,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                         });
                     });
             });
-            ctx.flush(|| {});
+            if let Some(stop_guard) = stop_guards.lock().unwrap()[inst_id as usize].take() {
+                ctx.add_packet(|packet: &mut TracePacket| {
+                    packet
+                        .set_timestamp(10)
+                        .set_for_testing(|for_testing: &mut TestEvent| {
+                            for_testing
+                                .set_str(format!("Asynchronous stop for inst_id: {}", inst_id));
+                        });
+                });
+                ctx.flush(|| {});
+                // Signal that the data source stop operation is complete. The explicit drop
+                // call is just for documentation purposes as the guard would go out of scope
+                // here and the behavior would be the same.
+                drop(stop_guard);
+            }
         });
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
