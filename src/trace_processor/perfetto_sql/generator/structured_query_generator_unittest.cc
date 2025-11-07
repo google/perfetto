@@ -3668,4 +3668,87 @@ TEST(StructuredQueryGeneratorTest, DeeplyNestedQueriesNoIds) {
   EXPECT_NE(third_as, std::string::npos) << "Expected at least 3 nested CTEs";
 }
 
+// Test that string IDs (non-numeric) are used directly in table names
+TEST(StructuredQueryGeneratorTest, StringIdInTableName) {
+  StructuredQueryGenerator gen;
+  // Test a query with a string ID like "foo"
+  auto proto = ToProto(R"(
+    id: "foo"
+    table {
+      table_name: "slice"
+    }
+    filters {
+      column_name: "dur"
+      op: GREATER_THAN
+      int64_rhs: 1000
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The table name should be "sq_foo"
+  // Even though this is the root query, it creates a CTE named sq_foo
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_foo AS (
+      SELECT * FROM slice WHERE dur > 1000
+    )
+    SELECT * FROM sq_foo
+  )"));
+}
+
+// Test nested queries with string IDs
+TEST(StructuredQueryGeneratorTest, NestedQueriesWithStringIds) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "outer"
+    inner_query {
+      id: "inner"
+      table {
+        table_name: "test_table"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The inner query should have the string-based name "sq_inner"
+  // The outer query is root, so it doesn't create its own CTE
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_inner AS (
+      SELECT * FROM test_table
+    )
+    SELECT * FROM sq_inner
+  )"));
+}
+
+// Test that string IDs work correctly alongside auto-generated numeric names
+TEST(StructuredQueryGeneratorTest, StringIdCollisionWithIndexBasedName) {
+  StructuredQueryGenerator gen;
+  // Create a scenario with both string ID and auto-generated index-based names
+  auto proto = ToProto(R"(
+    inner_query {
+      id: "foo"
+      inner_query {
+        table {
+          table_name: "table1"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Should have sq_foo for the query with id="foo" and sq_2 for the innermost
+  // (The indexes are assigned based on state vector position during generation)
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_2 AS (
+      SELECT * FROM table1
+    ),
+    sq_foo AS (
+      SELECT * FROM sq_2
+    )
+    SELECT * FROM sq_foo
+  )"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
