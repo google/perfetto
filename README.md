@@ -82,9 +82,8 @@ experienced developer.
 ## Debian Distribution
 
 For users interested in the Debian distribution of Perfetto, the official source
-of truth and packaging efforts are maintained at the following link:
-
--   [Debian Perfetto Salsa Repository](https://salsa.debian.org/debian/perfetto)
+of truth and packaging efforts are maintained at
+[Debian Perfetto Salsa Repository](https://salsa.debian.org/debian/perfetto)
 
 ## Community & Support
 
