@@ -22,7 +22,7 @@ use crate::protos::trace::gpu::gpu_render_stage_event::*;
 use crate::protos::trace::gpu::vulkan_api_event::*;
 use crate::protos::trace::gpu::vulkan_memory_event::*;
 
-use perfetto::protos::trace::trace_packet::TracePacket;
+use perfetto_sdk::protos::trace::trace_packet::TracePacket;
 
 pb_msg_ext!(TracePacket {
     gpu_counter_event: GpuCounterEvent, msg, 52,

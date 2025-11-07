@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Rough script for screenrecord and trace
 # ./screenrecordtest [time limit in seconds - 180 seconds maximum]
 # Runs screenrecord along with a perfetto trace

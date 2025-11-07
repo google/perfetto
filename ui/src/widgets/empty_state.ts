@@ -14,10 +14,11 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
+import {HTMLAttrs} from './common';
+import {Icon} from './icon';
 
-export interface EmptyStateAttrs {
+export interface EmptyStateAttrs extends HTMLAttrs {
   // Which material icon to show.
   // Defaults to 'search'.
   readonly icon?: string;
@@ -43,6 +44,7 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
       title,
       className,
       fillHeight,
+      ...rest
     } = attrs;
     return m(
       '.pf-empty-state',
@@ -51,6 +53,7 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
           className,
           fillHeight && 'pf-empty-state--fill-height',
         ),
+        ...rest,
       },
       m(Icon, {className: 'pf-empty-state__main-icon', icon}),
       title && m('.pf-empty-state__title', title),

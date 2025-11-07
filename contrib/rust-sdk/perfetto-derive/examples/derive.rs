@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use perfetto::{producer::*, track_event::TrackEvent, track_event_categories};
-use perfetto_derive::tracefn;
+use perfetto_sdk::{producer::*, track_event::TrackEvent, track_event_categories};
+use perfetto_sdk_derive::tracefn;
 use std::error::Error;
 
 track_event_categories! {

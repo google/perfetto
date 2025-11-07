@@ -21,7 +21,7 @@ use crate::{
         counter_descriptor::CounterDescriptor, track_descriptor::TrackDescriptor,
     },
 };
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{
     ffi::{CStr, CString},
     marker::PhantomData,
@@ -299,7 +299,7 @@ macro_rules! __count_exprs {
 /// Example:
 ///
 /// ```
-/// use perfetto::*;
+/// use perfetto_sdk::*;
 ///
 /// track_event_categories! {
 ///     pub mod my_categories_te_ns {

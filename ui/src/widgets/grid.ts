@@ -822,7 +822,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
     const renderResizeHandle = () => {
       return m('.pf-grid__resize-handle', {
-        onmousedown: (e: MouseEvent) => {
+        onpointerdown: (e: MouseEvent) => {
           e.preventDefault();
           e.stopPropagation();
 
@@ -841,7 +841,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           ) as HTMLElement | null;
           if (gridDom === null) return;
 
-          const handleMouseMove = (e: MouseEvent) => {
+          const handlePointerMove = (e: MouseEvent) => {
             const delta = e.clientX - startX;
             const minWidth = column.minWidth ?? COL_WIDTH_MIN_PX;
             const newWidth = Math.max(minWidth, startWidth + delta);
@@ -853,13 +853,18 @@ export class Grid implements m.ClassComponent<GridAttrs> {
             );
           };
 
-          const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
+          const handlePointerUp = () => {
+            document.removeEventListener('pointermove', handlePointerMove);
+            document.removeEventListener('pointerup', handlePointerUp);
           };
 
-          document.addEventListener('mousemove', handleMouseMove);
-          document.addEventListener('mouseup', handleMouseUp);
+          document.addEventListener('pointermove', handlePointerMove);
+          document.addEventListener('pointerup', handlePointerUp);
+        },
+        oncontextmenu: (e: MouseEvent) => {
+          // Prevent right click, as this can interfere with mouse/pointer
+          // events
+          e.preventDefault();
         },
         ondblclick: (e: MouseEvent) => {
           e.preventDefault();

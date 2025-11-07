@@ -101,14 +101,11 @@ $border-3: 2px solid var(--pf-color-border);
 }
 
 .pf-grid {
-  // white-space: nowrap;
   font-family: var(--pf-font-compact);
   font-size: 14px;
   overflow: auto;
   align-items: flex-start;
-
-  // Fixes poor layerization performance
-  isolation: isolate;
+  isolation: isolate; // Improves layerization performance.
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
@@ -129,8 +126,7 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__puck {
-    // Improves layerization performance when scrolling.
-    will-change: transform;
+    will-change: transform; // Improves layerization performance.
   }
 
   &__body {
@@ -153,8 +149,7 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   &__cell-container {
-    position: relative;
-    align-items: baseline;
+    position: relative; // Positioned element in order to place absolutely positioned children relative to this.
     border-right: $border-2;
 
     &[draggable="true"] {
@@ -170,51 +165,42 @@ $border-3: 2px solid var(--pf-color-border);
     }
 
     &--drag-over {
-      position: relative;
-
       &::after {
         content: "";
-        position: absolute;
-        top: 0;
-        bottom: 0; // Spans full cell height, including sub-rows
-        width: 3px;
+        position: absolute; // Control positioning within cell.
+        inset-block: 0; // Fill full height of cell.
+        width: 3px; // Visible width of the reorder indicator.
         background-color: var(--pf-color-accent);
       }
 
       &-before::after {
-        left: -2px;
+        left: -2px; // Show indicator on the left.
       }
 
       &-after::after {
-        right: -2px;
+        right: -2px; // Show indicator on the right.
       }
     }
   }
 
   &__resize-handle {
-    position: absolute;
-    float: right;
-    width: 9px;
-    cursor: col-resize;
-    user-select: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 9px;
-    right: -5px;
-    z-index: 30;
-    top: 0;
-    bottom: 0;
+    position: absolute; // Control positioning within cell.
+    width: 9px; // Wider than visible to make it easier to grab.
+    right: -5px; // Straddle cell right border.
+    inset-block: 0; // Fill full height of cell.
+    z-index: 1; // Appear above adjacent cells.
+    cursor: col-resize; // Indicate resizability.
+    user-select: none; // Prevent text selection while resizing.
+    touch-action: none; // Disable touch gestures like scrolling while dragging.
 
     &:hover,
     &:active {
       &::after {
         content: "";
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 3px;
-        transition: background-color 0.2s;
+        position: absolute; // Control positioning within resize handle.
+        left: 3px; // Center within resize handle.
+        width: 3px; // Narrower than resize handle to avoid looking too busy.
+        inset-block: 0; // Fill full height of cell.
         background-color: var(--pf-color-accent);
       }
     }

@@ -37,6 +37,7 @@ export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
   readonly onQueryAnalyzed: (query: Query | Error) => void;
+  readonly onAnalysisStateChange?: (isAnalyzing: boolean) => void;
   readonly onchange?: () => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
   readonly isCollapsed?: boolean;
@@ -101,7 +102,18 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
 
     const sq = node.getStructuredQuery();
-    if (sq === undefined) return;
+    if (sq === undefined) {
+      // Report error instead of silently returning
+      const error = new Error(
+        'Cannot generate structured query. This usually means:\n' +
+          '• Multi-source nodes (Union/Merge/Intersect) need at least 2 connected inputs\n' +
+          '• All input ports must be connected\n' +
+          '• Previous nodes must be valid',
+      );
+      this.currentQuery = error;
+      attrs.onQueryAnalyzed(error);
+      return;
+    }
 
     const curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
@@ -109,16 +121,33 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       if (node.state.hasOperationChanged) {
         node.state.hasOperationChanged = false;
       }
+      attrs.onAnalysisStateChange?.(true);
       this.tableAsyncLimiter.schedule(async () => {
-        this.currentQuery = await analyzeNode(node, attrs.trace.engine);
-        if (!isAQuery(this.currentQuery)) {
-          return;
+        try {
+          this.currentQuery = await analyzeNode(node, attrs.trace.engine);
+          if (!isAQuery(this.currentQuery)) {
+            attrs.onAnalysisStateChange?.(false);
+            return;
+          }
+          if (node instanceof AggregationNode) {
+            node.updateGroupByColumns();
+          }
+          attrs.onQueryAnalyzed(this.currentQuery);
+          this.prevSqString = curSqString;
+          attrs.onAnalysisStateChange?.(false);
+        } catch (e) {
+          // Silently handle "Already analyzing" errors - the AsyncLimiter
+          // will retry when the current analysis completes
+          if (e instanceof Error && e.message.includes('Already analyzing')) {
+            // Keep isAnalyzing = true, will retry automatically
+            return;
+          }
+          // For other errors, set them as the current query and stop analyzing
+          const error = e instanceof Error ? e : new Error(String(e));
+          this.currentQuery = error;
+          attrs.onQueryAnalyzed(error);
+          attrs.onAnalysisStateChange?.(false);
         }
-        if (node instanceof AggregationNode) {
-          node.updateGroupByColumns();
-        }
-        attrs.onQueryAnalyzed(this.currentQuery);
-        this.prevSqString = curSqString;
       });
     }
   }
@@ -165,6 +194,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     if (!node) {
       return m(ExplorePageHelp);
     }
+
+    // Update the node's onchange callback to point to our attrs.onchange
+    // This ensures that changes in the node's UI components trigger the callback chain
+    node.state.onchange = attrs.onchange;
 
     this.updateQuery(node, attrs);
 

@@ -51,6 +51,7 @@ export class Icons {
   static readonly Search = 'search';
   static readonly Save = 'save';
   static readonly Undo = 'undo';
+  static readonly Redo = 'redo';
 
   // Page control
   static readonly NextPage = 'chevron_right';

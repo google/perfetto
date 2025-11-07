@@ -62,8 +62,7 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
                                    std::string_view dest_filename,
                                    Context* context) const {
   const std::string source_filename_str(source_filename);
-  base::ScopedMmap mapped =
-      base::ReadMmapWholeFile(source_filename_str.c_str());
+  base::ScopedMmap mapped = base::ReadMmapWholeFile(source_filename_str);
   if (!mapped.IsValid()) {
     return base::ErrStatus("TraceRedactor: failed to map pages for trace (%s)",
                            source_filename_str.c_str());

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use perfetto::{
+use perfetto_sdk::{
     data_source::*, pb_decoder::*, producer::*, protos::trace::trace_packet::TracePacket,
 };
 
-use perfetto_protos_gpu::protos::{
+use perfetto_sdk_protos_gpu::protos::{
     common::gpu_counter_descriptor::*, config::data_source_config::*,
     config::gpu::gpu_counter_config::*, trace::gpu::gpu_counter_event::*,
     trace::trace_packet::prelude::*,

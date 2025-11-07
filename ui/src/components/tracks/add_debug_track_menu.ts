@@ -16,7 +16,7 @@ import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
 import {assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
-import {Form, FormLabel} from '../../widgets/form';
+import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
@@ -125,7 +125,11 @@ export class AddDebugTrackMenu
       ),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
       this.renderTrackTypeSelect(),
-      this.renderOptions(attrs.availableColumns),
+      m(
+        FormSection,
+        {label: 'Column mapping'},
+        this.renderOptions(attrs.availableColumns),
+      ),
     );
   }
 
@@ -165,41 +169,59 @@ export class AddDebugTrackMenu
 
   private renderSliceOptions(availableColumns: ReadonlyArray<string>) {
     return [
-      this.renderFormSelectInput('ts', 'ts', availableColumns),
-      this.renderFormSelectInput('dur', 'dur', ['0', ...availableColumns]),
-      this.renderFormSelectInput('name', 'name', availableColumns),
-      this.renderFormSelectInput('arg_set_id', 'argSetId', availableColumns, {
-        optional: true,
-      }),
-      this.renderFormSelectInput('pivot', 'pivot', availableColumns, {
-        optional: true,
-      }),
+      this.renderFormSelectInput('Timestamp column', 'ts', availableColumns),
+      this.renderFormSelectInput('Duration column', 'dur', [
+        '0',
+        ...availableColumns,
+      ]),
+      this.renderFormSelectInput('Name column', 'name', availableColumns),
+      this.renderFormSelectInput(
+        'Arguments ID column (optional)',
+        'argSetId',
+        availableColumns,
+        {
+          optional: true,
+        },
+      ),
+      this.renderFormSelectInput(
+        'Pivot column (optional)',
+        'pivot',
+        availableColumns,
+        {
+          optional: true,
+        },
+      ),
     ];
   }
 
   private renderCounterTrackOptions(availableColumns: ReadonlyArray<string>) {
     return [
-      this.renderFormSelectInput('ts', 'ts', availableColumns),
-      this.renderFormSelectInput('value', 'value', availableColumns),
-      this.renderFormSelectInput('pivot', 'pivot', availableColumns, {
-        optional: true,
-      }),
+      this.renderFormSelectInput('Timestamp column', 'ts', availableColumns),
+      this.renderFormSelectInput('Value column', 'value', availableColumns),
+      this.renderFormSelectInput(
+        'Pivot column (optional)',
+        'pivot',
+        availableColumns,
+        {
+          optional: true,
+        },
+      ),
     ];
   }
 
   private renderFormSelectInput<K extends keyof ConfigurationOptions>(
-    name: string,
+    label: m.Children,
     optionKey: K,
     options: ReadonlyArray<string>,
     opts: Partial<{optional: boolean}> = {},
   ) {
     const {optional} = opts;
     return [
-      m(FormLabel, {for: name}, name),
+      m(FormLabel, {for: optionKey}, label),
       m(
         Select,
         {
-          id: name,
+          id: optionKey,
           required: !optional,
           oninput: (e: Event) => {
             if (!e.target) return;

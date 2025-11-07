@@ -1,5 +1,0 @@
-#!/bin/sh
-set -e
-rm -rf /run/perfetto
-
-#DEBHELPER#

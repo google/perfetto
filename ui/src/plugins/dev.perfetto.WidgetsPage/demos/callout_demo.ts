@@ -42,7 +42,7 @@ export function renderCallout(): m.Children {
         ),
       initialOpts: {
         intent: new EnumOption(Intent.None, Object.values(Intent)),
-        dismissable: false,
+        dismissible: false,
         icon: true,
       },
     }),

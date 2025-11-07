@@ -44,7 +44,7 @@ class ScopedMmapTest : public ::testing::Test {
 TEST_F(ScopedMmapTest, WholeNonExistingFile) {
   base::TmpDirTree tmp;
 
-  ScopedMmap mapped = ReadMmapWholeFile(tmp.AbsolutePath("f1.txt").c_str());
+  ScopedMmap mapped = ReadMmapWholeFile(tmp.AbsolutePath("f1.txt"));
 
   EXPECT_FALSE(mapped.IsValid());
 }
@@ -52,7 +52,7 @@ TEST_F(ScopedMmapTest, WholeNonExistingFile) {
 TEST_F(ScopedMmapTest, PartNonExistingFile) {
   base::TmpDirTree tmp;
 
-  ScopedMmap mapped = ReadMmapFilePart(tmp.AbsolutePath("f1.txt").c_str(), 4);
+  ScopedMmap mapped = ReadMmapFilePart(tmp.AbsolutePath("f1.txt"), 4);
 
   EXPECT_FALSE(mapped.IsValid());
 }
@@ -61,7 +61,7 @@ TEST_F(ScopedMmapTest, WholeOneByteFile) {
   base::TmpDirTree tmp;
   tmp.AddFile("f1.txt", "c");
 
-  ScopedMmap mapped = ReadMmapWholeFile(tmp.AbsolutePath("f1.txt").c_str());
+  ScopedMmap mapped = ReadMmapWholeFile(tmp.AbsolutePath("f1.txt"));
 
   ASSERT_TRUE(mapped.IsValid());
   ASSERT_NE(mapped.data(), nullptr);
@@ -73,7 +73,7 @@ TEST_F(ScopedMmapTest, PartThreeBytes) {
   base::TmpDirTree tmp;
   tmp.AddFile("f1.txt", "ccccc");
 
-  ScopedMmap mapped = ReadMmapFilePart(tmp.AbsolutePath("f1.txt").c_str(), 3);
+  ScopedMmap mapped = ReadMmapFilePart(tmp.AbsolutePath("f1.txt"), 3);
 
   ASSERT_TRUE(mapped.IsValid());
   ASSERT_NE(mapped.data(), nullptr);
@@ -83,7 +83,7 @@ TEST_F(ScopedMmapTest, PartThreeBytes) {
 TEST_F(ScopedMmapTest, Reset) {
   base::TmpDirTree tmp;
   tmp.AddFile("f1.txt", "ccccc");
-  ScopedMmap mapped = ReadMmapWholeFile(tmp.AbsolutePath("f1.txt").c_str());
+  ScopedMmap mapped = ReadMmapWholeFile(tmp.AbsolutePath("f1.txt"));
   ASSERT_TRUE(mapped.IsValid());
 
   EXPECT_TRUE(mapped.reset());
@@ -98,7 +98,7 @@ TEST_F(ScopedMmapTest, InheritMmappedRange) {
   base::TmpDirTree tmp;
   tmp.AddFile("f1.txt", "ccccc");
   ScopedPlatformHandle file(
-      base::OpenFile(tmp.AbsolutePath("f1.txt").c_str(), O_RDONLY));
+      base::OpenFile(tmp.AbsolutePath("f1.txt"), O_RDONLY));
   void* ptr = mmap(nullptr, 5, PROT_READ, MAP_PRIVATE, *file, 0);
   ASSERT_NE(ptr, MAP_FAILED);
 

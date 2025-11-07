@@ -34,7 +34,7 @@ export function renderVirtualCanvas(): m.Children {
         return m(
           VirtualOverlayCanvas,
           {
-            className: 'pf-virtual-canvas',
+            style: {height: '400px', width: `400px`},
             overflowY: 'auto',
             onCanvasRedraw({ctx, canvasRect}) {
               ctx.strokeStyle = 'red';

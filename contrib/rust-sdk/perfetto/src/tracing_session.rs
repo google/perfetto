@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{ffi::c_void, time::Duration};
 use thiserror::Error;
 

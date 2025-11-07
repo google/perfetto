@@ -77,9 +77,7 @@ describe('JSON serialization/deserialization', () => {
   });
 
   test('serializes and deserializes a simple graph', () => {
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-    });
+    const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
       nodeLayouts: new Map(),
@@ -90,9 +88,7 @@ describe('JSON serialization/deserialization', () => {
 
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0];
-    expect((deserializedNode as SlicesSourceNode).state.slice_name).toBe(
-      'test_slice',
-    );
+    expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
   });
 
   test('handles multiple nodes and connections', () => {
@@ -225,7 +221,6 @@ describe('JSON serialization/deserialization', () => {
 
     const intervalIntersectNode = new IntervalIntersectNode({
       prevNodes: [tableNode1, tableNode2],
-      allNodes: [tableNode1, tableNode2],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -252,6 +247,113 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedIntervalIntersectNode.prevNodes?.[1].nodeId).toBe(
       deserializedTableNode2.nodeId,
     );
+  });
+
+  test('serializes and deserializes interval intersect node with partition columns and filters', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode3 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const intervalIntersectNode = new IntervalIntersectNode({
+      prevNodes: [tableNode1, tableNode2, tableNode3],
+      partitionColumns: ['name'],
+      filterNegativeDur: [true, false, true],
+      comment: 'Intersect intervals partitioned by name',
+      filters: [
+        {
+          column: 'dur',
+          op: '>',
+          value: '1000',
+        },
+      ],
+    });
+    tableNode1.nextNodes.push(intervalIntersectNode);
+    tableNode2.nextNodes.push(intervalIntersectNode);
+    tableNode3.nextNodes.push(intervalIntersectNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2, tableNode3],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(3);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+    const deserializedTableNode3 = deserializedState.rootNodes[2];
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedIntervalIntersectNode = deserializedTableNode1
+      .nextNodes[0] as IntervalIntersectNode;
+
+    // Verify prevNodes connections
+    expect(deserializedIntervalIntersectNode.prevNodes).toBeDefined();
+    expect(deserializedIntervalIntersectNode.prevNodes?.length).toBe(3);
+    expect(deserializedIntervalIntersectNode.prevNodes?.[0].nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
+    expect(deserializedIntervalIntersectNode.prevNodes?.[1].nodeId).toBe(
+      deserializedTableNode2.nodeId,
+    );
+    expect(deserializedIntervalIntersectNode.prevNodes?.[2].nodeId).toBe(
+      deserializedTableNode3.nodeId,
+    );
+
+    // Verify partition columns
+    expect(
+      deserializedIntervalIntersectNode.state.partitionColumns,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.state.partitionColumns?.length,
+    ).toBe(1);
+    expect(deserializedIntervalIntersectNode.state.partitionColumns?.[0]).toBe(
+      'name',
+    );
+
+    // Verify filterNegativeDur array
+    expect(
+      deserializedIntervalIntersectNode.state.filterNegativeDur,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
+    ).toBe(3);
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
+      true,
+    );
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
+      false,
+    );
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[2]).toBe(
+      true,
+    );
+
+    // Verify comment
+    expect(deserializedIntervalIntersectNode.state.comment).toBe(
+      'Intersect intervals partitioned by name',
+    );
+
+    // Verify filters
+    expect(deserializedIntervalIntersectNode.state.filters).toBeDefined();
+    expect(deserializedIntervalIntersectNode.state.filters?.length).toBe(1);
+    expect(deserializedIntervalIntersectNode.state.filters?.[0].column).toBe(
+      'dur',
+    );
+    expect(deserializedIntervalIntersectNode.state.filters?.[0].op).toBe('>');
   });
 
   test('serializes and deserializes sql source node with reference', () => {
@@ -329,9 +431,7 @@ describe('JSON serialization/deserialization', () => {
       sqlModules,
     });
 
-    const sliceNode = new SlicesSourceNode({
-      slice_name: 'test_slice',
-    });
+    const sliceNode = new SlicesSourceNode({});
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode, sliceNode],
@@ -496,7 +596,6 @@ describe('JSON serialization/deserialization', () => {
 
     const addColumnsNode = new AddColumnsNode({
       prevNode: tableNode,
-      sqlTable: sqlModules.getTable('slice')!,
       selectedColumns: ['name'],
     });
     tableNode.nextNodes.push(addColumnsNode);
@@ -515,7 +614,7 @@ describe('JSON serialization/deserialization', () => {
     const deserializedNode = deserializedTableNode
       .nextNodes[0] as AddColumnsNode;
     expect(deserializedNode.state.selectedColumns).toEqual(['name']);
-    expect(deserializedNode.state.sqlTable?.name).toEqual('slice');
+    // Note: sqlTable is no longer part of AddColumnsNodeState
   });
 
   test('serializes and deserializes limit and offset node', () => {
@@ -1174,5 +1273,31 @@ describe('JSON serialization/deserialization', () => {
     expect(branch2.prevNode?.nodeId).toBe(deserializedTableNode.nodeId);
     expect(branch1.state.newColumns[0].name).toBe('dur_ms');
     expect(branch2.state.newColumns[0].name).toBe('ts_ms');
+  });
+
+  test('deserializes graph without nodeLayouts field (auto-layout)', () => {
+    // Create a real node and serialize it
+    const sliceNode = new SlicesSourceNode({});
+    const initialState: ExplorePageState = {
+      rootNodes: [sliceNode],
+      nodeLayouts: new Map(),
+    };
+    const serialized = serializeState(initialState);
+
+    // Parse the JSON and remove the nodeLayouts field
+    const parsed = JSON.parse(serialized);
+    delete parsed.nodeLayouts;
+    const jsonWithoutLayouts = JSON.stringify(parsed);
+
+    const deserializedState = deserializeState(
+      jsonWithoutLayouts,
+      trace,
+      sqlModules,
+    );
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    expect(deserializedState.nodeLayouts.size).toBe(0);
+    const deserializedNode = deserializedState.rootNodes[0] as SlicesSourceNode;
+    expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
   });
 });

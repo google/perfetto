@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use bitflags::bitflags;
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{ffi::CString, ptr, time::Duration};
 use thiserror::Error;
 

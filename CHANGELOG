@@ -7,6 +7,8 @@ Unreleased:
     * SharedMemoryArbiter: Reduced CPU usage when tracing high-throughput
       workloads by preventing duplicate immediate flush tasks when the shared
       memory buffer is more than half full.
+    * traced_probes: now requests a 2MB shared memory buffer instead of 1MB
+      when connecting to the tracing service (traced).
   SQL Standard library:
     *
   Trace Processor:

@@ -1061,3 +1061,77 @@ class IntervalsIntersect(TestSuite):
         out=Csv("""
         "ts","dur","id_0","id_1"
         """))
+
+  def test_string_partition_columns(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur, process_name, thread_name) AS (
+            VALUES
+            (0, 1, 5, 'proc1', 'thread1'),
+            (1, 2, 4, 'proc1', 'thread2'),
+            (2, 10, 5, 'proc2', 'thread1')
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur, process_name, thread_name) AS (
+            VALUES
+            (10, 0, 3, 'proc1', 'thread1'),
+            (11, 4, 4, 'proc1', 'thread1'),
+            (12, 3, 5, 'proc1', 'thread2'),
+            (13, 11, 3, 'proc2', 'thread1')
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, process_name, thread_name
+        FROM _interval_intersect!((A, B), (process_name, thread_name))
+        ORDER BY ts, process_name, thread_name;
+        """,
+        out=Csv("""
+        "ts","dur","process_name","thread_name"
+        1,2,"proc1","thread1"
+        3,3,"proc1","thread2"
+        4,2,"proc1","thread1"
+        11,3,"proc2","thread1"
+        """))
+
+  def test_string_partition_single_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur, name) AS (
+            VALUES
+            (0, 1, 5, 'alpha'),
+            (1, 2, 4, 'beta'),
+            (2, 10, 5, 'gamma')
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur, name) AS (
+            VALUES
+            (10, 0, 3, 'alpha'),
+            (11, 4, 4, 'alpha'),
+            (12, 3, 5, 'beta'),
+            (13, 11, 3, 'gamma')
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, name
+        FROM _interval_intersect!((A, B), (name))
+        ORDER BY ts, name;
+        """,
+        out=Csv("""
+        "ts","dur","name"
+        1,2,"alpha"
+        3,3,"beta"
+        4,2,"alpha"
+        11,3,"gamma"
+        """))

@@ -310,6 +310,7 @@ struct IntervalTreeIntervalsAgg
   static constexpr char kName[] = "__intrinsic_interval_tree_intervals_agg";
   static constexpr int kArgCount = -1;
   static constexpr int kMinArgCount = 3;
+
   struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedTable partitions;
     std::vector<SqlValue> tmp_vals;
@@ -382,6 +383,14 @@ struct IntervalTreeIntervalsAgg
     uint32_t j = 0;
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
+      // If it's a string, intern it immediately into the StringPool.
+      // This ensures the pointer remains valid and we only store unique
+      // strings.
+      if (new_val.type == SqlValue::kString) {
+        StringPool* pool = GetUserData(ctx)->pool;
+        new_val.string_value =
+            pool->Get(pool->InternString(new_val.AsString())).c_str();
+      }
       agg_ctx.tmp_vals[j] = new_val;
       HashSqlValue(h, new_val);
       j++;
@@ -404,10 +413,6 @@ struct IntervalTreeIntervalsAgg
       return;
     }
 
-    std::vector<SqlValue> part_values;
-    for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
-      part_values.push_back(sqlite::utils::SqliteValueToSqlValue(argv[i]));
-    }
     perfetto_sql::Partition new_partition;
     new_partition.sql_values = agg_ctx.tmp_vals;
     new_partition.last_interval = interval.end;
@@ -421,6 +426,7 @@ struct IntervalTreeIntervalsAgg
     if (!raw_agg_ctx) {
       return sqlite::result::Null(ctx);
     }
+    // String values are already interned in Step(), so we can directly return.
     return sqlite::result::UniquePointer(
         ctx,
         std::make_unique<perfetto_sql::PartitionedTable>(
@@ -553,12 +559,16 @@ struct SymbolizeAgg
 
 }  // namespace
 
-base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
+base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
+                                          StringPool* pool) {
   RETURN_IF_ERROR(engine.RegisterAggregateFunction<ArrayAgg>(nullptr));
   RETURN_IF_ERROR(engine.RegisterFunction<Struct>(nullptr));
   RETURN_IF_ERROR(engine.RegisterAggregateFunction<RowDataframeAgg>(nullptr));
-  RETURN_IF_ERROR(
-      engine.RegisterAggregateFunction<IntervalTreeIntervalsAgg>(nullptr));
+  // Use a static UserData since aggregate functions don't take ownership.
+  static auto interval_tree_user_data =
+      perfetto_sql::PartitionedTable::UserData{pool};
+  RETURN_IF_ERROR(engine.RegisterAggregateFunction<IntervalTreeIntervalsAgg>(
+      &interval_tree_user_data));
   RETURN_IF_ERROR(
       engine.RegisterAggregateFunction<CounterPerTrackAgg>(nullptr));
 

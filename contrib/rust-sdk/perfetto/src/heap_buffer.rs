@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::stream_writer::StreamWriter;
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::os::raw::c_void;
 
 /// A HeapBuffer can be used to serialize protobuf data using the

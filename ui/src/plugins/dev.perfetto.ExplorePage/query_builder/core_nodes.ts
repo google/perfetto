@@ -127,7 +127,6 @@ export function registerCoreNodes() {
       const fullState: IntervalIntersectNodeState = {
         ...state,
         prevNodes: state.prevNodes ?? [],
-        allNodes: context.allNodes,
       };
       return new IntervalIntersectNode(fullState);
     },

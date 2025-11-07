@@ -23,7 +23,7 @@ import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {Card, CardStack} from '../../../../widgets/card';
-import {FilterOperation, UIFilter} from '../operations/filter';
+import {renderFilterOperation} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
@@ -177,15 +177,19 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   nodeDetails(): m.Child {
+    const details: m.Child[] = [];
+
     if (this.rightNode) {
       if (this.state.mode === 'free') {
         // Free mode: show that all columns are being added
         const numCols = this.rightCols.length;
         const plural = numCols > 1 ? 's' : '';
-        return m(
-          '.pf-aggregation-node-details',
-          `Adding all ${numCols} column${plural} using `,
-          m('strong', 'id = id'),
+        details.push(
+          m(
+            'div',
+            `Adding all ${numCols} column${plural} using `,
+            m('strong', 'id = id'),
+          ),
         );
       } else {
         // Guided mode: show selected columns and join condition
@@ -205,22 +209,24 @@ export class AddColumnsNode implements ModificationNode {
               return alias ? `${col} as ${alias}` : col;
             })
             .join(', ');
-          return m(
-            '.pf-aggregation-node-details',
-            `Add column${plural} `,
-            m('strong', columnDisplay),
-            ' using ',
-            m('strong', joinCondition),
+          details.push(
+            m(
+              'div',
+              `Add column${plural} `,
+              m('strong', columnDisplay),
+              ' using ',
+              m('strong', joinCondition),
+            ),
           );
         } else {
-          return m('.pf-aggregation-node-details', `No columns selected`);
+          details.push(m('div', `No columns selected`));
         }
       }
+    } else {
+      details.push(m('div', 'Connect a node to add columns from'));
     }
-    return m(
-      '.pf-aggregation-node-details',
-      'Connect a node to add columns from',
-    );
+
+    return m('.pf-aggregation-node-details', details);
   }
 
   nodeSpecificModify(): m.Child {
@@ -657,13 +663,19 @@ export class AddColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
+      renderFilterOperation(
+        this.state.filters,
+        this.state.filterOperator,
+        this.finalCols,
+        (newFilters) => {
           this.state.filters = [...newFilters];
+          this.state.onchange?.();
         },
-      }),
+        (operator) => {
+          this.state.filterOperator = operator;
+          this.state.onchange?.();
+        },
+      ),
     ]);
   }
 
@@ -789,7 +801,44 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   serializeState(): object {
-    return this.state;
+    return {
+      selectedColumns: this.state.selectedColumns,
+      leftColumn: this.state.leftColumn,
+      rightColumn: this.state.rightColumn,
+      mode: this.state.mode,
+      suggestionSelections: this.state.suggestionSelections
+        ? Object.fromEntries(this.state.suggestionSelections)
+        : undefined,
+      expandedSuggestions: this.state.expandedSuggestions
+        ? Array.from(this.state.expandedSuggestions)
+        : undefined,
+      columnAliases: this.state.columnAliases
+        ? Object.fromEntries(this.state.columnAliases)
+        : undefined,
+      isGuidedConnection: this.state.isGuidedConnection,
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields from filters
+        if ('value' in f) {
+          // FilterValue type
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          // FilterNull type
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
+      filterOperator: this.state.filterOperator,
+      comment: this.state.comment,
+      autoExecute: this.state.autoExecute,
+    };
   }
 
   static deserializeState(
@@ -798,6 +847,37 @@ export class AddColumnsNode implements ModificationNode {
     return {
       ...serializedState,
       prevNode: undefined as unknown as QueryNode,
+      suggestionSelections:
+        (serializedState.suggestionSelections as unknown as Record<
+          string,
+          string[]
+        >) !== undefined
+          ? new Map(
+              Object.entries(
+                serializedState.suggestionSelections as unknown as Record<
+                  string,
+                  string[]
+                >,
+              ),
+            )
+          : undefined,
+      expandedSuggestions:
+        (serializedState.expandedSuggestions as unknown as string[]) !==
+        undefined
+          ? new Set(serializedState.expandedSuggestions as unknown as string[])
+          : undefined,
+      columnAliases:
+        (serializedState.columnAliases as unknown as Record<string, string>) !==
+        undefined
+          ? new Map(
+              Object.entries(
+                serializedState.columnAliases as unknown as Record<
+                  string,
+                  string
+                >,
+              ),
+            )
+          : undefined,
     };
   }
 }
