@@ -77,7 +77,23 @@ export class SlicesSourceNode implements SourceNode {
 
   serializeState(): SlicesSourceSerializedState {
     return {
-      filters: this.state.filters,
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields to avoid circular references
+        if ('value' in f) {
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
