@@ -15,7 +15,7 @@
 import("perfetto.gni")
 
 template("protozero_descriptor_diff") {
-  if (build_with_chromium) {
+  if (build_with_chromium || perfetto_build_with_embedder) {
     name = "${target_name}_gen"
   } else {
     name = "${target_name}"
