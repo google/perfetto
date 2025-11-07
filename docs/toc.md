@@ -135,7 +135,9 @@
 
     - [Command Line Reference](#)
 
-      - [perfetto cmdline](reference/perfetto-cli.md)
+      - [perfetto_cmd](reference/perfetto-cli.md)
+      - [traced](reference/traced.md)
+      - [traced_probes](reference/traced_probes.md)
       - [heap_profile cmdline](reference/heap_profile-cli.md)
       - [tracebox](reference/tracebox.md)
 
