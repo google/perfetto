@@ -78,6 +78,10 @@ if (!defined(is_qnx)) {
   is_qnx = false
 }
 
+if (!defined(is_freebsd)) {
+  is_freebsd = false
+}
+
 declare_args() {
   # The Android blueprint file generator set this to true (as well as
   # is_perfetto_build_generator). This is just about being built in the

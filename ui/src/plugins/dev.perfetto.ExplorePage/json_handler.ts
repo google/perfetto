@@ -373,6 +373,9 @@ export function deserializeState(
     if (node.type === NodeType.kAggregation) {
       (node as AggregationNode).resolveColumns();
     }
+    if (node.type === NodeType.kModifyColumns) {
+      (node as ModifyColumnsNode).resolveColumns();
+    }
   }
 
   const rootNodes = serializedGraph.rootNodeIds.map((id) => {

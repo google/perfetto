@@ -119,6 +119,15 @@ export interface BuilderAttrs {
   readonly onExport: () => void;
 
   readonly onImportWithStatement: () => void;
+
+  // Node state change callback
+  readonly onNodeStateChange?: () => void;
+
+  // Undo / Redo
+  readonly onUndo?: () => void;
+  readonly onRedo?: () => void;
+  readonly canUndo?: boolean;
+  readonly canRedo?: boolean;
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
@@ -187,7 +196,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onAnalysisStateChange: (isAnalyzing: boolean) => {
             this.isAnalyzing = isAnalyzing;
           },
-          onchange: () => {},
+          onchange: () => {
+            attrs.onNodeStateChange?.();
+          },
           isCollapsed: this.isExplorerCollapsed,
           onToggleCollapse: () => {
             this.isExplorerCollapsed = !this.isExplorerCollapsed;
@@ -231,7 +242,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               dataSource: this.dataSource,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
-              onchange: () => {},
+              onchange: () => {
+                attrs.onNodeStateChange?.();
+              },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
               onFullScreenToggle: () => {
@@ -300,6 +313,31 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 intent: Intent.Primary,
               }),
           ),
+        m(
+          '.pf-qb-floating-controls-bottom',
+          attrs.onUndo &&
+            m(Button, {
+              icon: Icons.Undo,
+              title: 'Undo (Ctrl+Z)',
+              onclick: attrs.onUndo,
+              disabled: !attrs.canUndo,
+              variant: ButtonVariant.Filled,
+              rounded: true,
+              iconFilled: true,
+              intent: Intent.Primary,
+            }),
+          attrs.onRedo &&
+            m(Button, {
+              icon: Icons.Redo,
+              title: 'Redo (Ctrl+Shift+Z)',
+              onclick: attrs.onRedo,
+              disabled: !attrs.canRedo,
+              variant: ButtonVariant.Filled,
+              rounded: true,
+              iconFilled: true,
+              intent: Intent.Primary,
+            }),
+        ),
       ),
       m('.pf-qb-explorer', explorer),
     );

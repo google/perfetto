@@ -361,7 +361,12 @@ interface NewColumn {
 export interface ModifyColumnsSerializedState {
   prevNodeId: string;
   newColumns: NewColumn[];
-  selectedColumns: ColumnInfo[];
+  selectedColumns: {
+    name: string;
+    type: string;
+    checked: boolean;
+    alias?: string;
+  }[];
   filters?: UIFilter[];
   filterOperator?: 'AND' | 'OR';
   comment?: string;
@@ -448,7 +453,26 @@ export class ModifyColumnsNode implements ModificationNode {
     return {
       ...serializedState,
       prevNode: undefined as unknown as QueryNode,
+      selectedColumns: serializedState.selectedColumns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        column: {name: c.name},
+        alias: c.alias,
+      })),
     };
+  }
+
+  resolveColumns() {
+    // Recover full column information from prevNode
+    const sourceCols = this.prevNode.finalCols ?? [];
+    this.state.selectedColumns.forEach((c) => {
+      const sourceCol = sourceCols.find((s) => s.name === c.name);
+      if (sourceCol) {
+        c.column = sourceCol.column;
+        c.type = sourceCol.type;
+      }
+    });
   }
 
   validate(): boolean {
@@ -1086,9 +1110,46 @@ export class ModifyColumnsNode implements ModificationNode {
     }
     return {
       prevNodeId: this.prevNode.nodeId,
-      newColumns: this.state.newColumns,
-      selectedColumns: this.state.selectedColumns,
-      filters: this.state.filters,
+      newColumns: this.state.newColumns.map((c) => ({
+        expression: c.expression,
+        name: c.name,
+        module: c.module,
+        type: c.type,
+        switchOn: c.switchOn,
+        cases: c.cases
+          ? c.cases.map((cs) => ({when: cs.when, then: cs.then}))
+          : undefined,
+        defaultValue: c.defaultValue,
+        clauses: c.clauses
+          ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
+          : undefined,
+        elseValue: c.elseValue,
+      })),
+      selectedColumns: this.state.selectedColumns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        alias: c.alias,
+      })),
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields from filters
+        if ('value' in f) {
+          // FilterValue type
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          // FilterNull type
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };

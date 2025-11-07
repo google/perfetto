@@ -406,7 +406,23 @@ export class MergeNode implements MultiSourceNode {
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
-      filters: this.state.filters,
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields to avoid circular references
+        if ('value' in f) {
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       comment: this.state.comment,
     };
   }
