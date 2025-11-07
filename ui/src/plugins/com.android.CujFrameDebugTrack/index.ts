@@ -49,27 +49,26 @@ export default class implements PerfettoPlugin {
   }
 
   private async frameBoundariesConfig(): Promise<
-     Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
-   > {
-
-     // Fetch the ts and dur for the extended frame boundaries for all jank CUJs.
-     // This table is defined in the
-     // android.frame_blocking_calls.blocking_calls_aggregation stdlib module.
-     const frameBoundariesQuery = `
+    Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
+  > {
+    // Fetch the ts and dur for the extended frame boundaries for all jank CUJs.
+    // This table is defined in the
+    // android.frame_blocking_calls.blocking_calls_aggregation stdlib module.
+    const frameBoundariesQuery = `
        SELECT
          frame_id,
          ts,
          (ts_end - ts) AS dur
        FROM _extended_frame_boundary`;
 
-     return {
-       data: {
-         sqlSource: frameBoundariesQuery,
-         columns: ['frame_id', 'ts', 'dur'],
-       },
-       columns: {ts: 'ts', dur: 'dur', name: 'frame_id'},
-       rawColumns: ['frame_id', 'ts', 'dur'],
-       title: 'Frame boundaries',
-     };
-   }
+    return {
+      data: {
+        sqlSource: frameBoundariesQuery,
+        columns: ['frame_id', 'ts', 'dur'],
+      },
+      columns: {ts: 'ts', dur: 'dur', name: 'frame_id'},
+      rawColumns: ['frame_id', 'ts', 'dur'],
+      title: 'Frame boundaries',
+    };
+  }
 }
