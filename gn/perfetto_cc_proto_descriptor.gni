@@ -33,7 +33,8 @@ template("perfetto_cc_proto_descriptor") {
       descriptor_file_path =
           get_label_info(invoker.descriptor_target, "target_gen_dir") +
           "/${invoker.descriptor_name}"
-      if (build_with_chromium || perfetto_build_with_embedder) {
+      if (build_with_chromium ||
+          (perfetto_build_with_embedder && !is_perfetto_build_generator)) {
         deps = [ "${invoker.descriptor_target}_gen" ]
       } else {
         deps = [ invoker.descriptor_target ]
