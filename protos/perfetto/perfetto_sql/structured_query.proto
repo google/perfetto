@@ -178,6 +178,11 @@ message PerfettoSqlStructuredQuery {
     // The base query
     optional PerfettoSqlStructuredQuery base = 1;
     repeated PerfettoSqlStructuredQuery interval_intersect = 2;
+
+    // Optional list of partition columns to use for the interval intersection.
+    // These columns must exist in all queries (base and interval_intersect).
+    // They cannot be "id", "ts", or "dur" as these are reserved.
+    repeated string partition_columns = 3;
   }
 
   // DON'T USE. EXPERIMENTAL.

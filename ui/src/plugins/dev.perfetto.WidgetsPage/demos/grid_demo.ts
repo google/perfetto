@@ -43,6 +43,7 @@ export function renderGrid(): m.Children {
         virtualize: false,
         wrap: false,
       },
+      noPadding: true,
     }),
   ];
 }

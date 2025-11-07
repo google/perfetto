@@ -115,17 +115,20 @@ export class MergeNode implements MultiSourceNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
     if (this.prevNodes.length !== 2) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Merge node requires exactly two sources (left and right).',
       );
       return false;
     }
 
     if (!this.state.leftQueryAlias || !this.state.rightQueryAlias) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Both left and right query aliases are required.',
       );
       return false;
@@ -133,38 +136,38 @@ export class MergeNode implements MultiSourceNode {
 
     if (this.state.conditionType === 'equality') {
       if (!this.state.leftColumn || !this.state.rightColumn) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError = new Error(
+        this.setValidationError(
           'Both left and right columns are required for equality join.',
         );
         return false;
       }
     } else {
       if (!this.state.sqlExpression) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError = new Error(
+        this.setValidationError(
           'SQL expression for join condition is required.',
         );
         return false;
       }
     }
 
-    // If the basic structure is valid, we can clear any previous validation error.
-    if (this.state.issues) {
-      this.state.issues.queryError = undefined;
-    }
-
     for (const prevNode of this.prevNodes) {
       if (!prevNode.validate()) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError =
-          prevNode.state.issues?.queryError ??
-          new Error(`Previous node '${prevNode.getTitle()}' is invalid`);
+        this.setValidationError(
+          prevNode.state.issues?.queryError?.message ??
+            `Previous node '${prevNode.getTitle()}' is invalid`,
+        );
         return false;
       }
     }
 
     return true;
+  }
+
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
   }
 
   getTitle(): string {

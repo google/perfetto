@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::pb_utils::PbWireType;
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use thiserror::Error;
 
 /// Protobuf decoder errors.
@@ -45,7 +45,7 @@ pub enum PbDecoderField<'a> {
 /// static MSG: &[u8] = b"\x18\x05\x2a\x12\x0a\x05\x68\x65\x6c\x6c\x6f\
 ///                       \x28\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01";
 ///
-/// for item in perfetto::pb_decoder::PbDecoder::new(MSG) {
+/// for item in perfetto_sdk::pb_decoder::PbDecoder::new(MSG) {
 ///     // Do something with item
 /// }
 /// ```

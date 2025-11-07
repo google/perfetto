@@ -20,7 +20,7 @@ use crate::{
     },
     stream_writer::StreamWriter,
 };
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -599,7 +599,9 @@ unsafe impl<'a: 'static, IncrT: Default> Sync for DataSource<'a, IncrT> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{TracingSessionBuilder, acquire_test_environment};
+    use crate::tests::{
+        PRODUCER_SHMEM_SIZE_HINT_KB, TracingSessionBuilder, acquire_test_environment,
+    };
     use std::{error::Error, sync::OnceLock};
 
     const DATA_SOURCE_NAME: &str = "com.example.custom_data_source";
@@ -607,7 +609,8 @@ mod tests {
 
     fn get_data_source() -> &'static DataSource<'static> {
         DATA_SOURCE.get_or_init(|| {
-            let data_source_args = DataSourceArgsBuilder::new();
+            let data_source_args = DataSourceArgsBuilder::new()
+                .buffer_exhausted_policy(DataSourceBufferExhaustedPolicy::StallAndAbort);
             let mut data_source = DataSource::new();
             data_source
                 .register(DATA_SOURCE_NAME, data_source_args.build())
@@ -678,6 +681,61 @@ mod tests {
             }
         }
         assert_eq!(&test_str, "123");
+        Ok(())
+    }
+
+    #[test]
+    fn trace_large_packet() -> Result<(), Box<dyn Error>> {
+        use crate::pb_decoder::{PbDecoder, PbDecoderField};
+        use crate::protos::trace::{test_event::*, trace::*, trace_packet::*};
+        use std::sync::{Arc, Mutex};
+        let _lock = acquire_test_environment();
+        let data_source = get_data_source();
+        let mut session = TracingSessionBuilder::new()
+            .set_data_source_name(DATA_SOURCE_NAME)
+            .build()?;
+        session.start_blocking();
+        // Large enough to exceed the producer shmem size.
+        let super_long_test_string = "a".repeat(1024 * (PRODUCER_SHMEM_SIZE_HINT_KB as usize + 10));
+        data_source.trace(|ctx: &mut TraceContext| {
+            ctx.add_packet(|packet: &mut TracePacket| {
+                packet.set_for_testing(|for_testing: &mut TestEvent| {
+                    for_testing.set_str(&super_long_test_string);
+                });
+            });
+        });
+        session.stop_blocking();
+        let trace_data = Arc::new(Mutex::new(vec![]));
+        let trace_data_for_write = Arc::clone(&trace_data);
+        session.read_trace_blocking(move |data, _end| {
+            let mut written_data = trace_data_for_write.lock().unwrap();
+            written_data.extend_from_slice(data);
+        });
+        let data = trace_data.lock().unwrap();
+        assert!(!data.is_empty());
+        let mut test_str = String::new();
+        for trace_field in PbDecoder::new(&data) {
+            const PACKET_ID: u32 = TraceFieldNumber::Packet as u32;
+            if let (PACKET_ID, PbDecoderField::Delimited(data)) = trace_field.unwrap() {
+                for packet_field in PbDecoder::new(data) {
+                    const FOR_TESTING_ID: u32 = TracePacketFieldNumber::ForTesting as u32;
+                    if let (FOR_TESTING_ID, PbDecoderField::Delimited(data)) = packet_field.unwrap()
+                    {
+                        for test_event_field in PbDecoder::new(data) {
+                            const STR_ID: u32 = TestEventFieldNumber::Str as u32;
+
+                            match test_event_field.unwrap() {
+                                (STR_ID, PbDecoderField::Delimited(value)) => {
+                                    test_str = String::from_utf8(value.to_vec()).unwrap();
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(&test_str, &super_long_test_string);
         Ok(())
     }
 }
