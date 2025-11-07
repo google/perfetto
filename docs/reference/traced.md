@@ -92,9 +92,9 @@ On Android, `traced` also includes a built-in producer with several key
 responsibilities:
 
 *   **Metatracing**: It provides the `perfetto.metatrace` data source, which
-    enables tracing of the `traced` service itself. This is useful for
-    debugging Perfetto and capturing internal statistics, such as clock
-    snapshots and details about connected producers.
+    enables tracing of the `traced` service itself. This is useful for debugging
+    Perfetto and capturing internal statistics, such as clock snapshots and
+    details about connected producers.
 *   **Lazy Service Starting**: It can dynamically start other tracing daemons
     (like `heapprofd` and `traced_perf`) on-demand. When a trace configuration
     requests a data source provided by one of these daemons, the built-in
