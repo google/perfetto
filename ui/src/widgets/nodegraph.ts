@@ -773,7 +773,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       if (nodeElement !== null) {
         // Check if node is in a dock chain (flexbox positioning)
         const chainContainer = nodeElement.closest(
-          '.pf-dock-chain',
+          '.pf-node-wrapper',
         ) as HTMLElement | null;
 
         let nodeLeft: number;
@@ -1232,110 +1232,110 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       port: NodePort,
       portIndex: number,
       portType: 'input' | 'output',
+      forceConnected?: boolean,
     ) => {
       const portId = `${portType}-${portIndex}`;
       const cssClass = classNames(
-        'pf-port',
         portType === 'input' ? 'pf-input' : 'pf-output',
         `pf-port-${port.direction}`,
-        isPortConnected(id, portType, portIndex, connections) && 'pf-connected',
+        (forceConnected ||
+          isPortConnected(id, portType, portIndex, connections)) &&
+          'pf-connected',
         canvasState.connecting &&
           canvasState.connecting.nodeId === id &&
           canvasState.connecting.portIndex === portIndex &&
           canvasState.connecting.type === portType &&
           'pf-active',
+        port.contextMenuItems !== undefined && 'pf-port--with-context-menu',
       );
 
-      const portElement = m(
-        `.pf-port.pf-${portType}.pf-port-${port.direction}`,
-        {
-          'data-port': portId,
-          'class': cssClass,
-          'onpointerdown': (e: PointerEvent) => {
-            e.stopPropagation();
-            if (portType === 'input') {
-              // Input port - check for existing connection
+      const portElement = m('.pf-port', {
+        'data-port': portId,
+        'className': cssClass,
+        'onpointerdown': (e: PointerEvent) => {
+          e.stopPropagation();
+          if (portType === 'input') {
+            // Input port - check for existing connection
+            const existingConnIdx = connections.findIndex(
+              (conn) => conn.toNode === id && conn.toPort === portIndex,
+            );
+            if (existingConnIdx !== -1) {
+              const existingConn = connections[existingConnIdx];
+              const {onConnectionRemove} = vnode.attrs;
+              if (onConnectionRemove !== undefined) {
+                onConnectionRemove(existingConnIdx);
+              }
+              const outputPos = getPortPosition(
+                existingConn.fromNode,
+                'output',
+                existingConn.fromPort,
+              );
+              canvasState.connecting = {
+                nodeId: existingConn.fromNode,
+                portIndex: existingConn.fromPort,
+                type: 'output',
+                portType: getPortType(
+                  existingConn.fromNode,
+                  'output',
+                  existingConn.fromPort,
+                  nodes,
+                ),
+                x: 0,
+                y: 0,
+                transformedX: outputPos.x,
+                transformedY: outputPos.y,
+              };
+              m.redraw();
+            }
+          } else {
+            // Output port - start connection
+            const portPos = getPortPosition(id, portType, portIndex);
+            canvasState.connecting = {
+              nodeId: id,
+              portIndex,
+              type: portType,
+              portType: port.direction,
+              x: 0,
+              y: 0,
+              transformedX: portPos.x,
+              transformedY: portPos.y,
+            };
+          }
+        },
+        'onpointerup': (e: PointerEvent) => {
+          e.stopPropagation();
+          if (portType === 'input') {
+            if (
+              canvasState.connecting &&
+              canvasState.connecting.type === 'output'
+            ) {
+              // Input port receiving connection
               const existingConnIdx = connections.findIndex(
                 (conn) => conn.toNode === id && conn.toPort === portIndex,
               );
               if (existingConnIdx !== -1) {
-                const existingConn = connections[existingConnIdx];
                 const {onConnectionRemove} = vnode.attrs;
                 if (onConnectionRemove !== undefined) {
                   onConnectionRemove(existingConnIdx);
                 }
-                const outputPos = getPortPosition(
-                  existingConn.fromNode,
-                  'output',
-                  existingConn.fromPort,
-                );
-                canvasState.connecting = {
-                  nodeId: existingConn.fromNode,
-                  portIndex: existingConn.fromPort,
-                  type: 'output',
-                  portType: getPortType(
-                    existingConn.fromNode,
-                    'output',
-                    existingConn.fromPort,
-                    nodes,
-                  ),
-                  x: 0,
-                  y: 0,
-                  transformedX: outputPos.x,
-                  transformedY: outputPos.y,
-                };
-                m.redraw();
               }
-            } else {
-              // Output port - start connection
-              const portPos = getPortPosition(id, portType, portIndex);
-              canvasState.connecting = {
-                nodeId: id,
-                portIndex,
-                type: portType,
-                portType: port.direction,
-                x: 0,
-                y: 0,
-                transformedX: portPos.x,
-                transformedY: portPos.y,
+              const connection = {
+                fromNode: canvasState.connecting.nodeId,
+                fromPort: canvasState.connecting.portIndex,
+                toNode: id,
+                toPort: portIndex,
               };
-            }
-          },
-          'onpointerup': (e: PointerEvent) => {
-            e.stopPropagation();
-            if (portType === 'input') {
-              if (
-                canvasState.connecting &&
-                canvasState.connecting.type === 'output'
-              ) {
-                // Input port receiving connection
-                const existingConnIdx = connections.findIndex(
-                  (conn) => conn.toNode === id && conn.toPort === portIndex,
-                );
-                if (existingConnIdx !== -1) {
-                  const {onConnectionRemove} = vnode.attrs;
-                  if (onConnectionRemove !== undefined) {
-                    onConnectionRemove(existingConnIdx);
-                  }
-                }
-                const connection = {
-                  fromNode: canvasState.connecting.nodeId,
-                  fromPort: canvasState.connecting.portIndex,
-                  toNode: id,
-                  toPort: portIndex,
-                };
-                if (onConnect !== undefined) {
-                  onConnect(connection);
-                }
-                canvasState.connecting = null;
+              if (onConnect !== undefined) {
+                onConnect(connection);
               }
-            } else if (portType === 'output') {
-              // Clear connecting state if releasing on output port without completing connection
               canvasState.connecting = null;
             }
-          },
+          } else if (portType === 'output') {
+            // Clear connecting state if releasing on output port without completing connection
+            canvasState.connecting = null;
+          }
         },
-      );
+      });
 
       // Wrap with PopupMenu if contextMenuItems exist
       if (port.contextMenuItems !== undefined) {
@@ -1343,17 +1343,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       }
       return portElement;
     };
-
-    const isPositioned = (node: Node | Omit<Node, 'x' | 'y'>): node is Node => {
-      return (node as Node).x !== undefined && (node as Node).y !== undefined;
-    };
-
-    const position = isPositioned(node)
-      ? {
-          left: `${node.x}px`,
-          top: `${node.y}px`,
-        }
-      : undefined;
 
     const style = hue !== undefined ? {'--pf-node-hue': `${hue}`} : undefined;
 
@@ -1365,7 +1354,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         'class': classes,
         'style': {
           ...style,
-          ...position,
         },
         'onpointerdown': (e: PointerEvent) => {
           if ((e.target as HTMLElement).closest('.pf-port')) {
@@ -1469,11 +1457,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           ),
 
         // Top input ports (if not docked child)
-        !isDockedChild &&
-          topInputs.map((port) => {
-            const portIndex = inputs.indexOf(port);
-            return renderPort(port, portIndex, 'input');
-          }),
+        topInputs.map((port) => {
+          const portIndex = inputs.indexOf(port);
+          return renderPort(port, portIndex, 'input');
+        }),
 
         m('.pf-node-body', [
           content !== undefined &&
@@ -1513,11 +1500,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         ]),
 
         // Bottom output ports (if no docked child below)
-        !hasDockedChild &&
-          bottomOutputs.map((port) => {
-            const portIndex = outputs.indexOf(port);
-            return renderPort(port, portIndex, 'output');
-          }),
+        bottomOutputs.map((port) => {
+          const portIndex = outputs.indexOf(port);
+          return renderPort(port, portIndex, 'output', hasDockedChild);
+        }),
       ],
     );
   }
@@ -1852,12 +1838,18 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   const renderPos = {x: node.x, y: node.y};
 
                   // If this is a chain root, wrap all chain nodes in flex container
+                  // Always wrap in a chain root container for consistency
+
                   if (isChainRoot) {
                     return m(
-                      '.pf-dock-chain',
+                      '.pf-node-wrapper',
                       {
                         key: `chain-${id}`,
-                        style: `left: ${renderPos.x}px; top: ${renderPos.y}px; z-index: ${canvasState.draggedNode === id ? 1000 : 10}`,
+                        style: `left: ${renderPos.x}px; top: ${renderPos.y}px;`,
+                        className: classNames(
+                          canvasState.draggedNode === id &&
+                            'pf-node-wrapper--dragging',
+                        ),
                       },
                       chain.map((chainNode) => {
                         const cIsDockedChild = 'x' in chainNode === false;
@@ -1875,22 +1867,30 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                         });
                       }),
                     );
+                  } else {
+                    // Render standalone node (not part of a chain)
+                    const isDockTarget =
+                      canvasState.dockTarget === id && canvasState.isDockZone;
+
+                    return m(
+                      '.pf-node-wrapper',
+                      {
+                        key: `chain-${id}`,
+                        style: `left: ${renderPos.x}px; top: ${renderPos.y}px;`,
+                        className: classNames(
+                          canvasState.draggedNode === id &&
+                            'pf-node-wrapper--dragging',
+                        ),
+                      },
+                      renderNode(node, vnode, {
+                        isDockedChild: false,
+                        hasDockedChild: false,
+                        isDockTarget,
+                        rootNode: undefined,
+                        multiselect,
+                      }),
+                    );
                   }
-
-                  // Render standalone node (not part of a chain)
-                  const isDockTarget =
-                    canvasState.dockTarget === id && canvasState.isDockZone;
-
-                  // Wrap renderNode result with positioning
-                  const nodeVnode = renderNode(node, vnode, {
-                    isDockedChild: false,
-                    hasDockedChild: false,
-                    isDockTarget,
-                    rootNode: undefined,
-                    multiselect,
-                  });
-
-                  return nodeVnode;
                 })
                 .filter((vnode) => vnode !== null),
             ],

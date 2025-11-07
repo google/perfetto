@@ -146,7 +146,6 @@ function filterNode(): NodeModelKernel<{filterExpression: string}> {
         oninput: (e: InputEvent) => {
           const target = e.target as HTMLInputElement;
           filterExpression = target.value;
-          console.log('Filter expression updated to:', filterExpression);
         },
       }),
   };
@@ -189,8 +188,9 @@ function joinNode(): NodeModelKernel<{joinType: string; joinOn: string}> {
         m(TextInput, {
           placeholder: 'ON condition...',
           value: joinOn,
-          onInput: (value: string) => {
-            joinOn = value;
+          oninput: (e: InputEvent) => {
+            const target = e.target as HTMLInputElement;
+            joinOn = target.value;
           },
         }),
       ]),
@@ -456,7 +456,20 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     if (toNodeId) {
       const parentNode = nodes.get(toNodeId);
       if (parentNode) {
+        newNode.nextId = parentNode.nextId;
         parentNode.nextId = id;
+      }
+
+      // Find any connection connected to the bottom port of this node
+      const bottomConnectionIdx = connections.findIndex(
+        (c) => c.fromNode === toNodeId && c.fromPort === 0,
+      );
+      if (bottomConnectionIdx > -1) {
+        connections[bottomConnectionIdx] = {
+          ...connections[bottomConnectionIdx],
+          fromNode: id,
+          fromPort: 0,
+        };
       }
     }
   }
@@ -467,6 +480,36 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
   // Add a single table node to start with
   addNode(tableNode);
+
+  function renderAddNodeMenu(toNode: string) {
+    return [
+      m(MenuItem, {
+        label: 'Select',
+        icon: 'filter_alt',
+        onclick: () => addNode(selectNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Filter',
+        icon: 'filter_list',
+        onclick: () => addNode(filterNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Join',
+        icon: 'join',
+        onclick: () => addNode(joinNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Union',
+        icon: 'merge',
+        onclick: () => addNode(unionNode, toNode),
+      }),
+      m(MenuItem, {
+        label: 'Result',
+        icon: 'output',
+        onclick: () => addNode(resultNode, toNode),
+      }),
+    ];
+  }
 
   // Find root nodes (not referenced by any other node's nextId)
   function getRootNodeIds(): string[] {
@@ -501,7 +544,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           x: model.x,
           y: model.y,
           inputs: model.kernel.inputs,
-          outputs: model.kernel.outputs,
+          outputs: model.kernel.outputs?.map((out) => {
+            return {...out, contextMenuItems: renderAddNodeMenu(model.id)};
+          }),
           content: model.kernel.renderContent?.(),
           canDockBottom: model.kernel.canDockBottom,
           canDockTop: model.kernel.canDockTop,
@@ -525,7 +570,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return {
           id: model.id,
           inputs: model.kernel.inputs,
-          outputs: model.kernel.outputs,
+          outputs: model.kernel.outputs?.map((out) => {
+            return {...out, contextMenuItems: renderAddNodeMenu(model.id)};
+          }),
           content: model.kernel.renderContent?.(),
           canDockBottom: model.kernel.canDockBottom,
           canDockTop: model.kernel.canDockTop,
