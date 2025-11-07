@@ -82,6 +82,7 @@ import {QueryService} from './query_service';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
+import {MaterializationService} from './materialization_service';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -118,13 +119,24 @@ export interface BuilderAttrs {
   readonly onExport: () => void;
 
   readonly onImportWithStatement: () => void;
+
+  // Node state change callback
+  readonly onNodeStateChange?: () => void;
+
+  // Undo / Redo
+  readonly onUndo?: () => void;
+  readonly onRedo?: () => void;
+  readonly canUndo?: boolean;
+  readonly canRedo?: boolean;
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
   private queryService: QueryService;
+  private materializationService: MaterializationService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
+  private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
   private isExplorerCollapsed: boolean = false;
   private response?: QueryResponse;
@@ -133,6 +145,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.queryService = new QueryService(attrs.trace.engine);
+    this.materializationService = new MaterializationService(
+      attrs.trace.engine,
+    );
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -151,6 +166,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.query = undefined;
       this.queryExecuted = false;
       this.isQueryRunning = false;
+      this.isAnalyzing = false;
     }
     this.previousSelectedNode = selectedNode;
 
@@ -177,7 +193,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               this.runQuery(selectedNode);
             }
           },
-          onchange: () => {},
+          onAnalysisStateChange: (isAnalyzing: boolean) => {
+            this.isAnalyzing = isAnalyzing;
+          },
+          onchange: () => {
+            attrs.onNodeStateChange?.();
+          },
           isCollapsed: this.isExplorerCollapsed,
           onToggleCollapse: () => {
             this.isExplorerCollapsed = !this.isExplorerCollapsed;
@@ -220,7 +241,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               response: this.response,
               dataSource: this.dataSource,
               isQueryRunning: this.isQueryRunning,
-              onchange: () => {},
+              isAnalyzing: this.isAnalyzing,
+              onchange: () => {
+                attrs.onNodeStateChange?.();
+              },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
               onFullScreenToggle: () => {
@@ -234,6 +258,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 }
               },
               onExecute: () => {
+                // Reset queryExecuted flag to allow re-execution after errors or config changes
+                this.queryExecuted = false;
                 this.runQuery(selectedNode);
               },
             })
@@ -287,6 +313,31 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 intent: Intent.Primary,
               }),
           ),
+        m(
+          '.pf-qb-floating-controls-bottom',
+          attrs.onUndo &&
+            m(Button, {
+              icon: Icons.Undo,
+              title: 'Undo (Ctrl+Z)',
+              onclick: attrs.onUndo,
+              disabled: !attrs.canUndo,
+              variant: ButtonVariant.Filled,
+              rounded: true,
+              iconFilled: true,
+              intent: Intent.Primary,
+            }),
+          attrs.onRedo &&
+            m(Button, {
+              icon: Icons.Redo,
+              title: 'Redo (Ctrl+Shift+Z)',
+              onclick: attrs.onRedo,
+              disabled: !attrs.canRedo,
+              variant: ButtonVariant.Filled,
+              rounded: true,
+              iconFilled: true,
+              intent: Intent.Primary,
+            }),
+        ),
       ),
       m('.pf-qb-explorer', explorer),
     );
@@ -315,7 +366,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return undefined;
   }
 
-  private runQuery(node: QueryNode) {
+  private async runQuery(node: QueryNode) {
     if (
       this.query === undefined ||
       this.query instanceof Error ||
@@ -325,7 +376,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     }
 
     this.isQueryRunning = true;
-    this.queryService.runQuery(queryToRun(this.query)).then((response) => {
+
+    try {
+      const response = await this.queryService.runQuery(queryToRun(this.query));
       this.response = response;
       const ds = new InMemoryDataSource(this.response.rows);
       this.dataSource = {
@@ -365,8 +418,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       if (node instanceof SqlSourceNode) {
         node.onQueryExecuted(this.response.columns);
       }
+
+      // Automatically materialize the node after successful execution
+      if (isAQuery(this.query) && !error && !warning) {
+        try {
+          await this.materializationService.materializeNode(node, this.query);
+        } catch (e) {
+          console.error('Failed to materialize node:', e);
+          // Don't block the UI on materialization errors
+        }
+      }
+    } catch (e) {
+      console.error('Failed to run query:', e);
+      // Set error state on the node
+      if (!node.state.issues) {
+        node.state.issues = new NodeIssues();
+      }
+      node.state.issues.queryError =
+        e instanceof Error ? e : new Error(String(e));
+    } finally {
       this.isQueryRunning = false;
       m.redraw();
-    });
+    }
   }
 }

@@ -38,6 +38,8 @@ import {
   renderFilterOperation,
   UIFilter,
 } from '../operations/filter';
+import {NodeIssues} from '../node_issues';
+import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 
 class SwitchComponent
   implements
@@ -360,7 +362,12 @@ interface NewColumn {
 export interface ModifyColumnsSerializedState {
   prevNodeId: string;
   newColumns: NewColumn[];
-  selectedColumns: ColumnInfo[];
+  selectedColumns: {
+    name: string;
+    type: string;
+    checked: boolean;
+    alias?: string;
+  }[];
   filters?: UIFilter[];
   filterOperator?: 'AND' | 'OR';
   comment?: string;
@@ -447,16 +454,44 @@ export class ModifyColumnsNode implements ModificationNode {
     return {
       ...serializedState,
       prevNode: undefined as unknown as QueryNode,
+      selectedColumns: serializedState.selectedColumns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        column: {name: c.name},
+        alias: c.alias,
+      })),
     };
   }
 
+  resolveColumns() {
+    // Recover full column information from prevNode
+    const sourceCols = this.prevNode.finalCols ?? [];
+    this.state.selectedColumns.forEach((c) => {
+      const sourceCol = sourceCols.find((s) => s.name === c.name);
+      if (sourceCol) {
+        c.column = sourceCol.column;
+        c.type = sourceCol.type;
+      }
+    });
+  }
+
   validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
     const colNames = new Set<string>();
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
       const name = col.alias ? col.alias.trim() : col.column.name;
-      if (col.alias && name === '') return false; // Disallow empty alias
+      if (col.alias && name === '') {
+        this.setValidationError('Empty alias not allowed');
+        return false;
+      }
       if (colNames.has(name)) {
+        this.setValidationError('Duplicate column names');
         return false;
       }
       colNames.add(name);
@@ -469,16 +504,33 @@ export class ModifyColumnsNode implements ModificationNode {
       // If a column has an expression, it must have a name and be unique.
       if (expression !== '') {
         if (name === '') {
+          this.setValidationError('New column must have a name');
           return false;
         }
         if (colNames.has(name)) {
+          this.setValidationError('Duplicate column names');
           return false;
         }
         colNames.add(name);
       }
     }
 
+    // Check if there are no columns selected and no valid new columns
+    if (colNames.size === 0) {
+      this.setValidationError(
+        'No columns selected. Select at least one column or add a new column.',
+      );
+      return false;
+    }
+
     return true;
+  }
+
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -504,16 +556,51 @@ export class ModifyColumnsNode implements ModificationNode {
     if (hasUnselected || hasAlias) {
       const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
       if (selectedCols.length > 0) {
-        const selectedItems = selectedCols.map((c) => {
-          if (c.alias) {
-            return m('div', `${c.column.name} AS ${c.alias}`);
+        // If there are too many selected columns and some are unselected, show a summary.
+        const maxColumnsToShow = 5;
+        const shouldShowSummary =
+          hasUnselected && selectedCols.length > maxColumnsToShow;
+
+        if (shouldShowSummary) {
+          const renamedCols = selectedCols.filter((c) => c.alias);
+          const totalCols = this.state.selectedColumns.length;
+          const summaryText = `${selectedCols.length} of ${totalCols} columns selected`;
+
+          // Show up to 3 renamed columns explicitly even in summary mode
+          if (renamedCols.length > 0 && renamedCols.length <= 3) {
+            const renamedItems = renamedCols.map((c) =>
+              m('div', `${c.column.name} AS ${c.alias}`),
+            );
+            cards.push(
+              m(
+                Card,
+                {className: 'pf-exp-node-details-card'},
+                m('div', summaryText),
+                m('div', {style: 'height: 8px'}), // spacing
+                ...renamedItems,
+              ),
+            );
           } else {
-            return m('div', c.column.name);
+            cards.push(
+              m(
+                Card,
+                {className: 'pf-exp-node-details-card'},
+                m('div', summaryText),
+              ),
+            );
           }
-        });
-        cards.push(
-          m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
-        );
+        } else {
+          const selectedItems = selectedCols.map((c) => {
+            if (c.alias) {
+              return m('div', `${c.column.name} AS ${c.alias}`);
+            } else {
+              return m('div', c.column.name);
+            }
+          });
+          cards.push(
+            m(Card, {className: 'pf-exp-node-details-card'}, ...selectedItems),
+          );
+        }
       }
     }
 
@@ -614,7 +701,28 @@ export class ModifyColumnsNode implements ModificationNode {
         CardStack,
         m(
           Card,
-          m('h2.pf-columns-box-title', 'Selected Columns'),
+          m(
+            'div',
+            {
+              style:
+                'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px',
+            },
+            m(
+              'h2.pf-columns-box-title',
+              {style: 'margin: 0'},
+              'Selected Columns',
+            ),
+            m(Button, {
+              label: 'Deselect All',
+              variant: ButtonVariant.Outlined,
+              onclick: () => {
+                this.state.selectedColumns = this.state.selectedColumns.map(
+                  (col) => ({...col, checked: false}),
+                );
+                this.state.onchange?.();
+              },
+            }),
+          ),
           m(
             'div.pf-column-list',
             this.state.selectedColumns.map((col, index) =>
@@ -943,58 +1051,57 @@ export class ModifyColumnsNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
-    const referencedModules: string[] = [];
+    // Build column specifications
+    const columns: ColumnSpec[] = [];
 
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
-
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnNameOrExpression = col.column.name;
-      if (col.alias) {
-        selectColumn.alias = col.alias;
-      }
-      selectColumns.push(selectColumn);
+      columns.push({
+        columnNameOrExpression: col.column.name,
+        alias: col.alias,
+      });
     }
 
     for (const col of this.state.newColumns) {
-      // Only include valid columns (non-empty expression and name)
-      if (!this.isNewColumnValid(col)) {
-        continue;
-      }
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnNameOrExpression = col.expression;
-      selectColumn.alias = col.name;
-      selectColumns.push(selectColumn);
-      if (col.module) {
-        referencedModules.push(col.module);
-      }
+      if (!this.isNewColumnValid(col)) continue;
+      columns.push({
+        columnNameOrExpression: col.expression,
+        alias: col.name,
+        referencedModule: col.module,
+      });
     }
 
-    // This node assumes it has only one previous node.
-    const prevSq = this.prevNode.getStructuredQuery();
-    if (!prevSq) return;
+    // Collect referenced modules
+    const referencedModules = this.state.newColumns
+      .filter((col) => col.module)
+      .map((col) => col.module!);
 
-    prevSq.selectColumns = selectColumns;
-    if (referencedModules.length > 0) {
-      prevSq.referencedModules = referencedModules;
-    }
-
+    // Handle filters
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,
       this.finalCols,
       this.state.filterOperator,
     );
 
+    // Apply column selection
+    const sq = StructuredQueryBuilder.withSelectColumns(
+      this.prevNode,
+      columns,
+      referencedModules.length > 0 ? referencedModules : undefined,
+      filtersProto ? undefined : this.nodeId,
+    );
+    if (!sq) return undefined;
+
     if (filtersProto) {
+      // Wrap with filters and assign nodeId to outer query
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
-      outerSq.innerQuery = prevSq;
+      outerSq.innerQuery = sq;
       outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
     }
 
-    return prevSq;
+    return sq;
   }
 
   serializeState(): ModifyColumnsSerializedState {
@@ -1003,9 +1110,46 @@ export class ModifyColumnsNode implements ModificationNode {
     }
     return {
       prevNodeId: this.prevNode.nodeId,
-      newColumns: this.state.newColumns,
-      selectedColumns: this.state.selectedColumns,
-      filters: this.state.filters,
+      newColumns: this.state.newColumns.map((c) => ({
+        expression: c.expression,
+        name: c.name,
+        module: c.module,
+        type: c.type,
+        switchOn: c.switchOn,
+        cases: c.cases
+          ? c.cases.map((cs) => ({when: cs.when, then: cs.then}))
+          : undefined,
+        defaultValue: c.defaultValue,
+        clauses: c.clauses
+          ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
+          : undefined,
+        elseValue: c.elseValue,
+      })),
+      selectedColumns: this.state.selectedColumns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        alias: c.alias,
+      })),
+      filters: this.state.filters?.map((f) => {
+        // Explicitly extract only serializable fields from filters
+        if ('value' in f) {
+          // FilterValue type
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          // FilterNull type
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };

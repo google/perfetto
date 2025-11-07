@@ -36,6 +36,8 @@ import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Icon} from '../../../widgets/icon';
+import {Tooltip} from '../../../widgets/tooltip';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
@@ -45,6 +47,7 @@ export interface DataExplorerAttrs {
   readonly response?: QueryResponse;
   readonly dataSource?: DataGridDataSource;
   readonly isQueryRunning: boolean;
+  readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
@@ -54,7 +57,7 @@ export interface DataExplorerAttrs {
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     const errors = findErrors(attrs.query, attrs.response);
-    const statusText = this.getStatusText(attrs.query, attrs.response);
+    const statusText = this.getStatusText(attrs.query);
     const message = errors ? `Error: ${errors.message}` : statusText;
 
     return m(
@@ -68,24 +71,15 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     );
   }
 
-  private getStatusText(
-    query?: Query | Error,
-    response?: QueryResponse,
-  ): string | undefined {
+  private getStatusText(query?: Query | Error): string | undefined {
     if (query === undefined) {
       return 'No data to display';
-    } else if (response === undefined) {
-      return 'Typing...';
     }
     return undefined;
   }
 
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
     const autoExecute = attrs.node.state.autoExecute ?? true;
-
-    // Show spinner only when a query is actually running
-    // Don't show spinner before user clicks "Run Query" button
-    const isUpdating = attrs.isQueryRunning;
 
     const runButton =
       !autoExecute &&
@@ -98,7 +92,14 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         onclick: () => attrs.onExecute(),
       });
 
-    const spinner = isUpdating && m(Spinner);
+    // Show "Queued..." when analyzing (validating query)
+    // Show spinner when actually executing the query
+    const statusIndicator =
+      attrs.isAnalyzing && !attrs.isQueryRunning
+        ? m('span.status-indicator', 'Queued...')
+        : attrs.isQueryRunning
+          ? m(Spinner)
+          : null;
 
     const autoExecuteSwitch = m(Switch, {
       label: 'Auto Execute',
@@ -109,6 +110,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         attrs.onchange?.();
       },
     });
+
+    // Add materialization indicator icon with tooltip
+    const materializationIndicator =
+      attrs.node.state.materialized && attrs.node.state.materializationTableName
+        ? m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'database'}),
+            },
+            `Materialized as ${attrs.node.state.materializationTableName}`,
+          )
+        : null;
 
     const positionMenu = m(
       PopupMenu,
@@ -125,7 +138,13 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ],
     );
 
-    return [runButton, spinner, autoExecuteSwitch, positionMenu];
+    return [
+      runButton,
+      statusIndicator,
+      materializationIndicator,
+      autoExecuteSwitch,
+      positionMenu,
+    ];
   }
 
   private renderContent(
@@ -138,6 +157,24 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         Callout,
         {icon: 'info'},
         attrs.node.state.issues.queryError.message,
+      );
+    }
+
+    // Show spinner overlay when query is running
+    if (attrs.isQueryRunning) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(
+          '.pf-exp-query-running-spinner',
+          {
+            style: {
+              fontSize: '64px',
+            },
+          },
+          m(Spinner, {
+            easing: true,
+          }),
+        ),
       );
     }
 
@@ -195,6 +232,28 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         }),
       ];
     }
+
+    // Show a prominent execute button when query is ready but not executed
+    const autoExecute = attrs.node.state.autoExecute ?? true;
+    if (
+      !autoExecute &&
+      isAQuery(attrs.query) &&
+      !attrs.response &&
+      !attrs.isQueryRunning &&
+      !attrs.isAnalyzing
+    ) {
+      return m(
+        '.pf-data-explorer-empty-state',
+        m(Button, {
+          label: 'Run Query',
+          icon: 'play_arrow',
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          onclick: () => attrs.onExecute(),
+        }),
+      );
+    }
+
     return null;
   }
 }

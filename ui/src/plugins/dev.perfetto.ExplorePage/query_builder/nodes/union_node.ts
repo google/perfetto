@@ -28,6 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {UIFilter} from '../operations/filter';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -111,38 +112,33 @@ export class UnionNode implements MultiSourceNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
     // Check for undefined entries (disconnected inputs)
     const validPrevNodes = this.prevNodes.filter(
       (node): node is QueryNode => node !== undefined,
     );
 
     if (validPrevNodes.length < this.prevNodes.length) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Union node has disconnected inputs. Please connect all inputs or remove this node.',
       );
       return false;
     }
 
     if (this.prevNodes.length < 2) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
-        'Union node requires at least two sources.',
-      );
+      this.setValidationError('Union node requires at least two sources.');
       return false;
     }
 
     if (this.getCommonColumns().length === 0) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Union node requires common columns between sources.',
       );
       return false;
-    }
-
-    // If the basic structure is valid, we can clear any previous validation error.
-    if (this.state.issues) {
-      this.state.issues.queryError = undefined;
     }
 
     for (const prevNode of this.prevNodes) {
@@ -150,15 +146,22 @@ export class UnionNode implements MultiSourceNode {
       if (prevNode === undefined) continue;
 
       if (!prevNode.validate()) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError =
-          prevNode.state.issues?.queryError ??
-          new Error(`Previous node '${prevNode.getTitle()}' is invalid`);
+        this.setValidationError(
+          prevNode.state.issues?.queryError?.message ??
+            `Previous node '${prevNode.getTitle()}' is invalid`,
+        );
         return false;
       }
     }
 
     return true;
+  }
+
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -252,29 +255,35 @@ export class UnionNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNodes.length < 2) return undefined;
 
-    const queries: protos.IPerfettoSqlStructuredQuery[] = [];
+    // Check for undefined entries
     for (const prevNode of this.prevNodes) {
       if (prevNode === undefined) return undefined;
-      const query = prevNode.getStructuredQuery();
-      if (!query) return undefined;
-      queries.push(query);
     }
 
-    return protos.PerfettoSqlStructuredQuery.create({
-      id: this.nodeId,
-      experimentalUnion:
-        protos.PerfettoSqlStructuredQuery.ExperimentalUnion.create({
-          queries,
-          useUnionAll: true,
-        }),
-    });
+    return StructuredQueryBuilder.withUnion(this.prevNodes, true, this.nodeId);
   }
 
   serializeState(): UnionSerializedState {
     return {
       unionNodes: this.prevNodes.slice(1).map((n) => n.nodeId),
       selectedColumns: this.state.selectedColumns,
-      filters: this.filters,
+      filters: this.filters?.map((f) => {
+        // Explicitly extract only serializable fields to avoid circular references
+        if ('value' in f) {
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
       comment: this.comment,
     };
   }

@@ -112,7 +112,8 @@ struct QueryState {
   QueryState(QueryType _type,
              protozero::ConstBytes _bytes,
              size_t index,
-             std::optional<size_t> parent_idx)
+             std::optional<size_t> parent_idx,
+             std::set<std::string>& used_table_names)
       : type(_type), bytes(_bytes), parent_index(parent_idx) {
     protozero::ProtoDecoder decoder(bytes);
     std::string prefix = type == QueryType::kShared ? "shared_sq_" : "sq_";
@@ -122,6 +123,15 @@ struct QueryState {
     } else {
       table_name = prefix + std::to_string(index);
     }
+
+    // Ensure table_name is unique by appending a suffix if needed
+    std::string original_name = table_name;
+    size_t suffix = 0;
+    while (used_table_names.count(table_name) > 0) {
+      table_name = original_name + "_" + std::to_string(suffix);
+      suffix++;
+    }
+    used_table_names.insert(table_name);
   }
 
   QueryType type;
@@ -212,11 +222,13 @@ class GeneratorImpl {
   std::vector<Query>& queries_;
   base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
   std::vector<std::string>& preambles_;
+  std::set<std::string> used_table_names_;
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
     protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt);
+  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
+                      used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
     base::StatusOr<std::string> sql = GenerateImpl();
     if (!sql.ok()) {
@@ -490,6 +502,36 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
   }
   referenced_modules_.Insert("intervals.intersect", nullptr);
 
+  // Validate and collect partition columns
+  std::vector<std::string> partition_cols;
+  std::set<std::string> seen_cols;
+  for (auto it = interval.partition_columns(); it; ++it) {
+    std::string col = it->as_std_string();
+
+    // Validate that partition columns are not empty
+    if (col.empty()) {
+      return base::ErrStatus("Partition column cannot be empty");
+    }
+
+    // Validate that partition columns are not id, ts, or dur (case-insensitive)
+    if (base::CaseInsensitiveEqual(col, "id") ||
+        base::CaseInsensitiveEqual(col, "ts") ||
+        base::CaseInsensitiveEqual(col, "dur")) {
+      return base::ErrStatus(
+          "Partition column '%s' is reserved and cannot be used for "
+          "partitioning",
+          col.c_str());
+    }
+
+    // Check for duplicates
+    if (seen_cols.count(col) > 0) {
+      return base::ErrStatus("Partition column '%s' is duplicated",
+                             col.c_str());
+    }
+    seen_cols.insert(col);
+    partition_cols.push_back(col);
+  }
+
   std::string sql =
       "(WITH iibase AS (SELECT * FROM " + NestedSource(interval.base()) + ")";
   auto ii = interval.interval_intersect();
@@ -498,20 +540,34 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            NestedSource(*ii) + ") ";
   }
 
-  sql += "SELECT ii.ts, ii.dur, iibase.*";
+  sql += "SELECT ii.ts, ii.dur";
+  // Add partition columns from ii
+  for (const auto& col : partition_cols) {
+    sql += ", ii." + col;
+  }
+  sql += ", iibase.*";
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i) + ".*";
   }
   sql += " FROM _interval_intersect!((iibase";
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += ", iisource" + std::to_string(i);
   }
-  sql += "), ()) ii JOIN iibase ON ii.id_0 = iibase.id";
+
+  // Add partition columns to the macro call
+  sql += "), (";
+  for (size_t i = 0; i < partition_cols.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += partition_cols[i];
+  }
+  sql += ")) ii JOIN iibase ON ii.id_0 = iibase.id";
 
   ii = interval.interval_intersect();
-  for (size_t i = 0; ii; ++ii) {
+  for (size_t i = 0; ii; ++ii, ++i) {
     sql += " JOIN iisource" + std::to_string(i) + " ON ii.id_" +
            std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
   }
@@ -830,12 +886,13 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
-                      state_.size(), state_index_);
+                      state_.size(), state_index_, used_table_names_);
   return state_.back().table_name;
 }
 
 std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_);
+  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_,
+                      used_table_names_);
   return state_.back().table_name;
 }
 
