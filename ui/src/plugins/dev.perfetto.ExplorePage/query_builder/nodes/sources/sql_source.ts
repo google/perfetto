@@ -34,11 +34,9 @@ import {
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
-import {UIFilter} from '../../operations/filter';
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -84,7 +82,6 @@ export class SqlSourceNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       issues: this.state.issues,
       trace: this.state.trace,
     };
@@ -102,23 +99,6 @@ export class SqlSourceNode implements MultiSourceNode {
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields to avoid circular references
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
       comment: this.state.comment,
     };
   }

@@ -50,7 +50,6 @@ import {
   NodeGraphAttrs,
   NodePort,
 } from '../../../../widgets/nodegraph';
-import {UIFilter} from '../operations/filter';
 import {
   QueryNode,
   singleNodeOperation,
@@ -121,7 +120,6 @@ export interface GraphAttrs {
   readonly onImport: () => void;
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
   readonly devMode?: boolean;
   readonly onDevModeChange?: (enabled: boolean) => void;
 }
@@ -418,7 +416,6 @@ function createNodeConfig(
       onDuplicateNode: attrs.onDuplicateNode,
       onDeleteNode: attrs.onDeleteNode,
       onAddOperationNode: attrs.onAddOperationNode,
-      onRemoveFilter: attrs.onRemoveFilter,
     }),
     next: getNextDockedNode(qnode, attrs),
   };

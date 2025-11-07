@@ -24,7 +24,6 @@ import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {UIFilter} from '../operations/filter';
 import {Card, CardStack} from '../../../../widgets/card';
 import {TextInput} from '../../../../widgets/text_input';
 import {TabStrip} from '../../../../widgets/tabs';
@@ -44,7 +43,6 @@ export interface MergeSerializedState {
   leftColumn?: string;
   rightColumn?: string;
   sqlExpression?: string;
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -349,7 +347,6 @@ export class MergeNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: MergeNodeState = {
       prevNodes: [...this.state.prevNodes],
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       onchange: this.state.onchange,
       leftQueryAlias: this.state.leftQueryAlias,
       rightQueryAlias: this.state.rightQueryAlias,
@@ -397,23 +394,6 @@ export class MergeNode implements MultiSourceNode {
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields to avoid circular references
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
       comment: this.state.comment,
     };
   }

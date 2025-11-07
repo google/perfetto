@@ -38,6 +38,7 @@ export enum NodeType {
   kAddColumns,
   kLimitAndOffset,
   kSort,
+  kFilter,
 
   // Multi node operations
   kIntervalIntersect,
@@ -52,6 +53,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAddColumns:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
+    case NodeType.kFilter:
       return true;
     default:
       return false;
