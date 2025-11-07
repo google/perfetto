@@ -23,7 +23,6 @@ import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {Card, CardStack} from '../../../../widgets/card';
-import {renderFilterOperation} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
@@ -75,7 +74,6 @@ export class AddColumnsNode implements ModificationNode {
     this.prevNode = state.prevNode;
     this.inputNodes = [];
     this.nextNodes = [];
-    this.state.filters = this.state.filters ?? [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
     this.state.leftColumn = this.state.leftColumn ?? 'id';
     this.state.rightColumn = this.state.rightColumn ?? 'id';
@@ -668,19 +666,6 @@ export class AddColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      renderFilterOperation(
-        this.state.filters,
-        this.state.filterOperator,
-        this.finalCols,
-        (newFilters) => {
-          this.state.filters = [...newFilters];
-          this.state.onchange?.();
-        },
-        (operator) => {
-          this.state.filterOperator = operator;
-          this.state.onchange?.();
-        },
-      ),
     ]);
   }
 
@@ -786,26 +771,6 @@ export class AddColumnsNode implements ModificationNode {
         ? Object.fromEntries(this.state.columnAliases)
         : undefined,
       isGuidedConnection: this.state.isGuidedConnection,
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields from filters
-        if ('value' in f) {
-          // FilterValue type
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          // FilterNull type
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
       autoExecute: this.state.autoExecute,
     };

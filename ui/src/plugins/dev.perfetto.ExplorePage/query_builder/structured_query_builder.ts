@@ -533,4 +533,29 @@ export class StructuredQueryBuilder {
     sq.experimentalAddColumns = addColumns;
     return sq;
   }
+
+  /**
+   * Creates a structured query with filters applied.
+   * Wraps the inner query and adds the filter group.
+   *
+   * @param innerQuery The query to filter (can be a QueryNode or structured query)
+   * @param filterGroup The filter group to apply
+   * @param nodeId The node id to assign
+   * @returns A new structured query with filters, or undefined if extraction fails
+   */
+  static withFilter(
+    innerQuery: QuerySource,
+    filterGroup: protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const query = extractQuery(innerQuery);
+    if (!query) return undefined;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+    sq.innerQuery = query;
+    sq.experimentalFilterGroup = filterGroup;
+
+    return sq;
+  }
 }

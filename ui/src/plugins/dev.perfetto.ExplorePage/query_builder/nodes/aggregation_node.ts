@@ -28,11 +28,6 @@ import {
   columnInfoFromName,
   newColumnInfoList,
 } from '../column_info';
-import {
-  createExperimentalFiltersProto,
-  renderFilterOperation,
-  UIFilter,
-} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
@@ -54,8 +49,6 @@ export interface AggregationSerializedState {
     isValid?: boolean;
     isEditing?: boolean;
   }[];
-  filters?: UIFilter[];
-  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -221,19 +214,6 @@ export class AggregationNode implements ModificationNode {
         aggregations: this.state.aggregations,
         onchange: this.state.onchange,
       }),
-      renderFilterOperation(
-        this.state.filters,
-        this.state.filterOperator,
-        this.finalCols,
-        (newFilters) => {
-          this.state.filters = [...newFilters];
-          this.state.onchange?.();
-        },
-        (operator) => {
-          this.state.filterOperator = operator;
-          this.state.onchange?.();
-        },
-      ),
     );
   }
 
@@ -242,7 +222,6 @@ export class AggregationNode implements ModificationNode {
       prevNode: this.state.prevNode,
       groupByColumns: newColumnInfoList(this.state.groupByColumns),
       aggregations: this.state.aggregations.map((a) => ({...a})),
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       onchange: this.state.onchange,
       issues: this.state.issues,
     };
@@ -268,37 +247,6 @@ export class AggregationNode implements ModificationNode {
           resultColumnName: agg.newColumnName ?? placeholderNewColumnName(agg),
         });
       }
-    }
-
-    // Handle filters
-    const filtersProto = createExperimentalFiltersProto(
-      this.state.filters,
-      this.finalCols,
-      this.state.filterOperator,
-    );
-
-    if (filtersProto) {
-      // Apply group by with temporary nodeId (builder handles wrapping if needed)
-      const sq = StructuredQueryBuilder.withGroupBy(
-        this.prevNode,
-        groupByColumns,
-        aggregations,
-        nextNodeId(),
-      );
-      if (!sq) return undefined;
-
-      // Apply select columns
-      const selectedColumns = createSelectColumnsProto(this);
-      if (selectedColumns) {
-        sq.selectColumns = selectedColumns;
-      }
-
-      // Wrap with filters and assign this.nodeId to outer query
-      const outerSq = new protos.PerfettoSqlStructuredQuery();
-      outerSq.id = this.nodeId;
-      outerSq.innerQuery = sq;
-      outerSq.experimentalFilterGroup = filtersProto;
-      return outerSq;
     }
 
     // Apply group by with this.nodeId (builder handles wrapping if needed)
@@ -350,24 +298,6 @@ export class AggregationNode implements ModificationNode {
         isValid: a.isValid,
         isEditing: a.isEditing,
       })),
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields to avoid circular references
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }
