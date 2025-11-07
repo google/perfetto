@@ -24,6 +24,7 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Card} from '../../../../widgets/card';
 import {TextInput} from '../../../../widgets/text_input';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   prevNode: QueryNode;
@@ -125,29 +126,20 @@ export class LimitAndOffsetNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
-    const prevQuery = this.prevNode.getStructuredQuery();
-    if (!prevQuery) return undefined;
 
     const hasLimit = this.state.limit !== undefined && this.state.limit > 0;
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {
-      return prevQuery;
+      return this.prevNode.getStructuredQuery();
     }
 
-    const query = protos.PerfettoSqlStructuredQuery.create({
-      innerQuery: prevQuery,
-    });
-
-    if (hasLimit) {
-      query.limit = this.state.limit!;
-    }
-
-    if (hasOffset) {
-      query.offset = this.state.offset!;
-    }
-
-    return query;
+    return StructuredQueryBuilder.withLimitOffset(
+      this.prevNode,
+      this.state.limit,
+      this.state.offset,
+      this.nodeId,
+    );
   }
 
   serializeState(): object {

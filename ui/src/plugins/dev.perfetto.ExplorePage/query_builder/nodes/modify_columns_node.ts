@@ -39,6 +39,7 @@ import {
   UIFilter,
 } from '../operations/filter';
 import {NodeIssues} from '../node_issues';
+import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 
 class SwitchComponent
   implements
@@ -1050,58 +1051,57 @@ export class ModifyColumnsNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
-    const referencedModules: string[] = [];
+    // Build column specifications
+    const columns: ColumnSpec[] = [];
 
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
-
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnNameOrExpression = col.column.name;
-      if (col.alias) {
-        selectColumn.alias = col.alias;
-      }
-      selectColumns.push(selectColumn);
+      columns.push({
+        columnNameOrExpression: col.column.name,
+        alias: col.alias,
+      });
     }
 
     for (const col of this.state.newColumns) {
-      // Only include valid columns (non-empty expression and name)
-      if (!this.isNewColumnValid(col)) {
-        continue;
-      }
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnNameOrExpression = col.expression;
-      selectColumn.alias = col.name;
-      selectColumns.push(selectColumn);
-      if (col.module) {
-        referencedModules.push(col.module);
-      }
+      if (!this.isNewColumnValid(col)) continue;
+      columns.push({
+        columnNameOrExpression: col.expression,
+        alias: col.name,
+        referencedModule: col.module,
+      });
     }
 
-    // This node assumes it has only one previous node.
-    const prevSq = this.prevNode.getStructuredQuery();
-    if (!prevSq) return;
+    // Collect referenced modules
+    const referencedModules = this.state.newColumns
+      .filter((col) => col.module)
+      .map((col) => col.module!);
 
-    prevSq.selectColumns = selectColumns;
-    if (referencedModules.length > 0) {
-      prevSq.referencedModules = referencedModules;
-    }
-
+    // Handle filters
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,
       this.finalCols,
       this.state.filterOperator,
     );
 
+    // Apply column selection
+    const sq = StructuredQueryBuilder.withSelectColumns(
+      this.prevNode,
+      columns,
+      referencedModules.length > 0 ? referencedModules : undefined,
+      filtersProto ? undefined : this.nodeId,
+    );
+    if (!sq) return undefined;
+
     if (filtersProto) {
+      // Wrap with filters and assign nodeId to outer query
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
-      outerSq.innerQuery = prevSq;
+      outerSq.innerQuery = sq;
       outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
     }
 
-    return prevSq;
+    return sq;
   }
 
   serializeState(): ModifyColumnsSerializedState {

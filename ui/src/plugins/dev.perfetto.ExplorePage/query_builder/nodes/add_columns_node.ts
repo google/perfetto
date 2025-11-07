@@ -29,6 +29,11 @@ import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
 import {TabStrip, TabOption} from '../../../../widgets/tabs';
 import {TextInput} from '../../../../widgets/text_input';
+import {
+  StructuredQueryBuilder,
+  ColumnSpec,
+  JoinCondition,
+} from '../structured_query_builder';
 
 export type AddColumnsMode = 'guided' | 'free';
 
@@ -735,69 +740,34 @@ export class AddColumnsNode implements ModificationNode {
     if (!this.validate()) return undefined;
     if (!this.rightNode) return this.prevNode.getStructuredQuery();
 
-    const prevSq = this.prevNode.getStructuredQuery();
-    if (prevSq === undefined) return undefined;
+    // Prepare input columns based on mode
+    const inputColumns: ColumnSpec[] =
+      this.state.mode === 'free'
+        ? this.rightCols.map((col) => ({
+            columnNameOrExpression: col.column.name,
+          }))
+        : (this.state.selectedColumns ?? []).map((colName) => {
+            const alias = this.state.columnAliases?.get(colName);
+            return {
+              columnNameOrExpression: colName,
+              alias: alias && alias.trim() !== '' ? alias.trim() : undefined,
+            };
+          });
 
-    const rightSq = this.rightNode.getStructuredQuery();
-    if (rightSq === undefined) return undefined;
+    // Prepare join condition
+    const condition: JoinCondition = {
+      type: 'equality',
+      leftColumn: this.state.mode === 'free' ? 'id' : this.state.leftColumn!,
+      rightColumn: this.state.mode === 'free' ? 'id' : this.state.rightColumn!,
+    };
 
-    // Use ExperimentalAddColumns which is specifically designed for this use case
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-
-    const addColumns =
-      new protos.PerfettoSqlStructuredQuery.ExperimentalAddColumns();
-
-    // Set the core query (base data)
-    addColumns.coreQuery = prevSq;
-
-    // Set the input query (source of additional columns)
-    addColumns.inputQuery = rightSq;
-
-    // Set the columns to add based on mode
-    if (this.state.mode === 'free') {
-      // In free mode, add ALL columns from right table
-      addColumns.inputColumns = this.rightCols.map((col) => {
-        const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-        selectCol.columnNameOrExpression = col.column.name;
-        return selectCol;
-      });
-    } else {
-      // In guided mode, add only selected columns with optional aliases
-      addColumns.inputColumns = (this.state.selectedColumns ?? []).map(
-        (colName) => {
-          const selectCol =
-            new protos.PerfettoSqlStructuredQuery.SelectColumn();
-          selectCol.columnNameOrExpression = colName;
-          // Set alias if provided
-          const alias = this.state.columnAliases?.get(colName);
-          if (alias && alias.trim() !== '') {
-            selectCol.alias = alias.trim();
-          }
-          return selectCol;
-        },
-      );
-    }
-
-    // Set the join condition
-    const equalityCols =
-      new protos.PerfettoSqlStructuredQuery.ExperimentalJoin.EqualityColumns();
-
-    if (this.state.mode === 'free') {
-      // In free mode, use default 'id' columns for join
-      equalityCols.leftColumn = 'id';
-      equalityCols.rightColumn = 'id';
-    } else {
-      // In guided mode, use user-selected columns
-      equalityCols.leftColumn = this.state.leftColumn!;
-      equalityCols.rightColumn = this.state.rightColumn!;
-    }
-
-    addColumns.equalityColumns = equalityCols;
-
-    sq.experimentalAddColumns = addColumns;
-
-    return sq;
+    return StructuredQueryBuilder.withAddColumns(
+      this.prevNode,
+      this.rightNode,
+      inputColumns,
+      condition,
+      this.nodeId,
+    );
   }
 
   serializeState(): object {

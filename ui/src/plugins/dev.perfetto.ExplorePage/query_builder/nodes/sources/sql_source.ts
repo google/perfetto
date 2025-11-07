@@ -25,6 +25,7 @@ import {
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 
 import {
   QueryHistoryComponent,
@@ -123,21 +124,19 @@ export class SqlSourceNode implements MultiSourceNode {
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
+    const dependencies = this.prevNodes.map((prevNode) => ({
+      alias: prevNode.nodeId,
+      query: prevNode.getStructuredQuery(),
+    }));
 
-    if (this.state.sql) sqlProto.sql = this.state.sql;
-    sqlProto.columnNames = this.finalCols.map((c) => c.column.name);
+    const columnNames = this.finalCols.map((c) => c.column.name);
 
-    for (const prevNode of this.prevNodes) {
-      const dependency = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();
-      dependency.alias = prevNode.nodeId;
-      dependency.query = prevNode.getStructuredQuery();
-      sqlProto.dependencies.push(dependency);
-    }
-
-    sq.sql = sqlProto;
+    const sq = StructuredQueryBuilder.fromSql(
+      this.state.sql || '',
+      dependencies,
+      columnNames,
+      this.nodeId,
+    );
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
