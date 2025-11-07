@@ -28,6 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {UIFilter} from '../operations/filter';
 import {Card, CardStack} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 
 export interface UnionSerializedState {
   unionNodes: string[];
@@ -254,22 +255,12 @@ export class UnionNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNodes.length < 2) return undefined;
 
-    const queries: protos.IPerfettoSqlStructuredQuery[] = [];
+    // Check for undefined entries
     for (const prevNode of this.prevNodes) {
       if (prevNode === undefined) return undefined;
-      const query = prevNode.getStructuredQuery();
-      if (!query) return undefined;
-      queries.push(query);
     }
 
-    return protos.PerfettoSqlStructuredQuery.create({
-      id: this.nodeId,
-      experimentalUnion:
-        protos.PerfettoSqlStructuredQuery.ExperimentalUnion.create({
-          queries,
-          useUnionAll: true,
-        }),
-    });
+    return StructuredQueryBuilder.withUnion(this.prevNodes, true, this.nodeId);
   }
 
   serializeState(): UnionSerializedState {

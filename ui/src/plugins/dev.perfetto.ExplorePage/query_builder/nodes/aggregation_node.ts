@@ -40,6 +40,10 @@ import {Button} from '../../../../widgets/button';
 import {Card} from '../../../../widgets/card';
 import {NodeIssues} from '../node_issues';
 import {Icons} from '../../../../base/semantic_icons';
+import {
+  StructuredQueryBuilder,
+  AggregationSpec,
+} from '../structured_query_builder';
 
 export interface AggregationSerializedState {
   groupByColumns: {name: string; checked: boolean}[];
@@ -247,44 +251,69 @@ export class AggregationNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
-    const prevSq = this.prevNode.getStructuredQuery();
-    if (!prevSq) return undefined;
 
-    const groupByProto = createGroupByProto(
-      this.state.groupByColumns,
-      this.state.aggregations,
-    );
+    // Prepare groupByColumns
+    const groupByColumns = this.state.groupByColumns
+      .filter((c) => c.checked)
+      .map((c) => c.column.name);
+
+    // Prepare aggregations
+    const aggregations: AggregationSpec[] = [];
+    for (const agg of this.state.aggregations) {
+      agg.isValid = validateAggregation(agg);
+      if (agg.isValid) {
+        aggregations.push({
+          columnName: agg.column!.column.name,
+          op: agg.aggregationOp!,
+          resultColumnName: agg.newColumnName ?? placeholderNewColumnName(agg),
+        });
+      }
+    }
+
+    // Handle filters
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,
       this.finalCols,
       this.state.filterOperator,
     );
 
-    // If the previous node already has an aggregation, we need to create a
-    // subquery.
-    let sq: protos.PerfettoSqlStructuredQuery;
-    if (prevSq.groupBy) {
-      sq = new protos.PerfettoSqlStructuredQuery();
-      sq.id = nextNodeId();
-      sq.innerQuery = prevSq;
-    } else {
-      sq = prevSq;
-    }
-
-    if (groupByProto) {
-      sq.groupBy = groupByProto;
-    }
-    const selectedColumns = createSelectColumnsProto(this);
-    if (selectedColumns) {
-      sq.selectColumns = selectedColumns;
-    }
-
     if (filtersProto) {
+      // Apply group by with temporary nodeId (builder handles wrapping if needed)
+      const sq = StructuredQueryBuilder.withGroupBy(
+        this.prevNode,
+        groupByColumns,
+        aggregations,
+        nextNodeId(),
+      );
+      if (!sq) return undefined;
+
+      // Apply select columns
+      const selectedColumns = createSelectColumnsProto(this);
+      if (selectedColumns) {
+        sq.selectColumns = selectedColumns;
+      }
+
+      // Wrap with filters and assign this.nodeId to outer query
       const outerSq = new protos.PerfettoSqlStructuredQuery();
       outerSq.id = this.nodeId;
       outerSq.innerQuery = sq;
       outerSq.experimentalFilterGroup = filtersProto;
       return outerSq;
+    }
+
+    // Apply group by with this.nodeId (builder handles wrapping if needed)
+    const sq = StructuredQueryBuilder.withGroupBy(
+      this.prevNode,
+      groupByColumns,
+      aggregations,
+      this.nodeId,
+    );
+    if (!sq) return undefined;
+
+    // Apply select columns
+    const selectedColumns = createSelectColumnsProto(this);
+    if (selectedColumns) {
+      sq.selectColumns = selectedColumns;
     }
 
     return sq;

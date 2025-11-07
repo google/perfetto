@@ -30,6 +30,10 @@ import {TextInput} from '../../../../widgets/text_input';
 import {TabStrip} from '../../../../widgets/tabs';
 import {Select} from '../../../../widgets/select';
 import {Editor} from '../../../../widgets/editor';
+import {
+  StructuredQueryBuilder,
+  JoinCondition,
+} from '../structured_query_builder';
 
 export interface MergeSerializedState {
   leftNodeId: string;
@@ -360,40 +364,27 @@ export class MergeNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const leftSq = this.prevNodes[0].getStructuredQuery();
-    const rightSq = this.prevNodes[1].getStructuredQuery();
+    const condition: JoinCondition =
+      this.state.conditionType === 'equality'
+        ? {
+            type: 'equality',
+            leftColumn: this.state.leftColumn,
+            rightColumn: this.state.rightColumn,
+          }
+        : {
+            type: 'freeform',
+            leftQueryAlias: this.state.leftQueryAlias,
+            rightQueryAlias: this.state.rightQueryAlias,
+            sqlExpression: this.state.sqlExpression,
+          };
 
-    if (leftSq === undefined || rightSq === undefined) return undefined;
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-
-    const join = new protos.PerfettoSqlStructuredQuery.ExperimentalJoin();
-
-    join.type = protos.PerfettoSqlStructuredQuery.ExperimentalJoin.Type.INNER;
-    join.leftQuery = leftSq;
-    join.rightQuery = rightSq;
-
-    if (this.state.conditionType === 'equality') {
-      // Set equality columns condition
-      const equalityCols =
-        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin.EqualityColumns();
-      equalityCols.leftColumn = this.state.leftColumn;
-      equalityCols.rightColumn = this.state.rightColumn;
-      join.equalityColumns = equalityCols;
-    } else {
-      // Set freeform condition
-      const condition =
-        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin.FreeformCondition();
-      condition.leftQueryAlias = this.state.leftQueryAlias;
-      condition.rightQueryAlias = this.state.rightQueryAlias;
-      condition.sqlExpression = this.state.sqlExpression;
-      join.freeformCondition = condition;
-    }
-
-    sq.experimentalJoin = join;
-
-    return sq;
+    return StructuredQueryBuilder.withJoin(
+      this.prevNodes[0],
+      this.prevNodes[1],
+      'INNER',
+      condition,
+      this.nodeId,
+    );
   }
 
   serializeState(): MergeSerializedState {

@@ -31,6 +31,7 @@ import {
   MultiSelectOption,
   MultiSelectDiff,
 } from '../../../../widgets/multiselect';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -369,54 +370,13 @@ export class IntervalIntersectNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    // Validate returns false if any prevNodes are undefined, so this is safe
-    const baseSq = this.prevNodes[0]?.getStructuredQuery();
-    if (baseSq === undefined) return undefined;
-
-    // Add dur >= 0 filter to base if enabled
-    if (this.state.filterNegativeDur?.[0]) {
-      const filter = new protos.PerfettoSqlStructuredQuery.Filter();
-      filter.columnName = 'dur';
-      filter.op =
-        protos.PerfettoSqlStructuredQuery.Filter.Operator.GREATER_THAN_EQUAL;
-      filter.int64Rhs = [0];
-      if (baseSq.filters === undefined) baseSq.filters = [];
-      baseSq.filters.push(filter);
-    }
-
-    const intervalSqs: protos.PerfettoSqlStructuredQuery[] = [];
-    for (let i = 1; i < this.prevNodes.length; i++) {
-      const node = this.prevNodes[i];
-      const sq = node.getStructuredQuery();
-      if (sq === undefined) return undefined;
-
-      // Add dur >= 0 filter if enabled for this interval
-      if (this.state.filterNegativeDur?.[i]) {
-        const filter = new protos.PerfettoSqlStructuredQuery.Filter();
-        filter.columnName = 'dur';
-        filter.op =
-          protos.PerfettoSqlStructuredQuery.Filter.Operator.GREATER_THAN_EQUAL;
-        filter.int64Rhs = [0];
-        if (sq.filters === undefined) sq.filters = [];
-        sq.filters.push(filter);
-      }
-
-      intervalSqs.push(sq);
-    }
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.intervalIntersect =
-      new protos.PerfettoSqlStructuredQuery.IntervalIntersect();
-    sq.intervalIntersect.base = baseSq;
-    sq.intervalIntersect.intervalIntersect = intervalSqs;
-
-    // Add partition columns if specified
-    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
-      sq.intervalIntersect.partitionColumns = [...this.state.partitionColumns];
-    }
-
-    return sq;
+    return StructuredQueryBuilder.withIntervalIntersect(
+      this.prevNodes[0],
+      this.prevNodes.slice(1),
+      this.state.partitionColumns,
+      this.state.filterNegativeDur,
+      this.nodeId,
+    );
   }
 
   serializeState(): IntervalIntersectSerializedState {

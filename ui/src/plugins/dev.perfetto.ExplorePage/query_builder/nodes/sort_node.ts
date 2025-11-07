@@ -25,6 +25,10 @@ import protos from '../../../../protos';
 import {Card} from '../../../../widgets/card';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Button} from '../../../../widgets/button';
+import {
+  StructuredQueryBuilder,
+  SortCriterion as BuilderSortCriterion,
+} from '../structured_query_builder';
 
 export interface SortCriterion {
   colName: string;
@@ -177,40 +181,33 @@ export class SortNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
-    const prevQuery = this.prevNode.getStructuredQuery();
-    if (!prevQuery) return undefined;
 
     if (this.sortCols.length === 0) {
-      return prevQuery;
+      return this.prevNode.getStructuredQuery();
     }
 
-    const orderingSpecs: protos.PerfettoSqlStructuredQuery.OrderBy.IOrderingSpec[] =
-      [];
+    const criteria: BuilderSortCriterion[] = [];
     for (const criterion of this.state.sortCriteria ?? []) {
       const col = this.sortCols.find(
         (c) => c.column.name === criterion.colName,
       );
       if (!col) continue;
 
-      orderingSpecs.push({
+      criteria.push({
         columnName: col.column.name,
-        direction:
-          criterion.direction === 'DESC'
-            ? protos.PerfettoSqlStructuredQuery.OrderBy.Direction.DESC
-            : protos.PerfettoSqlStructuredQuery.OrderBy.Direction.ASC,
+        direction: criterion.direction,
       });
     }
 
-    if (orderingSpecs.length === 0) {
-      return prevQuery;
+    if (criteria.length === 0) {
+      return this.prevNode.getStructuredQuery();
     }
 
-    return protos.PerfettoSqlStructuredQuery.create({
-      innerQuery: prevQuery,
-      orderBy: protos.PerfettoSqlStructuredQuery.OrderBy.create({
-        orderingSpecs,
-      }),
-    });
+    return StructuredQueryBuilder.withOrderBy(
+      this.prevNode,
+      criteria,
+      this.nodeId,
+    );
   }
 
   serializeState(): object {

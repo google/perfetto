@@ -24,6 +24,7 @@ import {
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {
   createExperimentalFiltersProto,
   renderFilterOperation,
@@ -102,11 +103,12 @@ export class SlicesSourceNode implements SourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = 'thread_or_process_slice';
-    sq.table.moduleName = 'slices.with_context';
+    const sq = StructuredQueryBuilder.fromTable(
+      'thread_or_process_slice',
+      'slices.with_context',
+      undefined,
+      this.nodeId,
+    );
 
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,

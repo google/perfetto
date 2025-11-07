@@ -26,6 +26,7 @@ import {
   SourceNode,
   nextNodeId,
 } from '../../../query_node';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
@@ -206,16 +207,16 @@ export class TableSourceNode implements SourceNode {
     if (!this.validate()) return;
     if (!this.state.sqlTable) return;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = this.state.sqlTable.name;
-    sq.table.moduleName = this.state.sqlTable.includeKey
-      ? this.state.sqlTable.includeKey
-      : undefined;
-    sq.table.columnNames = this.finalCols
+    const columnNames = this.finalCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
+
+    const sq = StructuredQueryBuilder.fromTable(
+      this.state.sqlTable.name,
+      this.state.sqlTable.includeKey || undefined,
+      columnNames,
+      this.nodeId,
+    );
 
     const filtersProto = createExperimentalFiltersProto(
       this.state.filters,
