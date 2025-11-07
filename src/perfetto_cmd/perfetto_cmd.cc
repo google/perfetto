@@ -784,6 +784,10 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     trace_config_.reset(new TraceConfig());
   }
 
+  if (upload_flag_ && trace_config_->persist_trace_after_reboot()) {
+    trace_config_->set_write_into_file(true);
+  }
+
   bool open_out_file = true;
   if (!will_trace_or_trigger) {
     open_out_file = false;
@@ -917,6 +921,9 @@ int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
 int PerfettoCmd::ConnectToServiceAndRun() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (upload_after_reboot_flag_) {
+    // Doesn't actually connect to service.
+    ReportAllPersistentTracesToAndroidFrameworkOrCrash();
+    return 0;
   }
 #endif
   // If we are just activating triggers then we don't need to rate limit,
@@ -1232,6 +1239,9 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 #endif
   } else if (report_to_android_framework_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    if (trace_config_->persist_trace_after_reboot()) {
+      unlink(trace_out_path_.c_str());
+    }
     ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
@@ -1254,7 +1264,16 @@ bool PerfettoCmd::OpenOutputFile() {
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     if (trace_config_->persist_trace_after_reboot()) {
-      fd = CreatePersistentTraceFile(trace_config_->unique_session_name());
+      auto trace_file_or_error =
+          CreatePersistentTraceFile(trace_config_->unique_session_name());
+      if (trace_file_or_error.ok()) {
+        fd = std::move(trace_file_or_error->fd);
+        trace_out_path_ = trace_file_or_error->path;
+      } else {
+        PERFETTO_ELOG("Failed to create a persistent trace file: %s",
+                      trace_file_or_error.status().c_message());
+        return false;
+      }
     } else {
       fd = CreateUnlinkedTmpFile();
     }

@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -139,13 +140,18 @@ class PerfettoCmd : public Consumer {
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       base::ScopedMmap mmapped_trace);
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static base::ScopedFile CreatePersistentTraceFile(
+  struct PersistentTraceFile {
+    base::ScopedFile fd;
+    std::string path;
+  };
+  static base::StatusOr<PersistentTraceFile> CreatePersistentTraceFile(
       const std::string& unique_session_name);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   void ReportTraceToAndroidFrameworkOrCrash();
 
  public:
+  static std::vector<base::ScopedFile> UnlinkAndGetAllTracesToUpload();
   static void ReportAllPersistentTracesToAndroidFrameworkOrCrash();
 
  private:

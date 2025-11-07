@@ -48,10 +48,11 @@ static constexpr int32_t kTrustedUid = 9999;
 // Directories for local state and temporary files. These are automatically
 // created by the system by setting setprop persist.traced.enable=1.
 const char* kStateDir = "/data/misc/perfetto-traces";
-const char* kStatePersistentRunningDir =
-    "/data/misc/perfetto-traces/persistent/running";
-const char* kStatePersistentUploadingDir =
-    "/data/misc/perfetto-traces/persistent/uploading";
+const char* kStatePersistentDir = "/data/misc/perfetto-traces/persistent";
+// const char* kStatePersistentRunningDir =
+//     "/data/misc/perfetto-traces/persistent/running";
+// const char* kStatePersistentUploadingDir =
+//     "/data/misc/perfetto-traces/persistent/uploading";
 
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
@@ -129,51 +130,104 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
                  trace_config_->unique_session_name().c_str(), bytes_written_);
   }
   LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportHandoff);
-}
+};
+
+// static
+std::vector<base::ScopedFile> PerfettoCmd::UnlinkAndGetAllTracesToUpload() {
+  base::ScopedDir dir = base::ScopedDir(opendir(kStatePersistentDir));
+  if (!dir) {
+    PERFETTO_PLOG("Failed to open directory %s", kStatePersistentDir);
+    return {};
+  }
+
+  std::vector<std::string> trace_paths;
+  struct dirent* entry;
+  while ((entry = readdir(*dir)) != nullptr) {
+    if (entry->d_type != DT_REG)
+      continue;
+
+    std::string path = std::string(kStatePersistentDir) + "/" + entry->d_name;
+    trace_paths.push_back(path);
+  }
+
+  std::vector<base::ScopedFile> trace_fds;
+  for (std::string& path : trace_paths) {
+    base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
+    if (!fd) {
+      PERFETTO_PLOG("Failed to open file %s", path.c_str());
+      continue;
+    }
+    // TOOD(ktimofeev): check flock(2)
+    trace_fds.emplace_back(std::move(fd));
+    if (unlink(path.c_str()) != 0) {
+      PERFETTO_PLOG("Failed to unlink file %s", path.c_str());
+    }
+  }
+
+  return trace_fds;
+};
 
 // static
 void PerfettoCmd::ReportAllPersistentTracesToAndroidFrameworkOrCrash() {
-  std::vector<std::string> file_names;
-  auto status =
-      base::ListFilesRecursive(kStatePersistentUploadingDir, file_names);
-  if (!status.ok()) {
-    PERFETTO_DLOG("Failed to get the list of persistent traces to upload: %s",
-                  status.c_message());
-    return;
-  }
+  std::vector<base::ScopedFile> fds = UnlinkAndGetAllTracesToUpload();
 
-  std::vector<std::string> file_paths;
-  for (const std::string& name : file_names) {
-    file_paths.push_back(std::string(kStatePersistentUploadingDir) + "/" +
-                         name);
-  }
+  base::Daemonize([] { return 0; });
 
-  std::vector<std::pair<base::ScopedFile, TraceConfig>>
-      traces_to_upload;
-  for (const std::string& path : file_paths) {
-    bool is_empty_file = base::GetFileSize(path).value_or(0) == 0;
-    if (is_empty_file)
+  for (base::ScopedFile& fd : fds) {
+    std::optional<uint64_t> maybe_file_size = base::GetFileSize(*fd);
+    if (!maybe_file_size.has_value())
       continue;
-    base::ScopedMmap mmaped_file = base::ReadMmapWholeFile(path.c_str());
+    uint64_t file_size = maybe_file_size.value();
+    if (maybe_file_size == 0)
+      continue;
+    base::ScopedFile mmap_fd(dup(*fd));
+    if (!mmap_fd) {
+      PERFETTO_PLOG("Failed to dup fd for mmap");
+      continue;
+    }
+    base::ScopedMmap mmaped_file =
+        base::ScopedMmap::FromHandle(std::move(mmap_fd), file_size);
     if (!mmaped_file.IsValid()) {
-      PERFETTO_PLOG("Failed to mmap trace file '%s'", path.c_str());
+      PERFETTO_PLOG("Failed to mmap");
       continue;
     }
-    auto maybe_report_config =
+    std::optional<TraceConfig> trace_config =
         ParseTraceConfigFromMmapedTrace(std::move(mmaped_file));
-    if (maybe_report_config) {
-      base::ScopedFile fd = base::OpenFile(path, O_RDONLY | O_CLOEXEC);
-      if (!fd) {
-        PERFETTO_PLOG("Failed to open trace file '%s' for upload",
-                      path.c_str());
-        continue;
-      }
-      traces_to_upload.emplace_back(std::move(fd), *maybe_report_config);
-    }
-  }
+    if (!trace_config.has_value())
+      continue;
+    if (!trace_config->has_android_report_config())
+      continue;
 
-  for (const std::string& path : file_paths) {
-    unlink(path.c_str());
+    const auto& cfg = trace_config->android_report_config();
+    if (cfg.skip_report() || cfg.reporter_service_package().empty() ||
+        cfg.reporter_service_class().empty())
+      continue;
+    bool has_uuid = trace_config->has_trace_uuid_lsb() &&
+                    trace_config->has_trace_uuid_msb();
+    if (!has_uuid)
+      continue;
+
+    base::ScopedFile framework_fd(dup(*fd));
+    if (!fd) {
+      PERFETTO_PLOG("Failed to dup fd when reporting to Android");
+      continue;
+    }
+
+    PERFETTO_LAZY_LOAD(android_internal::ReportTrace, report_fn);
+    bool ok = report_fn(cfg.reporter_service_package().c_str(),
+                        cfg.reporter_service_class().c_str(), fd.release(),
+                        trace_config->trace_uuid_lsb(),
+                        trace_config->trace_uuid_msb(),
+                        cfg.use_pipe_in_framework_for_testing());
+    if (!ok) {
+      PERFETTO_ELOG("Failed to report to Android");
+    } else {
+      base::Uuid uuid(trace_config->trace_uuid_lsb(),
+                      trace_config->trace_uuid_msb());
+      PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
+                   uuid.ToPrettyString().c_str(),
+                   trace_config->unique_session_name().c_str(), file_size);
+    }
   }
 }
 
@@ -253,30 +307,29 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 // static
-base::ScopedFile PerfettoCmd::CreatePersistentTraceFile(
-    const std::string& unique_session_name) {
-  std::string name =
-      unique_session_name.empty() ? "trace" : unique_session_name.substr(0, 64);
-  base::StackString<256> file_path("%s/%s.pftrace", kStatePersistentRunningDir,
-                                   name.c_str());
+base::StatusOr<PerfettoCmd::PersistentTraceFile>
+PerfettoCmd::CreatePersistentTraceFile(const std::string& unique_session_name) {
+  if (unique_session_name.empty()) {
+    return base::ErrStatus(
+        "'unique_session_name' config filed shouldn't be empty.");
+  }
+  std::string file_path =
+      std::string(kStatePersistentDir) + "/" + unique_session_name + ".pftrace";
   // TODO(ktimofeev): use flock(2) to check if the trace file is currently opend
-  // by the traced or just wasn't rm-ed on the reboot. If it wasn't rm-ed
+  // by the perfetto_cmd or just wasn't rm-ed on the reboot. If it wasn't rm-ed
   // overwrite it.
   // we can use base::OpenFile with "O_CREAT | O_EXCL" flags to check if file
   // exists.
-  if (base::FileExists(file_path.ToStdString())) {
-    PERFETTO_ELOG(
-        "Could not create a persistent trace file '%s' for session name: '%s', "
-        "file already exists",
-        file_path.c_str(), name.c_str());
-    return base::ScopedFile{};  // Invalid file.
+  if (base::FileExists(file_path)) {
+    return base::ErrStatus("'%s' already exists", file_path.c_str());
   }
-  auto fd = base::OpenFile(file_path.ToStdString(), O_CREAT | O_RDWR, 0600);
+  auto fd = base::OpenFile(file_path, O_CREAT | O_RDWR, 0600);
   if (!fd) {
-    PERFETTO_PLOG("Could not create a persistent trace file '%s'",
-                  file_path.c_str());
+    return base::ErrStatus("failed to open %s, error: %s (errno: %d)",
+                           file_path.c_str(), strerror(errno), errno);
   }
-  return fd;
+  return base::StatusOr<PerfettoCmd::PersistentTraceFile>(
+      {std::move(fd), file_path});
 }
 
 // static
