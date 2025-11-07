@@ -112,7 +112,8 @@ struct QueryState {
   QueryState(QueryType _type,
              protozero::ConstBytes _bytes,
              size_t index,
-             std::optional<size_t> parent_idx)
+             std::optional<size_t> parent_idx,
+             std::set<std::string>& used_table_names)
       : type(_type), bytes(_bytes), parent_index(parent_idx) {
     protozero::ProtoDecoder decoder(bytes);
     std::string prefix = type == QueryType::kShared ? "shared_sq_" : "sq_";
@@ -122,6 +123,15 @@ struct QueryState {
     } else {
       table_name = prefix + std::to_string(index);
     }
+
+    // Ensure table_name is unique by appending a suffix if needed
+    std::string original_name = table_name;
+    size_t suffix = 0;
+    while (used_table_names.count(table_name) > 0) {
+      table_name = original_name + "_" + std::to_string(suffix);
+      suffix++;
+    }
+    used_table_names.insert(table_name);
   }
 
   QueryType type;
@@ -212,11 +222,13 @@ class GeneratorImpl {
   std::vector<Query>& queries_;
   base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
   std::vector<std::string>& preambles_;
+  std::set<std::string> used_table_names_;
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
     protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt);
+  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
+                      used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
     base::StatusOr<std::string> sql = GenerateImpl();
     if (!sql.ok()) {
@@ -874,12 +886,13 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
-                      state_.size(), state_index_);
+                      state_.size(), state_index_, used_table_names_);
   return state_.back().table_name;
 }
 
 std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_);
+  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_,
+                      used_table_names_);
   return state_.back().table_name;
 }
 
