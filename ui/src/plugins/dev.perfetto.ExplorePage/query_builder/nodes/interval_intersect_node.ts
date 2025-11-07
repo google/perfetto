@@ -25,16 +25,15 @@ import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {UIFilter} from '../operations/filter';
 import {
   PopupMultiSelect,
   MultiSelectOption,
   MultiSelectDiff,
 } from '../../../../widgets/multiselect';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
-  filters?: UIFilter[];
   comment?: string;
   filterNegativeDur?: boolean[]; // Per-input filter to exclude negative durations
   partitionColumns?: string[]; // Columns to partition by during interval intersection
@@ -256,6 +255,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   private getCommonColumns(): string[] {
     const EXCLUDED_COLUMNS = new Set(['id', 'ts', 'dur']);
+    const EXCLUDED_TYPES = new Set(['STRING', 'BYTES']);
 
     if (this.prevNodes.length === 0) return [];
 
@@ -263,17 +263,20 @@ export class IntervalIntersectNode implements MultiSourceNode {
     const firstNode = this.prevNodes[0];
     const commonColumns = new Set(
       firstNode.finalCols
-        .map((c) => c.name)
-        .filter((name) => !EXCLUDED_COLUMNS.has(name)),
+        .filter(
+          (c) => !EXCLUDED_COLUMNS.has(c.name) && !EXCLUDED_TYPES.has(c.type),
+        )
+        .map((c) => c.name),
     );
 
     // Intersect with columns from remaining inputs
     for (let i = 1; i < this.prevNodes.length; i++) {
       const node = this.prevNodes[i];
-      const nodeColumns = new Set(node.finalCols.map((c) => c.name));
-      // Keep only columns that exist in this node too
+      const nodeColumns = new Map(node.finalCols.map((c) => [c.name, c.type]));
+      // Keep only columns that exist in this node too with a non-excluded type
       for (const col of commonColumns) {
-        if (!nodeColumns.has(col)) {
+        const colType = nodeColumns.get(col);
+        if (colType === undefined || EXCLUDED_TYPES.has(colType)) {
           commonColumns.delete(col);
         }
       }
@@ -354,7 +357,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: IntervalIntersectNodeState = {
       prevNodes: [...this.state.prevNodes],
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       filterNegativeDur: this.state.filterNegativeDur
         ? [...this.state.filterNegativeDur]
         : undefined,
@@ -369,54 +371,13 @@ export class IntervalIntersectNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    // Validate returns false if any prevNodes are undefined, so this is safe
-    const baseSq = this.prevNodes[0]?.getStructuredQuery();
-    if (baseSq === undefined) return undefined;
-
-    // Add dur >= 0 filter to base if enabled
-    if (this.state.filterNegativeDur?.[0]) {
-      const filter = new protos.PerfettoSqlStructuredQuery.Filter();
-      filter.columnName = 'dur';
-      filter.op =
-        protos.PerfettoSqlStructuredQuery.Filter.Operator.GREATER_THAN_EQUAL;
-      filter.int64Rhs = [0];
-      if (baseSq.filters === undefined) baseSq.filters = [];
-      baseSq.filters.push(filter);
-    }
-
-    const intervalSqs: protos.PerfettoSqlStructuredQuery[] = [];
-    for (let i = 1; i < this.prevNodes.length; i++) {
-      const node = this.prevNodes[i];
-      const sq = node.getStructuredQuery();
-      if (sq === undefined) return undefined;
-
-      // Add dur >= 0 filter if enabled for this interval
-      if (this.state.filterNegativeDur?.[i]) {
-        const filter = new protos.PerfettoSqlStructuredQuery.Filter();
-        filter.columnName = 'dur';
-        filter.op =
-          protos.PerfettoSqlStructuredQuery.Filter.Operator.GREATER_THAN_EQUAL;
-        filter.int64Rhs = [0];
-        if (sq.filters === undefined) sq.filters = [];
-        sq.filters.push(filter);
-      }
-
-      intervalSqs.push(sq);
-    }
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.intervalIntersect =
-      new protos.PerfettoSqlStructuredQuery.IntervalIntersect();
-    sq.intervalIntersect.base = baseSq;
-    sq.intervalIntersect.intervalIntersect = intervalSqs;
-
-    // Add partition columns if specified
-    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
-      sq.intervalIntersect.partitionColumns = [...this.state.partitionColumns];
-    }
-
-    return sq;
+    return StructuredQueryBuilder.withIntervalIntersect(
+      this.prevNodes[0],
+      this.prevNodes.slice(1),
+      this.state.partitionColumns,
+      this.state.filterNegativeDur,
+      this.nodeId,
+    );
   }
 
   serializeState(): IntervalIntersectSerializedState {
@@ -425,7 +386,6 @@ export class IntervalIntersectNode implements MultiSourceNode {
         .slice(1)
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
-      filters: this.state.filters,
       comment: this.state.comment,
       filterNegativeDur: this.state.filterNegativeDur,
       partitionColumns: this.state.partitionColumns,

@@ -50,6 +50,7 @@ import {
   LimitAndOffsetNodeState,
 } from './query_builder/nodes/limit_and_offset_node';
 import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
+import {FilterNode, FilterNodeState} from './query_builder/nodes/filter_node';
 import {
   MergeNode,
   MergeSerializedState,
@@ -69,6 +70,7 @@ type SerializedNodeState =
   | AddColumnsNodeState
   | LimitAndOffsetNodeState
   | SortNodeState
+  | FilterNodeState
   | MergeSerializedState
   | UnionSerializedState;
 
@@ -204,6 +206,10 @@ function createNodeInstance(
       );
     case NodeType.kSort:
       return new SortNode(SortNode.deserializeState(state as SortNodeState));
+    case NodeType.kFilter:
+      return new FilterNode(
+        FilterNode.deserializeState(state as FilterNodeState),
+      );
     case NodeType.kIntervalIntersect:
       const nodeState: IntervalIntersectNodeState = {
         ...(state as IntervalIntersectSerializedState),
@@ -220,7 +226,6 @@ function createNodeInstance(
         leftColumn: mergeState.leftColumn ?? '',
         rightColumn: mergeState.rightColumn ?? '',
         sqlExpression: mergeState.sqlExpression ?? '',
-        filters: mergeState.filters,
         comment: mergeState.comment,
       });
     case NodeType.kUnion:
@@ -229,7 +234,6 @@ function createNodeInstance(
         prevNodes: [],
         selectedColumns: unionState.selectedColumns,
       });
-      unionNode.filters = unionState.filters;
       unionNode.comment = unionState.comment;
       return unionNode;
     default:
@@ -372,6 +376,9 @@ export function deserializeState(
   for (const node of nodes.values()) {
     if (node.type === NodeType.kAggregation) {
       (node as AggregationNode).resolveColumns();
+    }
+    if (node.type === NodeType.kModifyColumns) {
+      (node as ModifyColumnsNode).resolveColumns();
     }
   }
 

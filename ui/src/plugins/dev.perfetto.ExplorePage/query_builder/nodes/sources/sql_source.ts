@@ -25,6 +25,7 @@ import {
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 
 import {
   QueryHistoryComponent,
@@ -33,11 +34,9 @@ import {
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
-import {UIFilter} from '../../operations/filter';
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -83,7 +82,6 @@ export class SqlSourceNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       issues: this.state.issues,
       trace: this.state.trace,
     };
@@ -101,27 +99,24 @@ export class SqlSourceNode implements MultiSourceNode {
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      filters: this.state.filters,
       comment: this.state.comment,
     };
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
+    const dependencies = this.prevNodes.map((prevNode) => ({
+      alias: prevNode.nodeId,
+      query: prevNode.getStructuredQuery(),
+    }));
 
-    if (this.state.sql) sqlProto.sql = this.state.sql;
-    sqlProto.columnNames = this.finalCols.map((c) => c.column.name);
+    const columnNames = this.finalCols.map((c) => c.column.name);
 
-    for (const prevNode of this.prevNodes) {
-      const dependency = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();
-      dependency.alias = prevNode.nodeId;
-      dependency.query = prevNode.getStructuredQuery();
-      sqlProto.dependencies.push(dependency);
-    }
-
-    sq.sql = sqlProto;
+    const sq = StructuredQueryBuilder.fromSql(
+      this.state.sql || '',
+      dependencies,
+      columnNames,
+      this.nodeId,
+    );
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;

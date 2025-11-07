@@ -20,7 +20,7 @@ use crate::{
     },
     stream_writer::StreamWriter,
 };
-use perfetto_sys::*;
+use perfetto_sdk_sys::*;
 use std::{
     cell::RefCell,
     collections::HashMap,

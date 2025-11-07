@@ -195,6 +195,10 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       return m(ExplorePageHelp);
     }
 
+    // Update the node's onchange callback to point to our attrs.onchange
+    // This ensures that changes in the node's UI components trigger the callback chain
+    node.state.onchange = attrs.onchange;
+
     this.updateQuery(node, attrs);
 
     const renderModeMenu = (): m.Child => {

@@ -21,7 +21,7 @@ use crate::protos::config::gpu::gpu_counter_config::*;
 use crate::protos::config::gpu::gpu_renderstages_config::*;
 use crate::protos::config::gpu::vulkan_memory_config::*;
 
-use perfetto::protos::config::data_source_config::DataSourceConfig;
+use perfetto_sdk::protos::config::data_source_config::DataSourceConfig;
 
 pb_msg_ext!(DataSourceConfig {
     gpu_counter_config: GpuCounterConfig, msg, 108,

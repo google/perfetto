@@ -251,8 +251,8 @@ PerfDataTokenizer::ParseAttrs() {
 
   ASSIGN_OR_RETURN(perf_invocation_, builder.Build());
   if (perf_invocation_->HasPerfClock()) {
-    RETURN_IF_ERROR(context_->clock_tracker->SetTraceTimeClock(
-        protos::pbzero::BUILTIN_CLOCK_PERF));
+    context_->clock_tracker->SetTraceTimeClock(
+        protos::pbzero::BUILTIN_CLOCK_PERF);
   }
   parsing_state_ = ParsingState::kSeekRecords;
   return ParsingResult::kSuccess;

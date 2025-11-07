@@ -36,6 +36,8 @@ import {QueryService} from './query_service';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Icon} from '../../../widgets/icon';
+import {Tooltip} from '../../../widgets/tooltip';
 
 import {findErrors} from './query_builder_utils';
 export interface DataExplorerAttrs {
@@ -50,6 +52,7 @@ export interface DataExplorerAttrs {
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
   readonly onchange?: () => void;
+  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
@@ -109,6 +112,18 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       },
     });
 
+    // Add materialization indicator icon with tooltip
+    const materializationIndicator =
+      attrs.node.state.materialized && attrs.node.state.materializationTableName
+        ? m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'database'}),
+            },
+            `Materialized as ${attrs.node.state.materializationTableName}`,
+          )
+        : null;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -124,7 +139,13 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ],
     );
 
-    return [runButton, statusIndicator, autoExecuteSwitch, positionMenu];
+    return [
+      runButton,
+      statusIndicator,
+      materializationIndicator,
+      autoExecuteSwitch,
+      positionMenu,
+    ];
   }
 
   private renderContent(
@@ -199,11 +220,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               'is not null',
             ];
             if (supportedOps.includes(filter.op)) {
-              attrs.node.state.filters = [
-                ...(attrs.node.state.filters ?? []),
-                filter as FilterValue | FilterNull,
-              ];
-              attrs.onchange?.();
+              if (attrs.onFilterAdd) {
+                // Delegate to the parent handler which will create a FilterNode
+                attrs.onFilterAdd(filter as FilterValue | FilterNull);
+              } else {
+                // Fallback: add filter directly to node state (legacy behavior)
+                attrs.node.state.filters = [
+                  ...(attrs.node.state.filters ?? []),
+                  filter as FilterValue | FilterNull,
+                ];
+                attrs.onchange?.();
+              }
             }
           },
           cellRenderer: (value: SqlValue, name: string) => {

@@ -24,6 +24,7 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Card} from '../../../../widgets/card';
 import {TextInput} from '../../../../widgets/text_input';
+import {StructuredQueryBuilder} from '../structured_query_builder';
 
 export interface LimitAndOffsetNodeState extends QueryNodeState {
   prevNode: QueryNode;
@@ -85,6 +86,14 @@ export class LimitAndOffsetNode implements ModificationNode {
           this.state.limit = Number(target.value);
           m.redraw();
         },
+        onblur: () => {
+          this.state.onchange?.();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.state.onchange?.();
+          }
+        },
         value: this.state.limit?.toString() ?? '10',
       }),
       m('label', 'Offset '),
@@ -93,6 +102,14 @@ export class LimitAndOffsetNode implements ModificationNode {
           const target = e.target as HTMLInputElement;
           this.state.offset = Number(target.value);
           m.redraw();
+        },
+        onblur: () => {
+          this.state.onchange?.();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.state.onchange?.();
+          }
         },
         value: this.state.offset?.toString() ?? undefined,
       }),
@@ -109,33 +126,30 @@ export class LimitAndOffsetNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
-    const prevQuery = this.prevNode.getStructuredQuery();
-    if (!prevQuery) return undefined;
 
     const hasLimit = this.state.limit !== undefined && this.state.limit > 0;
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {
-      return prevQuery;
+      return this.prevNode.getStructuredQuery();
     }
 
-    const query = protos.PerfettoSqlStructuredQuery.create({
-      innerQuery: prevQuery,
-    });
-
-    if (hasLimit) {
-      query.limit = this.state.limit!;
-    }
-
-    if (hasOffset) {
-      query.offset = this.state.offset!;
-    }
-
-    return query;
+    return StructuredQueryBuilder.withLimitOffset(
+      this.prevNode,
+      this.state.limit,
+      this.state.offset,
+      this.nodeId,
+    );
   }
 
   serializeState(): object {
-    return this.state;
+    // Only return serializable fields, excluding callbacks and objects
+    // that might contain circular references
+    return {
+      limit: this.state.limit,
+      offset: this.state.offset,
+      comment: this.state.comment,
+    };
   }
 
   static deserializeState(

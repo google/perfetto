@@ -25,6 +25,10 @@ import protos from '../../../../protos';
 import {Card} from '../../../../widgets/card';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Button} from '../../../../widgets/button';
+import {
+  StructuredQueryBuilder,
+  SortCriterion as BuilderSortCriterion,
+} from '../structured_query_builder';
 
 export interface SortCriterion {
   colName: string;
@@ -80,7 +84,7 @@ export class SortNode implements ModificationNode {
   nodeDetails(): m.Child {
     if (this.sortCols.length > 0 && this.state.sortCriteria) {
       const criteria = this.state.sortCriteria
-        .map((c) => c.direction === 'DESC' ? `${c.colName} DESC` : c.colName)
+        .map((c) => (c.direction === 'DESC' ? `${c.colName} DESC` : c.colName))
         .join(', ');
       return m(
         '.pf-aggregation-node-details',
@@ -103,6 +107,7 @@ export class SortNode implements ModificationNode {
           }
           this.state.sortCriteria.push({colName: key, direction: 'ASC'});
           this.sortCols = this.resolveSortCols();
+          this.state.onchange?.();
           m.redraw();
         },
         onOptionRemove: (key: string) => {
@@ -111,6 +116,7 @@ export class SortNode implements ModificationNode {
               (c) => c.colName !== key,
             );
             this.sortCols = this.resolveSortCols();
+            this.state.onchange?.();
             m.redraw();
           }
         },
@@ -137,6 +143,7 @@ export class SortNode implements ModificationNode {
               newSortCriteria.splice(to, 0, removed);
               this.state.sortCriteria = newSortCriteria;
               this.sortCols = this.resolveSortCols();
+              this.state.onchange?.();
               m.redraw();
             },
           },
@@ -149,6 +156,7 @@ export class SortNode implements ModificationNode {
                 if (this.state.sortCriteria) {
                   this.state.sortCriteria[index].direction =
                     criterion.direction === 'ASC' ? 'DESC' : 'ASC';
+                  this.state.onchange?.();
                   m.redraw();
                 }
               },
@@ -173,44 +181,43 @@ export class SortNode implements ModificationNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
-    const prevQuery = this.prevNode.getStructuredQuery();
-    if (!prevQuery) return undefined;
 
     if (this.sortCols.length === 0) {
-      return prevQuery;
+      return this.prevNode.getStructuredQuery();
     }
 
-    const orderingSpecs: protos.PerfettoSqlStructuredQuery.OrderBy.IOrderingSpec[] =
-      [];
+    const criteria: BuilderSortCriterion[] = [];
     for (const criterion of this.state.sortCriteria ?? []) {
       const col = this.sortCols.find(
         (c) => c.column.name === criterion.colName,
       );
       if (!col) continue;
 
-      orderingSpecs.push({
+      criteria.push({
         columnName: col.column.name,
-        direction:
-          criterion.direction === 'DESC'
-            ? protos.PerfettoSqlStructuredQuery.OrderBy.Direction.DESC
-            : protos.PerfettoSqlStructuredQuery.OrderBy.Direction.ASC,
+        direction: criterion.direction,
       });
     }
 
-    if (orderingSpecs.length === 0) {
-      return prevQuery;
+    if (criteria.length === 0) {
+      return this.prevNode.getStructuredQuery();
     }
 
-    return protos.PerfettoSqlStructuredQuery.create({
-      innerQuery: prevQuery,
-      orderBy: protos.PerfettoSqlStructuredQuery.OrderBy.create({
-        orderingSpecs,
-      }),
-    });
+    return StructuredQueryBuilder.withOrderBy(
+      this.prevNode,
+      criteria,
+      this.nodeId,
+    );
   }
 
   serializeState(): object {
-    return this.state;
+    // Only return serializable fields, excluding callbacks and objects
+    // that might contain circular references
+    return {
+      sortColNames: this.state.sortColNames,
+      sortCriteria: this.state.sortCriteria,
+      comment: this.state.comment,
+    };
   }
 
   static deserializeState(state: SortNodeState): SortNodeState {

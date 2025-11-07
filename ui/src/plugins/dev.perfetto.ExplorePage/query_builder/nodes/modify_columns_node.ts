@@ -33,12 +33,8 @@ import {
   newColumnInfoList,
 } from '../column_info';
 import protos from '../../../../protos';
-import {
-  createExperimentalFiltersProto,
-  renderFilterOperation,
-  UIFilter,
-} from '../operations/filter';
 import {NodeIssues} from '../node_issues';
+import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 
 class SwitchComponent
   implements
@@ -359,11 +355,14 @@ interface NewColumn {
 }
 
 export interface ModifyColumnsSerializedState {
-  prevNodeId: string;
+  prevNodeId?: string;
   newColumns: NewColumn[];
-  selectedColumns: ColumnInfo[];
-  filters?: UIFilter[];
-  filterOperator?: 'AND' | 'OR';
+  selectedColumns: {
+    name: string;
+    type: string;
+    checked: boolean;
+    alias?: string;
+  }[];
   comment?: string;
 }
 
@@ -371,7 +370,6 @@ export interface ModifyColumnsState extends QueryNodeState {
   prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters?: UIFilter[];
 }
 
 export class ModifyColumnsNode implements ModificationNode {
@@ -448,7 +446,26 @@ export class ModifyColumnsNode implements ModificationNode {
     return {
       ...serializedState,
       prevNode: undefined as unknown as QueryNode,
+      selectedColumns: serializedState.selectedColumns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        column: {name: c.name},
+        alias: c.alias,
+      })),
     };
+  }
+
+  resolveColumns() {
+    // Recover full column information from prevNode
+    const sourceCols = this.prevNode.finalCols ?? [];
+    this.state.selectedColumns.forEach((c) => {
+      const sourceCol = sourceCols.find((s) => s.name === c.name);
+      if (sourceCol) {
+        c.column = sourceCol.column;
+        c.type = sourceCol.type;
+      }
+    });
   }
 
   validate(): boolean {
@@ -718,7 +735,6 @@ export class ModifyColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      this.renderFilterOperation(),
     );
   }
 
@@ -1003,22 +1019,6 @@ export class ModifyColumnsNode implements ModificationNode {
     });
   }
 
-  private renderFilterOperation(): m.Child {
-    return renderFilterOperation(
-      this.state.filters,
-      this.state.filterOperator,
-      this.finalCols,
-      (newFilters) => {
-        this.state.filters = [...newFilters];
-        this.state.onchange?.();
-      },
-      (operator) => {
-        this.state.filterOperator = operator;
-        this.state.onchange?.();
-      },
-    );
-  }
-
   clone(): QueryNode {
     return new ModifyColumnsNode(this.state);
   }
@@ -1026,70 +1026,64 @@ export class ModifyColumnsNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
-    const referencedModules: string[] = [];
+    // Build column specifications
+    const columns: ColumnSpec[] = [];
 
     for (const col of this.state.selectedColumns) {
       if (!col.checked) continue;
-
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnNameOrExpression = col.column.name;
-      if (col.alias) {
-        selectColumn.alias = col.alias;
-      }
-      selectColumns.push(selectColumn);
+      columns.push({
+        columnNameOrExpression: col.column.name,
+        alias: col.alias,
+      });
     }
 
     for (const col of this.state.newColumns) {
-      // Only include valid columns (non-empty expression and name)
-      if (!this.isNewColumnValid(col)) {
-        continue;
-      }
-      const selectColumn = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectColumn.columnNameOrExpression = col.expression;
-      selectColumn.alias = col.name;
-      selectColumns.push(selectColumn);
-      if (col.module) {
-        referencedModules.push(col.module);
-      }
+      if (!this.isNewColumnValid(col)) continue;
+      columns.push({
+        columnNameOrExpression: col.expression,
+        alias: col.name,
+        referencedModule: col.module,
+      });
     }
 
-    // This node assumes it has only one previous node.
-    const prevSq = this.prevNode.getStructuredQuery();
-    if (!prevSq) return;
+    // Collect referenced modules
+    const referencedModules = this.state.newColumns
+      .filter((col) => col.module)
+      .map((col) => col.module!);
 
-    prevSq.selectColumns = selectColumns;
-    if (referencedModules.length > 0) {
-      prevSq.referencedModules = referencedModules;
-    }
-
-    const filtersProto = createExperimentalFiltersProto(
-      this.state.filters,
-      this.finalCols,
-      this.state.filterOperator,
+    // Apply column selection
+    return StructuredQueryBuilder.withSelectColumns(
+      this.prevNode,
+      columns,
+      referencedModules.length > 0 ? referencedModules : undefined,
+      this.nodeId,
     );
-
-    if (filtersProto) {
-      const outerSq = new protos.PerfettoSqlStructuredQuery();
-      outerSq.id = this.nodeId;
-      outerSq.innerQuery = prevSq;
-      outerSq.experimentalFilterGroup = filtersProto;
-      return outerSq;
-    }
-
-    return prevSq;
   }
 
   serializeState(): ModifyColumnsSerializedState {
-    if (this.prevNode === undefined) {
-      throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');
-    }
     return {
-      prevNodeId: this.prevNode.nodeId,
-      newColumns: this.state.newColumns,
-      selectedColumns: this.state.selectedColumns,
-      filters: this.state.filters,
-      filterOperator: this.state.filterOperator,
+      prevNodeId: this.prevNode?.nodeId,
+      newColumns: this.state.newColumns.map((c) => ({
+        expression: c.expression,
+        name: c.name,
+        module: c.module,
+        type: c.type,
+        switchOn: c.switchOn,
+        cases: c.cases
+          ? c.cases.map((cs) => ({when: cs.when, then: cs.then}))
+          : undefined,
+        defaultValue: c.defaultValue,
+        clauses: c.clauses
+          ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
+          : undefined,
+        elseValue: c.elseValue,
+      })),
+      selectedColumns: this.state.selectedColumns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        checked: c.checked,
+        alias: c.alias,
+      })),
       comment: this.state.comment,
     };
   }

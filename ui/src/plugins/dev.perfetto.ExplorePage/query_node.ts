@@ -38,6 +38,7 @@ export enum NodeType {
   kAddColumns,
   kLimitAndOffset,
   kSort,
+  kFilter,
 
   // Multi node operations
   kIntervalIntersect,
@@ -52,6 +53,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAddColumns:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
+    case NodeType.kFilter:
       return true;
     default:
       return false;
@@ -92,6 +94,10 @@ export interface QueryNodeState {
   // If false, the user must manually click "Run" to execute queries.
   // Set by the node registry when the node is created.
   autoExecute?: boolean;
+
+  // Materialization state
+  materialized?: boolean;
+  materializationTableName?: string;
 }
 
 export interface BaseNode {

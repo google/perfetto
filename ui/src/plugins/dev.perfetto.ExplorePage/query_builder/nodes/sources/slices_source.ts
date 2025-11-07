@@ -24,15 +24,9 @@ import {
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
-import {
-  createExperimentalFiltersProto,
-  renderFilterOperation,
-  UIFilter,
-} from '../../operations/filter';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 
 export interface SlicesSourceSerializedState {
-  filters?: UIFilter[];
-  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -52,7 +46,6 @@ export class SlicesSourceNode implements SourceNode {
     this.state.onchange = attrs.onchange;
     this.finalCols = createFinalColumns(slicesSourceNodeColumns(true));
     this.nextNodes = [];
-    this.state.filters = attrs.filters ?? [];
   }
 
   get type() {
@@ -65,7 +58,6 @@ export class SlicesSourceNode implements SourceNode {
 
   clone(): QueryNode {
     const stateCopy: SlicesSourceState = {
-      filters: this.state.filters?.map((f) => ({...f})),
       onchange: this.state.onchange,
     };
     return new SlicesSourceNode(stateCopy);
@@ -77,8 +69,6 @@ export class SlicesSourceNode implements SourceNode {
 
   serializeState(): SlicesSourceSerializedState {
     return {
-      filters: this.state.filters,
-      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }
@@ -86,18 +76,12 @@ export class SlicesSourceNode implements SourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = 'thread_or_process_slice';
-    sq.table.moduleName = 'slices.with_context';
-
-    const filtersProto = createExperimentalFiltersProto(
-      this.state.filters,
-      this.finalCols,
-      this.state.filterOperator,
+    const sq = StructuredQueryBuilder.fromTable(
+      'thread_or_process_slice',
+      'slices.with_context',
+      undefined,
+      this.nodeId,
     );
-    if (filtersProto) sq.experimentalFilterGroup = filtersProto;
 
     // Manually create selectColumns for the specific columns we want
     const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
@@ -112,19 +96,7 @@ export class SlicesSourceNode implements SourceNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return renderFilterOperation(
-      this.state.filters,
-      this.state.filterOperator,
-      this.finalCols,
-      (newFilters) => {
-        this.state.filters = [...newFilters];
-        this.state.onchange?.();
-      },
-      (operator) => {
-        this.state.filterOperator = operator;
-        this.state.onchange?.();
-      },
-    );
+    return undefined;
   }
 }
 
