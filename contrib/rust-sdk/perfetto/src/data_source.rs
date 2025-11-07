@@ -46,10 +46,107 @@ pub enum DataSourceError {
     RegisterError,
 }
 
-type OnSetupCallback = Box<dyn FnMut(u32, &[u8]) + Send + Sync + 'static>;
-type OnStartCallback = Box<dyn FnMut(u32) + Send + Sync + 'static>;
-type OnStopCallback = Box<dyn FnMut(u32) + Send + Sync + 'static>;
-type OnFlushCallback = Box<dyn FnMut(u32) + Send + Sync + 'static>;
+/// Opaque handle used to perform operations from the OnSetup callback. Unused
+/// for now.
+pub struct OnSetupArgs {
+    _args: *mut PerfettoDsOnSetupArgs,
+}
+
+type OnSetupCallback = Box<dyn FnMut(u32, &[u8], &mut OnSetupArgs) + Send + Sync + 'static>;
+
+/// Opaque handle used to perform operations from the OnSetup callback. Unused
+/// for now.
+pub struct OnStartArgs {
+    _args: *mut PerfettoDsOnStartArgs,
+}
+
+type OnStartCallback = Box<dyn FnMut(u32, &mut OnStartArgs) + Send + Sync + 'static>;
+
+/// A scope-based guard to signal that the data source stop operation is
+/// complete when dropped.
+#[must_use = "dropping StopGuard immediately defeats its purpose"]
+pub struct StopGuard {
+    async_stopper: *mut PerfettoDsAsyncStopper,
+}
+
+impl Drop for StopGuard {
+    fn drop(&mut self) {
+        // SAFETY: `self.async_stopper` must have been created using
+        // `PerfettoDsOnStopArgsPostpone`.
+        unsafe {
+            PerfettoDsStopDone(self.async_stopper);
+        }
+    }
+}
+
+// SAFETY: The underlying PerfettoDsAsyncStopper is thread-safe.
+unsafe impl Send for StopGuard {}
+
+// SAFETY: The underlying PerfettoDsAsyncStopper is thread-safe.
+unsafe impl Sync for StopGuard {}
+
+/// Opaque handle used to perform operations from the OnStop callback.
+pub struct OnStopArgs {
+    args: *mut PerfettoDsOnStopArgs,
+}
+
+impl OnStopArgs {
+    /// Tells the tracing service to postpone the stopping of a data source
+    /// instance. The returned handle can be used to signal the tracing
+    /// service when the data source instance can be stopped.
+    #[must_use = "StopGuard must be kept alive until the desired stop point"]
+    pub fn postpone(&mut self) -> StopGuard {
+        assert!(!self.args.is_null());
+        // SAFETY: `self.args` must be pointing to a valid PerfettoDsOnStopArgs handle.
+        let async_stopper = unsafe { PerfettoDsOnStopArgsPostpone(self.args) };
+        StopGuard { async_stopper }
+    }
+}
+
+type OnStopCallback = Box<dyn FnMut(u32, &mut OnStopArgs) + Send + Sync + 'static>;
+
+/// A scope-based guard to signal that the data source flush operation is
+/// complete when dropped.
+#[must_use = "dropping FlushGuard immediately defeats its purpose"]
+pub struct FlushGuard {
+    async_flusher: *mut PerfettoDsAsyncFlusher,
+}
+
+impl Drop for FlushGuard {
+    fn drop(&mut self) {
+        // SAFETY: `self.async_flusher` must have been created using
+        // `PerfettoDsOnFlushArgsPostpone`.
+        unsafe {
+            PerfettoDsFlushDone(self.async_flusher);
+        }
+    }
+}
+
+// SAFETY: The underlying PerfettoDsAsyncFlusher is thread-safe.
+unsafe impl Send for FlushGuard {}
+
+// SAFETY: The underlying PerfettoDsAsyncFlusher is thread-safe.
+unsafe impl Sync for FlushGuard {}
+
+/// Opaque handle used to perform operations from the OnStop callback.
+pub struct OnFlushArgs {
+    args: *mut PerfettoDsOnFlushArgs,
+}
+
+impl OnFlushArgs {
+    /// Tells the tracing service to postpone acknowledging the flushing of a data
+    /// source instance. The returned guard can be used to signal the tracing
+    /// service when the data source instance flushing has completed.
+    #[must_use = "FlushGuard must be kept alive until the desired stop point"]
+    pub fn postpone(&mut self) -> FlushGuard {
+        assert!(!self.args.is_null());
+        // SAFETY: `self.args` must be pointing to a valid PerfettoDsOnFlushArgs handle.
+        let async_flusher = unsafe { PerfettoDsOnFlushArgsPostpone(self.args) };
+        FlushGuard { async_flusher }
+    }
+}
+
+type OnFlushCallback = Box<dyn FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static>;
 
 /// Data source buffer exhausted policy.
 #[derive(Default, PartialEq)]
@@ -148,7 +245,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_setup<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32, &[u8]) + Send + Sync + 'static,
+        F: FnMut(u32, &[u8], &mut OnSetupArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_setup = Some(Box::new(cb));
         self
@@ -158,7 +255,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_start<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32) + Send + Sync + 'static,
+        F: FnMut(u32, &mut OnStartArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_start = Some(Box::new(cb));
         self
@@ -168,7 +265,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_stop<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32) + Send + Sync + 'static,
+        F: FnMut(u32, &mut OnStopArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_stop = Some(Box::new(cb));
         self
@@ -178,7 +275,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_flush<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32) + Send + Sync + 'static,
+        F: FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_flush = Some(Box::new(cb));
         self
@@ -363,7 +460,7 @@ unsafe extern "C" fn on_setup_callback_trampoline(
     ds_config: *mut c_void,
     ds_config_size: usize,
     user_arg: *mut c_void,
-    _args: *mut PerfettoDsOnSetupArgs,
+    args: *mut PerfettoDsOnSetupArgs,
 ) -> *mut c_void {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
@@ -374,13 +471,15 @@ unsafe extern "C" fn on_setup_callback_trampoline(
             // - `ds_config_size` bytes starting at `ptr` must be valid for **reads**.
             let config =
                 unsafe { std::slice::from_raw_parts(ds_config as *const u8, ds_config_size) };
-            f(inst_id, config);
+            let mut on_setup_args = OnSetupArgs { _args: args };
+            f(inst_id, config, &mut on_setup_args);
         }
     });
     if let Err(err) = result {
         eprintln!("Fatal panic: {:?}", err);
         std::process::abort();
     }
+    // TODO(dreveman): Implement support for instance contexts.
     ptr::null_mut()
 }
 
@@ -389,13 +488,14 @@ unsafe extern "C" fn on_start_callback_trampoline(
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
     _inst_ctx: *mut c_void,
-    _args: *mut PerfettoDsOnStartArgs,
+    args: *mut PerfettoDsOnStartArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
         let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_start {
-            f(inst_id);
+            let mut on_start_args = OnStartArgs { _args: args };
+            f(inst_id, &mut on_start_args);
         }
     });
     if let Err(err) = result {
@@ -409,13 +509,14 @@ unsafe extern "C" fn on_stop_callback_trampoline(
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
     _inst_ctx: *mut c_void,
-    _args: *mut PerfettoDsOnStopArgs,
+    args: *mut PerfettoDsOnStopArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
         let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_stop {
-            f(inst_id);
+            let mut on_stop_args = OnStopArgs { args };
+            f(inst_id, &mut on_stop_args);
         }
     });
     if let Err(err) = result {
@@ -429,13 +530,14 @@ unsafe extern "C" fn on_flush_callback_trampoline(
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
     _inst_ctx: *mut c_void,
-    _args: *mut PerfettoDsOnFlushArgs,
+    args: *mut PerfettoDsOnFlushArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
         let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_flush {
-            f(inst_id);
+            let mut on_flush_args = OnFlushArgs { args };
+            f(inst_id, &mut on_flush_args);
         }
     });
     if let Err(err) = result {
