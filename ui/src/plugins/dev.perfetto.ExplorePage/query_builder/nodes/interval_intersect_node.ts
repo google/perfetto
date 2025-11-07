@@ -257,6 +257,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   private getCommonColumns(): string[] {
     const EXCLUDED_COLUMNS = new Set(['id', 'ts', 'dur']);
+    const EXCLUDED_TYPES = new Set(['STRING', 'BYTES']);
 
     if (this.prevNodes.length === 0) return [];
 
@@ -264,17 +265,20 @@ export class IntervalIntersectNode implements MultiSourceNode {
     const firstNode = this.prevNodes[0];
     const commonColumns = new Set(
       firstNode.finalCols
-        .map((c) => c.name)
-        .filter((name) => !EXCLUDED_COLUMNS.has(name)),
+        .filter(
+          (c) => !EXCLUDED_COLUMNS.has(c.name) && !EXCLUDED_TYPES.has(c.type),
+        )
+        .map((c) => c.name),
     );
 
     // Intersect with columns from remaining inputs
     for (let i = 1; i < this.prevNodes.length; i++) {
       const node = this.prevNodes[i];
-      const nodeColumns = new Set(node.finalCols.map((c) => c.name));
-      // Keep only columns that exist in this node too
+      const nodeColumns = new Map(node.finalCols.map((c) => [c.name, c.type]));
+      // Keep only columns that exist in this node too with a non-excluded type
       for (const col of commonColumns) {
-        if (!nodeColumns.has(col)) {
+        const colType = nodeColumns.get(col);
+        if (colType === undefined || EXCLUDED_TYPES.has(colType)) {
           commonColumns.delete(col);
         }
       }

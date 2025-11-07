@@ -19,7 +19,7 @@ import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_no
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
-import {serializeState, deserializeState} from './json_handler';
+import {serializeState, deserializeState, SerializedNode} from './json_handler';
 import {Trace} from '../../public/trace';
 import {
   SqlModules,
@@ -31,6 +31,7 @@ import {SortNode} from './query_builder/nodes/sort_node';
 import {MergeNode} from './query_builder/nodes/merge_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {QueryNode} from './query_node';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -1017,6 +1018,33 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode.state.selectedColumns[1].name).toBe('ts');
     expect(deserializedNode.state.newColumns.length).toBe(1);
     expect(deserializedNode.state.newColumns[0].expression).toBe('dur / 1000');
+  });
+
+  test('serializes modify columns node without prevNode', () => {
+    // Create a modify columns node without a prevNode (edge case)
+    const modifyColumnsNode = new ModifyColumnsNode({
+      prevNode: undefined as unknown as QueryNode,
+      newColumns: [{expression: '42', name: 'constant'}],
+      selectedColumns: [],
+    });
+
+    const initialState: ExplorePageState = {
+      rootNodes: [modifyColumnsNode],
+      nodeLayouts: new Map(),
+    };
+
+    // Should be able to serialize without throwing
+    const json = serializeState(initialState);
+    const serialized = JSON.parse(json);
+
+    // Verify prevNodeId is undefined in serialized state
+    const serializedNode = serialized.nodes.find(
+      (n: SerializedNode) => n.nodeId === modifyColumnsNode.nodeId,
+    );
+    expect(serializedNode).toBeDefined();
+    expect(serializedNode.state.prevNodeId).toBeUndefined();
+    expect(serializedNode.state.newColumns.length).toBe(1);
+    expect(serializedNode.state.newColumns[0].name).toBe('constant');
   });
 
   test('serializes and deserializes aggregation node with multiple aggregations', () => {

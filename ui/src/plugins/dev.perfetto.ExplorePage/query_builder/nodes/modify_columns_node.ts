@@ -360,7 +360,7 @@ interface NewColumn {
 }
 
 export interface ModifyColumnsSerializedState {
-  prevNodeId: string;
+  prevNodeId?: string;
   newColumns: NewColumn[];
   selectedColumns: {
     name: string;
@@ -1105,11 +1105,8 @@ export class ModifyColumnsNode implements ModificationNode {
   }
 
   serializeState(): ModifyColumnsSerializedState {
-    if (this.prevNode === undefined) {
-      throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');
-    }
     return {
-      prevNodeId: this.prevNode.nodeId,
+      prevNodeId: this.prevNode?.nodeId,
       newColumns: this.state.newColumns.map((c) => ({
         expression: c.expression,
         name: c.name,
