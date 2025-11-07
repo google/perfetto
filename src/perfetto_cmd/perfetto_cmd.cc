@@ -921,11 +921,24 @@ int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
 int PerfettoCmd::ConnectToServiceAndRun() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (upload_after_reboot_flag_) {
+    std::string traced_prop = base::GetAndroidProp("persist.traced.enable");
+    std::string boot_prop = base::GetAndroidProp("sys.boot_completed");
+    PERFETTO_LOG(
+        "ConnectToServiceAndRun, upload_after_reboot, traced_prop: %s, "
+        "boot_prop: %s",
+        traced_prop.c_str(), boot_prop.c_str());
     // Doesn't actually connect to service.
     ReportAllPersistentTracesToAndroidFrameworkOrCrash();
     return 0;
   }
 #endif
+
+  {
+    std::string traced_prop = base::GetAndroidProp("persist.traced.enable");
+    std::string boot_prop = base::GetAndroidProp("sys.boot_completed");
+    PERFETTO_LOG("ConnectToServiceAndRun, traced_prop: %s, boot_prop: %s",
+                 traced_prop.c_str(), boot_prop.c_str());
+  }
   // If we are just activating triggers then we don't need to rate limit,
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
