@@ -16,7 +16,7 @@
   isolation: isolate; // Don't allow z-index to escape container.
   overflow: hidden; // Clip overflowing content.
   position: relative; // Place absolute children relative to this container.
-  height: 450px; // Give the canvas some intrinsic height by default.
+  min-height: 450px; // Give the canvas some intrinsic height by default.
 
   touch-action: none; // Disable default touch actions for panning.
   user-select: none; // Disable text selection during dragging.

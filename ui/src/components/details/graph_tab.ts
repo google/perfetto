@@ -20,6 +20,12 @@ import {Spinner} from '../../widgets/spinner';
 import {raf} from '../../core/raf_scheduler';
 import {addEphemeralTab} from './add_ephemeral_tab';
 import {STR} from '../../trace_processor/query_result';
+import {
+  Connection,
+  Node,
+  NodeGraph,
+  NodeGraphAttrs,
+} from '../../widgets/nodegraph';
 
 export interface GraphTabConfig {
   sqlQuery: string;
@@ -38,6 +44,8 @@ export class GraphTab implements Tab {
   private data?: Array<{source: string; dest: string}>;
   private loading = true;
   private error?: string;
+  private nodes: Map<string, Node> = new Map();
+  private connections: Connection[] = [];
 
   async loadData() {
     try {
@@ -53,12 +61,74 @@ export class GraphTab implements Tab {
       }
 
       this.data = data;
+      this.buildGraph(data);
       this.loading = false;
     } catch (e) {
       this.error = String(e);
       this.loading = false;
     }
     raf.scheduleFullRedraw();
+  }
+
+  private buildGraph(edges: Array<{source: string; dest: string}>) {
+    // Clear existing nodes and connections
+    this.nodes.clear();
+    this.connections = [];
+
+    // Create a map to track node positions
+    const nodeMap = new Map<string, {x: number; y: number; index: number}>();
+    let nodeIndex = 0;
+
+    // Collect all unique nodes
+    const uniqueNodes = new Set<string>();
+    for (const edge of edges) {
+      uniqueNodes.add(edge.source);
+      uniqueNodes.add(edge.dest);
+    }
+
+    // Create nodes in a grid layout
+    const nodesPerRow = Math.ceil(Math.sqrt(uniqueNodes.size));
+    let row = 0;
+    let col = 0;
+
+    for (const nodeId of uniqueNodes) {
+      const x = 150 + col * 200;
+      const y = 100 + row * 150;
+
+      nodeMap.set(nodeId, {x, y, index: nodeIndex++});
+
+      this.nodes.set(nodeId, {
+        id: nodeId,
+        x,
+        y,
+        content: m('div', {style: 'padding: 8px; text-align: center;'}, nodeId),
+        inputs: [{content: '', direction: 'top'}],
+        outputs: [{content: '', direction: 'bottom'}],
+        hue: Math.floor(Math.random() * 360),
+        titleBar: {title: nodeId},
+      });
+
+      col++;
+      if (col >= nodesPerRow) {
+        col = 0;
+        row++;
+      }
+    }
+
+    // Create connections between nodes
+    for (const edge of edges) {
+      const sourceInfo = nodeMap.get(edge.source);
+      const destInfo = nodeMap.get(edge.dest);
+
+      if (sourceInfo && destInfo) {
+        this.connections.push({
+          fromNode: edge.source,
+          fromPort: 0,
+          toNode: edge.dest,
+          toPort: 0,
+        });
+      }
+    }
   }
 
   render(): m.Children {
@@ -87,34 +157,43 @@ export class GraphTab implements Tab {
       );
     }
 
+    const nodeGraphAttrs: NodeGraphAttrs = {
+      nodes: Array.from(this.nodes.values()),
+      connections: this.connections,
+      onNodeMove: (nodeId: string, x: number, y: number) => {
+        const node = this.nodes.get(nodeId);
+        if (node) {
+          node.x = x;
+          node.y = y;
+        }
+      },
+      onConnect: (conn: Connection) => {
+        this.connections.push(conn);
+        raf.scheduleFullRedraw();
+      },
+      onConnectionRemove: (index: number) => {
+        this.connections.splice(index, 1);
+        raf.scheduleFullRedraw();
+      },
+    };
+
     return m(
       DetailsShell,
       {
         title: 'Graph',
+        description: `Showing ${this.data?.length ?? 0} edges with ${this.nodes.size} nodes`,
+        fillHeight: true,
       },
       m(
         '.pf-graph-container',
-        {style: 'padding: 20px; overflow: auto;'},
-        m('p', `Showing ${this.data?.length ?? 0} edges`),
-        m(
-          'table.pf-table',
-          {style: 'width: 100%; margin-top: 10px;'},
-          m(
-            'thead',
-            m('tr', m('th', 'Source'), m('th', '→'), m('th', 'Destination')),
-          ),
-          m(
-            'tbody',
-            this.data?.map((edge) =>
-              m(
-                'tr',
-                m('td', edge.source),
-                m('td', {style: 'text-align: center;'}, '→'),
-                m('td', edge.dest),
-              ),
-            ),
-          ),
-        ),
+        {
+          style:
+            'width: 100%; height: 100%; display: flex; flex-direction: column;',
+        },
+        m(NodeGraph, {
+          ...nodeGraphAttrs,
+          style: 'flex: 1; width: 100%; height: 100%;',
+        }),
       ),
     );
   }
