@@ -657,6 +657,61 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     const shortenLength = 16;
     const arrowheadLength = 4;
 
+    // Cache all port positions at once for performance
+    const portPositionCache = new Map<string, Position>();
+
+    // Query all ports in one go and cache their positions
+    const allPorts = document.querySelectorAll('.pf-port[data-port]');
+    allPorts.forEach((portElement) => {
+      const portId = portElement.getAttribute('data-port');
+      if (!portId) return;
+
+      const nodeElement = portElement.closest('[data-node]') as HTMLElement | null;
+      if (!nodeElement) return;
+
+      const nodeId = nodeElement.dataset.node;
+      if (!nodeId) return;
+
+      const [portType, portIndexStr] = portId.split('-');
+      const cacheKey = `${nodeId}-${portType}-${portIndexStr}`;
+
+      // Calculate position
+      const chainContainer = nodeElement.closest('.pf-node-wrapper') as HTMLElement | null;
+
+      let nodeLeft: number;
+      let nodeTop: number;
+
+      if (chainContainer) {
+        // Node is in a dock chain - use container's position
+        nodeLeft = parseFloat(chainContainer.style.left) || 0;
+        nodeTop = parseFloat(chainContainer.style.top) || 0;
+
+        // Add offset of node within the chain
+        const chainRect = chainContainer.getBoundingClientRect();
+        const nodeRect = nodeElement.getBoundingClientRect();
+        const offsetY = (nodeRect.top - chainRect.top) / canvasState.zoom;
+
+        nodeTop += offsetY;
+      } else {
+        // Standalone node - use its position directly
+        nodeLeft = parseFloat(nodeElement.style.left) || 0;
+        nodeTop = parseFloat(nodeElement.style.top) || 0;
+      }
+
+      // Get port's position relative to the node
+      const portRect = portElement.getBoundingClientRect();
+      const nodeRect = nodeElement.getBoundingClientRect();
+
+      // Calculate offset in screen space, then divide by zoom to get canvas content space
+      const portX = (portRect.left - nodeRect.left + portRect.width / 2) / canvasState.zoom;
+      const portY = (portRect.top - nodeRect.top + portRect.height / 2) / canvasState.zoom;
+
+      portPositionCache.set(cacheKey, {
+        x: nodeLeft + portX,
+        y: nodeTop + portY,
+      });
+    });
+
     // Create arrow marker definition
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
 
@@ -702,67 +757,82 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     svg.appendChild(defs);
 
+    // Helper function to get port position from cache or fallback to direct lookup
+    const getPortPos = (nodeId: string, portType: 'input' | 'output', portIndex: number): Position => {
+      const cacheKey = `${nodeId}-${portType}-${portIndex}`;
+      return portPositionCache.get(cacheKey) || getPortPosition(nodeId, portType, portIndex);
+    };
+
     // Only render explicit connections (not implicit dock connections)
-    connections.forEach((conn, idx) => {
-      const from = getPortPosition(conn.fromNode, 'output', conn.fromPort);
-      const to = getPortPosition(conn.toNode, 'input', conn.toPort);
+    connections
+      .map((conn, idx) => {
+        const from = getPortPos(conn.fromNode, 'output', conn.fromPort);
+        const to = getPortPos(conn.toNode, 'input', conn.toPort);
 
-      // Validate that both ports exist (return {x: 0, y: 0} if not found)
-      const fromValid = from.x !== 0 || from.y !== 0;
-      const toValid = to.x !== 0 || to.y !== 0;
+        // Validate that both ports exist (return {x: 0, y: 0} if not found)
+        const fromValid = from.x !== 0 || from.y !== 0;
+        const toValid = to.x !== 0 || to.y !== 0;
 
-      if (!fromValid || !toValid) {
-        console.warn(
-          `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
-          !fromValid ? `(source port not found)` : `(target port not found)`,
-        );
-        return; // Skip rendering this connection
-      }
-
-      const path = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
-      );
-      path.setAttribute('class', 'pf-connection');
-
-      const fromPortType = getPortType(
-        conn.fromNode,
-        'output',
-        conn.fromPort,
-        nodes,
-      );
-      const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
-
-      path.setAttribute(
-        'd',
-        createCurve(
-          from.x,
-          from.y,
-          to.x,
-          to.y,
-          fromPortType,
-          toPortType,
-          shortenLength,
-        ),
-      );
-      path.setAttribute('marker-end', 'url(#arrowhead)');
-      path.style.pointerEvents = 'stroke';
-      path.style.cursor = 'pointer';
-
-      // Prevent canvas pan from starting when clicking connections
-      path.onpointerdown = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-      };
-
-      path.onclick = (e) => {
-        e.stopPropagation();
-        if (onConnectionRemove !== undefined) {
-          onConnectionRemove(idx);
+        if (!fromValid || !toValid) {
+          console.warn(
+            `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
+            !fromValid ? `(source port not found)` : `(target port not found)`,
+          );
+          return; // Skip rendering this connection
         }
-      };
-      svg.appendChild(path);
-    });
+
+        const path = document.createElementNS(
+          'http://www.w3.org/2000/svg',
+          'path',
+        );
+        path.setAttribute('class', 'pf-connection');
+
+        const fromPortType = getPortType(
+          conn.fromNode,
+          'output',
+          conn.fromPort,
+          nodes,
+        );
+        const toPortType = getPortType(
+          conn.toNode,
+          'input',
+          conn.toPort,
+          nodes,
+        );
+
+        path.setAttribute(
+          'd',
+          createCurve(
+            from.x,
+            from.y,
+            to.x,
+            to.y,
+            fromPortType,
+            toPortType,
+            shortenLength,
+          ),
+        );
+        path.setAttribute('marker-end', 'url(#arrowhead)');
+        path.style.pointerEvents = 'stroke';
+        path.style.cursor = 'pointer';
+
+        // Prevent canvas pan from starting when clicking connections
+        path.onpointerdown = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        };
+
+        path.onclick = (e) => {
+          e.stopPropagation();
+          if (onConnectionRemove !== undefined) {
+            onConnectionRemove(idx);
+          }
+        };
+        return path;
+      })
+      .forEach((path) => {
+        path && svg.appendChild(path);
+      });
 
     // Render temp connection if connecting
     if (canvasState.connecting) {
@@ -790,7 +860,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         canvasState.hoveredPort.type === 'input'
       ) {
         const {nodeId, portIndex, type} = canvasState.hoveredPort;
-        const hoverPos = getPortPosition(nodeId, type, portIndex);
+        const hoverPos = getPortPos(nodeId, type, portIndex);
         if (hoverPos.x !== 0 || hoverPos.y !== 0) {
           toX = hoverPos.x;
           toY = hoverPos.y;
