@@ -748,6 +748,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       );
 
     // Build connection paths using mithril
+    // Each connection is rendered as two paths: a wider invisible hitbox and the visible line
     const connectionPaths = connections
       .map((conn, idx) => {
         const from = getPortPos(conn.fromNode, 'output', conn.fromPort);
@@ -778,34 +779,56 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           nodes,
         );
 
-        return m('path', {
-          'key': `conn-${idx}`,
-          'class': 'pf-connection',
-          'd': createCurve(
-            from.x,
-            from.y,
-            to.x,
-            to.y,
-            fromPortType,
-            toPortType,
-            shortenLength,
-          ),
-          'marker-end': 'url(#arrowhead)',
-          'style': {
-            pointerEvents: 'stroke',
-            cursor: 'pointer',
-          },
-          'onpointerdown': (e: PointerEvent) => {
-            e.stopPropagation();
-            e.preventDefault();
-          },
-          'onclick': (e: Event) => {
-            e.stopPropagation();
-            if (onConnectionRemove !== undefined) {
-              onConnectionRemove(idx);
-            }
-          },
-        });
+        const pathData = createCurve(
+          from.x,
+          from.y,
+          to.x,
+          to.y,
+          fromPortType,
+          toPortType,
+          shortenLength,
+        );
+
+        const handlePointerDown = (e: PointerEvent) => {
+          e.stopPropagation();
+          e.preventDefault();
+        };
+
+        const handleClick = (e: Event) => {
+          e.stopPropagation();
+          if (onConnectionRemove !== undefined) {
+            onConnectionRemove(idx);
+          }
+        };
+
+        // Return a group with both the hitbox and visible path
+        return m('g', {'key': `conn-${idx}`}, [
+          // Invisible wider hitbox path
+          m('path', {
+            'd': pathData,
+            'class': 'pf-connection-hitbox',
+            'style': {
+              stroke: 'transparent',
+              strokeWidth: '20',
+              fill: 'none',
+              pointerEvents: 'stroke',
+              cursor: 'pointer',
+            },
+            'onpointerdown': handlePointerDown,
+            'onclick': handleClick,
+          }),
+          // Visible connection path
+          m('path', {
+            'd': pathData,
+            'class': 'pf-connection',
+            'marker-end': 'url(#arrowhead)',
+            'style': {
+              pointerEvents: 'none',
+            },
+            'onpointerdown': handlePointerDown,
+            'onclick': handleClick,
+          }),
+        ]);
       })
       .filter((path) => path !== null);
 
