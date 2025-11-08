@@ -729,7 +729,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     };
 
     // Build arrowhead markers using mithril
-    const arrowheadMarker = (id: string, color: string) =>
+    const arrowheadMarker = (id: string) =>
       m(
         'marker',
         {
@@ -743,7 +743,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         },
         m('polygon', {
           points: `0 2.5, ${arrowheadLength} 5, 0 7.5`,
-          fill: color,
+          fill: 'context-stroke',
         }),
       );
 
@@ -802,20 +802,20 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         };
 
         // Return a group with both the hitbox and visible path
-        return m('g', {'key': `conn-${idx}`}, [
+        return m('g', {key: `conn-${idx}`, class: 'pf-connection-group'}, [
           // Invisible wider hitbox path
           m('path', {
-            'd': pathData,
-            'class': 'pf-connection-hitbox',
-            'style': {
+            d: pathData,
+            class: 'pf-connection-hitbox',
+            style: {
               stroke: 'transparent',
               strokeWidth: '20',
               fill: 'none',
               pointerEvents: 'stroke',
               cursor: 'pointer',
             },
-            'onpointerdown': handlePointerDown,
-            'onclick': handleClick,
+            onpointerdown: handlePointerDown,
+            onclick: handleClick,
           }),
           // Visible connection path
           m('path', {
@@ -869,16 +869,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           toPortType,
           shortenLength,
         ),
-        'marker-end': 'url(#arrowhead-temp)',
+        'marker-end': 'url(#arrowhead)',
       });
     }
 
     // Render everything using mithril's render function
     m.render(svg, [
-      m('defs', [
-        arrowheadMarker('arrowhead', 'var(--pf-color-accent)'),
-        arrowheadMarker('arrowhead-temp', 'var(--pf-color-text-muted)'),
-      ]),
+      m('defs', [arrowheadMarker('arrowhead')]),
       m('g', connectionPaths),
       tempConnectionPath,
     ]);
