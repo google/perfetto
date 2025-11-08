@@ -29,6 +29,7 @@ import {
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {Section} from '../../widgets/section';
+import {TextInput} from '../../widgets/text_input';
 
 export interface GraphTabConfig {
   sqlQuery: string;
@@ -53,6 +54,10 @@ export class GraphTab implements Tab {
   private showSidePanel = true;
   private sidePanelWidth = 300;
   private isDraggingPanel = false;
+  private showLeftPanel = true;
+  private leftPanelWidth = 250;
+  private isDraggingLeftPanel = false;
+  private nodeSearchQuery = '';
 
   async loadData() {
     try {
@@ -173,6 +178,218 @@ export class GraphTab implements Tab {
       incomingEdges,
       totalConnections: outgoingEdges.length + incomingEdges.length,
     };
+  }
+
+  private renderLeftPanel() {
+    if (!this.showLeftPanel) return null;
+
+    // Get sorted list of nodes
+    const nodeList = Array.from(this.nodes.keys()).sort();
+
+    // Filter nodes based on search query
+    const filteredNodes = this.nodeSearchQuery
+      ? nodeList.filter(nodeId =>
+          nodeId.toLowerCase().includes(this.nodeSearchQuery.toLowerCase())
+        )
+      : nodeList;
+
+    // Count connections for each node
+    const nodeStats = new Map<string, {incoming: number; outgoing: number}>();
+    for (const nodeId of nodeList) {
+      const details = this.getNodeDetails(nodeId);
+      nodeStats.set(nodeId, {
+        incoming: details.incomingEdges.length,
+        outgoing: details.outgoingEdges.length,
+      });
+    }
+
+    return m('.pf-graph-left-panel',
+      {
+        style: {
+          width: `${this.leftPanelWidth}px`,
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          background: 'var(--pf-color-background-secondary)',
+          borderRight: '1px solid var(--pf-color-border)',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 10,
+          overflow: 'hidden',
+        },
+      },
+      // Resize handle
+      m('.pf-graph-panel-resize-handle-left',
+        {
+          style: {
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: '5px',
+            cursor: 'ew-resize',
+            background: this.isDraggingLeftPanel
+              ? 'var(--pf-color-accent)'
+              : 'transparent',
+          },
+          onmousedown: (e: MouseEvent) => {
+            e.preventDefault();
+            this.isDraggingLeftPanel = true;
+            const startX = e.clientX;
+            const startWidth = this.leftPanelWidth;
+
+            const handleMouseMove = (e: MouseEvent) => {
+              const delta = e.clientX - startX;
+              this.leftPanelWidth = Math.max(
+                150,
+                Math.min(400, startWidth + delta),
+              );
+              raf.scheduleFullRedraw();
+            };
+
+            const handleMouseUp = () => {
+              this.isDraggingLeftPanel = false;
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+              raf.scheduleFullRedraw();
+            };
+
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          },
+        },
+      ),
+      // Panel header
+      m('.pf-graph-panel-header',
+        {
+          style: {
+            padding: '12px',
+            borderBottom: '1px solid var(--pf-color-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          },
+        },
+        m('h3', {style: {margin: 0, fontSize: '16px'}}, `Nodes (${filteredNodes.length})`),
+        m(Button, {
+          icon: Icons.Close,
+          minimal: true,
+          compact: true,
+          onclick: () => {
+            this.showLeftPanel = false;
+            raf.scheduleFullRedraw();
+          },
+        }),
+      ),
+      // Search input
+      m('.pf-graph-search',
+        {
+          style: {
+            padding: '8px 12px',
+            borderBottom: '1px solid var(--pf-color-border)',
+          },
+        },
+        m(TextInput, {
+          placeholder: 'Search nodes...',
+          value: this.nodeSearchQuery,
+          oninput: (e: InputEvent) => {
+            this.nodeSearchQuery = (e.target as HTMLInputElement).value;
+            raf.scheduleFullRedraw();
+          },
+        }),
+      ),
+      // Node list
+      m('.pf-graph-node-list',
+        {
+          style: {
+            flex: 1,
+            overflowY: 'auto',
+            padding: '8px',
+          },
+        },
+        filteredNodes.length === 0
+          ? m('.pf-empty-state',
+              {
+                style: {
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: 'var(--pf-color-text-secondary)',
+                },
+              },
+              'No nodes found'
+            )
+          : filteredNodes.map((nodeId) => {
+              const stats = nodeStats.get(nodeId);
+              const isSelected = this.selectedNodeId === nodeId;
+
+              return m('.pf-graph-node-item',
+                {
+                  key: nodeId,
+                  style: {
+                    padding: '8px 12px',
+                    marginBottom: '4px',
+                    background: isSelected
+                      ? 'var(--pf-color-accent-light)'
+                      : 'var(--pf-color-background)',
+                    border: isSelected
+                      ? '2px solid var(--pf-color-accent)'
+                      : '1px solid var(--pf-color-border)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  },
+                  onclick: () => {
+                    this.selectedNodeId = nodeId;
+                    this.showSidePanel = true;
+
+                    // Focus on the selected node in the graph
+                    const node = this.nodes.get(nodeId);
+                    if (node) {
+                      // Center the view on the selected node
+                      const canvas = document.querySelector('.pf-canvas') as HTMLElement;
+                      if (canvas) {
+                        // Trigger redraw to update selection
+                        raf.scheduleFullRedraw();
+                      }
+                    }
+                  },
+                },
+                m('.pf-node-item-header',
+                  {
+                    style: {
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '4px',
+                    },
+                  },
+                  m('strong',
+                    {
+                      style: {
+                        fontSize: '13px',
+                        wordBreak: 'break-all',
+                      },
+                    },
+                    nodeId
+                  ),
+                ),
+                m('.pf-node-item-stats',
+                  {
+                    style: {
+                      display: 'flex',
+                      gap: '12px',
+                      fontSize: '11px',
+                      color: 'var(--pf-color-text-secondary)',
+                    },
+                  },
+                  m('span', `↓ ${stats?.incoming || 0}`),
+                  m('span', `↑ ${stats?.outgoing || 0}`),
+                ),
+              );
+            }),
+      ),
+    );
   }
 
   private renderSidePanel() {
@@ -501,6 +718,14 @@ export class GraphTab implements Tab {
         : new Set(),
       toolbarItems: [
         m(Button, {
+          label: 'Nodes List',
+          icon: Icons.List,
+          onclick: () => {
+            this.showLeftPanel = !this.showLeftPanel;
+            raf.scheduleFullRedraw();
+          },
+        }),
+        m(Button, {
           label: 'Auto Layout (DFS)',
           icon: 'account_tree',
           onclick: () => this.autoLayoutDFS(),
@@ -556,8 +781,11 @@ export class GraphTab implements Tab {
         },
         m(NodeGraph, {
           ...nodeGraphAttrs,
-          style: `flex: 1; width: 100%; height: 100%; padding-right: ${this.showSidePanel && this.selectedNodeId ? this.sidePanelWidth : 0}px;`,
+          style: `flex: 1; width: 100%; height: 100%;
+            padding-left: ${this.showLeftPanel ? this.leftPanelWidth : 0}px;
+            padding-right: ${this.showSidePanel && this.selectedNodeId ? this.sidePanelWidth : 0}px;`,
         }),
+        this.renderLeftPanel(),
         this.renderSidePanel(),
       ),
     );

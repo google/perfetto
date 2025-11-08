@@ -23,6 +23,44 @@
     height: 100%;
   }
 
+  .pf-graph-left-panel {
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+
+    .pf-graph-panel-resize-handle-left {
+      &:hover {
+        background: var(--pf-color-border) !important;
+      }
+    }
+
+    .pf-graph-node-item {
+      transition: all 0.2s;
+
+      &:hover {
+        background: var(--pf-color-background-hover) !important;
+        transform: translateX(2px);
+      }
+    }
+
+    .pf-graph-node-list {
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: var(--pf-color-background);
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--pf-color-border);
+        border-radius: 3px;
+
+        &:hover {
+          background: var(--pf-color-border-secondary);
+        }
+      }
+    }
+  }
+
   .pf-graph-side-panel {
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
 
