@@ -17,8 +17,27 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
 
   .pf-canvas {
     height: 100%;
+  }
+
+  .pf-graph-side-panel {
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+
+    .pf-graph-panel-resize-handle {
+      &:hover {
+        background: var(--pf-color-border) !important;
+      }
+    }
+
+    .pf-edge-item {
+      transition: background 0.2s;
+
+      &:hover {
+        background: var(--pf-color-background-hover) !important;
+      }
+    }
   }
 }

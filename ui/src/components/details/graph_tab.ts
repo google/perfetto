@@ -27,6 +27,8 @@ import {
   NodeGraphAttrs,
 } from '../../widgets/nodegraph';
 import {Button} from '../../widgets/button';
+import {Icons} from '../../base/semantic_icons';
+import {Section} from '../../widgets/section';
 
 export interface GraphTabConfig {
   sqlQuery: string;
@@ -47,6 +49,10 @@ export class GraphTab implements Tab {
   private error?: string;
   private nodes: Map<string, Node> = new Map();
   private connections: Connection[] = [];
+  private selectedNodeId?: string;
+  private showSidePanel = true;
+  private sidePanelWidth = 300;
+  private isDraggingPanel = false;
 
   async loadData() {
     try {
@@ -152,6 +158,214 @@ export class GraphTab implements Tab {
     }
     // Fallback if DOM element not found
     return {width: 180, height: 100};
+  }
+
+  private getNodeDetails(nodeId: string) {
+    // Get all edges where this node is source or destination
+    const outgoingEdges =
+      this.data?.filter((edge) => edge.source === nodeId) || [];
+    const incomingEdges =
+      this.data?.filter((edge) => edge.dest === nodeId) || [];
+
+    return {
+      id: nodeId,
+      outgoingEdges,
+      incomingEdges,
+      totalConnections: outgoingEdges.length + incomingEdges.length,
+    };
+  }
+
+  private renderSidePanel() {
+    if (!this.selectedNodeId || !this.showSidePanel) return null;
+
+    const nodeDetails = this.getNodeDetails(this.selectedNodeId);
+
+    return m(
+      '.pf-graph-side-panel',
+      {
+        style: {
+          width: `${this.sidePanelWidth}px`,
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          background: 'var(--pf-color-background-secondary)',
+          borderLeft: '1px solid var(--pf-color-border)',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 10,
+          overflow: 'hidden',
+        },
+      },
+      // Resize handle
+      m('.pf-graph-panel-resize-handle', {
+        style: {
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '5px',
+          cursor: 'ew-resize',
+          background: this.isDraggingPanel
+            ? 'var(--pf-color-accent)'
+            : 'transparent',
+        },
+        onmousedown: (e: MouseEvent) => {
+          e.preventDefault();
+          this.isDraggingPanel = true;
+          const startX = e.clientX;
+          const startWidth = this.sidePanelWidth;
+
+          const handleMouseMove = (e: MouseEvent) => {
+            const delta = startX - e.clientX;
+            this.sidePanelWidth = Math.max(
+              200,
+              Math.min(600, startWidth + delta),
+            );
+            raf.scheduleFullRedraw();
+          };
+
+          const handleMouseUp = () => {
+            this.isDraggingPanel = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            raf.scheduleFullRedraw();
+          };
+
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        },
+      }),
+      // Panel header
+      m(
+        '.pf-graph-panel-header',
+        {
+          style: {
+            padding: '12px',
+            borderBottom: '1px solid var(--pf-color-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          },
+        },
+        m('h3', {style: {margin: 0, fontSize: '16px'}}, 'Node Details'),
+        m(Button, {
+          icon: Icons.Close,
+          minimal: true,
+          compact: true,
+          onclick: () => {
+            this.showSidePanel = false;
+            raf.scheduleFullRedraw();
+          },
+        }),
+      ),
+      // Panel content
+      m(
+        '.pf-graph-panel-content',
+        {
+          style: {
+            padding: '12px',
+            overflowY: 'auto',
+            flex: 1,
+          },
+        },
+        m(
+          Section,
+          {title: 'Node Information'},
+          m(
+            '.pf-details-table',
+            m(
+              'table',
+              {style: {width: '100%'}},
+              m(
+                'tr',
+                m(
+                  'td',
+                  {style: {fontWeight: 'bold', paddingRight: '12px'}},
+                  'ID:',
+                ),
+                m('td', nodeDetails.id),
+              ),
+              m(
+                'tr',
+                m(
+                  'td',
+                  {style: {fontWeight: 'bold', paddingRight: '12px'}},
+                  'Total Connections:',
+                ),
+                m('td', nodeDetails.totalConnections),
+              ),
+            ),
+          ),
+        ),
+        nodeDetails.incomingEdges.length > 0 &&
+          m(
+            Section,
+            {title: `Incoming Edges (${nodeDetails.incomingEdges.length})`},
+            m(
+              '.pf-edge-list',
+              {style: {maxHeight: '200px', overflowY: 'auto'}},
+              nodeDetails.incomingEdges.map((edge) =>
+                m(
+                  '.pf-edge-item',
+                  {
+                    style: {
+                      padding: '4px 8px',
+                      marginBottom: '4px',
+                      background: 'var(--pf-color-background)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    },
+                    onclick: () => {
+                      this.selectedNodeId = edge.source;
+                      raf.scheduleFullRedraw();
+                    },
+                  },
+                  m(
+                    'span',
+                    {style: {color: 'var(--pf-color-text-secondary)'}},
+                    'From: ',
+                  ),
+                  m('span', edge.source),
+                ),
+              ),
+            ),
+          ),
+        nodeDetails.outgoingEdges.length > 0 &&
+          m(
+            Section,
+            {title: `Outgoing Edges (${nodeDetails.outgoingEdges.length})`},
+            m(
+              '.pf-edge-list',
+              {style: {maxHeight: '200px', overflowY: 'auto'}},
+              nodeDetails.outgoingEdges.map((edge) =>
+                m(
+                  '.pf-edge-item',
+                  {
+                    style: {
+                      padding: '4px 8px',
+                      marginBottom: '4px',
+                      background: 'var(--pf-color-background)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    },
+                    onclick: () => {
+                      this.selectedNodeId = edge.dest;
+                      raf.scheduleFullRedraw();
+                    },
+                  },
+                  m(
+                    'span',
+                    {style: {color: 'var(--pf-color-text-secondary)'}},
+                    'To: ',
+                  ),
+                  m('span', edge.dest),
+                ),
+              ),
+            ),
+          ),
+      ),
+    );
   }
 
   private autoLayoutDFS() {
@@ -282,12 +496,24 @@ export class GraphTab implements Tab {
     const nodeGraphAttrs: NodeGraphAttrs = {
       nodes: Array.from(this.nodes.values()),
       connections: this.connections,
+      selectedNodeIds: this.selectedNodeId
+        ? new Set([this.selectedNodeId])
+        : new Set(),
       toolbarItems: [
         m(Button, {
           label: 'Auto Layout (DFS)',
           icon: 'account_tree',
           onclick: () => this.autoLayoutDFS(),
         }),
+        this.selectedNodeId &&
+          m(Button, {
+            label: 'Show Details',
+            icon: Icons.Info,
+            onclick: () => {
+              this.showSidePanel = true;
+              raf.scheduleFullRedraw();
+            },
+          }),
       ],
       onNodeMove: (nodeId: string, x: number, y: number) => {
         const node = this.nodes.get(nodeId);
@@ -295,6 +521,15 @@ export class GraphTab implements Tab {
           node.x = x;
           node.y = y;
         }
+      },
+      onNodeSelect: (nodeId: string) => {
+        this.selectedNodeId = nodeId;
+        this.showSidePanel = true;
+        raf.scheduleFullRedraw();
+      },
+      onSelectionClear: () => {
+        this.selectedNodeId = undefined;
+        raf.scheduleFullRedraw();
       },
       onConnect: (conn: Connection) => {
         this.connections.push(conn);
@@ -317,12 +552,13 @@ export class GraphTab implements Tab {
         '.pf-graph-container',
         {
           style:
-            'width: 100%; height: 100%; display: flex; flex-direction: column;',
+            'width: 100%; height: 100%; display: flex; flex-direction: column; position: relative;',
         },
         m(NodeGraph, {
           ...nodeGraphAttrs,
-          style: 'flex: 1; width: 100%; height: 100%;',
+          style: `flex: 1; width: 100%; height: 100%; padding-right: ${this.showSidePanel && this.selectedNodeId ? this.sidePanelWidth : 0}px;`,
         }),
+        this.renderSidePanel(),
       ),
     );
   }
