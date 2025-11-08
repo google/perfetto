@@ -29,7 +29,7 @@ import {addEphemeralTab} from './add_ephemeral_tab';
 import {Tab} from '../../public/tab';
 import {Filter, Filters, renderFilters} from '../widgets/sql/table/filters';
 import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
-import {TableColumn} from '../widgets/sql/table/table_column';
+import {TableColumn, tableColumnId} from '../widgets/sql/table/table_column';
 import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
@@ -38,6 +38,9 @@ import {sqlColumnId} from '../widgets/sql/table/sql_column';
 import {TabOption, TabStrip} from '../../widgets/tabs';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
+import {Form, FormLabel} from '../../widgets/form';
+import {Select} from '../../widgets/select';
+import {addGraphTab} from './graph_tab';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -132,6 +135,17 @@ class SqlTableTab implements Tab {
           onclick: () =>
             copyToClipboard(this.tableState.getNonPaginatedSQLQuery()),
         }),
+        m(
+          MenuItem,
+          {
+            label: 'Add graph',
+            icon: Icons.Add,
+          },
+          m(GraphFieldSelector, {
+            columns: this.tableState.getSelectedColumns(),
+            state: this.tableState,
+          }),
+        ),
       ),
     ];
   }
@@ -330,5 +344,102 @@ class SqlTableTab implements Tab {
 
   isLoading(): boolean {
     return this.tableState.isLoading();
+  }
+}
+
+// GraphFieldSelector component for the form
+class GraphFieldSelector
+  implements
+    m.ClassComponent<{
+      columns: readonly TableColumn[];
+      state: SqlTableState;
+    }>
+{
+  private sourceColumnId?: string;
+  private destColumnId?: string;
+
+  view({
+    attrs,
+  }: m.CVnode<{
+    columns: readonly TableColumn[];
+    state: SqlTableState;
+  }>) {
+    const {columns, state} = attrs;
+
+    // Create options for the select dropdowns
+    const columnOptions = columns.map((col) => {
+      const id = tableColumnId(col);
+      return m('option', {value: id}, id);
+    });
+
+    return m(
+      MenuItem,
+      {
+        label: 'Configure graph',
+        closePopupOnClick: false,
+      },
+      m(
+        Form,
+        {
+          submitLabel: 'Create Graph',
+          onSubmit: (e: Event) => {
+            const source = columns.find(
+              (c) => tableColumnId(c) === this.sourceColumnId,
+            );
+            const dest = columns.find(
+              (c) => tableColumnId(c) === this.destColumnId,
+            );
+            if (source && dest) {
+              addGraphTab(state.trace, {
+                sqlQuery: state.getSqlQuery({
+                  source: source.column,
+                  dest: dest.column,
+                }),
+              });
+            } else {
+              e.stopPropagation();
+            }
+          },
+        },
+        m(
+          FormLabel,
+          'Source column:',
+          m(
+            Select,
+            {
+              value: this.sourceColumnId,
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                this.sourceColumnId = target.value;
+              },
+              required: true,
+            },
+            m('option', {value: '', disabled: true}, 'Select source column'),
+            columnOptions,
+          ),
+        ),
+        m(
+          FormLabel,
+          'Destination column:',
+          m(
+            Select,
+            {
+              value: this.destColumnId,
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                this.destColumnId = target.value;
+              },
+              required: true,
+            },
+            m(
+              'option',
+              {value: '', disabled: true},
+              'Select destination column',
+            ),
+            columnOptions,
+          ),
+        ),
+      ),
+    );
   }
 }
