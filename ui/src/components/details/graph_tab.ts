@@ -26,6 +26,7 @@ import {
   NodeGraph,
   NodeGraphAttrs,
 } from '../../widgets/nodegraph';
+import {Button} from '../../widgets/button';
 
 export interface GraphTabConfig {
   sqlQuery: string;
@@ -131,6 +132,127 @@ export class GraphTab implements Tab {
     }
   }
 
+  private getNodeDimensions(nodeId: string): {width: number; height: number} {
+    const nodeElement = document.querySelector(`[data-node="${nodeId}"]`);
+    if (nodeElement) {
+      const rect = nodeElement.getBoundingClientRect();
+      // Get the canvas zoom level if available
+      const canvas = nodeElement.closest('.pf-canvas') as HTMLElement;
+      const zoom = canvas?.style?.transform
+        ? parseFloat(
+            canvas.style.transform.match(/scale\(([\d.]+)\)/)?.[1] || '1',
+          )
+        : 1;
+
+      // Divide by zoom to get actual dimensions
+      return {
+        width: rect.width / zoom,
+        height: rect.height / zoom,
+      };
+    }
+    // Fallback if DOM element not found
+    return {width: 180, height: 100};
+  }
+
+  private autoLayoutDFS() {
+    // Build adjacency list for the graph
+    const adjacencyList = new Map<string, Set<string>>();
+    const incomingEdges = new Map<string, Set<string>>();
+
+    // Initialize all nodes
+    for (const node of this.nodes.keys()) {
+      adjacencyList.set(node, new Set());
+      incomingEdges.set(node, new Set());
+    }
+
+    // Build the graph structure
+    for (const conn of this.connections) {
+      adjacencyList.get(conn.fromNode)?.add(conn.toNode);
+      incomingEdges.get(conn.toNode)?.add(conn.fromNode);
+    }
+
+    // Find root nodes (nodes with no incoming edges)
+    const rootNodes = [];
+    for (const [nodeId, incoming] of incomingEdges) {
+      if (incoming.size === 0) {
+        rootNodes.push(nodeId);
+      }
+    }
+
+    // If no root nodes, start with any node
+    if (rootNodes.length === 0 && this.nodes.size > 0) {
+      rootNodes.push(this.nodes.keys().next().value);
+    }
+
+    // DFS traversal to assign positions
+    const visited = new Set<string>();
+    const layers = new Map<string, number>(); // Node to layer mapping
+    let maxLayer = 0;
+    const nodesPerLayer = new Map<number, string[]>();
+
+    const dfs = (nodeId: string, layer: number) => {
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      layers.set(nodeId, layer);
+      maxLayer = Math.max(maxLayer, layer);
+
+      if (!nodesPerLayer.has(layer)) {
+        nodesPerLayer.set(layer, []);
+      }
+      nodesPerLayer.get(layer)!.push(nodeId);
+
+      // Visit children
+      const children = adjacencyList.get(nodeId) || new Set();
+      for (const child of children) {
+        if (!visited.has(child)) {
+          dfs(child, layer + 1);
+        }
+      }
+    };
+
+    // Perform DFS from each root
+    for (const root of rootNodes) {
+      dfs(root, 0);
+    }
+
+    // Position nodes based on DFS layers using actual node dimensions
+    const horizontalSpacing = 30; // Space between nodes horizontally (same as Auto Layout)
+    const verticalSpacing = 50; // Space between layers vertically (same as Auto Layout)
+
+    let currentY = 50; // Start position Y
+
+    for (let layer = 0; layer <= maxLayer; layer++) {
+      const nodesInLayer = nodesPerLayer.get(layer) || [];
+
+      // Find the tallest node in this layer
+      let maxHeight = 0;
+      nodesInLayer.forEach((nodeId) => {
+        const dims = this.getNodeDimensions(nodeId);
+        maxHeight = Math.max(maxHeight, dims.height);
+      });
+
+      // Position each node in this layer
+      let currentX = 50; // Start position X
+      nodesInLayer.forEach((nodeId) => {
+        const node = this.nodes.get(nodeId);
+        if (node) {
+          node.x = currentX;
+          node.y = currentY;
+
+          // Get actual width and move to next position
+          const dims = this.getNodeDimensions(nodeId);
+          currentX += dims.width + horizontalSpacing;
+        }
+      });
+
+      // Move to next layer
+      currentY += maxHeight + verticalSpacing;
+    }
+
+    raf.scheduleFullRedraw();
+  }
+
   render(): m.Children {
     if (this.loading && !this.data) {
       this.loadData();
@@ -160,6 +282,13 @@ export class GraphTab implements Tab {
     const nodeGraphAttrs: NodeGraphAttrs = {
       nodes: Array.from(this.nodes.values()),
       connections: this.connections,
+      toolbarItems: [
+        m(Button, {
+          label: 'Auto Layout (DFS)',
+          icon: 'account_tree',
+          onclick: () => this.autoLayoutDFS(),
+        }),
+      ],
       onNodeMove: (nodeId: string, x: number, y: number) => {
         const node = this.nodes.get(nodeId);
         if (node) {

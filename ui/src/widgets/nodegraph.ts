@@ -1127,45 +1127,47 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     }
 
     // Position nodes using actual DOM dimensions
-    const layerSpacing = 50; // Horizontal spacing between layers
-    let currentX = 50; // Start position
+    const layerSpacing = 50; // Vertical spacing between layers
+    let currentY = 50; // Start position
 
     layers.forEach((layer) => {
-      // Find the widest node in this layer (considering entire chains)
-      let maxWidth = 0;
+      // Find the tallest node in this layer (considering entire chains)
+      let maxHeight = 0;
       layer.forEach((nodeId) => {
         const node = nodes.find((n) => n.id === nodeId);
         if (node) {
-          // Check width of all nodes in the chain
+          // Calculate height of entire chain
           const chain = getChain(node);
+          let chainHeight = 0;
           chain.forEach((chainNode) => {
             const chainDims = getNodeDimensions(chainNode.id);
-            maxWidth = Math.max(maxWidth, chainDims.width);
+            chainHeight += chainDims.height;
           });
+          maxHeight = Math.max(maxHeight, chainHeight);
         }
       });
 
       // Position each node in this layer
-      let currentY = 50;
+      let currentX = 50;
       layer.forEach((nodeId) => {
         const node = nodes.find((n) => n.id === nodeId);
         if (node && onNodeMove) {
           onNodeMove(node.id, currentX, currentY);
 
-          // Calculate height of entire chain
+          // Calculate width of the node
           const chain = getChain(node);
-          let chainHeight = 0;
+          let maxWidth = 0;
           chain.forEach((chainNode) => {
             const dims = getNodeDimensions(chainNode.id);
-            chainHeight += dims.height;
+            maxWidth = Math.max(maxWidth, dims.width);
           });
 
-          currentY += chainHeight + 30;
+          currentX += maxWidth + 30;
         }
       });
 
       // Move to next layer
-      currentX += maxWidth + layerSpacing;
+      currentY += maxHeight + layerSpacing;
     });
 
     m.redraw();
