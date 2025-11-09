@@ -46,6 +46,17 @@ pub enum TrackEventError {
 /// Trace context struct passed to track event trace callbacks.
 pub struct TraceContext {
     base: TraceContextBase,
+    incr: *mut PerfettoTeLlImplIncr,
+}
+
+impl TraceContext {
+    /// Returns true if the track event incremental state has already seen in the
+    /// past the given track UUID.
+    pub fn track_seen(&mut self, uuid: u64) -> bool {
+        // SAFETY: `self.incr` must be a pointer provided by a call to
+        // PerfettoTeLlImplBegin/Next.
+        unsafe { PerfettoTeLlImplTrackSeen(self.incr, uuid) }
+    }
 }
 
 impl std::ops::Deref for TraceContext {
@@ -289,6 +300,7 @@ impl TrackEventCategory {
                 base: TraceContextBase {
                     iterator: iterator.ds,
                 },
+                incr: iterator.incr,
             };
             cb(&mut ctx);
 
