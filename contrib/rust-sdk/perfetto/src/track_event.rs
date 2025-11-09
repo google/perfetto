@@ -17,8 +17,9 @@ use crate::{
     fnv1a,
     heap_buffer::HeapBuffer,
     pb_msg::{PbMsg, PbMsgWriter},
-    protos::trace::track_event::{
-        counter_descriptor::CounterDescriptor, track_descriptor::TrackDescriptor,
+    protos::trace::{
+        interned_data::interned_data::InternedDataFieldNumber,
+        track_event::{counter_descriptor::CounterDescriptor, track_descriptor::TrackDescriptor},
     },
 };
 use perfetto_sdk_sys::*;
@@ -56,6 +57,40 @@ impl TraceContext {
         // SAFETY: `self.incr` must be a pointer provided by a call to
         // PerfettoTeLlImplBegin/Next.
         unsafe { PerfettoTeLlImplTrackSeen(self.incr, uuid) }
+    }
+
+    /// Interning:
+    ///
+    /// it's possible to avoid repeating the same data over and over in a trace by
+    /// using "interning".
+    ///
+    /// `type` is a field id in the `perfetto.protos.InternedData` protobuf message.
+    /// `data` reference raw data that is potentially repeated.
+    /// The data referenced by `data` can be anything (e.g. a serialized protobuf
+    /// message, or a small integer) that uniquely identifies the potentially
+    /// repeated data.
+    ///
+    /// The function returns a tuple containing an integer (the iid) that can be used
+    /// instead of serializing the data directly in the packet and a boolean that is set
+    /// to false if this is the first time the library observed this data for this specific
+    /// type (therefore it allocated a new iid).
+    pub fn intern(&mut self, r#type: InternedDataFieldNumber, data: &[u8]) -> (u64, bool) {
+        let mut seen: bool = false;
+        // SAFETY:
+        //
+        // - `self.incr` must be a pointer provided by a call to
+        // PerfettoTeLlImplBegin/Next.
+        // - `seen` must be storage for a boolean return value.
+        let iid = unsafe {
+            PerfettoTeLlImplIntern(
+                self.incr,
+                r#type as i32,
+                data.as_ptr() as *mut c_void,
+                data.len(),
+                &raw mut seen,
+            )
+        };
+        (iid, seen)
     }
 }
 
