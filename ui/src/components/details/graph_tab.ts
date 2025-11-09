@@ -19,7 +19,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Spinner} from '../../widgets/spinner';
 import {raf} from '../../core/raf_scheduler';
 import {addEphemeralTab} from './add_ephemeral_tab';
-import {STR} from '../../trace_processor/query_result';
+import {STR, NUM} from '../../trace_processor/query_result';
 import {
   Connection,
   Node,
@@ -29,7 +29,12 @@ import {
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {Section} from '../../widgets/section';
-import {TextInput} from '../../widgets/text_input';
+import {SqlTableState} from '../widgets/sql/table/state';
+import {SqlTable} from '../widgets/sql/table/table';
+import {SqlTableDescription} from '../widgets/sql/table/table_description';
+import {uuidv4Sql} from '../../base/uuid';
+import {createTableColumn} from '../widgets/sql/table/create_column';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
 export interface GraphTabConfig {
   sqlQuery: string;
@@ -43,7 +48,11 @@ export class GraphTab implements Tab {
   constructor(
     private trace: Trace,
     private config: GraphTabConfig,
-  ) {}
+  ) {
+    const tableId = uuidv4Sql();
+    this.nodesTableName = `graph_nodes_${tableId}`;
+    this.edgesTableName = `graph_edges_${tableId}`;
+  }
 
   private data?: Array<{source: string; dest: string}>;
   private loading = true;
@@ -57,11 +66,23 @@ export class GraphTab implements Tab {
   private showLeftPanel = true;
   private leftPanelWidth = 250;
   private isDraggingLeftPanel = false;
-  private nodeSearchQuery = '';
+  private nodesTableName: string;
+  private edgesTableName: string;
+  private nodesTableState?: SqlTableState;
+  private nodeIdMap = new Map<string, number>();  // Maps node names to numeric IDs
 
   async loadData() {
     try {
-      const result = await this.trace.engine.query(this.config.sqlQuery);
+      // First deduplicate the edges in SQL
+      const deduplicatedQuery = `
+        WITH deduplicated AS (
+          SELECT DISTINCT source, dest
+          FROM (${this.config.sqlQuery})
+        )
+        SELECT source, dest FROM deduplicated
+      `;
+
+      const result = await this.trace.engine.query(deduplicatedQuery);
 
       const data = [];
       for (
@@ -73,6 +94,7 @@ export class GraphTab implements Tab {
       }
 
       this.data = data;
+      await this.materializeTables();
       this.buildGraph(data);
       this.loading = false;
     } catch (e) {
@@ -80,6 +102,78 @@ export class GraphTab implements Tab {
       this.loading = false;
     }
     raf.scheduleFullRedraw();
+  }
+
+  private async materializeTables() {
+    await this.trace.engine.query(`
+      CREATE PERFETTO TABLE ${this.nodesTableName} AS
+      WITH edges_data AS (
+        SELECT DISTINCT source, dest
+        FROM (${this.config.sqlQuery})
+      ),
+      all_nodes AS (
+        SELECT DISTINCT node FROM (
+          SELECT source AS node FROM edges_data
+          UNION
+          SELECT dest AS node FROM edges_data
+        )
+      ),
+      nodes_with_counts AS (
+        SELECT
+          node AS name,
+          (SELECT COUNT(*) FROM edges_data WHERE dest = node) AS incoming_count,
+          (SELECT COUNT(*) FROM edges_data WHERE source = node) AS outgoing_count
+        FROM all_nodes
+      )
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY name) - 1 AS id,
+        name,
+        incoming_count,
+        outgoing_count
+      FROM nodes_with_counts
+      ORDER BY name;
+
+      CREATE PERFETTO TABLE ${this.edgesTableName} AS
+      WITH edges_data AS (
+        SELECT DISTINCT source, dest
+        FROM (${this.config.sqlQuery})
+      ),
+      nodes_lookup AS (
+        SELECT id, name FROM ${this.nodesTableName}
+      )
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY e.source, e.dest) - 1 AS id,
+        e.source,
+        e.dest,
+        n1.id AS source_id,
+        n2.id AS dest_id
+      FROM edges_data e
+      JOIN nodes_lookup n1 ON e.source = n1.name
+      JOIN nodes_lookup n2 ON e.dest = n2.name
+      ORDER BY e.source, e.dest;
+    `);
+
+    // Build nodeIdMap from the created tables
+    const nodeMapResult = await this.trace.engine.query(
+      `SELECT id, name FROM ${this.nodesTableName}`,
+    );
+
+    for (const it = nodeMapResult.iter({id: NUM, name: STR}); it.valid(); it.next()) {
+      this.nodeIdMap.set(it.name, it.id);
+    }
+
+    // Create SqlTableState for nodes table
+    const nodesTableDesc: SqlTableDescription = {
+      name: this.nodesTableName,
+      displayName: 'Nodes',
+      columns: [
+        createTableColumn({trace: this.trace, column: 'id', type: PerfettoSqlTypes.INT}),
+        createTableColumn({trace: this.trace, column: 'name', type: PerfettoSqlTypes.STRING}),
+        createTableColumn({trace: this.trace, column: 'incoming_count', type: PerfettoSqlTypes.INT}),
+        createTableColumn({trace: this.trace, column: 'outgoing_count', type: PerfettoSqlTypes.INT}),
+      ],
+    };
+    this.nodesTableState = new SqlTableState(this.trace, nodesTableDesc);
   }
 
   private buildGraph(edges: Array<{source: string; dest: string}>) {
@@ -181,27 +275,7 @@ export class GraphTab implements Tab {
   }
 
   private renderLeftPanel() {
-    if (!this.showLeftPanel) return null;
-
-    // Get sorted list of nodes
-    const nodeList = Array.from(this.nodes.keys()).sort();
-
-    // Filter nodes based on search query
-    const filteredNodes = this.nodeSearchQuery
-      ? nodeList.filter(nodeId =>
-          nodeId.toLowerCase().includes(this.nodeSearchQuery.toLowerCase())
-        )
-      : nodeList;
-
-    // Count connections for each node
-    const nodeStats = new Map<string, {incoming: number; outgoing: number}>();
-    for (const nodeId of nodeList) {
-      const details = this.getNodeDetails(nodeId);
-      nodeStats.set(nodeId, {
-        incoming: details.incomingEdges.length,
-        outgoing: details.outgoingEdges.length,
-      });
-    }
+    if (!this.showLeftPanel || !this.nodesTableState) return null;
 
     return m('.pf-graph-left-panel',
       {
@@ -242,8 +316,8 @@ export class GraphTab implements Tab {
             const handleMouseMove = (e: MouseEvent) => {
               const delta = e.clientX - startX;
               this.leftPanelWidth = Math.max(
-                150,
-                Math.min(400, startWidth + delta),
+                200,
+                Math.min(600, startWidth + delta),
               );
               raf.scheduleFullRedraw();
             };
@@ -271,7 +345,7 @@ export class GraphTab implements Tab {
             justifyContent: 'space-between',
           },
         },
-        m('h3', {style: {margin: 0, fontSize: '16px'}}, `Nodes (${filteredNodes.length})`),
+        m('h3', {style: {margin: 0, fontSize: '16px'}}, 'Nodes'),
         m(Button, {
           icon: Icons.Close,
           minimal: true,
@@ -282,112 +356,17 @@ export class GraphTab implements Tab {
           },
         }),
       ),
-      // Search input
-      m('.pf-graph-search',
-        {
-          style: {
-            padding: '8px 12px',
-            borderBottom: '1px solid var(--pf-color-border)',
-          },
-        },
-        m(TextInput, {
-          placeholder: 'Search nodes...',
-          value: this.nodeSearchQuery,
-          oninput: (e: InputEvent) => {
-            this.nodeSearchQuery = (e.target as HTMLInputElement).value;
-            raf.scheduleFullRedraw();
-          },
-        }),
-      ),
-      // Node list
-      m('.pf-graph-node-list',
+      // SqlTable for nodes
+      m('.pf-graph-node-table',
         {
           style: {
             flex: 1,
-            overflowY: 'auto',
-            padding: '8px',
+            overflow: 'auto',
           },
         },
-        filteredNodes.length === 0
-          ? m('.pf-empty-state',
-              {
-                style: {
-                  padding: '20px',
-                  textAlign: 'center',
-                  color: 'var(--pf-color-text-secondary)',
-                },
-              },
-              'No nodes found'
-            )
-          : filteredNodes.map((nodeId) => {
-              const stats = nodeStats.get(nodeId);
-              const isSelected = this.selectedNodeId === nodeId;
-
-              return m('.pf-graph-node-item',
-                {
-                  key: nodeId,
-                  style: {
-                    padding: '8px 12px',
-                    marginBottom: '4px',
-                    background: isSelected
-                      ? 'var(--pf-color-accent-light)'
-                      : 'var(--pf-color-background)',
-                    border: isSelected
-                      ? '2px solid var(--pf-color-accent)'
-                      : '1px solid var(--pf-color-border)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  },
-                  onclick: () => {
-                    this.selectedNodeId = nodeId;
-                    this.showSidePanel = true;
-
-                    // Focus on the selected node in the graph
-                    const node = this.nodes.get(nodeId);
-                    if (node) {
-                      // Center the view on the selected node
-                      const canvas = document.querySelector('.pf-canvas') as HTMLElement;
-                      if (canvas) {
-                        // Trigger redraw to update selection
-                        raf.scheduleFullRedraw();
-                      }
-                    }
-                  },
-                },
-                m('.pf-node-item-header',
-                  {
-                    style: {
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '4px',
-                    },
-                  },
-                  m('strong',
-                    {
-                      style: {
-                        fontSize: '13px',
-                        wordBreak: 'break-all',
-                      },
-                    },
-                    nodeId
-                  ),
-                ),
-                m('.pf-node-item-stats',
-                  {
-                    style: {
-                      display: 'flex',
-                      gap: '12px',
-                      fontSize: '11px',
-                      color: 'var(--pf-color-text-secondary)',
-                    },
-                  },
-                  m('span', `↓ ${stats?.incoming || 0}`),
-                  m('span', `↑ ${stats?.outgoing || 0}`),
-                ),
-              );
-            }),
+        m(SqlTable, {
+          state: this.nodesTableState,
+        }),
       ),
     );
   }
@@ -644,7 +623,7 @@ export class GraphTab implements Tab {
 
     // Perform DFS from each root
     for (const root of rootNodes) {
-      dfs(root, 0);
+      dfs(root ?? '', 0);
     }
 
     // Position nodes based on DFS layers using actual node dimensions
@@ -668,8 +647,8 @@ export class GraphTab implements Tab {
       nodesInLayer.forEach((nodeId) => {
         const node = this.nodes.get(nodeId);
         if (node) {
-          node.x = currentX;
-          node.y = currentY;
+          (node as {x: number}).x = currentX;
+          (node as {y: number}).y = currentY;
 
           // Get actual width and move to next position
           const dims = this.getNodeDimensions(nodeId);
@@ -719,7 +698,6 @@ export class GraphTab implements Tab {
       toolbarItems: [
         m(Button, {
           label: 'Nodes List',
-          icon: Icons.List,
           onclick: () => {
             this.showLeftPanel = !this.showLeftPanel;
             raf.scheduleFullRedraw();
@@ -743,8 +721,8 @@ export class GraphTab implements Tab {
       onNodeMove: (nodeId: string, x: number, y: number) => {
         const node = this.nodes.get(nodeId);
         if (node) {
-          node.x = x;
-          node.y = y;
+          (node as {x: number}).x = x;
+          (node as {y: number}).y = y;
         }
       },
       onNodeSelect: (nodeId: string) => {
