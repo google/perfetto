@@ -508,7 +508,8 @@ unsafe extern "C" fn on_setup_callback_trampoline(
         eprintln!("Fatal panic: {:?}", err);
         std::process::abort();
     }
-    // TODO(dreveman): Implement support for instance contexts.
+    // Instance contexts are not supported as preferably handled by the
+    // client in Rust code.
     ptr::null_mut()
 }
 
