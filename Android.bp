@@ -2637,6 +2637,7 @@ cc_test {
         ":perfetto_protos_perfetto_trace_translation_cpp_gen",
         ":perfetto_protos_perfetto_trace_translation_lite_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
+        ":perfetto_protos_perfetto_ui_zero_gen",
         ":perfetto_protos_third_party_chromium_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_protos_third_party_simpleperf_zero_gen",
@@ -2968,6 +2969,7 @@ cc_test {
         "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_perfetto_ui_zero_gen_headers",
         "perfetto_protos_third_party_chromium_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
@@ -11968,6 +11970,50 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/ui:zero
+filegroup {
+    name: "perfetto_protos_perfetto_ui_zero",
+    srcs: [
+        "protos/perfetto/ui/args.proto",
+    ],
+}
+
+// GN: //protos/perfetto/ui:zero
+genrule {
+    name: "perfetto_protos_perfetto_ui_zero_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_ui_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_ui_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/ui/args.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/ui:zero
+genrule {
+    name: "perfetto_protos_perfetto_ui_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_ui_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_ui_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/ui/args.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/third_party/chromium:descriptor
 genrule {
     name: "perfetto_protos_third_party_chromium_descriptor",
@@ -17480,6 +17526,7 @@ cc_test {
         ":perfetto_protos_perfetto_trace_translation_cpp_gen",
         ":perfetto_protos_perfetto_trace_translation_lite_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
+        ":perfetto_protos_perfetto_ui_zero_gen",
         ":perfetto_protos_third_party_chromium_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_protos_third_party_simpleperf_zero_gen",
@@ -17915,6 +17962,7 @@ cc_test {
         "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_perfetto_ui_zero_gen_headers",
         "perfetto_protos_third_party_chromium_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
@@ -18426,6 +18474,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
+        ":perfetto_protos_perfetto_ui_zero_gen",
         ":perfetto_protos_third_party_chromium_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_protos_third_party_simpleperf_zero_gen",
@@ -18580,6 +18629,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_perfetto_ui_zero_gen_headers",
         "perfetto_protos_third_party_chromium_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
@@ -18642,6 +18692,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_perfetto_ui_zero_gen_headers",
         "perfetto_protos_third_party_chromium_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
@@ -18756,6 +18807,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
+        ":perfetto_protos_perfetto_ui_zero_gen",
         ":perfetto_protos_third_party_chromium_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_protos_third_party_simpleperf_zero_gen",
@@ -18917,6 +18969,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_perfetto_ui_zero_gen_headers",
         "perfetto_protos_third_party_chromium_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
@@ -19159,6 +19212,7 @@ cc_binary_host {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
+        ":perfetto_protos_perfetto_ui_zero_gen",
         ":perfetto_protos_third_party_chromium_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_protos_third_party_simpleperf_zero_gen",
@@ -19321,6 +19375,7 @@ cc_binary_host {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_perfetto_ui_zero_gen_headers",
         "perfetto_protos_third_party_chromium_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",

@@ -417,6 +417,7 @@ function compileProtos() {
     'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
     'protos/perfetto/perfetto_sql/structured_query.proto',
     'protos/perfetto/trace_processor/trace_processor.proto',
+    'protos/perfetto/ui/args.proto',
   ];
   // Can't put --no-comments here - The comments are load bearing for
   // the pbts invocation which follows.
