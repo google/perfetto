@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::{
-    data_source::TraceContext,
+    data_source::TraceContextBase,
     fnv1a,
     heap_buffer::HeapBuffer,
     pb_msg::{PbMsg, PbMsgWriter},
@@ -41,6 +41,24 @@ pub enum TrackEventError {
     /// Failure because categories are not yet registered.
     #[error("Categories are not registered.")]
     CategoriesNotRegisteredError,
+}
+
+/// Trace context struct passed to track event trace callbacks.
+pub struct TraceContext {
+    base: TraceContextBase,
+}
+
+impl std::ops::Deref for TraceContext {
+    type Target = TraceContextBase;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for TraceContext {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
 }
 
 /// An opaque struct used to represent the track event machinery.
@@ -268,9 +286,9 @@ impl TrackEventCategory {
             }
 
             let mut ctx = TraceContext {
-                impl_: ptr::null_mut(),
-                iterator: iterator.ds,
-                _marker: PhantomData,
+                base: TraceContextBase {
+                    iterator: iterator.ds,
+                },
             };
             cb(&mut ctx);
 
@@ -336,8 +354,8 @@ macro_rules! track_event_categories {
     ) => {
         $vis mod $modname {
             use $crate::{
-                data_source::TraceContext,
                 track_event::{
+                    TraceContext,
                     TrackEvent,
                     CategoryCallback,
                     EventContext,
