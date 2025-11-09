@@ -35,6 +35,16 @@ struct ExtractArg : public sqlite::Function<ExtractArg> {
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
 
+// __intrinsic_serialise_arg(arg_set_id, key) serializes a single argument
+// from an arg set into a perfetto.protos.SerializedArg.
+struct SerialiseArg : public sqlite::Function<SerialiseArg> {
+  static constexpr char kName[] = "__intrinsic_serialise_arg";
+  static constexpr int kArgCount = 2;
+
+  using UserData = TraceStorage;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
+};
+
 // Prints the entire arg set as a json object.
 struct ArgSetToJson : public sqlite::Function<ArgSetToJson> {
   static constexpr char kName[] = "__intrinsic_arg_set_to_json";
@@ -60,6 +70,7 @@ struct ArgSetToJson : public sqlite::Function<ArgSetToJson> {
   using UserData = Context;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_ARGS_H_

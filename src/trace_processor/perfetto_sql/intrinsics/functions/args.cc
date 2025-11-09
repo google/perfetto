@@ -22,6 +22,8 @@
 #include <utility>
 
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/ui/args.pbzero.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -136,36 +138,53 @@ void WriteArgNode(const ArgNode& node,
   });
 }
 
+inline bool ExtractArgsRowFromSqlArgs(sqlite3_context* ctx,
+                                      sqlite3_value* arg_set_value,
+                                      sqlite3_value* key_value,
+                                      TraceStorage* storage,
+                                      uint32_t& result) {
+  sqlite::Type arg_set_value_type = sqlite::value::Type(arg_set_value);
+  sqlite::Type key_value_type = sqlite::value::Type(key_value);
+
+  // If the arg set id is null, just return null as the result.
+  if (arg_set_value_type == sqlite::Type::kNull) {
+    return false;
+  }
+
+  if (arg_set_value_type != sqlite::Type::kInteger) {
+    sqlite::result::Error(ctx,
+                          "EXTRACT_ARG: 1st argument should be arg set id");
+    return false;
+  }
+
+  if (key_value_type != sqlite::Type::kText) {
+    sqlite::result::Error(ctx, "EXTRACT_ARG: 2nd argument should be key");
+    return false;
+  }
+
+  uint32_t arg_set_id =
+      static_cast<uint32_t>(sqlite::value::Int64(arg_set_value));
+  const char* key =
+      reinterpret_cast<const char*>(sqlite::value::Text(key_value));
+
+  result = storage->ExtractArgRowFast(arg_set_id, key);
+  if (result == std::numeric_limits<uint32_t>::max()) {
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 // static
 void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-  sqlite::Type arg_set_value = sqlite::value::Type(argv[0]);
-  sqlite::Type key_value = sqlite::value::Type(argv[1]);
+  TraceStorage* storage = GetUserData(ctx);
 
-  // If the arg set id is null, just return null as the result.
-  if (arg_set_value == sqlite::Type::kNull) {
+  uint32_t row;
+  if (!ExtractArgsRowFromSqlArgs(ctx, argv[0], argv[1], storage, row)) {
     return;
   }
 
-  if (arg_set_value != sqlite::Type::kInteger) {
-    return sqlite::result::Error(
-        ctx, "EXTRACT_ARG: 1st argument should be arg set id");
-  }
-
-  if (key_value != sqlite::Type::kText) {
-    return sqlite::result::Error(ctx,
-                                 "EXTRACT_ARG: 2nd argument should be key");
-  }
-
-  uint32_t arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-  const char* key = reinterpret_cast<const char*>(sqlite::value::Text(argv[1]));
-
-  auto* storage = GetUserData(ctx);
-  uint32_t row = storage->ExtractArgRowFast(arg_set_id, key);
-  if (row == std::numeric_limits<uint32_t>::max()) {
-    return;
-  }
   auto rr = storage->arg_table()[row];
   switch (*storage->GetVariadicTypeForId(rr.value_type())) {
     case Variadic::Type::kBool:
@@ -188,6 +207,54 @@ void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     case Variadic::Type::kNull:
       return;
   }
+}
+
+// static
+void SerialiseArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+  TraceStorage* storage = GetUserData(ctx);
+
+  uint32_t row;
+  if (!ExtractArgsRowFromSqlArgs(ctx, argv[0], argv[1], storage, row)) {
+    return;
+  }
+  const auto rr = storage->arg_table()[row];
+  protozero::HeapBuffered<protos::pbzero::ArgValue> arg_proto;
+  const auto variadic_type = *storage->GetVariadicTypeForId(rr.value_type());
+  switch (variadic_type) {
+    case Variadic::Type::kNull:
+      arg_proto->set_type(protos::pbzero::ArgValue::TYPE_NULL);
+      break;
+    case Variadic::Type::kBool:
+      arg_proto->set_type(protos::pbzero::ArgValue::TYPE_BOOL);
+      arg_proto->set_int_value(*rr.int_value());
+      break;
+    case Variadic::Type::kInt:
+    case Variadic::Type::kUint:
+      arg_proto->set_type(protos::pbzero::ArgValue::TYPE_INT);
+      arg_proto->set_int_value(*rr.int_value());
+      break;
+
+    case Variadic::Type::kPointer:
+      arg_proto->set_type(protos::pbzero::ArgValue::TYPE_POINTER);
+      arg_proto->set_int_value(*rr.int_value());
+      break;
+    case Variadic::Type::kReal:
+      arg_proto->set_type(protos::pbzero::ArgValue::TYPE_REAL);
+      arg_proto->set_real_value(*rr.real_value());
+      break;
+    case Variadic::Type::kString:
+    case Variadic::Type::kJson: {
+      arg_proto->set_type(protos::pbzero::ArgValue::TYPE_STRING);
+      auto opt_string_id = rr.string_value();
+      if (opt_string_id.has_value() && !opt_string_id->is_null()) {
+        NullTermStringView value = storage->GetString(*opt_string_id);
+        arg_proto->set_string_value(value.data(), value.size());
+      }
+      break;
+    }
+  }
+  const auto data = arg_proto.SerializeAsArray();
+  return sqlite::result::TransientBytes(ctx, data.data(), static_cast<int>(data.size()));
 }
 
 // static

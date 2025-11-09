@@ -149,17 +149,11 @@ export class TransformColumn implements TableColumn {
   renderCell(
     value: SqlValue,
     tableManager?: TableManager,
-    supportingValues?: {} | undefined,
   ): RenderedCell {
     return this.args.transformed.renderCell(
       value,
       tableManager,
-      supportingValues,
     );
-  }
-
-  supportingColumns() {
-    return this.args.transformed.supportingColumns?.() || (() => {});
   }
 
   listDerivedColumns(manager: TableManager) {

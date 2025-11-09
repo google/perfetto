@@ -42,6 +42,10 @@ export interface TableColumn<
 > {
   readonly column: SqlColumn;
   readonly type: PerfettoSqlType | undefined;
+  // In some cases, the UI needs additional information to be able to render a given cell.
+  // In these cases, the common solution is fetch a JSON value or a protobuf from the SQL and render it accordingly, so if set, `display` column
+  // overrides which value is going to be passed to `renderCell`. `column` is still always going to be used for sorting, aggregation and casting.
+  readonly display?: SqlColumn;
 
   // Column title to be displayed.
   // If not set, then `alias` will be used if it's unique.
@@ -66,12 +70,10 @@ export interface TableColumn<
    *
    * @param value The value to be rendered.
    * @param tableManager Optional table manager to allow interaction with the table (e.g. adding filters).
-   * @param supportingValues Optional additional values needed to render the cell.
    */
   renderCell(
     value: SqlValue,
-    tableManager?: TableManager,
-    supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
+    tableManager?: TableManager
   ): RenderedCell;
 
   // A set of columns to be added when opening this table.
