@@ -14,9 +14,10 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
+import {CounterTrack} from '../../components/tracks/counter_track';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ETM';
@@ -24,17 +25,25 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace) {
     const title = 'ETM Session ID';
     const uri = `${trace.pluginId}#ETMSessionID`;
-    const query =
-      'select ts, value from counter inner join ' +
-      'counter_track on counter_track.id = counter.track_id ' +
-      'where name = "ETMSession"';
-
-    const renderer = await createQueryCounterTrack({
+    const renderer = await CounterTrack.createMaterialized({
       trace,
       uri,
-      data: {
-        sqlSource: query,
-      },
+      dataset: new SourceDataset({
+        src: `
+          SELECT
+            counter.id AS id
+            ts,
+            value
+          FROM counter
+          INNER JOIN counter_track ON counter_track.id = counter.track_id
+          WHERE name = "ETMSession"
+        `,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          value: NUM,
+        },
+      }),
     });
 
     trace.tracks.registerTrack({

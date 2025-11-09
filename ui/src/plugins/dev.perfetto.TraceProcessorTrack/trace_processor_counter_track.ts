@@ -113,6 +113,11 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   }
 
   detailsPanel() {
-    return new CounterDetailsPanel(this.trace, this.trackId, this.trackName);
+    return new CounterDetailsPanel(
+      this.trace,
+      this.trackId,
+      this.trackName,
+      this.rootTable,
+    );
   }
 }
