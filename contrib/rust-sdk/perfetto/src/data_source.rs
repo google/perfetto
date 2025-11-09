@@ -197,6 +197,7 @@ struct DsCallbacks {
 pub struct DataSourceArgs {
     callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
+    buffer_exhausted_policy_configurable: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
 }
@@ -221,6 +222,16 @@ impl DataSourceArgsBuilder {
         buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     ) -> Self {
         self.args.buffer_exhausted_policy = buffer_exhausted_policy;
+        self
+    }
+
+    /// Set buffer exhausted policy configurable flag.
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn buffer_exhausted_policy_configurable(
+        mut self,
+        buffer_exhausted_policy_configurable: bool,
+    ) -> Self {
+        self.args.buffer_exhausted_policy_configurable = buffer_exhausted_policy_configurable;
         self
     }
 
@@ -327,27 +338,12 @@ unsafe extern "C" fn flush_callback_trampoline(user_arg: *mut c_void) {
     }
 }
 
-/// Default incremental state struct used if not specified.
-pub struct IncrementalState {
-    /// Set to true when incremental state has been cleared and not yet acknowledged by
-    /// a call to with_incremental_state that sets it to false.
-    pub was_cleared: bool,
-}
-
-impl Default for IncrementalState {
-    fn default() -> Self {
-        Self { was_cleared: true }
-    }
-}
-
-/// Trace context struct passed to data source trace callbacks.
-pub struct TraceContext<'a, IncrT: Default = IncrementalState> {
-    pub(crate) impl_: *mut PerfettoDsImpl,
+/// Trace context base struct with passed to data source and track event trace callbacks.
+pub struct TraceContextBase {
     pub(crate) iterator: PerfettoDsImplTracerIterator,
-    pub(crate) _marker: PhantomData<&'a IncrT>,
 }
 
-impl<IncrT: Default> TraceContext<'_, IncrT> {
+impl TraceContextBase {
     /// Creates new trace packets and calls `cb` to write data to each of the packets.
     pub fn add_packet<F>(&mut self, mut cb: F)
     where
@@ -407,14 +403,39 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
         };
     }
 
+    /// Returns the index of the current instance.
+    pub fn instance_index(&self) -> u32 {
+        self.iterator.inst_id
+    }
+}
+
+/// Default incremental state struct used if not specified.
+pub struct IncrementalState {
+    /// Set to true when incremental state has been cleared and not yet acknowledged by
+    /// a call to with_incremental_state that sets it to false.
+    pub was_cleared: bool,
+}
+
+impl Default for IncrementalState {
+    fn default() -> Self {
+        Self { was_cleared: true }
+    }
+}
+
+/// Trace context struct passed to data source trace callbacks.
+pub struct TraceContext<'a, IncrT: Default = IncrementalState> {
+    base: TraceContextBase,
+    pub(crate) impl_: *mut PerfettoDsImpl,
+    pub(crate) _marker: PhantomData<&'a IncrT>,
+}
+
+impl<IncrT: Default> TraceContext<'_, IncrT> {
     /// Calls `cb` with the incremental state for the instance.
     pub fn with_incremental_state<F>(&mut self, mut cb: F)
     where
         F: FnMut(&mut Self, &mut IncrT),
     {
-        if self.impl_.is_null() {
-            panic!("no impl");
-        }
+        assert!(!self.impl_.is_null());
         // SAFETY:
         //
         // - `self.impl_` must be non-null.
@@ -425,8 +446,8 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
         let ptr = unsafe {
             PerfettoDsImplGetIncrementalState(
                 self.impl_,
-                self.iterator.tracer,
-                self.iterator.inst_id,
+                self.base.iterator.tracer,
+                self.base.iterator.inst_id,
             )
         };
         if ptr.is_null() {
@@ -439,10 +460,18 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
         let state: &mut IncrT = unsafe { &mut *(ptr as *mut IncrT) };
         cb(self, state);
     }
+}
 
-    /// Returns the index of the current instance.
-    pub fn instance_index(&self) -> u32 {
-        self.iterator.inst_id
+impl<IncrT: Default> std::ops::Deref for TraceContext<'_, IncrT> {
+    type Target = TraceContextBase;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl<IncrT: Default> std::ops::DerefMut for TraceContext<'_, IncrT> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
     }
 }
 
@@ -479,7 +508,8 @@ unsafe extern "C" fn on_setup_callback_trampoline(
         eprintln!("Fatal panic: {:?}", err);
         std::process::abort();
     }
-    // TODO(dreveman): Implement support for instance contexts.
+    // Instance contexts are not supported as preferably handled by the
+    // client in Rust code.
     ptr::null_mut()
 }
 
@@ -605,12 +635,14 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
             PerfettoDsSetOnCreateIncr(ds_impl, Some(on_create_incr_trampoline::<IncrT>));
             PerfettoDsSetOnDeleteIncr(ds_impl, Some(on_delete_incr_trampoline::<IncrT>));
             PerfettoDsSetCbUserArg(ds_impl, user_arg);
-            if args.buffer_exhausted_policy != DataSourceBufferExhaustedPolicy::Drop {
-                PerfettoDsSetBufferExhaustedPolicy(
-                    ds_impl,
-                    args.buffer_exhausted_policy.to_ds_policy(),
-                );
-            }
+            PerfettoDsSetBufferExhaustedPolicy(
+                ds_impl,
+                args.buffer_exhausted_policy.to_ds_policy(),
+            );
+            PerfettoDsSetBufferExhaustedPolicyConfigurable(
+                ds_impl,
+                args.buffer_exhausted_policy_configurable,
+            );
             let success = PerfettoDsImplRegister(
                 ds_impl,
                 &raw mut self.enabled,
@@ -647,16 +679,18 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
         if crate::__unlikely!(self.is_enabled()) {
             assert!(!self.impl_.is_null());
             let mut ctx = TraceContext::<'_, IncrT> {
+                base: TraceContextBase {
+                    // SAFETY: `self.impl_` must be a pointer to a registered data source. Ie.
+                    // non-null and passed to a successful PerfettoDsImplRegister() call. Guaranteed
+                    // to be the case as is_enabled() will always return false otherwise and this
+                    // cannot be reached.
+                    iterator: unsafe { PerfettoDsImplTraceIterateBegin(self.impl_) },
+                },
                 impl_: self.impl_,
-                // SAFETY: `self.impl_` must be a pointer to a registered data source. Ie.
-                // non-null and passed to a successful PerfettoDsImplRegister() call. Guaranteed
-                // to be the case as is_enabled() will always return false otherwise and this
-                // cannot be reached.
-                iterator: unsafe { PerfettoDsImplTraceIterateBegin(self.impl_) },
                 _marker: PhantomData,
             };
             loop {
-                if ctx.iterator.tracer.is_null() {
+                if ctx.base.iterator.tracer.is_null() {
                     break;
                 }
 
@@ -665,7 +699,7 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
                 // SAFETY: `self.impl_` must be a pointer to a registered data source. Guaranteed
                 // to be the case as is_enabled() will always return false otherwise and this
                 // cannot be reached.
-                unsafe { PerfettoDsImplTraceIterateNext(self.impl_, &raw mut ctx.iterator) };
+                unsafe { PerfettoDsImplTraceIterateNext(self.impl_, &raw mut ctx.base.iterator) };
             }
         }
     }
