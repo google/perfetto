@@ -17,6 +17,7 @@ import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
 import {Trace} from '../../../../public/trace';
 import {SqlValue, STR} from '../../../../trace_processor/query_result';
+import protos from '../../../../protos';
 import {
   asSchedSqlId,
   asSliceSqlId,
@@ -464,6 +465,7 @@ export class ProcessIdColumn implements TableColumn {
 
 class ArgColumn implements TableColumn<{type: SqlColumn}> {
   public readonly column: SqlColumn;
+  public readonly display: SqlColumn;
   public readonly type: PerfettoSqlType | undefined = undefined;
   private id: string;
 
@@ -481,14 +483,15 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
       ],
       this.id,
     );
-  }
-
-  supportingColumns() {
-    return {type: this.getRawColumn('value_type')};
+    this.display = new SqlExpression(
+      (cols: string[]) =>
+        `__intrinsic_serialise_arg(${cols[0]}, ${sqliteString(this.key)})`,
+      [this.argSetId],
+    );
   }
 
   private getRawColumn(
-    type: 'string_value' | 'int_value' | 'real_value' | 'id' | 'value_type',
+    type: 'string_value' | 'int_value' | 'real_value' | 'id',
   ): SqlColumn {
     return {
       column: type,
@@ -503,41 +506,48 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
     };
   }
 
-  renderCell(
-    value: SqlValue,
-    tableManager?: TableManager,
-    values?: {type: SqlValue},
-  ) {
+  renderCell(value: SqlValue, tableManager?: TableManager) {
     // If the value is NULL, then filters can check for id column for better performance.
     if (value === null) {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('value_type'),
-        tableManager,
-      );
+      return renderStandardCell(value, this.getRawColumn('id'), tableManager);
     }
-    if (values?.type === 'int') {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('int_value'),
-        tableManager,
-      );
+
+    if (!(value instanceof Uint8Array)) {
+      return {
+        content: renderError(
+          `Wrong type: expected Uint8Array, ${typeof value} found`,
+        ),
+      };
     }
-    if (values?.type === 'string') {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('string_value'),
-        tableManager,
-      );
+    const argValue = protos.ArgValue.decode(value);
+
+    switch (argValue.type) {
+      case protos.ArgValue.Type.TYPE_INT:
+      case protos.ArgValue.Type.TYPE_BOOL:
+      case protos.ArgValue.Type.TYPE_POINTER:
+        return renderStandardCell(
+          argValue.intValue ?? null,
+          this.getRawColumn('int_value'),
+          tableManager,
+        );
+      case protos.ArgValue.Type.TYPE_STRING:
+        return renderStandardCell(
+          argValue.stringValue ?? null,
+          this.getRawColumn('string_value'),
+          tableManager,
+        );
+      case protos.ArgValue.Type.TYPE_REAL:
+        return renderStandardCell(
+          argValue.realValue ?? null,
+          this.getRawColumn('real_value'),
+          tableManager,
+        );
+      case protos.ArgValue.Type.TYPE_NULL:
+        return renderStandardCell(null, this.column, tableManager);
     }
-    if (values?.type === 'real') {
-      return renderStandardCell(
-        value,
-        this.getRawColumn('real_value'),
-        tableManager,
-      );
-    }
-    return renderStandardCell(value, this.column, tableManager);
+    return {
+      content: renderError(`Unexpected arg type: ${argValue.type}`),
+    };
   }
 }
 
