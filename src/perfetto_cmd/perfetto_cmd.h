@@ -115,6 +115,8 @@ class PerfettoCmd : public Consumer {
     kBackgroundTimeout = 2,
   };
 
+  void Notify(BgProcessStatus status);
+
   // Used to implement the --background-wait flag.
   //
   // Waits (up to 30s) for the child process to signal (success or an error).
@@ -159,6 +161,7 @@ class PerfettoCmd : public Consumer {
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
   bool ctrl_c_handler_installed_ = false;
+  base::ScopedPlatformHandle notify_fd_;
   base::Pipe background_wait_pipe_;
   bool save_to_incidentd_ = false;
   bool report_to_android_framework_ = false;
