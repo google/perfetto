@@ -136,6 +136,65 @@ export class IntervalIntersectNode implements MultiSourceNode {
     return 'Interval Intersect';
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Interval Intersect')),
+      m(
+        'p',
+        'A multisource node that finds ',
+        m('strong', 'time intervals'),
+        ' from a base source that ',
+        m('strong', 'overlap with intervals'),
+        ' from one or more other sources.',
+      ),
+      m(
+        'p',
+        m('strong', 'Common use cases:'),
+        m(
+          'ul',
+          m('li', 'CPU usage during a specific user journey'),
+          m('li', 'Memory consumption during an animation'),
+          m(
+            'li',
+            'System events that occur during multiple overlapping conditions',
+          ),
+        ),
+      ),
+      m(
+        'p',
+        m('strong', 'Connect multiple sources to this node:'),
+        m(
+          'ul',
+          m(
+            'li',
+            m('strong', 'First port:'),
+            ' The base data with time intervals to analyze',
+          ),
+          m(
+            'li',
+            m('strong', 'Additional ports:'),
+            ' Interval sources that define the time windows',
+          ),
+        ),
+      ),
+      m(
+        'p',
+        m('strong', 'How it works:'),
+        ' The result includes only rows from the base that overlap with at least one row from ',
+        m('em', 'each'),
+        ' of the interval sources.',
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'IntervalIntersect'),
+        ' operation from PerfettoSQL.',
+      ),
+    );
+  }
+
   private renderPartitionSelector(compact: boolean = false): m.Child {
     // Initialize partition columns if needed
     if (!this.state.partitionColumns) {

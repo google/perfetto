@@ -116,6 +116,57 @@ export class LimitAndOffsetNode implements ModificationNode {
     ]);
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Limit and Offset')),
+      m(
+        'p',
+        'A modification node that ',
+        m('strong', 'limits the number of rows'),
+        ' returned and optionally ',
+        m('strong', 'skips a specified number of rows'),
+        '.',
+      ),
+      m(
+        'p',
+        m('strong', 'Use cases:'),
+        m(
+          'ul',
+          m(
+            'li',
+            m('strong', 'Sampling data:'),
+            ' e.g., "show me the first 100 rows"',
+          ),
+          m(
+            'li',
+            m('strong', 'Pagination:'),
+            ' e.g., "skip 100 rows, then show the next 50"',
+          ),
+          m(
+            'li',
+            m('strong', 'Performance optimization:'),
+            ' when you only need a subset of results',
+          ),
+        ),
+      ),
+      m(
+        'p',
+        m('strong', 'Tip:'),
+        ' Combine with a Sort node to get meaningful results like "top 10 longest slices" or "bottom 20 by CPU time".',
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node adds ',
+        m('code', 'LIMIT'),
+        ' and ',
+        m('code', 'OFFSET'),
+        ' clauses to the generated SQL query.',
+      ),
+    );
+  }
+
   validate(): boolean {
     return this.prevNode !== undefined;
   }
