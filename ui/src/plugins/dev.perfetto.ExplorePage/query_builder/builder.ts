@@ -111,8 +111,8 @@ export interface BuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
   readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onFilterAdd: (node: QueryNode, filter: UIFilter) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;
@@ -245,6 +245,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onchange: () => {
                 attrs.onNodeStateChange?.();
               },
+              onFilterAdd: (filter) => {
+                attrs.onFilterAdd(selectedNode, filter);
+              },
               isFullScreen:
                 this.drawerVisibility === SplitPanelDrawerVisibility.FULLSCREEN,
               onFullScreenToggle: () => {
@@ -285,7 +288,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onImport: attrs.onImport,
           onImportWithStatement: attrs.onImportWithStatement,
           onExport: attrs.onExport,
-          onRemoveFilter: attrs.onRemoveFilter,
         }),
         selectedNode &&
           m(

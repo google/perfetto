@@ -41,8 +41,8 @@
  *   onConnect: (newConnection) => {
  *     // Handle new connection
  *   },
- *   onNodeDrag: (nodeId, x, y) => {
- *     // Handle node position change
+ *   onNodeMove: (nodeId, x, y) => {
+ *     // Handle node position change (called when node is dropped)
  *   },
  * });
  * ```
@@ -114,6 +114,11 @@ interface UndockCandidate {
   renderY: number;
 }
 
+interface UndockedNode {
+  nodeId: string;
+  parentId: string;
+}
+
 interface SelectionRect {
   startX: number;
   startY: number;
@@ -134,6 +139,7 @@ interface CanvasState {
   dockTarget: string | null; // Node being targeted for docking
   isDockZone: boolean; // Whether we're in valid dock position
   undockCandidate: UndockCandidate | null; // Tracks potential undock before threshold
+  undockedNode: UndockedNode | null; // Node that was undocked (set when threshold exceeded)
   hoveredPort: {
     nodeId: string;
     portIndex: number;
@@ -141,6 +147,7 @@ interface CanvasState {
   } | null;
   selectionRect: SelectionRect | null; // Box selection state
   canvasMouseDownPos: Position;
+  tempNodePositions: Map<string, Position>; // Temporary positions during drag
 }
 
 export interface NodeGraphApi {
@@ -153,7 +160,7 @@ export interface NodeGraphAttrs {
   readonly nodes: ReadonlyArray<Node>;
   readonly connections: ReadonlyArray<Connection>;
   readonly onConnect?: (connection: Connection) => void;
-  readonly onNodeDrag?: (nodeId: string, x: number, y: number) => void;
+  readonly onNodeMove?: (nodeId: string, x: number, y: number) => void;
   readonly onConnectionRemove?: (index: number) => void;
   readonly onReady?: (api: NodeGraphApi) => void;
   readonly selectedNodeIds?: ReadonlySet<string>;
@@ -165,7 +172,12 @@ export interface NodeGraphAttrs {
     parentId: string,
     childNode: Omit<Node, 'x' | 'y'>,
   ) => void;
-  readonly onUndock?: (parentId: string) => void;
+  readonly onUndock?: (
+    parentId: string,
+    nodeId: string,
+    x: number,
+    y: number,
+  ) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
   readonly hideControls?: boolean;
   readonly multiselect?: boolean; // Enable multi-node selection (default: true)
@@ -289,10 +301,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     dockTarget: null,
     isDockZone: false,
     undockCandidate: null,
+    undockedNode: null,
     hoveredPort: null,
     selectionRect: null,
     canvasMouseDownPos: {x: 0, y: 0},
+    tempNodePositions: new Map<string, Position>(),
   };
+
+  // Track drag state for batching updates
+  let dragStartPosition: {nodeId: string; x: number; y: number} | null = null;
+  let currentDragPosition: {x: number; y: number} | null = null;
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
@@ -366,22 +384,40 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance > UNDOCK_THRESHOLD) {
-        // Exceeded threshold - perform undock
-        const {onUndock, onNodeDrag} = vnode.attrs;
-        if (onUndock && onNodeDrag) {
-          onUndock(canvasState.undockCandidate.parentId);
-          onNodeDrag(
+        // Exceeded threshold - call onUndock immediately so node becomes independent
+        const {onUndock} = vnode.attrs;
+        const tempX =
+          (canvasState.undockCandidate.startX -
+            canvasRect.left -
+            canvasState.panOffset.x) /
+            canvasState.zoom -
+          canvasState.dragOffset.x / canvasState.zoom;
+        const tempY = canvasState.undockCandidate.renderY;
+
+        // Store temp position for this node
+        canvasState.tempNodePositions.set(canvasState.undockCandidate.nodeId, {
+          x: tempX,
+          y: tempY,
+        });
+
+        // Immediately call onUndock so the node becomes independent
+        if (onUndock) {
+          onUndock(
+            canvasState.undockCandidate.parentId,
             canvasState.undockCandidate.nodeId,
-            (canvasState.undockCandidate.startX -
-              canvasRect.left -
-              canvasState.panOffset.x) /
-              canvasState.zoom -
-              canvasState.dragOffset.x / canvasState.zoom,
-            canvasState.undockCandidate.renderY,
+            tempX,
+            tempY,
           );
-          m.redraw(); // Force update so nodes array regenerates
         }
+
+        // Mark as undocked so we track it as a regular drag now
+        canvasState.undockedNode = {
+          nodeId: canvasState.undockCandidate.nodeId,
+          parentId: canvasState.undockCandidate.parentId,
+        };
+
         canvasState.undockCandidate = null;
+        m.redraw(); // Force update so nodes array regenerates
       }
     } else if (canvasState.draggedNode !== null) {
       // Calculate new position relative to canvas container (accounting for pan and zoom)
@@ -394,14 +430,15 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           canvasState.zoom -
         canvasState.dragOffset.y / canvasState.zoom;
 
-      // ONLY move the dragged node itself
-      // Children follow automatically via render position calculation
-      const {onNodeDrag, nodes} = vnode.attrs;
-      if (onNodeDrag !== undefined) {
-        onNodeDrag(canvasState.draggedNode, newX, newY);
-      }
+      // Store current position internally
+      currentDragPosition = {x: newX, y: newY};
+      canvasState.tempNodePositions.set(canvasState.draggedNode, {
+        x: newX,
+        y: newY,
+      });
 
       // Check if we're in a dock zone (exclude the parent we just undocked from)
+      const {nodes} = vnode.attrs;
       const draggedNode = nodes.find((n) => n.id === canvasState.draggedNode);
       if (draggedNode) {
         const dockInfo = findDockTarget(draggedNode, newX, newY, nodes);
@@ -493,13 +530,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       }
     }
 
-    // Check for collision (only for non-docked nodes)
-    if (canvasState.draggedNode !== null) {
-      const {nodes = [], onNodeDrag} = vnode.attrs;
+    // Check for collision and finalize drag (only for non-docked/undocked nodes)
+    if (canvasState.draggedNode !== null && !canvasState.isDockZone) {
+      const {nodes = [], onNodeMove} = vnode.attrs;
       const draggedNode = nodes.find((n) => n.id === canvasState.draggedNode);
 
       // Only do overlap checking if NOT being docked
-      if (draggedNode && !canvasState.isDockZone && onNodeDrag) {
+      if (draggedNode) {
         // Get actual node dimensions from DOM
         const dims = getNodeDimensions(draggedNode.id);
 
@@ -512,9 +549,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
         // Check if node (and its entire chain) overlaps with any other nodes
         if (
+          currentDragPosition &&
           checkNodeOverlap(
-            draggedNode.x,
-            draggedNode.y,
+            currentDragPosition.x,
+            currentDragPosition.y,
             draggedNode.id,
             nodes,
             dims.width,
@@ -523,26 +561,49 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         ) {
           // Find nearest non-overlapping position
           const newPos = findNearestNonOverlappingPosition(
-            draggedNode.x,
-            draggedNode.y,
+            currentDragPosition.x,
+            currentDragPosition.y,
             draggedNode.id,
             nodes,
             dims.width,
             chainHeight,
           );
           // Update to the non-overlapping position
-          onNodeDrag(draggedNode.id, newPos.x, newPos.y);
+          currentDragPosition = newPos;
+          canvasState.tempNodePositions.set(draggedNode.id, newPos);
+        }
+      }
+
+      // Call onNodeMove with final position if it changed
+      // For undocked nodes, this provides the final position after dragging
+      // For regular nodes, this is the only position update
+      if (onNodeMove !== undefined && currentDragPosition !== null) {
+        const startX = dragStartPosition?.x ?? 0;
+        const startY = dragStartPosition?.y ?? 0;
+        const moved =
+          Math.abs(currentDragPosition.x - startX) > 0.5 ||
+          Math.abs(currentDragPosition.y - startY) > 0.5;
+        if (moved || canvasState.undockedNode !== null) {
+          onNodeMove(
+            canvasState.draggedNode,
+            currentDragPosition.x,
+            currentDragPosition.y,
+          );
         }
       }
     }
 
     canvasState.draggedNode = null;
+    dragStartPosition = null;
+    currentDragPosition = null;
     canvasState.connecting = null;
     canvasState.hoveredPort = null;
     canvasState.isPanning = false;
     canvasState.dockTarget = null;
     canvasState.isDockZone = false;
     canvasState.undockCandidate = null;
+    canvasState.undockedNode = null;
+    canvasState.tempNodePositions.clear();
     m.redraw();
   };
 
@@ -590,91 +651,135 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     nodes: ReadonlyArray<Node>,
     onConnectionRemove?: (index: number) => void,
   ) {
-    // Clear existing paths
-    svg.innerHTML = '';
-
     const shortenLength = 16;
     const arrowheadLength = 4;
 
-    // Create arrow marker definition
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    // Cache all port positions at once for performance
+    const portPositionCache = new Map<string, Position>();
 
-    function createArrowheadMarker(
-      id: string,
-      color: string,
-    ): SVGMarkerElement {
-      const marker = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'marker',
-      );
-      marker.setAttribute('id', id);
-      marker.setAttribute('viewBox', `0 0 ${arrowheadLength} 10`);
-      marker.setAttribute('refX', '0');
-      marker.setAttribute('refY', '5');
-      marker.setAttribute('markerWidth', `${arrowheadLength}`);
-      marker.setAttribute('markerHeight', '10');
-      marker.setAttribute('orient', 'auto');
+    // Query all ports in one go and cache their positions
+    const allPorts = document.querySelectorAll('.pf-port[data-port]');
+    allPorts.forEach((portElement) => {
+      const portId = portElement.getAttribute('data-port');
+      if (!portId) return;
 
-      const polygon = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'polygon',
-      );
-      polygon.setAttribute('points', `0 2.5, ${arrowheadLength} 5, 0 7.5`);
-      polygon.setAttribute('fill', color);
+      const nodeElement = portElement.closest(
+        '[data-node]',
+      ) as HTMLElement | null;
+      if (!nodeElement) return;
 
-      marker.appendChild(polygon);
+      const nodeId = nodeElement.dataset.node;
+      if (!nodeId) return;
 
-      return marker;
-    }
+      const [portType, portIndexStr] = portId.split('-');
+      const cacheKey = `${nodeId}-${portType}-${portIndexStr}`;
 
-    const arrowhead = createArrowheadMarker(
-      'arrowhead',
-      'var(--pf-color-accent)',
-    );
-    defs.appendChild(arrowhead);
+      // Calculate position
+      const chainContainer = nodeElement.closest(
+        '.pf-node-wrapper',
+      ) as HTMLElement | null;
 
-    const arrowheadTemp = createArrowheadMarker(
-      'arrowhead-temp',
-      'var(--pf-color-text-muted)',
-    );
-    defs.appendChild(arrowheadTemp);
+      let nodeLeft: number;
+      let nodeTop: number;
 
-    svg.appendChild(defs);
+      if (chainContainer) {
+        // Node is in a dock chain - use container's position
+        nodeLeft = parseFloat(chainContainer.style.left) || 0;
+        nodeTop = parseFloat(chainContainer.style.top) || 0;
 
-    // Only render explicit connections (not implicit dock connections)
-    connections.forEach((conn, idx) => {
-      const from = getPortPosition(conn.fromNode, 'output', conn.fromPort);
-      const to = getPortPosition(conn.toNode, 'input', conn.toPort);
+        // Add offset of node within the chain
+        const chainRect = chainContainer.getBoundingClientRect();
+        const nodeRect = nodeElement.getBoundingClientRect();
+        const offsetY = (nodeRect.top - chainRect.top) / canvasState.zoom;
 
-      // Validate that both ports exist (return {x: 0, y: 0} if not found)
-      const fromValid = from.x !== 0 || from.y !== 0;
-      const toValid = to.x !== 0 || to.y !== 0;
-
-      if (!fromValid || !toValid) {
-        console.warn(
-          `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
-          !fromValid ? `(source port not found)` : `(target port not found)`,
-        );
-        return; // Skip rendering this connection
+        nodeTop += offsetY;
+      } else {
+        // Standalone node - use its position directly
+        nodeLeft = parseFloat(nodeElement.style.left) || 0;
+        nodeTop = parseFloat(nodeElement.style.top) || 0;
       }
 
-      const path = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
-      );
-      path.setAttribute('class', 'pf-connection');
+      // Get port's position relative to the node
+      const portRect = portElement.getBoundingClientRect();
+      const nodeRect = nodeElement.getBoundingClientRect();
 
-      const fromPortType = getPortType(
-        conn.fromNode,
-        'output',
-        conn.fromPort,
-        nodes,
-      );
-      const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
+      // Calculate offset in screen space, then divide by zoom to get canvas content space
+      const portX =
+        (portRect.left - nodeRect.left + portRect.width / 2) / canvasState.zoom;
+      const portY =
+        (portRect.top - nodeRect.top + portRect.height / 2) / canvasState.zoom;
 
-      path.setAttribute(
-        'd',
-        createCurve(
+      portPositionCache.set(cacheKey, {
+        x: nodeLeft + portX,
+        y: nodeTop + portY,
+      });
+    });
+
+    // Helper function to get port position from cache or fallback to direct lookup
+    const getPortPos = (
+      nodeId: string,
+      portType: 'input' | 'output',
+      portIndex: number,
+    ): Position => {
+      const cacheKey = `${nodeId}-${portType}-${portIndex}`;
+      return (
+        portPositionCache.get(cacheKey) ||
+        getPortPosition(nodeId, portType, portIndex)
+      );
+    };
+
+    // Build arrowhead markers using mithril
+    const arrowheadMarker = (id: string) =>
+      m(
+        'marker',
+        {
+          id,
+          viewBox: `0 0 ${arrowheadLength} 10`,
+          refX: '0',
+          refY: '5',
+          markerWidth: `${arrowheadLength}`,
+          markerHeight: '10',
+          orient: 'auto',
+        },
+        m('polygon', {
+          points: `0 2.5, ${arrowheadLength} 5, 0 7.5`,
+          fill: 'context-stroke',
+        }),
+      );
+
+    // Build connection paths using mithril
+    // Each connection is rendered as two paths: a wider invisible hitbox and the visible line
+    const connectionPaths = connections
+      .map((conn, idx) => {
+        const from = getPortPos(conn.fromNode, 'output', conn.fromPort);
+        const to = getPortPos(conn.toNode, 'input', conn.toPort);
+
+        // Validate that both ports exist (return {x: 0, y: 0} if not found)
+        const fromValid = from.x !== 0 || from.y !== 0;
+        const toValid = to.x !== 0 || to.y !== 0;
+
+        if (!fromValid || !toValid) {
+          console.warn(
+            `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
+            !fromValid ? `(source port not found)` : `(target port not found)`,
+          );
+          return null;
+        }
+
+        const fromPortType = getPortType(
+          conn.fromNode,
+          'output',
+          conn.fromPort,
+          nodes,
+        );
+        const toPortType = getPortType(
+          conn.toNode,
+          'input',
+          conn.toPort,
+          nodes,
+        );
+
+        const pathData = createCurve(
           from.x,
           from.y,
           to.x,
@@ -682,44 +787,60 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           fromPortType,
           toPortType,
           shortenLength,
-        ),
-      );
-      path.setAttribute('marker-end', 'url(#arrowhead)');
-      path.style.pointerEvents = 'stroke';
-      path.style.cursor = 'pointer';
+        );
 
-      // Prevent canvas pan from starting when clicking connections
-      path.onpointerdown = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-      };
+        const handlePointerDown = (e: PointerEvent) => {
+          e.stopPropagation();
+          e.preventDefault();
+        };
 
-      path.onclick = (e) => {
-        e.stopPropagation();
-        if (onConnectionRemove !== undefined) {
-          onConnectionRemove(idx);
-        }
-      };
-      svg.appendChild(path);
-    });
+        const handleClick = (e: Event) => {
+          e.stopPropagation();
+          if (onConnectionRemove !== undefined) {
+            onConnectionRemove(idx);
+          }
+        };
 
-    // Render temp connection if connecting
+        // Return a group with both the hitbox and visible path
+        return m('g', {key: `conn-${idx}`, class: 'pf-connection-group'}, [
+          // Invisible wider hitbox path
+          m('path', {
+            d: pathData,
+            class: 'pf-connection-hitbox',
+            style: {
+              stroke: 'transparent',
+              strokeWidth: '20',
+              fill: 'none',
+              pointerEvents: 'stroke',
+              cursor: 'pointer',
+            },
+            onpointerdown: handlePointerDown,
+            onclick: handleClick,
+          }),
+          // Visible connection path
+          m('path', {
+            'd': pathData,
+            'class': 'pf-connection',
+            'marker-end': 'url(#arrowhead)',
+            'style': {
+              pointerEvents: 'none',
+            },
+            'onpointerdown': handlePointerDown,
+            'onclick': handleClick,
+          }),
+        ]);
+      })
+      .filter((path) => path !== null);
+
+    // Build temp connection if connecting
+    let tempConnectionPath = null;
     if (canvasState.connecting) {
-      const path = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
-      );
-      path.setAttribute('class', 'pf-temp-connection');
-
-      // Convert screen coordinates to canvas content coordinates
       const fromX = canvasState.connecting.transformedX;
       const fromY = canvasState.connecting.transformedY;
       let toX = canvasState.mousePos.transformedX ?? 0;
       let toY = canvasState.mousePos.transformedY ?? 0;
 
-      // For temp connections, use the stored port type
       const fromPortType = canvasState.connecting.portType;
-      // The target end defaults to the opposite type for visual feedback
       let toPortType: 'top' | 'left' | 'right' | 'bottom' =
         fromPortType === 'top' || fromPortType === 'bottom' ? 'top' : 'left';
 
@@ -729,7 +850,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         canvasState.hoveredPort.type === 'input'
       ) {
         const {nodeId, portIndex, type} = canvasState.hoveredPort;
-        const hoverPos = getPortPosition(nodeId, type, portIndex);
+        const hoverPos = getPortPos(nodeId, type, portIndex);
         if (hoverPos.x !== 0 || hoverPos.y !== 0) {
           toX = hoverPos.x;
           toY = hoverPos.y;
@@ -737,9 +858,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         }
       }
 
-      path.setAttribute(
-        'd',
-        createCurve(
+      tempConnectionPath = m('path', {
+        'class': 'pf-temp-connection',
+        'd': createCurve(
           fromX,
           fromY,
           toX,
@@ -748,10 +869,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           toPortType,
           shortenLength,
         ),
-      );
-      path.setAttribute('marker-end', 'url(#arrowhead-temp)');
-      svg.appendChild(path);
+        'marker-end': 'url(#arrowhead)',
+      });
     }
+
+    // Render everything using mithril's render function
+    m.render(svg, [
+      m('defs', [arrowheadMarker('arrowhead')]),
+      m('g', connectionPaths),
+      tempConnectionPath,
+    ]);
   }
 
   function getPortPosition(
@@ -1007,7 +1134,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   function autoLayoutGraph(
     nodes: ReadonlyArray<Node>,
     connections: ReadonlyArray<Connection>,
-    onNodeDrag: ((nodeId: string, x: number, y: number) => void) | undefined,
+    onNodeMove: ((nodeId: string, x: number, y: number) => void) | undefined,
   ) {
     // Build a map from any node ID (including nodes in chains) to its root node ID
     const nodeIdToRootId = new Map<string, string>();
@@ -1088,8 +1215,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       let currentY = 50;
       layer.forEach((nodeId) => {
         const node = nodes.find((n) => n.id === nodeId);
-        if (node && onNodeDrag) {
-          onNodeDrag(node.id, currentX, currentY);
+        if (node && onNodeMove) {
+          onNodeMove(node.id, currentX, currentY);
 
           // Calculate height of entire chain
           const chain = getChain(node);
@@ -1409,6 +1536,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
           canvasState.draggedNode = id;
 
+          // Store initial drag position for batching
+          // Check if node has x,y properties (root nodes) vs docked children (no x,y)
+          if ('x' in node && 'y' in node) {
+            dragStartPosition = {nodeId: id, x: node.x, y: node.y};
+            currentDragPosition = {x: node.x, y: node.y};
+          }
+
           const {onNodeSelect} = vnode.attrs;
           if (onNodeSelect !== undefined) {
             onNodeSelect(id);
@@ -1531,8 +1665,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
       // Create auto-layout function that uses actual DOM dimensions
       const autoLayout = () => {
-        const {nodes = [], connections = [], onNodeDrag} = vnode.attrs;
-        autoLayoutGraph(nodes, connections, onNodeDrag);
+        const {nodes = [], connections = [], onNodeMove} = vnode.attrs;
+        autoLayoutGraph(nodes, connections, onNodeMove);
       };
 
       // Create recenter function that brings all nodes into view
@@ -1783,9 +1917,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   const {
                     nodes = [],
                     connections = [],
-                    onNodeDrag,
+                    onNodeMove,
                   } = vnode.attrs;
-                  autoLayoutGraph(nodes, connections, onNodeDrag);
+                  autoLayoutGraph(nodes, connections, onNodeMove);
                 },
               }),
               m(Button, {
@@ -1834,8 +1968,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   const chain = getChain(node);
                   const isChainRoot = chain.length > 1;
 
-                  // Use node's x,y directly (it's a root node)
-                  const renderPos = {x: node.x, y: node.y};
+                  // Check if we have a temp position for this node (during drag)
+                  const tempPos = canvasState.tempNodePositions.get(id);
+                  const renderPos = tempPos || {x: node.x, y: node.y};
 
                   // If this is a chain root, wrap all chain nodes in flex container
                   // Always wrap in a chain root container for consistency

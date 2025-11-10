@@ -45,9 +45,10 @@ export interface SortCriterion {
  * Aggregation specification for GROUP BY
  */
 export interface AggregationSpec {
-  columnName: string;
+  columnName?: string; // Optional for COUNT(*)
   op: string; // e.g., 'SUM', 'COUNT', 'AVG', etc.
   resultColumnName?: string;
+  percentile?: number; // Required for PERCENTILE operation (0-100)
 }
 
 /**
@@ -261,7 +262,8 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with GROUP BY and aggregations.
-   * Automatically wraps the query in an inner query if it already has a GROUP BY.
+   * Automatically wraps the query in an inner query if it already has a GROUP BY
+   * or selectColumns (to ensure aliases are in scope).
    *
    * @param innerQuery The query to group
    * @param groupByColumns Column names to group by
@@ -278,8 +280,9 @@ export class StructuredQueryBuilder {
     let query = extractQuery(innerQuery);
     if (!query) return undefined;
 
-    // If the query already has a GROUP BY, wrap it in an inner query
-    if (query.groupBy) {
+    // If the query already has a GROUP BY or selectColumns, wrap it in an inner query
+    // This ensures that aliases from SELECT are available in GROUP BY scope
+    if (query.groupBy !== undefined || (query.selectColumns?.length ?? 0) > 0) {
       query = this.wrapWithInnerQuery(query);
     }
 
@@ -289,14 +292,26 @@ export class StructuredQueryBuilder {
     groupByProto.aggregates = aggregations.map((agg) => {
       const aggProto =
         new protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate();
-      aggProto.columnName = agg.columnName;
+
+      // columnName is optional for COUNT(*)
+      if (agg.columnName) {
+        aggProto.columnName = agg.columnName;
+      }
+
       aggProto.op =
         protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op[
           agg.op as keyof typeof protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op
         ];
+
       if (agg.resultColumnName) {
         aggProto.resultColumnName = agg.resultColumnName;
       }
+
+      // percentile is required for PERCENTILE operation
+      if (agg.percentile !== undefined) {
+        aggProto.percentile = agg.percentile;
+      }
+
       return aggProto;
     });
 
@@ -320,8 +335,14 @@ export class StructuredQueryBuilder {
     referencedModules?: string[],
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const query = extractQuery(innerQuery);
+    let query = extractQuery(innerQuery);
     if (!query) return undefined;
+
+    // If the query already has selectColumns, wrap it in an inner query
+    // to ensure we create a new query object (so changes are detected)
+    if ((query.selectColumns?.length ?? 0) > 0) {
+      query = this.wrapWithInnerQuery(query);
+    }
 
     query.selectColumns = columns.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
@@ -531,6 +552,31 @@ export class StructuredQueryBuilder {
     addColumns.equalityColumns = equalityCols;
 
     sq.experimentalAddColumns = addColumns;
+    return sq;
+  }
+
+  /**
+   * Creates a structured query with filters applied.
+   * Wraps the inner query and adds the filter group.
+   *
+   * @param innerQuery The query to filter (can be a QueryNode or structured query)
+   * @param filterGroup The filter group to apply
+   * @param nodeId The node id to assign
+   * @returns A new structured query with filters, or undefined if extraction fails
+   */
+  static withFilter(
+    innerQuery: QuerySource,
+    filterGroup: protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const query = extractQuery(innerQuery);
+    if (!query) return undefined;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+    sq.innerQuery = query;
+    sq.experimentalFilterGroup = filterGroup;
+
     return sq;
   }
 }

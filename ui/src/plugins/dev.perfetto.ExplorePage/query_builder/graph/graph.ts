@@ -47,9 +47,9 @@ import {
   Node,
   NodeGraph,
   NodeGraphApi,
+  NodeGraphAttrs,
   NodePort,
 } from '../../../../widgets/nodegraph';
-import {UIFilter} from '../operations/filter';
 import {
   QueryNode,
   singleNodeOperation,
@@ -120,7 +120,6 @@ export interface GraphAttrs {
   readonly onImport: () => void;
   readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
   readonly devMode?: boolean;
   readonly onDevModeChange?: (enabled: boolean) => void;
 }
@@ -417,7 +416,6 @@ function createNodeConfig(
       onDuplicateNode: attrs.onDuplicateNode,
       onDeleteNode: attrs.onDeleteNode,
       onAddOperationNode: attrs.onAddOperationNode,
-      onRemoveFilter: attrs.onRemoveFilter,
     }),
     next: getNextDockedNode(qnode, attrs),
   };
@@ -725,7 +723,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           onSelectionClear: () => {
             attrs.onDeselect();
           },
-          onNodeDrag: (nodeId: string, x: number, y: number) => {
+          onNodeMove: (nodeId: string, x: number, y: number) => {
             attrs.onNodeLayoutChange(nodeId, {x, y});
           },
           onConnect: (conn: Connection) => {
@@ -754,7 +752,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             attrs.nodeLayouts.delete(childNode.id);
             m.redraw();
           },
-        }),
+        } satisfies NodeGraphAttrs),
         this.renderControls(attrs),
       ],
     );

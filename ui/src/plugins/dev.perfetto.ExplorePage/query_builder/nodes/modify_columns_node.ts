@@ -33,11 +33,6 @@ import {
   newColumnInfoList,
 } from '../column_info';
 import protos from '../../../../protos';
-import {
-  createExperimentalFiltersProto,
-  renderFilterOperation,
-  UIFilter,
-} from '../operations/filter';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 
@@ -360,7 +355,7 @@ interface NewColumn {
 }
 
 export interface ModifyColumnsSerializedState {
-  prevNodeId: string;
+  prevNodeId?: string;
   newColumns: NewColumn[];
   selectedColumns: {
     name: string;
@@ -368,8 +363,6 @@ export interface ModifyColumnsSerializedState {
     checked: boolean;
     alias?: string;
   }[];
-  filters?: UIFilter[];
-  filterOperator?: 'AND' | 'OR';
   comment?: string;
 }
 
@@ -377,7 +370,6 @@ export interface ModifyColumnsState extends QueryNodeState {
   prevNode: QueryNode;
   newColumns: NewColumn[];
   selectedColumns: ColumnInfo[];
-  filters?: UIFilter[];
 }
 
 export class ModifyColumnsNode implements ModificationNode {
@@ -743,7 +735,6 @@ export class ModifyColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      this.renderFilterOperation(),
     );
   }
 
@@ -1028,22 +1019,6 @@ export class ModifyColumnsNode implements ModificationNode {
     });
   }
 
-  private renderFilterOperation(): m.Child {
-    return renderFilterOperation(
-      this.state.filters,
-      this.state.filterOperator,
-      this.finalCols,
-      (newFilters) => {
-        this.state.filters = [...newFilters];
-        this.state.onchange?.();
-      },
-      (operator) => {
-        this.state.filterOperator = operator;
-        this.state.onchange?.();
-      },
-    );
-  }
-
   clone(): QueryNode {
     return new ModifyColumnsNode(this.state);
   }
@@ -1076,40 +1051,18 @@ export class ModifyColumnsNode implements ModificationNode {
       .filter((col) => col.module)
       .map((col) => col.module!);
 
-    // Handle filters
-    const filtersProto = createExperimentalFiltersProto(
-      this.state.filters,
-      this.finalCols,
-      this.state.filterOperator,
-    );
-
     // Apply column selection
-    const sq = StructuredQueryBuilder.withSelectColumns(
+    return StructuredQueryBuilder.withSelectColumns(
       this.prevNode,
       columns,
       referencedModules.length > 0 ? referencedModules : undefined,
-      filtersProto ? undefined : this.nodeId,
+      this.nodeId,
     );
-    if (!sq) return undefined;
-
-    if (filtersProto) {
-      // Wrap with filters and assign nodeId to outer query
-      const outerSq = new protos.PerfettoSqlStructuredQuery();
-      outerSq.id = this.nodeId;
-      outerSq.innerQuery = sq;
-      outerSq.experimentalFilterGroup = filtersProto;
-      return outerSq;
-    }
-
-    return sq;
   }
 
   serializeState(): ModifyColumnsSerializedState {
-    if (this.prevNode === undefined) {
-      throw new Error('Cannot serialize ModifyColumnsNode without a prevNode');
-    }
     return {
-      prevNodeId: this.prevNode.nodeId,
+      prevNodeId: this.prevNode?.nodeId,
       newColumns: this.state.newColumns.map((c) => ({
         expression: c.expression,
         name: c.name,
@@ -1131,26 +1084,6 @@ export class ModifyColumnsNode implements ModificationNode {
         checked: c.checked,
         alias: c.alias,
       })),
-      filters: this.state.filters?.map((f) => {
-        // Explicitly extract only serializable fields from filters
-        if ('value' in f) {
-          // FilterValue type
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          // FilterNull type
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-      filterOperator: this.state.filterOperator,
       comment: this.state.comment,
     };
   }

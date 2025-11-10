@@ -46,10 +46,107 @@ pub enum DataSourceError {
     RegisterError,
 }
 
-type OnSetupCallback = Box<dyn FnMut(u32, &[u8]) + Send + Sync + 'static>;
-type OnStartCallback = Box<dyn FnMut(u32) + Send + Sync + 'static>;
-type OnStopCallback = Box<dyn FnMut(u32) + Send + Sync + 'static>;
-type OnFlushCallback = Box<dyn FnMut(u32) + Send + Sync + 'static>;
+/// Opaque handle used to perform operations from the OnSetup callback. Unused
+/// for now.
+pub struct OnSetupArgs {
+    _args: *mut PerfettoDsOnSetupArgs,
+}
+
+type OnSetupCallback = Box<dyn FnMut(u32, &[u8], &mut OnSetupArgs) + Send + Sync + 'static>;
+
+/// Opaque handle used to perform operations from the OnSetup callback. Unused
+/// for now.
+pub struct OnStartArgs {
+    _args: *mut PerfettoDsOnStartArgs,
+}
+
+type OnStartCallback = Box<dyn FnMut(u32, &mut OnStartArgs) + Send + Sync + 'static>;
+
+/// A scope-based guard to signal that the data source stop operation is
+/// complete when dropped.
+#[must_use = "dropping StopGuard immediately defeats its purpose"]
+pub struct StopGuard {
+    async_stopper: *mut PerfettoDsAsyncStopper,
+}
+
+impl Drop for StopGuard {
+    fn drop(&mut self) {
+        // SAFETY: `self.async_stopper` must have been created using
+        // `PerfettoDsOnStopArgsPostpone`.
+        unsafe {
+            PerfettoDsStopDone(self.async_stopper);
+        }
+    }
+}
+
+// SAFETY: The underlying PerfettoDsAsyncStopper is thread-safe.
+unsafe impl Send for StopGuard {}
+
+// SAFETY: The underlying PerfettoDsAsyncStopper is thread-safe.
+unsafe impl Sync for StopGuard {}
+
+/// Opaque handle used to perform operations from the OnStop callback.
+pub struct OnStopArgs {
+    args: *mut PerfettoDsOnStopArgs,
+}
+
+impl OnStopArgs {
+    /// Tells the tracing service to postpone the stopping of a data source
+    /// instance. The returned handle can be used to signal the tracing
+    /// service when the data source instance can be stopped.
+    #[must_use = "StopGuard must be kept alive until the desired stop point"]
+    pub fn postpone(&mut self) -> StopGuard {
+        assert!(!self.args.is_null());
+        // SAFETY: `self.args` must be pointing to a valid PerfettoDsOnStopArgs handle.
+        let async_stopper = unsafe { PerfettoDsOnStopArgsPostpone(self.args) };
+        StopGuard { async_stopper }
+    }
+}
+
+type OnStopCallback = Box<dyn FnMut(u32, &mut OnStopArgs) + Send + Sync + 'static>;
+
+/// A scope-based guard to signal that the data source flush operation is
+/// complete when dropped.
+#[must_use = "dropping FlushGuard immediately defeats its purpose"]
+pub struct FlushGuard {
+    async_flusher: *mut PerfettoDsAsyncFlusher,
+}
+
+impl Drop for FlushGuard {
+    fn drop(&mut self) {
+        // SAFETY: `self.async_flusher` must have been created using
+        // `PerfettoDsOnFlushArgsPostpone`.
+        unsafe {
+            PerfettoDsFlushDone(self.async_flusher);
+        }
+    }
+}
+
+// SAFETY: The underlying PerfettoDsAsyncFlusher is thread-safe.
+unsafe impl Send for FlushGuard {}
+
+// SAFETY: The underlying PerfettoDsAsyncFlusher is thread-safe.
+unsafe impl Sync for FlushGuard {}
+
+/// Opaque handle used to perform operations from the OnStop callback.
+pub struct OnFlushArgs {
+    args: *mut PerfettoDsOnFlushArgs,
+}
+
+impl OnFlushArgs {
+    /// Tells the tracing service to postpone acknowledging the flushing of a data
+    /// source instance. The returned guard can be used to signal the tracing
+    /// service when the data source instance flushing has completed.
+    #[must_use = "FlushGuard must be kept alive until the desired stop point"]
+    pub fn postpone(&mut self) -> FlushGuard {
+        assert!(!self.args.is_null());
+        // SAFETY: `self.args` must be pointing to a valid PerfettoDsOnFlushArgs handle.
+        let async_flusher = unsafe { PerfettoDsOnFlushArgsPostpone(self.args) };
+        FlushGuard { async_flusher }
+    }
+}
+
+type OnFlushCallback = Box<dyn FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static>;
 
 /// Data source buffer exhausted policy.
 #[derive(Default, PartialEq)]
@@ -100,6 +197,7 @@ struct DsCallbacks {
 pub struct DataSourceArgs {
     callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
+    buffer_exhausted_policy_configurable: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
 }
@@ -127,6 +225,16 @@ impl DataSourceArgsBuilder {
         self
     }
 
+    /// Set buffer exhausted policy configurable flag.
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn buffer_exhausted_policy_configurable(
+        mut self,
+        buffer_exhausted_policy_configurable: bool,
+    ) -> Self {
+        self.args.buffer_exhausted_policy_configurable = buffer_exhausted_policy_configurable;
+        self
+    }
+
     /// Set notify on stop flag.
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn will_notify_on_stop(mut self, will_notify_on_stop: bool) -> Self {
@@ -148,7 +256,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_setup<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32, &[u8]) + Send + Sync + 'static,
+        F: FnMut(u32, &[u8], &mut OnSetupArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_setup = Some(Box::new(cb));
         self
@@ -158,7 +266,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_start<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32) + Send + Sync + 'static,
+        F: FnMut(u32, &mut OnStartArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_start = Some(Box::new(cb));
         self
@@ -168,7 +276,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_stop<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32) + Send + Sync + 'static,
+        F: FnMut(u32, &mut OnStopArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_stop = Some(Box::new(cb));
         self
@@ -178,7 +286,7 @@ impl DataSourceArgsBuilder {
     #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
     pub fn on_flush<F>(mut self, cb: F) -> Self
     where
-        F: FnMut(u32) + Send + Sync + 'static,
+        F: FnMut(u32, &mut OnFlushArgs) + Send + Sync + 'static,
     {
         self.args.callbacks.on_flush = Some(Box::new(cb));
         self
@@ -230,27 +338,12 @@ unsafe extern "C" fn flush_callback_trampoline(user_arg: *mut c_void) {
     }
 }
 
-/// Default incremental state struct used if not specified.
-pub struct IncrementalState {
-    /// Set to true when incremental state has been cleared and not yet acknowledged by
-    /// a call to with_incremental_state that sets it to false.
-    pub was_cleared: bool,
-}
-
-impl Default for IncrementalState {
-    fn default() -> Self {
-        Self { was_cleared: true }
-    }
-}
-
-/// Trace context struct passed to data source trace callbacks.
-pub struct TraceContext<'a, IncrT: Default = IncrementalState> {
-    pub(crate) impl_: *mut PerfettoDsImpl,
+/// Trace context base struct with passed to data source and track event trace callbacks.
+pub struct TraceContextBase {
     pub(crate) iterator: PerfettoDsImplTracerIterator,
-    pub(crate) _marker: PhantomData<&'a IncrT>,
 }
 
-impl<IncrT: Default> TraceContext<'_, IncrT> {
+impl TraceContextBase {
     /// Creates new trace packets and calls `cb` to write data to each of the packets.
     pub fn add_packet<F>(&mut self, mut cb: F)
     where
@@ -310,14 +403,39 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
         };
     }
 
+    /// Returns the index of the current instance.
+    pub fn instance_index(&self) -> u32 {
+        self.iterator.inst_id
+    }
+}
+
+/// Default incremental state struct used if not specified.
+pub struct IncrementalState {
+    /// Set to true when incremental state has been cleared and not yet acknowledged by
+    /// a call to with_incremental_state that sets it to false.
+    pub was_cleared: bool,
+}
+
+impl Default for IncrementalState {
+    fn default() -> Self {
+        Self { was_cleared: true }
+    }
+}
+
+/// Trace context struct passed to data source trace callbacks.
+pub struct TraceContext<'a, IncrT: Default = IncrementalState> {
+    base: TraceContextBase,
+    pub(crate) impl_: *mut PerfettoDsImpl,
+    pub(crate) _marker: PhantomData<&'a IncrT>,
+}
+
+impl<IncrT: Default> TraceContext<'_, IncrT> {
     /// Calls `cb` with the incremental state for the instance.
     pub fn with_incremental_state<F>(&mut self, mut cb: F)
     where
         F: FnMut(&mut Self, &mut IncrT),
     {
-        if self.impl_.is_null() {
-            panic!("no impl");
-        }
+        assert!(!self.impl_.is_null());
         // SAFETY:
         //
         // - `self.impl_` must be non-null.
@@ -328,8 +446,8 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
         let ptr = unsafe {
             PerfettoDsImplGetIncrementalState(
                 self.impl_,
-                self.iterator.tracer,
-                self.iterator.inst_id,
+                self.base.iterator.tracer,
+                self.base.iterator.inst_id,
             )
         };
         if ptr.is_null() {
@@ -342,10 +460,18 @@ impl<IncrT: Default> TraceContext<'_, IncrT> {
         let state: &mut IncrT = unsafe { &mut *(ptr as *mut IncrT) };
         cb(self, state);
     }
+}
 
-    /// Returns the index of the current instance.
-    pub fn instance_index(&self) -> u32 {
-        self.iterator.inst_id
+impl<IncrT: Default> std::ops::Deref for TraceContext<'_, IncrT> {
+    type Target = TraceContextBase;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl<IncrT: Default> std::ops::DerefMut for TraceContext<'_, IncrT> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
     }
 }
 
@@ -363,7 +489,7 @@ unsafe extern "C" fn on_setup_callback_trampoline(
     ds_config: *mut c_void,
     ds_config_size: usize,
     user_arg: *mut c_void,
-    _args: *mut PerfettoDsOnSetupArgs,
+    args: *mut PerfettoDsOnSetupArgs,
 ) -> *mut c_void {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
@@ -374,13 +500,16 @@ unsafe extern "C" fn on_setup_callback_trampoline(
             // - `ds_config_size` bytes starting at `ptr` must be valid for **reads**.
             let config =
                 unsafe { std::slice::from_raw_parts(ds_config as *const u8, ds_config_size) };
-            f(inst_id, config);
+            let mut on_setup_args = OnSetupArgs { _args: args };
+            f(inst_id, config, &mut on_setup_args);
         }
     });
     if let Err(err) = result {
         eprintln!("Fatal panic: {:?}", err);
         std::process::abort();
     }
+    // Instance contexts are not supported as preferably handled by the
+    // client in Rust code.
     ptr::null_mut()
 }
 
@@ -389,13 +518,14 @@ unsafe extern "C" fn on_start_callback_trampoline(
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
     _inst_ctx: *mut c_void,
-    _args: *mut PerfettoDsOnStartArgs,
+    args: *mut PerfettoDsOnStartArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
         let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_start {
-            f(inst_id);
+            let mut on_start_args = OnStartArgs { _args: args };
+            f(inst_id, &mut on_start_args);
         }
     });
     if let Err(err) = result {
@@ -409,13 +539,14 @@ unsafe extern "C" fn on_stop_callback_trampoline(
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
     _inst_ctx: *mut c_void,
-    _args: *mut PerfettoDsOnStopArgs,
+    args: *mut PerfettoDsOnStopArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
         let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_stop {
-            f(inst_id);
+            let mut on_stop_args = OnStopArgs { args };
+            f(inst_id, &mut on_stop_args);
         }
     });
     if let Err(err) = result {
@@ -429,13 +560,14 @@ unsafe extern "C" fn on_flush_callback_trampoline(
     inst_id: PerfettoDsInstanceIndex,
     user_arg: *mut c_void,
     _inst_ctx: *mut c_void,
-    _args: *mut PerfettoDsOnFlushArgs,
+    args: *mut PerfettoDsOnFlushArgs,
 ) {
     let result = std::panic::catch_unwind(|| {
         // SAFETY: `user_arg` must be a pointer to a boxed DsCallbacks struct.
         let callbacks: &mut DsCallbacks = unsafe { &mut *(user_arg as *mut _) };
         if let Some(f) = &mut callbacks.on_flush {
-            f(inst_id);
+            let mut on_flush_args = OnFlushArgs { args };
+            f(inst_id, &mut on_flush_args);
         }
     });
     if let Err(err) = result {
@@ -503,12 +635,14 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
             PerfettoDsSetOnCreateIncr(ds_impl, Some(on_create_incr_trampoline::<IncrT>));
             PerfettoDsSetOnDeleteIncr(ds_impl, Some(on_delete_incr_trampoline::<IncrT>));
             PerfettoDsSetCbUserArg(ds_impl, user_arg);
-            if args.buffer_exhausted_policy != DataSourceBufferExhaustedPolicy::Drop {
-                PerfettoDsSetBufferExhaustedPolicy(
-                    ds_impl,
-                    args.buffer_exhausted_policy.to_ds_policy(),
-                );
-            }
+            PerfettoDsSetBufferExhaustedPolicy(
+                ds_impl,
+                args.buffer_exhausted_policy.to_ds_policy(),
+            );
+            PerfettoDsSetBufferExhaustedPolicyConfigurable(
+                ds_impl,
+                args.buffer_exhausted_policy_configurable,
+            );
             let success = PerfettoDsImplRegister(
                 ds_impl,
                 &raw mut self.enabled,
@@ -545,16 +679,18 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
         if crate::__unlikely!(self.is_enabled()) {
             assert!(!self.impl_.is_null());
             let mut ctx = TraceContext::<'_, IncrT> {
+                base: TraceContextBase {
+                    // SAFETY: `self.impl_` must be a pointer to a registered data source. Ie.
+                    // non-null and passed to a successful PerfettoDsImplRegister() call. Guaranteed
+                    // to be the case as is_enabled() will always return false otherwise and this
+                    // cannot be reached.
+                    iterator: unsafe { PerfettoDsImplTraceIterateBegin(self.impl_) },
+                },
                 impl_: self.impl_,
-                // SAFETY: `self.impl_` must be a pointer to a registered data source. Ie.
-                // non-null and passed to a successful PerfettoDsImplRegister() call. Guaranteed
-                // to be the case as is_enabled() will always return false otherwise and this
-                // cannot be reached.
-                iterator: unsafe { PerfettoDsImplTraceIterateBegin(self.impl_) },
                 _marker: PhantomData,
             };
             loop {
-                if ctx.iterator.tracer.is_null() {
+                if ctx.base.iterator.tracer.is_null() {
                     break;
                 }
 
@@ -563,7 +699,7 @@ impl<'a: 'static, IncrT: Default> DataSource<'a, IncrT> {
                 // SAFETY: `self.impl_` must be a pointer to a registered data source. Guaranteed
                 // to be the case as is_enabled() will always return false otherwise and this
                 // cannot be reached.
-                unsafe { PerfettoDsImplTraceIterateNext(self.impl_, &raw mut ctx.iterator) };
+                unsafe { PerfettoDsImplTraceIterateNext(self.impl_, &raw mut ctx.base.iterator) };
             }
         }
     }

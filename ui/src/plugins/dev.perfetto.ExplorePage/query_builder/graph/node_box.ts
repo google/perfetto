@@ -19,7 +19,6 @@ import {Icons} from '../../../../base/semantic_icons';
 import {Button} from '../../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
-import {UIFilter, formatFilterDetails} from '../operations/filter';
 import {Icon} from '../../../../widgets/icon';
 import {Callout} from '../../../../widgets/callout';
 import {Intent} from '../../../../widgets/common';
@@ -29,7 +28,6 @@ export interface NodeActions {
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-  readonly onRemoveFilter: (node: QueryNode, filter: UIFilter) => void;
 }
 
 export interface NodeBoxAttrs extends NodeActions {
@@ -100,16 +98,6 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   );
 }
 
-export function renderFilters(attrs: NodeBoxAttrs): m.Child {
-  const {node, onRemoveFilter} = attrs;
-  return formatFilterDetails(
-    node.state.filters,
-    node.state.filterOperator,
-    node.state,
-    (filter) => onRemoveFilter(node, filter),
-  );
-}
-
 export const NodeBox: m.Component<NodeBoxAttrs> = {
   view({attrs}) {
     const {node} = attrs;
@@ -125,7 +113,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         node.state.comment &&
           m(Callout, {intent: Intent.None}, node.state.comment),
         m('.pf-exp-node-box__details', node.nodeDetails?.()),
-        renderFilters(attrs),
       ),
       m(
         '.pf-exp-node-box__actions',
