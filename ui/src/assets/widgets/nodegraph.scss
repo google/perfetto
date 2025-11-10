@@ -333,9 +333,8 @@ svg {
   cursor: pointer;
 }
 
-.pf-connection:hover {
+.pf-connection-group:hover .pf-connection {
   stroke: var(--pf-color-danger);
-  stroke-width: 3;
   filter: drop-shadow(
     0 0 6px color-mix(in srgb, var(--pf-color-danger) 80%, transparent)
   );
