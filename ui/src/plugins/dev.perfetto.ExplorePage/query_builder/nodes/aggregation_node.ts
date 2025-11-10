@@ -465,8 +465,10 @@ function stringToAggregateOp(
   }
 
   // Only check ops that exist in the proto (exclude COUNT_ALL)
-  const validProtoOps = AGGREGATION_OPS.filter((op) => op !== 'COUNT_ALL');
-  if (validProtoOps.includes(s as (typeof AGGREGATION_OPS)[number])) {
+  const validProtoOps: readonly string[] = AGGREGATION_OPS.filter(
+    (op) => op !== 'COUNT_ALL',
+  );
+  if (validProtoOps.includes(s)) {
     return protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op[
       s as keyof typeof protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate.Op
     ];
