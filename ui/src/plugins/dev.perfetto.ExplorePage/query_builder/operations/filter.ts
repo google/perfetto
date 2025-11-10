@@ -14,17 +14,17 @@
 
 import m from 'mithril';
 import {Button} from '../../../../widgets/button';
-import {Card} from '../../../../widgets/card';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
+import {Icon} from '../../../../widgets/icon';
 import {Select} from '../../../../widgets/select';
-import {Switch} from '../../../../widgets/switch';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Stack} from '../../../../widgets/stack';
+import {Icons} from '../../../../base/semantic_icons';
 
 interface FilterValue {
   readonly column: string;
@@ -42,14 +42,27 @@ interface FilterNull {
 export type UIFilter = FilterValue | FilterNull;
 
 /**
+ * Represents an OR group of filters.
+ * Multiple filters within a group are combined with OR.
+ * Groups themselves are combined with AND at the top level.
+ */
+export interface FilterGroup {
+  readonly id: string;
+  readonly filters: UIFilter[];
+  enabled?: boolean; // Default true - controls if entire group is active
+}
+
+/**
  * Attributes for the FilterOperation component.
  */
 export interface FilterAttrs {
   readonly sourceCols: ColumnInfo[];
   readonly filters?: ReadonlyArray<UIFilter>;
   readonly filterOperator?: 'AND' | 'OR';
+  readonly groups?: ReadonlyArray<FilterGroup>; // OR groups
   readonly onFiltersChanged?: (filters: ReadonlyArray<UIFilter>) => void;
   readonly onFilterOperatorChanged?: (operator: 'AND' | 'OR') => void;
+  readonly onGroupsChanged?: (groups: ReadonlyArray<FilterGroup>) => void;
   readonly onchange?: () => void;
 }
 
@@ -57,9 +70,13 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   private error?: string;
   private uiFilters: Partial<UIFilter>[] = [];
   private editingFilter?: Partial<UIFilter>;
+  private uiGroups: FilterGroup[] = [];
+  private dragOverFilter?: Partial<UIFilter>; // Track which filter is being dragged over
+  private draggedFilter?: Partial<UIFilter>; // Store the filter being dragged
 
   oncreate({attrs}: m.Vnode<FilterAttrs>) {
     this.uiFilters = [...(attrs.filters ?? [])];
+    this.uiGroups = [...(attrs.groups ?? [])];
   }
 
   onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
@@ -67,6 +84,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
     if (this.editingFilter === undefined) {
       this.uiFilters = [...(attrs.filters ?? [])];
     }
+    this.uiGroups = [...(attrs.groups ?? [])];
   }
 
   private setFilters(
@@ -85,6 +103,13 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
     m.redraw();
   }
 
+  private setGroups(nextGroups: FilterGroup[], attrs: FilterAttrs) {
+    this.uiGroups = nextGroups;
+    attrs.onGroupsChanged?.(this.uiGroups.filter(isGroupDefinitionValid));
+    attrs.onchange?.();
+    m.redraw();
+  }
+
   private renderFilterChip(
     filter: Partial<UIFilter>,
     attrs: FilterAttrs,
@@ -94,44 +119,238 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
     const label = isComplete
       ? `${filter.column} ${filter.op} ${'value' in filter ? filter.value : ''}`
       : 'New Filter';
+    const isDragOver = this.dragOverFilter === filter;
 
     return m(
       'div',
       {
+        className: `pf-filter-chip-draggable ${isDragOver ? 'pf-filter-chip-draggable--drag-over' : ''}`,
         style: {
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
           opacity: isEnabled ? 1 : 0.5,
         },
+        draggable: isComplete,
+        ondragstart: isComplete
+          ? (e: DragEvent) => {
+              e.dataTransfer!.effectAllowed = 'move';
+              // Store the filter reference instead of serializing it
+              this.draggedFilter = filter;
+              e.dataTransfer!.setData('text/plain', 'filter');
+            }
+          : undefined,
+        ondragover: isComplete
+          ? (e: DragEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              this.dragOverFilter = filter;
+              m.redraw();
+            }
+          : undefined,
+        ondragleave: () => {
+          this.dragOverFilter = undefined;
+          m.redraw();
+        },
+        ondrop: isComplete
+          ? (e: DragEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              this.handleDropOnFilter(filter, attrs);
+            }
+          : undefined,
+        ondragend: () => {
+          this.draggedFilter = undefined;
+          this.dragOverFilter = undefined;
+          m.redraw();
+        },
       },
+      isComplete &&
+        m(Icon, {
+          icon: Icons.DragHandle,
+          className: 'pf-filter-drag-handle',
+          style: {cursor: 'grab', userSelect: 'none'},
+        }),
       isComplete &&
         m(Checkbox, {
           checked: isEnabled,
           onchange: () => {
-            const nextFilters = this.uiFilters.map((f) =>
-              f === filter ? {...f, enabled: !isEnabled} : f,
-            );
-            this.setFilters(nextFilters, attrs);
+            // Find if filter is in a group
+            const group = findFilterGroup(filter as UIFilter, this.uiGroups);
+            if (group !== undefined) {
+              const nextGroups = this.uiGroups.map((g) => {
+                if (g !== group) return g;
+                return {
+                  ...g,
+                  filters: g.filters?.map((f) =>
+                    f === filter ? {...f, enabled: !isEnabled} : f,
+                  ),
+                };
+              });
+              this.setGroups(nextGroups, attrs);
+            } else {
+              const nextFilters = this.uiFilters.map((f) =>
+                f === filter ? {...f, enabled: !isEnabled} : f,
+              );
+              this.setFilters(nextFilters, attrs);
+            }
           },
         }),
       m(Chip, {
         label,
         rounded: true,
+        removable: isComplete,
         intent: isComplete
           ? isEnabled
             ? Intent.Primary
             : Intent.None
           : Intent.None,
         onclick: () => {
-          // When we start editing a chip, we remove all other invalid
-          // filters from the list.
-          const nextFilters = this.uiFilters.filter(
-            (f) => f === filter || isFilterDefinitionValid(f),
-          );
-          this.setFilters(nextFilters, attrs, filter);
+          if (!isComplete) {
+            // When we start editing a chip, we remove all other invalid
+            // filters from the list.
+            const nextFilters = this.uiFilters.filter(
+              (f) => f === filter || isFilterDefinitionValid(f),
+            );
+            this.setFilters(nextFilters, attrs, filter);
+          }
         },
+        onRemove: isComplete
+          ? () => {
+              // Use shared utility to handle filter removal with group dissolution
+              const result = removeFilterFromGroupsOrFilters(
+                filter as UIFilter,
+                this.uiFilters as UIFilter[],
+                this.uiGroups,
+              );
+              this.uiFilters = result.filters;
+              this.uiGroups = result.groups;
+              this.setFilters(this.uiFilters, attrs);
+              this.setGroups(this.uiGroups, attrs);
+            }
+          : undefined,
       }),
+    );
+  }
+
+  private handleDropOnFilter(
+    targetFilter: Partial<UIFilter>,
+    attrs: FilterAttrs,
+  ) {
+    const draggedFilter = this.draggedFilter;
+
+    if (!draggedFilter) {
+      this.dragOverFilter = undefined;
+      m.redraw();
+      return;
+    }
+
+    // Don't do anything if dropping on itself
+    if (draggedFilter === targetFilter) {
+      this.dragOverFilter = undefined;
+      m.redraw();
+      return;
+    }
+
+    // Extract dragged filter from its current location using utility
+    const extractResult = extractFilterFromLocation(
+      draggedFilter as UIFilter,
+      this.uiFilters as UIFilter[],
+      this.uiGroups,
+    );
+    this.uiFilters = extractResult.filters;
+    this.uiGroups = extractResult.groups;
+
+    // Add to target's location
+    const targetGroup = findFilterGroup(
+      targetFilter as UIFilter,
+      this.uiGroups,
+    );
+    if (targetGroup) {
+      // Add to existing group using utility
+      this.uiGroups = addFilterToGroup(
+        draggedFilter as UIFilter,
+        targetGroup,
+        this.uiGroups,
+      );
+    } else {
+      // Create new group with both filters using utility
+      const newGroup = createFilterGroup([
+        targetFilter as UIFilter,
+        draggedFilter as UIFilter,
+      ]);
+      this.uiGroups.push(newGroup);
+      // Remove target from main list
+      this.uiFilters = this.uiFilters.filter((f) => f !== targetFilter);
+    }
+
+    this.setFilters(this.uiFilters, attrs);
+    this.setGroups(this.uiGroups, attrs);
+    this.dragOverFilter = undefined;
+    m.redraw();
+  }
+
+  private handleDropOutsideGroup(e: DragEvent, attrs: FilterAttrs) {
+    e.preventDefault();
+    const draggedFilter = this.draggedFilter;
+
+    if (!draggedFilter) {
+      this.dragOverFilter = undefined;
+      m.redraw();
+      return;
+    }
+
+    // Check if filter is in a group
+    const sourceGroup = findFilterGroup(
+      draggedFilter as UIFilter,
+      this.uiGroups,
+    );
+    if (sourceGroup) {
+      // Extract from group and add to main list using utility
+      const result = extractFilterFromLocation(
+        draggedFilter as UIFilter,
+        this.uiFilters as UIFilter[],
+        this.uiGroups,
+      );
+
+      this.uiFilters = [...result.filters, draggedFilter as UIFilter];
+      this.uiGroups = result.groups;
+      this.setFilters(this.uiFilters, attrs);
+      this.setGroups(this.uiGroups, attrs);
+    }
+    // If it wasn't in a group, it's already in the main list, so nothing to do
+
+    this.dragOverFilter = undefined;
+    m.redraw();
+  }
+
+  private renderOrGroup(group: FilterGroup, attrs: FilterAttrs): m.Child {
+    const isEnabled = group.enabled !== false;
+    const filters = group.filters;
+
+    return m(
+      '.pf-or-group-container',
+      {
+        className: !isEnabled ? 'pf-or-group-container--disabled' : '',
+      },
+      m('.pf-or-group-label', 'OR'),
+      m(
+        '.pf-or-group-content',
+        filters.map((filter) => this.renderFilterChip(filter, attrs)),
+      ),
+      m(
+        '.pf-or-group-controls',
+        m(Checkbox, {
+          checked: isEnabled,
+          title: isEnabled ? 'Disable group' : 'Enable group',
+          onchange: () => {
+            const nextGroups = this.uiGroups.map((g) =>
+              g === group ? {...g, enabled: !isEnabled} : g,
+            );
+            this.setGroups(nextGroups, attrs);
+          },
+        }),
+      ),
     );
   }
 
@@ -162,65 +381,101 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           });
 
-    const operator = attrs.filterOperator ?? 'AND';
-    const hasMultipleFilters =
-      this.uiFilters.filter(isFilterDefinitionValid).length > 1;
+    // Build a flat list of all items (filters and groups) to render
+    const items: Array<
+      | {type: 'filter'; filter: Partial<UIFilter>}
+      | {type: 'group'; group: FilterGroup}
+    > = [];
 
-    return m(
-      '.pf-exp-query-operations',
-      m(Card, {}, [
-        m(
-          '.pf-exp-filters-header',
-          m('h2.pf-exp-filters-title', 'Filters'),
-          hasMultipleFilters &&
-            m(
-              '.pf-exp-filter-operator',
-              m(Switch, {
-                checked: operator === 'OR',
-                onchange: () => {
-                  const newOp = operator === 'AND' ? 'OR' : 'AND';
-                  attrs.onFilterOperatorChanged?.(newOp);
-                  attrs.onchange?.();
-                },
-                labelLeft: 'AND',
-                label: 'OR',
-                title: 'Toggle between AND and OR operators',
-              }),
-            ),
-          m(TextInput, {
-            placeholder: 'e.g. ts > 1000',
-            onkeydown: (e: KeyboardEvent) => {
-              const target = e.target as HTMLInputElement;
-              if (e.key === 'Enter') {
-                const text = target.value;
-                if (text.length > 0) {
-                  const filter = fromString(text, sourceCols);
-                  if (!isFilterDefinitionValid(filter)) {
-                    if (filter.column === undefined) {
-                      this.error = `Column not found in "${text}"`;
-                    } else if (filter.op === undefined) {
-                      this.error = `Operator not found in "${text}"`;
-                    } else {
-                      this.error = `Filter value is missing in "${text}"`;
-                    }
-                    m.redraw();
-                    return;
+    // Add individual filters
+    this.uiFilters.forEach((filter) => {
+      items.push({type: 'filter', filter});
+    });
+
+    // Add groups
+    this.uiGroups.forEach((group) => {
+      items.push({type: 'group', group});
+    });
+
+    return m('.pf-exp-query-operations', [
+      // Show hint when there are at least 2 complete filters (draggable items)
+      // Count filters in main list plus filters in all groups
+      (() => {
+        const mainFiltersCount = this.uiFilters.filter(
+          isFilterDefinitionValid,
+        ).length;
+        const groupFiltersCount = this.uiGroups.reduce(
+          (sum, g) => sum + g.filters.length,
+          0,
+        );
+        const totalFilters = mainFiltersCount + groupFiltersCount;
+        const hasGroups = this.uiGroups.length > 0;
+
+        return (
+          totalFilters >= 2 &&
+          m(
+            '.pf-exp-filter-mode-help',
+            hasGroups
+              ? 'Drag filters onto each other to create OR groups. Drag filters outside groups to extract them.'
+              : 'Tip: Drag filters onto each other to create OR groups.',
+          )
+        );
+      })(),
+      m(
+        '.pf-exp-filters-header',
+        m('label.pf-exp-filters-label', 'Type the filter'),
+        m(TextInput, {
+          placeholder: 'e.g. ts > 1000',
+          onkeydown: (e: KeyboardEvent) => {
+            const target = e.target as HTMLInputElement;
+            if (e.key === 'Enter') {
+              const text = target.value;
+              if (text.length > 0) {
+                const filter = fromString(text, sourceCols);
+                if (!isFilterDefinitionValid(filter)) {
+                  if (filter.column === undefined) {
+                    this.error = `Column not found in "${text}"`;
+                  } else if (filter.op === undefined) {
+                    this.error = `Operator not found in "${text}"`;
+                  } else {
+                    this.error = `Filter value is missing in "${text}"`;
                   }
-                  this.error = undefined;
-                  this.setFilters([...this.uiFilters, filter], attrs);
-                  target.value = '';
+                  m.redraw();
+                  return;
                 }
+                this.error = undefined;
+                this.setFilters([...this.uiFilters, filter], attrs);
+                target.value = '';
               }
-            },
-          }),
-        ),
-        this.error && m('.pf-exp-error-message', this.error),
+            }
+          },
+        }),
+      ),
+      this.error && m('.pf-exp-error-message', this.error),
+      // Filter list with drop zone for extracting from groups
+      m(
+        '.pf-filters-container',
+        {
+          ondragover: (e: DragEvent) => {
+            e.preventDefault();
+          },
+          ondrop: (e: DragEvent) => {
+            this.handleDropOutsideGroup(e, attrs);
+          },
+        },
         m(
           Stack,
           {orientation: 'vertical'},
-          this.uiFilters.map((filter) => this.renderFilterChip(filter, attrs)),
+          items.map((item) => {
+            if (item.type === 'filter') {
+              return this.renderFilterChip(item.filter, attrs);
+            } else {
+              return this.renderOrGroup(item.group, attrs);
+            }
+          }),
           m(Button, {
             icon: 'add',
+            label: 'Add Filter',
             rounded: true,
             intent: Intent.Primary,
             onclick: () => {
@@ -240,9 +495,9 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           }),
         ),
-        editor && m('.pf-exp-editor-box', editor),
-      ]),
-    );
+      ),
+      editor && m('.pf-exp-editor-box', editor),
+    ]);
   }
 }
 
@@ -378,6 +633,21 @@ export function isFilterDefinitionValid(
   }
 
   return true;
+}
+
+/**
+ * Check if a work-in-progress filter group is valid.
+ * @param group The group to check.
+ * @returns True if the group is valid.
+ */
+function isGroupDefinitionValid(
+  group: Partial<FilterGroup>,
+): group is FilterGroup {
+  if (!group.id || !group.filters || group.filters.length === 0) {
+    return false;
+  }
+  // All filters in the group must be valid
+  return group.filters.every(isFilterDefinitionValid);
 }
 
 // Tries to parse a filter from a raw string. This is a best-effort parser
@@ -549,6 +819,186 @@ export const ALL_FILTER_OPS: FilterOp[] = [
   op('GLOB', 'glob', protos.PerfettoSqlStructuredQuery.Filter.Operator.GLOB),
 ];
 
+// ============================================================================
+// Filter Group Management Utilities
+// ============================================================================
+
+let groupCounter = 0;
+function nextGroupId(): string {
+  return `group_${groupCounter++}`;
+}
+
+/**
+ * Result of a filter group operation.
+ * @internal
+ */
+export interface GroupOperationResult {
+  filters: UIFilter[];
+  groups: FilterGroup[];
+}
+
+/**
+ * Finds which group contains the given filter.
+ * @internal
+ */
+export function findFilterGroup(
+  filter: UIFilter,
+  groups: FilterGroup[],
+): FilterGroup | undefined {
+  return groups.find((g) => g.filters?.includes(filter));
+}
+
+/**
+ * Removes a filter from a specific group. If the group ends up with fewer
+ * than 2 filters, it's dissolved and any remaining filter is moved to the
+ * main filters list.
+ * @internal
+ */
+export function removeFilterFromGroup(
+  filter: UIFilter,
+  group: FilterGroup,
+  filters: UIFilter[],
+  groups: FilterGroup[],
+): GroupOperationResult {
+  const newGroupFilters = group.filters.filter((f) => f !== filter);
+
+  // If group now has < 2 filters, dissolve it
+  if (newGroupFilters.length < 2) {
+    let updatedFilters = [...filters];
+
+    // Move remaining filter back to main list BEFORE removing group
+    if (newGroupFilters.length === 1) {
+      updatedFilters = [...updatedFilters, newGroupFilters[0]];
+    }
+
+    // Remove the group
+    const updatedGroups = groups.filter((g) => g !== group);
+
+    return {
+      filters: updatedFilters,
+      groups: updatedGroups,
+    };
+  }
+
+  // Update the group with new filters (create new group object)
+  const updatedGroups = groups.map((g) =>
+    g === group ? {...g, filters: newGroupFilters} : g,
+  );
+
+  return {
+    filters,
+    groups: updatedGroups,
+  };
+}
+
+/**
+ * Removes a filter from whichever group contains it, or from the main
+ * filters list if it's not in a group.
+ * @internal
+ */
+export function removeFilterFromGroupsOrFilters(
+  filter: UIFilter,
+  filters: UIFilter[],
+  groups: FilterGroup[],
+): GroupOperationResult {
+  // Check if filter is in a group
+  const group = findFilterGroup(filter, groups);
+
+  if (group) {
+    // Remove from group (and potentially dissolve it)
+    return removeFilterFromGroup(filter, group, filters, groups);
+  }
+
+  // Remove from main filters list
+  return {
+    filters: filters.filter((f) => f !== filter),
+    groups,
+  };
+}
+
+/**
+ * Removes a filter from its current location (group or main list).
+ * Does NOT dissolve the group if it becomes a single-filter group - just
+ * removes the filter. Use this for drag operations where you'll be adding
+ * the filter elsewhere.
+ * @internal
+ */
+export function extractFilterFromLocation(
+  filter: UIFilter,
+  filters: UIFilter[],
+  groups: FilterGroup[],
+): GroupOperationResult {
+  const group = findFilterGroup(filter, groups);
+
+  if (group) {
+    const newGroupFilters = group.filters.filter((f) => f !== filter);
+
+    // If group now has < 2 filters, dissolve it
+    if (newGroupFilters.length < 2) {
+      let updatedFilters = [...filters];
+
+      // Move remaining filter back to main list
+      if (newGroupFilters.length === 1) {
+        updatedFilters = [...updatedFilters, newGroupFilters[0]];
+      }
+
+      // Remove the group
+      const updatedGroups = groups.filter((g) => g !== group);
+
+      return {
+        filters: updatedFilters,
+        groups: updatedGroups,
+      };
+    }
+
+    // Update the group with new filters
+    const updatedGroups = groups.map((g) =>
+      g === group ? {...g, filters: newGroupFilters} : g,
+    );
+
+    return {
+      filters,
+      groups: updatedGroups,
+    };
+  }
+
+  // Remove from main list
+  return {
+    filters: filters.filter((f) => f !== filter),
+    groups,
+  };
+}
+
+/**
+ * Adds a filter to an existing group.
+ * @internal
+ */
+export function addFilterToGroup(
+  filter: UIFilter,
+  group: FilterGroup,
+  groups: FilterGroup[],
+): FilterGroup[] {
+  return groups.map((g) =>
+    g === group ? {...g, filters: [...g.filters, filter]} : g,
+  );
+}
+
+/**
+ * Creates a new OR group with the given filters.
+ * @internal
+ */
+export function createFilterGroup(filters: UIFilter[]): FilterGroup {
+  return {
+    id: nextGroupId(),
+    filters,
+    enabled: true,
+  };
+}
+
+// ============================================================================
+// Proto Generation
+// ============================================================================
+
 export function createFiltersProto(
   filters: UIFilter[] | undefined,
   sourceCols: ColumnInfo[],
@@ -600,7 +1050,66 @@ export function createExperimentalFiltersProto(
   filters: UIFilter[] | undefined,
   sourceCols: ColumnInfo[],
   operator?: 'AND' | 'OR',
+  groups?: FilterGroup[],
 ): protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup | undefined {
+  // If no filters and no groups, return undefined
+  if (
+    (filters === undefined || filters.length === 0) &&
+    (groups === undefined || groups.length === 0)
+  ) {
+    return undefined;
+  }
+
+  // If we have groups, create a nested structure
+  if (groups && groups.length > 0) {
+    // Filter out disabled groups
+    const enabledGroups = groups.filter((g) => g.enabled !== false);
+
+    // Create the root AND group
+    const rootGroup =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup();
+    rootGroup.op =
+      protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.AND;
+
+    // Add individual filters at the top level
+    if (filters && filters.length > 0) {
+      const protoFilters = createFiltersProto(filters, sourceCols);
+      if (protoFilters) {
+        rootGroup.filters = protoFilters;
+      }
+    }
+
+    // Add OR groups as nested groups
+    rootGroup.groups = enabledGroups
+      .map((group) => {
+        const groupProtoFilters = createFiltersProto(group.filters, sourceCols);
+        if (!groupProtoFilters || groupProtoFilters.length === 0) {
+          return undefined;
+        }
+
+        const orGroup =
+          new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup();
+        orGroup.op =
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.OR;
+        orGroup.filters = groupProtoFilters;
+        return orGroup;
+      })
+      .filter(
+        (g) => g !== undefined,
+      ) as protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup[];
+
+    // If we have no filters and no valid groups, return undefined
+    if (
+      (rootGroup.filters === undefined || rootGroup.filters.length === 0) &&
+      rootGroup.groups.length === 0
+    ) {
+      return undefined;
+    }
+
+    return rootGroup;
+  }
+
+  // Legacy path: no groups, just filters with a single operator
   if (filters === undefined || filters.length === 0) {
     return undefined;
   }
@@ -635,6 +1144,8 @@ export function renderFilterOperation(
   sourceCols: ColumnInfo[],
   onFiltersChanged: (filters: ReadonlyArray<UIFilter>) => void,
   onFilterOperatorChanged: (operator: 'AND' | 'OR') => void,
+  groups?: FilterGroup[],
+  onGroupsChanged?: (groups: ReadonlyArray<FilterGroup>) => void,
 ): m.Child {
   return m(FilterOperation, {
     filters,
@@ -642,6 +1153,8 @@ export function renderFilterOperation(
     sourceCols,
     onFiltersChanged,
     onFilterOperatorChanged,
+    groups,
+    onGroupsChanged,
   });
 }
 
@@ -680,6 +1193,108 @@ function createFilterToggleCallback(state: {
 }
 
 /**
+ * Helper to format filter details with groups for nodeDetails display.
+ * Shows OR groups with visual boundaries and individual filters.
+ */
+function formatFilterDetailsWithGroups(
+  filters: UIFilter[] | undefined,
+  groups: FilterGroup[] | undefined,
+  state?: {filters?: UIFilter[]; groups?: FilterGroup[]; onchange?: () => void},
+  onRemove?: (filter: UIFilter) => void,
+  compact?: boolean,
+): m.Child {
+  const onFilterToggle = state ? createFilterToggleCallback(state) : undefined;
+  const onGroupToggle =
+    state && state.groups
+      ? (group: FilterGroup) => {
+          state.groups = state.groups?.map((g) =>
+            g === group
+              ? {...g, enabled: g.enabled !== false ? false : true}
+              : g,
+          );
+          state.onchange?.();
+        }
+      : undefined;
+
+  // Helper to render a filter chip
+  const renderFilterChip = (filter: UIFilter) => {
+    const isEnabled = filter.enabled !== false;
+    const label = formatSingleFilter(filter);
+    const classNames = [
+      'pf-filter-chip-wrapper',
+      !isEnabled && 'pf-filter-chip-wrapper--disabled',
+      compact && 'pf-filter-chip-wrapper--compact',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return m(
+      'span',
+      {
+        className: classNames,
+      },
+      m(Chip, {
+        label,
+        rounded: true,
+        removable: !!onRemove,
+        intent: isEnabled ? Intent.Primary : Intent.None,
+        onclick: onFilterToggle ? () => onFilterToggle(filter) : undefined,
+        onRemove: onRemove ? () => onRemove(filter) : undefined,
+      }),
+    );
+  };
+
+  // Helper to render an OR group
+  const renderOrGroup = (group: FilterGroup) => {
+    const isEnabled = group.enabled !== false;
+    const contentClass = compact
+      ? '.pf-or-group-content.pf-or-group-content--compact'
+      : '.pf-or-group-content';
+
+    return m(
+      '.pf-or-group-container',
+      {
+        className: !isEnabled ? 'pf-or-group-container--disabled' : '',
+      },
+      m('.pf-or-group-label', 'OR'),
+      m(
+        contentClass,
+        group.filters.map((filter) => renderFilterChip(filter)),
+      ),
+      // Only show checkbox if we have interactivity
+      onGroupToggle &&
+        m(
+          '.pf-or-group-controls',
+          m(Checkbox, {
+            checked: isEnabled,
+            title: isEnabled ? 'Disable group' : 'Enable group',
+            onchange: () => onGroupToggle(group),
+          }),
+        ),
+    );
+  };
+
+  const filterChipsClass = compact
+    ? '.pf-filter-chips.pf-filter-chips--compact'
+    : '.pf-filter-chips';
+
+  return m(
+    '.pf-filter-container.pf-filter-container--with-groups',
+    // Show individual filters
+    filters && filters.length > 0
+      ? m(
+          filterChipsClass,
+          filters.map((filter) => renderFilterChip(filter)),
+        )
+      : undefined,
+    // Show OR groups
+    groups && groups.length > 0
+      ? groups.map((group) => renderOrGroup(group))
+      : undefined,
+  );
+}
+
+/**
  * Helper to format filter details for nodeDetails display.
  * Returns interactive chips that can be clicked to toggle enabled/disabled state.
  * When using OR operator, shows individual filter chips for visibility.
@@ -689,9 +1304,46 @@ function createFilterToggleCallback(state: {
 export function formatFilterDetails(
   filters: UIFilter[] | undefined,
   filterOperator: 'AND' | 'OR' | undefined,
-  state?: {filters?: UIFilter[]; onchange?: () => void},
+  groups?: FilterGroup[],
+  state?: {filters?: UIFilter[]; groups?: FilterGroup[]; onchange?: () => void},
   onRemove?: (filter: UIFilter) => void,
+  compact?: boolean,
 ): m.Child | undefined {
+  const hasFilters = filters && filters.length > 0;
+  const hasGroups = groups && groups.length > 0;
+
+  if (!hasFilters && !hasGroups) {
+    return undefined;
+  }
+
+  // Create default onRemove handler if state is provided but onRemove is not
+  const effectiveOnRemove =
+    onRemove ??
+    (state
+      ? (filter: UIFilter) => {
+          const result = removeFilterFromGroupsOrFilters(
+            filter,
+            state.filters ?? [],
+            state.groups ?? [],
+          );
+          state.filters = result.filters;
+          state.groups = result.groups;
+          state.onchange?.();
+        }
+      : undefined);
+
+  // If we have groups, show a different layout
+  if (hasGroups) {
+    return formatFilterDetailsWithGroups(
+      filters,
+      groups,
+      state,
+      effectiveOnRemove,
+      compact,
+    );
+  }
+
+  // Legacy single-operator display
   if (!filters || filters.length === 0) {
     return undefined;
   }
@@ -705,20 +1357,28 @@ export function formatFilterDetails(
   const renderFilterChip = (filter: UIFilter) => {
     const isEnabled = filter.enabled !== false;
     const label = formatSingleFilter(filter);
+    const classNames = [
+      'pf-filter-chip-wrapper',
+      !isEnabled && 'pf-filter-chip-wrapper--disabled',
+      compact && 'pf-filter-chip-wrapper--compact',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
     return m(
       'span',
       {
-        className: isEnabled
-          ? 'pf-filter-chip-wrapper'
-          : 'pf-filter-chip-wrapper pf-filter-chip-wrapper--disabled',
+        className: classNames,
       },
       m(Chip, {
         label,
         rounded: true,
-        removable: !!onRemove,
+        removable: !!effectiveOnRemove,
         intent: isEnabled ? Intent.Primary : Intent.None,
         onclick: onFilterToggle ? () => onFilterToggle(filter) : undefined,
-        onRemove: onRemove ? () => onRemove(filter) : undefined,
+        onRemove: effectiveOnRemove
+          ? () => effectiveOnRemove(filter)
+          : undefined,
       }),
     );
   };
@@ -727,20 +1387,28 @@ export function formatFilterDetails(
   if (count <= 4) {
     // For OR filters, show chips in visual boundary without summary text
     if (operator === 'OR') {
+      const orChipsClass = compact
+        ? '.pf-filter-chips.pf-filter-chips--no-count.pf-filter-chips--compact'
+        : '.pf-filter-chips.pf-filter-chips--no-count';
+
       return m(
         '.pf-filter-or-group',
         m('.pf-filter-or-badge', 'OR'),
         m(
-          '.pf-filter-chips.pf-filter-chips--no-count',
+          orChipsClass,
           filters.map((filter) => renderFilterChip(filter)),
         ),
       );
     }
     // For AND filters, just show chips
+    const filterChipsClass = compact
+      ? '.pf-filter-chips.pf-filter-chips--compact'
+      : '.pf-filter-chips';
+
     return m(
       '.pf-filter-container',
       m(
-        '.pf-filter-chips',
+        filterChipsClass,
         filters.map((filter) => renderFilterChip(filter)),
       ),
     );
