@@ -35,15 +35,15 @@ interface SliceTrackTypeSchema {
    * This function is called during track registration to transform the raw
    * track name into a more user-friendly display name.
    *
-   * @param trackName - The raw name of the track from the trace (may be null).
+   * @param trackName - The name of the track as inferred by the UI.
    * @returns The transformed display name to show in the UI.
    *
    * @example
    * ```typescript
-   * displayName: (name) => name ? `${name} (Custom)` : 'Default Name'
+   * displayName: (name) =>`${name} (Custom)`
    * ```
    */
-  readonly displayName?: (trackName: string | null) => string;
+  readonly displayName?: (trackName: string) => string;
 
   /**
    * Optional function to provide a rich description renderer for the track.
@@ -311,15 +311,13 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     type: 'thread_funcgraph',
     topLevelGroup: 'THREAD',
     group: undefined,
-    displayName: (trackName) =>
-      trackName ? `${trackName} (funcgraph)` : 'Function Graph Tracing',
+    displayName: (trackName) => `${trackName} (funcgraph)`,
   },
   {
     type: 'art_method_tracing',
     topLevelGroup: 'THREAD',
     group: undefined,
-    displayName: (trackName) =>
-      trackName ? `${trackName} (ART)` : 'ART Method Tracing',
+    displayName: (trackName) => `${trackName} (ART)`,
     description: ({description}) => {
       return () =>
         m('div', [

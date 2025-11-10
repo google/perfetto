@@ -24,6 +24,7 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {
   UIFilter,
+  FilterGroup,
   renderFilterOperation,
   createExperimentalFiltersProto,
   formatFilterDetails,
@@ -34,6 +35,7 @@ export interface FilterNodeState extends QueryNodeState {
   prevNode: QueryNode;
   filters?: UIFilter[];
   filterOperator?: 'AND' | 'OR';
+  groups?: FilterGroup[]; // OR groups that are ANDed together at top level
 }
 
 export class FilterNode implements ModificationNode {
@@ -63,23 +65,20 @@ export class FilterNode implements ModificationNode {
   }
 
   nodeDetails(): m.Child {
-    if (!this.state.filters || this.state.filters.length === 0) {
+    const hasFilters = this.state.filters && this.state.filters.length > 0;
+    const hasGroups = this.state.groups && this.state.groups.length > 0;
+
+    if (!hasFilters && !hasGroups) {
       return m('.pf-filter-node-details', 'No filters applied');
     }
 
     return formatFilterDetails(
       this.state.filters,
       this.state.filterOperator,
-      this.state,
-      (filter) => {
-        if (this.state.filters) {
-          const filterIndex = this.state.filters.indexOf(filter);
-          if (filterIndex > -1) {
-            this.state.filters.splice(filterIndex, 1);
-            this.state.onchange?.();
-          }
-        }
-      },
+      this.state.groups,
+      this.state, // Pass state for interactive toggling and removal
+      undefined, // onRemove - handled internally by formatFilterDetails
+      true, // compact mode for smaller font
     );
   }
 
@@ -96,6 +95,11 @@ export class FilterNode implements ModificationNode {
         this.state.filterOperator = operator;
         this.state.onchange?.();
       },
+      this.state.groups,
+      (newGroups) => {
+        this.state.groups = [...newGroups];
+        this.state.onchange?.();
+      },
     );
   }
 
@@ -110,8 +114,11 @@ export class FilterNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    // If no filters are defined, just return the previous node's query
-    if (!this.state.filters || this.state.filters.length === 0) {
+    const hasFilters = this.state.filters && this.state.filters.length > 0;
+    const hasGroups = this.state.groups && this.state.groups.length > 0;
+
+    // If no filters and no groups are defined, just return the previous node's query
+    if (!hasFilters && !hasGroups) {
       return this.prevNode.getStructuredQuery();
     }
 
@@ -119,6 +126,7 @@ export class FilterNode implements ModificationNode {
       this.state.filters,
       this.sourceCols,
       this.state.filterOperator,
+      this.state.groups,
     );
 
     if (!filtersProto) {
@@ -151,6 +159,26 @@ export class FilterNode implements ModificationNode {
         }
       }),
       filterOperator: this.state.filterOperator,
+      groups: this.state.groups?.map((g) => ({
+        id: g.id,
+        enabled: g.enabled,
+        filters: g.filters.map((f) => {
+          if ('value' in f) {
+            return {
+              column: f.column,
+              op: f.op,
+              value: f.value,
+              enabled: f.enabled,
+            };
+          } else {
+            return {
+              column: f.column,
+              op: f.op,
+              enabled: f.enabled,
+            };
+          }
+        }),
+      })),
       comment: this.state.comment,
     };
   }
