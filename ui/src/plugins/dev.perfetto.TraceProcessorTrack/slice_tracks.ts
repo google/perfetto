@@ -14,6 +14,8 @@
 
 import m from 'mithril';
 import {StandardGroup} from '../dev.perfetto.StandardGroups';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 export interface SliceTrackGroupSchema {
   name: string;
@@ -26,6 +28,22 @@ interface SliceTrackTypeSchema {
   readonly type: string;
   readonly group: string | SliceTrackGroupSchema | undefined;
   readonly topLevelGroup: 'PROCESS' | 'THREAD' | StandardGroup | undefined;
+
+  /**
+   * Optional function to customize the display name of the track.
+   *
+   * This function is called during track registration to transform the raw
+   * track name into a more user-friendly display name.
+   *
+   * @param trackName - The raw name of the track from the trace (may be null).
+   * @returns The transformed display name to show in the UI.
+   *
+   * @example
+   * ```typescript
+   * displayName: (name) => name ? `${name} (Custom)` : 'Default Name'
+   * ```
+   */
+  readonly displayName?: (trackName: string | null) => string;
 
   /**
    * Optional function to provide a rich description renderer for the track.
@@ -279,10 +297,55 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     type: 'thread_execution',
     topLevelGroup: 'THREAD',
     group: undefined,
+    description: () => {
+      return () =>
+        m(
+          'p',
+          `Shows general thread execution instrumentation from various sources
+           (e.g. atrace, track event, syscall) all appearing on a single
+           timeline.`,
+        );
+    },
   },
   {
     type: 'thread_funcgraph',
     topLevelGroup: 'THREAD',
     group: undefined,
+    displayName: (trackName) =>
+      trackName ? `${trackName} (funcgraph)` : 'Function Graph Tracing',
+  },
+  {
+    type: 'art_method_tracing',
+    topLevelGroup: 'THREAD',
+    group: undefined,
+    displayName: (trackName) =>
+      trackName ? `${trackName} (ART)` : 'ART Method Tracing',
+    description: ({description}) => {
+      return () =>
+        m('div', [
+          m(
+            'p',
+            description ??
+              'Shows ART (Android Runtime) method entry and exit events.',
+          ),
+          m(
+            'p',
+            `These represent Java/Kotlin method calls traced at the runtime
+             level. Due to the performace impact of method tracing, it's very
+             likely the performance shown here is signifcantly different to
+             performance when method tracing is turned off.`,
+          ),
+          m('br'),
+          m(
+            Anchor,
+            {
+              href: 'https://developer.android.com/reference/android/os/Debug#startMethodTracing()',
+              target: '_blank',
+              icon: Icons.ExternalLink,
+            },
+            'Documentation',
+          ),
+        ]);
+    },
   },
 ];
