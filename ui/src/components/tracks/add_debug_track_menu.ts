@@ -61,6 +61,7 @@ interface ConfigurationOptions {
   value: string;
   argSetId: string;
   pivot: string;
+  color: string;
 }
 
 export class AddDebugTrackMenu
@@ -81,6 +82,7 @@ export class AddDebugTrackMenu
       value: chooseDefaultColumn(columns, 'value'),
       argSetId: chooseDefaultColumn(columns, 'arg_set_id'),
       pivot: undefined,
+      color: '', // Empty string means "from slice name"
     };
   }
 
@@ -175,6 +177,7 @@ export class AddDebugTrackMenu
         ...availableColumns,
       ]),
       this.renderFormSelectInput('Name column', 'name', availableColumns),
+      this.renderColorSelect(availableColumns),
       this.renderFormSelectInput(
         'Arguments ID column (optional)',
         'argSetId',
@@ -205,6 +208,30 @@ export class AddDebugTrackMenu
         {
           optional: true,
         },
+      ),
+    ];
+  }
+
+  private renderColorSelect(availableColumns: ReadonlyArray<string>) {
+    return [
+      m(FormLabel, {for: 'color'}, 'Color'),
+      m(
+        Select,
+        {
+          id: 'color',
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            this.options.color = (e.target as HTMLSelectElement).value;
+          },
+        },
+        m(
+          'option',
+          {selected: this.options.color === '', value: ''},
+          'Automatic (from slice name)',
+        ),
+        availableColumns.map((col) =>
+          m('option', {selected: this.options.color === col, value: col}, col),
+        ),
       ),
     ];
   }
@@ -278,6 +305,7 @@ export class AddDebugTrackMenu
           argSetIdColumn: this.options.argSetId,
           rawColumns: attrs.availableColumns,
           pivotOn: this.options.pivot,
+          colorColumn: this.options.color || undefined,
         });
         break;
       case 'counter':
