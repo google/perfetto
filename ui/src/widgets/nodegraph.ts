@@ -651,136 +651,173 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     nodes: ReadonlyArray<Node>,
     onConnectionRemove?: (index: number) => void,
   ) {
-    // Clear existing paths
-    svg.innerHTML = '';
-
     const shortenLength = 16;
     const arrowheadLength = 4;
 
-    // Create arrow marker definition
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    // Cache all port positions at once for performance
+    const portPositionCache = new Map<string, Position>();
 
-    function createArrowheadMarker(
-      id: string,
-      color: string,
-    ): SVGMarkerElement {
-      const marker = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'marker',
-      );
-      marker.setAttribute('id', id);
-      marker.setAttribute('viewBox', `0 0 ${arrowheadLength} 10`);
-      marker.setAttribute('refX', '0');
-      marker.setAttribute('refY', '5');
-      marker.setAttribute('markerWidth', `${arrowheadLength}`);
-      marker.setAttribute('markerHeight', '10');
-      marker.setAttribute('orient', 'auto');
+    // Query all ports in one go and cache their positions
+    const allPorts = document.querySelectorAll('.pf-port[data-port]');
+    allPorts.forEach((portElement) => {
+      const portId = portElement.getAttribute('data-port');
+      if (!portId) return;
 
-      const polygon = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'polygon',
-      );
-      polygon.setAttribute('points', `0 2.5, ${arrowheadLength} 5, 0 7.5`);
-      polygon.setAttribute('fill', color);
+      const nodeElement = portElement.closest(
+        '[data-node]',
+      ) as HTMLElement | null;
+      if (!nodeElement) return;
 
-      marker.appendChild(polygon);
+      const nodeId = nodeElement.dataset.node;
+      if (!nodeId) return;
 
-      return marker;
-    }
+      const [portType, portIndexStr] = portId.split('-');
+      const cacheKey = `${nodeId}-${portType}-${portIndexStr}`;
 
-    const arrowhead = createArrowheadMarker(
-      'arrowhead',
-      'var(--pf-color-accent)',
-    );
-    defs.appendChild(arrowhead);
+      // Calculate position
+      const chainContainer = nodeElement.closest(
+        '.pf-node-wrapper',
+      ) as HTMLElement | null;
 
-    const arrowheadTemp = createArrowheadMarker(
-      'arrowhead-temp',
-      'var(--pf-color-text-muted)',
-    );
-    defs.appendChild(arrowheadTemp);
+      let nodeLeft: number;
+      let nodeTop: number;
 
-    svg.appendChild(defs);
+      if (chainContainer) {
+        // Node is in a dock chain - use container's position
+        nodeLeft = parseFloat(chainContainer.style.left) || 0;
+        nodeTop = parseFloat(chainContainer.style.top) || 0;
 
-    // Only render explicit connections (not implicit dock connections)
-    connections.forEach((conn, idx) => {
-      const from = getPortPosition(conn.fromNode, 'output', conn.fromPort);
-      const to = getPortPosition(conn.toNode, 'input', conn.toPort);
+        // Add offset of node within the chain
+        const chainRect = chainContainer.getBoundingClientRect();
+        const nodeRect = nodeElement.getBoundingClientRect();
+        const offsetY = (nodeRect.top - chainRect.top) / canvasState.zoom;
 
-      // Validate that both ports exist (return {x: 0, y: 0} if not found)
-      const fromValid = from.x !== 0 || from.y !== 0;
-      const toValid = to.x !== 0 || to.y !== 0;
-
-      if (!fromValid || !toValid) {
-        console.warn(
-          `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
-          !fromValid ? `(source port not found)` : `(target port not found)`,
-        );
-        return; // Skip rendering this connection
+        nodeTop += offsetY;
+      } else {
+        // Standalone node - use its position directly
+        nodeLeft = parseFloat(nodeElement.style.left) || 0;
+        nodeTop = parseFloat(nodeElement.style.top) || 0;
       }
 
-      const path = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
-      );
-      path.setAttribute('class', 'pf-connection');
+      // Get port's position relative to the node
+      const portRect = portElement.getBoundingClientRect();
+      const nodeRect = nodeElement.getBoundingClientRect();
 
-      const fromPortType = getPortType(
-        conn.fromNode,
-        'output',
-        conn.fromPort,
-        nodes,
-      );
-      const toPortType = getPortType(conn.toNode, 'input', conn.toPort, nodes);
+      // Calculate offset in screen space, then divide by zoom to get canvas content space
+      const portX =
+        (portRect.left - nodeRect.left + portRect.width / 2) / canvasState.zoom;
+      const portY =
+        (portRect.top - nodeRect.top + portRect.height / 2) / canvasState.zoom;
 
-      path.setAttribute(
-        'd',
-        createCurve(
-          from.x,
-          from.y,
-          to.x,
-          to.y,
-          fromPortType,
-          toPortType,
-          shortenLength,
-        ),
-      );
-      path.setAttribute('marker-end', 'url(#arrowhead)');
-      path.style.pointerEvents = 'stroke';
-      path.style.cursor = 'pointer';
-
-      // Prevent canvas pan from starting when clicking connections
-      path.onpointerdown = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-      };
-
-      path.onclick = (e) => {
-        e.stopPropagation();
-        if (onConnectionRemove !== undefined) {
-          onConnectionRemove(idx);
-        }
-      };
-      svg.appendChild(path);
+      portPositionCache.set(cacheKey, {
+        x: nodeLeft + portX,
+        y: nodeTop + portY,
+      });
     });
 
-    // Render temp connection if connecting
-    if (canvasState.connecting) {
-      const path = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
+    // Helper function to get port position from cache or fallback to direct lookup
+    const getPortPos = (
+      nodeId: string,
+      portType: 'input' | 'output',
+      portIndex: number,
+    ): Position => {
+      const cacheKey = `${nodeId}-${portType}-${portIndex}`;
+      return (
+        portPositionCache.get(cacheKey) ||
+        getPortPosition(nodeId, portType, portIndex)
       );
-      path.setAttribute('class', 'pf-temp-connection');
+    };
 
-      // Convert screen coordinates to canvas content coordinates
+    // Build arrowhead markers using mithril
+    const arrowheadMarker = (id: string, color: string) =>
+      m(
+        'marker',
+        {
+          id,
+          viewBox: `0 0 ${arrowheadLength} 10`,
+          refX: '0',
+          refY: '5',
+          markerWidth: `${arrowheadLength}`,
+          markerHeight: '10',
+          orient: 'auto',
+        },
+        m('polygon', {
+          points: `0 2.5, ${arrowheadLength} 5, 0 7.5`,
+          fill: color,
+        }),
+      );
+
+    // Build connection paths using mithril
+    const connectionPaths = connections
+      .map((conn, idx) => {
+        const from = getPortPos(conn.fromNode, 'output', conn.fromPort);
+        const to = getPortPos(conn.toNode, 'input', conn.toPort);
+
+        // Validate that both ports exist (return {x: 0, y: 0} if not found)
+        const fromValid = from.x !== 0 || from.y !== 0;
+        const toValid = to.x !== 0 || to.y !== 0;
+
+        if (!fromValid || !toValid) {
+          console.warn(
+            `Invalid connection: ${conn.fromNode}:${conn.fromPort} -> ${conn.toNode}:${conn.toPort}`,
+            !fromValid ? `(source port not found)` : `(target port not found)`,
+          );
+          return null;
+        }
+
+        const fromPortType = getPortType(
+          conn.fromNode,
+          'output',
+          conn.fromPort,
+          nodes,
+        );
+        const toPortType = getPortType(
+          conn.toNode,
+          'input',
+          conn.toPort,
+          nodes,
+        );
+
+        return m('path', {
+          'key': `conn-${idx}`,
+          'class': 'pf-connection',
+          'd': createCurve(
+            from.x,
+            from.y,
+            to.x,
+            to.y,
+            fromPortType,
+            toPortType,
+            shortenLength,
+          ),
+          'marker-end': 'url(#arrowhead)',
+          'style': {
+            pointerEvents: 'stroke',
+            cursor: 'pointer',
+          },
+          'onpointerdown': (e: PointerEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+          },
+          'onclick': (e: Event) => {
+            e.stopPropagation();
+            if (onConnectionRemove !== undefined) {
+              onConnectionRemove(idx);
+            }
+          },
+        });
+      })
+      .filter((path) => path !== null);
+
+    // Build temp connection if connecting
+    let tempConnectionPath = null;
+    if (canvasState.connecting) {
       const fromX = canvasState.connecting.transformedX;
       const fromY = canvasState.connecting.transformedY;
       let toX = canvasState.mousePos.transformedX ?? 0;
       let toY = canvasState.mousePos.transformedY ?? 0;
 
-      // For temp connections, use the stored port type
       const fromPortType = canvasState.connecting.portType;
-      // The target end defaults to the opposite type for visual feedback
       let toPortType: 'top' | 'left' | 'right' | 'bottom' =
         fromPortType === 'top' || fromPortType === 'bottom' ? 'top' : 'left';
 
@@ -790,7 +827,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         canvasState.hoveredPort.type === 'input'
       ) {
         const {nodeId, portIndex, type} = canvasState.hoveredPort;
-        const hoverPos = getPortPosition(nodeId, type, portIndex);
+        const hoverPos = getPortPos(nodeId, type, portIndex);
         if (hoverPos.x !== 0 || hoverPos.y !== 0) {
           toX = hoverPos.x;
           toY = hoverPos.y;
@@ -798,9 +835,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         }
       }
 
-      path.setAttribute(
-        'd',
-        createCurve(
+      tempConnectionPath = m('path', {
+        'class': 'pf-temp-connection',
+        'd': createCurve(
           fromX,
           fromY,
           toX,
@@ -809,10 +846,19 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           toPortType,
           shortenLength,
         ),
-      );
-      path.setAttribute('marker-end', 'url(#arrowhead-temp)');
-      svg.appendChild(path);
+        'marker-end': 'url(#arrowhead-temp)',
+      });
     }
+
+    // Render everything using mithril's render function
+    m.render(svg, [
+      m('defs', [
+        arrowheadMarker('arrowhead', 'var(--pf-color-accent)'),
+        arrowheadMarker('arrowhead-temp', 'var(--pf-color-text-muted)'),
+      ]),
+      m('g', connectionPaths),
+      tempConnectionPath,
+    ]);
   }
 
   function getPortPosition(

@@ -615,6 +615,130 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     console.log(`removeNode: ${nodeId}`);
   };
 
+  // Stress test function
+  const runStressTest = () => {
+    updateStore((draft) => {
+      // Clear existing state
+      draft.nodes.clear();
+      draft.connections.length = 0;
+
+      // Node factory options
+      const nodeFactories = [
+        createTableNode,
+        createSelectNode,
+        createFilterNode,
+        createSortNode,
+        createJoinNode,
+        createUnionNode,
+        createResultNode,
+      ];
+
+      // Create 100 random nodes
+      const nodeIds: string[] = [];
+      for (let i = 0; i < 100; i++) {
+        const id = uuidv4();
+        const factory =
+          nodeFactories[Math.floor(Math.random() * nodeFactories.length)];
+        const x = Math.random() * 2000;
+        const y = Math.random() * 2000;
+        const newNode = factory(id, x, y);
+
+        draft.nodes.set(id, newNode);
+        nodeIds.push(id);
+      }
+
+      // Create some stacked (docked) nodes
+      // Aim for ~20 stacks (20% of nodes)
+      const usedInStacks = new Set<string>();
+      let stacksCreated = 0;
+      for (let i = 0; i < 20; i++) {
+        // Find a parent node that can dock (has canDockBottom)
+        const availableParents = nodeIds.filter((id) => {
+          const node = draft.nodes.get(id)!;
+          const config = NODE_CONFIGS[node.type];
+          return config.canDockBottom && !node.nextId && !usedInStacks.has(id);
+        });
+
+        if (availableParents.length === 0) break;
+
+        const parentId =
+          availableParents[Math.floor(Math.random() * availableParents.length)];
+        const parent = draft.nodes.get(parentId)!;
+
+        // Find a child node that can dock (has canDockTop)
+        const availableChildren = nodeIds.filter((id) => {
+          const node = draft.nodes.get(id)!;
+          const config = NODE_CONFIGS[node.type];
+          return config.canDockTop && id !== parentId && !usedInStacks.has(id);
+        });
+
+        if (availableChildren.length === 0) continue;
+
+        const childId =
+          availableChildren[
+            Math.floor(Math.random() * availableChildren.length)
+          ];
+
+        // Stack the child under the parent
+        parent.nextId = childId;
+        usedInStacks.add(parentId);
+        usedInStacks.add(childId);
+        stacksCreated++;
+      }
+
+      // Create random connections between nodes
+      // Aim for ~150 connections (1.5 per node on average)
+      const numConnections = 150;
+      for (let i = 0; i < numConnections; i++) {
+        // Pick random nodes
+        const fromNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+        const toNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+
+        if (fromNodeId === toNodeId) continue;
+
+        const fromNode = draft.nodes.get(fromNodeId)!;
+        const toNode = draft.nodes.get(toNodeId)!;
+
+        // Check if nodes have compatible ports
+        const fromConfig = NODE_CONFIGS[fromNode.type];
+        const toConfig = NODE_CONFIGS[toNode.type];
+        const numOutputs = fromConfig.outputs?.length ?? 0;
+        const numInputs = toConfig.inputs?.length ?? 0;
+
+        if (numOutputs === 0 || numInputs === 0) continue;
+
+        // Random output and input ports
+        const fromPort = Math.floor(Math.random() * numOutputs);
+        const toPort = Math.floor(Math.random() * numInputs);
+
+        // Check if this connection already exists
+        const exists = draft.connections.some(
+          (c) =>
+            c.fromNode === fromNodeId &&
+            c.toNode === toNodeId &&
+            c.fromPort === fromPort &&
+            c.toPort === toPort,
+        );
+
+        if (!exists) {
+          draft.connections.push({
+            fromNode: fromNodeId,
+            fromPort,
+            toNode: toNodeId,
+            toPort,
+          });
+        }
+      }
+
+      console.log(
+        `Stress test: Created ${draft.nodes.size} nodes, ${draft.connections.length} connections, and ${stacksCreated} stacks`,
+      );
+    });
+
+    // Clear selection after stress test
+    selectedNodeIds.clear();
+  };
+
   // Build SQL query from a node by traversing upwards
   function buildSqlFromNode(
     nodes: Map<string, NodeData>,
@@ -976,6 +1100,13 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
             ],
           ),
+          m(Button, {
+            label: 'Stress Test',
+            icon: 'science',
+            variant: ButtonVariant.Filled,
+            title: 'Generate a large random graph for performance testing',
+            onclick: () => runStressTest(),
+          }),
         ],
         nodes: renderNodes(),
         connections: store.connections,

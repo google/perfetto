@@ -51,6 +51,11 @@
   height: 100%;
   pointer-events: none;
   overflow: visible;
+  will-change: transform;
+
+  svg {
+    isolation: isolate;
+  }
 }
 
 .pf-nodegraph-controls {
@@ -321,9 +326,6 @@ svg {
   color: var(--pf-color-accent);
   stroke-width: 2;
   fill: none;
-  filter: drop-shadow(
-    0 0 4px color-mix(in srgb, var(--pf-color-accent) 50%, transparent)
-  );
   transition:
     stroke-width 0.2s,
     stroke 0.2s;
