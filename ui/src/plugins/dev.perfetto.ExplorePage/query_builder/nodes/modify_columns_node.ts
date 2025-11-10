@@ -102,67 +102,83 @@ class SwitchComponent
     if (column.switchOn === undefined || column.switchOn === '') {
       const columnNames = columns.map((c) => c.column.name);
       return m(
-        Card,
+        '.pf-exp-switch-component',
         m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              setSwitchOn((e.target as HTMLSelectElement).value);
+          '.pf-exp-switch-header',
+          'SWITCH ON ',
+          m(
+            Select,
+            {
+              onchange: (e: Event) => {
+                setSwitchOn((e.target as HTMLSelectElement).value);
+              },
             },
-          },
-          m('option', {value: ''}, 'Select column'),
-          ...columnNames.map((name) => m('option', {value: name}, name)),
+            m('option', {value: ''}, 'Select column'),
+            ...columnNames.map((name) => m('option', {value: name}, name)),
+          ),
         ),
       );
     }
 
+    const columnNames = columns.map((c) => c.column.name);
+
     return m(
-      Card,
+      '.pf-exp-switch-component',
       m(
-        '.pf-exp-switch-component',
-        m('div', `SWITCH ON ${column.switchOn}`),
+        '.pf-exp-switch-header',
+        'SWITCH ON ',
         m(
-          '.pf-exp-switch-default-row',
-          'Default ',
-          m(TextInput, {
-            placeholder: 'default value',
-            value: column.defaultValue || '',
-            oninput: (e: Event) => {
-              setDefaultValue((e.target as HTMLInputElement).value);
+          Select,
+          {
+            value: column.switchOn,
+            onchange: (e: Event) => {
+              setSwitchOn((e.target as HTMLSelectElement).value);
             },
-          }),
+          },
+          ...columnNames.map((name) => m('option', {value: name}, name)),
         ),
-        ...(column.cases || []).map((c, i) =>
-          m(
-            '.pf-exp-switch-case',
-            'WHEN ',
-            m(TextInput, {
-              placeholder: 'is equal to',
-              value: c.when,
-              oninput: (e: Event) => {
-                setCaseWhen(i, (e.target as HTMLInputElement).value);
-              },
-            }),
-            ' THEN ',
-            m(TextInput, {
-              placeholder: 'then value',
-              value: c.then,
-              oninput: (e: Event) => {
-                setCaseThen(i, (e.target as HTMLInputElement).value);
-              },
-            }),
-            m(
-              'button',
-              {onclick: () => removeCase(i)},
-              m(Icon, {icon: 'close'}),
-            ),
-          ),
-        ),
-        m(Button, {
-          label: 'Add case',
-          onclick: addCase,
+      ),
+      m(
+        '.pf-exp-switch-default-row',
+        'Default ',
+        m(TextInput, {
+          placeholder: 'default value',
+          value: column.defaultValue || '',
+          oninput: (e: Event) => {
+            setDefaultValue((e.target as HTMLInputElement).value);
+          },
         }),
       ),
+      ...(column.cases || []).map((c, i) =>
+        m(
+          '.pf-exp-switch-case',
+          'WHEN ',
+          m(TextInput, {
+            placeholder: 'is equal to',
+            value: c.when,
+            oninput: (e: Event) => {
+              setCaseWhen(i, (e.target as HTMLInputElement).value);
+            },
+          }),
+          ' THEN ',
+          m(TextInput, {
+            placeholder: 'then value',
+            value: c.then,
+            oninput: (e: Event) => {
+              setCaseThen(i, (e.target as HTMLInputElement).value);
+            },
+          }),
+          m(Button, {
+            icon: 'close',
+            compact: true,
+            onclick: () => removeCase(i),
+          }),
+        ),
+      ),
+      m(Button, {
+        label: 'Add case',
+        onclick: addCase,
+      }),
     );
   }
 
@@ -174,7 +190,7 @@ class SwitchComponent
 
     const casesStr = (col.cases || [])
       .filter((c) => c.when.trim() !== '' && c.then.trim() !== '')
-      .map((c) => `WHEN ${c.when} THEN ${c.then}`)
+      .map((c) => `WHEN ${col.switchOn} = ${c.when} THEN ${c.then}`)
       .join(' ');
 
     const defaultStr = col.defaultValue ? `ELSE ${col.defaultValue}` : '';
@@ -184,7 +200,7 @@ class SwitchComponent
       return;
     }
 
-    col.expression = `CASE ${col.switchOn} ${casesStr} ${defaultStr} END`;
+    col.expression = `CASE ${casesStr} ${defaultStr} END`;
   }
 }
 
@@ -246,66 +262,63 @@ class IfComponent
     const hasElse = column.elseValue !== undefined;
 
     return m(
-      Card,
-      m(
-        '.pf-exp-if-component',
-        (column.clauses || []).map((c, i) =>
-          m(
-            '.pf-exp-if-clause',
-            i === 0 ? 'IF ' : 'ELSE IF',
-            m(TextInput, {
-              placeholder: 'condition',
-              value: c.if,
-              oninput: (e: Event) => {
-                setIfCondition(i, (e.target as HTMLInputElement).value);
-              },
-            }),
-            ' THEN ',
-            m(TextInput, {
-              placeholder: 'value',
-              value: c.then,
-              oninput: (e: Event) => {
-                setThenValue(i, (e.target as HTMLInputElement).value);
-              },
-            }),
-            m(
-              'button',
-              {onclick: () => removeClause(i)},
-              m(Icon, {icon: 'close'}),
-            ),
-          ),
-        ),
-
-        hasElse &&
-          m(
-            '.pf-exp-else-clause',
-            'ELSE ',
-            m(TextInput, {
-              placeholder: 'value',
-              value: column.elseValue || '',
-              oninput: (e: Event) => {
-                setElseValue((e.target as HTMLInputElement).value);
-              },
-            }),
-          ),
-
+      '.pf-exp-if-component',
+      (column.clauses || []).map((c, i) =>
         m(
-          '.pf-exp-if-buttons',
-          !hasElse &&
-            m(Button, {
-              label: 'Add ELSE IF',
-              onclick: addElseIf,
-            }),
-          !hasElse &&
-            m(Button, {
-              label: 'Add ELSE',
-              onclick: () => {
-                column.elseValue = '';
-                this.updateExpression(column);
-                onchange();
-              },
-            }),
+          '.pf-exp-if-clause',
+          i === 0 ? 'IF ' : 'ELSE IF',
+          m(TextInput, {
+            placeholder: 'condition',
+            value: c.if,
+            oninput: (e: Event) => {
+              setIfCondition(i, (e.target as HTMLInputElement).value);
+            },
+          }),
+          ' THEN ',
+          m(TextInput, {
+            placeholder: 'value',
+            value: c.then,
+            oninput: (e: Event) => {
+              setThenValue(i, (e.target as HTMLInputElement).value);
+            },
+          }),
+          m(Button, {
+            icon: 'close',
+            compact: true,
+            onclick: () => removeClause(i),
+          }),
         ),
+      ),
+
+      hasElse &&
+        m(
+          '.pf-exp-else-clause',
+          'ELSE ',
+          m(TextInput, {
+            placeholder: 'value',
+            value: column.elseValue || '',
+            oninput: (e: Event) => {
+              setElseValue((e.target as HTMLInputElement).value);
+            },
+          }),
+        ),
+
+      m(
+        '.pf-exp-if-buttons',
+        !hasElse &&
+          m(Button, {
+            label: 'Add ELSE IF',
+            onclick: addElseIf,
+          }),
+        !hasElse &&
+          m(Button, {
+            label: 'Add ELSE',
+            onclick: () => {
+              column.elseValue = '';
+              this.updateExpression(column);
+              onchange();
+            },
+          }),
       ),
     );
   }
@@ -618,63 +631,36 @@ export class ModifyColumnsNode implements ModificationNode {
       }
 
       if (switchColumns.length > 0) {
-        for (const c of switchColumns) {
-          const cases = (c.cases || [])
-            .filter((cas) => cas.when.trim() !== '' && cas.then.trim() !== '')
-            .map((cas) =>
-              m(
-                'div',
-                {style: 'padding-left: 16px'},
-                `WHEN ${cas.when} THEN ${cas.then}`,
-              ),
-            );
-          if (c.defaultValue) {
-            cases.push(
-              m('div', {style: 'padding-left: 16px'}, `ELSE ${c.defaultValue}`),
-            );
-          }
-          cards.push(
-            m(
-              Card,
-              {
-                className:
-                  'pf-exp-node-details-card pf-exp-switch-details-card',
-              },
-              m(
-                'div.pf-exp-switch-expression',
-                m('div', `SWITCH ON ${c.switchOn}`),
-                ...cases,
-              ),
-              m('div.pf-exp-switch-alias', `AS ${c.name}`),
-            ),
-          );
-        }
+        const switchItems = switchColumns.map((c) =>
+          m(
+            'div.pf-exp-switch-summary',
+            m('span.pf-exp-switch-keyword', 'SWITCH'),
+            ' on ',
+            m('span.pf-exp-column-name', c.switchOn),
+            ' ',
+            m('span.pf-exp-as-keyword', 'AS'),
+            ' ',
+            m('span.pf-exp-alias-name', c.name),
+          ),
+        );
+        cards.push(
+          m(Card, {className: 'pf-exp-node-details-card'}, ...switchItems),
+        );
       }
       if (ifColumns.length > 0) {
-        for (const c of ifColumns) {
-          const clauses = (c.clauses || [])
-            .filter((cl) => cl.if.trim() !== '' && cl.then.trim() !== '')
-            .map((cl, i) =>
-              m(
-                'div',
-                {style: 'padding-left: 16px'},
-                `${i === 0 ? 'if' : 'elif'} (${cl.if}): ${cl.then}`,
-              ),
-            );
-          if (c.elseValue) {
-            clauses.push(
-              m('div', {style: 'padding-left: 16px'}, `else: ${c.elseValue}`),
-            );
-          }
-          cards.push(
-            m(
-              Card,
-              {className: 'pf-exp-node-details-card pf-exp-if-details-card'},
-              m('div.pf-exp-if-expression', ...clauses),
-              m('div.pf-exp-if-alias', `AS ${c.name}`),
-            ),
-          );
-        }
+        const ifItems = ifColumns.map((c) =>
+          m(
+            'div.pf-exp-if-summary',
+            m('span.pf-exp-if-keyword', 'IF'),
+            ' ',
+            m('span.pf-exp-as-keyword', 'AS'),
+            ' ',
+            m('span.pf-exp-alias-name', c.name),
+          ),
+        );
+        cards.push(
+          m(Card, {className: 'pf-exp-node-details-card'}, ...ifItems),
+        );
       }
     }
 
@@ -722,11 +708,15 @@ export class ModifyColumnsNode implements ModificationNode {
             ),
           ),
         ),
+        this.state.newColumns.length > 0 &&
+          m(
+            Card,
+            this.state.newColumns.map((col, index) =>
+              this.renderNewColumn(col, index),
+            ),
+          ),
         m(
           Card,
-          this.state.newColumns.map((col, index) =>
-            this.renderNewColumn(col, index),
-          ),
           m(
             'div.pf-exp-modify-columns-node-buttons',
             this.renderAddColumnButton(),
@@ -852,84 +842,104 @@ export class ModifyColumnsNode implements ModificationNode {
           '☰',
         ),
         ...children,
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: () => {
+            const newNewColumns = [...this.state.newColumns];
+            newNewColumns.splice(index, 1);
+            this.state.newColumns = newNewColumns;
+            this.state.onchange?.();
+          },
+        }),
+      );
+    };
+
+    if (col.type === 'switch') {
+      return m(
+        '.pf-exp-switch-wrapper',
         m(
-          'button',
-          {
+          '.pf-exp-switch-name-row',
+          m('label', 'New switch column name'),
+          m(TextInput, {
+            oninput: (e: Event) => {
+              const newNewColumns = [...this.state.newColumns];
+              newNewColumns[index] = {
+                ...newNewColumns[index],
+                name: (e.target as HTMLInputElement).value,
+              };
+              this.state.newColumns = newNewColumns;
+              this.state.onchange?.();
+            },
+            placeholder: 'name',
+            value: col.name,
+          }),
+          !this.isNewColumnValid(col) && m(Icon, {icon: 'warning'}),
+          m(Button, {
+            icon: 'close',
+            compact: true,
             onclick: () => {
               const newNewColumns = [...this.state.newColumns];
               newNewColumns.splice(index, 1);
               this.state.newColumns = newNewColumns;
               this.state.onchange?.();
             },
-          },
-          m(Icon, {icon: 'close'}),
-        ),
-      );
-    };
-
-    if (col.type === 'switch') {
-      return commonWrapper([
-        m(
-          '.pf-exp-switch-component-wrapper',
-          {style: 'flex-grow: 1'},
-          m(SwitchComponent, {
-            column: col,
-            columns: this.prevNode?.finalCols ?? [],
-            onchange: () => {
-              const newNewColumns = [...this.state.newColumns];
-              newNewColumns[index] = {...col};
-              this.state.newColumns = newNewColumns;
-              this.state.onchange?.();
-            },
           }),
         ),
-        m(TextInput, {
-          oninput: (e: Event) => {
+        m(SwitchComponent, {
+          column: col,
+          columns: this.prevNode?.finalCols ?? [],
+          onchange: () => {
             const newNewColumns = [...this.state.newColumns];
-            newNewColumns[index] = {
-              ...newNewColumns[index],
-              name: (e.target as HTMLInputElement).value,
-            };
+            newNewColumns[index] = {...col};
             this.state.newColumns = newNewColumns;
             this.state.onchange?.();
           },
-          placeholder: 'name',
-          value: col.name,
         }),
-        !this.isNewColumnValid(col) && m(Icon, {icon: 'warning'}),
-      ]);
+      );
     }
 
     if (col.type === 'if') {
-      return commonWrapper([
+      return m(
+        '.pf-exp-if-wrapper',
         m(
-          '.pf-exp-if-component-wrapper',
-          {style: 'flex-grow: 1'},
-          m(IfComponent, {
-            column: col,
-            onchange: () => {
+          '.pf-exp-if-name-row',
+          m('label', 'New if column name'),
+          m(TextInput, {
+            oninput: (e: Event) => {
               const newNewColumns = [...this.state.newColumns];
-              newNewColumns[index] = {...col};
+              newNewColumns[index] = {
+                ...newNewColumns[index],
+                name: (e.target as HTMLInputElement).value,
+              };
+              this.state.newColumns = newNewColumns;
+              this.state.onchange?.();
+            },
+            placeholder: 'name',
+            value: col.name,
+          }),
+          !this.isNewColumnValid(col) && m(Icon, {icon: 'warning'}),
+          m(Button, {
+            icon: 'close',
+            compact: true,
+            onclick: () => {
+              const newNewColumns = [...this.state.newColumns];
+              newNewColumns.splice(index, 1);
               this.state.newColumns = newNewColumns;
               this.state.onchange?.();
             },
           }),
         ),
-        m(TextInput, {
-          oninput: (e: Event) => {
+        m(IfComponent, {
+          column: col,
+          onchange: () => {
             const newNewColumns = [...this.state.newColumns];
-            newNewColumns[index] = {
-              ...newNewColumns[index],
-              name: (e.target as HTMLInputElement).value,
-            };
+            newNewColumns[index] = {...col};
             this.state.newColumns = newNewColumns;
             this.state.onchange?.();
           },
-          placeholder: 'name',
-          value: col.name,
         }),
-        !this.isNewColumnValid(col) && m(Icon, {icon: 'warning'}),
-      ]);
+      );
     }
 
     const isValid = this.isNewColumnValid(col);
