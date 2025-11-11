@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {getCurrentChannel} from '../core/channels';
-import {TRACE_SUFFIX} from '../public/trace';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
@@ -50,6 +49,7 @@ import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
+const TRACE_SUFFIX = '.perfetto-trace';
 
 function getBugReportUrl(): string {
   if (AppImpl.instance.isInternalUser) {
