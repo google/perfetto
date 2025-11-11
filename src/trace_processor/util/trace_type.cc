@@ -30,6 +30,7 @@
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -108,96 +109,15 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
 }
 
 bool IsPprofProfile(const uint8_t* data, size_t size) {
-  // Minimum size to parse a protobuf tag and small varint
-  constexpr size_t kMinPprofSize = 10;
-  if (size < kMinPprofSize) {
+  const ::perfetto::third_party::perftools::profiles::pbzero::Profile::Decoder
+      profile(data, size);
+  // A valid pprof profile should have a string table, where the first string
+  // is empty (see profile.proto), and sample types defined.
+  auto string_table_it = profile.string_table();
+  if (!string_table_it || string_table_it->as_string().size != 0) {
     return false;
   }
-
-  const uint8_t* ptr = data;
-  const uint8_t* const end = ptr + size;
-
-  // Check if first field is sample_type (field 1, length-delimited)
-  uint64_t tag;
-  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
-  if (next == ptr) {
-    return false;
-  }
-
-  constexpr uint64_t kSampleTypeTag =
-      protozero::proto_utils::MakeTagLengthDelimited(1);
-
-  // This is a fallback for pprof files that don't start with the `sample_type`
-  // field. It checks if the first field looks like a plausible protobuf field
-  // (small field id, common wire type).
-  if (tag != kSampleTypeTag) {
-    auto field_id = protozero::proto_utils::GetFieldIdFromTag(tag);
-    auto field_type = protozero::proto_utils::GetWireTypeFromTag(tag);
-    // pprof fields are generally small. Field IDs > 14 are unlikely for the
-    // first field.
-    if (field_id > 14 ||
-        (field_type != protozero::proto_utils::ProtoWireType::kVarInt &&
-         field_type !=
-             protozero::proto_utils::ProtoWireType::kLengthDelimited)) {
-      return false;
-    }
-    // If the field is length-delimited, we perform an extra sanity check on
-    // the length to avoid misinterpreting other file formats (e.g. BMP) as
-    // pprof.
-    if (field_type == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-      uint64_t field_length;
-      const uint8_t* len_next =
-          protozero::proto_utils::ParseVarInt(next, end, &field_length);
-      if (len_next == next ||
-          field_length > static_cast<uint64_t>(end - len_next)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // Happy path: The first field is `sample_type`.
-  // We now perform a stronger check to see if the contents of the `sample_type`
-  // field look like a pprof `ValueType` message.
-  // Parse the length of the sample_type field
-  uint64_t sample_type_length;
-  const uint8_t* len_next =
-      protozero::proto_utils::ParseVarInt(next, end, &sample_type_length);
-  if (len_next == next ||
-      sample_type_length > static_cast<uint64_t>(end - len_next)) {
-    return false;
-  }
-
-  // Look inside the sample_type field for pprof ValueType structure
-  // In pprof: ValueType has field 1 (type) and field 2 (unit) as varints (wire
-  // type 0)
-  // In Perfetto: field 1 would contain length-delimited data (wire type 2)
-  const uint8_t* value_type_ptr = len_next;
-  const uint8_t* value_type_end = len_next + sample_type_length;
-
-  // Parse the first ValueType message
-  if (value_type_ptr >= value_type_end) {
-    return false;
-  }
-
-  // Check for field 1 (type) as varint
-  uint64_t inner_tag;
-  const uint8_t* inner_next = protozero::proto_utils::ParseVarInt(
-      value_type_ptr, value_type_end, &inner_tag);
-  if (inner_next == value_type_ptr) {
-    return false;
-  }
-
-  // Use proto_utils to create proper field tags for pprof ValueType fields:
-  // Field 1 (type) and Field 2 (unit) are both varints in pprof format
-  constexpr uint64_t kValueTypeTypeFieldTag =
-      protozero::proto_utils::MakeTagVarInt(1);
-  constexpr uint64_t kValueTypeUnitFieldTag =
-      protozero::proto_utils::MakeTagVarInt(2);
-
-  // Accept either field 1 (type) or field 2 (unit) as evidence of pprof format
-  return inner_tag == kValueTypeTypeFieldTag ||
-         inner_tag == kValueTypeUnitFieldTag;
+  return profile.has_sample_type() && profile.has_sample();
 }
 
 }  // namespace
