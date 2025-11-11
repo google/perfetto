@@ -1013,13 +1013,13 @@ format is for:
 
   ![](/docs/images/pprof-in-ui.png)
 
-- **Trace Processor:** The Trace Processor parses `pprof` files, focusing on the
-  CPU sample data. It extracts call stacks, sample timestamps, and thread/process
-  information, populating the following standard Perfetto SQL tables:
-  - `perf_sample`: Contains the raw CPU samples.
+- **Trace Processor:** The Trace Processor parses `pprof` files. Unlike most
+  other formats, `pprof` data represents aggregate profiling data that is not
+  tied to a timeline. The processor extracts call stacks and sample values,
+  populating the following SQL tables:
   - `stack_profile_callsite`, `stack_profile_frame`, and
-    `stack_profile_mapping`: Store the detailed call stack information, enabling
-    complex SQL-based queries and analysis.
+    `stack_profile_mapping`: These tables store the detailed call stack
+    information (function names, file paths, and binary mappings).
 
 
 **How to Generate:** The most relevant generation path for Perfetto users
