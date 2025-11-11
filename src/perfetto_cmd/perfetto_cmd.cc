@@ -145,6 +145,12 @@ Usage: %s
                              data sources to be started before exiting. Exit
                              code is zero if a successful acknowledgement is
                              received, non-zero otherwise (error or timeout).
+  --notify-fd FD           : Like --background-wait, but instead of daemonizing
+                             and waiting for data sources to be started before
+                             exiting, writes status and closes FD after waiting
+                             for data sources to be started. Writes a zero
+                             byte if a successful acknowledgement is received,
+                             non-zero otherwise (error or timeout).
   --clone TSID             : Creates a read-only clone of an existing tracing
                              session, identified by its ID (see --query).
   --clone-by-name NAME     : Creates a read-only clone of an existing tracing
@@ -228,6 +234,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_LONG,
     OPT_QUERY_RAW,
     OPT_VERSION,
+    OPT_NOTIFY_FD,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -261,6 +268,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
+      {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
@@ -499,6 +507,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     if (option == OPT_BUGREPORT_ALL) {
       clone_all_bugreport_traces_ = true;
       continue;
+    }
+
+    if (option == OPT_NOTIFY_FD) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+      notify_fd_.reset(atoi(optarg));
+      continue;
+#else
+      PERFETTO_ELOG("--notify-fd is not supported on Windows");
+      return 1;
+#endif
     }
 
     PrintUsage(argv[0]);
@@ -838,6 +856,19 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                         // below.
 }
 
+void PerfettoCmd::Notify(BgProcessStatus status) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (!notify_fd_) {
+    return;
+  }
+  static_assert(sizeof status == 1, "Enum bigger than one byte");
+  PERFETTO_EINTR(write(notify_fd_.get(), &status, 1));
+  notify_fd_.reset();
+#else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ignore_result(status);
+#endif  //! PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+}
+
 void PerfettoCmd::NotifyBgProcessPipe(BgProcessStatus status) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (!background_wait_pipe_.wr) {
@@ -886,6 +917,7 @@ PerfettoCmd::BgProcessStatus PerfettoCmd::WaitOnBgProcessPipe() {
 int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
   int exit_code = ConnectToServiceAndRun();
 
+  Notify(exit_code == 0 ? kBackgroundOk : kBackgroundOtherError);
   NotifyBgProcessPipe(exit_code == 0 ? kBackgroundOk : kBackgroundOtherError);
 
   return exit_code;
@@ -983,7 +1015,7 @@ void PerfettoCmd::OnConnect() {
       TraceConfig::TriggerConfig::CLONE_SNAPSHOT) {
     events_mask |= ObservableEvents::TYPE_CLONE_TRIGGER_HIT;
   }
-  if (background_wait_) {
+  if (notify_fd_ || background_wait_) {
     events_mask |= ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED;
   }
   if (events_mask) {
@@ -1488,6 +1520,7 @@ ID      UID     STATE      BUF (#) KB   DUR (s)   #DS  STARTED  NAME
 void PerfettoCmd::OnObservableEvents(
     const ObservableEvents& observable_events) {
   if (observable_events.all_data_sources_started()) {
+    Notify(kBackgroundOk);
     NotifyBgProcessPipe(kBackgroundOk);
   }
   if (observable_events.has_clone_trigger_hit()) {
