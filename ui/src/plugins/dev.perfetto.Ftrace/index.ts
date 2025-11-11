@@ -51,13 +51,11 @@ export default class implements PerfettoPlugin {
         }
       },
     );
-    ctx.trash.use(store);
 
     const filterStore = store.createSubStore(
       ['filter'],
       (x) => x as FtraceFilter,
     );
-    ctx.trash.use(filterStore);
 
     const cpus = await getFtraceCpus(ctx);
     const group = new TrackNode({

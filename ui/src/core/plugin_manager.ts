@@ -278,8 +278,8 @@ function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
  * This proxy automatically injects the plugin's ID into any pages, settings,
  * and tracks registered by the plugin. This ensures that all trace-scoped
  * resources created by the plugin are properly attributed and can be
- * automatically cleaned up when the trace is closed. It also recursively
- * proxies both the app and trace properties.
+ * automatically cleaned up when the trace is closed. It also proxies
+ * the trace property back to itself.
  */
 function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
   const traceProxy = createProxy(trace, {

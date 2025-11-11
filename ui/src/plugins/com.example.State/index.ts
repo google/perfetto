@@ -45,7 +45,6 @@ export default class implements PerfettoPlugin {
     this.store = ctx.mountStore('com.example.SkeletonStore', (init: unknown) =>
       this.migrate(init),
     );
-    ctx.trash.use(this.store);
 
     ctx.commands.registerCommand({
       id: 'com.example.ShowCounter',
