@@ -47,16 +47,14 @@ interface AndroidLogPluginState {
 
 async function getMachineIds(engine: Engine): Promise<number[]> {
   // A machine might not provide Android logs, even if configured to do so.
-  // Hence, the |process| table might have ids not present in the logs. Given this
+  // Hence, the |machine| table might have ids not present in the logs. Given this
   // is highly unlikely and going through all logs is expensive, we will get
-  // the ids from |process|, even if filter shows ids not present in logs.
-  const result = await engine.query(
-    `SELECT DISTINCT(machine_id) FROM process ORDER BY machine_id`,
-  );
+  // the ids from |machine|, even if filter shows ids not present in logs.
+  const result = await engine.query(`SELECT id FROM machine ORDER BY id`);
   const machineIds: number[] = [];
-  const it = result.iter({machine_id: NUM_NULL});
+  const it = result.iter({id: NUM_NULL});
   for (; it.valid(); it.next()) {
-    machineIds.push(it.machine_id ?? 0);
+    machineIds.push(it.id ?? 0);
   }
   return machineIds;
 }
