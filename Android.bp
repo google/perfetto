@@ -1611,6 +1611,7 @@ java_library {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
     ],
+    host_supported: true,
     proto: {
         type: "lite",
         canonical_path_from_root: false,
@@ -16858,6 +16859,7 @@ java_library {
         "protos/perfetto/trace/track_event/track_descriptor.proto",
         "protos/perfetto/trace/track_event/track_event.proto",
     ],
+    host_supported: true,
     proto: {
         type: "lite",
         canonical_path_from_root: false,
@@ -17131,6 +17133,7 @@ java_library {
         "protos/perfetto/trace/trigger.proto",
         "protos/perfetto/trace/ui_state.proto",
     ],
+    host_supported: true,
     proto: {
         type: "lite",
         canonical_path_from_root: false,
