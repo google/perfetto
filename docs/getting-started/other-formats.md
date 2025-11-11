@@ -1013,14 +1013,6 @@ format is for:
 
   ![](/docs/images/pprof-in-ui.png)
 
-- **Trace Processor:** The Trace Processor parses `pprof` files. Unlike most
-  other formats, `pprof` data represents aggregate profiling data that is not
-  tied to a timeline. The processor extracts call stacks and sample values,
-  populating the following SQL tables:
-  - `stack_profile_callsite`, `stack_profile_frame`, and
-    `stack_profile_mapping`: These tables store the detailed call stack
-    information (function names, file paths, and binary mappings).
-
 
 **How to Generate:** The most relevant generation path for Perfetto users
 involves collecting CPU profiles from Go programs or converting `perf.data` files.
