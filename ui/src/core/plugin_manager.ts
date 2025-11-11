@@ -133,12 +133,10 @@ export class PluginManagerImpl {
       if (p.active) {
         beforeEach?.(p.desc.id);
         const traceProxy = createTraceProxy(trace, p.desc.id);
-        const before = performance.now();
         const instance = makePlugin(p.desc, traceProxy);
-
         const args = getOpenerArgs(trace, p.desc.id);
-
-        await instance.onTraceLoad?.(trace, args);
+        const before = performance.now();
+        await instance.onTraceLoad?.(traceProxy, args);
         const loadTimeMs = performance.now() - before;
         p.traceContext = {
           instance,
