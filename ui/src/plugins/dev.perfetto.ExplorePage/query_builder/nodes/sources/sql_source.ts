@@ -168,6 +168,39 @@ export class SqlSourceNode implements MultiSourceNode {
     );
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'SQL Source')),
+      m(
+        'p',
+        'A source node that allows you to write custom SQL queries to retrieve data from your trace.',
+      ),
+      m(
+        'p',
+        'This is the ',
+        m('strong', 'most flexible source node'),
+        ', letting you write arbitrary ',
+        m('code', 'SELECT'),
+        ' statements to access any data in the trace. You can reference other nodes using ',
+        m('code', '$node_id'),
+        ' syntax in your SQL.',
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'Sql'),
+        ' query type from PerfettoSQL, which supports custom SQL with dependencies on other structured queries.',
+      ),
+      m(
+        'p',
+        m('strong', 'Use case:'),
+        " Use this when you need complex logic or operations that aren't available through other node types.",
+      ),
+    );
+  }
+
   findDependencies(): string[] {
     const regex = /\$([A-Za-z0-9_]*)/g;
     let match: RegExpExecArray | null;

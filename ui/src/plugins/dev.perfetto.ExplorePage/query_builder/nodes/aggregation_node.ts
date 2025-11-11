@@ -230,6 +230,54 @@ export class AggregationNode implements ModificationNode {
     );
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Aggregation')),
+      m(
+        'p',
+        'A modification node that ',
+        m('strong', 'groups rows'),
+        ' by one or more columns and applies ',
+        m('strong', 'aggregate functions'),
+        ' to compute summary statistics.',
+      ),
+      m(
+        'p',
+        m('strong', 'Available functions:'),
+        ' You can use aggregation functions like ',
+        m('code', 'SUM'),
+        ', ',
+        m('code', 'COUNT'),
+        ', ',
+        m('code', 'MIN'),
+        ', ',
+        m('code', 'MAX'),
+        ', ',
+        m('code', 'AVG'),
+        ', ',
+        m('code', 'MEDIAN'),
+        ', ',
+        m('code', 'PERCENTILE'),
+        ', and ',
+        m('code', 'DURATION_WEIGHTED_MEAN'),
+        ' (useful for time-series data).',
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'GroupBy'),
+        ' operation from PerfettoSQL structured queries.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Group slices by name and calculate the average duration for each.',
+      ),
+    );
+  }
+
   clone(): QueryNode {
     const stateCopy: AggregationNodeState = {
       prevNode: this.state.prevNode,
