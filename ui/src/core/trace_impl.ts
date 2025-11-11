@@ -19,7 +19,7 @@ import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {EngineBase} from '../trace_processor/engine';
-import {CommandManagerImpl, parseUrlCommands} from './command_manager';
+import {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {SearchManagerImpl} from './search_manager';
@@ -48,10 +48,9 @@ import {featureFlags} from './feature_flags';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
 import {StatusbarManagerImpl} from './statusbar_manager';
-import {Setting, SettingDescriptor} from '../public/settings';
+import {SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
-import {isStartupCommandAllowed} from './startup_command_allowlist';
 import {TraceStream} from '../public/stream';
 
 /**
@@ -136,117 +135,42 @@ export class TraceImpl implements Trace, Disposable {
       onResultStep: this.onResultStep.bind(this),
     });
 
-    // CRITICAL ORDER: URL commands MUST execute before settings commands!
-    // This ordering has subtle but important implications:
-    // - URL commands are trace-specific and should establish initial state
-    // - Settings commands are user preferences that should override URL defaults
-    // - Changing this order could break trace sharing and user customization
-    // DO NOT REORDER without understanding the full impact!
-    const urlCommands =
-      parseUrlCommands(app.initialRouteArgs.startupCommands) ?? [];
-    const settingsCommands = app.startupCommandsSetting.get();
-
-    // Combine URL and settings commands - runtime allowlist checking will handle filtering
-    const allStartupCommands = [...urlCommands, ...settingsCommands];
-    const enforceAllowlist = app.enforceStartupCommandAllowlistSetting.get();
-
-    const traceUnloadTrash = this.trash;
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
     // unregistered when the trace unloads (before a new trace is loaded) to
     // avoid ending up with duplicate commands.
     this.commandMgrProxy = createProxy(app.commands, {
-      registerCommand(cmd: Command): Disposable {
+      registerCommand: (cmd: Command) => {
         const disposable = app.commands.registerCommand(cmd);
-        traceUnloadTrash.use(disposable);
+        this.trash.use(disposable);
         return disposable;
-      },
-
-      hasStartupCommands(): boolean {
-        return allStartupCommands.length > 0;
-      },
-
-      async runStartupCommands(): Promise<void> {
-        // Execute startup commands in trace context after everything is ready.
-        // This simulates user actions taken after trace load is complete,
-        // including any saved app state restoration. At this point:
-        // - All plugins have loaded and registered their commands
-        // - Trace data is fully accessible
-        // - UI state has been restored from any saved workspace
-        // - Commands can safely query trace data and modify UI state
-
-        // Set allowlist checking during startup if enforcement enabled
-        if (enforceAllowlist) {
-          app.commands.setAllowlistCheck(isStartupCommandAllowed);
-        }
-
-        try {
-          for (const command of allStartupCommands) {
-            try {
-              // Execute through proxy to access both global and trace-specific
-              // commands.
-              await app.commands.runCommand(command.id, ...command.args);
-            } catch (error) {
-              // TODO(stevegolton): Add a mechanism to notify users of startup
-              // command errors. This will involve creating a notification UX
-              // similar to VSCode where there are popups on the bottom right
-              // of the UI.
-              console.warn(`Startup command ${command.id} failed:`, error);
-            }
-          }
-        } finally {
-          // Always restore default (allow all) behavior when done
-          app.commands.setAllowlistCheck(() => true);
-        }
       },
     });
 
     // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
     this.sidebarProxy = createProxy(app.sidebar, {
-      addMenuItem(menuItem: SidebarMenuItem): Disposable {
+      addMenuItem: (menuItem: SidebarMenuItem) => {
         const disposable = app.sidebar.addMenuItem(menuItem);
-        traceUnloadTrash.use(disposable);
+        this.trash.use(disposable);
         return disposable;
       },
     });
 
     this.pageMgrProxy = createProxy(app.pages, {
-      registerPage(pageHandler: PageHandler): Disposable {
+      registerPage: (pageHandler: PageHandler) => {
         const disposable = app.pages.registerPage(pageHandler);
-        traceUnloadTrash.use(disposable);
+        this.trash.use(disposable);
         return disposable;
       },
     });
 
     this.settingsProxy = createProxy(app.settings, {
-      register<T>(setting: SettingDescriptor<T>): Setting<T> {
+      register: <T>(setting: SettingDescriptor<T>) => {
         const disposable = app.settings.register(setting);
-        traceUnloadTrash.use(disposable);
+        this.trash.use(disposable);
         return disposable;
       },
     });
-
-    // TODO in plugin manager - inject pluginid into:
-    // - pages
-    // - tracks
-
-    // // Intercept the registerTrack() method to inject the pluginId into tracks.
-    // this.trackMgrProxy = createProxy(ctx.trackMgr, {
-    //   registerTrack(trackDesc: Track): Disposable {
-    //     return ctx.trackMgr.registerTrack({...trackDesc, pluginId});
-    //   },
-    // });
-
-    // this.pageMgrProxy = createProxy(ctx.appCtx.pageMgr, {
-    //   registerPage(pageHandler: PageHandler): Disposable {
-    //     const disposable = appImpl.pages.registerPage({
-    //       ...pageHandler,
-    //       pluginId: appImpl.pluginId,
-    //     });
-    //     traceUnloadTrash.use(disposable);
-    //     return disposable;
-    //   },
-    // });
   }
 
   // This method wires up changes to selection to side effects on search and
