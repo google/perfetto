@@ -14,7 +14,6 @@
 
 import {assertExists} from '../base/logging';
 import {Registry} from '../base/registry';
-import {App} from '../public/app';
 import {
   MetricVisualisation,
   PerfettoPlugin,
@@ -25,6 +24,9 @@ import {defaultPlugins} from './default_plugins';
 import {featureFlags} from './feature_flags';
 import {Flag} from '../public/feature_flag';
 import {TraceImpl} from './trace_impl';
+import {AppImpl} from './app_impl';
+import {createProxy} from '../base/utils';
+import {RouteArg} from '../public/route_schema';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 export const CORE_PLUGIN_ID = '__core__';
@@ -35,13 +37,6 @@ function makePlugin(
 ): PerfettoPlugin {
   const PluginClass = desc;
   return new PluginClass(trace);
-}
-
-// This interface injects AppImpl's methods into PluginManager to avoid
-// circular dependencies between PluginManager and AppImpl.
-export interface PluginAppInterface {
-  forkForPlugin(pluginId: string): App;
-  get trace(): TraceImpl | undefined;
 }
 
 // Contains information about a plugin.
@@ -86,8 +81,6 @@ export class PluginManagerImpl {
   private readonly registry = new Registry<PluginWrapper>((x) => x.desc.id);
   private orderedPlugins: Array<PluginWrapper> = [];
 
-  constructor(private readonly app: PluginAppInterface) {}
-
   registerPlugin(desc: PerfettoPluginStatic<PerfettoPlugin>, isCore = false) {
     const flagId = `plugin_${desc.id}`;
     const name = `Plugin: ${desc.id}`;
@@ -108,10 +101,11 @@ export class PluginManagerImpl {
   /**
    * Activates all registered plugins that have not already been registered.
    *
+   * @param app - The application instance.
    * @param enableOverrides - The list of plugins that are enabled regardless of
    * the current flag setting.
    */
-  activatePlugins(enableOverrides: ReadonlyArray<string> = []) {
+  activatePlugins(app: AppImpl, enableOverrides: ReadonlyArray<string> = []) {
     const enabledPlugins = this.registry
       .valuesAsArray()
       .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id));
@@ -120,14 +114,37 @@ export class PluginManagerImpl {
 
     this.orderedPlugins.forEach((p) => {
       if (p.active) return;
-      const app = this.app.forkForPlugin(p.desc.id);
-      p.desc.onActivate?.(app);
+
+      const pluginId = p.desc.id;
+
+      const appProxy = createAppProxy(app, pluginId);
+
+      // Work out the plugin arguments for this plugin
+      const args: {[key: string]: RouteArg} = {};
+      const pluginArgs = Object.entries(app.initialRouteArgs).reduce(
+        (result, [key, value]) => {
+          // Create a regex to match keys starting with pluginId
+          const regex = new RegExp(`^${pluginId}:(.+)$`);
+          const match = key.match(regex);
+
+          // Only include entries that match the regex
+          if (match) {
+            const newKey = match[1];
+            // Use the capture group (what comes after the prefix) as the new key
+            result[newKey] = value;
+          }
+          return result;
+        },
+        args,
+      );
+
+      p.desc.onActivate?.(appProxy, pluginArgs);
       p.active = true;
     });
   }
 
   async onTraceLoad(
-    traceCore: TraceImpl,
+    trace: TraceImpl,
     beforeEach?: (id: string) => void,
   ): Promise<void> {
     // Awaiting all plugins in parallel will skew timing data as later plugins
@@ -138,16 +155,19 @@ export class PluginManagerImpl {
     for (const p of this.orderedPlugins) {
       if (p.active) {
         beforeEach?.(p.desc.id);
-        const trace = traceCore.forkForPlugin(p.desc.id);
+        const traceProxy = createTraceProxy(trace, p.desc.id);
         const before = performance.now();
-        const instance = makePlugin(p.desc, trace);
-        await instance.onTraceLoad?.(trace);
+        const instance = makePlugin(p.desc, traceProxy);
+
+        const args = getOpenerArgs(trace, p.desc.id);
+
+        await instance.onTraceLoad?.(trace, args);
         const loadTimeMs = performance.now() - before;
         p.traceContext = {
           instance,
           loadTimeMs,
         };
-        traceCore.trash.defer(() => {
+        trace.trash.defer(() => {
           p.traceContext = undefined;
         });
       }
@@ -225,4 +245,83 @@ export class PluginManagerImpl {
 
     return orderedPlugins;
   }
+}
+
+function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
+  return createProxy(app, {
+    get pages() {
+      return createProxy(app.pages, {
+        registerPage(page) {
+          return app.pages.registerPage({
+            ...page,
+            pluginId,
+          });
+        },
+      });
+    },
+    get settings() {
+      return createProxy(app.settings, {
+        register(setting) {
+          return app.settings.register(setting, pluginId);
+        },
+      });
+    },
+    get trace() {
+      if (app.trace) {
+        return createTraceProxy(app.trace, pluginId);
+      } else {
+        return undefined;
+      }
+    },
+  });
+}
+
+function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
+  return createProxy(trace, {
+    get app() {
+      return createAppProxy(trace.app, pluginId);
+    },
+    get pages() {
+      return createProxy(trace.pages, {
+        registerPage(page) {
+          return trace.pages.registerPage({
+            ...page,
+            pluginId,
+          });
+        },
+      });
+    },
+    get settings() {
+      return createProxy(trace.settings, {
+        register(setting) {
+          return trace.settings.register(setting, pluginId);
+        },
+      });
+    },
+    get tracks() {
+      return createProxy(trace.tracks, {
+        registerTrack(track) {
+          return trace.tracks.registerTrack({
+            ...track,
+            pluginId,
+          });
+        },
+      });
+    },
+    get trace() {
+      return createTraceProxy(trace.trace, pluginId);
+    },
+  });
+}
+
+function getOpenerArgs(
+  trace: TraceImpl,
+  pluginId: string,
+): {[key: string]: unknown} | undefined {
+  const traceSource = trace.traceInfo.source;
+  if (traceSource.type !== 'ARRAY_BUFFER') {
+    return undefined;
+  }
+  const pluginArgs = traceSource.pluginArgs;
+  return (pluginArgs ?? {})[pluginId];
 }

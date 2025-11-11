@@ -18,7 +18,7 @@ import {MetricVisualisation} from '../../public/plugin';
 import {PerfettoPlugin} from '../../public/plugin';
 
 // SKELETON: Rename this class to match your plugin.
-export default class implements PerfettoPlugin {
+export default class SkeletonPlugin implements PerfettoPlugin {
   // SKELETON: Update pluginId to match the directory of the plugin.
   static readonly id = 'com.example.Skeleton';
 
@@ -31,8 +31,8 @@ export default class implements PerfettoPlugin {
    * This hook should be used for adding commands that don't depend on the
    * trace.
    */
-  static onActivate(app: App): void {
-    console.log('SkeletonPlugin::onActivate()', app.pluginId);
+  static onActivate(_app: App): void {
+    console.log('SkeletonPlugin::onActivate()');
   }
 
   /**
@@ -43,16 +43,16 @@ export default class implements PerfettoPlugin {
    * It should not be used for finding tracks from other plugins as there is no
    * guarantee those tracks will have been added yet.
    */
-  async onTraceLoad(trace: Trace): Promise<void> {
+  async onTraceLoad(
+    trace: Trace,
+    args: {[key: string]: unknown},
+  ): Promise<void> {
     console.log('SkeletonPlugin::onTraceLoad()', trace.traceInfo.traceTitle);
 
     // This is an example of how to access the pluginArgs pushed by the
     // postMessage when deep-linking to the UI.
-    if (trace.openerPluginArgs !== undefined) {
-      console.log(
-        `Postmessage args for ${trace.pluginId}`,
-        trace.openerPluginArgs,
-      );
+    if (args !== undefined) {
+      console.log(`Postmessage args for ${SkeletonPlugin.id}`, args);
     }
 
     /**

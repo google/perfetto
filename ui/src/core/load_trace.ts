@@ -227,7 +227,7 @@ async function loadTraceIntoEngine(
   }
 
   const traceDetails = await getTraceInfo(engine, app, traceSource);
-  const trace = TraceImpl.createInstanceForCore(app, engine, traceDetails);
+  const trace = new TraceImpl(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
   const visibleTimeSpan = await computeVisibleTime(

@@ -18,8 +18,7 @@ import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
-import {Track} from '../public/track';
-import {EngineBase, EngineProxy} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 import {CommandManagerImpl, parseUrlCommands} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -34,12 +33,10 @@ import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {FlowManager} from './flow_manager';
-import {AppContext, AppImpl, OpenTraceArrayBufArgs} from './app_impl';
+import {AppImpl, OpenTraceArrayBufArgs} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
 import {RouteArgs} from '../public/route_schema';
-import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Analytics} from '../public/analytics';
-import {getOrCreate} from '../base/utils';
 import {fetchWithProgress} from '../base/http_utils';
 import {TraceInfoImpl} from './trace_info_impl';
 import {PageHandler, PageManager} from '../public/page';
@@ -48,135 +45,14 @@ import {PageManagerImpl} from './page_manager';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {SerializedAppState} from './state_serialization_schema';
 import {featureFlags} from './feature_flags';
-import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
 import {StatusbarManagerImpl} from './statusbar_manager';
-import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {Setting, SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {isStartupCommandAllowed} from './startup_command_allowlist';
 import {TraceStream} from '../public/stream';
-
-/**
- * Handles the per-trace state of the UI
- * There is an instance of this class per each trace loaded, and typically
- * between 0 and 1 instances in total (% brief moments while we swap traces).
- * 90% of the app state live here, including the Engine.
- * This is the underlying storage for AppImpl, which instead has one instance
- * per trace per plugin.
- */
-export class TraceContext implements Disposable {
-  private readonly pluginInstances = new Map<string, TraceImpl>();
-  readonly appCtx: AppContext;
-  readonly engine: EngineBase;
-  readonly omniboxMgr = new OmniboxManagerImpl();
-  readonly searchMgr: SearchManagerImpl;
-  readonly selectionMgr: SelectionManagerImpl;
-  readonly tabMgr = new TabManagerImpl();
-  readonly timeline: TimelineImpl;
-  readonly traceInfo: TraceInfoImpl;
-  readonly trackMgr = new TrackManagerImpl();
-  readonly workspaceMgr = new WorkspaceManagerImpl();
-  readonly noteMgr = new NoteManagerImpl();
-  readonly flowMgr: FlowManager;
-  readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
-  readonly scrollHelper: ScrollHelper;
-  readonly trash = new DisposableStack();
-  readonly onTraceReady = new EvtSource<void>();
-  readonly statusbarMgr = new StatusbarManagerImpl();
-  readonly minimapManager = new MinimapManagerImpl();
-
-  // List of errors that were encountered while loading the trace by the TS
-  // code. These are on top of traceInfo.importErrors, which is a summary of
-  // what TraceProcessor reports on the stats table at import time.
-  readonly loadingErrors: string[] = [];
-
-  constructor(gctx: AppContext, engine: EngineBase, traceInfo: TraceInfoImpl) {
-    this.appCtx = gctx;
-    this.engine = engine;
-    this.trash.use(engine);
-    this.traceInfo = traceInfo;
-
-    this.timeline = new TimelineImpl(
-      traceInfo,
-      this.appCtx.timestampFormat,
-      this.appCtx.durationPrecision,
-      this.appCtx.timezoneOverride,
-    );
-
-    this.scrollHelper = new ScrollHelper(
-      this.traceInfo,
-      this.timeline,
-      this.workspaceMgr,
-      this.trackMgr,
-    );
-
-    this.selectionMgr = new SelectionManagerImpl(
-      this.engine,
-      this.timeline,
-      this.trackMgr,
-      this.noteMgr,
-      this.scrollHelper,
-      this.onSelectionChange.bind(this),
-    );
-
-    this.noteMgr.onNoteDeleted = (noteId) => {
-      if (
-        this.selectionMgr.selection.kind === 'note' &&
-        this.selectionMgr.selection.id === noteId
-      ) {
-        this.selectionMgr.clearSelection();
-      }
-    };
-
-    this.flowMgr = new FlowManager(
-      engine.getProxy('FlowManager'),
-      this.trackMgr,
-      this.selectionMgr,
-    );
-
-    this.searchMgr = new SearchManagerImpl({
-      timeline: this.timeline,
-      trackManager: this.trackMgr,
-      engine: this.engine,
-      workspace: this.workspaceMgr.currentWorkspace,
-      onResultStep: this.onResultStep.bind(this),
-    });
-  }
-
-  // This method wires up changes to selection to side effects on search and
-  // tabs. This is to avoid entangling too many dependencies between managers.
-  private onSelectionChange(selection: Selection, opts: SelectionOpts) {
-    const {clearSearch = true, switchToCurrentSelectionTab = true} = opts;
-    if (clearSearch) {
-      this.searchMgr.reset();
-    }
-    if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
-      this.tabMgr.showCurrentSelectionTab();
-    }
-
-    this.flowMgr.updateFlows(selection);
-  }
-
-  private onResultStep(searchResult: SearchResult) {
-    this.selectionMgr.selectSearchResult(searchResult);
-  }
-
-  // Gets or creates an instance of TraceImpl backed by the current TraceContext
-  // for the given plugin.
-  forPlugin(pluginId: string) {
-    return getOrCreate(this.pluginInstances, pluginId, () => {
-      const appForPlugin = this.appCtx.forPlugin(pluginId);
-      return new TraceImpl(appForPlugin, this);
-    });
-  }
-
-  // Called by AppContext.closeCurrentTrace().
-  [Symbol.dispose]() {
-    this.trash.dispose();
-  }
-}
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -185,52 +61,79 @@ export class TraceContext implements Disposable {
  * There are N+1 instances of this for each trace, one for each plugin plus one
  * for the core.
  */
-export class TraceImpl implements Trace {
-  private readonly appImpl: AppImpl;
-  private readonly traceCtx: TraceContext;
+export class TraceImpl implements Trace, Disposable {
+  readonly engine: EngineBase;
+  readonly search: SearchManagerImpl;
+  readonly selection: SelectionManagerImpl;
+  readonly tabs = new TabManagerImpl();
+  readonly timeline: TimelineImpl;
+  readonly traceInfo: TraceInfoImpl;
+  readonly tracks = new TrackManagerImpl();
+  readonly workspaces = new WorkspaceManagerImpl();
+  readonly notes = new NoteManagerImpl();
+  readonly flows: FlowManager;
+  readonly scrollHelper: ScrollHelper;
+  readonly trash = new DisposableStack();
+  readonly onTraceReady = new EvtSource<void>();
+  readonly statusbar = new StatusbarManagerImpl();
+  readonly minimap = new MinimapManagerImpl();
+  readonly loadingErrors: string[] = [];
+  readonly app: AppImpl;
+  readonly store = createStore<Record<string, unknown>>({});
 
-  // This is not the original Engine base, rather an EngineProxy based on the
-  // same engineBase.
-  private readonly engineProxy: EngineProxy;
-  private readonly trackMgrProxy: TrackManagerImpl;
-  private readonly commandMgrProxy: CommandManagerImpl;
-  private readonly sidebarProxy: SidebarManagerImpl;
-  private readonly pageMgrProxy: PageManagerImpl;
-  private readonly settingsProxy: SettingsManagerImpl;
+  // Do we need this?
+  readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
 
-  // This is called by TraceController when loading a new trace, soon after the
-  // engine has been set up. It obtains a new TraceImpl for the core. From that
-  // we can fork sibling instances (i.e. bound to the same TraceContext) for
-  // the various plugins.
-  static createInstanceForCore(
-    appImpl: AppImpl,
-    engine: EngineBase,
-    traceInfo: TraceInfoImpl,
-  ): TraceImpl {
-    const traceCtx = new TraceContext(
-      appImpl.__appCtxForTrace,
-      engine,
+  constructor(app: AppImpl, engine: EngineBase, traceInfo: TraceInfoImpl) {
+    this.app = app;
+    this.engine = engine;
+    this.trash.use(engine);
+    this.traceInfo = traceInfo;
+
+    this.timeline = new TimelineImpl(
       traceInfo,
+      app.timestampFormat,
+      app.durationPrecision,
+      app.timezoneOverride,
     );
-    return traceCtx.forPlugin(CORE_PLUGIN_ID);
-  }
 
-  // Only called by TraceContext.forPlugin().
-  constructor(appImpl: AppImpl, ctx: TraceContext) {
-    const pluginId = appImpl.pluginId;
-    this.appImpl = appImpl;
-    this.traceCtx = ctx;
-    const traceUnloadTrash = ctx.trash;
+    this.scrollHelper = new ScrollHelper(
+      this.traceInfo,
+      this.timeline,
+      this.workspaces,
+      this.tracks,
+    );
 
-    // Invalidate all the engine proxies when the TraceContext is destroyed.
-    this.engineProxy = ctx.engine.getProxy(pluginId);
-    traceUnloadTrash.use(this.engineProxy);
+    this.selection = new SelectionManagerImpl(
+      this.engine,
+      this.timeline,
+      this.tracks,
+      this.notes,
+      this.scrollHelper,
+      this.onSelectionChange.bind(this),
+    );
 
-    // Intercept the registerTrack() method to inject the pluginId into tracks.
-    this.trackMgrProxy = createProxy(ctx.trackMgr, {
-      registerTrack(trackDesc: Track): Disposable {
-        return ctx.trackMgr.registerTrack({...trackDesc, pluginId});
-      },
+    this.notes.onNoteDeleted = (noteId) => {
+      if (
+        this.selection.selection.kind === 'note' &&
+        this.selection.selection.id === noteId
+      ) {
+        this.selection.clearSelection();
+      }
+    };
+
+    this.flows = new FlowManager(
+      engine.getProxy('FlowManager'),
+      this.tracks,
+      this.selection,
+    );
+
+    this.search = new SearchManagerImpl({
+      timeline: this.timeline,
+      trackManager: this.tracks,
+      engine: this.engine,
+      workspace: this.workspaces.currentWorkspace,
+      onResultStep: this.onResultStep.bind(this),
     });
 
     // CRITICAL ORDER: URL commands MUST execute before settings commands!
@@ -240,21 +143,21 @@ export class TraceImpl implements Trace {
     // - Changing this order could break trace sharing and user customization
     // DO NOT REORDER without understanding the full impact!
     const urlCommands =
-      parseUrlCommands(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
-    const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
+      parseUrlCommands(app.initialRouteArgs.startupCommands) ?? [];
+    const settingsCommands = app.startupCommandsSetting.get();
 
     // Combine URL and settings commands - runtime allowlist checking will handle filtering
     const allStartupCommands = [...urlCommands, ...settingsCommands];
-    const enforceAllowlist =
-      ctx.appCtx.enforceStartupCommandAllowlistSetting.get();
+    const enforceAllowlist = app.enforceStartupCommandAllowlistSetting.get();
 
+    const traceUnloadTrash = this.trash;
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be
     // unregistered when the trace unloads (before a new trace is loaded) to
     // avoid ending up with duplicate commands.
-    this.commandMgrProxy = createProxy(ctx.appCtx.commandMgr, {
+    this.commandMgrProxy = createProxy(app.commands, {
       registerCommand(cmd: Command): Disposable {
-        const disposable = appImpl.commands.registerCommand(cmd);
+        const disposable = app.commands.registerCommand(cmd);
         traceUnloadTrash.use(disposable);
         return disposable;
       },
@@ -274,7 +177,7 @@ export class TraceImpl implements Trace {
 
         // Set allowlist checking during startup if enforcement enabled
         if (enforceAllowlist) {
-          ctx.appCtx.commandMgr.setAllowlistCheck(isStartupCommandAllowed);
+          app.commands.setAllowlistCheck(isStartupCommandAllowed);
         }
 
         try {
@@ -282,10 +185,7 @@ export class TraceImpl implements Trace {
             try {
               // Execute through proxy to access both global and trace-specific
               // commands.
-              await ctx.appCtx.commandMgr.runCommand(
-                command.id,
-                ...command.args,
-              );
+              await app.commands.runCommand(command.id, ...command.args);
             } catch (error) {
               // TODO(stevegolton): Add a mechanism to notify users of startup
               // command errors. This will involve creating a notification UX
@@ -296,60 +196,88 @@ export class TraceImpl implements Trace {
           }
         } finally {
           // Always restore default (allow all) behavior when done
-          ctx.appCtx.commandMgr.setAllowlistCheck(() => true);
+          app.commands.setAllowlistCheck(() => true);
         }
       },
     });
 
     // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
-    this.sidebarProxy = createProxy(ctx.appCtx.sidebarMgr, {
+    this.sidebarProxy = createProxy(app.sidebar, {
       addMenuItem(menuItem: SidebarMenuItem): Disposable {
-        const disposable = appImpl.sidebar.addMenuItem(menuItem);
+        const disposable = app.sidebar.addMenuItem(menuItem);
         traceUnloadTrash.use(disposable);
         return disposable;
       },
     });
 
-    this.pageMgrProxy = createProxy(ctx.appCtx.pageMgr, {
+    this.pageMgrProxy = createProxy(app.pages, {
       registerPage(pageHandler: PageHandler): Disposable {
-        const disposable = appImpl.pages.registerPage({
-          ...pageHandler,
-          pluginId: appImpl.pluginId,
-        });
+        const disposable = app.pages.registerPage(pageHandler);
         traceUnloadTrash.use(disposable);
         return disposable;
       },
     });
 
-    this.settingsProxy = createProxy(ctx.appCtx.settingsManager, {
+    this.settingsProxy = createProxy(app.settings, {
       register<T>(setting: SettingDescriptor<T>): Setting<T> {
-        const settingInstance = ctx.appCtx.settingsManager.register(setting);
-        traceUnloadTrash.use(settingInstance);
-        return settingInstance;
+        const disposable = app.settings.register(setting);
+        traceUnloadTrash.use(disposable);
+        return disposable;
       },
     });
+
+    // TODO in plugin manager - inject pluginid into:
+    // - pages
+    // - tracks
+
+    // // Intercept the registerTrack() method to inject the pluginId into tracks.
+    // this.trackMgrProxy = createProxy(ctx.trackMgr, {
+    //   registerTrack(trackDesc: Track): Disposable {
+    //     return ctx.trackMgr.registerTrack({...trackDesc, pluginId});
+    //   },
+    // });
+
+    // this.pageMgrProxy = createProxy(ctx.appCtx.pageMgr, {
+    //   registerPage(pageHandler: PageHandler): Disposable {
+    //     const disposable = appImpl.pages.registerPage({
+    //       ...pageHandler,
+    //       pluginId: appImpl.pluginId,
+    //     });
+    //     traceUnloadTrash.use(disposable);
+    //     return disposable;
+    //   },
+    // });
   }
+
+  // This method wires up changes to selection to side effects on search and
+  // tabs. This is to avoid entangling too many dependencies between managers.
+  private onSelectionChange(selection: Selection, opts: SelectionOpts) {
+    const {clearSearch = true, switchToCurrentSelectionTab = true} = opts;
+    if (clearSearch) {
+      this.search.reset();
+    }
+    if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
+      this.tabs.showCurrentSelectionTab();
+    }
+
+    this.flows.updateFlows(selection);
+  }
+
+  private onResultStep(searchResult: SearchResult) {
+    this.selection.selectSearchResult(searchResult);
+  }
+
+  [Symbol.dispose]() {
+    this.trash.dispose();
+  }
+
+  private readonly commandMgrProxy: CommandManagerImpl;
+  private readonly sidebarProxy: SidebarManagerImpl;
+  private readonly pageMgrProxy: PageManagerImpl;
+  private readonly settingsProxy: SettingsManagerImpl;
 
   scrollTo(where: ScrollToArgs): void {
-    this.traceCtx.scrollHelper.scrollTo(where);
-  }
-
-  // Creates an instance of TraceImpl backed by the same TraceContext for
-  // another plugin. This is effectively a way to "fork" the core instance and
-  // create the N instances for plugins.
-  forkForPlugin(pluginId: string) {
-    return this.traceCtx.forPlugin(pluginId);
-  }
-
-  mountStore<T>(migrate: Migrate<T>): Store<T> {
-    return this.traceCtx.pluginSerializableState.createSubStore(
-      [this.pluginId],
-      migrate,
-    );
-  }
-
-  getPluginStoreForSerialization() {
-    return this.traceCtx.pluginSerializableState;
+    this.scrollHelper.scrollTo(where);
   }
 
   async getTraceFile(): Promise<Blob> {
@@ -377,87 +305,16 @@ export class TraceImpl implements Trace {
     throw new Error(`Cannot getTraceFile(${src.type})`);
   }
 
-  get openerPluginArgs(): {[key: string]: unknown} | undefined {
-    const traceSource = this.traceCtx.traceInfo.source;
-    if (traceSource.type !== 'ARRAY_BUFFER') {
-      return undefined;
-    }
-    const pluginArgs = traceSource.pluginArgs;
-    return (pluginArgs ?? {})[this.pluginId];
-  }
-
   get trace() {
     return this;
   }
 
-  get minimap() {
-    return this.traceCtx.minimapManager;
-  }
-
-  get engine() {
-    return this.engineProxy;
-  }
-
-  get timeline() {
-    return this.traceCtx.timeline;
-  }
-
-  get tracks() {
-    return this.trackMgrProxy;
-  }
-
-  get tabs() {
-    return this.traceCtx.tabMgr;
-  }
-
   get currentWorkspace() {
-    return this.traceCtx.workspaceMgr.currentWorkspace;
+    return this.workspaces.currentWorkspace;
   }
 
   get defaultWorkspace() {
-    return this.traceCtx.workspaceMgr.defaultWorkspace;
-  }
-
-  get workspaces() {
-    return this.traceCtx.workspaceMgr;
-  }
-
-  get search() {
-    return this.traceCtx.searchMgr;
-  }
-
-  get selection() {
-    return this.traceCtx.selectionMgr;
-  }
-
-  get traceInfo(): TraceInfoImpl {
-    return this.traceCtx.traceInfo;
-  }
-
-  get statusbar(): StatusbarManagerImpl {
-    return this.traceCtx.statusbarMgr;
-  }
-
-  get notes() {
-    return this.traceCtx.noteMgr;
-  }
-
-  get flows() {
-    return this.traceCtx.flowMgr;
-  }
-
-  get loadingErrors(): ReadonlyArray<string> {
-    return this.traceCtx.loadingErrors;
-  }
-
-  addLoadingError(err: string) {
-    this.traceCtx.loadingErrors.push(err);
-  }
-
-  // App interface implementation.
-
-  get pluginId(): string {
-    return this.appImpl.pluginId;
+    return this.workspaces.defaultWorkspace;
   }
 
   get commands(): CommandManagerImpl {
@@ -473,23 +330,19 @@ export class TraceImpl implements Trace {
   }
 
   get omnibox(): OmniboxManagerImpl {
-    return this.appImpl.omnibox;
+    return this.app.omnibox;
   }
 
   get plugins(): PluginManagerImpl {
-    return this.appImpl.plugins;
+    return this.app.plugins;
   }
 
   get analytics(): Analytics {
-    return this.appImpl.analytics;
+    return this.app.analytics;
   }
 
   get initialRouteArgs(): RouteArgs {
-    return this.appImpl.initialRouteArgs;
-  }
-
-  get initialPluginRouteArgs() {
-    return this.appImpl.initialPluginRouteArgs;
+    return this.app.initialRouteArgs;
   }
 
   get featureFlags(): FeatureFlagManager {
@@ -499,59 +352,50 @@ export class TraceImpl implements Trace {
   }
 
   get raf(): Raf {
-    return this.appImpl.raf;
+    return this.app.raf;
   }
 
   navigate(newHash: string): void {
-    this.appImpl.navigate(newHash);
+    this.app.navigate(newHash);
   }
 
   openTraceFromFile(file: File) {
-    return this.appImpl.openTraceFromFile(file);
+    return this.app.openTraceFromFile(file);
   }
 
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
-    return this.appImpl.openTraceFromUrl(url, serializedAppState);
+    return this.app.openTraceFromUrl(url, serializedAppState);
   }
 
   openTraceFromStream(stream: TraceStream) {
-    return this.appImpl.openTraceFromStream(stream);
+    return this.app.openTraceFromStream(stream);
   }
 
   openTraceFromBuffer(
     args: OpenTraceArrayBufArgs,
     serializedAppState?: SerializedAppState,
   ) {
-    return this.appImpl.openTraceFromBuffer(args, serializedAppState);
+    return this.app.openTraceFromBuffer(args, serializedAppState);
   }
 
   closeCurrentTrace(): void {
-    this.appImpl.closeCurrentTrace();
+    this.app.closeCurrentTrace();
   }
 
-  get onTraceReady() {
-    return this.traceCtx.onTraceReady;
-  }
-
-  get perfDebugging(): PerfManager {
-    return this.appImpl.perfDebugging;
-  }
-
-  get trash(): DisposableStack {
-    return this.traceCtx.trash;
-  }
-
-  // Nothing other than AppImpl should ever refer to this, hence the __ name.
-  get __traceCtxForApp() {
-    return this.traceCtx;
-  }
-
-  get settings(): SettingsManager {
+  get settings(): SettingsManagerImpl {
     return this.settingsProxy;
   }
 
   get isInternalUser(): boolean {
-    return this.appImpl.isInternalUser;
+    return this.app.isInternalUser;
+  }
+
+  get perfDebugging() {
+    return this.app.perfDebugging;
+  }
+
+  mountStore<T>(id: string, migrate: Migrate<T>): Store<T> {
+    return this.store.createSubStore([id], migrate);
   }
 }
 
