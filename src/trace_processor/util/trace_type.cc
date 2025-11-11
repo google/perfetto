@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
@@ -109,15 +110,47 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
 }
 
 bool IsPprofProfile(const uint8_t* data, size_t size) {
-  const ::perfetto::third_party::perftools::profiles::pbzero::Profile::Decoder
-      profile(data, size);
-  // A valid pprof profile should have a string table, where the first string
-  // is empty (see profile.proto) and samples defined.
-  auto string_table_it = profile.string_table();
-  if (!string_table_it || string_table_it->as_string().size != 0) {
+  using perfetto::third_party::perftools::profiles::pbzero::Profile;
+  using protozero::proto_utils::ProtoWireType;
+  // Minimum size to parse a protobuf tag and small varint
+  constexpr size_t kMinPprofSize = 10;
+  if (size < kMinPprofSize) {
     return false;
   }
-  return profile.has_sample_type() && profile.has_sample();
+
+  bool has_pprof_field = false;
+  protozero::ProtoDecoder decoder(data, size);
+  for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
+    has_pprof_field = true;
+    switch (fld.id()) {
+      case Profile::kSampleTypeFieldNumber:
+      case Profile::kSampleFieldNumber:
+      case Profile::kMappingFieldNumber:
+      case Profile::kLocationFieldNumber:
+      case Profile::kFunctionFieldNumber:
+      case Profile::kStringTableFieldNumber:
+      case Profile::kPeriodTypeFieldNumber:
+      case Profile::kCommentFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited) {
+          return false;
+        }
+        break;
+      case Profile::kDropFramesFieldNumber:
+      case Profile::kKeepFramesFieldNumber:
+      case Profile::kTimeNanosFieldNumber:
+      case Profile::kDurationNanosFieldNumber:
+      case Profile::kPeriodFieldNumber:
+      case Profile::kDefaultSampleTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+
+  return has_pprof_field;
 }
 
 }  // namespace
