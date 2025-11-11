@@ -27,6 +27,8 @@ import {TraceImpl} from './trace_impl';
 import {AppImpl} from './app_impl';
 import {createProxy} from '../base/utils';
 import {RouteArg} from '../public/route_schema';
+import {SettingsManagerImpl} from './settings_manager';
+import {PageManager} from '../public/page';
 
 function makePlugin(
   desc: PerfettoPluginStatic<PerfettoPlugin>,
@@ -244,25 +246,16 @@ export class PluginManagerImpl {
   }
 }
 
+/**
+ * Creates a plugin-scoped proxy for the App instance.
+ *
+ * This proxy automatically injects the plugin's ID into any pages or settings
+ * registered by the plugin, ensuring proper attribution and enabling cleanup
+ * when the plugin is unloaded. It also recursively proxies the trace property
+ * if one is loaded.
+ */
 function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
   return createProxy(app, {
-    get pages() {
-      return createProxy(app.pages, {
-        registerPage(page) {
-          return app.pages.registerPage({
-            ...page,
-            pluginId,
-          });
-        },
-      });
-    },
-    get settings() {
-      return createProxy(app.settings, {
-        register(setting) {
-          return app.settings.register(setting, pluginId);
-        },
-      });
-    },
     get trace() {
       if (app.trace) {
         return createTraceProxy(app.trace, pluginId);
@@ -270,30 +263,34 @@ function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
         return undefined;
       }
     },
+    get pages() {
+      return createPagesProxy(app.pages, pluginId);
+    },
+    get settings() {
+      return createSettingsProxy(app.settings, pluginId);
+    },
   });
 }
 
+/**
+ * Creates a plugin-scoped proxy for the Trace instance.
+ *
+ * This proxy automatically injects the plugin's ID into any pages, settings,
+ * and tracks registered by the plugin. This ensures that all trace-scoped
+ * resources created by the plugin are properly attributed and can be
+ * automatically cleaned up when the trace is closed. It also recursively
+ * proxies both the app and trace properties.
+ */
 function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
-  return createProxy(trace, {
-    get app() {
-      return createAppProxy(trace.app, pluginId);
+  const traceProxy = createProxy(trace, {
+    get trace(): TraceImpl {
+      return traceProxy; // Return this proxy.
     },
     get pages() {
-      return createProxy(trace.pages, {
-        registerPage(page) {
-          return trace.pages.registerPage({
-            ...page,
-            pluginId,
-          });
-        },
-      });
+      return createPagesProxy(trace.pages, pluginId);
     },
     get settings() {
-      return createProxy(trace.settings, {
-        register(setting) {
-          return trace.settings.register(setting, pluginId);
-        },
-      });
+      return createSettingsProxy(trace.settings, pluginId);
     },
     get tracks() {
       return createProxy(trace.tracks, {
@@ -305,10 +302,41 @@ function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
         },
       });
     },
-    get trace() {
-      return createTraceProxy(trace.trace, pluginId);
-    },
   });
+  return traceProxy;
+}
+
+/**
+ * Creates a proxy for the PageManager that automatically injects the pluginId
+ * into any registered pages.
+ */
+function createPagesProxy<T extends PageManager>(
+  pages: T,
+  pluginId: string,
+): T {
+  return createProxy(pages, {
+    registerPage(page) {
+      return pages.registerPage({
+        ...page,
+        pluginId,
+      });
+    },
+  } as Partial<T>);
+}
+
+/**
+ * Creates a proxy for the SettingsManager that automatically injects the
+ * pluginId into any registered settings.
+ */
+function createSettingsProxy<T extends SettingsManagerImpl>(
+  settings: T,
+  pluginId: string,
+): T {
+  return createProxy(settings, {
+    register(setting) {
+      return settings.register(setting, pluginId);
+    },
+  } as Partial<T>);
 }
 
 function getOpenerArgs(
