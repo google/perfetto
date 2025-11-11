@@ -130,8 +130,13 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
       case Profile::kFunctionFieldNumber:
       case Profile::kStringTableFieldNumber:
       case Profile::kPeriodTypeFieldNumber:
-      case Profile::kCommentFieldNumber:
         if (fld.type() != ProtoWireType::kLengthDelimited) {
+          return false;
+        }
+        break;
+      case Profile::kCommentFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited &&
+            fld.type() != ProtoWireType::kVarInt) {
           return false;
         }
         break;

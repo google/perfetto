@@ -67,12 +67,12 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
   }
 
   uint32_t field_id =
-      static_cast<uint32_t>(proto_utils::GetFieldIdFromTag(preamble));
+      static_cast<uint32_t>(proto_utils::GetTagFieldId(preamble));
   if (field_id == 0 || pos >= end)
     return res;
 
   auto field_type =
-      static_cast<uint8_t>(proto_utils::GetWireTypeFromTag(preamble));
+      static_cast<uint8_t>(proto_utils::GetTagFieldType(preamble));
   const uint8_t* new_pos = pos;
   uint64_t int_value = 0;
   uint64_t size = 0;

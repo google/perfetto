@@ -130,17 +130,17 @@ constexpr size_t kMaxSimpleFieldEncodedSize = kMaxTagEncodedSize + 10;
 
 constexpr uint8_t kFieldTypeNumBits = 3;
 
-constexpr uint64_t GetFieldIdFromTag(uint64_t tag) {
+constexpr uint64_t GetTagFieldId(uint64_t tag) {
   // Since, the least 3 significant bits determine the field type. Skip them and
   // return the id.
-  return tag >> kFieldTypeNumBits;
+  return (tag >> kFieldTypeNumBits);
 }
 
-constexpr ProtoWireType GetWireTypeFromTag(uint64_t tag) {
+constexpr uint64_t GetTagFieldType(uint64_t tag) {
   // The least 3 significant bits determine the field type.
   constexpr uint64_t kFieldTypeMask =
       (1 << kFieldTypeNumBits) - 1;  // 0000 0111;
-  return static_cast<ProtoWireType>(tag & kFieldTypeMask);
+  return (tag & kFieldTypeMask);
 }
 
 // Proto types: (int|uint|sint)(32|64), bool, enum.

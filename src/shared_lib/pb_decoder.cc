@@ -48,8 +48,8 @@ struct PerfettoPbDecoderField PerfettoPbDecoderParseField(
   read_ptr = end_of_tag;
 
   field.wire_type =
-      static_cast<uint32_t>(protozero::proto_utils::GetWireTypeFromTag(tag));
-  uint64_t id = protozero::proto_utils::GetFieldIdFromTag(tag);
+      static_cast<uint32_t>(protozero::proto_utils::GetTagFieldType(tag));
+  uint64_t id = protozero::proto_utils::GetTagFieldId(tag);
   static_assert(std::is_same<uint32_t, decltype(field.id)>::value);
   if (id > std::numeric_limits<uint32_t>::max()) {
     field.status = PERFETTO_PB_DECODER_ERROR;
@@ -149,7 +149,7 @@ uint32_t PerfettoPbDecoderSkipField(struct PerfettoPbDecoder* decoder) {
   read_ptr = end_of_tag;
 
   uint32_t wire_type =
-      static_cast<uint32_t>(protozero::proto_utils::GetWireTypeFromTag(tag));
+      static_cast<uint32_t>(protozero::proto_utils::GetTagFieldType(tag));
   switch (wire_type) {
     case PERFETTO_PB_WIRE_TYPE_DELIMITED: {
       uint64_t len;
