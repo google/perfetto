@@ -70,3 +70,26 @@ class ArtMethodParser(TestSuite):
           808685761000,12599705000,"java.lang.Object.wait: (JI)V","OkHttp ConnectionPool","Object.java"
           800148789000,10759203000,"java.lang.Object.wait: ()V","ReferenceQueueDaemon","Object.java"
         '''))
+
+  def test_art_method_track_type(self):
+    return DiffTestBlueprint(
+        trace=DataPath('art-method-tracing.trace'),
+        query="""
+          SELECT DISTINCT t.type, t.name, thread.name as thread_name
+          FROM track t
+          JOIN slice s ON s.track_id = t.id
+          JOIN thread_track tt ON tt.id = t.id
+          JOIN thread USING (utid)
+          WHERE s.name LIKE '%.%: %'
+          ORDER BY t.type;
+        """,
+        out=Csv('''
+          "type","name","thread_name"
+          "art_method_tracing","[NULL]","main"
+          "art_method_tracing","[NULL]","HeapTaskDaemon"
+          "art_method_tracing","[NULL]","ReferenceQueueDaemon"
+          "art_method_tracing","[NULL]","FinalizerDaemon"
+          "art_method_tracing","[NULL]","FinalizerWatchdogDaemon"
+          "art_method_tracing","[NULL]","Instr: androidx.test.runner.AndroidJUnitRunner"
+          "art_method_tracing","[NULL]","InstrumentationConnectionThread"
+        '''))

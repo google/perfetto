@@ -16,7 +16,7 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, UNKNOWN} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   sqlValueToReadableString,
@@ -31,6 +31,7 @@ import {
   CounterColumnMapping,
   SqlTableCounterTrack,
 } from './query_counter_track';
+import {getColorForSlice} from '../colorizer';
 
 export interface SqlDataSource {
   // SQL source selecting the necessary data.
@@ -63,6 +64,7 @@ export interface DebugSliceTrackArgs {
   readonly rawColumns?: ReadonlyArray<string>;
   readonly pivotOn?: string;
   readonly argSetIdColumn?: string;
+  readonly colorColumn?: string;
 }
 
 /**
@@ -90,6 +92,9 @@ export interface DebugSliceTrackArgs {
  * provided, we will create N tracks, one for each distinct value of the pivotOn
  * column. Each track will only show the slices which have the corresponding
  * value in their pivotOn column.
+ * @param args.colorColumn - Optional: The name of a column to use for coloring
+ * slices. If provided, slices will be colored based on the value in this column.
+ * If omitted, slices are colored based on their name.
  */
 export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
   const tableId = getUniqueTrackCounter();
@@ -106,6 +111,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
     args.rawColumns,
     args.pivotOn,
     args.argSetIdColumn,
+    args.colorColumn,
   );
 
   if (args.pivotOn) {
@@ -115,6 +121,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
       titleBase,
       uriBase,
       args.pivotOn,
+      args.colorColumn,
     );
   } else {
     addSingleSliceTrack(
@@ -123,6 +130,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
       titleBase,
       uriBase,
       args.argSetIdColumn,
+      args.colorColumn,
     );
   }
 }
@@ -135,6 +143,7 @@ async function createTableForSliceTrack(
   rawColumns?: ReadonlyArray<string>,
   pivotCol?: string,
   argSetIdColumn?: string,
+  colorCol?: string,
 ) {
   if (rawColumns === undefined) {
     // Find the raw columns list from the query if not provided.
@@ -169,6 +178,7 @@ async function createTableForSliceTrack(
     rawColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
     pivotCol && `${pivotCol} as pivot`,
     argSetIdColumn && `${argSetIdColumn} as arg_set_id`,
+    colorCol && `${colorCol} as color`,
   ]
     .flat() // Convert to flattened list
     .filter(Boolean) // Remove falsy values
@@ -198,6 +208,7 @@ async function addPivotedSliceTracks(
   titleBase: string,
   uriBase: string,
   pivotColName: string,
+  colorCol?: string,
 ) {
   const result = await trace.engine.query(`
     SELECT DISTINCT pivot
@@ -211,24 +222,29 @@ async function addPivotedSliceTracks(
     const pivotValue = iter.get('pivot');
     const name = `${titleBase}: ${pivotColName} = ${sqlValueToReadableString(pivotValue)}`;
 
+    const schema = {
+      id: NUM,
+      ts: LONG,
+      dur: LONG,
+      name: STR,
+      ...(colorCol && {color: UNKNOWN}),
+    };
+
     trace.tracks.registerTrack({
       uri,
       renderer: SliceTrack.create({
         trace,
         uri,
         dataset: new SourceDataset({
-          schema: {
-            id: NUM,
-            ts: LONG,
-            dur: LONG,
-            name: STR,
-          },
+          schema,
           src: tableName,
           filter: {
             col: 'pivot',
             eq: pivotValue,
           },
         }),
+        colorizer: (row) =>
+          getColorForSlice(sqlValueToReadableString(row.color) ?? row.name),
         detailsPanel: (row) => {
           return new DebugSliceTrackDetailsPanel(trace, tableName, row.id);
         },
@@ -246,21 +262,27 @@ function addSingleSliceTrack(
   name: string,
   uri: string,
   argSetIdCol?: string,
+  colorCol?: string,
 ) {
+  const schema = {
+    id: NUM,
+    ts: LONG,
+    dur: LONG,
+    name: STR,
+    ...(colorCol && {color: UNKNOWN}),
+  };
+
   trace.tracks.registerTrack({
     uri,
     renderer: SliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
+        schema,
         src: tableName,
       }),
+      colorizer: (row) =>
+        getColorForSlice(sqlValueToReadableString(row.color) ?? row.name),
       detailsPanel: (row) => {
         return new DebugSliceTrackDetailsPanel(
           trace,

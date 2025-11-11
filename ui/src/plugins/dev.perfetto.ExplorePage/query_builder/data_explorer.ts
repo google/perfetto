@@ -52,6 +52,7 @@ export interface DataExplorerAttrs {
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
   readonly onchange?: () => void;
+  readonly onFilterAdd?: (filter: FilterValue | FilterNull) => void;
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
@@ -219,11 +220,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               'is not null',
             ];
             if (supportedOps.includes(filter.op)) {
-              attrs.node.state.filters = [
-                ...(attrs.node.state.filters ?? []),
-                filter as FilterValue | FilterNull,
-              ];
-              attrs.onchange?.();
+              if (attrs.onFilterAdd) {
+                // Delegate to the parent handler which will create a FilterNode
+                attrs.onFilterAdd(filter as FilterValue | FilterNull);
+              } else {
+                // Fallback: add filter directly to node state (legacy behavior)
+                attrs.node.state.filters = [
+                  ...(attrs.node.state.filters ?? []),
+                  filter as FilterValue | FilterNull,
+                ];
+                attrs.onchange?.();
+              }
             }
           },
           cellRenderer: (value: SqlValue, name: string) => {

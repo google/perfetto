@@ -47,7 +47,6 @@ export class ExplorePageHelp implements m.ClassComponent<ExplorePageHelpAttrs> {
         {direction: 'horizontal'},
         m(
           Card,
-          {interactive: true},
           m('h4', '1. Add a source node'),
           m(
             'p',
@@ -56,7 +55,6 @@ export class ExplorePageHelp implements m.ClassComponent<ExplorePageHelpAttrs> {
         ),
         m(
           Card,
-          {interactive: true},
           m('h4', '2. Configure the node'),
           m(
             'p',
@@ -65,7 +63,6 @@ export class ExplorePageHelp implements m.ClassComponent<ExplorePageHelpAttrs> {
         ),
         m(
           Card,
-          {interactive: true},
           m('h4', '3. View the results'),
           m(
             'p',

@@ -19,9 +19,11 @@ import {Builder} from './query_builder/builder';
 import {
   QueryNode,
   QueryNodeState,
+  NodeType,
   addConnection,
   removeConnection,
 } from './query_node';
+import {UIFilter} from './query_builder/operations/filter';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, importStateFromJson} from './json_handler';
@@ -84,7 +86,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs: ExplorePageAttrs,
     node: QueryNode,
     derivedNodeId: string,
-  ) {
+  ): Promise<QueryNode | undefined> {
     const {state, onStateUpdate} = attrs;
     const descriptor = nodeRegistry.get(derivedNodeId);
     if (descriptor) {
@@ -172,7 +174,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           selectedNode: newNode,
         }));
       }
+
+      return newNode;
     }
+
+    return undefined;
   }
 
   private async handleAddSourceNode(attrs: ExplorePageAttrs, id: string) {
@@ -316,6 +322,56 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [...currentState.rootNodes, node.clone()],
     }));
+  }
+
+  async handleFilterAdd(
+    attrs: ExplorePageAttrs,
+    sourceNode: QueryNode,
+    filter: {column: string; op: string; value?: unknown},
+  ) {
+    // If the source node is already a FilterNode, just add the filter to it
+    if (sourceNode.type === NodeType.kFilter) {
+      sourceNode.state.filters = [
+        ...(sourceNode.state.filters ?? []),
+        filter as UIFilter,
+      ];
+      attrs.onStateUpdate((currentState) => ({...currentState}));
+      return;
+    }
+
+    // If the source node has exactly one child and it's a FilterNode, add to that
+    if (
+      sourceNode.nextNodes.length === 1 &&
+      sourceNode.nextNodes[0].type === NodeType.kFilter
+    ) {
+      const existingFilterNode = sourceNode.nextNodes[0];
+      existingFilterNode.state.filters = [
+        ...(existingFilterNode.state.filters ?? []),
+        filter as UIFilter,
+      ];
+      attrs.onStateUpdate((currentState) => ({
+        ...currentState,
+        selectedNode: existingFilterNode,
+      }));
+      return;
+    }
+
+    // Otherwise, create a new FilterNode after the source node
+    const filterNodeId = 'filter_node';
+    const newFilterNode = await this.handleAddOperationNode(
+      attrs,
+      sourceNode,
+      filterNodeId,
+    );
+
+    // Add the filter to the newly created FilterNode
+    if (newFilterNode) {
+      newFilterNode.state.filters = [filter as UIFilter];
+      attrs.onStateUpdate((currentState) => ({
+        ...currentState,
+        selectedNode: newFilterNode,
+      }));
+    }
   }
 
   async handleDeleteNode(attrs: ExplorePageAttrs, node: QueryNode) {
@@ -647,14 +703,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onImportWithStatement: () =>
           this.handleImportWithStatement(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
-        onRemoveFilter: (node, filter) => {
-          if (node.state.filters) {
-            const filterIndex = node.state.filters.indexOf(filter);
-            if (filterIndex > -1) {
-              node.state.filters.splice(filterIndex, 1);
-            }
-          }
-          wrappedAttrs.onStateUpdate((currentState) => ({...currentState}));
+        onFilterAdd: (node, filter) => {
+          this.handleFilterAdd(wrappedAttrs, node, filter);
         },
         onNodeStateChange: () => {
           // Trigger a state update when node properties change (e.g., selecting group by columns)

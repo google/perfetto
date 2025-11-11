@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut data_source = DataSource::new();
     let gpu_counter_config = Arc::new(Mutex::new(GpuCounterConfig::default()));
     let gpu_counter_config_for_setup = Arc::clone(&gpu_counter_config);
-    let data_source_args = DataSourceArgsBuilder::new().on_setup(move |inst_id, config| {
+    let data_source_args = DataSourceArgsBuilder::new().on_setup(move |inst_id, config, _args| {
         let mut gpu_counter_config = gpu_counter_config_for_setup.lock().unwrap();
         for item in PbDecoder::new(config) {
             if let (GPU_COUNTER_CONFIG_ID, PbDecoderField::Delimited(value)) =

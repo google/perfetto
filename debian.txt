@@ -1,1 +1,0 @@
-For the Debian distribution source of truth, please refer to: https://salsa.debian.org/debian/perfetto

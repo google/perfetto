@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["David Reveman <dreveman@gmail.com>"]
 description = "Bindings for the Perfetto tracing framework"
 readme = "README.md"

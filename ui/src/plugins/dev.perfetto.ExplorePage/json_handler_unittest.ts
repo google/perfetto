@@ -19,7 +19,7 @@ import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_no
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
-import {serializeState, deserializeState} from './json_handler';
+import {serializeState, deserializeState, SerializedNode} from './json_handler';
 import {Trace} from '../../public/trace';
 import {
   SqlModules,
@@ -28,9 +28,11 @@ import {
 import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {LimitAndOffsetNode} from './query_builder/nodes/limit_and_offset_node';
 import {SortNode} from './query_builder/nodes/sort_node';
+import {FilterNode} from './query_builder/nodes/filter_node';
 import {MergeNode} from './query_builder/nodes/merge_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {QueryNode} from './query_node';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -273,13 +275,6 @@ describe('JSON serialization/deserialization', () => {
       partitionColumns: ['name'],
       filterNegativeDur: [true, false, true],
       comment: 'Intersect intervals partitioned by name',
-      filters: [
-        {
-          column: 'dur',
-          op: '>',
-          value: '1000',
-        },
-      ],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -346,14 +341,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedIntervalIntersectNode.state.comment).toBe(
       'Intersect intervals partitioned by name',
     );
-
-    // Verify filters
-    expect(deserializedIntervalIntersectNode.state.filters).toBeDefined();
-    expect(deserializedIntervalIntersectNode.state.filters?.length).toBe(1);
-    expect(deserializedIntervalIntersectNode.state.filters?.[0].column).toBe(
-      'dur',
-    );
-    expect(deserializedIntervalIntersectNode.state.filters?.[0].op).toBe('>');
   });
 
   test('serializes and deserializes sql source node with reference', () => {
@@ -393,6 +380,10 @@ describe('JSON serialization/deserialization', () => {
       sqlTable: sqlModules.getTable('slice'),
       trace,
       sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      prevNode: tableNode,
       filters: [
         {
           column: 'name',
@@ -401,6 +392,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
+    tableNode.nextNodes.push(filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -411,10 +403,12 @@ describe('JSON serialization/deserialization', () => {
     const deserializedState = deserializeState(json, trace, sqlModules);
 
     expect(deserializedState.rootNodes.length).toBe(1);
-    const deserializedTableNode = deserializedState
-      .rootNodes[0] as TableSourceNode;
-    expect(deserializedTableNode.state.filters?.length).toBe(1);
-    const filter = deserializedTableNode.state.filters?.[0];
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedTableNode
+      .nextNodes[0] as FilterNode;
+    expect(deserializedFilterNode.state.filters?.length).toBe(1);
+    const filter = deserializedFilterNode.state.filters?.[0];
     expect(filter?.column).toBe('name');
     expect(filter?.op).toBe('=');
     if (filter !== undefined && 'value' in filter) {
@@ -461,6 +455,10 @@ describe('JSON serialization/deserialization', () => {
       sqlTable: sqlModules.getTable('slice'),
       trace,
       sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      prevNode: tableNode,
       filters: [
         {
           column: 'id',
@@ -469,6 +467,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
+    tableNode.nextNodes.push(filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -479,10 +478,12 @@ describe('JSON serialization/deserialization', () => {
     const deserializedState = deserializeState(json, trace, sqlModules);
 
     expect(deserializedState.rootNodes.length).toBe(1);
-    const deserializedTableNode = deserializedState
-      .rootNodes[0] as TableSourceNode;
-    expect(deserializedTableNode.state.filters?.length).toBe(1);
-    const filter = deserializedTableNode.state.filters?.[0];
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedTableNode
+      .nextNodes[0] as FilterNode;
+    expect(deserializedFilterNode.state.filters?.length).toBe(1);
+    const filter = deserializedFilterNode.state.filters?.[0];
     expect(filter?.column).toBe('id');
     expect(filter?.op).toBe('=');
     if (filter !== undefined && 'value' in filter) {
@@ -554,6 +555,11 @@ describe('JSON serialization/deserialization', () => {
       prevNode: tableNode,
       newColumns: [{expression: '1', name: 'new_col'}],
       selectedColumns: [],
+    });
+    tableNode.nextNodes.push(modifyColumnsNode);
+
+    const filterNode = new FilterNode({
+      prevNode: modifyColumnsNode,
       filters: [
         {
           column: 'new_col',
@@ -562,7 +568,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(modifyColumnsNode);
+    modifyColumnsNode.nextNodes.push(filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
@@ -575,16 +581,16 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedTableNode = deserializedState.rootNodes[0];
     expect(deserializedTableNode.nextNodes.length).toBe(1);
-    const deserializedNode = deserializedTableNode
+    const deserializedModifyNode = deserializedTableNode
       .nextNodes[0] as ModifyColumnsNode;
-    expect(deserializedNode.state.newColumns.length).toBe(1);
-    expect(deserializedNode.state.newColumns[0].name).toBe('new_col');
-    const filters = deserializedNode.state.filters;
-    expect(filters).toBeDefined();
-    if (filters) {
-      expect(filters.length).toBe(1);
-      expect(filters[0].column).toBe('new_col');
-    }
+    expect(deserializedModifyNode.state.newColumns.length).toBe(1);
+    expect(deserializedModifyNode.state.newColumns[0].name).toBe('new_col');
+    expect(deserializedModifyNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedModifyNode
+      .nextNodes[0] as FilterNode;
+    expect(deserializedFilterNode.state.filters).toBeDefined();
+    expect(deserializedFilterNode.state.filters?.length).toBe(1);
+    expect(deserializedFilterNode.state.filters?.[0].column).toBe('new_col');
   });
 
   test('serializes and deserializes add columns node', () => {
@@ -674,6 +680,117 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedNode = deserializedTableNode.nextNodes[0] as SortNode;
     expect(deserializedNode.state.sortColNames).toEqual(['name', 'ts']);
+  });
+
+  test('serializes and deserializes filter node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      prevNode: tableNode,
+      filters: [
+        {
+          column: 'name',
+          op: '=',
+          value: 'test',
+        },
+        {
+          column: 'dur',
+          op: '>',
+          value: 1000,
+        },
+      ],
+      filterOperator: 'AND',
+      comment: 'Filter by name and duration',
+    });
+    tableNode.nextNodes.push(filterNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode.nextNodes[0] as FilterNode;
+
+    // Verify filters
+    expect(deserializedNode.state.filters).toBeDefined();
+    expect(deserializedNode.state.filters?.length).toBe(2);
+    expect(deserializedNode.state.filters?.[0].column).toBe('name');
+    expect(deserializedNode.state.filters?.[0].op).toBe('=');
+    if (
+      deserializedNode.state.filters?.[0] &&
+      'value' in deserializedNode.state.filters[0]
+    ) {
+      expect(deserializedNode.state.filters[0].value).toBe('test');
+    }
+    expect(deserializedNode.state.filters?.[1].column).toBe('dur');
+    expect(deserializedNode.state.filters?.[1].op).toBe('>');
+    if (
+      deserializedNode.state.filters?.[1] &&
+      'value' in deserializedNode.state.filters[1]
+    ) {
+      expect(deserializedNode.state.filters[1].value).toBe(1000);
+    }
+
+    // Verify filter operator
+    expect(deserializedNode.state.filterOperator).toBe('AND');
+
+    // Verify comment
+    expect(deserializedNode.state.comment).toBe('Filter by name and duration');
+
+    // Verify prevNode connection
+    expect(deserializedNode.prevNode?.nodeId).toBe(
+      deserializedTableNode.nodeId,
+    );
+  });
+
+  test('serializes and deserializes filter node with null filter', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      prevNode: tableNode,
+      filters: [
+        {
+          column: 'name',
+          op: 'is null',
+        },
+      ],
+    });
+    tableNode.nextNodes.push(filterNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedNode = deserializedTableNode.nextNodes[0] as FilterNode;
+
+    // Verify filter
+    expect(deserializedNode.state.filters).toBeDefined();
+    expect(deserializedNode.state.filters?.length).toBe(1);
+    expect(deserializedNode.state.filters?.[0].column).toBe('name');
+    expect(deserializedNode.state.filters?.[0].op).toBe('is null');
+    // Null filters don't have a value property
+    expect('value' in deserializedNode.state.filters![0]).toBe(false);
   });
 
   test('serializes and deserializes merge node with equality condition', () => {
@@ -871,6 +988,13 @@ describe('JSON serialization/deserialization', () => {
       leftColumn: 'name',
       rightColumn: 'name',
       sqlExpression: '',
+      comment: 'Join on matching names with duration filter',
+    });
+    tableNode1.nextNodes.push(mergeNode);
+    tableNode2.nextNodes.push(mergeNode);
+
+    const filterNode = new FilterNode({
+      prevNode: mergeNode,
       filters: [
         {
           column: 'dur',
@@ -878,10 +1002,8 @@ describe('JSON serialization/deserialization', () => {
           value: '1000',
         },
       ],
-      comment: 'Join on matching names with duration filter',
     });
-    tableNode1.nextNodes.push(mergeNode);
-    tableNode2.nextNodes.push(mergeNode);
+    mergeNode.nextNodes.push(filterNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
@@ -896,13 +1018,16 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedMergeNode = deserializedTableNode1
       .nextNodes[0] as MergeNode;
-    expect(deserializedMergeNode.state.filters).toBeDefined();
-    expect(deserializedMergeNode.state.filters?.length).toBe(1);
-    expect(deserializedMergeNode.state.filters?.[0].column).toBe('dur');
-    expect(deserializedMergeNode.state.filters?.[0].op).toBe('>');
     expect(deserializedMergeNode.state.comment).toBe(
       'Join on matching names with duration filter',
     );
+    expect(deserializedMergeNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedMergeNode
+      .nextNodes[0] as FilterNode;
+    expect(deserializedFilterNode.state.filters).toBeDefined();
+    expect(deserializedFilterNode.state.filters?.length).toBe(1);
+    expect(deserializedFilterNode.state.filters?.[0].column).toBe('dur');
+    expect(deserializedFilterNode.state.filters?.[0].op).toBe('>');
   });
 
   test('serializes and deserializes union node with filters and comment', () => {
@@ -936,13 +1061,6 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    unionNode.filters = [
-      {
-        column: 'name',
-        op: '!=',
-        value: 'idle',
-      },
-    ];
     unionNode.comment = 'Union of slice sources excluding idle';
     tableNode1.nextNodes.push(unionNode);
     tableNode2.nextNodes.push(unionNode);
@@ -960,10 +1078,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode1.nextNodes.length).toBe(1);
     const deserializedUnionNode = deserializedTableNode1
       .nextNodes[0] as UnionNode;
-    expect(deserializedUnionNode.filters).toBeDefined();
-    expect(deserializedUnionNode.filters?.length).toBe(1);
-    expect(deserializedUnionNode.filters?.[0].column).toBe('name');
-    expect(deserializedUnionNode.filters?.[0].op).toBe('!=');
     expect(deserializedUnionNode.comment).toBe(
       'Union of slice sources excluding idle',
     );
@@ -1017,6 +1131,33 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode.state.selectedColumns[1].name).toBe('ts');
     expect(deserializedNode.state.newColumns.length).toBe(1);
     expect(deserializedNode.state.newColumns[0].expression).toBe('dur / 1000');
+  });
+
+  test('serializes modify columns node without prevNode', () => {
+    // Create a modify columns node without a prevNode (edge case)
+    const modifyColumnsNode = new ModifyColumnsNode({
+      prevNode: undefined as unknown as QueryNode,
+      newColumns: [{expression: '42', name: 'constant'}],
+      selectedColumns: [],
+    });
+
+    const initialState: ExplorePageState = {
+      rootNodes: [modifyColumnsNode],
+      nodeLayouts: new Map(),
+    };
+
+    // Should be able to serialize without throwing
+    const json = serializeState(initialState);
+    const serialized = JSON.parse(json);
+
+    // Verify prevNodeId is undefined in serialized state
+    const serializedNode = serialized.nodes.find(
+      (n: SerializedNode) => n.nodeId === modifyColumnsNode.nodeId,
+    );
+    expect(serializedNode).toBeDefined();
+    expect(serializedNode.state.prevNodeId).toBeUndefined();
+    expect(serializedNode.state.newColumns.length).toBe(1);
+    expect(serializedNode.state.newColumns[0].name).toBe('constant');
   });
 
   test('serializes and deserializes aggregation node with multiple aggregations', () => {
@@ -1116,6 +1257,10 @@ describe('JSON serialization/deserialization', () => {
       sqlTable: sqlModules.getTable('slice'),
       trace,
       sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      prevNode: tableNode,
       filters: [
         {
           column: 'name',
@@ -1124,10 +1269,11 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
+    tableNode.nextNodes.push(filterNode);
 
     const sliceTable = sqlModules.getTable('slice')!;
     const modifyNode = new ModifyColumnsNode({
-      prevNode: tableNode,
+      prevNode: filterNode,
       newColumns: [{expression: 'dur / 1000', name: 'dur_ms'}],
       selectedColumns: [
         {
@@ -1138,7 +1284,7 @@ describe('JSON serialization/deserialization', () => {
         },
       ],
     });
-    tableNode.nextNodes.push(modifyNode);
+    filterNode.nextNodes.push(modifyNode);
 
     const aggregationNode = new AggregationNode({
       prevNode: modifyNode,
@@ -1182,6 +1328,7 @@ describe('JSON serialization/deserialization', () => {
       rootNodes: [tableNode],
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 0, y: 0}],
+        [filterNode.nodeId, {x: 0, y: 50}],
         [modifyNode.nodeId, {x: 0, y: 100}],
         [aggregationNode.nodeId, {x: 0, y: 200}],
         [sortNode.nodeId, {x: 0, y: 300}],
@@ -1196,26 +1343,30 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const node1 = deserializedState.rootNodes[0] as TableSourceNode;
     expect(node1.nextNodes.length).toBe(1);
-    expect(node1.state.filters?.length).toBe(1);
 
-    const node2 = node1.nextNodes[0] as ModifyColumnsNode;
+    const node2 = node1.nextNodes[0] as FilterNode;
     expect(node2.prevNode?.nodeId).toBe(node1.nodeId);
+    expect(node2.state.filters?.length).toBe(1);
     expect(node2.nextNodes.length).toBe(1);
 
-    const node3 = node2.nextNodes[0] as AggregationNode;
+    const node3 = node2.nextNodes[0] as ModifyColumnsNode;
     expect(node3.prevNode?.nodeId).toBe(node2.nodeId);
     expect(node3.nextNodes.length).toBe(1);
 
-    const node4 = node3.nextNodes[0] as SortNode;
+    const node4 = node3.nextNodes[0] as AggregationNode;
     expect(node4.prevNode?.nodeId).toBe(node3.nodeId);
     expect(node4.nextNodes.length).toBe(1);
 
-    const node5 = node4.nextNodes[0] as LimitAndOffsetNode;
+    const node5 = node4.nextNodes[0] as SortNode;
     expect(node5.prevNode?.nodeId).toBe(node4.nodeId);
-    expect(node5.state.limit).toBe(10);
+    expect(node5.nextNodes.length).toBe(1);
+
+    const node6 = node5.nextNodes[0] as LimitAndOffsetNode;
+    expect(node6.prevNode?.nodeId).toBe(node5.nodeId);
+    expect(node6.state.limit).toBe(10);
 
     // Verify all layouts preserved
-    expect(deserializedState.nodeLayouts.size).toBe(5);
+    expect(deserializedState.nodeLayouts.size).toBe(6);
   });
 
   test('serializes and deserializes branching graph', () => {
