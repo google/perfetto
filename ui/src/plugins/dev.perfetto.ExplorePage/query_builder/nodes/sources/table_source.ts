@@ -30,7 +30,6 @@ import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import protos from '../../../../../protos';
 import {TextParagraph} from '../../../../../widgets/text_paragraph';
-import {Button} from '../../../../../widgets/button';
 import {Trace} from '../../../../../public/trace';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
@@ -98,7 +97,6 @@ export class TableSourceNode implements SourceNode {
   readonly nodeId: string;
   readonly state: TableSourceState;
   readonly prevNodes: QueryNode[] = [];
-  showColumns: boolean = false;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
@@ -129,47 +127,7 @@ export class TableSourceNode implements SourceNode {
   }
 
   nodeSpecificModify(): m.Child {
-    if (this.state.sqlTable != null) {
-      const table = this.state.sqlTable;
-      return m(
-        '.pf-stdlib-table-node',
-        m(
-          '.pf-details-box',
-          m(TextParagraph, {text: table.description}),
-          m(Button, {
-            label: this.showColumns ? 'Hide Columns' : 'Show Columns',
-            onclick: () => {
-              this.showColumns = !this.showColumns;
-            },
-          }),
-          this.showColumns &&
-            m(
-              'table.pf-table.pf-table-striped',
-              m(
-                'thead',
-                m(
-                  'tr',
-                  m('th', 'Column'),
-                  m('th', 'Type'),
-                  m('th', 'Description'),
-                ),
-              ),
-              m(
-                'tbody',
-                table.columns.map((col) => {
-                  return m(
-                    'tr',
-                    m('td', col.name),
-                    m('td', perfettoSqlTypeToString(col.type)),
-                    m('td', col.description),
-                  );
-                }),
-              ),
-            ),
-        ),
-      );
-    }
-    return m(TextParagraph, 'No description available for this table.');
+    return undefined;
   }
 
   validate(): boolean {
@@ -205,6 +163,83 @@ export class TableSourceNode implements SourceNode {
       sqlTable: this.state.sqlTable?.name,
       comment: this.state.comment,
     };
+  }
+
+  nodeInfo(): m.Children {
+    if (this.state.sqlTable != null) {
+      const table = this.state.sqlTable;
+      return m(
+        '.pf-stdlib-table-node',
+        m(
+          '.pf-details-box',
+          m(
+            'p',
+            m('strong', 'Perfetto Table'),
+            ' - A source node that queries a specific table from the Perfetto standard library.',
+          ),
+          m(
+            'p',
+            'Tables are the ',
+            m('strong', 'fundamental data sources'),
+            ' in PerfettoSQL, containing structured trace data like slices, processes, threads, counters, and more.',
+          ),
+          m(
+            'p',
+            m('strong', 'Query type:'),
+            ' ',
+            m('code', 'Table'),
+            ' - Accepts a fully-qualified table name from the Perfetto trace processor schema.',
+          ),
+          m('h3', 'Table Description'),
+          m(TextParagraph, {text: table.description}),
+          m('h3', 'Columns'),
+          m(
+            'table.pf-table.pf-table-striped',
+            m(
+              'thead',
+              m(
+                'tr',
+                m('th', 'Column'),
+                m('th', 'Type'),
+                m('th', 'Description'),
+              ),
+            ),
+            m(
+              'tbody',
+              table.columns.map((col) => {
+                return m(
+                  'tr',
+                  m('td', col.name),
+                  m('td', perfettoSqlTypeToString(col.type)),
+                  m('td', col.description),
+                );
+              }),
+            ),
+          ),
+        ),
+      );
+    }
+    return m(
+      'div',
+      m(
+        'p',
+        'A source node that queries a specific table from the Perfetto standard library.',
+      ),
+      m(
+        'p',
+        'Tables are the fundamental data sources in PerfettoSQL, containing structured trace data like slices, processes, threads, counters, and more.',
+      ),
+      m(
+        'p',
+        'This node uses the ',
+        m('code', 'Table'),
+        ' query type, which accepts a fully-qualified table name from the Perfetto trace processor schema.',
+      ),
+      m(
+        'p',
+        'When creating this node, you select which table to query from a modal dialog showing all available tables.',
+      ),
+    );
   }
 
   static deserializeState(

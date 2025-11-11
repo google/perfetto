@@ -1029,6 +1029,44 @@ export class ModifyColumnsNode implements ModificationNode {
     });
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Modify Columns')),
+      m(
+        'p',
+        'A modification node that allows you to ',
+        m('strong', 'select which columns to include'),
+        ', ',
+        m('strong', 'rename columns'),
+        ', and ',
+        m('strong', 'create new computed columns'),
+        ' using SQL expressions.',
+      ),
+      m(
+        'p',
+        m('strong', 'Common uses:'),
+        m(
+          'ul',
+          m('li', 'Renaming columns to more meaningful names'),
+          m('li', 'Selecting only the columns you need'),
+          m(
+            'li',
+            'Creating calculated columns (e.g., converting nanoseconds to milliseconds)',
+          ),
+          m('li', 'Applying transformations using SQL expressions'),
+        ),
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'SelectColumn'),
+        ' operation from PerfettoSQL, which supports both column names and SQL expressions with aliases.',
+      ),
+    );
+  }
+
   clone(): QueryNode {
     return new ModifyColumnsNode(this.state);
   }

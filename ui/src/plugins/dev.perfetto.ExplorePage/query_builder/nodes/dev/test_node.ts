@@ -58,6 +58,10 @@ export class TestNode implements SourceNode {
     return m('div', 'Test Node');
   }
 
+  nodeInfo(): m.Children {
+    return m('div', 'Test Node Info');
+  }
+
   serializeState(): object {
     return {};
   }

@@ -103,6 +103,42 @@ export class FilterNode implements ModificationNode {
     );
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Filter')),
+      m(
+        'p',
+        'A modification node that ',
+        m('strong', 'filters rows'),
+        ' based on conditions you specify for column values.',
+      ),
+      m(
+        'p',
+        m('strong', 'Combining conditions:'),
+        ' You can create multiple filter conditions and combine them with ',
+        m('code', 'AND'),
+        ' or ',
+        m('code', 'OR'),
+        ' logic. Each filter can use ',
+        m('strong', 'operators'),
+        ' like equals, not equals, greater than, less than, contains, and more.',
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'Filter'),
+        ' operation from PerfettoSQL structured queries, which supports various comparison operations and pattern matching.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Filter slices where duration is greater than 1ms and name contains "render".',
+      ),
+    );
+  }
+
   validate(): boolean {
     return this.prevNode !== undefined;
   }

@@ -165,6 +165,52 @@ export class UnionNode implements MultiSourceNode {
     return 'Union';
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Union')),
+      m(
+        'p',
+        'A multisource node that ',
+        m('strong', 'combines rows'),
+        ' from multiple sources into a single result set.',
+      ),
+      m(
+        'p',
+        'This is equivalent to the SQL ',
+        m('code', 'UNION'),
+        ' operator, ',
+        m('strong', 'stacking rows'),
+        ' from different sources on top of each other.',
+      ),
+      m(
+        'p',
+        m('strong', 'Requirements:'),
+        m(
+          'ul',
+          m('li', 'All connected sources must have compatible column schemas'),
+          m('li', 'Column names and types should match across sources'),
+          m(
+            'li',
+            'You can select which columns to include in the final result',
+          ),
+        ),
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'ExperimentalUnion'),
+        ' operation from PerfettoSQL.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Combine CPU slices from multiple processes into a single dataset for analysis.',
+      ),
+    );
+  }
+
   nodeDetails(): m.Child {
     const cards: m.Child[] = [];
     const selectedCols = this.state.selectedColumns.filter((c) => c.checked);

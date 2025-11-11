@@ -176,6 +176,56 @@ export class MergeNode implements MultiSourceNode {
     return 'Merge';
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Merge')),
+      m(
+        'p',
+        'A multisource node that ',
+        m('strong', 'joins two data sources'),
+        ' using either matching columns or a custom SQL condition.',
+      ),
+      m(
+        'p',
+        'This is similar to SQL ',
+        m('code', 'JOIN'),
+        ' operations, allowing you to ',
+        m('strong', 'combine data'),
+        ' from two sources based on a relationship between them.',
+      ),
+      m(
+        'p',
+        m('strong', 'Two join modes are supported:'),
+        m(
+          'ul',
+          m(
+            'li',
+            m('strong', 'Equality:'),
+            ' Join where specified columns from each side are equal',
+          ),
+          m(
+            'li',
+            m('strong', 'Custom SQL:'),
+            ' Join using a custom SQL expression for maximum flexibility',
+          ),
+        ),
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'ExperimentalJoin'),
+        ' operation from PerfettoSQL.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Join process information with thread information based on matching process IDs.',
+      ),
+    );
+  }
+
   getInputLabels(): string[] {
     return [this.state.leftQueryAlias, this.state.rightQueryAlias];
   }

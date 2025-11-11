@@ -109,20 +109,4 @@ export class CommandManagerImpl implements CommandManager {
       return {segments: result.segments, ...result.item};
     });
   }
-
-  hasStartupCommands(): boolean {
-    // This should never be called on the global CommandManager.
-    // Startup commands should only be checked in trace context.
-    throw new Error(
-      'hasStartupCommands() should only be called on trace command manager',
-    );
-  }
-
-  async runStartupCommands(): Promise<void> {
-    // This should never be called on the global CommandManager.
-    // Startup commands should only be executed in trace context.
-    throw new Error(
-      'runStartupCommands() should only be called on trace command manager',
-    );
-  }
 }

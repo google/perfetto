@@ -19,13 +19,13 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import {Cpu} from '../../components/cpu';
-import {FtraceFilter, FtracePluginState} from './common';
+import {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
 const VERSION = 1;
 
-const DEFAULT_STATE: FtracePluginState = {
+const DEFAULT_STATE: FtraceFilters = {
   version: VERSION,
   filter: {
     excludeList: [],
@@ -36,25 +36,26 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
-      if (
-        typeof init === 'object' &&
-        init !== null &&
-        'version' in init &&
-        init.version === VERSION
-      ) {
-        return init as {} as FtracePluginState;
-      } else {
-        return DEFAULT_STATE;
-      }
-    });
-    ctx.trash.use(store);
+    const store = ctx.mountStore<FtraceFilters>(
+      'dev.perfetto.FtraceFilters',
+      (init: unknown) => {
+        if (
+          typeof init === 'object' &&
+          init !== null &&
+          'version' in init &&
+          init.version === VERSION
+        ) {
+          return init as {} as FtraceFilters;
+        } else {
+          return DEFAULT_STATE;
+        }
+      },
+    );
 
     const filterStore = store.createSubStore(
       ['filter'],
       (x) => x as FtraceFilter,
     );
-    ctx.trash.use(filterStore);
 
     const cpus = await getFtraceCpus(ctx);
     const group = new TrackNode({

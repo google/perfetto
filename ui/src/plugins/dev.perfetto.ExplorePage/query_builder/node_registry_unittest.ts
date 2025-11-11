@@ -26,6 +26,7 @@ describe('NodeRegistry', () => {
       validate: () => true,
       getTitle: () => 'Test',
       nodeSpecificModify: () => null,
+      nodeInfo: () => null,
       clone: () => createMockNode(nodeId),
       getStructuredQuery: () => undefined,
       serializeState: () => ({}),

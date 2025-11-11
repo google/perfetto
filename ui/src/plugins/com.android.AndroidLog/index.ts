@@ -64,11 +64,14 @@ async function getMachineIds(engine: Engine): Promise<number[]> {
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLog';
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<AndroidLogPluginState>((init) => {
-      return exists(init) && (init as {version: unknown}).version === VERSION
-        ? (init as AndroidLogPluginState)
-        : DEFAULT_STATE;
-    });
+    const store = ctx.mountStore<AndroidLogPluginState>(
+      'com.android.AndroidLogFilterState',
+      (init) => {
+        return exists(init) && (init as {version: unknown}).version === VERSION
+          ? (init as AndroidLogPluginState)
+          : DEFAULT_STATE;
+      },
+    );
 
     const result = await ctx.engine.query(
       `select count(1) as cnt from android_logs`,

@@ -116,6 +116,7 @@ export interface BaseNode {
   getTitle(): string;
   nodeSpecificModify(): m.Child;
   nodeDetails?(): m.Child | undefined;
+  nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   serializeState(): object;

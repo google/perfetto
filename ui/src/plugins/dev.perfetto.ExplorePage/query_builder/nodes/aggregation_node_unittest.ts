@@ -37,6 +37,7 @@ describe('AggregationNode', () => {
       validate: () => true,
       getTitle: () => 'Mock',
       nodeSpecificModify: () => null,
+      nodeInfo: () => null,
       clone: () => createMockPrevNode(),
       getStructuredQuery: () => undefined,
       serializeState: () => ({}),

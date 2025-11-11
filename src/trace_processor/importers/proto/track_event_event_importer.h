@@ -729,7 +729,12 @@ class TrackEventEventImporter {
 
     auto opt_resolved = track_event_tracker_->InternDescriptorTrackCounter(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    PERFETTO_CHECK(opt_resolved);
+    if (!opt_resolved) {
+      // This can happen if the hierarchy is invalid or too deep. In this case,
+      // an import log would have already been added by the tracker so just
+      // silently return.
+      return;
+    }
     TrackId track_id = *opt_resolved;
 
     double value = event_data_->extra_counter_values[index];

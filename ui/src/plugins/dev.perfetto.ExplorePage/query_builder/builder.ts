@@ -130,6 +130,14 @@ export interface BuilderAttrs {
   readonly canRedo?: boolean;
 }
 
+enum SelectedView {
+  kInfo = 0,
+  kModify = 1,
+  kSql = 2,
+  kProto = 3,
+  kComment = 4,
+}
+
 export class Builder implements m.ClassComponent<BuilderAttrs> {
   private queryService: QueryService;
   private materializationService: MaterializationService;
@@ -142,6 +150,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
   private drawerVisibility = SplitPanelDrawerVisibility.VISIBLE;
+  private selectedView: SelectedView = SelectedView.kInfo;
 
   constructor({attrs}: m.Vnode<BuilderAttrs>) {
     this.queryService = new QueryService(attrs.trace.engine);
@@ -167,6 +176,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.queryExecuted = false;
       this.isQueryRunning = false;
       this.isAnalyzing = false;
+      // Default to Edit if available, otherwise Info
+      this.selectedView =
+        selectedNode.nodeSpecificModify() != null
+          ? SelectedView.kModify
+          : SelectedView.kInfo;
     }
     this.previousSelectedNode = selectedNode;
 
@@ -200,8 +214,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             attrs.onNodeStateChange?.();
           },
           isCollapsed: this.isExplorerCollapsed,
-          onToggleCollapse: () => {
-            this.isExplorerCollapsed = !this.isExplorerCollapsed;
+          selectedView: this.selectedView,
+          onViewChange: (view: number) => {
+            this.selectedView = view;
           },
         })
       : m(ExplorePageHelp, {
@@ -302,18 +317,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   title: `Invalid node: ${selectedNode.state.issues?.getTitle() ?? ''}`,
                 }),
               ),
-            this.isExplorerCollapsed &&
-              m(Button, {
-                icon: Icons.GoBack,
-                title: 'Expand panel',
-                onclick: () => {
-                  this.isExplorerCollapsed = false;
-                },
-                variant: ButtonVariant.Filled,
-                rounded: true,
-                iconFilled: true,
-                intent: Intent.Primary,
-              }),
           ),
         m(
           '.pf-qb-floating-controls-bottom',
@@ -342,6 +345,112 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         ),
       ),
       m('.pf-qb-explorer', explorer),
+      selectedNode &&
+        m(
+          '.pf-qb-side-panel',
+          m(Button, {
+            icon: Icons.Info,
+            title: 'Info',
+            className:
+              this.selectedView === SelectedView.kInfo &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kInfo &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kInfo;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+          selectedNode.nodeSpecificModify() != null &&
+            m(Button, {
+              icon: Icons.Edit,
+              title: 'Edit',
+              className:
+                this.selectedView === SelectedView.kModify &&
+                !this.isExplorerCollapsed
+                  ? 'pf-active'
+                  : '',
+              onclick: () => {
+                if (
+                  this.selectedView === SelectedView.kModify &&
+                  !this.isExplorerCollapsed
+                ) {
+                  this.isExplorerCollapsed = true;
+                } else {
+                  this.selectedView = SelectedView.kModify;
+                  this.isExplorerCollapsed = false;
+                }
+              },
+            }),
+          m(Button, {
+            icon: 'code',
+            title: 'SQL',
+            className:
+              this.selectedView === SelectedView.kSql &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kSql &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kSql;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+          m(Button, {
+            icon: 'data_object',
+            title: 'Proto',
+            className:
+              this.selectedView === SelectedView.kProto &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kProto &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kProto;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+          m(Button, {
+            icon: 'comment',
+            title: 'Comment',
+            iconFilled: !!selectedNode.state.comment,
+            className:
+              this.selectedView === SelectedView.kComment &&
+              !this.isExplorerCollapsed
+                ? 'pf-active'
+                : '',
+            onclick: () => {
+              if (
+                this.selectedView === SelectedView.kComment &&
+                !this.isExplorerCollapsed
+              ) {
+                this.isExplorerCollapsed = true;
+              } else {
+                this.selectedView = SelectedView.kComment;
+                this.isExplorerCollapsed = false;
+              }
+            },
+          }),
+        ),
     );
   }
 

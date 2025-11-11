@@ -17,7 +17,6 @@ import {getPath, Path, setPath} from './object_utils';
 
 export type Migrate<T> = (init: unknown) => T;
 export type Edit<T> = (draft: Draft<T>) => void;
-export type Callback<T> = (store: Store<T>, previous: T) => void;
 
 /**
  * Create a new root-level store.
@@ -30,7 +29,7 @@ export function createStore<T>(initialState: T): Store<T> {
   return new RootStore<T>(initialState);
 }
 
-export interface Store<T> extends Disposable {
+export interface Store<T> {
   /**
    * Access the immutable state of this store.
    */
@@ -91,14 +90,6 @@ export interface Store<T> extends Disposable {
    * @returns {Store<U>} The newly created sub-store.
    */
   createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U>;
-
-  /**
-   * Subscribe for notifications when any edits are made to this store.
-   *
-   * @param callback The function to be called.
-   * @returns When this is disposed, the subscription is removed.
-   */
-  subscribe(callback: Callback<T>): Disposable;
 }
 
 /**
@@ -108,7 +99,6 @@ export interface Store<T> extends Disposable {
  */
 class RootStore<T> implements Store<T> {
   private internalState: T;
-  private subscriptions = new Set<Callback<T>>();
 
   constructor(initialState: T) {
     // Run initial state through immer to take advantage of auto-freezing
@@ -128,35 +118,15 @@ class RootStore<T> implements Store<T> {
   }
 
   private applyEdits(edits: Edit<T>[]): void {
-    const originalState = this.internalState;
-
     const newState = edits.reduce((state, edit) => {
       return produce(state, edit);
-    }, originalState);
+    }, this.internalState);
 
     this.internalState = newState;
-
-    // Notify subscribers
-    this.subscriptions.forEach((sub) => {
-      sub(this, originalState);
-    });
   }
 
   createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U> {
     return new SubStore(this, path, migrate);
-  }
-
-  subscribe(callback: Callback<T>): Disposable {
-    this.subscriptions.add(callback);
-    return {
-      [Symbol.dispose]: () => {
-        this.subscriptions.delete(callback);
-      },
-    };
-  }
-
-  [Symbol.dispose]() {
-    // No-op
   }
 }
 
@@ -176,8 +146,6 @@ class RootStore<T> implements Store<T> {
 class SubStore<T, ParentT> implements Store<T> {
   private parentState: unknown;
   private cachedState: T;
-  private parentStoreSubscription: Disposable;
-  private subscriptions = new Set<Callback<T>>();
 
   constructor(
     private readonly parentStore: Store<ParentT>,
@@ -188,16 +156,6 @@ class SubStore<T, ParentT> implements Store<T> {
 
     // Run initial state through immer to take advantage of auto-freezing
     this.cachedState = produce(migrate(this.parentState), () => {});
-
-    // Subscribe to parent store changes.
-    this.parentStoreSubscription = this.parentStore.subscribe(() => {
-      const newRootState = getPath<unknown>(this.parentStore.state, this.path);
-      if (newRootState !== this.parentState) {
-        this.subscriptions.forEach((callback) => {
-          callback(this, this.cachedState);
-        });
-      }
-    });
   }
 
   get state(): T {
@@ -221,11 +179,9 @@ class SubStore<T, ParentT> implements Store<T> {
   }
 
   private applyEdits(edits: Edit<T>[]): void {
-    const originalState = this.cachedState;
-
     const newState = edits.reduce((state, edit) => {
       return produce(state, edit);
-    }, originalState);
+    }, this.cachedState);
 
     this.parentState = newState;
     try {
@@ -241,10 +197,6 @@ class SubStore<T, ParentT> implements Store<T> {
     }
 
     this.cachedState = newState;
-
-    this.subscriptions.forEach((sub) => {
-      sub(this, originalState);
-    });
   }
 
   createSubStore<SubtreeState>(
@@ -252,18 +204,5 @@ class SubStore<T, ParentT> implements Store<T> {
     migrate: Migrate<SubtreeState>,
   ): Store<SubtreeState> {
     return new SubStore(this, path, migrate);
-  }
-
-  subscribe(callback: Callback<T>): Disposable {
-    this.subscriptions.add(callback);
-    return {
-      [Symbol.dispose]: () => {
-        this.subscriptions.delete(callback);
-      },
-    };
-  }
-
-  [Symbol.dispose]() {
-    this.parentStoreSubscription[Symbol.dispose]();
   }
 }

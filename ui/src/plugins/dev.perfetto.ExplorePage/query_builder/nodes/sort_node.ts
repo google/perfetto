@@ -167,6 +167,40 @@ export class SortNode implements ModificationNode {
     ]);
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m('p', m('strong', 'Sort')),
+      m(
+        'p',
+        'A modification node that ',
+        m('strong', 'sorts rows'),
+        ' by one or more columns in ascending or descending order.',
+      ),
+      m(
+        'p',
+        m('strong', 'Multiple sort columns:'),
+        ' You can specify multiple sort columns with different sort directions. The sorting is applied in the order you specify (first column is the primary sort, second is the tiebreaker, etc.).',
+      ),
+      m(
+        'p',
+        m('strong', 'Query type:'),
+        ' This node uses the ',
+        m('code', 'OrderBy'),
+        ' operation from PerfettoSQL structured queries.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Sort slices by start time (',
+        m('code', 'ts'),
+        ') ascending, then by duration (',
+        m('code', 'dur'),
+        ') descending.',
+      ),
+    );
+  }
+
   validate(): boolean {
     return (
       this.prevNode !== undefined &&
