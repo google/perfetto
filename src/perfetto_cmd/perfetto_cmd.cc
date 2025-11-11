@@ -856,7 +856,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                         // below.
 }
 
-void PerfettoCmd::Notify(BgProcessStatus status) {
+void PerfettoCmd::NotifyFd(WaitStatus status) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (!notify_fd_) {
     return;
@@ -869,7 +869,7 @@ void PerfettoCmd::Notify(BgProcessStatus status) {
 #endif  //! PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
-void PerfettoCmd::NotifyBgProcessPipe(BgProcessStatus status) {
+void PerfettoCmd::NotifyBgProcessPipe(WaitStatus status) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (!background_wait_pipe_.wr) {
     return;
@@ -882,12 +882,12 @@ void PerfettoCmd::NotifyBgProcessPipe(BgProcessStatus status) {
 #endif  //! PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
-PerfettoCmd::BgProcessStatus PerfettoCmd::WaitOnBgProcessPipe() {
+PerfettoCmd::WaitStatus PerfettoCmd::WaitOnBgProcessPipe() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   base::ScopedPlatformHandle fd = std::move(background_wait_pipe_.rd);
   PERFETTO_CHECK(fd);
 
-  BgProcessStatus msg;
+  WaitStatus msg;
   static_assert(sizeof msg == 1, "Enum bigger than one byte");
   std::array<pollfd, 1> pollfds = {pollfd{fd.get(), POLLIN, 0}};
 
@@ -895,30 +895,31 @@ PerfettoCmd::BgProcessStatus PerfettoCmd::WaitOnBgProcessPipe() {
   PERFETTO_CHECK(ret >= 0);
   if (ret == 0) {
     fprintf(stderr, "Timeout waiting for all data sources to start\n");
-    return kBackgroundTimeout;
+    return kWaitTimeout;
   }
   ssize_t read_ret = PERFETTO_EINTR(read(fd.get(), &msg, 1));
   PERFETTO_CHECK(read_ret >= 0);
   if (read_ret == 0) {
     fprintf(stderr, "Background process didn't report anything\n");
-    return kBackgroundOtherError;
+    return kWaitOtherError;
   }
 
-  if (msg != kBackgroundOk) {
-    fprintf(stderr, "Background process failed, BgProcessStatus=%d\n",
+  if (msg != kWaitOk) {
+    fprintf(stderr, "Background process failed, WaitStatus=%d\n",
             static_cast<int>(msg));
     return msg;
   }
 #endif  //! PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-  return kBackgroundOk;
+  return kWaitOk;
 }
 
 int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
   int exit_code = ConnectToServiceAndRun();
 
-  Notify(exit_code == 0 ? kBackgroundOk : kBackgroundOtherError);
-  NotifyBgProcessPipe(exit_code == 0 ? kBackgroundOk : kBackgroundOtherError);
+  WaitStatus wait_status = exit_code == 0 ? kWaitOk : kWaitOtherError;
+  NotifyFd(wait_status);
+  NotifyBgProcessPipe(wait_status);
 
   return exit_code;
 }
@@ -1520,8 +1521,8 @@ ID      UID     STATE      BUF (#) KB   DUR (s)   #DS  STARTED  NAME
 void PerfettoCmd::OnObservableEvents(
     const ObservableEvents& observable_events) {
   if (observable_events.all_data_sources_started()) {
-    Notify(kBackgroundOk);
-    NotifyBgProcessPipe(kBackgroundOk);
+    NotifyFd(kWaitOk);
+    NotifyBgProcessPipe(kWaitOk);
   }
   if (observable_events.has_clone_trigger_hit()) {
     int64_t tsid = observable_events.clone_trigger_hit().tracing_session_id();
