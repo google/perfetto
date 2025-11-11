@@ -112,7 +112,7 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
   const ::perfetto::third_party::perftools::profiles::pbzero::Profile::Decoder
       profile(data, size);
   // A valid pprof profile should have a string table, where the first string
-  // is empty (see profile.proto), and sample types defined.
+  // is empty (see profile.proto) and samples defined.
   auto string_table_it = profile.string_table();
   if (!string_table_it || string_table_it->as_string().size != 0) {
     return false;
