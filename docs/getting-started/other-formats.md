@@ -1005,14 +1005,16 @@ format is for:
 
 **Perfetto Support:**
 
-- **Perfetto UI:** When a `pprof` file is opened, the Perfetto UI visualizes the
-  CPU sample data as an interactive flamegraph. This allows for intuitive analysis
-  of call stacks and identification of performance hotspots.
+- **Perfetto UI:** When a `pprof` file is opened, Perfetto visualizes the
+  profiling data as an interactive flamegraph. If the `pprof` file contains
+  multiple metrics (e.g., CPU time and memory allocations), the UI allows you
+  to switch between them, displaying a separate flamegraph for each metric.
+  This enables intuitive analysis of call stacks and helps identify performance
+  hotspots across different dimensions.
 
   Here's an example of what that looks like
 
   ![](/docs/images/pprof-in-ui.png)
-
 
 **How to Generate:** The most relevant generation path for Perfetto users
 involves collecting CPU profiles from Go programs or converting `perf.data` files.
