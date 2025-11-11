@@ -254,6 +254,7 @@ java_library {
         "libprotobuf-java-lite",
     ],
     sdk_version: "current",
+    host_supported: true,
 }
 
 java_library {
