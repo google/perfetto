@@ -16,6 +16,7 @@ import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {MetricVisualisation} from '../../public/plugin';
 import {PerfettoPlugin} from '../../public/plugin';
+import {RouteArgs} from '../../public/route_schema';
 
 // SKELETON: Rename this class to match your plugin.
 export default class SkeletonPlugin implements PerfettoPlugin {
@@ -31,8 +32,9 @@ export default class SkeletonPlugin implements PerfettoPlugin {
    * This hook should be used for adding commands that don't depend on the
    * trace.
    */
-  static onActivate(_app: App): void {
+  static onActivate(_app: App, args: RouteArgs): void {
     console.log('SkeletonPlugin::onActivate()');
+    console.log(`Route args for ${SkeletonPlugin.id}`, args);
   }
 
   /**
