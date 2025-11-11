@@ -168,45 +168,18 @@ export class UnionNode implements MultiSourceNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Union')),
       m(
         'p',
-        'A multisource node that ',
-        m('strong', 'combines rows'),
-        ' from multiple sources into a single result set.',
+        'Stack rows from multiple sources into a single result. All connected sources must have compatible column names and types.',
       ),
       m(
         'p',
-        'This is equivalent to the SQL ',
-        m('code', 'UNION'),
-        ' operator, ',
-        m('strong', 'stacking rows'),
-        ' from different sources on top of each other.',
-      ),
-      m(
-        'p',
-        m('strong', 'Requirements:'),
-        m(
-          'ul',
-          m('li', 'All connected sources must have compatible column schemas'),
-          m('li', 'Column names and types should match across sources'),
-          m(
-            'li',
-            'You can select which columns to include in the final result',
-          ),
-        ),
-      ),
-      m(
-        'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'ExperimentalUnion'),
-        ' operation from PerfettoSQL.',
+        'Select which common columns to include in the result. Connect at least two sources to the input ports.',
       ),
       m(
         'p',
         m('strong', 'Example:'),
-        ' Combine CPU slices from multiple processes into a single dataset for analysis.',
+        ' Combine CPU slices from multiple processes to analyze them together.',
       ),
     );
   }

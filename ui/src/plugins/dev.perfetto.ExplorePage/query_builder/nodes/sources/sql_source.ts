@@ -171,32 +171,23 @@ export class SqlSourceNode implements MultiSourceNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'SQL Source')),
       m(
         'p',
-        'A source node that allows you to write custom SQL queries to retrieve data from your trace.',
-      ),
-      m(
-        'p',
-        'This is the ',
-        m('strong', 'most flexible source node'),
-        ', letting you write arbitrary ',
-        m('code', 'SELECT'),
-        ' statements to access any data in the trace. You can reference other nodes using ',
+        'Write custom queries to access any data in the trace. Use ',
         m('code', '$node_id'),
-        ' syntax in your SQL.',
+        ' to reference other nodes in your query.',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'Sql'),
-        ' query type from PerfettoSQL, which supports custom SQL with dependencies on other structured queries.',
+        'Most flexible option for complex logic or operations not available through other nodes.',
       ),
       m(
         'p',
-        m('strong', 'Use case:'),
-        " Use this when you need complex logic or operations that aren't available through other node types.",
+        m('strong', 'Example:'),
+        ' Write ',
+        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
+        ' or reference another node with ',
+        m('code', 'SELECT * FROM $other_node WHERE ...'),
       ),
     );
   }

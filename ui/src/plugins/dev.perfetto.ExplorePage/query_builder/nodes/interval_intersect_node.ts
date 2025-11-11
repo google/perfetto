@@ -139,58 +139,42 @@ export class IntervalIntersectNode implements MultiSourceNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Interval Intersect')),
       m(
         'p',
-        'A multisource node that finds ',
-        m('strong', 'time intervals'),
-        ' from a base source that ',
-        m('strong', 'overlap with intervals'),
-        ' from one or more other sources.',
+        'Find intervals that overlap across all connected sources. All inputs are treated equally - returns intervals that exist in all sources simultaneously.',
       ),
       m(
         'p',
-        m('strong', 'Common use cases:'),
-        m(
-          'ul',
-          m('li', 'CPU usage during a specific user journey'),
-          m('li', 'Memory consumption during an animation'),
-          m(
-            'li',
-            'System events that occur during multiple overlapping conditions',
-          ),
-        ),
+        m('strong', 'Required columns:'),
+        ' All inputs must have ',
+        m('code', 'id'),
+        ', ',
+        m('code', 'ts'),
+        ', and ',
+        m('code', 'dur'),
+        ' columns.',
       ),
       m(
         'p',
-        m('strong', 'Connect multiple sources to this node:'),
-        m(
-          'ul',
-          m(
-            'li',
-            m('strong', 'First port:'),
-            ' The base data with time intervals to analyze',
-          ),
-          m(
-            'li',
-            m('strong', 'Additional ports:'),
-            ' Interval sources that define the time windows',
-          ),
-        ),
+        m('strong', 'Partition:'),
+        ' Optionally partition the intersection by common columns (e.g., ',
+        m('code', 'utid'),
+        '). When partitioned, intervals are matched only within the same partition values.',
       ),
       m(
         'p',
-        m('strong', 'How it works:'),
-        ' The result includes only rows from the base that overlap with at least one row from ',
-        m('em', 'each'),
-        ' of the interval sources.',
+        m('strong', 'Duplicate columns:'),
+        ' If multiple inputs have the same column name, the result will only include one version, which can make it difficult to distinguish them. Use Modify Columns to rename conflicting columns before connecting.',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'IntervalIntersect'),
-        ' operation from PerfettoSQL.',
+        m('strong', 'Filter unfinished intervals:'),
+        " Enable per-input to exclude intervals that haven't completed yet.",
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Find CPU slices that occur during both a user gesture AND a network request.',
       ),
     );
   }

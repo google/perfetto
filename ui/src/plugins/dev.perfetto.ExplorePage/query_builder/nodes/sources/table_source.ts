@@ -172,27 +172,7 @@ export class TableSourceNode implements SourceNode {
         '.pf-stdlib-table-node',
         m(
           '.pf-details-box',
-          m(
-            'p',
-            m('strong', 'Perfetto Table'),
-            ' - A source node that queries a specific table from the Perfetto standard library.',
-          ),
-          m(
-            'p',
-            'Tables are the ',
-            m('strong', 'fundamental data sources'),
-            ' in PerfettoSQL, containing structured trace data like slices, processes, threads, counters, and more.',
-          ),
-          m(
-            'p',
-            m('strong', 'Query type:'),
-            ' ',
-            m('code', 'Table'),
-            ' - Accepts a fully-qualified table name from the Perfetto trace processor schema.',
-          ),
-          m('h3', 'Table Description'),
           m(TextParagraph, {text: table.description}),
-          m('h3', 'Columns'),
           m(
             'table.pf-table.pf-table-striped',
             m(
@@ -223,21 +203,11 @@ export class TableSourceNode implements SourceNode {
       'div',
       m(
         'p',
-        'A source node that queries a specific table from the Perfetto standard library.',
+        'Provides direct access to trace data tables like slices, processes, threads, counters, and more.',
       ),
       m(
         'p',
-        'Tables are the fundamental data sources in PerfettoSQL, containing structured trace data like slices, processes, threads, counters, and more.',
-      ),
-      m(
-        'p',
-        'This node uses the ',
-        m('code', 'Table'),
-        ' query type, which accepts a fully-qualified table name from the Perfetto trace processor schema.',
-      ),
-      m(
-        'p',
-        'When creating this node, you select which table to query from a modal dialog showing all available tables.',
+        'Select a table from the modal dialog to see its description and available columns.',
       ),
     );
   }
