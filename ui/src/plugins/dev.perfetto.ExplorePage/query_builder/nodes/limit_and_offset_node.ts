@@ -119,50 +119,19 @@ export class LimitAndOffsetNode implements ModificationNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Limit and Offset')),
       m(
         'p',
-        'A modification node that ',
-        m('strong', 'limits the number of rows'),
-        ' returned and optionally ',
-        m('strong', 'skips a specified number of rows'),
-        '.',
-      ),
-      m(
-        'p',
-        m('strong', 'Use cases:'),
-        m(
-          'ul',
-          m(
-            'li',
-            m('strong', 'Sampling data:'),
-            ' e.g., "show me the first 100 rows"',
-          ),
-          m(
-            'li',
-            m('strong', 'Pagination:'),
-            ' e.g., "skip 100 rows, then show the next 50"',
-          ),
-          m(
-            'li',
-            m('strong', 'Performance optimization:'),
-            ' when you only need a subset of results',
-          ),
-        ),
+        'Limit the number of rows returned and optionally skip rows. Useful for sampling data or pagination.',
       ),
       m(
         'p',
         m('strong', 'Tip:'),
-        ' Combine with a Sort node to get meaningful results like "top 10 longest slices" or "bottom 20 by CPU time".',
+        ' Combine with Sort to get meaningful results like "top 10 longest slices" or "rows 100-150".',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node adds ',
-        m('code', 'LIMIT'),
-        ' and ',
-        m('code', 'OFFSET'),
-        ' clauses to the generated SQL query.',
+        m('strong', 'Example:'),
+        ' Set limit to 10 to see first 10 rows, or set offset to 100 and limit to 50 to see rows 100-150.',
       ),
     );
   }

@@ -233,19 +233,9 @@ export class AggregationNode implements ModificationNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Aggregation')),
       m(
         'p',
-        'A modification node that ',
-        m('strong', 'groups rows'),
-        ' by one or more columns and applies ',
-        m('strong', 'aggregate functions'),
-        ' to compute summary statistics.',
-      ),
-      m(
-        'p',
-        m('strong', 'Available functions:'),
-        ' You can use aggregation functions like ',
+        'Group rows by one or more columns and compute summary statistics like ',
         m('code', 'SUM'),
         ', ',
         m('code', 'COUNT'),
@@ -257,23 +247,22 @@ export class AggregationNode implements ModificationNode {
         m('code', 'AVG'),
         ', ',
         m('code', 'MEDIAN'),
-        ', ',
+        ', or ',
         m('code', 'PERCENTILE'),
-        ', and ',
-        m('code', 'DURATION_WEIGHTED_MEAN'),
-        ' (useful for time-series data).',
+        '.',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'GroupBy'),
-        ' operation from PerfettoSQL structured queries.',
+        'Select GROUP BY columns, then add aggregation functions. Each aggregation creates a new column.',
       ),
       m(
         'p',
         m('strong', 'Example:'),
-        ' Group slices by name and calculate the average duration for each.',
+        ' Group slices by ',
+        m('code', 'name'),
+        ' and compute ',
+        m('code', 'AVG(dur)'),
+        ' to find average duration per slice name.',
       ),
     );
   }
