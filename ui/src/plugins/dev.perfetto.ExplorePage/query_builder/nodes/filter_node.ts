@@ -28,8 +28,13 @@ import {
   renderFilterOperation,
   createExperimentalFiltersProto,
   formatFilterDetails,
+  showFilterEditModal,
+  deleteFilterWithGroupDissolution,
+  findFilterGroup,
 } from '../operations/filter';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {NodeIssues} from '../node_issues';
+import {showModal} from '../../../../widgets/modal';
 
 export interface FilterNodeState extends QueryNodeState {
   prevNode: QueryNode;
@@ -64,7 +69,80 @@ export class FilterNode implements ModificationNode {
     return 'Filter';
   }
 
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
+  }
+
+  private handleFilterEdit(filter: UIFilter): void {
+    // Check if there are any columns available
+    if (this.sourceCols.length === 0) {
+      showModal({
+        title: 'Cannot edit filter',
+        content: m(
+          'div',
+          m('p', 'No columns are available to filter on.'),
+          m(
+            'p',
+            'Please select a table or add columns before editing filters.',
+          ),
+        ),
+      });
+      return;
+    }
+
+    showFilterEditModal(
+      filter,
+      this.sourceCols,
+      (editedFilter) => {
+        // Check if filter is in a group
+        const groups = this.state.groups ?? [];
+        const group = findFilterGroup(filter, groups);
+
+        if (group) {
+          // Update filter in group
+          this.state.groups = groups.map((g) => {
+            if (g.id === group.id) {
+              return {
+                ...g,
+                filters: g.filters.map((f) =>
+                  f === filter ? editedFilter : f,
+                ),
+              };
+            }
+            return g;
+          });
+        } else {
+          // Update filter in main filters array
+          this.state.filters = (this.state.filters ?? []).map((f) =>
+            f === filter ? editedFilter : f,
+          );
+        }
+
+        this.state.onchange?.();
+        m.redraw();
+      },
+      () => {
+        // Delete callback - use shared utility for group dissolution logic
+        const result = deleteFilterWithGroupDissolution(
+          filter,
+          this.state.filters ?? [],
+          this.state.groups ?? [],
+        );
+
+        this.state.filters = result.filters;
+        this.state.groups = result.groups;
+        this.state.onchange?.();
+        m.redraw();
+      },
+    );
+  }
+
   nodeDetails(): m.Child {
+    this.validate();
+
     const hasFilters = this.state.filters && this.state.filters.length > 0;
     const hasGroups = this.state.groups && this.state.groups.length > 0;
 
@@ -79,10 +157,13 @@ export class FilterNode implements ModificationNode {
       this.state, // Pass state for interactive toggling and removal
       undefined, // onRemove - handled internally by formatFilterDetails
       true, // compact mode for smaller font
+      (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
     );
   }
 
   nodeSpecificModify(): m.Child {
+    this.validate();
+
     return renderFilterOperation(
       this.state.filters,
       this.state.filterOperator,
@@ -100,6 +181,7 @@ export class FilterNode implements ModificationNode {
         this.state.groups = [...newGroups];
         this.state.onchange?.();
       },
+      (filter) => this.handleFilterEdit(filter),
     );
   }
 
@@ -140,7 +222,25 @@ export class FilterNode implements ModificationNode {
   }
 
   validate(): boolean {
-    return this.prevNode !== undefined;
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      this.setValidationError('No input node connected');
+      return false;
+    }
+
+    // Check if there are columns available from the previous node
+    if (this.sourceCols.length === 0) {
+      this.setValidationError(
+        'No columns available. Please select a table or add columns before filtering.',
+      );
+      return false;
+    }
+
+    return true;
   }
 
   clone(): QueryNode {
