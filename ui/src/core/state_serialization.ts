@@ -99,7 +99,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
   const plugins = new Array<SerializedPluginState>();
   const pluginsStore = trace.getPluginStoreForSerialization();
 
-  for (const [id, pluginState] of Object.entries(pluginsStore)) {
+  for (const [id, pluginState] of Object.entries(pluginsStore.state)) {
     plugins.push({id, state: pluginState});
   }
 
