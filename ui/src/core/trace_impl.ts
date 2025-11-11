@@ -18,7 +18,7 @@ import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
-import {EngineBase} from '../trace_processor/engine';
+import {Engine, EngineBase} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -61,7 +61,7 @@ import {TraceStream} from '../public/stream';
  * for the core.
  */
 export class TraceImpl implements Trace, Disposable {
-  readonly engine: EngineBase;
+  readonly engine: Engine;
   readonly search: SearchManagerImpl;
   readonly selection: SelectionManagerImpl;
   readonly tabs = new TabManagerImpl();

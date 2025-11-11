@@ -283,6 +283,9 @@ function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
  */
 function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
   const traceProxy = createProxy(trace, {
+    get engine() {
+      return trace.engine.getProxy(pluginId);
+    },
     get trace(): TraceImpl {
       return traceProxy; // Return this proxy.
     },
