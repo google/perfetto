@@ -66,7 +66,6 @@ export interface App {
    */
   navigate(newHash: string): void;
 
-  // Open traces in different formats.
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;
   openTraceFromStream(stream: TraceStream): Promise<Trace>;
@@ -75,7 +74,5 @@ export interface App {
     title: string;
     fileName: string;
   }): Promise<Trace>;
-
-  // Close the currently active trace, if any.
   closeCurrentTrace(): void;
 }
