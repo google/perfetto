@@ -28,9 +28,6 @@ import {AppImpl} from './app_impl';
 import {createProxy} from '../base/utils';
 import {RouteArg} from '../public/route_schema';
 
-// The pseudo plugin id used for the core instance of AppImpl.
-export const CORE_PLUGIN_ID = '__core__';
-
 function makePlugin(
   desc: PerfettoPluginStatic<PerfettoPlugin>,
   trace: Trace,
