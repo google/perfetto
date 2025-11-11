@@ -109,13 +109,20 @@ class PerfettoCmd : public Consumer {
 
   void ReadbackTraceDataAndQuit(const std::string& error);
 
-  enum BgProcessStatus : char {
-    kBackgroundOk = 0,
-    kBackgroundOtherError = 1,
-    kBackgroundTimeout = 2,
+  enum WaitStatus : char {
+    kWaitOk = 0,
+    kWaitOtherError = 1,
+    kWaitTimeout = 2,
   };
 
-  void Notify(BgProcessStatus status);
+  // Used to implement the --notify-fd flag.
+  //
+  // Signals client by writing to FD (if there is one) that data sources has
+  // started (or failed to start).
+  //
+  // Only the first time this function is called is significant. Further calls
+  // will have no effect.
+  void NotifyFd(WaitStatus status);
 
   // Used to implement the --background-wait flag.
   //
@@ -123,7 +130,7 @@ class PerfettoCmd : public Consumer {
   //
   // Returns the status received from the child process or kTimeout, in case of
   // timeout.
-  BgProcessStatus WaitOnBgProcessPipe();
+  WaitStatus WaitOnBgProcessPipe();
 
   // Used to implement the --background-wait flag.
   //
@@ -132,7 +139,7 @@ class PerfettoCmd : public Consumer {
   //
   // Only the first time this function is called is significant. Further calls
   // will have no effect.
-  void NotifyBgProcessPipe(BgProcessStatus status);
+  void NotifyBgProcessPipe(WaitStatus status);
 
   void OnCloneSnapshotTriggerReceived(TracingSessionID,
                                       const SnapshotTriggerInfo& trigger);
