@@ -128,12 +128,19 @@ constexpr size_t kMaxOneByteMessageLength = (1 << 7) - 1;
 constexpr size_t kMaxTagEncodedSize = 5;
 constexpr size_t kMaxSimpleFieldEncodedSize = kMaxTagEncodedSize + 10;
 
-// The first byte of a proto field is structured as follows:
-// The least 3 significant bits determine the field type.
-// The most 5 significant bits determine the field id. If MSB == 1, the
-// field id continues on the next bytes following the VarInt encoding.
-constexpr uint8_t kFieldTypeNumBits = 3;
-constexpr uint64_t kFieldTypeMask = (1 << kFieldTypeNumBits) - 1;  // 0000 0111;
+constexpr uint64_t GetFieldIdFromTag(uint64_t tag) {
+  // The first byte of a proto field is structured as follows:
+  // The most 5 significant bits determine the field id. If MSB == 1, the
+  // field id continues on the next bytes following the VarInt encoding.
+  constexpr uint8_t kFieldTypeNumBits = 3;
+  return tag >> kFieldTypeNumBits;
+}
+
+constexpr ProtoWireType GetWireTypeFromTag(uint64_t tag) {
+  // The least 3 significant bits determine the field type.
+  constexpr uint64_t kFieldTypeMask = (1 << 3) - 1;  // 0000 0111;
+  return static_cast<ProtoWireType>(tag & kFieldTypeMask);
+}
 
 // Proto types: (int|uint|sint)(32|64), bool, enum.
 constexpr uint32_t MakeTagVarInt(uint32_t field_id) {

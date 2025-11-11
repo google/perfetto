@@ -96,6 +96,14 @@ TEST(TraceProcessorImplTest, GuessTraceType_Bmp) {
   EXPECT_EQ(kUnknownTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
+TEST(TraceProcessorImplTest, GuessTraceType_Pprof) {
+  // Minimal pprof profile with sample_type and two other fields to exceed
+  // kMinPprofSize.
+  const uint8_t prefix[] = {0x0a, 0x04, 0x08, 0x01, 0x10, 0x02,
+                            0x48, 0x7b, 0x50, 0xc8, 0x03};
+  EXPECT_EQ(kPprofTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

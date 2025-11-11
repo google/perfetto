@@ -127,17 +127,38 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
   constexpr uint64_t kSampleTypeTag =
       protozero::proto_utils::MakeTagLengthDelimited(1);
 
+  // This is a fallback for pprof files that don't start with the `sample_type`
+  // field. It checks if the first field looks like a plausible protobuf field
+  // (small field id, common wire type).
   if (tag != kSampleTypeTag) {
-    auto field_id =
-        static_cast<uint32_t>(tag >> protozero::proto_utils::kFieldTypeNumBits);
-    auto field_type = static_cast<protozero::proto_utils::ProtoWireType>(
-        tag & protozero::proto_utils::kFieldTypeMask);
-    return field_id <= 14 &&
-           (field_type == protozero::proto_utils::ProtoWireType::kVarInt ||
-            field_type ==
-                protozero::proto_utils::ProtoWireType::kLengthDelimited);
+    auto field_id = protozero::proto_utils::GetFieldIdFromTag(tag);
+    auto field_type = protozero::proto_utils::GetWireTypeFromTag(tag);
+    // pprof fields are generally small. Field IDs > 14 are unlikely for the
+    // first field.
+    if (field_id > 14 ||
+        (field_type != protozero::proto_utils::ProtoWireType::kVarInt &&
+         field_type !=
+             protozero::proto_utils::ProtoWireType::kLengthDelimited)) {
+      return false;
+    }
+    // If the field is length-delimited, we perform an extra sanity check on
+    // the length to avoid misinterpreting other file formats (e.g. BMP) as
+    // pprof.
+    if (field_type == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+      uint64_t field_length;
+      const uint8_t* len_next =
+          protozero::proto_utils::ParseVarInt(next, end, &field_length);
+      if (len_next == next ||
+          field_length > static_cast<uint64_t>(end - len_next)) {
+        return false;
+      }
+    }
+    return true;
   }
 
+  // Happy path: The first field is `sample_type`.
+  // We now perform a stronger check to see if the contents of the `sample_type`
+  // field look like a pprof `ValueType` message.
   // Parse the length of the sample_type field
   uint64_t sample_type_length;
   const uint8_t* len_next =
