@@ -1630,7 +1630,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  protozero::ProtoDecoder decoder(blob);
+  ProtoDecoder decoder(blob);
 
   // Special handling for events matching a convention - derive track/counter
   // tracks for them automatically (no perfetto code changes needed).
