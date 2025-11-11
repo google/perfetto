@@ -50,12 +50,6 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
                                const uint8_t* const end) {
   ParseFieldResult res{ParseFieldResult::kAbort, buffer, Field{}};
 
-  // The first byte of a proto field is structured as follows:
-  // The least 3 significant bits determine the field type.
-  // The most 5 significant bits determine the field id. If MSB == 1, the
-  // field id continues on the next bytes following the VarInt encoding.
-  const uint8_t kFieldTypeNumBits = 3;
-  const uint64_t kFieldTypeMask = (1 << kFieldTypeNumBits) - 1;  // 0000 0111;
   const uint8_t* pos = buffer;
 
   // If we've already hit the end, just return an invalid field.
@@ -72,11 +66,13 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
     pos = next;
   }
 
-  uint32_t field_id = static_cast<uint32_t>(preamble >> kFieldTypeNumBits);
+  uint32_t field_id =
+      static_cast<uint32_t>(preamble >> proto_utils::kFieldTypeNumBits);
   if (field_id == 0 || pos >= end)
     return res;
 
-  auto field_type = static_cast<uint8_t>(preamble & kFieldTypeMask);
+  auto field_type =
+      static_cast<uint8_t>(preamble & proto_utils::kFieldTypeMask);
   const uint8_t* new_pos = pos;
   uint64_t int_value = 0;
   uint64_t size = 0;

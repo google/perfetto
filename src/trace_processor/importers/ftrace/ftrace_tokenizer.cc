@@ -95,17 +95,13 @@ uint64_t TryFastParseFtraceEventId(const uint8_t* start, const uint8_t* end) {
     return 0;
   }
 
-  constexpr uint8_t kFieldTypeNumBits = 3;
-  constexpr uint64_t kFieldTypeMask =
-      (1 << kFieldTypeNumBits) - 1;  // 0000 0111;
-
   // The event wire type should be length delimited.
   auto wire_type = static_cast<protozero::proto_utils::ProtoWireType>(
-      event_tag & kFieldTypeMask);
+      event_tag & protozero::proto_utils::kFieldTypeMask);
   if (wire_type != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
     return 0;
   }
-  return event_tag >> kFieldTypeNumBits;
+  return event_tag >> protozero::proto_utils::kFieldTypeNumBits;
 }
 
 }  // namespace

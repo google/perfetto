@@ -128,7 +128,14 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
       protozero::proto_utils::MakeTagLengthDelimited(1);
 
   if (tag != kSampleTypeTag) {
-    return false;
+    auto field_id =
+        static_cast<uint32_t>(tag >> protozero::proto_utils::kFieldTypeNumBits);
+    auto field_type = static_cast<protozero::proto_utils::ProtoWireType>(
+        tag & protozero::proto_utils::kFieldTypeMask);
+    return field_id <= 14 &&
+           (field_type == protozero::proto_utils::ProtoWireType::kVarInt ||
+            field_type ==
+                protozero::proto_utils::ProtoWireType::kLengthDelimited);
   }
 
   // Parse the length of the sample_type field

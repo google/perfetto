@@ -19,6 +19,7 @@
 #include <limits>
 #include <type_traits>
 
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/public/pb_utils.h"
 
 namespace {
@@ -45,10 +46,9 @@ struct PerfettoPbDecoderField PerfettoPbDecoderParseField(
     return field;
   }
   read_ptr = end_of_tag;
-  constexpr uint8_t kFieldTypeNumBits = 3;
 
-  field.wire_type = tag & ((1 << kFieldTypeNumBits) - 1);
-  uint64_t id = tag >> kFieldTypeNumBits;
+  field.wire_type = tag & protozero::proto_utils::kFieldTypeMask;
+  uint64_t id = tag >> protozero::proto_utils::kFieldTypeNumBits;
   static_assert(std::is_same<uint32_t, decltype(field.id)>::value);
   if (id > std::numeric_limits<uint32_t>::max()) {
     field.status = PERFETTO_PB_DECODER_ERROR;
@@ -146,9 +146,8 @@ uint32_t PerfettoPbDecoderSkipField(struct PerfettoPbDecoder* decoder) {
     return PERFETTO_PB_DECODER_ERROR;
   }
   read_ptr = end_of_tag;
-  constexpr uint8_t kFieldTypeNumBits = 3;
 
-  uint32_t wire_type = tag & ((1 << kFieldTypeNumBits) - 1);
+  uint32_t wire_type = tag & protozero::proto_utils::kFieldTypeMask;
   switch (wire_type) {
     case PERFETTO_PB_WIRE_TYPE_DELIMITED: {
       uint64_t len;
