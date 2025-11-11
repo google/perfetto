@@ -26,7 +26,7 @@ import {Flag} from '../public/feature_flag';
 import {TraceImpl} from './trace_impl';
 import {AppImpl} from './app_impl';
 import {createProxy} from '../base/utils';
-import {RouteArg} from '../public/route_schema';
+import {RouteArgs} from '../public/route_schema';
 import {SettingsManagerImpl} from './settings_manager';
 import {PageManager} from '../public/page';
 
@@ -113,30 +113,8 @@ export class PluginManagerImpl {
 
     this.orderedPlugins.forEach((p) => {
       if (p.active) return;
-
-      const pluginId = p.desc.id;
-
-      const appProxy = createAppProxy(app, pluginId);
-
-      // Work out the plugin arguments for this plugin
-      const args: {[key: string]: RouteArg} = {};
-      const pluginArgs = Object.entries(app.initialRouteArgs).reduce(
-        (result, [key, value]) => {
-          // Create a regex to match keys starting with pluginId
-          const regex = new RegExp(`^${pluginId}:(.+)$`);
-          const match = key.match(regex);
-
-          // Only include entries that match the regex
-          if (match) {
-            const newKey = match[1];
-            // Use the capture group (what comes after the prefix) as the new key
-            result[newKey] = value;
-          }
-          return result;
-        },
-        args,
-      );
-
+      const appProxy = createAppProxy(app, p.desc.id);
+      const pluginArgs = getPluginArgs(app, p.desc.id);
       p.desc.onActivate?.(appProxy, pluginArgs);
       p.active = true;
     });
@@ -340,6 +318,22 @@ function createSettingsProxy<T extends SettingsManagerImpl>(
       return settings.register(setting, pluginId);
     },
   } as Partial<T>);
+}
+
+function getPluginArgs(app: AppImpl, pluginId: string): RouteArgs {
+  return Object.entries(app.initialRouteArgs).reduce((result, [key, value]) => {
+    // Create a regex to match keys starting with pluginId
+    const regex = new RegExp(`^${pluginId}:(.+)$`);
+    const match = key.match(regex);
+
+    // Only include entries that match the regex
+    if (match) {
+      const newKey = match[1];
+      // Use the capture group (what comes after the prefix) as the new key
+      result[newKey] = value;
+    }
+    return result;
+  }, {} as RouteArgs);
 }
 
 function getOpenerArgs(
