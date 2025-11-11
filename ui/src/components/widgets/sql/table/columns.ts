@@ -17,7 +17,6 @@ import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
 import {Trace} from '../../../../public/trace';
 import {SqlValue, STR} from '../../../../trace_processor/query_result';
-import protos from '../../../../protos';
 import {
   asSchedSqlId,
   asSliceSqlId,
@@ -463,7 +462,7 @@ export class ProcessIdColumn implements TableColumn {
   }
 }
 
-class ArgColumn implements TableColumn<{type: SqlColumn}> {
+class ArgColumn implements TableColumn {
   public readonly column: SqlColumn;
   public readonly display: SqlColumn;
   public readonly type: PerfettoSqlType | undefined = undefined;
@@ -484,14 +483,33 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
       this.id,
     );
     this.display = new SqlExpression(
-      (cols: string[]) =>
-        `__intrinsic_serialise_arg(${cols[0]}, ${sqliteString(this.key)})`,
-      [this.argSetId],
+      (cols: string[]) => `json_object(
+          'id', ${cols[0]},
+          'int_value', CAST(${cols[1]} AS TEXT),
+          'real_value', ${cols[2]},
+          'string_value', ${cols[3]},
+          'display_value', ${cols[4]}
+      )`,
+      (
+        [
+          'id',
+          'int_value',
+          'real_value',
+          'string_value',
+          'display_value',
+        ] as const
+      ).map((c) => this.getRawColumn(c)),
     );
   }
 
   private getRawColumn(
-    type: 'string_value' | 'int_value' | 'real_value' | 'id',
+    type:
+      | 'string_value'
+      | 'int_value'
+      | 'real_value'
+      | 'id'
+      | 'type'
+      | 'display_value',
   ): SqlColumn {
     return {
       column: type,
@@ -506,48 +524,40 @@ class ArgColumn implements TableColumn<{type: SqlColumn}> {
     };
   }
 
-  renderCell(value: SqlValue, tableManager?: TableManager) {
-    // If the value is NULL, then filters can check for id column for better performance.
-    if (value === null) {
-      return renderStandardCell(value, this.getRawColumn('id'), tableManager);
+  renderCell(value: SqlValue, tableManager?: TableManager): RenderedCell {
+    if (tableManager === undefined) {
+      return renderStandardCell(value, this.column, tableManager);
     }
-
-    if (!(value instanceof Uint8Array)) {
+    if (typeof value !== 'string') {
       return {
         content: renderError(
-          `Wrong type: expected Uint8Array, ${typeof value} found`,
+          `Wrong type: expected string, ${typeof value} found`,
         ),
       };
     }
-    const argValue = protos.ArgValue.decode(value);
-
-    switch (argValue.type) {
-      case protos.ArgValue.Type.TYPE_INT:
-      case protos.ArgValue.Type.TYPE_BOOL:
-      case protos.ArgValue.Type.TYPE_POINTER:
-        return renderStandardCell(
-          argValue.intValue ?? null,
-          this.getRawColumn('int_value'),
-          tableManager,
-        );
-      case protos.ArgValue.Type.TYPE_STRING:
-        return renderStandardCell(
-          argValue.stringValue ?? null,
-          this.getRawColumn('string_value'),
-          tableManager,
-        );
-      case protos.ArgValue.Type.TYPE_REAL:
-        return renderStandardCell(
-          argValue.realValue ?? null,
-          this.getRawColumn('real_value'),
-          tableManager,
-        );
-      case protos.ArgValue.Type.TYPE_NULL:
-        return renderStandardCell(null, this.column, tableManager);
+    const argValue = JSON.parse(value);
+    if (argValue['id'] === null) {
+      return renderStandardCell(null, this.getRawColumn('id'), tableManager);
     }
-    return {
-      content: renderError(`Unexpected arg type: ${argValue.type}`),
-    };
+    if (argValue['int_value'] !== null) {
+      return renderStandardCell(
+        BigInt(argValue['int_value']),
+        this.getRawColumn('int_value'),
+        tableManager,
+      );
+    } else if (argValue['real_value'] !== null) {
+      return renderStandardCell(
+        argValue['real_value'],
+        this.getRawColumn('real_value'),
+        tableManager,
+      );
+    } else {
+      return renderStandardCell(
+        argValue['string_value'],
+        this.getRawColumn('string_value'),
+        tableManager,
+      );
+    }
   }
 }
 

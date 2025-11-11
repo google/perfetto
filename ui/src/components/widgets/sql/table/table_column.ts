@@ -36,10 +36,7 @@ export interface TableColumnParams {
 }
 
 // Class which represents a column in a table, which can be displayed to the user.
-// It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
-export interface TableColumn<
-  SupportingColumns extends {[key: string]: SqlColumn} = {},
-> {
+export interface TableColumn {
   readonly column: SqlColumn;
   readonly type: PerfettoSqlType | undefined;
   // In some cases, the UI needs additional information to be able to render a given cell (e.g. for display arg values,
@@ -60,11 +57,6 @@ export interface TableColumn<
   getColumnSpecificMenuItems?(args: {
     replaceColumn: (column: TableColumn) => void;
   }): m.Children;
-
-  // In some cases to render a value in a table, we need information from additional columns.
-  // For example, args have three related columns: int_value, string_value and real_value. From the user perspective, we want to coalesce them into a single "value" column,
-  // but to do this correctly we need to fetch the `type` column.
-  supportingColumns?(): SupportingColumns;
 
   /**
    * Render a table cell. tableManager can be undefined, in which case the cell should provide basic rendering (e.g. for pivot table).
