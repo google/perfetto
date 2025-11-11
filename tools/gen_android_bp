@@ -1121,6 +1121,7 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       module.comment = f'''GN: [{', '.join(target_names)}]'''
       module.proto = {'type': 'lite', 'canonical_path_from_root': False}
       module.srcs = module_sources
+      module.host_supported = True
       blueprint.add_module(module)
     elif type == 'python':
       name = label_to_module_name(module_name) + '_python_protos'
