@@ -27,6 +27,7 @@ import {Checkbox} from '../../../../widgets/checkbox';
 import {Icon} from '../../../../widgets/icon';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
+import {Switch} from '../../../../widgets/switch';
 import {
   ColumnInfo,
   columnInfoFromName,
@@ -122,6 +123,12 @@ class SwitchComponent
 
     const columnNames = columns.map((c) => c.column.name);
 
+    // Check if the selected column is a string type
+    const selectedColumn = columns.find(
+      (c) => c.column.name === column.switchOn,
+    );
+    const isStringColumn = selectedColumn?.type === 'STRING';
+
     return m(
       '.pf-exp-switch-component',
       m(
@@ -138,6 +145,20 @@ class SwitchComponent
           ...columnNames.map((name) => m('option', {value: name}, name)),
         ),
       ),
+      isStringColumn &&
+        m(
+          '.pf-exp-switch-glob-toggle',
+          {style: {marginTop: '8px', marginBottom: '8px'}},
+          m(Switch, {
+            label: 'Use glob matching',
+            checked: column.useGlob ?? false,
+            onchange: (e: Event) => {
+              column.useGlob = (e.target as HTMLInputElement).checked;
+              this.updateExpression(column);
+              onchange();
+            },
+          }),
+        ),
       m(
         '.pf-exp-switch-default-row',
         'Default ',
@@ -188,9 +209,10 @@ class SwitchComponent
       return;
     }
 
+    const operator = col.useGlob ? 'GLOB' : '=';
     const casesStr = (col.cases || [])
       .filter((c) => c.when.trim() !== '' && c.then.trim() !== '')
-      .map((c) => `WHEN ${col.switchOn} = ${c.when} THEN ${c.then}`)
+      .map((c) => `WHEN ${col.switchOn} ${operator} ${c.when} THEN ${c.then}`)
       .join(' ');
 
     const defaultStr = col.defaultValue ? `ELSE ${col.defaultValue}` : '';
@@ -361,6 +383,7 @@ interface NewColumn {
   switchOn?: string;
   cases?: {when: string; then: string}[];
   defaultValue?: string;
+  useGlob?: boolean; // Use GLOB instead of = for string matching
 
   // For if columns
   clauses?: IfClause[];
@@ -1114,6 +1137,7 @@ export class ModifyColumnsNode implements ModificationNode {
           ? c.cases.map((cs) => ({when: cs.when, then: cs.then}))
           : undefined,
         defaultValue: c.defaultValue,
+        useGlob: c.useGlob,
         clauses: c.clauses
           ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
           : undefined,

@@ -342,6 +342,11 @@ export class IntervalIntersectNode implements MultiSourceNode {
     const connectedInputs: Array<{node: QueryNode; index: number}> =
       this.prevNodes.map((node, index) => ({node, index}));
 
+    // If no inputs connected, show a message
+    if (connectedInputs.length === 0) {
+      return m('.pf-exp-query-operations', 'No inputs connected');
+    }
+
     return m(
       '.pf-exp-query-operations',
       error && m(Callout, {icon: 'error'}, error.message),
@@ -363,8 +368,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
           '.pf-exp-operations-container',
           connectedInputs.map(({node, index}) => {
             const label = `Input ${index + 1}`;
-            const filterEnabled =
-              this.state.filterNegativeDur?.[index] ?? false;
+            const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
 
             return m(
               '.pf-exp-interval-node',

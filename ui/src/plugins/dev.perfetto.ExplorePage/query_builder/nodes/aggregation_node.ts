@@ -27,7 +27,11 @@ import {
   columnInfoFromName,
   newColumnInfoList,
 } from '../column_info';
-import {MultiselectInput} from '../../../../widgets/multiselect_input';
+import {
+  PopupMultiSelect,
+  MultiSelectOption,
+  MultiSelectDiff,
+} from '../../../../widgets/multiselect';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
@@ -183,13 +187,51 @@ export class AggregationNode implements ModificationNode {
   }
 
   nodeDetails?(): m.Child | undefined {
-    const details: m.Child[] = [];
-    const groupByCols = this.state.groupByColumns
-      .filter((c) => c.checked)
-      .map((c) => c.name);
-    if (groupByCols.length > 0) {
-      details.push(m('div', `Group by: ${groupByCols.join(', ')}`));
-    }
+    const groupByOptions: MultiSelectOption[] = this.state.groupByColumns.map(
+      (col) => ({
+        id: col.name,
+        name: col.name,
+        checked: col.checked,
+      }),
+    );
+
+    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const label =
+      selectedGroupBy.length > 0
+        ? selectedGroupBy.map((c) => c.name).join(', ')
+        : 'None';
+
+    const details: m.Child[] = [
+      m(
+        '.pf-group-by-selector',
+        {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: this.state.aggregations.length > 0 ? '8px' : '0',
+          },
+        },
+        m('label', 'Group by:'),
+        m(PopupMultiSelect, {
+          label,
+          options: groupByOptions,
+          showNumSelected: false,
+          compact: true,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            for (const diff of diffs) {
+              const column = this.state.groupByColumns.find(
+                (c) => c.name === diff.id,
+              );
+              if (column) {
+                column.checked = diff.checked;
+              }
+            }
+            this.state.onchange?.();
+          },
+        }),
+      ),
+    ];
 
     const aggs = this.state.aggregations
       .filter((agg) => agg.isValid)
@@ -213,9 +255,6 @@ export class AggregationNode implements ModificationNode {
       details.push(m('div', agg));
     });
 
-    if (details.length === 0) {
-      return m('div', `No aggregation`);
-    }
     return m('.pf-aggregation-node-details', details);
   }
 
@@ -546,38 +585,6 @@ class AggregationOperationComponent
       attrs.aggregations.length = 0;
     }
 
-    const selectGroupByColumns = (): m.Child => {
-      return m(
-        '.pf-exp-multi-select-container',
-        m('label', 'GROUP BY columns'),
-        m(MultiselectInput, {
-          options: attrs.groupByColumns.map((col) => ({
-            key: col.name,
-            label: col.name,
-          })),
-          selectedOptions: attrs.groupByColumns
-            .filter((c) => c.checked)
-            .map((c) => c.name),
-          onOptionAdd: (key: string) => {
-            const column = attrs.groupByColumns.find((c) => c.name === key);
-            if (column) {
-              column.checked = true;
-              attrs.onchange?.();
-              m.redraw();
-            }
-          },
-          onOptionRemove: (key: string) => {
-            const column = attrs.groupByColumns.find((c) => c.name === key);
-            if (column) {
-              column.checked = false;
-              attrs.onchange?.();
-              m.redraw();
-            }
-          },
-        }),
-      );
-    };
-
     // Use the utility function to determine if a column is valid for the given operation
     const isColumnValidForOp = isColumnValidForAggregation;
 
@@ -748,6 +755,43 @@ class AggregationOperationComponent
             },
           }),
       ];
+    };
+
+    const selectGroupByColumns = (): m.Child => {
+      const groupByOptions: MultiSelectOption[] = attrs.groupByColumns.map(
+        (col) => ({
+          id: col.name,
+          name: col.name,
+          checked: col.checked,
+        }),
+      );
+
+      const selectedGroupBy = attrs.groupByColumns.filter((c) => c.checked);
+      const label =
+        selectedGroupBy.length > 0
+          ? selectedGroupBy.map((c) => c.name).join(', ')
+          : 'None';
+
+      return m(
+        '.pf-exp-multi-select-container',
+        m('label', 'GROUP BY columns'),
+        m(PopupMultiSelect, {
+          label,
+          options: groupByOptions,
+          showNumSelected: false,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            for (const diff of diffs) {
+              const column = attrs.groupByColumns.find(
+                (c) => c.name === diff.id,
+              );
+              if (column) {
+                column.checked = diff.checked;
+              }
+            }
+            attrs.onchange?.();
+          },
+        }),
+      );
     };
 
     return m(
