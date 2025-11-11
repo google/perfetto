@@ -860,11 +860,10 @@ mod tests {
                         for test_event_field in PbDecoder::new(data) {
                             const STR_ID: u32 = TestEventFieldNumber::Str as u32;
 
-                            match test_event_field.unwrap() {
-                                (STR_ID, PbDecoderField::Delimited(value)) => {
-                                    test_str = String::from_utf8(value.to_vec()).unwrap();
-                                }
-                                _ => {}
+                            if let (STR_ID, PbDecoderField::Delimited(value)) =
+                                test_event_field.unwrap()
+                            {
+                                test_str = String::from_utf8(value.to_vec()).unwrap();
                             }
                         }
                     }
