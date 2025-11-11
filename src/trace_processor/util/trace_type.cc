@@ -118,17 +118,18 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
     return false;
   }
 
-  bool has_pprof_field = false;
+  bool has_core_pprof_field = false;
   protozero::ProtoDecoder decoder(data, size);
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
-    has_pprof_field = true;
     switch (fld.id()) {
-      case Profile::kSampleTypeFieldNumber:
       case Profile::kSampleFieldNumber:
       case Profile::kMappingFieldNumber:
       case Profile::kLocationFieldNumber:
       case Profile::kFunctionFieldNumber:
       case Profile::kStringTableFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kSampleTypeFieldNumber:
       case Profile::kPeriodTypeFieldNumber:
         if (fld.type() != ProtoWireType::kLengthDelimited) {
           return false;
@@ -142,6 +143,8 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
         break;
       case Profile::kDropFramesFieldNumber:
       case Profile::kKeepFramesFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
       case Profile::kTimeNanosFieldNumber:
       case Profile::kDurationNanosFieldNumber:
       case Profile::kPeriodFieldNumber:
@@ -154,8 +157,7 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
         return false;
     }
   }
-
-  return has_pprof_field;
+  return has_core_pprof_field;
 }
 
 }  // namespace
