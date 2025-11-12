@@ -20,6 +20,7 @@ import {Track} from './track';
 export interface ContentWithLoadingFlag {
   readonly isLoading: boolean;
   readonly content: m.Children;
+  readonly buttons?: m.Children;
 }
 
 export interface AreaSelectionTab {

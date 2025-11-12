@@ -103,6 +103,7 @@ export async function runQueryForQueryTable(
 
 export interface ResponseLike {
   readonly columns: ReadonlyArray<string>;
+  readonly columnNames?: {[key: string]: string};
   readonly rows: ReadonlyArray<Row>;
 }
 
@@ -111,7 +112,12 @@ export function formatAsDelimited(
   separator: string = '\t',
 ): string {
   const lines: ReadonlyArray<string>[] = [];
-  lines.push(resp.columns);
+  const columnNames = resp.columnNames;
+  if (columnNames) {
+    lines.push(resp.columns.map((id) => columnNames[id]));
+  } else {
+    lines.push(resp.columns);
+  }
   for (const row of resp.rows) {
     const line = [];
     for (const col of resp.columns) {
@@ -129,7 +135,12 @@ export function formatAsMarkdownTable(resp: ResponseLike): string {
   // Convert all values to strings.
   // rows = [header, separators, ...body]
   const rows: ReadonlyArray<string>[] = [];
-  rows.push(resp.columns);
+  const columnNames = resp.columnNames;
+  if (columnNames) {
+    rows.push(resp.columns.map((id) => columnNames[id]));
+  } else {
+    rows.push(resp.columns);
+  }
   rows.push(resp.columns.map((_) => '---'));
   for (const responseRow of resp.rows) {
     rows.push(

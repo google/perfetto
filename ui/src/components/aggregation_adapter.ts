@@ -14,7 +14,10 @@
 
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
-import {time, Time} from '../base/time';
+import {download} from '../base/download_utils';
+import {stringifyJsonWithBigints} from '../base/json_utils';
+import {Icons} from '../base/semantic_icons';
+import {Duration, time, Time} from '../base/time';
 import {exists} from '../base/utils';
 import {
   AreaSelection,
@@ -25,6 +28,7 @@ import {Trace} from '../public/trace';
 import {Track} from '../public/track';
 import {Dataset, DatasetSchema, UnionDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
+import {Row, SqlValue} from '../trace_processor/query_result';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
@@ -35,6 +39,14 @@ import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
+import {CopyButtonHelper} from '../widgets/copy_to_clipboard_button';
+import {Button} from '../widgets/button';
+import {MenuItem, PopupMenu} from '../widgets/menu';
+import {
+  formatAsDelimited,
+  formatAsMarkdownTable,
+  ResponseLike,
+} from './query_table/queries';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -214,6 +226,172 @@ export async function createIITable<
   });
 }
 
+async function queryResponseFromAggregationData(
+  aggregator: Aggregator,
+  engine: Engine,
+  data: AggregationData,
+): Promise<ResponseLike> {
+  const result = await engine.query(`SELECT * FROM ${data.tableName}`);
+  const rows: Row[] = [];
+
+  for (const iter = result.iter({}); iter.valid(); iter.next()) {
+    const formattedRow: Row = {};
+
+    for (const columnDef of aggregator.getColumnDefinitions()) {
+      const value = iter.get(columnDef.columnId);
+      const rendered = valueToString(value, columnDef.formatHint);
+      formattedRow[columnDef.columnId] = rendered;
+    }
+
+    rows.push(formattedRow);
+  }
+
+  const columnNames: Record<string, string> = {};
+  for (const columnDef of aggregator.getColumnDefinitions()) {
+    columnNames[columnDef.columnId] = columnDef.title;
+  }
+
+  return {
+    columns: aggregator.getColumnDefinitions().map((c) => c.columnId),
+    columnNames,
+    rows,
+  };
+}
+
+function renderCopyButton(
+  aggregator: Aggregator,
+  data: AggregationData,
+  trace: Trace,
+  helper: CopyButtonHelper,
+) {
+  const label = helper.state === 'copied' ? 'Copied' : 'Copy';
+  const loading = helper.state === 'working';
+  const icon = helper.state === 'copied' ? Icons.Check : Icons.Copy;
+
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Button, {
+        icon,
+        title: 'Copy results to clipboard',
+        label,
+        loading,
+      }),
+    },
+    [
+      m(MenuItem, {
+        label: 'TSV',
+        icon: 'tsv',
+        onclick: async () => {
+          const resp = await queryResponseFromAggregationData(
+            aggregator,
+            trace.engine,
+            data,
+          );
+          const content = formatAsDelimited(resp);
+          await helper.copy(content);
+        },
+      }),
+      m(MenuItem, {
+        label: 'Markdown',
+        icon: 'table',
+        onclick: async () => {
+          const resp = await queryResponseFromAggregationData(
+            aggregator,
+            trace.engine,
+            data,
+          );
+          const content = formatAsMarkdownTable(resp);
+          await helper.copy(content);
+        },
+      }),
+      m(MenuItem, {
+        label: 'JSON',
+        icon: 'data_object',
+        onclick: async () => {
+          const resp = await queryResponseFromAggregationData(
+            aggregator,
+            trace.engine,
+            data,
+          );
+          const content = stringifyJsonWithBigints(resp.rows, 2);
+          await helper.copy(content);
+        },
+      }),
+    ],
+  );
+}
+
+function renderDownloadButton(
+  aggregator: Aggregator,
+  data: AggregationData,
+  trace: Trace,
+) {
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Button, {
+        icon: Icons.Download,
+        title: 'Download data',
+        label: 'Download',
+      }),
+    },
+    [
+      m(MenuItem, {
+        label: 'TSV',
+        icon: 'tsv',
+        onclick: async () => {
+          const resp = await queryResponseFromAggregationData(
+            aggregator,
+            trace.engine,
+            data,
+          );
+          const content = formatAsDelimited(resp);
+          download({
+            content,
+            mimeType: 'text/tab-separated-values',
+            fileName: 'aggregation_result.tsv',
+          });
+        },
+      }),
+      m(MenuItem, {
+        label: 'Markdown',
+        icon: 'table',
+        onclick: async () => {
+          const resp = await queryResponseFromAggregationData(
+            aggregator,
+            trace.engine,
+            data,
+          );
+          const content = formatAsMarkdownTable(resp);
+          download({
+            content,
+            mimeType: 'text/markdown',
+            fileName: 'aggregation_result.md',
+          });
+        },
+      }),
+      m(MenuItem, {
+        label: 'JSON',
+        icon: 'data_object',
+        onclick: async () => {
+          const resp = await queryResponseFromAggregationData(
+            aggregator,
+            trace.engine,
+            data,
+          );
+          const content = stringifyJsonWithBigints(resp.rows, 2);
+          download({
+            content,
+            mimeType: 'text/json',
+            fileName: 'aggregation_result.json',
+          });
+        },
+      }),
+    ],
+  );
+}
+
 /**
  * Creates an adapter that adapts an old style aggregation to a new area
  * selection sub-tab.
@@ -224,9 +402,10 @@ export function createAggregationTab(
   priority: number = 0,
 ): AreaSelectionTab {
   const limiter = new AsyncLimiter();
+  const copyHelper = new CopyButtonHelper();
   let currentSelection: AreaSelection | undefined;
   let aggregation: Aggregation | undefined;
-  let barChartData: ReadonlyArray<BarChartData> | undefined;
+  let data: AggregationData | undefined;
   let dataSource: DataGridDataSource | undefined;
 
   return {
@@ -248,11 +427,10 @@ export function createAggregationTab(
           // Clear previous data to prevent queries against a stale or partially
           // updated table/view while `prepareData` is running.
           dataSource = undefined;
-          barChartData = undefined;
+          data = undefined;
           if (aggregation) {
-            const data = await aggregation?.prepareData(trace.engine);
+            data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource(trace.engine, data.tableName);
-            barChartData = data.barChartData;
           }
         });
       }
@@ -286,9 +464,27 @@ export function createAggregationTab(
           dataSource,
           columns: aggregator.getColumnDefinitions(),
           sorting: aggregator.getDefaultSorting(),
-          barChartData,
+          barChartData: data?.barChartData,
         }),
+        buttons: data && [
+          renderCopyButton(aggregator, data, trace, copyHelper),
+          renderDownloadButton(aggregator, data, trace),
+        ],
       };
     },
   };
+}
+
+function valueToString(value: SqlValue, formatHint?: string) {
+  if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+    return Duration.humanise(value);
+  } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+    return `${(value * 100).toFixed(2)}%`;
+  } else if (value === null) {
+    return 'null';
+  } else if (value instanceof Uint8Array) {
+    return `Blob: ${value.byteLength.toLocaleString()} bytes`;
+  } else {
+    return `${value}`;
+  }
 }
