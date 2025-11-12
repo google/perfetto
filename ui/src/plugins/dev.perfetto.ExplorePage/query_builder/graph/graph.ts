@@ -596,6 +596,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       attrs.onAddSourceNode,
     );
 
+    const modificationMenuItems = buildMenuItems(
+      'modification',
+      attrs.devMode,
+      attrs.onAddSourceNode,
+    );
+
     const operationMenuItems = buildMenuItems(
       'multisource',
       attrs.devMode,
@@ -608,6 +614,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(MenuDivider),
       m(MenuTitle, {label: 'Operations'}),
       ...operationMenuItems,
+      m(MenuDivider),
+      m(MenuTitle, {label: 'Modification nodes'}),
+      ...modificationMenuItems,
     ];
 
     const moreMenuItems = [

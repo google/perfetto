@@ -80,6 +80,11 @@ export class AggregationNode implements ModificationNode {
   readonly state: AggregationNodeState;
 
   get finalCols(): ColumnInfo[] {
+    // When there's no prevNode, aggregation doesn't make sense
+    // Return empty array to indicate no output columns
+    if (this.prevNode === undefined) {
+      return [];
+    }
     const selected = this.state.groupByColumns.filter((c) => c.checked);
     for (const agg of this.state.aggregations) {
       selected.push(
@@ -98,7 +103,7 @@ export class AggregationNode implements ModificationNode {
     };
     this.prevNode = state.prevNode;
     this.nextNodes = [];
-    if (this.state.groupByColumns.length === 0) {
+    if (this.state.groupByColumns.length === 0 && this.prevNode !== undefined) {
       this.state.groupByColumns = newColumnInfoList(
         this.prevNode.finalCols ?? [],
         false,
@@ -116,6 +121,9 @@ export class AggregationNode implements ModificationNode {
   }
 
   updateGroupByColumns() {
+    if (this.prevNode === undefined) {
+      return;
+    }
     const newGroupByColumns = newColumnInfoList(
       this.prevNode.finalCols ?? [],
       false,
@@ -320,6 +328,9 @@ export class AggregationNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
+    // Defensive check: prevNode must exist for aggregation to work
+    if (this.prevNode === undefined) return undefined;
+
     // Prepare groupByColumns
     const groupByColumns = this.state.groupByColumns
       .filter((c) => c.checked)
@@ -380,6 +391,9 @@ export class AggregationNode implements ModificationNode {
   }
 
   resolveColumns() {
+    if (this.prevNode === undefined) {
+      return;
+    }
     const sourceCols = this.prevNode.finalCols ?? [];
     this.state.groupByColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);

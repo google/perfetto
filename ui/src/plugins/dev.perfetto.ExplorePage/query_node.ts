@@ -340,6 +340,7 @@ export function addConnection(
     } else {
       // Otherwise connect to prevNode (default single input from above)
       modNode.prevNode = fromNode;
+      modNode.onPrevNodesUpdated?.();
     }
   } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
     // MultiSourceNode - multiple inputs
