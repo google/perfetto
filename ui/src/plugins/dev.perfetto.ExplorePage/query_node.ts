@@ -65,6 +65,8 @@ export function singleNodeOperation(type: NodeType): boolean {
 export interface NodeActions {
   // Create and connect a table node to a target node's input port
   onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
+  // Insert a ModifyColumns node on an input at a specific port
+  onInsertModifyColumnsNode?: (portIndex: number) => void;
 }
 
 // All information required to create a new node.
@@ -211,7 +213,27 @@ function getStructuredQueries(
 export function queryToRun(query?: Query): string {
   if (query === undefined) return 'N/A';
   const includes = query.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};`);
-  return includes.join('\n') + query.preambles.join('\n') + query.sql;
+  const parts: string[] = [];
+
+  // Add INCLUDE statements with newlines after each
+  if (includes.length > 0) {
+    parts.push(includes.join('\n'));
+  }
+
+  // Add preambles with newlines after each
+  if (query.preambles.length > 0) {
+    parts.push(query.preambles.join('\n'));
+  }
+
+  // Add an extra empty line before the SQL if there are any includes or preambles
+  if (parts.length > 0) {
+    parts.push(''); // This creates the empty line
+  }
+
+  // Add the SQL
+  parts.push(query.sql);
+
+  return parts.join('\n');
 }
 
 export async function analyzeNode(

@@ -128,6 +128,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               );
             }
           },
+          onInsertModifyColumnsNode: (portIndex: number) => {
+            // Use the closure to access nodeRef.current which will be set below
+            if (nodeRef.current !== undefined) {
+              this.handleInsertModifyColumnsNode(
+                attrs,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
         },
       };
 
@@ -249,6 +259,61 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [...currentState.rootNodes, newNode],
+    }));
+  }
+
+  private async handleInsertModifyColumnsNode(
+    attrs: ExplorePageAttrs,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    // Get the ModifyColumns descriptor
+    const descriptor = nodeRegistry.get('modify_columns');
+    if (!descriptor) return;
+
+    // Get the current input node at the specified port
+    let inputNode: QueryNode | undefined;
+    if ('inputNodes' in targetNode && targetNode.inputNodes) {
+      inputNode = targetNode.inputNodes[portIndex];
+    } else if (
+      'prevNodes' in targetNode &&
+      Array.isArray(targetNode.prevNodes)
+    ) {
+      inputNode = targetNode.prevNodes[portIndex];
+    }
+
+    if (!inputNode) {
+      console.warn(`No input node found at port ${portIndex}`);
+      return;
+    }
+
+    // Create the ModifyColumns node with the input node as prevNode
+    const newNode = descriptor.factory(
+      {
+        prevNode: inputNode,
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Remove the old connection from inputNode to targetNode
+    removeConnection(inputNode, targetNode);
+
+    // Add connection from inputNode to ModifyColumns node
+    addConnection(inputNode, newNode);
+
+    // Add connection from ModifyColumns node to targetNode at the same port
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes (so it appears in the graph)
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
+      selectedNode: newNode,
     }));
   }
 
@@ -633,6 +698,26 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...attrs,
       onStateUpdate: wrappedOnStateUpdate,
     };
+
+    // Inject actions into all existing nodes
+    const allNodes = this.getAllNodes(state.rootNodes);
+    for (const node of allNodes) {
+      if (!node.state.actions) {
+        node.state.actions = {
+          onAddAndConnectTable: (tableName: string, portIndex: number) => {
+            this.handleAddAndConnectTable(
+              wrappedAttrs,
+              tableName,
+              node,
+              portIndex,
+            );
+          },
+          onInsertModifyColumnsNode: (portIndex: number) => {
+            this.handleInsertModifyColumnsNode(wrappedAttrs, node, portIndex);
+          },
+        };
+      }
+    }
 
     return m(
       '.pf-explore-page',

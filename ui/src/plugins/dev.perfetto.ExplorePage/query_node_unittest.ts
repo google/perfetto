@@ -237,6 +237,8 @@ describe('query_node utilities', () => {
       expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
       expect(result).toContain('INCLUDE PERFETTO MODULE experimental.frames;');
       expect(result).toContain('SELECT * FROM table');
+      // Should have an empty line between includes and SQL
+      expect(result).toMatch(/INCLUDE PERFETTO MODULE.*\n\nSELECT/s);
     });
 
     it('should format query with preambles', () => {
@@ -252,6 +254,8 @@ describe('query_node utilities', () => {
 
       expect(result).toContain('CREATE VIEW test AS SELECT 1;');
       expect(result).toContain('SELECT * FROM table');
+      // Should have an empty line between preambles and SQL
+      expect(result).toMatch(/CREATE VIEW.*\n\nSELECT/s);
     });
 
     it('should format query with both modules and preambles', () => {
@@ -268,6 +272,8 @@ describe('query_node utilities', () => {
       expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
       expect(result).toContain('-- This is a comment');
       expect(result).toContain('SELECT * FROM table');
+      // Should have an empty line before SQL
+      expect(result).toMatch(/-- This is a comment\n\nSELECT/s);
     });
 
     it('should handle empty modules and preambles', () => {
