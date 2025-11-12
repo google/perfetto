@@ -51,10 +51,11 @@ export function newColumnInfo(
   col: ColumnInfo,
   checked?: boolean | undefined,
 ): ColumnInfo {
+  const finalName = col.alias ?? col.column.name;
   return {
-    name: col.alias ?? col.column.name,
+    name: finalName,
     type: perfettoSqlTypeToString(col.column.type),
-    column: col.column,
+    column: {...col.column, name: finalName},
     alias: undefined,
     checked: checked ?? col.checked,
   };

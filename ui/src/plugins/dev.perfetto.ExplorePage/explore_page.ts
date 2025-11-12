@@ -506,6 +506,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
     }
 
+    // Also collect nodes from inputNodes (side ports)
+    if ('inputNodes' in node && node.inputNodes) {
+      for (const inputNode of node.inputNodes) {
+        if (inputNode !== undefined) parentNodes.push(inputNode);
+      }
+    }
+
     // Get child nodes
     const childNodes = [...node.nextNodes];
 

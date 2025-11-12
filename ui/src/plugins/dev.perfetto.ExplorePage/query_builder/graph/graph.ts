@@ -747,9 +747,19 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             // The node relationships (nextNodes/prevNode) remain unchanged
             m.redraw();
           },
-          onDock: (_targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
+          onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
             // Remove coordinates so node becomes "docked" (renders via parent's 'next')
             attrs.nodeLayouts.delete(childNode.id);
+
+            // Create the connection between parent and child
+            const parentNode = findQueryNode(targetId, rootNodes);
+            const childQueryNode = findQueryNode(childNode.id, rootNodes);
+
+            if (parentNode && childQueryNode) {
+              // Add connection (this will update both nextNodes and prevNode/prevNodes)
+              addConnection(parentNode, childQueryNode);
+            }
+
             m.redraw();
           },
         } satisfies NodeGraphAttrs),

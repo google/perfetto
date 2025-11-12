@@ -388,6 +388,9 @@ interface NewColumn {
   // For if columns
   clauses?: IfClause[];
   elseValue?: string;
+
+  // SQL type for preserving type information across serialization
+  sqlType?: string;
 }
 
 export interface ModifyColumnsSerializedState {
@@ -451,7 +454,35 @@ export class ModifyColumnsNode implements ModificationNode {
     this.state.newColumns
       .filter((c) => this.isNewColumnValid(c))
       .forEach((col) => {
-        finalCols.push(columnInfoFromName(col.name, true));
+        // Use stored sqlType if available (from deserialization)
+        if (col.sqlType) {
+          finalCols.push({
+            name: col.name,
+            type: col.sqlType,
+            checked: true,
+            column: {name: col.name},
+          });
+          return;
+        }
+
+        // Try to preserve type information if the expression is a simple column reference
+        const sourceCol = this.state.prevNode?.finalCols?.find(
+          (c) => c.column.name === col.expression,
+        );
+        if (sourceCol) {
+          // If the expression is a simple column reference, preserve the type
+          // Also store it in sqlType for future serialization
+          col.sqlType = sourceCol.type;
+          finalCols.push({
+            name: col.name,
+            type: sourceCol.type,
+            checked: true,
+            column: {...sourceCol.column, name: col.name},
+          });
+        } else {
+          // For complex expressions, use 'NA' as type
+          finalCols.push(columnInfoFromName(col.name, true));
+        }
       });
     return finalCols;
   }
@@ -1142,6 +1173,7 @@ export class ModifyColumnsNode implements ModificationNode {
           ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
           : undefined,
         elseValue: c.elseValue,
+        sqlType: c.sqlType, // Preserve SQL type across serialization
       })),
       selectedColumns: this.state.selectedColumns.map((c) => ({
         name: c.name,
