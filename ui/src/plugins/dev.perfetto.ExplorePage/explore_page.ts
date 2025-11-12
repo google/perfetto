@@ -20,6 +20,7 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
+  NodeActions,
   addConnection,
   removeConnection,
 } from './query_node';
@@ -56,6 +57,7 @@ interface ExplorePageAttrs {
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private materializationService?: MaterializationService;
   private historyManager?: HistoryManager;
+  private initializedNodes = new Set<string>();
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -69,6 +71,35 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       selectedNode: undefined,
     }));
+  }
+
+  private createNodeActions(
+    attrs: ExplorePageAttrs,
+    node: QueryNode,
+  ): NodeActions {
+    return {
+      onAddAndConnectTable: (tableName: string, portIndex: number) => {
+        this.handleAddAndConnectTable(attrs, tableName, node, portIndex);
+      },
+      onInsertModifyColumnsNode: (portIndex: number) => {
+        this.handleInsertModifyColumnsNode(attrs, node, portIndex);
+      },
+    };
+  }
+
+  private ensureNodeActions(attrs: ExplorePageAttrs, node: QueryNode) {
+    // Skip if already initialized
+    if (this.initializedNodes.has(node.nodeId)) {
+      return;
+    }
+
+    // Initialize actions if not present
+    if (!node.state.actions) {
+      node.state.actions = this.createNodeActions(attrs, node);
+    }
+
+    // Mark as initialized
+    this.initializedNodes.add(node.nodeId);
   }
 
   private async handleDevModeChange(attrs: ExplorePageAttrs, enabled: boolean) {
@@ -116,9 +147,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         sqlModules,
         trace: attrs.trace,
         // Provide actions for nodes that need to interact with the graph
+        // We use a closure pattern because the node doesn't exist yet
         actions: {
           onAddAndConnectTable: (tableName: string, portIndex: number) => {
-            // Use the closure to access nodeRef.current which will be set below
             if (nodeRef.current !== undefined) {
               this.handleAddAndConnectTable(
                 attrs,
@@ -129,7 +160,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             }
           },
           onInsertModifyColumnsNode: (portIndex: number) => {
-            // Use the closure to access nodeRef.current which will be set below
             if (nodeRef.current !== undefined) {
               this.handleInsertModifyColumnsNode(
                 attrs,
@@ -147,6 +177,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
       // Set the reference so the callback can use it
       nodeRef.current = newNode;
+
+      // Mark this node as initialized
+      this.initializedNodes.add(newNode.nodeId);
 
       if (isMultisource) {
         // For multisource nodes: just connect and add to root nodes
@@ -699,24 +732,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       onStateUpdate: wrappedOnStateUpdate,
     };
 
-    // Inject actions into all existing nodes
+    // Ensure all nodes have actions initialized (e.g., nodes from imported state)
+    // This is efficient - only processes nodes not yet initialized
     const allNodes = this.getAllNodes(state.rootNodes);
     for (const node of allNodes) {
-      if (!node.state.actions) {
-        node.state.actions = {
-          onAddAndConnectTable: (tableName: string, portIndex: number) => {
-            this.handleAddAndConnectTable(
-              wrappedAttrs,
-              tableName,
-              node,
-              portIndex,
-            );
-          },
-          onInsertModifyColumnsNode: (portIndex: number) => {
-            this.handleInsertModifyColumnsNode(wrappedAttrs, node, portIndex);
-          },
-        };
-      }
+      this.ensureNodeActions(wrappedAttrs, node);
     }
 
     return m(
