@@ -1,4 +1,16 @@
 Unreleased:
+  Tracing service and probes:
+    *
+  SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+v53.0 - 2025-11-12:
   SDK:
     * Introduced an initial Rust SDK (`perfetto-sdk` on crates.io). This is the
       first project to be hosted in the new `contrib/` directory as a
