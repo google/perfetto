@@ -98,7 +98,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       value: omnibox.text,
       placeholder: prompt.text,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'pf-omnibox--prompt-mode',
+      className: 'pf-omnibox--prompt-mode',
       closeOnOutsideClick: true,
       options,
       selectedOptionIndex: omnibox.selectionIndex,
@@ -156,7 +156,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       value: omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'pf-omnibox--command-mode',
+      className: 'pf-omnibox--command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
@@ -197,7 +197,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       value: AppImpl.instance.omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'pf-omnibox--query-mode',
+      className: 'pf-omnibox--query-mode',
 
       onInput: (value) => {
         AppImpl.instance.omnibox.setText(value);
