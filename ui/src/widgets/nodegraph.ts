@@ -1766,8 +1766,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
         // Find non-overlapping position starting from center
         const finalPos = findNearestNonOverlappingPosition(
-          centerX,
-          centerY,
+          centerX - dims.width / 2,
+          centerY - dims.height / 2,
           tempNode.id,
           nodes,
           dims.width,
