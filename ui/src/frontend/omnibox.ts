@@ -14,15 +14,320 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {FuzzySegment} from '../base/fuzzy';
+import {findRef} from '../base/dom_utils';
+import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
+import {assertExists, assertUnreachable} from '../base/logging';
 import {isString} from '../base/object_utils';
+import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {exists} from '../base/utils';
+import {addQueryResultsTab} from '../components/query_table/query_result_tab';
+import {AppImpl} from '../core/app_impl';
+import {OmniboxMode} from '../core/omnibox_manager';
 import {raf} from '../core/raf_scheduler';
+import {TraceImpl} from '../core/trace_impl';
+import {Button} from '../widgets/button';
 import {Chip} from '../widgets/chip';
 import {HTMLAttrs} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
-import {KeycapGlyph} from '../widgets/hotkey_glyphs';
+import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
+import {Spinner} from '../widgets/spinner';
+
+const OMNIBOX_INPUT_REF = 'omnibox';
+const RECENT_COMMANDS_LIMIT = 6;
+
+// Omnibox attrs - simplified to just what's needed from outside
+export interface OmniboxAttrs {
+  readonly trace?: TraceImpl;
+}
+
+// Omnibox: Smart component that contains all omnibox business logic
+// and wraps the presentational OmniboxWidget
+export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
+  private omniboxInputEl?: HTMLInputElement;
+  private recentCommands: ReadonlyArray<string> = [];
+
+  view({attrs}: m.Vnode<OmniboxAttrs>): m.Children {
+    const {trace} = attrs;
+    const app = AppImpl.instance;
+    const omnibox = app.omnibox;
+    const omniboxMode = omnibox.mode;
+    const statusMessage = omnibox.statusMessage;
+    if (statusMessage !== undefined) {
+      return m(
+        `.pf-omnibox.pf-omnibox--message-mode`,
+        m(`input[readonly][disabled][ref=omnibox]`, {
+          value: '',
+          placeholder: statusMessage,
+        }),
+      );
+    } else if (omniboxMode === OmniboxMode.Command) {
+      return this.renderCommandOmnibox();
+    } else if (omniboxMode === OmniboxMode.Prompt) {
+      return this.renderPromptOmnibox();
+    } else if (omniboxMode === OmniboxMode.Query) {
+      return this.renderQueryOmnibox(trace);
+    } else if (omniboxMode === OmniboxMode.Search) {
+      return this.renderSearchOmnibox(trace);
+    } else {
+      assertUnreachable(omniboxMode);
+    }
+  }
+
+  private renderPromptOmnibox(): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
+    const prompt = assertExists(omnibox.pendingPrompt);
+
+    let options: OmniboxOption[] | undefined = undefined;
+
+    if (prompt.options) {
+      const fuzzy = new FuzzyFinder(
+        prompt.options,
+        ({displayName}) => displayName,
+      );
+      const result = fuzzy.find(omnibox.text);
+      options = result.map((result) => {
+        return {
+          key: result.item.key,
+          displayName: result.segments,
+        };
+      });
+    }
+
+    return m(OmniboxWidget, {
+      value: omnibox.text,
+      placeholder: prompt.text,
+      inputRef: OMNIBOX_INPUT_REF,
+      extraClasses: 'pf-omnibox--prompt-mode',
+      closeOnOutsideClick: true,
+      options,
+      selectedOptionIndex: omnibox.selectionIndex,
+      onSelectedOptionChanged: (index) => {
+        omnibox.setSelectionIndex(index);
+      },
+      onInput: (value) => {
+        omnibox.setText(value);
+        omnibox.setSelectionIndex(0);
+      },
+      onSubmit: (value, _alt) => {
+        omnibox.resolvePrompt(value);
+      },
+      onClose: () => {
+        omnibox.rejectPrompt();
+      },
+    });
+  }
+
+  private renderCommandOmnibox(): m.Children {
+    // Fuzzy-filter commands by the filter string.
+    const {commands, omnibox} = AppImpl.instance;
+    const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
+
+    // Create an array of commands with attached heuristics from the recent
+    // command register.
+    const commandsWithHeuristics = filteredCmds.map((cmd) => {
+      return {
+        recentsIndex: this.recentCommands.findIndex((id) => id === cmd.id),
+        cmd,
+      };
+    });
+
+    // Sort recentsIndex first
+    const sorted = commandsWithHeuristics.sort((a, b) => {
+      if (b.recentsIndex === a.recentsIndex) {
+        // If recentsIndex is the same, retain original sort order
+        return 0;
+      } else {
+        return b.recentsIndex - a.recentsIndex;
+      }
+    });
+
+    const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
+      const {segments, id, defaultHotkey} = cmd;
+      return {
+        key: id,
+        displayName: segments,
+        tag: recentsIndex !== -1 ? 'recently used' : undefined,
+        rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
+      };
+    });
+
+    return m(OmniboxWidget, {
+      value: omnibox.text,
+      placeholder: 'Filter commands...',
+      inputRef: OMNIBOX_INPUT_REF,
+      extraClasses: 'pf-omnibox--command-mode',
+      options,
+      closeOnSubmit: true,
+      closeOnOutsideClick: true,
+      selectedOptionIndex: omnibox.selectionIndex,
+      onSelectedOptionChanged: (index) => {
+        omnibox.setSelectionIndex(index);
+      },
+      onInput: (value) => {
+        omnibox.setText(value);
+        omnibox.setSelectionIndex(0);
+      },
+      onClose: () => {
+        if (this.omniboxInputEl) {
+          this.omniboxInputEl.blur();
+        }
+        omnibox.reset();
+      },
+      onSubmit: (key: string) => {
+        this.addRecentCommand(key);
+        commands.runCommand(key);
+      },
+      onGoBack: () => {
+        omnibox.reset();
+      },
+    });
+  }
+
+  private addRecentCommand(id: string): void {
+    this.recentCommands = this.recentCommands
+      .filter((x) => x !== id) // Remove duplicates
+      .concat(id) // Add to the end
+      .splice(-RECENT_COMMANDS_LIMIT); // Limit items
+  }
+
+  private renderQueryOmnibox(trace: TraceImpl | undefined): m.Children {
+    const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
+    return m(OmniboxWidget, {
+      value: AppImpl.instance.omnibox.text,
+      placeholder: ph,
+      inputRef: OMNIBOX_INPUT_REF,
+      extraClasses: 'pf-omnibox--query-mode',
+
+      onInput: (value) => {
+        AppImpl.instance.omnibox.setText(value);
+      },
+      onSubmit: (query, alt) => {
+        const config = {
+          query: undoCommonChatAppReplacements(query),
+          title: alt ? 'Pinned query' : 'Omnibox query',
+        };
+        const tag = alt ? undefined : 'omnibox_query';
+        if (trace === undefined) return;
+        addQueryResultsTab(trace, config, tag);
+      },
+      onClose: () => {
+        AppImpl.instance.omnibox.setText('');
+        if (this.omniboxInputEl) {
+          this.omniboxInputEl.blur();
+        }
+        AppImpl.instance.omnibox.reset();
+      },
+      onGoBack: () => {
+        AppImpl.instance.omnibox.reset();
+      },
+    });
+  }
+
+  private renderSearchOmnibox(trace: TraceImpl | undefined): m.Children {
+    return m(OmniboxWidget, {
+      value: AppImpl.instance.omnibox.text,
+      placeholder: "Search or type '>' for commands or ':' for SQL mode",
+      inputRef: OMNIBOX_INPUT_REF,
+      onInput: (value, _prev) => {
+        if (value === '>') {
+          AppImpl.instance.omnibox.setMode(OmniboxMode.Command);
+          return;
+        } else if (value === ':') {
+          AppImpl.instance.omnibox.setMode(OmniboxMode.Query);
+          return;
+        }
+        AppImpl.instance.omnibox.setText(value);
+        if (trace === undefined) return; // No trace loaded.
+        if (value.length >= 4) {
+          trace.search.search(value);
+        } else {
+          trace.search.reset();
+        }
+      },
+      onClose: () => {
+        if (this.omniboxInputEl) {
+          this.omniboxInputEl.blur();
+        }
+      },
+      onSubmit: (value, _mod, shift) => {
+        if (trace === undefined) return; // No trace loaded.
+        trace.search.search(value);
+        if (shift) {
+          trace.search.stepBackwards();
+        } else {
+          trace.search.stepForward();
+        }
+        if (this.omniboxInputEl) {
+          this.omniboxInputEl.blur();
+        }
+      },
+      rightContent: trace && this.renderStepThrough(trace),
+    });
+  }
+
+  private renderStepThrough(trace: TraceImpl) {
+    const children = [];
+    const results = trace.search.searchResults;
+    if (trace?.search.searchInProgress) {
+      children.push(m('.pf-omnibox__stepthrough-current', m(Spinner)));
+    } else if (results !== undefined) {
+      const searchMgr = trace.search;
+      const index = searchMgr.resultIndex;
+      const total = results.totalResults ?? 0;
+      children.push(
+        m(
+          '.pf-omnibox__stepthrough-current',
+          `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`,
+        ),
+        m(Button, {
+          onclick: () => searchMgr.stepBackwards(),
+          icon: 'keyboard_arrow_left',
+        }),
+        m(Button, {
+          onclick: () => searchMgr.stepForward(),
+          icon: 'keyboard_arrow_right',
+        }),
+      );
+    }
+    return m('.pf-omnibox__stepthrough', children);
+  }
+
+  oncreate({dom}: m.VnodeDOM<OmniboxAttrs>) {
+    this.updateOmniboxInputRef(dom);
+    this.maybeFocusOmnibar();
+  }
+
+  onupdate({dom}: m.VnodeDOM<OmniboxAttrs>) {
+    this.updateOmniboxInputRef(dom);
+    this.maybeFocusOmnibar();
+  }
+
+  private updateOmniboxInputRef(dom: Element): void {
+    const el = findRef(dom, OMNIBOX_INPUT_REF);
+    if (el && el instanceof HTMLInputElement) {
+      this.omniboxInputEl = el;
+    }
+  }
+
+  private maybeFocusOmnibar() {
+    if (AppImpl.instance.omnibox.focusOmniboxNextRender) {
+      const omniboxEl = this.omniboxInputEl;
+      if (omniboxEl) {
+        omniboxEl.focus();
+        if (AppImpl.instance.omnibox.pendingCursorPlacement === undefined) {
+          omniboxEl.select();
+        } else {
+          omniboxEl.setSelectionRange(
+            AppImpl.instance.omnibox.pendingCursorPlacement,
+            AppImpl.instance.omnibox.pendingCursorPlacement,
+          );
+        }
+      }
+      AppImpl.instance.omnibox.clearFocusFlag();
+    }
+  }
+}
 
 interface OmniboxOptionRowAttrs extends HTMLAttrs {
   // Human readable display name for the option.
@@ -78,7 +383,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
 }
 
 // Omnibox option.
-export interface OmniboxOption {
+interface OmniboxOption {
   // The value to place into the omnibox. This is what's returned in onSubmit.
   readonly key: string;
 
@@ -93,7 +398,7 @@ export interface OmniboxOption {
   readonly rightContent?: m.Children;
 }
 
-export interface OmniboxAttrs extends HTMLAttrs {
+interface OmniboxWidgetAttrs extends HTMLAttrs {
   // Current value of the omnibox input.
   readonly value: string;
 
@@ -145,12 +450,12 @@ export interface OmniboxAttrs extends HTMLAttrs {
   readonly onSelectedOptionChanged?: (index: number) => void;
 }
 
-export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
+class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
   private popupElement?: HTMLElement;
   private dom?: Element;
-  private attrs?: OmniboxAttrs;
+  private attrs?: OmniboxWidgetAttrs;
 
-  view({attrs}: m.Vnode<OmniboxAttrs>): m.Children {
+  view({attrs}: m.Vnode<OmniboxWidgetAttrs>): m.Children {
     const {
       value,
       placeholder,
@@ -238,7 +543,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     );
   }
 
-  private renderDropdown(attrs: OmniboxAttrs): m.Children {
+  private renderDropdown(attrs: OmniboxWidgetAttrs): m.Children {
     const {options} = attrs;
 
     if (!options) return null;
@@ -269,7 +574,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   }
 
   private renderOptionsContainer(
-    attrs: OmniboxAttrs,
+    attrs: OmniboxWidgetAttrs,
     options: OmniboxOption[],
   ): m.Children {
     const {
@@ -296,7 +601,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     return m('ul.pf-omnibox-options-container', opts);
   }
 
-  oncreate({attrs, dom}: m.VnodeDOM<OmniboxAttrs>) {
+  oncreate({attrs, dom}: m.VnodeDOM<OmniboxWidgetAttrs>) {
     this.attrs = attrs;
     this.dom = dom;
     const {closeOnOutsideClick} = attrs;
@@ -305,7 +610,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     }
   }
 
-  onupdate({attrs, dom}: m.VnodeDOM<OmniboxAttrs>) {
+  onupdate({attrs, dom}: m.VnodeDOM<OmniboxWidgetAttrs>) {
     this.attrs = attrs;
     this.dom = dom;
     const {closeOnOutsideClick} = attrs;
@@ -341,18 +646,18 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     }
   };
 
-  private close(attrs: OmniboxAttrs): void {
+  private close(attrs: OmniboxWidgetAttrs): void {
     const {onClose = () => {}} = attrs;
     onClose();
   }
 
-  private highlightPreviousOption(attrs: OmniboxAttrs) {
+  private highlightPreviousOption(attrs: OmniboxWidgetAttrs) {
     const {selectedOptionIndex = 0, onSelectedOptionChanged = () => {}} = attrs;
 
     onSelectedOptionChanged(Math.max(0, selectedOptionIndex - 1));
   }
 
-  private highlightNextOption(attrs: OmniboxAttrs) {
+  private highlightNextOption(attrs: OmniboxWidgetAttrs) {
     const {
       selectedOptionIndex = 0,
       onSelectedOptionChanged = () => {},
