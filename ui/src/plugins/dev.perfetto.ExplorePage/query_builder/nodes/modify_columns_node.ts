@@ -489,7 +489,11 @@ export class ModifyColumnsNode implements ModificationNode {
 
   onPrevNodesUpdated() {
     // This node assumes it has only one previous node.
-    const sourceCols = this.state.prevNode.finalCols;
+    if (this.prevNode === undefined) {
+      return;
+    }
+
+    const sourceCols = this.prevNode.finalCols;
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
@@ -525,6 +529,10 @@ export class ModifyColumnsNode implements ModificationNode {
 
   resolveColumns() {
     // Recover full column information from prevNode
+    if (this.prevNode === undefined) {
+      return;
+    }
+
     const sourceCols = this.prevNode.finalCols ?? [];
     this.state.selectedColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
