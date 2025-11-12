@@ -579,11 +579,28 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
   for (const auto& col : partition_cols) {
     sql += ", ii." + col;
   }
-  sql += ", iibase.*";
+
+  // Add renamed columns from iibase (base table gets _0 suffix)
+  // We explicitly rename id, ts, dur for unambiguous access
+  sql += ", base_0.id AS id_0, base_0.ts AS ts_0, base_0.dur AS dur_0";
+  // Also add all other columns from base table
+  sql += ", base_0.*";
+
+  // Add renamed columns from each interval source (they get _1, _2, etc.
+  // suffixes)
   ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
-    sql += ", iisource" + std::to_string(i) + ".*";
+    size_t suffix = i + 1;
+    sql += ", source_" + std::to_string(suffix) + ".id AS id_" +
+           std::to_string(suffix);
+    sql += ", source_" + std::to_string(suffix) + ".ts AS ts_" +
+           std::to_string(suffix);
+    sql += ", source_" + std::to_string(suffix) + ".dur AS dur_" +
+           std::to_string(suffix);
+    // Also add all other columns from this source table
+    sql += ", source_" + std::to_string(suffix) + ".*";
   }
+
   sql += "\nFROM _interval_intersect!((iibase";
   ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
@@ -598,12 +615,14 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
     }
     sql += partition_cols[i];
   }
-  sql += ")) ii\nJOIN iibase ON ii.id_0 = iibase.id";
+  sql += ")) ii\nJOIN iibase AS base_0 ON ii.id_0 = base_0.id";
 
   ii = interval.interval_intersect();
   for (size_t i = 0; ii; ++ii, ++i) {
-    sql += "\nJOIN iisource" + std::to_string(i) + " ON ii.id_" +
-           std::to_string(i + 1) + " = iisource" + std::to_string(i) + ".id";
+    size_t suffix = i + 1;
+    sql += "\nJOIN iisource" + std::to_string(i) + " AS source_" +
+           std::to_string(suffix) + " ON ii.id_" + std::to_string(suffix) +
+           " = source_" + std::to_string(suffix) + ".id";
   }
   sql += ")";
 

@@ -174,6 +174,22 @@ message PerfettoSqlStructuredQuery {
   //   ii1 :                [-----------]
   //   ii2 :      [---------------] [-----]
   // output:                [--]     [--]
+  //
+  // Output Schema:
+  // The output contains columns from all input queries with numeric suffixes
+  // to disambiguate:
+  //  - The intersected `ts` and `dur` (without suffix) represent the actual
+  //    overlap interval
+  //  - Columns from `base` get a `_0` suffix (e.g., `id_0`, `ts_0`, `dur_0`)
+  //  - Columns from each query in `interval_intersect` get `_1`, `_2`, etc.
+  //    suffixes (e.g., `id_1`, `ts_1`, `dur_1` from first interval query)
+  //  - The `id`, `ts`, and `dur` columns are explicitly aliased with suffixes
+  //    for unambiguous access
+  //  - Partition columns (if any) are included without suffixes for easy
+  //    access
+  // Other duplicated columns (i.e., non `id`, `ts`, `dur`) are not aliased
+  // without the sufixes and might be difficult to access. Users should try to
+  // avoid duplicated column names in their queries.
   message IntervalIntersect {
     // The base query
     optional PerfettoSqlStructuredQuery base = 1;
