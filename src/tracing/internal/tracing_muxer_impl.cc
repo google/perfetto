@@ -28,6 +28,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -1665,6 +1666,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
       producer->service_->NotifyDataSourceStopped(instance_id);
   }
   producer->SweepDeadServices();
+  base::MaybeReleaseAllocatorMemToOS();
 }
 
 void TracingMuxerImpl::ClearDataSourceIncrementalState(

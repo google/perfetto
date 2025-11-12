@@ -178,6 +178,11 @@ message PerfettoSqlStructuredQuery {
     // The base query
     optional PerfettoSqlStructuredQuery base = 1;
     repeated PerfettoSqlStructuredQuery interval_intersect = 2;
+
+    // Optional list of partition columns to use for the interval intersection.
+    // These columns must exist in all queries (base and interval_intersect).
+    // They cannot be "id", "ts", or "dur" as these are reserved.
+    repeated string partition_columns = 3;
   }
 
   // DON'T USE. EXPERIMENTAL.
@@ -238,9 +243,17 @@ message PerfettoSqlStructuredQuery {
   //      processes.
   //    * use_union_all = true to keep all events even if there are duplicates.
   //
-  // Schema:
-  //  All queries must have the same number of columns with compatible types.
-  //  The column names from the first query will be used in the result.
+  // Schema Requirements:
+  //  IMPORTANT: All queries MUST have the same set of columns.
+  //  - All queries must have the same number of columns
+  //  - Column names must match exactly (after applying aliases)
+  //  - Columns can be in any order - the order from the first query will be
+  //    used in the result
+  //  - If select_columns is specified, the validation is performed at query
+  //    generation time. Otherwise, validation happens at SQL execution time.
+  //
+  // The generator will return an error if queries have mismatched columns
+  // when explicit select_columns are specified.
   message ExperimentalUnion {
     // The queries to union together. At least two queries are required.
     repeated PerfettoSqlStructuredQuery queries = 1;
@@ -504,4 +517,94 @@ message PerfettoSqlStructuredQuery {
   // Optional. Requires `limit` to be specified (OFFSET without LIMIT returns
   // zero rows in SQLite).
   optional int64 offset = 13;
+
+  // =========================================================================
+  // EXPERIMENTAL FEATURES - DON'T USE
+  // =========================================================================
+
+  // DON'T USE. EXPERIMENTAL.
+  // Groups multiple filters, nested groups, and SQL expressions with a logical
+  // operator. Used for both top-level and nested filter expressions.
+  //
+  // Examples:
+  //
+  // 1. Single filter (trivial case):
+  //    experimental_filter_group: {
+  //      op: AND
+  //      filters: { column_name: "name" op: EQUAL string_rhs: "foo" }
+  //    }
+  //    Generates: WHERE name = 'foo'
+  //
+  // 2. Multiple filters ANDed:
+  //    experimental_filter_group: {
+  //      op: AND
+  //      filters: { column_name: "name" op: EQUAL string_rhs: "foo" }
+  //      filters: { column_name: "dur" op: GREATER_THAN int64_rhs: 1000 }
+  //    }
+  //    Generates: WHERE name = 'foo' AND dur > 1000
+  //
+  // 3. Multiple filters ORed:
+  //    experimental_filter_group: {
+  //      op: OR
+  //      filters: { column_name: "name" op: EQUAL string_rhs: "foo" }
+  //      filters: { column_name: "name" op: EQUAL string_rhs: "bar" }
+  //    }
+  //    Generates: WHERE name = 'foo' OR name = 'bar'
+  //
+  // 4. Complex nested expression (A OR B) AND (C OR D):
+  //    experimental_filter_group: {
+  //      op: AND
+  //      groups: {
+  //        op: OR
+  //        filters: { column_name: "name" op: EQUAL string_rhs: "foo" }
+  //        filters: { column_name: "name" op: EQUAL string_rhs: "bar" }
+  //      }
+  //      groups: {
+  //        op: OR
+  //        filters: { column_name: "dur" op: GREATER_THAN int64_rhs: 1000 }
+  //        filters: { column_name: "dur" op: LESS_THAN int64_rhs: 100 }
+  //      }
+  //    }
+  //    Generates: WHERE (name = 'foo' OR name = 'bar') AND (dur > 1000 OR dur <
+  //    100)
+  //
+  // 5. Mixing filters, groups, and SQL expressions:
+  //    experimental_filter_group: {
+  //      op: OR
+  //      filters: { column_name: "name" op: EQUAL string_rhs: "foo" }
+  //      sql_expressions: "LENGTH(name) > 10"
+  //      groups: {
+  //        op: AND
+  //        filters: { column_name: "dur" op: GREATER_THAN int64_rhs: 1000 }
+  //        filters: { column_name: "ts" op: LESS_THAN int64_rhs: 5000 }
+  //      }
+  //    }
+  //    Generates: WHERE name = 'foo' OR LENGTH(name) > 10 OR (dur > 1000 AND ts
+  //    < 5000)
+  message ExperimentalFilterGroup {
+    enum Operator {
+      UNSPECIFIED = 0;
+      AND = 1;
+      OR = 2;
+    }
+
+    // The operator to combine all filters, groups, and SQL expressions.
+    // Required.
+    optional Operator op = 1;
+
+    // Simple filter conditions (e.g., column = value). Optional.
+    repeated Filter filters = 2;
+
+    // Nested filter groups (allows arbitrary nesting). Optional.
+    repeated ExperimentalFilterGroup groups = 3;
+
+    // Arbitrary SQL expressions (e.g., "LENGTH(name) > 10").
+    // Use with caution as this bypasses type safety. Optional.
+    repeated string sql_expressions = 4;
+  }
+
+  // DON'T USE. EXPERIMENTAL.
+  // Advanced filtering with support for OR and nested groups.
+  // If specified, takes precedence over `filters` field. Optional.
+  optional ExperimentalFilterGroup experimental_filter_group = 103;
 }

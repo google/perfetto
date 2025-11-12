@@ -23,12 +23,16 @@ import {ColumnInfo, columnInfoFromName} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
 import {Card, CardStack} from '../../../../widgets/card';
-import {FilterOperation, UIFilter} from '../operations/filter';
 import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {Button} from '../../../../widgets/button';
 import {TabStrip, TabOption} from '../../../../widgets/tabs';
 import {TextInput} from '../../../../widgets/text_input';
+import {
+  StructuredQueryBuilder,
+  ColumnSpec,
+  JoinCondition,
+} from '../structured_query_builder';
 
 export type AddColumnsMode = 'guided' | 'free';
 
@@ -70,7 +74,6 @@ export class AddColumnsNode implements ModificationNode {
     this.prevNode = state.prevNode;
     this.inputNodes = [];
     this.nextNodes = [];
-    this.state.filters = this.state.filters ?? [];
     this.state.selectedColumns = this.state.selectedColumns ?? [];
     this.state.leftColumn = this.state.leftColumn ?? 'id';
     this.state.rightColumn = this.state.rightColumn ?? 'id';
@@ -177,15 +180,19 @@ export class AddColumnsNode implements ModificationNode {
   }
 
   nodeDetails(): m.Child {
+    const details: m.Child[] = [];
+
     if (this.rightNode) {
       if (this.state.mode === 'free') {
         // Free mode: show that all columns are being added
         const numCols = this.rightCols.length;
         const plural = numCols > 1 ? 's' : '';
-        return m(
-          '.pf-aggregation-node-details',
-          `Adding all ${numCols} column${plural} using `,
-          m('strong', 'id = id'),
+        details.push(
+          m(
+            'div',
+            `Adding all ${numCols} column${plural} using `,
+            m('strong', 'id = id'),
+          ),
         );
       } else {
         // Guided mode: show selected columns and join condition
@@ -205,22 +212,24 @@ export class AddColumnsNode implements ModificationNode {
               return alias ? `${col} as ${alias}` : col;
             })
             .join(', ');
-          return m(
-            '.pf-aggregation-node-details',
-            `Add column${plural} `,
-            m('strong', columnDisplay),
-            ' using ',
-            m('strong', joinCondition),
+          details.push(
+            m(
+              'div',
+              `Add column${plural} `,
+              m('strong', columnDisplay),
+              ' using ',
+              m('strong', joinCondition),
+            ),
           );
         } else {
-          return m('.pf-aggregation-node-details', `No columns selected`);
+          details.push(m('div', `No columns selected`));
         }
       }
+    } else {
+      details.push(m('div', 'Connect a node to add columns from'));
     }
-    return m(
-      '.pf-aggregation-node-details',
-      'Connect a node to add columns from',
-    );
+
+    return m('.pf-aggregation-node-details', details);
   }
 
   nodeSpecificModify(): m.Child {
@@ -657,13 +666,6 @@ export class AddColumnsNode implements ModificationNode {
           ),
         ),
       ),
-      m(FilterOperation, {
-        filters: this.state.filters,
-        sourceCols: this.finalCols,
-        onFiltersChanged: (newFilters: ReadonlyArray<UIFilter>) => {
-          this.state.filters = [...newFilters];
-        },
-      }),
     ]);
   }
 
@@ -703,6 +705,27 @@ export class AddColumnsNode implements ModificationNode {
     );
   }
 
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Enrich your data by adding columns from another table or query. Connect the additional source to the left port.',
+      ),
+      m(
+        'p',
+        'Specify which columns to match (join key) and which columns to add. In Guided mode, get suggestions based on JOINID columns.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Add process details to slices by joining ',
+        m('code', 'upid'),
+        ' with the process table.',
+      ),
+    );
+  }
+
   validate(): boolean {
     if (this.prevNode === undefined) return false;
     if (this.rightNode === undefined) return true; // No node connected is valid (pass-through)
@@ -723,73 +746,55 @@ export class AddColumnsNode implements ModificationNode {
     if (!this.validate()) return undefined;
     if (!this.rightNode) return this.prevNode.getStructuredQuery();
 
-    const prevSq = this.prevNode.getStructuredQuery();
-    if (prevSq === undefined) return undefined;
+    // Prepare input columns based on mode
+    const inputColumns: ColumnSpec[] =
+      this.state.mode === 'free'
+        ? this.rightCols.map((col) => ({
+            columnNameOrExpression: col.column.name,
+          }))
+        : (this.state.selectedColumns ?? []).map((colName) => {
+            const alias = this.state.columnAliases?.get(colName);
+            return {
+              columnNameOrExpression: colName,
+              alias: alias && alias.trim() !== '' ? alias.trim() : undefined,
+            };
+          });
 
-    const rightSq = this.rightNode.getStructuredQuery();
-    if (rightSq === undefined) return undefined;
+    // Prepare join condition
+    const condition: JoinCondition = {
+      type: 'equality',
+      leftColumn: this.state.mode === 'free' ? 'id' : this.state.leftColumn!,
+      rightColumn: this.state.mode === 'free' ? 'id' : this.state.rightColumn!,
+    };
 
-    // Use ExperimentalAddColumns which is specifically designed for this use case
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-
-    const addColumns =
-      new protos.PerfettoSqlStructuredQuery.ExperimentalAddColumns();
-
-    // Set the core query (base data)
-    addColumns.coreQuery = prevSq;
-
-    // Set the input query (source of additional columns)
-    addColumns.inputQuery = rightSq;
-
-    // Set the columns to add based on mode
-    if (this.state.mode === 'free') {
-      // In free mode, add ALL columns from right table
-      addColumns.inputColumns = this.rightCols.map((col) => {
-        const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-        selectCol.columnNameOrExpression = col.column.name;
-        return selectCol;
-      });
-    } else {
-      // In guided mode, add only selected columns with optional aliases
-      addColumns.inputColumns = (this.state.selectedColumns ?? []).map(
-        (colName) => {
-          const selectCol =
-            new protos.PerfettoSqlStructuredQuery.SelectColumn();
-          selectCol.columnNameOrExpression = colName;
-          // Set alias if provided
-          const alias = this.state.columnAliases?.get(colName);
-          if (alias && alias.trim() !== '') {
-            selectCol.alias = alias.trim();
-          }
-          return selectCol;
-        },
-      );
-    }
-
-    // Set the join condition
-    const equalityCols =
-      new protos.PerfettoSqlStructuredQuery.ExperimentalJoin.EqualityColumns();
-
-    if (this.state.mode === 'free') {
-      // In free mode, use default 'id' columns for join
-      equalityCols.leftColumn = 'id';
-      equalityCols.rightColumn = 'id';
-    } else {
-      // In guided mode, use user-selected columns
-      equalityCols.leftColumn = this.state.leftColumn!;
-      equalityCols.rightColumn = this.state.rightColumn!;
-    }
-
-    addColumns.equalityColumns = equalityCols;
-
-    sq.experimentalAddColumns = addColumns;
-
-    return sq;
+    return StructuredQueryBuilder.withAddColumns(
+      this.prevNode,
+      this.rightNode,
+      inputColumns,
+      condition,
+      this.nodeId,
+    );
   }
 
   serializeState(): object {
-    return this.state;
+    return {
+      selectedColumns: this.state.selectedColumns,
+      leftColumn: this.state.leftColumn,
+      rightColumn: this.state.rightColumn,
+      mode: this.state.mode,
+      suggestionSelections: this.state.suggestionSelections
+        ? Object.fromEntries(this.state.suggestionSelections)
+        : undefined,
+      expandedSuggestions: this.state.expandedSuggestions
+        ? Array.from(this.state.expandedSuggestions)
+        : undefined,
+      columnAliases: this.state.columnAliases
+        ? Object.fromEntries(this.state.columnAliases)
+        : undefined,
+      isGuidedConnection: this.state.isGuidedConnection,
+      comment: this.state.comment,
+      autoExecute: this.state.autoExecute,
+    };
   }
 
   static deserializeState(
@@ -798,6 +803,37 @@ export class AddColumnsNode implements ModificationNode {
     return {
       ...serializedState,
       prevNode: undefined as unknown as QueryNode,
+      suggestionSelections:
+        (serializedState.suggestionSelections as unknown as Record<
+          string,
+          string[]
+        >) !== undefined
+          ? new Map(
+              Object.entries(
+                serializedState.suggestionSelections as unknown as Record<
+                  string,
+                  string[]
+                >,
+              ),
+            )
+          : undefined,
+      expandedSuggestions:
+        (serializedState.expandedSuggestions as unknown as string[]) !==
+        undefined
+          ? new Set(serializedState.expandedSuggestions as unknown as string[])
+          : undefined,
+      columnAliases:
+        (serializedState.columnAliases as unknown as Record<string, string>) !==
+        undefined
+          ? new Map(
+              Object.entries(
+                serializedState.columnAliases as unknown as Record<
+                  string,
+                  string
+                >,
+              ),
+            )
+          : undefined,
     };
   }
 }

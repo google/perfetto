@@ -11308,6 +11308,8 @@ message PixelMmKswapdWakeFtraceEvent {
 message PixelMmKswapdDoneFtraceEvent {
   optional uint64 delta_nr_scanned = 1;
   optional uint64 delta_nr_reclaimed = 2;
+  optional uint64 delta_nr_allocated = 3;
+  optional uint64 duration_ns = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/pixel_mm.proto

@@ -163,13 +163,13 @@ class BlockingCallMetricHandler implements MetricHandler {
       );
     }
 
-    // Fetch the ts and dur of the frame corresponding to the above frame_id.
+    // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
       SELECT
-        cast_string!(frame_id) AS frame_id,
+        frame_id,
         ts,
-        dur
-      FROM android_frames_layers
+        (ts_end - ts) AS dur
+      FROM _extended_frame_boundary
       WHERE frame_id = ${row.frame_id}
       `;
 

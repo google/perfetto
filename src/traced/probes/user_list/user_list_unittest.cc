@@ -30,15 +30,43 @@
 namespace perfetto {
 namespace {
 
-TEST(UserListDataSourceTest, ParseLineNonProfileNonDebug) {
+TEST(UserListDataSourceTest, ParseLineSystem) {
   char kLine[] = "SYSTEM 0\n";
   User usr;
-  ASSERT_TRUE(ReadUserListLine(kLine, &usr));
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
   EXPECT_EQ(usr.type, "SYSTEM");
-  EXPECT_EQ(usr.uid, 0u);
+  EXPECT_EQ(usr.uid, 0);
 }
 
-TEST(UserListDataSourceTest, ParseLineProfileNonDebug) {
+TEST(UserListDataSourceTest, ParseLineProfile) {
+  char kLine[] = "PROFILE 10\n";  // Test a single line
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
+  EXPECT_EQ(usr.type, "PROFILE");
+  EXPECT_EQ(usr.uid, 10);
+}
+
+TEST(UserListDataSourceTest, ParseLineWithSpaces) {
+  char kLine[] = "GUEST 11  \n";
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
+  EXPECT_EQ(usr.type, "GUEST");
+  EXPECT_EQ(usr.uid, 11);
+}
+
+TEST(UserListDataSourceTest, ParseLineIncomplete) {
+  char kLine[] = "SYSTEM\n";
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), EPROTO);
+}
+
+TEST(UserListDataSourceTest, ParseLineInvalidUid) {
+  char kLine[] = "SYSTEM ABC\n";
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), EPROTO);
+}
+
+TEST(UserListDataSourceTest, ParseUserListStream) {
   char buf[] =
       "SYSTEM 0\n"
       "PROFILE 10\n";
@@ -53,28 +81,18 @@ TEST(UserListDataSourceTest, ParseLineProfileNonDebug) {
   protozero::HeapBuffered<protos::pbzero::AndroidUserList> user_list;
   std::set<std::string> filter{};
 
-  ASSERT_TRUE(ParseUserListStream(user_list.get(), fs, filter));
+  EXPECT_EQ(ParseUserListStream(user_list.get(), fs, filter), 0);
 
   protos::gen::AndroidUserList parsed_list;
   parsed_list.ParseFromString(user_list.SerializeAsString());
 
   EXPECT_EQ(parsed_list.error(), 0);
   // all entries
-  EXPECT_EQ(parsed_list.users_size(), 2);
+  ASSERT_EQ(parsed_list.users_size(), 2);
   EXPECT_EQ(parsed_list.users()[0].type(), "SYSTEM");
-  EXPECT_EQ(parsed_list.users()[0].uid(), 0u);
+  EXPECT_EQ(parsed_list.users()[0].uid(), 0);
   EXPECT_EQ(parsed_list.users()[1].type(), "PROFILE");
-  EXPECT_EQ(parsed_list.users()[1].uid(), 10u);
-}
-
-TEST(UserListDataSourceTest, ParseLineNonProfileDebug) {
-  char kLine[] =
-      "SYSTEM 0\n"
-      "PROFILE 10\n";
-  User usr;
-  ASSERT_TRUE(ReadUserListLine(kLine, &usr));
-  EXPECT_EQ(usr.type, "SYSTEM");
-  EXPECT_EQ(usr.uid, 0u);
+  EXPECT_EQ(parsed_list.users()[1].uid(), 10);
 }
 
 }  // namespace

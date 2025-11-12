@@ -90,9 +90,6 @@ describe('root store', () => {
 
   it('can take multiple edits at once', () => {
     const store = createStore(initialState);
-    const callback = jest.fn();
-
-    store.subscribe(callback);
 
     store.edit([
       (draft) => {
@@ -103,8 +100,6 @@ describe('root store', () => {
       },
     ]);
 
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(store, initialState);
     expect(store.state).toEqual({
       foo: {
         counter: 20,
@@ -123,35 +118,6 @@ describe('root store', () => {
     });
     store.edit(edits);
     expect(store.state.foo.counter).toEqual(N);
-  });
-
-  it('notifies subscribers', () => {
-    const store = createStore(initialState);
-    const callback = jest.fn();
-
-    store.subscribe(callback);
-
-    store.edit((draft) => {
-      draft.foo.counter += 1;
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(store, initialState);
-  });
-
-  it('does not notify unsubscribed subscribers', () => {
-    const store = createStore(initialState);
-    const callback = jest.fn();
-
-    // Subscribe then immediately unsubscribe
-    store.subscribe(callback)[Symbol.dispose]();
-
-    // Make an arbitrary edit
-    store.edit((draft) => {
-      draft.foo.counter += 1;
-    });
-
-    expect(callback).not.toHaveBeenCalled();
   });
 });
 
@@ -214,37 +180,6 @@ describe('sub-store', () => {
     });
   });
 
-  it('notifies subscribers', () => {
-    const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
-    const callback = jest.fn();
-
-    subStore.subscribe(callback);
-
-    subStore.edit((draft) => {
-      draft.counter += 1;
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(subStore, initialState.foo);
-  });
-
-  it('does not notify unsubscribed subscribers', () => {
-    const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
-    const callback = jest.fn();
-
-    // Subscribe then immediately unsubscribe
-    subStore.subscribe(callback)[Symbol.dispose]();
-
-    // Make an arbitrary edit
-    subStore.edit((draft) => {
-      draft.counter += 1;
-    });
-
-    expect(callback).not.toHaveBeenCalled();
-  });
-
   it('handles reading when path doesn\t exist in root store', () => {
     const store = createStore(initialState);
 
@@ -269,89 +204,6 @@ describe('sub-store', () => {
     subStore.edit((draft) => {
       draft.counter += 1;
     });
-  });
-
-  it('check subscriber only called once when edits made to undefined root path', () => {
-    const store = createStore(initialState);
-    const value: Foo = {
-      counter: 123,
-      nested: {
-        value: 456,
-      },
-    };
-
-    const callback = jest.fn();
-
-    // This target node is missing - baz doesn't exist in State
-    const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
-    subStore.subscribe(callback);
-
-    // Edits should work just fine, but the root store will not be modified.
-    subStore.edit((draft) => {
-      draft.counter += 1;
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(subStore, value);
-  });
-
-  it("notifies subscribers even when path doesn't exist in root store", () => {
-    const store = createStore(initialState);
-    const value: Foo = {
-      counter: 123,
-      nested: {
-        value: 456,
-      },
-    };
-    const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
-
-    const callback = jest.fn();
-    subStore.subscribe(callback);
-
-    subStore.edit((draft) => {
-      draft.counter += 1;
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(subStore, value);
-  });
-
-  it('notifies when relevant edits are made from root store', () => {
-    const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
-    const callback = jest.fn();
-
-    // Subscribe on the proxy store
-    subStore.subscribe(callback);
-
-    // Edit the subtree from the root store
-    store.edit((draft) => {
-      draft.foo.counter++;
-    });
-
-    // Expect proxy callback called with correct subtree
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(subStore, initialState.foo);
-  });
-
-  it('ignores irrelevant edits from the root store', () => {
-    const store = createStore(initialState);
-    const nestedStore = store.createSubStore<Bar>(
-      ['foo', 'nested'],
-      (x) => x as Bar,
-    );
-    const callback = jest.fn();
-
-    // Subscribe on the proxy store
-    nestedStore.subscribe(callback);
-
-    // Edit an irrelevant subtree on the root store
-    store.edit((draft) => {
-      draft.foo.counter++;
-    });
-
-    // Ensure proxy callback hasn't been called
-    expect(callback).not.toHaveBeenCalled();
   });
 
   it('immutable [in]equality works', () => {

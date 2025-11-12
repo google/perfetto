@@ -38,6 +38,7 @@ export enum NodeType {
   kAddColumns,
   kLimitAndOffset,
   kSort,
+  kFilter,
 
   // Multi node operations
   kIntervalIntersect,
@@ -52,6 +53,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kAddColumns:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
+    case NodeType.kFilter:
       return true;
     default:
       return false;
@@ -63,6 +65,8 @@ export function singleNodeOperation(type: NodeType): boolean {
 export interface NodeActions {
   // Create and connect a table node to a target node's input port
   onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
+  // Insert a ModifyColumns node on an input at a specific port
+  onInsertModifyColumnsNode?: (portIndex: number) => void;
 }
 
 // All information required to create a new node.
@@ -76,6 +80,7 @@ export interface QueryNodeState {
 
   // Operations
   filters?: UIFilter[];
+  filterOperator?: 'AND' | 'OR'; // How to combine filters (default: AND)
 
   issues?: NodeIssues;
 
@@ -91,6 +96,10 @@ export interface QueryNodeState {
   // If false, the user must manually click "Run" to execute queries.
   // Set by the node registry when the node is created.
   autoExecute?: boolean;
+
+  // Materialization state
+  materialized?: boolean;
+  materializationTableName?: string;
 }
 
 export interface BaseNode {
@@ -107,8 +116,9 @@ export interface BaseNode {
 
   validate(): boolean;
   getTitle(): string;
-  nodeSpecificModify(onExecute?: () => void): m.Child;
+  nodeSpecificModify(): m.Child;
   nodeDetails?(): m.Child | undefined;
+  nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   serializeState(): object;
@@ -125,7 +135,7 @@ export interface ModificationNode extends BaseNode {
 }
 
 export interface MultiSourceNode extends BaseNode {
-  prevNodes: (QueryNode | undefined)[];
+  prevNodes: QueryNode[];
 }
 
 export type QueryNode = SourceNode | ModificationNode | MultiSourceNode;
@@ -203,7 +213,27 @@ function getStructuredQueries(
 export function queryToRun(query?: Query): string {
   if (query === undefined) return 'N/A';
   const includes = query.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};`);
-  return includes.join('\n') + query.preambles.join('\n') + query.sql;
+  const parts: string[] = [];
+
+  // Add INCLUDE statements with newlines after each
+  if (includes.length > 0) {
+    parts.push(includes.join('\n'));
+  }
+
+  // Add preambles with newlines after each
+  if (query.preambles.length > 0) {
+    parts.push(query.preambles.join('\n'));
+  }
+
+  // Add an extra empty line before the SQL if there are any includes or preambles
+  if (parts.length > 0) {
+    parts.push(''); // This creates the empty line
+  }
+
+  // Add the SQL
+  parts.push(query.sql);
+
+  return parts.join('\n');
 }
 
 export async function analyzeNode(
@@ -314,14 +344,17 @@ export function addConnection(
   } else if ('prevNodes' in toNode && Array.isArray(toNode.prevNodes)) {
     // MultiSourceNode - multiple inputs
     const multiSourceNode = toNode as MultiSourceNode;
-    const arrayIndex = portIndex ?? multiSourceNode.prevNodes.length;
 
-    // Expand array if needed to accommodate the new connection
-    while (multiSourceNode.prevNodes.length <= arrayIndex) {
-      multiSourceNode.prevNodes.push(undefined);
+    if (
+      portIndex !== undefined &&
+      portIndex < multiSourceNode.prevNodes.length
+    ) {
+      // Replace existing connection at this port
+      multiSourceNode.prevNodes[portIndex] = fromNode;
+    } else {
+      // Append to end (ignore portIndex if out of bounds)
+      multiSourceNode.prevNodes.push(fromNode);
     }
-
-    multiSourceNode.prevNodes[arrayIndex] = fromNode;
     multiSourceNode.onPrevNodesUpdated?.();
   }
 }
@@ -360,59 +393,9 @@ export function removeConnection(fromNode: QueryNode, toNode: QueryNode): void {
     const multiSourceNode = toNode as MultiSourceNode;
     const prevIndex = multiSourceNode.prevNodes.indexOf(fromNode);
     if (prevIndex !== -1) {
-      multiSourceNode.prevNodes[prevIndex] = undefined;
+      // Remove from array, compacting it (no undefined holes)
+      multiSourceNode.prevNodes.splice(prevIndex, 1);
       multiSourceNode.onPrevNodesUpdated?.();
     }
-  }
-}
-
-/**
- * Removes all connections to a specific node from all parent nodes.
- * Used when deleting a node from the graph.
- */
-export function removeAllIncomingConnections(node: QueryNode): void {
-  const parentsToRemove: QueryNode[] = [];
-
-  // Find all parent nodes
-  if ('prevNode' in node && node.prevNode) {
-    parentsToRemove.push(node.prevNode);
-  }
-
-  // Check for inputNodes in ModificationNode
-  if ('inputNodes' in node) {
-    const modNode = node as ModificationNode;
-    if (modNode.inputNodes) {
-      for (const parent of modNode.inputNodes) {
-        if (parent !== undefined) {
-          parentsToRemove.push(parent);
-        }
-      }
-    }
-  }
-
-  // Check for prevNodes in MultiSourceNode
-  if ('prevNodes' in node && Array.isArray(node.prevNodes)) {
-    const multiSourceNode = node as MultiSourceNode;
-    for (const parent of multiSourceNode.prevNodes) {
-      if (parent !== undefined) {
-        parentsToRemove.push(parent);
-      }
-    }
-  }
-
-  // Remove connections from each parent
-  for (const parent of parentsToRemove) {
-    removeConnection(parent, node);
-  }
-}
-
-/**
- * Removes all connections from a specific node to all child nodes.
- * Used when deleting a node from the graph.
- */
-export function removeAllOutgoingConnections(node: QueryNode): void {
-  const childrenToRemove = [...node.nextNodes];
-  for (const child of childrenToRemove) {
-    removeConnection(node, child);
   }
 }

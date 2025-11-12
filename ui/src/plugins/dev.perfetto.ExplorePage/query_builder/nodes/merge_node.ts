@@ -24,12 +24,15 @@ import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {UIFilter} from '../operations/filter';
 import {Card, CardStack} from '../../../../widgets/card';
 import {TextInput} from '../../../../widgets/text_input';
 import {TabStrip} from '../../../../widgets/tabs';
 import {Select} from '../../../../widgets/select';
 import {Editor} from '../../../../widgets/editor';
+import {
+  StructuredQueryBuilder,
+  JoinCondition,
+} from '../structured_query_builder';
 
 export interface MergeSerializedState {
   leftNodeId: string;
@@ -40,7 +43,6 @@ export interface MergeSerializedState {
   leftColumn?: string;
   rightColumn?: string;
   sqlExpression?: string;
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -115,17 +117,20 @@ export class MergeNode implements MultiSourceNode {
   }
 
   validate(): boolean {
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
     if (this.prevNodes.length !== 2) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Merge node requires exactly two sources (left and right).',
       );
       return false;
     }
 
     if (!this.state.leftQueryAlias || !this.state.rightQueryAlias) {
-      if (!this.state.issues) this.state.issues = new NodeIssues();
-      this.state.issues.queryError = new Error(
+      this.setValidationError(
         'Both left and right query aliases are required.',
       );
       return false;
@@ -133,33 +138,26 @@ export class MergeNode implements MultiSourceNode {
 
     if (this.state.conditionType === 'equality') {
       if (!this.state.leftColumn || !this.state.rightColumn) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError = new Error(
+        this.setValidationError(
           'Both left and right columns are required for equality join.',
         );
         return false;
       }
     } else {
       if (!this.state.sqlExpression) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError = new Error(
+        this.setValidationError(
           'SQL expression for join condition is required.',
         );
         return false;
       }
     }
 
-    // If the basic structure is valid, we can clear any previous validation error.
-    if (this.state.issues) {
-      this.state.issues.queryError = undefined;
-    }
-
     for (const prevNode of this.prevNodes) {
       if (!prevNode.validate()) {
-        if (!this.state.issues) this.state.issues = new NodeIssues();
-        this.state.issues.queryError =
-          prevNode.state.issues?.queryError ??
-          new Error(`Previous node '${prevNode.getTitle()}' is invalid`);
+        this.setValidationError(
+          prevNode.state.issues?.queryError?.message ??
+            `Previous node '${prevNode.getTitle()}' is invalid`,
+        );
         return false;
       }
     }
@@ -167,8 +165,36 @@ export class MergeNode implements MultiSourceNode {
     return true;
   }
 
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
+  }
+
   getTitle(): string {
     return 'Merge';
+  }
+
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Combine two data sources by matching rows based on a condition. Connect sources to the two top ports.',
+      ),
+      m(
+        'p',
+        'Choose equality mode to join on matching column values, or custom SQL mode for complex conditions.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Join process info with thread info where ',
+        m('code', 'process.id = thread.upid'),
+        ' to see which threads belong to each process.',
+      ),
+    );
   }
 
   getInputLabels(): string[] {
@@ -342,7 +368,6 @@ export class MergeNode implements MultiSourceNode {
   clone(): QueryNode {
     const stateCopy: MergeNodeState = {
       prevNodes: [...this.state.prevNodes],
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       onchange: this.state.onchange,
       leftQueryAlias: this.state.leftQueryAlias,
       rightQueryAlias: this.state.rightQueryAlias,
@@ -357,40 +382,27 @@ export class MergeNode implements MultiSourceNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
 
-    const leftSq = this.prevNodes[0].getStructuredQuery();
-    const rightSq = this.prevNodes[1].getStructuredQuery();
+    const condition: JoinCondition =
+      this.state.conditionType === 'equality'
+        ? {
+            type: 'equality',
+            leftColumn: this.state.leftColumn,
+            rightColumn: this.state.rightColumn,
+          }
+        : {
+            type: 'freeform',
+            leftQueryAlias: this.state.leftQueryAlias,
+            rightQueryAlias: this.state.rightQueryAlias,
+            sqlExpression: this.state.sqlExpression,
+          };
 
-    if (leftSq === undefined || rightSq === undefined) return undefined;
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-
-    const join = new protos.PerfettoSqlStructuredQuery.ExperimentalJoin();
-
-    join.type = protos.PerfettoSqlStructuredQuery.ExperimentalJoin.Type.INNER;
-    join.leftQuery = leftSq;
-    join.rightQuery = rightSq;
-
-    if (this.state.conditionType === 'equality') {
-      // Set equality columns condition
-      const equalityCols =
-        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin.EqualityColumns();
-      equalityCols.leftColumn = this.state.leftColumn;
-      equalityCols.rightColumn = this.state.rightColumn;
-      join.equalityColumns = equalityCols;
-    } else {
-      // Set freeform condition
-      const condition =
-        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin.FreeformCondition();
-      condition.leftQueryAlias = this.state.leftQueryAlias;
-      condition.rightQueryAlias = this.state.rightQueryAlias;
-      condition.sqlExpression = this.state.sqlExpression;
-      join.freeformCondition = condition;
-    }
-
-    sq.experimentalJoin = join;
-
-    return sq;
+    return StructuredQueryBuilder.withJoin(
+      this.prevNodes[0],
+      this.prevNodes[1],
+      'INNER',
+      condition,
+      this.nodeId,
+    );
   }
 
   serializeState(): MergeSerializedState {
@@ -403,7 +415,6 @@ export class MergeNode implements MultiSourceNode {
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,
       sqlExpression: this.state.sqlExpression,
-      filters: this.state.filters,
       comment: this.state.comment,
     };
   }

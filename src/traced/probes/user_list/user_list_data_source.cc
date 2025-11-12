@@ -94,6 +94,7 @@ UserListDataSource::~UserListDataSource() = default;
 
 // Returns 0 on success, EPROTO on parsing failure.
 int ReadUserListLine(char* line, User* user) {
+  line[strcspn(line, "\r\n")] = 0;
   size_t idx = 0;
   for (base::StringSplitter str_splitter(line, ' '); str_splitter.Next();) {
     switch (idx) {
@@ -102,13 +103,14 @@ int ReadUserListLine(char* line, User* user) {
                                  str_splitter.cur_token_size());
         break;
       case 1: {
-        std::optional<uint32_t> cur_uid =
-            base::CStringToUInt32(str_splitter.cur_token());
-        if (cur_uid == std::nullopt) {
+        std::optional<int32_t> cur_uid =
+            base::CStringToInt32(str_splitter.cur_token());
+        if (cur_uid.has_value()) {
+          user->uid = cur_uid.value();
+        } else {
           PERFETTO_DLOG("Failed to parse user.list cur_uid.");
           return EPROTO;  // Protocol error
         }
-        user->uid = cur_uid.value();
         break;
       }
     }

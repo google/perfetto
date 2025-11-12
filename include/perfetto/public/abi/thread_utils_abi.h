@@ -40,7 +40,7 @@ extern "C" {
 typedef pid_t PerfettoThreadId;
 #elif defined(__Fuchsia__)
 typedef zx_koid_t PerfettoThreadId;
-#elif defined(__APPLE__) || defined(_WIN32)
+#elif defined(__APPLE__) || defined(_WIN32) || defined(__FreeBSD__)
 typedef uint64_t PerfettoThreadId;
 #else
 typedef pthread_t PerfettoThreadId;

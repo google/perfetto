@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
-name = "perfetto"
-version = "0.1.0"
+name = "perfetto-sdk"
+version = "0.1.2"
 authors = ["David Reveman <dreveman@gmail.com>"]
 description = "Bindings for the Perfetto tracing framework"
 readme = "README.md"
@@ -9,17 +9,18 @@ keywords = [
     "tracing",
     "perfetto",
 ]
-categories = ["profiling"]
+categories = ["development-tools::profiling"]
 license = "Apache-2.0"
+homepage = "https://www.perfetto.dev"
 repository = "https://github.com/google/perfetto"
 
 [features]
-default = []
+default = ["vendored"]
 intrinsics = []
-vendored = ["perfetto-sys/vendored"]
+vendored = ["perfetto-sdk-sys/vendored"]
 
 [dependencies]
-perfetto-sys = { path = "../perfetto-sys", version = "0.1.0", default-features = false }
+perfetto-sdk-sys = { path = "../perfetto-sys", version = "0.1", default-features = false }
 bitflags = "2"
 paste = "1"
 thiserror = "1"

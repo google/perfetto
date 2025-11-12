@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use perfetto::{
+use perfetto_sdk::{
     data_source::*, pb_decoder::*, producer::*, protos::trace::trace_packet::TracePacket,
 };
 
-use perfetto_protos_gpu::protos::{
+use perfetto_sdk_protos_gpu::protos::{
     common::gpu_counter_descriptor::*, config::data_source_config::*,
     config::gpu::gpu_counter_config::*, trace::gpu::gpu_counter_event::*,
     trace::trace_packet::prelude::*,
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut data_source = DataSource::new();
     let gpu_counter_config = Arc::new(Mutex::new(GpuCounterConfig::default()));
     let gpu_counter_config_for_setup = Arc::clone(&gpu_counter_config);
-    let data_source_args = DataSourceArgsBuilder::new().on_setup(move |inst_id, config| {
+    let data_source_args = DataSourceArgsBuilder::new().on_setup(move |inst_id, config, _args| {
         let mut gpu_counter_config = gpu_counter_config_for_setup.lock().unwrap();
         for item in PbDecoder::new(config) {
             if let (GPU_COUNTER_CONFIG_ID, PbDecoderField::Delimited(value)) =

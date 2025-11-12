@@ -124,11 +124,15 @@ mod tests {
     static INIT_TEST_ENVIRONMENT: Once = Once::new();
     static TEST_ENVIRONMENT_MUTEX: Mutex<()> = Mutex::new(());
 
+    pub(crate) const PRODUCER_SHMEM_SIZE_HINT_KB: u32 = 64;
+
     // Perfetto uses global state internally that cannot be uninitialized so the
     // test environment and registered data sources must also be global.
     pub(crate) fn acquire_test_environment() -> MutexGuard<'static, ()> {
         INIT_TEST_ENVIRONMENT.call_once(|| {
-            let producer_args = ProducerInitArgsBuilder::new().backends(Backends::IN_PROCESS);
+            let producer_args = ProducerInitArgsBuilder::new()
+                .backends(Backends::IN_PROCESS)
+                .shmem_size_hint_kb(PRODUCER_SHMEM_SIZE_HINT_KB);
             Producer::init(producer_args.build());
         });
         TEST_ENVIRONMENT_MUTEX.lock().unwrap()

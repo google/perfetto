@@ -50,6 +50,7 @@ import {
   LimitAndOffsetNodeState,
 } from './query_builder/nodes/limit_and_offset_node';
 import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
+import {FilterNode, FilterNodeState} from './query_builder/nodes/filter_node';
 import {
   MergeNode,
   MergeSerializedState,
@@ -69,6 +70,7 @@ type SerializedNodeState =
   | AddColumnsNodeState
   | LimitAndOffsetNodeState
   | SortNodeState
+  | FilterNodeState
   | MergeSerializedState
   | UnionSerializedState;
 
@@ -86,7 +88,7 @@ export interface SerializedGraph {
   nodes: SerializedNode[];
   rootNodeIds: string[];
   selectedNodeId?: string;
-  nodeLayouts: {[key: string]: {x: number; y: number}};
+  nodeLayouts?: {[key: string]: {x: number; y: number}};
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
@@ -204,11 +206,14 @@ function createNodeInstance(
       );
     case NodeType.kSort:
       return new SortNode(SortNode.deserializeState(state as SortNodeState));
+    case NodeType.kFilter:
+      return new FilterNode(
+        FilterNode.deserializeState(state as FilterNodeState),
+      );
     case NodeType.kIntervalIntersect:
       const nodeState: IntervalIntersectNodeState = {
         ...(state as IntervalIntersectSerializedState),
         prevNodes: [],
-        allNodes: [],
       };
       return new IntervalIntersectNode(nodeState);
     case NodeType.kMerge:
@@ -221,7 +226,6 @@ function createNodeInstance(
         leftColumn: mergeState.leftColumn ?? '',
         rightColumn: mergeState.rightColumn ?? '',
         sqlExpression: mergeState.sqlExpression ?? '',
-        filters: mergeState.filters,
         comment: mergeState.comment,
       });
     case NodeType.kUnion:
@@ -230,7 +234,6 @@ function createNodeInstance(
         prevNodes: [],
         selectedColumns: unionState.selectedColumns,
       });
-      unionNode.filters = unionState.filters;
       unionNode.comment = unionState.comment;
       return unionNode;
     default:
@@ -250,12 +253,20 @@ export function deserializeState(
     serializedGraph == null ||
     typeof serializedGraph !== 'object' ||
     !Array.isArray(serializedGraph.nodes) ||
-    !Array.isArray(serializedGraph.rootNodeIds) ||
-    serializedGraph.nodeLayouts == null ||
-    typeof serializedGraph.nodeLayouts !== 'object'
+    !Array.isArray(serializedGraph.rootNodeIds)
   ) {
     throw new Error(
       'Invalid file format. The selected file is not a valid Perfetto graph.',
+    );
+  }
+
+  // Validate nodeLayouts if present
+  if (
+    serializedGraph.nodeLayouts != null &&
+    typeof serializedGraph.nodeLayouts !== 'object'
+  ) {
+    throw new Error(
+      'Invalid file format. nodeLayouts must be an object if provided.',
     );
   }
 
@@ -366,6 +377,9 @@ export function deserializeState(
     if (node.type === NodeType.kAggregation) {
       (node as AggregationNode).resolveColumns();
     }
+    if (node.type === NodeType.kModifyColumns) {
+      (node as ModifyColumnsNode).resolveColumns();
+    }
   }
 
   const rootNodes = serializedGraph.rootNodeIds.map((id) => {
@@ -379,10 +393,16 @@ export function deserializeState(
     ? nodes.get(serializedGraph.selectedNodeId)
     : undefined;
 
+  // Use provided nodeLayouts if present, otherwise use empty map (will trigger auto-layout)
+  const nodeLayouts =
+    serializedGraph.nodeLayouts != null
+      ? new Map(Object.entries(serializedGraph.nodeLayouts))
+      : new Map<string, {x: number; y: number}>();
+
   return {
     rootNodes,
     selectedNode,
-    nodeLayouts: new Map(Object.entries(serializedGraph.nodeLayouts)),
+    nodeLayouts,
   };
 }
 

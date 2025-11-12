@@ -13326,12 +13326,16 @@ class PerfettoMetatrace(_message.Message):
     def __init__(self, event_id: _Optional[int] = ..., counter_id: _Optional[int] = ..., event_name: _Optional[str] = ..., event_name_iid: _Optional[int] = ..., counter_name: _Optional[str] = ..., event_duration_ns: _Optional[int] = ..., counter_value: _Optional[int] = ..., thread_id: _Optional[int] = ..., has_overruns: bool = ..., args: _Optional[_Iterable[_Union[PerfettoMetatrace.Arg, _Mapping]]] = ..., interned_strings: _Optional[_Iterable[_Union[PerfettoMetatrace.InternedString, _Mapping]]] = ...) -> None: ...
 
 class PixelMmKswapdDoneFtraceEvent(_message.Message):
-    __slots__ = ["delta_nr_reclaimed", "delta_nr_scanned"]
+    __slots__ = ["delta_nr_allocated", "delta_nr_reclaimed", "delta_nr_scanned", "duration_ns"]
+    DELTA_NR_ALLOCATED_FIELD_NUMBER: _ClassVar[int]
     DELTA_NR_RECLAIMED_FIELD_NUMBER: _ClassVar[int]
     DELTA_NR_SCANNED_FIELD_NUMBER: _ClassVar[int]
+    DURATION_NS_FIELD_NUMBER: _ClassVar[int]
+    delta_nr_allocated: int
     delta_nr_reclaimed: int
     delta_nr_scanned: int
-    def __init__(self, delta_nr_scanned: _Optional[int] = ..., delta_nr_reclaimed: _Optional[int] = ...) -> None: ...
+    duration_ns: int
+    def __init__(self, delta_nr_scanned: _Optional[int] = ..., delta_nr_reclaimed: _Optional[int] = ..., delta_nr_allocated: _Optional[int] = ..., duration_ns: _Optional[int] = ...) -> None: ...
 
 class PixelMmKswapdWakeFtraceEvent(_message.Message):
     __slots__ = ["whatever"]

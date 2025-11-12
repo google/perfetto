@@ -51,15 +51,8 @@ export interface OverviewData {
 
 export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
   // Load everything in a single query
+  // Note: _metadata_str and _metadata_int functions are created in the plugin
   const result = await trace.engine.query(`
-    CREATE PERFETTO FUNCTION _metadata_str(key STRING)
-    RETURNS STRING AS
-    SELECT str_value FROM metadata WHERE name = $key;
-
-    CREATE PERFETTO FUNCTION _metadata_int(key STRING)
-    RETURNS LONG AS
-    SELECT int_value FROM metadata WHERE name = $key;
-
     SELECT
       -- Status card counts
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'analysis') as import_errors,

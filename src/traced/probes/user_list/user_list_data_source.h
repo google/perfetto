@@ -39,12 +39,14 @@ class TraceWriter;
 
 struct User {
   std::string type;
-  uint64_t uid = 0;
+  int32_t uid = 0;
 };
 
 int ParseUserListStream(protos::pbzero::AndroidUserList* user_list,
                         const base::ScopedFstream& fs,
                         const std::set<std::string>& user_type_filter);
+
+int ReadUserListLine(char* line, User* user);
 
 class UserListDataSource : public ProbesDataSource {
  public:

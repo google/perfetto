@@ -32,6 +32,7 @@ import {
 } from './nodes/interval_intersect_node';
 import {MergeNode, MergeNodeState} from './nodes/merge_node';
 import {SortNode, SortNodeState} from './nodes/sort_node';
+import {FilterNode, FilterNodeState} from './nodes/filter_node';
 import {UnionNode, UnionNodeState} from './nodes/union_node';
 import {
   LimitAndOffsetNode,
@@ -127,7 +128,6 @@ export function registerCoreNodes() {
       const fullState: IntervalIntersectNodeState = {
         ...state,
         prevNodes: state.prevNodes ?? [],
-        allNodes: context.allNodes,
       };
       return new IntervalIntersectNode(fullState);
     },
@@ -160,6 +160,14 @@ export function registerCoreNodes() {
     icon: 'sort',
     type: 'modification',
     factory: (state) => new SortNode(state as SortNodeState),
+  });
+
+  nodeRegistry.register('filter_node', {
+    name: 'Filter',
+    description: 'Filter rows based on column values.',
+    icon: 'filter_alt',
+    type: 'modification',
+    factory: (state) => new FilterNode(state as FilterNodeState),
   });
 
   nodeRegistry.register('union_node', {

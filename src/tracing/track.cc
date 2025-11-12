@@ -74,7 +74,7 @@ protos::gen::TrackDescriptor ProcessTrack::Serialize() const {
           std::string(splitter.cur_token(), splitter.cur_token_size()));
     }
   }
-  // TODO(skyostil): Record command line on Windows and Mac.
+  // TODO(skyostil): Record command line on Windows, FreeBSD and Mac.
 #endif
   return desc;
 }
