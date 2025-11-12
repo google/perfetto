@@ -18,29 +18,26 @@ import {FuzzySegment} from '../base/fuzzy';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 import {raf} from '../core/raf_scheduler';
+import {Chip} from '../widgets/chip';
+import {HTMLAttrs} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
 import {KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
-import {Chip} from '../widgets/chip';
 
-interface OmniboxOptionRowAttrs {
+interface OmniboxOptionRowAttrs extends HTMLAttrs {
   // Human readable display name for the option.
   // This can either be a simple string, or a list of fuzzy segments in which
   // case highlighting will be applied to the matching segments.
-  displayName: FuzzySegment[] | string;
+  readonly displayName: FuzzySegment[] | string;
 
   // Highlight this option.
-  highlighted: boolean;
+  readonly highlighted: boolean;
 
   // Arbitrary components to put on the right hand side of the option.
-  rightContent?: m.Children;
+  readonly rightContent?: m.Children;
 
   // Some tag to place on the right (to the left of the right content).
-  label?: string;
-
-  // Additional attrs forwarded to the underlying element.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
+  readonly label?: string;
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
@@ -83,34 +80,31 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
 // Omnibox option.
 export interface OmniboxOption {
   // The value to place into the omnibox. This is what's returned in onSubmit.
-  key: string;
+  readonly key: string;
 
   // Display name provided as a string or a list of fuzzy segments to enable
   // fuzzy match highlighting.
-  displayName: FuzzySegment[] | string;
+  readonly displayName: FuzzySegment[] | string;
 
   // Some tag to place on the right (to the left of the right content).
-  tag?: string;
+  readonly tag?: string;
 
   // Arbitrary components to put on the right hand side of the option.
-  rightContent?: m.Children;
+  readonly rightContent?: m.Children;
 }
 
-export interface OmniboxAttrs {
+export interface OmniboxAttrs extends HTMLAttrs {
   // Current value of the omnibox input.
-  value: string;
+  readonly value: string;
 
   // What to show when value is blank.
-  placeholder?: string;
+  readonly placeholder?: string;
 
   // Called when the text changes.
-  onInput?: (value: string, previousValue: string) => void;
-
-  // Class or list of classes to append to the Omnibox element.
-  extraClasses?: string;
+  readonly onInput?: (value: string, previousValue: string) => void;
 
   // Called on close.
-  onClose?: () => void;
+  readonly onClose?: () => void;
 
   // Dropdown items to show. If none are supplied, the omnibox runs in free text
   // mode, where anyt text can be input. Otherwise, onSubmit will always be
@@ -118,37 +112,37 @@ export interface OmniboxAttrs {
   // Options are provided in groups called categories. If the category has a
   // name the name will be listed at the top of the group rendered with a little
   // divider as well.
-  options?: OmniboxOption[];
+  readonly options?: OmniboxOption[];
 
   // Called when the user expresses the intent to "execute" the thing.
-  onSubmit?: (value: string, mod: boolean, shift: boolean) => void;
+  readonly onSubmit?: (value: string, mod: boolean, shift: boolean) => void;
 
   // Called when the user hits backspace when the field is empty.
-  onGoBack?: () => void;
+  readonly onGoBack?: () => void;
 
   // When true, disable and grey-out the omnibox's input.
-  readonly?: boolean;
+  readonly readonly?: boolean;
 
   // Ref to use on the input - useful for extracing this element from the DOM.
-  inputRef?: string;
+  readonly inputRef?: string;
 
   // Whether to close when the user presses Enter. Default = false.
-  closeOnSubmit?: boolean;
+  readonly closeOnSubmit?: boolean;
 
   // Whether to close the omnibox (i.e. call the |onClose| handler) when we
   // click outside the omnibox or its dropdown. Default = false.
-  closeOnOutsideClick?: boolean;
+  readonly closeOnOutsideClick?: boolean;
 
   // Some content to place into the right hand side of the after the input.
-  rightContent?: m.Children;
+  readonly rightContent?: m.Children;
 
   // If we have options, this value indicates the index of the option which
   // is currently highlighted.
-  selectedOptionIndex?: number;
+  readonly selectedOptionIndex?: number;
 
   // Callback for when the user pressed up/down, expressing a desire to change
   // the |selectedOptionIndex|.
-  onSelectedOptionChanged?: (index: number) => void;
+  readonly onSelectedOptionChanged?: (index: number) => void;
 }
 
 export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
@@ -160,7 +154,6 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     const {
       value,
       placeholder,
-      extraClasses,
       onInput = () => {},
       onSubmit = () => {},
       onGoBack = () => {},
@@ -169,6 +162,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       closeOnSubmit = false,
       rightContent,
       selectedOptionIndex = 0,
+      ...htmlAttrs
     } = attrs;
 
     return m(
@@ -182,9 +176,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         offset: 2,
         trigger: m(
           '.pf-omnibox',
-          {
-            class: extraClasses,
-          },
+          htmlAttrs,
           m('input', {
             spellcheck: false,
             ref: inputRef,
@@ -304,7 +296,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     return m('ul.pf-omnibox-options-container', opts);
   }
 
-  oncreate({attrs, dom}: m.VnodeDOM<OmniboxAttrs, this>) {
+  oncreate({attrs, dom}: m.VnodeDOM<OmniboxAttrs>) {
     this.attrs = attrs;
     this.dom = dom;
     const {closeOnOutsideClick} = attrs;
@@ -313,7 +305,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     }
   }
 
-  onupdate({attrs, dom}: m.VnodeDOM<OmniboxAttrs, this>) {
+  onupdate({attrs, dom}: m.VnodeDOM<OmniboxAttrs>) {
     this.attrs = attrs;
     this.dom = dom;
     const {closeOnOutsideClick} = attrs;
@@ -324,7 +316,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     }
   }
 
-  onremove(_: m.VnodeDOM<OmniboxAttrs, this>) {
+  onremove() {
     this.attrs = undefined;
     this.dom = undefined;
     document.removeEventListener('mousedown', this.onMouseDown);
