@@ -1,5 +1,9 @@
 Unreleased:
+  SDK:
+    * Introduced initial Rust SDK (`perfetto-sdk` on crates.io).
+    * Java SDK: Allow users to provide custom identifiers for named tracks.
   Tracing service and probes:
+    * Added initial FreeBSD support.
     * "linux.ftrace": FtraceConfig.denser_generic_event_encoding is now enabled
       by default (set it explicitly to false to revert to previous encoding,
       which is now deprecated). This reduces trace size when recording events
@@ -9,9 +13,25 @@ Unreleased:
       memory buffer is more than half full.
     * traced_probes: now requests a 2MB shared memory buffer instead of 1MB
       when connecting to the tracing service (traced).
+    * traced_perf: Added support for user-space, kernel, and hypervisor
+      counting event modifiers.
+    * Updated gpu_scheduler trace events for Linux 6.17.
+    * perfetto cmd: Added `--notify-fd` flag.
+    * Trace Redactor: Added callstack support, perf event pruning, and clock
+      data collection.
+    * Android: Switched to RtFutex to fix deadlock when `Tracing::Initialize` is
+      called from a static initializer.
+    * Enabled LockFreeTaskRunner on non-Android platforms to reduce lock
+      contention.
   SQL Standard library:
-    *
+    * Added module documentation support to the stdlib parser, extracting
+      documentation from `@module` comments.
+    * android_anrs: Added ANR timer event data and default durations.
+    * Improved thread creation spam analysis with new per-process and renamed
+      per-thread functions.
   Trace Processor:
+    * Added support for importing pprof profiles.
+    * Added support for ingesting simpleperf's protobuf format.
     * Added support for parsing process_sort_index and thread_sort_index
       metadata from JSON traces. These are stored as process_sort_index_hint
       and thread_sort_index_hint in the args table for processes and threads.
@@ -20,6 +40,17 @@ Unreleased:
       may fail with "ambiguous column name: arg_set_id". Qualify the column
       with the table name (e.g. `slice.arg_set_id` or `counter.arg_set_id`) to
       resolve this.
+    * Added support for aliasing C++ functions in SQL using `CREATE PERFETTO
+      FUNCTION ... DELEGATES TO ...`.
+    * Added support for dynamically loading custom protobuf descriptors at
+      runtime.
+    * Added support for FILE_IO events and thread wait reasons in CSwitch
+      events for more detailed ETW traces.
+    * Added `unhex` SQL function to convert hexadecimal strings to signed
+      64-bit integers.
+    * Added support for Python trace_processor to expose trace metadata.
+    * Improved error handling and logging for clock synchronization and track
+      events.
   UI:
     * Perf sample callstack tracks: if a trace contains multiple callstack data
       sources, the thread and process level callstack tracks can now be
@@ -28,9 +59,54 @@ Unreleased:
     * Added support for sorting processes and threads using sort_index hints
       from JSON traces. Processes and threads with lower sort index values
       will appear first in the UI.
-  SDK:
-    * Reduced CPU usage when tracing high-throughput workloads by preventing
-      duplicate immediate flush tasks in the shared memory arbiter.
+    * Added support for attaching callstacks to TrackEvents, including both
+      slices and instant events. When an event with a callstack is selected, the
+      callstack is displayed in the details panel. Additionally, an area
+      selection will aggregate all callstacks of events in that area into a
+      flamegraph.
+    * Added a new plugin for displaying pprof profiles, which introduces a
+      dedicated page in the UI for visualizing and analyzing pprof data.
+    * Overhauled the "Info and Stats" page, renaming it to "Overview" and
+      transforming it into a modern, tabbed dashboard. This new page provides a
+      high-level summary of the trace and exposes the new `trace_import_logs`
+      table from the Trace Processor, making it easier to debug trace import
+      issues.
+    * A resize handle has been added to the pinned tracks area on the timeline
+      for more flexible layout customization. The area continues to grow
+      automatically by default, up to 40% of the timeline's height, but switches
+      to a fixed-height mode when dragged, allowing for custom sizing. The
+      original auto-sizing behavior can be restored by double-clicking the
+      handle.
+    * Visually distinguished ART method tracing in the UI with dedicated tracks
+      and an "(ART)" suffix on thread names.
+    * Debug tracks: Added support for custom slice coloring via SQL column
+      values.
+    * Recording page: Added 'Network' section for WiFi debugging.
+    * Added path-based filtering to all `*ByRegex` commands (`Pin`, `Expand`,
+      `Collapse`, `CopyTracksToWorkspace`,
+      `CopyTracksToWorkspaceWithAncestors`). This allows for more precise track
+      selection by filtering on the full track path (e.g., `process_name >
+      thread_name`) in addition to just the track name.
+    * Added 'Thread State by CPU' aggregation view (behind feature flag).
+    * Android Logcat: Improved column ordering, case-insensitive search, and UI
+      clarity.
+    * Grouped settings on the settings page by the plugin that added them, with
+      core settings placed in a "core" section, to improve organization.
+    * Added direct linking to flags, plugins, and settings pages which will scroll 
+      to and highlight the referenced item.
+    * Increased wasm stack size to 2MB to reduce stack overflows.
+    * Added plugin to pin frame boundaries for jank CUJs.
+    * Added a plugin that organizes tracks into a hierarchical structure based
+      on their names, using ' -> ' as a separator.
+    * Added ability to pin and copy tracks using SQL queries.
+    * SQL table viewer: Added "Analyze" submenu for data analysis
+      and transformation, including column casting and various string
+      manipulations.
+    * TraceProcessorTrack plugin: Added support for optional track
+      descriptions.
+    * Added support for markers to flamegraphs, which appear as a visual
+      indicator on nodes and in the tooltip. This is useful for adding notes to
+      frames, for example, to indicate inline information for CPU profiles.
 
 v52.0 - 2025-09-16:
   Tracing service and probes:
