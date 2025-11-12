@@ -36,6 +36,7 @@ import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
 import {Card} from '../../../../widgets/card';
+import {Form} from '../../../../widgets/form';
 import {NodeIssues} from '../node_issues';
 import {Icons} from '../../../../base/semantic_icons';
 import {
@@ -516,20 +517,17 @@ export function GroupByAggregationAttrsToProto(
 }
 
 export function placeholderNewColumnName(agg: Aggregation) {
-  if (!agg.aggregationOp) {
-    return 'agg_result';
-  }
-
   // COUNT_ALL doesn't have a column
   if (agg.aggregationOp === 'COUNT_ALL') {
     return 'count';
   }
 
-  if (agg.column) {
+  if (agg.column && agg.aggregationOp) {
     return `${agg.column.name}_${agg.aggregationOp.toLowerCase()}`;
   }
 
-  return `agg_${agg.aggregationOp.toLowerCase()}`;
+  // Fallback for incomplete aggregations
+  return agg.aggregationOp?.toLowerCase() ?? 'result';
 }
 
 function stringToAggregateOp(
@@ -588,7 +586,7 @@ class AggregationOperationComponent
     // Use the utility function to determine if a column is valid for the given operation
     const isColumnValidForOp = isColumnValidForAggregation;
 
-    const aggregationEditor = (agg: Aggregation): m.Child => {
+    const aggregationEditor = (agg: Aggregation, index: number): m.Child => {
       const columnOptions = attrs.groupByColumns.map((col) => {
         const isValid = isColumnValidForOp(col, agg.aggregationOp);
         return m(
@@ -602,88 +600,119 @@ class AggregationOperationComponent
         );
       });
 
+      // Validation function that checks if the aggregation is complete and valid
+      const isAggregationValid = (): boolean => {
+        return validateAggregation(agg);
+      };
+
       return m(
-        '.pf-exp-aggregation-editor',
-        m(
-          Select,
-          {
-            onchange: (e: Event) => {
-              agg.aggregationOp = (e.target as HTMLSelectElement).value;
-              // Clear percentile when changing operation
-              if (agg.aggregationOp !== 'PERCENTILE') {
-                agg.percentile = undefined;
-              }
-              attrs.onchange?.();
-              m.redraw();
-            },
-          },
-          m(
-            'option',
-            {disabled: true, selected: !agg.aggregationOp},
-            'Operation',
-          ),
-          AGGREGATION_OPS.map((op) =>
-            m(
-              'option',
-              {
-                value: op,
-                selected: op === agg.aggregationOp,
-              },
-              op,
-            ),
-          ),
-        ),
-        // Percentile value input (only for PERCENTILE operation, shown before column)
-        agg.aggregationOp === 'PERCENTILE' &&
-          m(TextInput, {
-            placeholder: 'percentile (0-100)',
-            type: 'number',
-            min: 0,
-            max: 100,
-            oninput: (e: InputEvent) => {
-              const value = parseFloat((e.target as HTMLInputElement).value);
-              agg.percentile = isNaN(value) ? undefined : value;
-              attrs.onchange?.();
-            },
-            value: agg.percentile?.toString() ?? '',
-          }),
-        // Column selector (not shown for COUNT_ALL)
-        agg.aggregationOp !== 'COUNT_ALL' &&
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                const target = e.target as HTMLSelectElement;
-                agg.column = attrs.groupByColumns.find(
-                  (c) => c.name === target.value,
-                );
-                attrs.onchange?.();
-                m.redraw();
-              },
-            },
-            m('option', {disabled: true, selected: !agg.column}, 'Column'),
-            columnOptions,
-          ),
-        'AS',
-        m(TextInput, {
-          placeholder: placeholderNewColumnName(agg),
-          oninput: (e: Event) => {
-            agg.newColumnName = (e.target as HTMLInputElement).value.trim();
-          },
-          value: agg.newColumnName,
-        }),
-        m(Button, {
-          icon: Icons.Check,
-          className: 'is-primary',
-          disabled: !agg.isValid,
-          onclick: () => {
+        Form,
+        {
+          submitLabel: 'Apply',
+          submitIcon: Icons.Check,
+          cancelLabel: 'Cancel',
+          required: true,
+          validation: isAggregationValid,
+          onSubmit: (e: Event) => {
+            e.preventDefault();
             if (!agg.newColumnName) {
               agg.newColumnName = placeholderNewColumnName(agg);
             }
             agg.isEditing = false;
             attrs.onchange?.();
           },
-        }),
+          onCancel: () => {
+            // If this is a new aggregation that hasn't been confirmed yet, remove it
+            if (!agg.isValid) {
+              attrs.aggregations.splice(index, 1);
+            } else {
+              // Otherwise just stop editing
+              agg.isEditing = false;
+            }
+            m.redraw();
+          },
+        },
+        m(
+          '.pf-exp-aggregation-editor',
+          m(
+            Select,
+            {
+              required: true,
+              onchange: (e: Event) => {
+                agg.aggregationOp = (e.target as HTMLSelectElement).value;
+                // Clear percentile when changing operation
+                if (agg.aggregationOp !== 'PERCENTILE') {
+                  agg.percentile = undefined;
+                }
+                // Clear column when switching to COUNT_ALL
+                if (agg.aggregationOp === 'COUNT_ALL') {
+                  agg.column = undefined;
+                }
+                m.redraw();
+              },
+            },
+            m(
+              'option',
+              {disabled: true, selected: !agg.aggregationOp, value: ''},
+              'Select operation',
+            ),
+            AGGREGATION_OPS.map((op) =>
+              m(
+                'option',
+                {
+                  value: op,
+                  selected: op === agg.aggregationOp,
+                },
+                op,
+              ),
+            ),
+          ),
+          // Percentile value input (only for PERCENTILE operation, shown before column)
+          agg.aggregationOp === 'PERCENTILE' &&
+            m(TextInput, {
+              placeholder: 'percentile (0-100)',
+              type: 'number',
+              min: 0,
+              max: 100,
+              required: true,
+              oninput: (e: InputEvent) => {
+                const value = parseFloat((e.target as HTMLInputElement).value);
+                agg.percentile = isNaN(value) ? undefined : value;
+                m.redraw();
+              },
+              value: agg.percentile?.toString() ?? '',
+            }),
+          // Column selector (not shown for COUNT_ALL)
+          agg.aggregationOp &&
+            agg.aggregationOp !== 'COUNT_ALL' &&
+            m(
+              Select,
+              {
+                required: true,
+                onchange: (e: Event) => {
+                  const target = e.target as HTMLSelectElement;
+                  agg.column = attrs.groupByColumns.find(
+                    (c) => c.name === target.value,
+                  );
+                  m.redraw();
+                },
+              },
+              m(
+                'option',
+                {disabled: true, selected: !agg.column, value: ''},
+                'Select column',
+              ),
+              columnOptions,
+            ),
+          'AS',
+          m(TextInput, {
+            placeholder: placeholderNewColumnName(agg),
+            oninput: (e: Event) => {
+              agg.newColumnName = (e.target as HTMLInputElement).value.trim();
+            },
+            value: agg.newColumnName,
+          }),
+        ),
       );
     };
 
@@ -737,7 +766,7 @@ class AggregationOperationComponent
       return [
         ...attrs.aggregations.map((agg, index) => {
           if (agg.isEditing) {
-            return aggregationEditor(agg);
+            return aggregationEditor(agg, index);
           } else {
             return aggregationViewer(agg, index);
           }

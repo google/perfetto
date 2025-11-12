@@ -32,7 +32,7 @@ import {FilterNode} from './query_builder/nodes/filter_node';
 import {MergeNode} from './query_builder/nodes/merge_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
-import {QueryNode} from './query_node';
+import {QueryNode, NodeType} from './query_node';
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -343,6 +343,61 @@ describe('JSON serialization/deserialization', () => {
     );
   });
 
+  test('interval intersect node initializes filter to true by default', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Create interval intersect node WITHOUT specifying filterNegativeDur
+    const intervalIntersectNode = new IntervalIntersectNode({
+      prevNodes: [tableNode1, tableNode2],
+    });
+    tableNode1.nextNodes.push(intervalIntersectNode);
+
+    // Verify that filterNegativeDur is initialized to true for all inputs
+    // This is the key fix - the array should be initialized with explicit true values
+    // so the UI checkbox state matches the actual filter behavior
+    expect(intervalIntersectNode.state.filterNegativeDur).toBeDefined();
+    expect(intervalIntersectNode.state.filterNegativeDur?.length).toBe(2);
+    expect(intervalIntersectNode.state.filterNegativeDur?.[0]).toBe(true);
+    expect(intervalIntersectNode.state.filterNegativeDur?.[1]).toBe(true);
+
+    // Serialize and deserialize to ensure the filter persists
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedIntervalIntersectNode = deserializedTableNode1
+      .nextNodes[0] as IntervalIntersectNode;
+
+    // Verify filterNegativeDur is still true after deserialization
+    expect(
+      deserializedIntervalIntersectNode.state.filterNegativeDur,
+    ).toBeDefined();
+    expect(
+      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
+    ).toBe(2);
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
+      true,
+    );
+    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
+      true,
+    );
+  });
+
   test('serializes and deserializes sql source node with reference', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
@@ -621,6 +676,297 @@ describe('JSON serialization/deserialization', () => {
       .nextNodes[0] as AddColumnsNode;
     expect(deserializedNode.state.selectedColumns).toEqual(['name']);
     // Note: sqlTable is no longer part of AddColumnsNodeState
+  });
+
+  test('serializes and deserializes add columns node with inputNodes connection', () => {
+    // Create the main data flow: tableNode1 -> addColumnsNode
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const addColumnsNode = new AddColumnsNode({
+      prevNode: tableNode1,
+      selectedColumns: ['name', 'ts'],
+      leftColumn: 'id',
+      rightColumn: 'id',
+      mode: 'guided',
+    });
+    tableNode1.nextNodes.push(addColumnsNode);
+
+    // Create the side input: tableNode2 connected to inputNodes[0]
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Connect tableNode2 to addColumnsNode's inputNodes[0] (left-side port)
+    if (!addColumnsNode.inputNodes) {
+      addColumnsNode.inputNodes = [];
+    }
+    addColumnsNode.inputNodes[0] = tableNode2;
+    tableNode2.nextNodes.push(addColumnsNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map([
+        [tableNode1.nodeId, {x: 0, y: 0}],
+        [addColumnsNode.nodeId, {x: 0, y: 100}],
+        [tableNode2.nodeId, {x: -200, y: 100}],
+      ]),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Verify root nodes
+    expect(deserializedState.rootNodes.length).toBe(2);
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedTableNode2 = deserializedState.rootNodes[1];
+
+    // Verify main connection (prevNode)
+    expect(deserializedTableNode1.nextNodes.length).toBe(1);
+    const deserializedAddColumnsNode = deserializedTableNode1
+      .nextNodes[0] as AddColumnsNode;
+    expect(deserializedAddColumnsNode.prevNode?.nodeId).toBe(
+      deserializedTableNode1.nodeId,
+    );
+
+    // Verify inputNodes connection (THIS IS THE BUG - this will fail before the fix)
+    expect(deserializedAddColumnsNode.inputNodes).toBeDefined();
+    expect(deserializedAddColumnsNode.inputNodes?.length).toBeGreaterThan(0);
+    expect(deserializedAddColumnsNode.inputNodes?.[0]?.nodeId).toBe(
+      deserializedTableNode2.nodeId,
+    );
+
+    // Verify tableNode2 has the connection back to addColumnsNode
+    expect(deserializedTableNode2.nextNodes.length).toBe(1);
+    expect(deserializedTableNode2.nextNodes[0].nodeId).toBe(
+      deserializedAddColumnsNode.nodeId,
+    );
+
+    // Verify node state
+    expect(deserializedAddColumnsNode.state.selectedColumns).toEqual([
+      'name',
+      'ts',
+    ]);
+    expect(deserializedAddColumnsNode.state.leftColumn).toBe('id');
+    expect(deserializedAddColumnsNode.state.rightColumn).toBe('id');
+    expect(deserializedAddColumnsNode.state.mode).toBe('guided');
+
+    // Verify layouts are preserved
+    expect(
+      deserializedState.nodeLayouts.get(deserializedTableNode1.nodeId),
+    ).toEqual({x: 0, y: 0});
+    expect(
+      deserializedState.nodeLayouts.get(deserializedAddColumnsNode.nodeId),
+    ).toEqual({x: 0, y: 100});
+    expect(
+      deserializedState.nodeLayouts.get(deserializedTableNode2.nodeId),
+    ).toEqual({x: -200, y: 100});
+  });
+
+  test('add columns node uses renamed columns from modify columns node', () => {
+    // Create table source
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Get all columns from the table to find one to rename
+    const allColumns = tableNode1.finalCols;
+    // Find a column to rename (let's use the first one)
+    const columnToRename = allColumns[0];
+
+    // Create modify columns node that renames a column
+    const modifyColumnsNode = new ModifyColumnsNode({
+      prevNode: tableNode1,
+      newColumns: [
+        {
+          expression: columnToRename.column.name,
+          name: 'renamed_column',
+        },
+      ],
+      selectedColumns: allColumns.slice(1, 3), // Select some other columns
+    });
+    tableNode1.nextNodes.push(modifyColumnsNode);
+
+    // Create another table to join with
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Create add columns node that should see the renamed column 'duration_ns'
+    const addColumnsNode = new AddColumnsNode({
+      prevNode: tableNode2,
+      selectedColumns: [],
+      mode: 'guided',
+    });
+    tableNode2.nextNodes.push(addColumnsNode);
+
+    // Connect modifyColumnsNode to addColumnsNode's inputNodes[0]
+    if (!addColumnsNode.inputNodes) {
+      addColumnsNode.inputNodes = [];
+    }
+    addColumnsNode.inputNodes[0] = modifyColumnsNode;
+    modifyColumnsNode.nextNodes.push(addColumnsNode);
+
+    // Check that addColumnsNode can see the renamed column
+    const rightCols = addColumnsNode.rightCols;
+    const colNames = rightCols.map((c) => c.column.name);
+
+    // Should see the renamed column
+    expect(colNames).toContain('renamed_column');
+    // Should NOT see the original column name
+    expect(colNames).not.toContain(columnToRename.column.name);
+
+    // Verify the type is preserved for the renamed column
+    const renamedCol = rightCols.find(
+      (c) => c.column.name === 'renamed_column',
+    );
+    expect(renamedCol).toBeDefined();
+    expect(renamedCol?.type).toBe(columnToRename.type);
+    expect(renamedCol?.type).not.toBe('NA'); // Type should be preserved, not 'NA'
+
+    // Now test serialization/deserialization preserves this
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Find the deserialized add columns node
+    const deserializedTableNode2 = deserializedState.rootNodes.find(
+      (n) => n.nodeId === tableNode2.nodeId,
+    );
+    expect(deserializedTableNode2).toBeDefined();
+    expect(deserializedTableNode2!.nextNodes.length).toBe(1);
+
+    const deserializedAddColumnsNode = deserializedTableNode2!
+      .nextNodes[0] as AddColumnsNode;
+
+    // Verify the connection is restored
+    expect(deserializedAddColumnsNode.inputNodes).toBeDefined();
+    expect(deserializedAddColumnsNode.inputNodes?.length).toBeGreaterThan(0);
+    expect(deserializedAddColumnsNode.inputNodes?.[0]).toBeDefined();
+
+    // Most importantly: verify that renamed columns are still accessible
+    const deserializedRightCols = deserializedAddColumnsNode.rightCols;
+    const deserializedColNames = deserializedRightCols.map(
+      (c) => c.column.name,
+    );
+
+    expect(deserializedColNames).toContain('renamed_column');
+    expect(deserializedColNames).not.toContain(columnToRename.column.name);
+
+    // Verify the type is preserved after serialization/deserialization
+    const deserializedRenamedCol = deserializedRightCols.find(
+      (c) => c.column.name === 'renamed_column',
+    );
+    expect(deserializedRenamedCol).toBeDefined();
+    expect(deserializedRenamedCol?.type).toBe(columnToRename.type);
+    expect(deserializedRenamedCol?.type).not.toBe('NA'); // Type should still be preserved
+  });
+
+  test('aggregation node can group by aliased column from modify columns node', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    // Create a ModifyColumnsNode that aliases a column
+    const modifyNode = new ModifyColumnsNode({
+      prevNode: tableNode,
+      selectedColumns: tableNode.finalCols.map((col) => {
+        // Alias the 'ts' column to 'timestamp_alias'
+        if (col.name === 'ts') {
+          return {...col, alias: 'timestamp_alias'};
+        }
+        return col;
+      }),
+      newColumns: [],
+    });
+    tableNode.nextNodes.push(modifyNode);
+
+    // Verify that the alias is in finalCols and the original name is not
+    const tsColumn = modifyNode.finalCols.find((c) => c.name === 'ts');
+    const aliasedColumn = modifyNode.finalCols.find(
+      (c) => c.name === 'timestamp_alias',
+    );
+    expect(tsColumn).toBeUndefined(); // Original name should not be visible
+    expect(aliasedColumn).toBeDefined(); // Aliased name should be visible
+    expect(aliasedColumn?.column.name).toBe('timestamp_alias'); // column.name should also use alias
+
+    // Create an AggregationNode that groups by the aliased column
+    const aggregationNode = new AggregationNode({
+      prevNode: modifyNode,
+      groupByColumns: [aliasedColumn!],
+      aggregations: [],
+    });
+    modifyNode.nextNodes.push(aggregationNode);
+
+    // Verify the aggregation node sees the aliased column
+    expect(aggregationNode.state.groupByColumns.length).toBe(1);
+    expect(aggregationNode.state.groupByColumns[0].name).toBe(
+      'timestamp_alias',
+    );
+    expect(aggregationNode.state.groupByColumns[0].column.name).toBe(
+      'timestamp_alias',
+    );
+
+    // Serialize and deserialize
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      nodeLayouts: new Map(),
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // Navigate to the deserialized aggregation node
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+
+    const deserializedModifyNode = deserializedTableNode.nextNodes[0] as
+      | ModifyColumnsNode
+      | undefined;
+    expect(deserializedModifyNode).toBeDefined();
+    expect(deserializedModifyNode?.type).toBe(NodeType.kModifyColumns);
+
+    // Verify the alias is still in finalCols after deserialization
+    const deserializedTsColumn = deserializedModifyNode?.finalCols.find(
+      (c) => c.name === 'ts',
+    );
+    const deserializedAliasedColumn = deserializedModifyNode?.finalCols.find(
+      (c) => c.name === 'timestamp_alias',
+    );
+    expect(deserializedTsColumn).toBeUndefined(); // Original name should not be visible
+    expect(deserializedAliasedColumn).toBeDefined(); // Aliased name should be visible
+    expect(deserializedAliasedColumn?.column.name).toBe('timestamp_alias');
+
+    // Verify the aggregation node still sees the aliased column
+    expect(deserializedModifyNode?.nextNodes.length).toBe(1);
+    const deserializedAggNode = deserializedModifyNode?.nextNodes[0] as
+      | AggregationNode
+      | undefined;
+    expect(deserializedAggNode).toBeDefined();
+    expect(deserializedAggNode?.type).toBe(NodeType.kAggregation);
+    expect(deserializedAggNode?.state.groupByColumns.length).toBe(1);
+    expect(deserializedAggNode?.state.groupByColumns[0].name).toBe(
+      'timestamp_alias',
+    );
+    expect(deserializedAggNode?.state.groupByColumns[0].column.name).toBe(
+      'timestamp_alias',
+    );
   });
 
   test('serializes and deserializes limit and offset node', () => {

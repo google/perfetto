@@ -98,14 +98,14 @@ describe('AggregationNode', () => {
 
     it('should handle aggregation without operation', () => {
       const agg: Aggregation = {};
-      expect(placeholderNewColumnName(agg)).toBe('agg_result');
+      expect(placeholderNewColumnName(agg)).toBe('result');
     });
 
     it('should handle aggregation with operation but no column', () => {
       const agg: Aggregation = {
         aggregationOp: 'SUM',
       };
-      expect(placeholderNewColumnName(agg)).toBe('agg_sum');
+      expect(placeholderNewColumnName(agg)).toBe('sum');
     });
 
     it('should use lowercase in placeholder', () => {
