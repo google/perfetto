@@ -20,6 +20,7 @@ import {
   QueryNode,
   QueryNodeState,
   NodeType,
+  NodeActions,
   addConnection,
   removeConnection,
 } from './query_node';
@@ -56,6 +57,7 @@ interface ExplorePageAttrs {
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private materializationService?: MaterializationService;
   private historyManager?: HistoryManager;
+  private initializedNodes = new Set<string>();
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -69,6 +71,35 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       selectedNode: undefined,
     }));
+  }
+
+  private createNodeActions(
+    attrs: ExplorePageAttrs,
+    node: QueryNode,
+  ): NodeActions {
+    return {
+      onAddAndConnectTable: (tableName: string, portIndex: number) => {
+        this.handleAddAndConnectTable(attrs, tableName, node, portIndex);
+      },
+      onInsertModifyColumnsNode: (portIndex: number) => {
+        this.handleInsertModifyColumnsNode(attrs, node, portIndex);
+      },
+    };
+  }
+
+  private ensureNodeActions(attrs: ExplorePageAttrs, node: QueryNode) {
+    // Skip if already initialized
+    if (this.initializedNodes.has(node.nodeId)) {
+      return;
+    }
+
+    // Initialize actions if not present
+    if (!node.state.actions) {
+      node.state.actions = this.createNodeActions(attrs, node);
+    }
+
+    // Mark as initialized
+    this.initializedNodes.add(node.nodeId);
   }
 
   private async handleDevModeChange(attrs: ExplorePageAttrs, enabled: boolean) {
@@ -116,13 +147,22 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         sqlModules,
         trace: attrs.trace,
         // Provide actions for nodes that need to interact with the graph
+        // We use a closure pattern because the node doesn't exist yet
         actions: {
           onAddAndConnectTable: (tableName: string, portIndex: number) => {
-            // Use the closure to access nodeRef.current which will be set below
             if (nodeRef.current !== undefined) {
               this.handleAddAndConnectTable(
                 attrs,
                 tableName,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
+          onInsertModifyColumnsNode: (portIndex: number) => {
+            if (nodeRef.current !== undefined) {
+              this.handleInsertModifyColumnsNode(
+                attrs,
                 nodeRef.current,
                 portIndex,
               );
@@ -137,6 +177,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
       // Set the reference so the callback can use it
       nodeRef.current = newNode;
+
+      // Mark this node as initialized
+      this.initializedNodes.add(newNode.nodeId);
 
       if (isMultisource) {
         // For multisource nodes: just connect and add to root nodes
@@ -249,6 +292,61 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [...currentState.rootNodes, newNode],
+    }));
+  }
+
+  private async handleInsertModifyColumnsNode(
+    attrs: ExplorePageAttrs,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) return;
+
+    // Get the ModifyColumns descriptor
+    const descriptor = nodeRegistry.get('modify_columns');
+    if (!descriptor) return;
+
+    // Get the current input node at the specified port
+    let inputNode: QueryNode | undefined;
+    if ('inputNodes' in targetNode && targetNode.inputNodes) {
+      inputNode = targetNode.inputNodes[portIndex];
+    } else if (
+      'prevNodes' in targetNode &&
+      Array.isArray(targetNode.prevNodes)
+    ) {
+      inputNode = targetNode.prevNodes[portIndex];
+    }
+
+    if (!inputNode) {
+      console.warn(`No input node found at port ${portIndex}`);
+      return;
+    }
+
+    // Create the ModifyColumns node with the input node as prevNode
+    const newNode = descriptor.factory(
+      {
+        prevNode: inputNode,
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Remove the old connection from inputNode to targetNode
+    removeConnection(inputNode, targetNode);
+
+    // Add connection from inputNode to ModifyColumns node
+    addConnection(inputNode, newNode);
+
+    // Add connection from ModifyColumns node to targetNode at the same port
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes (so it appears in the graph)
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
+      selectedNode: newNode,
     }));
   }
 
@@ -633,6 +731,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...attrs,
       onStateUpdate: wrappedOnStateUpdate,
     };
+
+    // Ensure all nodes have actions initialized (e.g., nodes from imported state)
+    // This is efficient - only processes nodes not yet initialized
+    const allNodes = this.getAllNodes(state.rootNodes);
+    for (const node of allNodes) {
+      this.ensureNodeActions(wrappedAttrs, node);
+    }
 
     return m(
       '.pf-explore-page',

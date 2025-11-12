@@ -394,6 +394,16 @@ export class IntervalIntersectNode implements MultiSourceNode {
                   this.state.onchange?.();
                 },
               }),
+              m(Button, {
+                icon: 'view_column',
+                title: 'Pick columns',
+                compact: true,
+                onclick: () => {
+                  if (this.state.actions?.onInsertModifyColumnsNode) {
+                    this.state.actions.onInsertModifyColumnsNode(index);
+                  }
+                },
+              }),
             );
           }),
         ),
