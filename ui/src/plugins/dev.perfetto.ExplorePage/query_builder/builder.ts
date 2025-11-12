@@ -177,10 +177,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.isQueryRunning = false;
       this.isAnalyzing = false;
       // Default to Edit if available, otherwise Info
-      this.selectedView =
-        selectedNode.nodeSpecificModify() != null
-          ? SelectedView.kModify
-          : SelectedView.kInfo;
+      const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
+      this.selectedView = hasModifyPanel
+        ? SelectedView.kModify
+        : SelectedView.kInfo;
+      // Collapse all panels if there's no kModify panel
+      this.isExplorerCollapsed = !hasModifyPanel;
     }
     this.previousSelectedNode = selectedNode;
 
