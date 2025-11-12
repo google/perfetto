@@ -528,6 +528,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         node.state.issues = undefined;
       }
 
+      // Update columns for SQL source nodes and trigger re-analysis
       if (node instanceof SqlSourceNode) {
         node.onQueryExecuted(this.response.columns);
       }
@@ -540,6 +541,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           console.error('Failed to materialize node:', e);
           // Don't block the UI on materialization errors
         }
+      }
+
+      // Force re-analysis for SQL source nodes so downstream nodes can see updated columns
+      if (node instanceof SqlSourceNode) {
+        this.query = undefined;
+        this.queryExecuted = false;
       }
     } catch (e) {
       console.error('Failed to run query:', e);
