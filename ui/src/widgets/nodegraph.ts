@@ -1636,7 +1636,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         // Bottom output ports (if no docked child below)
         bottomOutputs.map((port) => {
           const portIndex = outputs.indexOf(port);
-          return renderPort(port, portIndex, 'output', hasDockedChild);
+          return renderPort(port, portIndex, 'output');
         }),
       ],
     );
