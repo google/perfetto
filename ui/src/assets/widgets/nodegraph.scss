@@ -134,7 +134,6 @@
 
 // Docked child: flush top edge with no rounded corners or border
 .pf-node.pf-docked-child {
-  border-top-color: var(--pf-color-accent);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   margin-top: -2px; // Overlap border with parent
