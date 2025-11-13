@@ -49,6 +49,7 @@ using ScopedSocketHandle =
 using ScopedSocketHandle = ScopedFile;
 #endif
 
+class LinuxFileWatch;
 class TaskRunner;
 
 // Use arbitrarily high values to avoid that some code accidentally ends up
@@ -477,6 +478,19 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
   TaskRunner* const task_runner_;
   WeakPtrFactory<UnixSocket> weak_ptr_factory_;  // Keep last.
 };
+
+// Creates a LinuxFileWatch for the given unix socket.
+// Returns nullptr if:
+// - flags::use_unix_socket_inotify == false
+// - `sock_name` is not a file-system linked unix socket.
+// - The underlying filesystem doesn't support inotify (or other errors occur).
+// - Any platform other than Linux/Android.
+// When successful, the LinuxFileWatch is an opaque RAII handle that will remove
+// the watch on destruction.
+std::unique_ptr<LinuxFileWatch> WatchUnixSocketCreation(
+    TaskRunner* task_runner,
+    const char* sock_name,
+    std::function<void()> callback);
 
 }  // namespace base
 }  // namespace perfetto
