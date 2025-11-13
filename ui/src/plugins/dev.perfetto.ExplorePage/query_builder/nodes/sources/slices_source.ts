@@ -102,26 +102,17 @@ export class SlicesSourceNode implements SourceNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Slices Source')),
       m(
         'p',
-        'A source node that provides access to slice data from your trace.',
-      ),
-      m(
-        'p',
-        m('strong', 'Slices'),
-        ' represent time intervals with a duration, typically used to track spans of execution like function calls, scheduling periods, or GPU work.',
-      ),
-      m(
-        'p',
-        m('strong', 'Query type:'),
-        ' This node internally uses the ',
-        m('code', 'SimpleSlices'),
-        ' query type from PerfettoSQL, which retrieves intervals with start time (',
+        'Provides slice data from your trace. Slices represent time intervals with start time (',
         m('code', 'ts'),
         ') and duration (',
         m('code', 'dur'),
-        ').',
+        '), tracking spans of execution like function calls, scheduling periods, or GPU work.',
+      ),
+      m(
+        'p',
+        'Includes context like process and thread information, making it easy to analyze execution patterns.',
       ),
     );
   }

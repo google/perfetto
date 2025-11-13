@@ -1,6 +1,7 @@
 .aider*
 .android_config
 .cache
+.cargo
 .ccls
 .ccls-cache
 .clangd

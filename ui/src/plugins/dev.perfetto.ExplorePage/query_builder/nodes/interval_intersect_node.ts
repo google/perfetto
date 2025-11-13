@@ -58,9 +58,20 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   constructor(state: IntervalIntersectNodeState) {
     this.nodeId = nextNodeId();
+
+    // Initialize filterNegativeDur array with true for each prevNode if not provided
+    const filterNegativeDur = state.filterNegativeDur ?? [];
+    // Fill missing indices with true (default to filtering enabled)
+    for (let i = 0; i < state.prevNodes.length; i++) {
+      if (filterNegativeDur[i] === undefined) {
+        filterNegativeDur[i] = true;
+      }
+    }
+
     this.state = {
       ...state,
       autoExecute: state.autoExecute ?? false,
+      filterNegativeDur,
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
@@ -139,58 +150,42 @@ export class IntervalIntersectNode implements MultiSourceNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Interval Intersect')),
       m(
         'p',
-        'A multisource node that finds ',
-        m('strong', 'time intervals'),
-        ' from a base source that ',
-        m('strong', 'overlap with intervals'),
-        ' from one or more other sources.',
+        'Find intervals that overlap across all connected sources. All inputs are treated equally - returns intervals that exist in all sources simultaneously.',
       ),
       m(
         'p',
-        m('strong', 'Common use cases:'),
-        m(
-          'ul',
-          m('li', 'CPU usage during a specific user journey'),
-          m('li', 'Memory consumption during an animation'),
-          m(
-            'li',
-            'System events that occur during multiple overlapping conditions',
-          ),
-        ),
+        m('strong', 'Required columns:'),
+        ' All inputs must have ',
+        m('code', 'id'),
+        ', ',
+        m('code', 'ts'),
+        ', and ',
+        m('code', 'dur'),
+        ' columns.',
       ),
       m(
         'p',
-        m('strong', 'Connect multiple sources to this node:'),
-        m(
-          'ul',
-          m(
-            'li',
-            m('strong', 'First port:'),
-            ' The base data with time intervals to analyze',
-          ),
-          m(
-            'li',
-            m('strong', 'Additional ports:'),
-            ' Interval sources that define the time windows',
-          ),
-        ),
+        m('strong', 'Partition:'),
+        ' Optionally partition the intersection by common columns (e.g., ',
+        m('code', 'utid'),
+        '). When partitioned, intervals are matched only within the same partition values.',
       ),
       m(
         'p',
-        m('strong', 'How it works:'),
-        ' The result includes only rows from the base that overlap with at least one row from ',
-        m('em', 'each'),
-        ' of the interval sources.',
+        m('strong', 'Duplicate columns:'),
+        ' If multiple inputs have the same column name, the result will only include one version, which can make it difficult to distinguish them. Use Modify Columns to rename conflicting columns before connecting.',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'IntervalIntersect'),
-        ' operation from PerfettoSQL.',
+        m('strong', 'Filter unfinished intervals:'),
+        " Enable per-input to exclude intervals that haven't completed yet.",
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Find CPU slices that occur during both a user gesture AND a network request.',
       ),
     );
   }
@@ -266,16 +261,25 @@ export class IntervalIntersectNode implements MultiSourceNode {
   }
 
   onPrevNodesUpdated(): void {
+    // Initialize filterNegativeDur if it doesn't exist
+    if (!this.state.filterNegativeDur) {
+      this.state.filterNegativeDur = [];
+    }
+
     // Compact filterNegativeDur array to match prevNodes length
     // When nodes are removed, prevNodes is compacted, so we need to match that
-    if (
-      this.state.filterNegativeDur &&
-      this.state.filterNegativeDur.length > this.prevNodes.length
-    ) {
+    if (this.state.filterNegativeDur.length > this.prevNodes.length) {
       this.state.filterNegativeDur = this.state.filterNegativeDur.slice(
         0,
         this.prevNodes.length,
       );
+    }
+
+    // Initialize missing indices with true (default to filtering enabled)
+    for (let i = 0; i < this.prevNodes.length; i++) {
+      if (this.state.filterNegativeDur[i] === undefined) {
+        this.state.filterNegativeDur[i] = true;
+      }
     }
   }
 
@@ -358,6 +362,11 @@ export class IntervalIntersectNode implements MultiSourceNode {
     const connectedInputs: Array<{node: QueryNode; index: number}> =
       this.prevNodes.map((node, index) => ({node, index}));
 
+    // If no inputs connected, show a message
+    if (connectedInputs.length === 0) {
+      return m('.pf-exp-query-operations', 'No inputs connected');
+    }
+
     return m(
       '.pf-exp-query-operations',
       error && m(Callout, {icon: 'error'}, error.message),
@@ -379,8 +388,7 @@ export class IntervalIntersectNode implements MultiSourceNode {
           '.pf-exp-operations-container',
           connectedInputs.map(({node, index}) => {
             const label = `Input ${index + 1}`;
-            const filterEnabled =
-              this.state.filterNegativeDur?.[index] ?? false;
+            const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
 
             return m(
               '.pf-exp-interval-node',
@@ -404,6 +412,16 @@ export class IntervalIntersectNode implements MultiSourceNode {
                   }
                   this.state.filterNegativeDur[index] = !filterEnabled;
                   this.state.onchange?.();
+                },
+              }),
+              m(Button, {
+                icon: 'view_column',
+                title: 'Pick columns',
+                compact: true,
+                onclick: () => {
+                  if (this.state.actions?.onInsertModifyColumnsNode) {
+                    this.state.actions.onInsertModifyColumnsNode(index);
+                  }
                 },
               }),
             );

@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk-sys"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["David Reveman <dreveman@gmail.com>"]
 build = "build.rs"
 description = "Low-level FFI bindings for Perfetto"

@@ -708,43 +708,20 @@ export class AddColumnsNode implements ModificationNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Add Columns')),
       m(
         'p',
-        'A modification node that ',
-        m('strong', 'enriches your data'),
-        ' by adding columns from another source using a ',
-        m('code', 'LEFT JOIN'),
-        ' operation.',
+        'Enrich your data by adding columns from another table or query. Connect the additional source to the left port.',
       ),
       m(
         'p',
-        m('strong', 'Connect this node to two sources:'),
-        m(
-          'ul',
-          m(
-            'li',
-            m('strong', 'Top port:'),
-            ' The main data source (left side of the JOIN)',
-          ),
-          m(
-            'li',
-            m('strong', 'Left port:'),
-            ' The additional data source (right side of the JOIN)',
-          ),
-        ),
+        'Specify which columns to match (join key) and which columns to add. In Guided mode, get suggestions based on JOINID columns.',
       ),
       m(
         'p',
-        m('strong', 'How it works:'),
-        ' You specify which columns from each side to match (the join key), and which columns from the right side to add to your result.',
-      ),
-      m(
-        'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'ExperimentalAddColumns'),
-        ' operation from PerfettoSQL.',
+        m('strong', 'Example:'),
+        ' Add process details to slices by joining ',
+        m('code', 'upid'),
+        ' with the process table.',
       ),
     );
   }

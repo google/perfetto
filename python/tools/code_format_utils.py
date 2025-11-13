@@ -91,9 +91,9 @@ class CodeFormatterBase:
     cmd = ['git', 'diff', '--name-only', '--diff-filter=crd', upstream_branch]
     return subprocess.check_output(cmd, text=True).strip().splitlines()
 
-  def check_call(self, cmd, **kwargs):
+  def check_call(self, cmd, env=None, **kwargs):
     try:
-      subprocess.check_call(cmd, **kwargs)
+      subprocess.check_call(cmd, env=env, **kwargs)
       return 0
     except subprocess.CalledProcessError as ex:
       print('`%s` returned %d' % (' '.join(cmd)[:128], ex.returncode))

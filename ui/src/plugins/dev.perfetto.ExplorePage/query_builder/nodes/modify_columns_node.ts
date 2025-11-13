@@ -27,6 +27,7 @@ import {Checkbox} from '../../../../widgets/checkbox';
 import {Icon} from '../../../../widgets/icon';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
+import {Switch} from '../../../../widgets/switch';
 import {
   ColumnInfo,
   columnInfoFromName,
@@ -122,6 +123,12 @@ class SwitchComponent
 
     const columnNames = columns.map((c) => c.column.name);
 
+    // Check if the selected column is a string type
+    const selectedColumn = columns.find(
+      (c) => c.column.name === column.switchOn,
+    );
+    const isStringColumn = selectedColumn?.type === 'STRING';
+
     return m(
       '.pf-exp-switch-component',
       m(
@@ -138,6 +145,20 @@ class SwitchComponent
           ...columnNames.map((name) => m('option', {value: name}, name)),
         ),
       ),
+      isStringColumn &&
+        m(
+          '.pf-exp-switch-glob-toggle',
+          {style: {marginTop: '8px', marginBottom: '8px'}},
+          m(Switch, {
+            label: 'Use glob matching',
+            checked: column.useGlob ?? false,
+            onchange: (e: Event) => {
+              column.useGlob = (e.target as HTMLInputElement).checked;
+              this.updateExpression(column);
+              onchange();
+            },
+          }),
+        ),
       m(
         '.pf-exp-switch-default-row',
         'Default ',
@@ -188,9 +209,10 @@ class SwitchComponent
       return;
     }
 
+    const operator = col.useGlob ? 'GLOB' : '=';
     const casesStr = (col.cases || [])
       .filter((c) => c.when.trim() !== '' && c.then.trim() !== '')
-      .map((c) => `WHEN ${col.switchOn} = ${c.when} THEN ${c.then}`)
+      .map((c) => `WHEN ${col.switchOn} ${operator} ${c.when} THEN ${c.then}`)
       .join(' ');
 
     const defaultStr = col.defaultValue ? `ELSE ${col.defaultValue}` : '';
@@ -361,10 +383,14 @@ interface NewColumn {
   switchOn?: string;
   cases?: {when: string; then: string}[];
   defaultValue?: string;
+  useGlob?: boolean; // Use GLOB instead of = for string matching
 
   // For if columns
   clauses?: IfClause[];
   elseValue?: string;
+
+  // SQL type for preserving type information across serialization
+  sqlType?: string;
 }
 
 export interface ModifyColumnsSerializedState {
@@ -428,14 +454,46 @@ export class ModifyColumnsNode implements ModificationNode {
     this.state.newColumns
       .filter((c) => this.isNewColumnValid(c))
       .forEach((col) => {
-        finalCols.push(columnInfoFromName(col.name, true));
+        // Use stored sqlType if available (from deserialization)
+        if (col.sqlType) {
+          finalCols.push({
+            name: col.name,
+            type: col.sqlType,
+            checked: true,
+            column: {name: col.name},
+          });
+          return;
+        }
+
+        // Try to preserve type information if the expression is a simple column reference
+        const sourceCol = this.state.prevNode?.finalCols?.find(
+          (c) => c.column.name === col.expression,
+        );
+        if (sourceCol) {
+          // If the expression is a simple column reference, preserve the type
+          // Also store it in sqlType for future serialization
+          col.sqlType = sourceCol.type;
+          finalCols.push({
+            name: col.name,
+            type: sourceCol.type,
+            checked: true,
+            column: {...sourceCol.column, name: col.name},
+          });
+        } else {
+          // For complex expressions, use 'NA' as type
+          finalCols.push(columnInfoFromName(col.name, true));
+        }
       });
     return finalCols;
   }
 
   onPrevNodesUpdated() {
     // This node assumes it has only one previous node.
-    const sourceCols = this.state.prevNode.finalCols;
+    if (this.prevNode === undefined) {
+      return;
+    }
+
+    const sourceCols = this.prevNode.finalCols;
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
@@ -471,6 +529,10 @@ export class ModifyColumnsNode implements ModificationNode {
 
   resolveColumns() {
     // Recover full column information from prevNode
+    if (this.prevNode === undefined) {
+      return;
+    }
+
     const sourceCols = this.prevNode.finalCols ?? [];
     this.state.selectedColumns.forEach((c) => {
       const sourceCol = sourceCols.find((s) => s.name === c.name);
@@ -1032,37 +1094,30 @@ export class ModifyColumnsNode implements ModificationNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Modify Columns')),
       m(
         'p',
-        'A modification node that allows you to ',
-        m('strong', 'select which columns to include'),
-        ', ',
-        m('strong', 'rename columns'),
-        ', and ',
-        m('strong', 'create new computed columns'),
-        ' using SQL expressions.',
+        'Select which columns to include, rename columns, and create new computed columns using expressions.',
       ),
       m(
         'p',
-        m('strong', 'Common uses:'),
-        m(
-          'ul',
-          m('li', 'Renaming columns to more meaningful names'),
-          m('li', 'Selecting only the columns you need'),
-          m(
-            'li',
-            'Creating calculated columns (e.g., converting nanoseconds to milliseconds)',
-          ),
-          m('li', 'Applying transformations using SQL expressions'),
-        ),
+        'Use expressions like ',
+        m('code', 'dur / 1000000'),
+        ' to convert nanoseconds to milliseconds, or ',
+        m('code', 'CASE WHEN ... THEN ... END'),
+        ' for conditional logic.',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'SelectColumn'),
-        ' operation from PerfettoSQL, which supports both column names and SQL expressions with aliases.',
+        m('strong', 'Example:'),
+        ' Create a new column ',
+        m('code', 'dur_ms'),
+        ' by computing ',
+        m('code', 'dur / 1000000'),
+        ', or rename ',
+        m('code', 'ts'),
+        ' to ',
+        m('code', 'timestamp'),
+        '.',
       ),
     );
   }
@@ -1121,10 +1176,12 @@ export class ModifyColumnsNode implements ModificationNode {
           ? c.cases.map((cs) => ({when: cs.when, then: cs.then}))
           : undefined,
         defaultValue: c.defaultValue,
+        useGlob: c.useGlob,
         clauses: c.clauses
           ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
           : undefined,
         elseValue: c.elseValue,
+        sqlType: c.sqlType, // Preserve SQL type across serialization
       })),
       selectedColumns: this.state.selectedColumns.map((c) => ({
         name: c.name,

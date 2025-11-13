@@ -28,8 +28,13 @@ import {
   renderFilterOperation,
   createExperimentalFiltersProto,
   formatFilterDetails,
+  showFilterEditModal,
+  deleteFilterWithGroupDissolution,
+  findFilterGroup,
 } from '../operations/filter';
 import {StructuredQueryBuilder} from '../structured_query_builder';
+import {NodeIssues} from '../node_issues';
+import {showModal} from '../../../../widgets/modal';
 
 export interface FilterNodeState extends QueryNodeState {
   prevNode: QueryNode;
@@ -64,7 +69,80 @@ export class FilterNode implements ModificationNode {
     return 'Filter';
   }
 
+  private setValidationError(message: string): void {
+    if (!this.state.issues) {
+      this.state.issues = new NodeIssues();
+    }
+    this.state.issues.queryError = new Error(message);
+  }
+
+  private handleFilterEdit(filter: UIFilter): void {
+    // Check if there are any columns available
+    if (this.sourceCols.length === 0) {
+      showModal({
+        title: 'Cannot edit filter',
+        content: m(
+          'div',
+          m('p', 'No columns are available to filter on.'),
+          m(
+            'p',
+            'Please select a table or add columns before editing filters.',
+          ),
+        ),
+      });
+      return;
+    }
+
+    showFilterEditModal(
+      filter,
+      this.sourceCols,
+      (editedFilter) => {
+        // Check if filter is in a group
+        const groups = this.state.groups ?? [];
+        const group = findFilterGroup(filter, groups);
+
+        if (group) {
+          // Update filter in group
+          this.state.groups = groups.map((g) => {
+            if (g.id === group.id) {
+              return {
+                ...g,
+                filters: g.filters.map((f) =>
+                  f === filter ? editedFilter : f,
+                ),
+              };
+            }
+            return g;
+          });
+        } else {
+          // Update filter in main filters array
+          this.state.filters = (this.state.filters ?? []).map((f) =>
+            f === filter ? editedFilter : f,
+          );
+        }
+
+        this.state.onchange?.();
+        m.redraw();
+      },
+      () => {
+        // Delete callback - use shared utility for group dissolution logic
+        const result = deleteFilterWithGroupDissolution(
+          filter,
+          this.state.filters ?? [],
+          this.state.groups ?? [],
+        );
+
+        this.state.filters = result.filters;
+        this.state.groups = result.groups;
+        this.state.onchange?.();
+        m.redraw();
+      },
+    );
+  }
+
   nodeDetails(): m.Child {
+    this.validate();
+
     const hasFilters = this.state.filters && this.state.filters.length > 0;
     const hasGroups = this.state.groups && this.state.groups.length > 0;
 
@@ -79,10 +157,13 @@ export class FilterNode implements ModificationNode {
       this.state, // Pass state for interactive toggling and removal
       undefined, // onRemove - handled internally by formatFilterDetails
       true, // compact mode for smaller font
+      (filter) => this.handleFilterEdit(filter), // onEdit callback for right-click editing
     );
   }
 
   nodeSpecificModify(): m.Child {
+    this.validate();
+
     return renderFilterOperation(
       this.state.filters,
       this.state.filterOperator,
@@ -100,47 +181,64 @@ export class FilterNode implements ModificationNode {
         this.state.groups = [...newGroups];
         this.state.onchange?.();
       },
+      (filter) => this.handleFilterEdit(filter),
     );
   }
 
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'Filter')),
       m(
         'p',
-        'A modification node that ',
-        m('strong', 'filters rows'),
-        ' based on conditions you specify for column values.',
+        'Keep only rows that match conditions you specify. Supports operators like ',
+        m('code', '='),
+        ', ',
+        m('code', '>'),
+        ', ',
+        m('code', '<'),
+        ', ',
+        m('code', 'glob'),
+        ', and null checks.',
       ),
       m(
         'p',
-        m('strong', 'Combining conditions:'),
-        ' You can create multiple filter conditions and combine them with ',
+        'Combine multiple conditions with ',
         m('code', 'AND'),
         ' or ',
         m('code', 'OR'),
-        ' logic. Each filter can use ',
-        m('strong', 'operators'),
-        ' like equals, not equals, greater than, less than, contains, and more.',
-      ),
-      m(
-        'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'Filter'),
-        ' operation from PerfettoSQL structured queries, which supports various comparison operations and pattern matching.',
+        ' logic. Drag filters onto each other to create OR groups.',
       ),
       m(
         'p',
         m('strong', 'Example:'),
-        ' Filter slices where duration is greater than 1ms and name contains "render".',
+        ' Keep slices where ',
+        m('code', 'dur > 1000000'),
+        ' AND ',
+        m('code', 'name glob "*render*"'),
       ),
     );
   }
 
   validate(): boolean {
-    return this.prevNode !== undefined;
+    // Clear any previous errors at the start of validation
+    if (this.state.issues) {
+      this.state.issues.clear();
+    }
+
+    if (this.prevNode === undefined) {
+      this.setValidationError('No input node connected');
+      return false;
+    }
+
+    // Check if there are columns available from the previous node
+    if (this.sourceCols.length === 0) {
+      this.setValidationError(
+        'No columns available. Please select a table or add columns before filtering.',
+      );
+      return false;
+    }
+
+    return true;
   }
 
   clone(): QueryNode {

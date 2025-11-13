@@ -332,6 +332,7 @@ source_set("trace_type") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
+    "../../../protos/third_party/pprof:zero",
     "../../protozero",
     "../importers/android_bugreport:android_dumpstate_event",
     "../importers/android_bugreport:android_log_event",

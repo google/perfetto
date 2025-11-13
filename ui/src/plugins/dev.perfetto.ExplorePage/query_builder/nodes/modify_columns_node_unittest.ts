@@ -252,6 +252,106 @@ describe('ModifyColumnsNode', () => {
         "CASE WHEN status =   'active'   THEN   1   ELSE   0   END",
       );
     });
+
+    it('should generate CASE statement with GLOB operator when useGlob is true', () => {
+      const node = new ModifyColumnsNode({
+        prevNode: createMockPrevNode(),
+        newColumns: [
+          {
+            type: 'switch',
+            switchOn: 'status',
+            cases: [
+              {when: "'act*'", then: '1'},
+              {when: "'pend*'", then: '2'},
+            ],
+            defaultValue: '0',
+            useGlob: true,
+            expression:
+              "CASE WHEN status GLOB 'act*' THEN 1 WHEN status GLOB 'pend*' THEN 2 ELSE 0 END",
+            name: 'status_pattern',
+          },
+        ],
+        selectedColumns: [],
+      });
+
+      const newCol = node.state.newColumns[0];
+      expect(newCol.expression).toBe(
+        "CASE WHEN status GLOB 'act*' THEN 1 WHEN status GLOB 'pend*' THEN 2 ELSE 0 END",
+      );
+    });
+
+    it('should generate CASE statement with = operator when useGlob is false', () => {
+      const node = new ModifyColumnsNode({
+        prevNode: createMockPrevNode(),
+        newColumns: [
+          {
+            type: 'switch',
+            switchOn: 'status',
+            cases: [{when: "'active'", then: '1'}],
+            defaultValue: '0',
+            useGlob: false,
+            expression: "CASE WHEN status = 'active' THEN 1 ELSE 0 END",
+            name: 'status_exact',
+          },
+        ],
+        selectedColumns: [],
+      });
+
+      const newCol = node.state.newColumns[0];
+      expect(newCol.expression).toBe(
+        "CASE WHEN status = 'active' THEN 1 ELSE 0 END",
+      );
+    });
+
+    it('should generate CASE statement with = operator when useGlob is undefined', () => {
+      const node = new ModifyColumnsNode({
+        prevNode: createMockPrevNode(),
+        newColumns: [
+          {
+            type: 'switch',
+            switchOn: 'status',
+            cases: [{when: "'active'", then: '1'}],
+            defaultValue: '0',
+            expression: "CASE WHEN status = 'active' THEN 1 ELSE 0 END",
+            name: 'status_default',
+          },
+        ],
+        selectedColumns: [],
+      });
+
+      const newCol = node.state.newColumns[0];
+      expect(newCol.expression).toBe(
+        "CASE WHEN status = 'active' THEN 1 ELSE 0 END",
+      );
+    });
+
+    it('should handle glob patterns with complex wildcards', () => {
+      const node = new ModifyColumnsNode({
+        prevNode: createMockPrevNode(),
+        newColumns: [
+          {
+            type: 'switch',
+            switchOn: 'status',
+            cases: [
+              {when: "'[aA]ctive'", then: '1'},
+              {when: "'*ing'", then: '2'},
+              {when: "'done*'", then: '3'},
+            ],
+            defaultValue: '0',
+            useGlob: true,
+            expression:
+              "CASE WHEN status GLOB '[aA]ctive' THEN 1 WHEN status GLOB '*ing' THEN 2 WHEN status GLOB 'done*' THEN 3 ELSE 0 END",
+            name: 'status_glob',
+          },
+        ],
+        selectedColumns: [],
+      });
+
+      const newCol = node.state.newColumns[0];
+      expect(newCol.expression).toBe(
+        "CASE WHEN status GLOB '[aA]ctive' THEN 1 WHEN status GLOB '*ing' THEN 2 WHEN status GLOB 'done*' THEN 3 ELSE 0 END",
+      );
+    });
   });
 
   describe('IF column generation', () => {
@@ -477,6 +577,58 @@ describe('ModifyColumnsNode', () => {
       expect(serialized.newColumns[0].type).toBe('if');
       expect(serialized.newColumns[0].clauses?.length).toBe(1);
       expect(serialized.newColumns[0].elseValue).toBe("'low'");
+    });
+
+    it('should serialize SWITCH column with useGlob correctly', () => {
+      const node = new ModifyColumnsNode({
+        prevNode: createMockPrevNode(),
+        newColumns: [
+          {
+            type: 'switch',
+            switchOn: 'status',
+            cases: [{when: "'act*'", then: '1'}],
+            defaultValue: '0',
+            useGlob: true,
+            expression: "CASE WHEN status GLOB 'act*' THEN 1 ELSE 0 END",
+            name: 'status_pattern',
+          },
+        ],
+        selectedColumns: [],
+      });
+
+      const serialized = node.serializeState();
+
+      expect(serialized.newColumns).toBeDefined();
+      expect(serialized.newColumns.length).toBe(1);
+      expect(serialized.newColumns[0].type).toBe('switch');
+      expect(serialized.newColumns[0].switchOn).toBe('status');
+      expect(serialized.newColumns[0].useGlob).toBe(true);
+      expect(serialized.newColumns[0].cases?.length).toBe(1);
+      expect(serialized.newColumns[0].defaultValue).toBe('0');
+    });
+
+    it('should serialize SWITCH column without useGlob when false', () => {
+      const node = new ModifyColumnsNode({
+        prevNode: createMockPrevNode(),
+        newColumns: [
+          {
+            type: 'switch',
+            switchOn: 'status',
+            cases: [{when: "'active'", then: '1'}],
+            defaultValue: '0',
+            useGlob: false,
+            expression: "CASE WHEN status = 'active' THEN 1 ELSE 0 END",
+            name: 'status_code',
+          },
+        ],
+        selectedColumns: [],
+      });
+
+      const serialized = node.serializeState();
+
+      expect(serialized.newColumns).toBeDefined();
+      expect(serialized.newColumns.length).toBe(1);
+      expect(serialized.newColumns[0].useGlob).toBe(false);
     });
   });
 });

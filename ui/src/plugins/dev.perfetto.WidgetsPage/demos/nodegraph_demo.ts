@@ -530,61 +530,6 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     });
   };
 
-  const addNode = (
-    factory: (id: string, x: number, y: number) => NodeData,
-    toNodeId?: string,
-  ) => {
-    const id = uuidv4();
-
-    let x: number;
-    let y: number;
-
-    // Use API to find optimal placement if available
-    if (graphApi && !toNodeId) {
-      const tempNode = factory(id, 0, 0);
-      const config = NODE_CONFIGS[tempNode.type];
-      const placement = graphApi.findPlacementForNode({
-        id: tempNode.id,
-        inputs: config.inputs,
-        outputs: config.outputs,
-        canDockTop: config.canDockTop,
-        canDockBottom: config.canDockBottom,
-      });
-      x = placement.x;
-      y = placement.y;
-    } else {
-      // Fallback to random position
-      x = 100 + Math.random() * 200;
-      y = 50 + Math.random() * 200;
-    }
-
-    const newNode = factory(id, x, y);
-
-    updateStore((draft) => {
-      draft.nodes.set(newNode.id, newNode);
-
-      if (toNodeId) {
-        const parentNode = draft.nodes.get(toNodeId);
-        if (parentNode) {
-          newNode.nextId = parentNode.nextId;
-          parentNode.nextId = id;
-        }
-
-        // Find any connection connected to the bottom port of this node
-        const bottomConnectionIdx = draft.connections.findIndex(
-          (c) => c.fromNode === toNodeId && c.fromPort === 0,
-        );
-        if (bottomConnectionIdx > -1) {
-          draft.connections[bottomConnectionIdx] = {
-            ...draft.connections[bottomConnectionIdx],
-            fromNode: id,
-            fromPort: 0,
-          };
-        }
-      }
-    });
-  };
-
   const removeNode = (nodeId: string) => {
     updateStore((draft) => {
       const nodeToDelete = draft.nodes.get(nodeId);
@@ -864,59 +809,6 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     ];
   }
 
-  function renderAddNodeMenu(toNode: string) {
-    return [
-      m(MenuItem, {
-        label: 'Select',
-        icon: 'filter_alt',
-        onclick: () => addNode(createSelectNode, toNode),
-        style: {
-          borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
-        },
-      }),
-      m(MenuItem, {
-        label: 'Filter',
-        icon: 'filter_list',
-        onclick: () => addNode(createFilterNode, toNode),
-        style: {
-          borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
-        },
-      }),
-      m(MenuItem, {
-        label: 'Sort',
-        icon: 'sort',
-        onclick: () => addNode(createSortNode, toNode),
-        style: {
-          borderLeft: `4px solid hsl(${NODE_CONFIGS.sort.hue}, 60%, 50%)`,
-        },
-      }),
-      m(MenuItem, {
-        label: 'Join',
-        icon: 'join',
-        onclick: () => addNode(createJoinNode, toNode),
-        style: {
-          borderLeft: `4px solid hsl(${NODE_CONFIGS.join.hue}, 60%, 50%)`,
-        },
-      }),
-      m(MenuItem, {
-        label: 'Union',
-        icon: 'merge',
-        onclick: () => addNode(createUnionNode, toNode),
-        style: {
-          borderLeft: `4px solid hsl(${NODE_CONFIGS.union.hue}, 60%, 50%)`,
-        },
-      }),
-      m(MenuItem, {
-        label: 'Result',
-        icon: 'output',
-        onclick: () => addNode(createResultNode, toNode),
-        style: {
-          borderLeft: `4px solid hsl(${NODE_CONFIGS.result.hue}, 60%, 50%)`,
-        },
-      }),
-    ];
-  }
-
   // Find root nodes (not referenced by any other node's nextId)
   function getRootNodeIds(nodes: Map<string, NodeData>): string[] {
     const referenced = new Set<string>();
@@ -939,6 +831,125 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       if (queries.length > 0) {
         console.log('Generated SQL queries for result nodes:', queries);
       }
+
+      function renderAddNodeMenu(toNode: string) {
+        return [
+          m(MenuItem, {
+            label: 'Select',
+            icon: 'filter_alt',
+            onclick: () => addNode(createSelectNode, toNode),
+            style: {
+              borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
+            },
+          }),
+          m(MenuItem, {
+            label: 'Filter',
+            icon: 'filter_list',
+            onclick: () => addNode(createFilterNode, toNode),
+            style: {
+              borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
+            },
+          }),
+          m(MenuItem, {
+            label: 'Sort',
+            icon: 'sort',
+            onclick: () => addNode(createSortNode, toNode),
+            style: {
+              borderLeft: `4px solid hsl(${NODE_CONFIGS.sort.hue}, 60%, 50%)`,
+            },
+          }),
+          m(MenuItem, {
+            label: 'Join',
+            icon: 'join',
+            onclick: () => addNode(createJoinNode, toNode),
+            style: {
+              borderLeft: `4px solid hsl(${NODE_CONFIGS.join.hue}, 60%, 50%)`,
+            },
+          }),
+          m(MenuItem, {
+            label: 'Union',
+            icon: 'merge',
+            onclick: () => addNode(createUnionNode, toNode),
+            style: {
+              borderLeft: `4px solid hsl(${NODE_CONFIGS.union.hue}, 60%, 50%)`,
+            },
+          }),
+          m(MenuItem, {
+            label: 'Result',
+            icon: 'output',
+            onclick: () => addNode(createResultNode, toNode),
+            style: {
+              borderLeft: `4px solid hsl(${NODE_CONFIGS.result.hue}, 60%, 50%)`,
+            },
+          }),
+        ];
+      }
+
+      const addNode = (
+        factory: (id: string, x: number, y: number) => NodeData,
+        toNodeId?: string,
+      ) => {
+        const id = uuidv4();
+
+        let x: number;
+        let y: number;
+
+        // Use API to find optimal placement if available
+        if (graphApi && !toNodeId) {
+          const tempNode = factory(id, 0, 0);
+          const config = NODE_CONFIGS[tempNode.type];
+          const placement = graphApi.findPlacementForNode({
+            id,
+            inputs: config.inputs,
+            outputs: config.outputs?.map((out) => {
+              return {...out, contextMenuItems: renderAddNodeMenu(tempNode.id)};
+            }),
+            content: renderNodeContent(tempNode, () => {}),
+            canDockBottom: config.canDockBottom,
+            canDockTop: config.canDockTop,
+            accentBar: attrs.accentBars,
+            titleBar: attrs.titleBars
+              ? {title: tempNode.type.toUpperCase()}
+              : undefined,
+            hue: attrs.colors ? config.hue : undefined,
+            contextMenuItems: attrs.contextMenus
+              ? renderNodeContextMenu(tempNode)
+              : undefined,
+          });
+          x = placement.x;
+          y = placement.y;
+        } else {
+          // Fallback to random position
+          x = 100 + Math.random() * 200;
+          y = 50 + Math.random() * 200;
+        }
+
+        const newNode = factory(id, x, y);
+
+        updateStore((draft) => {
+          draft.nodes.set(newNode.id, newNode);
+
+          if (toNodeId) {
+            const parentNode = draft.nodes.get(toNodeId);
+            if (parentNode) {
+              newNode.nextId = parentNode.nextId;
+              parentNode.nextId = id;
+            }
+
+            // Find any connection connected to the bottom port of this node
+            const bottomConnectionIdx = draft.connections.findIndex(
+              (c) => c.fromNode === toNodeId && c.fromPort === 0,
+            );
+            if (bottomConnectionIdx > -1) {
+              draft.connections[bottomConnectionIdx] = {
+                ...draft.connections[bottomConnectionIdx],
+                fromNode: id,
+                fromPort: 0,
+              };
+            }
+          }
+        });
+      };
 
       // Render a model node and its chain
       function renderNodeChain(nodeData: NodeData): Node {

@@ -21,6 +21,7 @@ import {
   createFinalColumns,
   MultiSourceNode,
   nextNodeId,
+  setOperationChanged,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -77,6 +78,8 @@ export class SqlSourceNode implements MultiSourceNode {
 
   onQueryExecuted(columns: string[]) {
     this.setSourceColumns(columns);
+    // Mark node as changed to trigger re-analysis with updated columns
+    setOperationChanged(this);
   }
 
   clone(): QueryNode {
@@ -109,7 +112,9 @@ export class SqlSourceNode implements MultiSourceNode {
       query: prevNode.getStructuredQuery(),
     }));
 
-    const columnNames = this.finalCols.map((c) => c.column.name);
+    // Pass empty array for column names - the engine will discover them when analyzing the query
+    // Using this.finalCols here would pass stale columns from the previous execution
+    const columnNames: string[] = [];
 
     const sq = StructuredQueryBuilder.fromSql(
       this.state.sql || '',
@@ -171,32 +176,23 @@ export class SqlSourceNode implements MultiSourceNode {
   nodeInfo(): m.Children {
     return m(
       'div',
-      m('p', m('strong', 'SQL Source')),
       m(
         'p',
-        'A source node that allows you to write custom SQL queries to retrieve data from your trace.',
-      ),
-      m(
-        'p',
-        'This is the ',
-        m('strong', 'most flexible source node'),
-        ', letting you write arbitrary ',
-        m('code', 'SELECT'),
-        ' statements to access any data in the trace. You can reference other nodes using ',
+        'Write custom queries to access any data in the trace. Use ',
         m('code', '$node_id'),
-        ' syntax in your SQL.',
+        ' to reference other nodes in your query.',
       ),
       m(
         'p',
-        m('strong', 'Query type:'),
-        ' This node uses the ',
-        m('code', 'Sql'),
-        ' query type from PerfettoSQL, which supports custom SQL with dependencies on other structured queries.',
+        'Most flexible option for complex logic or operations not available through other nodes.',
       ),
       m(
         'p',
-        m('strong', 'Use case:'),
-        " Use this when you need complex logic or operations that aren't available through other node types.",
+        m('strong', 'Example:'),
+        ' Write ',
+        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
+        ' or reference another node with ',
+        m('code', 'SELECT * FROM $other_node WHERE ...'),
       ),
     );
   }
