@@ -187,9 +187,9 @@ message PerfettoSqlStructuredQuery {
   //    for unambiguous access
   //  - Partition columns (if any) are included without suffixes for easy
   //    access
-  // Other duplicated columns (i.e., non `id`, `ts`, `dur`) are not aliased
-  // without the sufixes and might be difficult to access. Users should try to
-  // avoid duplicated column names in their queries.
+  // Accessing other duplicated columns (i.e., non `id`, `ts`, `dur`) is an
+  // undefined behavior. It is recommended to alias such columns in the input
+  // queries to avoid ambiguity.
   message IntervalIntersect {
     // The base query
     optional PerfettoSqlStructuredQuery base = 1;
