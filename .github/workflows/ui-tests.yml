@@ -37,6 +37,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test permissions
+        if: ${{ always() }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha,
+              state: 'success',
+              target_url: 'https://example.com',
+              description: 'This is just a test',
+              context: 'Testing permissions'
+            });
+
       # Fetch the upstream branch as well, so we can diff and see the list of
       # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
