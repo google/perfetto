@@ -84,18 +84,6 @@ import {NodeIssues} from './node_issues';
 import {UIFilter} from './operations/filter';
 import {MaterializationService} from './materialization_service';
 
-const PANEL_STATE_KEY = 'perfettoExplorePanelState';
-const DATA_EXPLORER_STATE_KEY = 'perfettoDataExplorerState';
-
-interface PanelState {
-  isExplorerCollapsed?: boolean;
-  selectedView?: SelectedView;
-}
-
-interface DataExplorerState {
-  drawerVisibility?: SplitPanelDrawerVisibility;
-}
-
 export interface BuilderAttrs {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
@@ -169,20 +157,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.materializationService = new MaterializationService(
       attrs.trace.engine,
     );
-
-    // Load saved panel state - default to uncollapsed (false) and Info view if not set
-    const savedState = this.loadPanelState();
-    this.isExplorerCollapsed = savedState.isExplorerCollapsed === true;
-    this.selectedView =
-      typeof savedState.selectedView === 'number'
-        ? savedState.selectedView
-        : SelectedView.kInfo;
-
-    // Load saved data explorer drawer visibility - default to VISIBLE if not set
-    const dataExplorerState = this.loadDataExplorerState();
-    if (typeof dataExplorerState.drawerVisibility === 'number') {
-      this.drawerVisibility = dataExplorerState.drawerVisibility;
-    }
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
@@ -202,19 +176,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.queryExecuted = false;
       this.isQueryRunning = false;
       this.isAnalyzing = false;
-      // Restore saved view preference, but fall back to Info if Modify is not available
+      // Keep the current selected view when switching nodes
       const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
-      const savedState = this.loadPanelState();
-      const savedView =
-        typeof savedState.selectedView === 'number'
-          ? savedState.selectedView
-          : SelectedView.kInfo;
-
-      // If saved view is Modify but modify panel is not available, use Info instead
-      if (savedView === SelectedView.kModify && !hasModifyPanel) {
+      // If current view is Modify but modify panel is not available, switch to Info
+      if (this.selectedView === SelectedView.kModify && !hasModifyPanel) {
         this.selectedView = SelectedView.kInfo;
-      } else {
-        this.selectedView = savedView;
       }
     }
     this.previousSelectedNode = selectedNode;
@@ -281,7 +247,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           : SplitPanelDrawerVisibility.COLLAPSED,
         onVisibilityChange: (v) => {
           this.drawerVisibility = v;
-          this.saveDataExplorerState();
         },
         startingHeight: 300,
         drawerContent: selectedNode
@@ -310,7 +275,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 } else {
                   this.drawerVisibility = SplitPanelDrawerVisibility.FULLSCREEN;
                 }
-                this.saveDataExplorerState();
               },
               onExecute: () => {
                 // Reset queryExecuted flag to allow re-execution after errors or config changes
@@ -403,7 +367,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.selectedView = SelectedView.kInfo;
                 this.isExplorerCollapsed = false;
               }
-              this.savePanelState();
             },
           }),
           selectedNode.nodeSpecificModify() != null &&
@@ -425,7 +388,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   this.selectedView = SelectedView.kModify;
                   this.isExplorerCollapsed = false;
                 }
-                this.savePanelState();
               },
             }),
           m(Button, {
@@ -446,7 +408,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.selectedView = SelectedView.kSql;
                 this.isExplorerCollapsed = false;
               }
-              this.savePanelState();
             },
           }),
           m(Button, {
@@ -467,7 +428,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.selectedView = SelectedView.kProto;
                 this.isExplorerCollapsed = false;
               }
-              this.savePanelState();
             },
           }),
           m(Button, {
@@ -489,52 +449,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                 this.selectedView = SelectedView.kComment;
                 this.isExplorerCollapsed = false;
               }
-              this.savePanelState();
             },
           }),
         ),
     );
-  }
-
-  private loadPanelState(): PanelState {
-    const s = localStorage.getItem(PANEL_STATE_KEY);
-    try {
-      const parsed = JSON.parse(s ?? '{}');
-      if (typeof parsed === 'object' && parsed !== null) {
-        return parsed as PanelState;
-      }
-    } catch (e) {
-      // Ignore parse errors
-    }
-    return {};
-  }
-
-  private savePanelState() {
-    const state: PanelState = {
-      isExplorerCollapsed: this.isExplorerCollapsed,
-      selectedView: this.selectedView,
-    };
-    localStorage.setItem(PANEL_STATE_KEY, JSON.stringify(state));
-  }
-
-  private loadDataExplorerState(): DataExplorerState {
-    const s = localStorage.getItem(DATA_EXPLORER_STATE_KEY);
-    try {
-      const parsed = JSON.parse(s ?? '{}');
-      if (typeof parsed === 'object' && parsed !== null) {
-        return parsed as DataExplorerState;
-      }
-    } catch (e) {
-      // Ignore parse errors
-    }
-    return {};
-  }
-
-  private saveDataExplorerState() {
-    const state: DataExplorerState = {
-      drawerVisibility: this.drawerVisibility,
-    };
-    localStorage.setItem(DATA_EXPLORER_STATE_KEY, JSON.stringify(state));
   }
 
   private resolveNode(
