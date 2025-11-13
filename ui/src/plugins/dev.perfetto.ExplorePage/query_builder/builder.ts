@@ -176,13 +176,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       this.queryExecuted = false;
       this.isQueryRunning = false;
       this.isAnalyzing = false;
-      // Default to Edit if available, otherwise Info
+      // Keep the current selected view when switching nodes
       const hasModifyPanel = selectedNode.nodeSpecificModify() != null;
-      this.selectedView = hasModifyPanel
-        ? SelectedView.kModify
-        : SelectedView.kInfo;
-      // Collapse all panels if there's no kModify panel
-      this.isExplorerCollapsed = !hasModifyPanel;
+      // If current view is Modify but modify panel is not available, switch to Info
+      if (this.selectedView === SelectedView.kModify && !hasModifyPanel) {
+        this.selectedView = SelectedView.kInfo;
+      }
     }
     this.previousSelectedNode = selectedNode;
 

@@ -156,3 +156,26 @@
     }
   }
 }
+
+.pf-data-explorer-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.pf-data-explorer-warning-icon {
+  color: var(--pf-color-warning);
+  font-size: 64px;
+}
+
+.pf-data-explorer-warning-message {
+  text-align: center;
+  max-width: 600px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pf-color-on-surface);
+}
