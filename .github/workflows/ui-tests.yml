@@ -71,7 +71,6 @@ jobs:
         shell: bash
         run: ccache --show-stats
 
-
       - name: UI unittests
         shell: bash
         run: ui/run-unittests --out out/ui --no-build
@@ -107,17 +106,17 @@ jobs:
           if [[ -d out/ui/ui-test-artifacts ]]; then
             cp -a out/ui/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
           fi
-          
+
           if [[ ! -d "$PERFETTO_ARTIFACTS_DIR" || -n "$(find $PERFETTO_ARTIFACTS_DIR -maxdepth 0 -empty)" ]]; then
             echo "Directory '$PERFETTO_ARTIFACTS_DIR' is empty. Did one of the previous steps fail?"
             # Don't fail the step if there is nothing to upload.
             exit 0
           fi
-          
+
           # '--no-user-output-enabled' prevents the `cp` from printing the names
           # of all copied files to stdout.
           gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
-          
+
           echo "UI integration test report with screnshots:"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui-test-artifacts/index.html"
           echo ""
@@ -126,6 +125,30 @@ jobs:
           echo ""
           echo "Perfetto UI build for this CL"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
+
+          # Store the URL for the next step
+          echo "UI_BUILD_URL=https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html" >> $GITHUB_ENV
+
+      - name: Create status check with UI build link
+        if: ${{ always() }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = context.sha;
+            const uiBuildUrl = process.env.UI_BUILD_URL;
+
+            if (uiBuildUrl) {
+              await github.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha,
+                state: 'success',
+                target_url: uiBuildUrl,
+                description: 'Click to view UI build',
+                context: 'Perfetto UI Build'
+              });
+            }
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
