@@ -896,7 +896,7 @@ def Main():
   # TODO(b/360084012) Change the arg name to bigtrace
   if args.grpc:
     deps += BIGTRACE_DEPS
-  if args.rust_toolchain:
+  if args.rust:
     deps += BUILD_DEPS_RUST
   deps_updated = False
   nodejs_updated = False
@@ -1006,7 +1006,7 @@ def Main():
     elif venv_needs_update:
       InstallPythonVenv()
 
-  if args.rust_toolchain:
+  if args.rust:
     if args.check_only:
       deps_updated |= not CheckRustToolchain()
     else:
