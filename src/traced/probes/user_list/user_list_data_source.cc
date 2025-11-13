@@ -67,7 +67,7 @@ void UserListDataSource::Start() {
 
   error_code = ParseUserListStream(user_list_packet, fs, user_type_filter_);
   if (error_code != 0) {
-    PERFETTO_DLOG("Failed to parse user.list content: %s",
+    PERFETTO_ELOG("Failed to parse user.list content: %s",
                   strerror(error_code));
     user_list_packet->set_error(error_code);
   }
@@ -94,7 +94,7 @@ UserListDataSource::~UserListDataSource() = default;
 
 // Returns 0 on success, EPROTO on parsing failure.
 int ReadUserListLine(char* line, User* user) {
-  line[strcspn(line, "\r\n")] = 0;
+  line[strcspn(line, "\n")] = 0;
   size_t idx = 0;
   for (base::StringSplitter str_splitter(line, ' '); str_splitter.Next();) {
     switch (idx) {
@@ -108,8 +108,8 @@ int ReadUserListLine(char* line, User* user) {
         if (cur_uid.has_value()) {
           user->uid = cur_uid.value();
         } else {
-          PERFETTO_DLOG("Failed to parse user.list cur_uid.");
-          return EPROTO;  // Protocol error
+          PERFETTO_ELOG("Failed to parse user.list cur_uid.");
+          return -1;  // Protocol error
         }
         break;
       }
@@ -117,8 +117,8 @@ int ReadUserListLine(char* line, User* user) {
     ++idx;
   }
   if (idx < 2) {
-    PERFETTO_DLOG("Incomplete line in user.list.");
-    return EPROTO;
+    PERFETTO_ELOG("Incomplete line in user.list.");
+    return -1;
   }
   return 0;  // Success
 }
@@ -131,8 +131,8 @@ int ParseUserListStream(protos::pbzero::AndroidUserList* user_list_packet,
   char line[2048];
   while (fgets(line, sizeof(line), *fs) != nullptr) {
     User usr_struct;
-    if (ReadUserListLine(line, &usr_struct) != 0) {
-      return EPROTO;  // Return on first line parse error
+    if (ReadUserListLine(line, &usr_struct) < 0) {
+      return -1;  // Return on first line parse error
     }
     if (!user_type_filter.empty() &&
         user_type_filter.count(usr_struct.type) == 0) {
