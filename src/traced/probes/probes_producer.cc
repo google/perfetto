@@ -23,6 +23,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/crash_keys.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -376,6 +378,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
 void ProbesProducer::OnConnect() {
   PERFETTO_DCHECK(state_ == kConnecting);
   state_ = kConnected;
+  sock_inotify_.reset();
   ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
@@ -419,13 +422,23 @@ void ProbesProducer::OnConnect() {
 void ProbesProducer::OnDisconnect() {
   PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
   PERFETTO_LOG("Disconnected from tracing service");
+
   if (state_ == kConnected)
     return task_runner_->PostTask([this] { this->Restart(); });
 
   state_ = kNotConnected;
   IncreaseConnectionBackoff();
-  task_runner_->PostDelayedTask([this] { this->Connect(); },
-                                connection_backoff_ms_);
+
+  auto reconnect_task = [weak_this = weak_factory_.GetWeakPtr()] {
+    if (weak_this && weak_this->state_ == kNotConnected)
+      weak_this->Connect();
+  };
+
+  task_runner_->PostDelayedTask(reconnect_task, connection_backoff_ms_);
+  if (!sock_inotify_) {
+    sock_inotify_ = base::WatchUnixSocketCreation(task_runner_, socket_name_,
+                                                  reconnect_task);
+  }
 }
 
 void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,

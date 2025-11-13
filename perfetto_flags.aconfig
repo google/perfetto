@@ -63,3 +63,10 @@ flag {
   bug: "330580374"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_unix_socket_inotify"
+  namespace: "perfetto"
+  description: "Enables immediate reconnection to traced in case of crash or disconnection using inotify"
+  bug: "445943111"
+  is_fixed_read_only: true
+}
