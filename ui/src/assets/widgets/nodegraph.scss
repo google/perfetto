@@ -93,29 +93,104 @@
   &:hover .pf-show-on-hover {
     visibility: visible;
   }
-}
 
-.pf-node--has-accent-bar::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 10px;
-  height: 100%;
-  background-color: var(
-    --pf-color-border
-  ); /* Fallback color when hue not set */
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-}
+  &__dock-indicator-bottom {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    width: calc(var(--tab-width) - 6px);
+    height: 8px;
+    transform: translateX(-50%);
+    background-color: var(--pf-color-background);
+    border-bottom-right-radius: 5px;
+    border-bottom-left-radius: 5px;
+    box-shadow: 0 2px 6px var(--pf-color-box-shadow);
+    clip-path: inset(0 -10px -10px -10px);
+  }
 
-/* Override with hue-based color when --pf-node-hue is set via inline styles */
-.pf-node[style*="--pf-node-hue"].pf-node--has-accent-bar::before {
-  background: color-mix(
-    in srgb,
-    hsl(var(--pf-node-hue), 60%, 50%) 50%,
-    var(--pf-color-background)
-  );
+  &.pf-selected {
+    .pf-node__dock-indicator-bottom {
+      outline: 3px solid
+        color-mix(
+          in srgb,
+          var(--pf-color-accent) 50%,
+          var(--pf-color-background)
+        );
+    }
+  }
+
+  &__dock-indicator-top {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: var(--tab-width);
+    height: 8px;
+    transform: translateX(-50%);
+    background-color: var(--pf-color-border);
+    border-bottom-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+  }
+
+  &--has-docked-child {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+
+    &.pf-node--has-accent-bar:before {
+      border-bottom-left-radius: 0;
+    }
+
+    .pf-node__dock-indicator-bottom {
+      box-shadow: none;
+    }
+  }
+
+  &--is-docked-child {
+    border-top: solid 3px var(--pf-color-border);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+
+    &.pf-node--has-accent-bar:before {
+      border-top-left-radius: 0;
+    }
+
+    &.pf-selected {
+      border-top: none;
+      margin-top: 3px;
+    }
+  }
+
+  &--has-accent-bar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 10px;
+    height: 100%;
+    background-color: var(
+      --pf-color-border
+    ); /* Fallback color when hue not set */
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+  }
+
+  &.pf-selected {
+    .pf-node__dock-indicator-top {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-accent) 50%,
+        var(--pf-color-background)
+      );
+    }
+  }
+
+  /* Override with hue-based color when --pf-node-hue is set via inline styles */
+  &[style*="--pf-node-hue"].pf-node--has-accent-bar::before {
+    background: color-mix(
+      in srgb,
+      hsl(var(--pf-node-hue, gray), 50%, 50%) 80%,
+      var(--pf-color-background)
+    );
+  }
 }
 
 .pf-node-body {
@@ -132,15 +207,52 @@
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
   border-radius: 8px;
   width: max-content;
+  transition:
+    left 0.1s ease-out,
+    top 0.1s ease-out;
+
+  // Pop-in animation when node first appears
+  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   &--dragging {
     z-index: 1; // Ensure dragging entire chain appears above other nodes.
+    transition: none;
 
     // TODO Might want to add some visual indication of dragging entire chain
     // using box shadow, and maybe make slightly transparent.
     // opacity: 0.8;
     // box-shadow: 6px 6px 24px var(--pf-color-box-shadow);
   }
+
+  &--no-animation {
+    animation: none; // Disable animation for temporary/measurement nodes
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pop-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+.pf-node-wrapper--removing {
+  animation: pop-out 0.1s cubic-bezier(0.4, 0, 0.68, 0.06) forwards;
 }
 
 .pf-node.pf-selected {
