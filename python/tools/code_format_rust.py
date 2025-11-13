@@ -30,7 +30,7 @@ class RustFormat(CodeFormatterBase):
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
     tool = '.cargo/bin/rustfmt'
     if not os.path.exists(tool):
-      err = f'Cannot find {tool}\nRun tools/install-build-deps --rust-toolchain'
+      err = f'Cannot find {tool}\nRun tools/install-build-deps --rust'
       print(err, file=sys.stderr)
       return 127
     cmd = [tool, '--edition', '2024', '--unstable-features', '--skip-children']
