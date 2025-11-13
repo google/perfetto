@@ -213,7 +213,8 @@ describe('query_node utilities', () => {
 
       expect(result[0].name).toBe('identifier');
       expect(result[0].type).toBe('STRING');
-      expect(result[0].column.name).toBe('id');
+      // column.name should also be replaced with the alias so child nodes see the aliased name
+      expect(result[0].column.name).toBe('identifier');
     });
   });
 

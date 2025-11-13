@@ -58,9 +58,20 @@ export class IntervalIntersectNode implements MultiSourceNode {
 
   constructor(state: IntervalIntersectNodeState) {
     this.nodeId = nextNodeId();
+
+    // Initialize filterNegativeDur array with true for each prevNode if not provided
+    const filterNegativeDur = state.filterNegativeDur ?? [];
+    // Fill missing indices with true (default to filtering enabled)
+    for (let i = 0; i < state.prevNodes.length; i++) {
+      if (filterNegativeDur[i] === undefined) {
+        filterNegativeDur[i] = true;
+      }
+    }
+
     this.state = {
       ...state,
       autoExecute: state.autoExecute ?? false,
+      filterNegativeDur,
     };
     this.prevNodes = state.prevNodes;
     this.nextNodes = [];
@@ -250,16 +261,25 @@ export class IntervalIntersectNode implements MultiSourceNode {
   }
 
   onPrevNodesUpdated(): void {
+    // Initialize filterNegativeDur if it doesn't exist
+    if (!this.state.filterNegativeDur) {
+      this.state.filterNegativeDur = [];
+    }
+
     // Compact filterNegativeDur array to match prevNodes length
     // When nodes are removed, prevNodes is compacted, so we need to match that
-    if (
-      this.state.filterNegativeDur &&
-      this.state.filterNegativeDur.length > this.prevNodes.length
-    ) {
+    if (this.state.filterNegativeDur.length > this.prevNodes.length) {
       this.state.filterNegativeDur = this.state.filterNegativeDur.slice(
         0,
         this.prevNodes.length,
       );
+    }
+
+    // Initialize missing indices with true (default to filtering enabled)
+    for (let i = 0; i < this.prevNodes.length; i++) {
+      if (this.state.filterNegativeDur[i] === undefined) {
+        this.state.filterNegativeDur[i] = true;
+      }
     }
   }
 

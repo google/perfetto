@@ -82,6 +82,7 @@ export interface SerializedNode {
   nextNodes: string[];
   prevNode?: string;
   prevNodes?: string[];
+  inputNodes?: (string | undefined)[];
 }
 
 export interface SerializedGraph {
@@ -113,6 +114,13 @@ function serializeNode(node: QueryNode): SerializedNode {
       .map((n) => n!.nodeId);
   }
 
+  // Serialize inputNodes for ModificationNode with additional input ports
+  if ('inputNodes' in node && node.inputNodes) {
+    serialized.inputNodes = node.inputNodes.map((n) =>
+      n !== undefined ? n.nodeId : undefined,
+    );
+  }
+
   return serialized;
 }
 
@@ -137,9 +145,12 @@ export function serializeState(state: ExplorePageState): string {
   };
 
   const replacer = (key: string, value: unknown) => {
-    if (key === 'prevNodes' || key === 'prevNode' || key === '_trace') {
+    // Only strip _trace to avoid including large trace objects
+    if (key === '_trace') {
       return undefined;
     }
+    // prevNode, prevNodes, and inputNodes are already handled by serializeNode
+    // so we don't need to filter them here
     return typeof value === 'bigint' ? value.toString() : value;
   };
 
@@ -335,6 +346,26 @@ export function deserializeState(
         }
       }
     }
+
+    // Restore inputNodes for ModificationNode with additional input ports
+    if (serializedNode.inputNodes && 'inputNodes' in node) {
+      if (!node.inputNodes) {
+        node.inputNodes = [];
+      }
+      // Restore each inputNode connection
+      for (let i = 0; i < serializedNode.inputNodes.length; i++) {
+        const inputNodeId = serializedNode.inputNodes[i];
+        if (inputNodeId !== undefined) {
+          const inputNode = nodes.get(inputNodeId);
+          if (inputNode) {
+            node.inputNodes[i] = inputNode;
+          }
+        } else {
+          node.inputNodes[i] = undefined;
+        }
+      }
+    }
+
     if (serializedNode.type === NodeType.kIntervalIntersect) {
       const intervalNode = node as IntervalIntersectNode;
       if (intervalNode.prevNodes.length > 0) {

@@ -21,6 +21,7 @@ import {
   createFinalColumns,
   MultiSourceNode,
   nextNodeId,
+  setOperationChanged,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
@@ -77,6 +78,8 @@ export class SqlSourceNode implements MultiSourceNode {
 
   onQueryExecuted(columns: string[]) {
     this.setSourceColumns(columns);
+    // Mark node as changed to trigger re-analysis with updated columns
+    setOperationChanged(this);
   }
 
   clone(): QueryNode {
@@ -109,7 +112,9 @@ export class SqlSourceNode implements MultiSourceNode {
       query: prevNode.getStructuredQuery(),
     }));
 
-    const columnNames = this.finalCols.map((c) => c.column.name);
+    // Pass empty array for column names - the engine will discover them when analyzing the query
+    // Using this.finalCols here would pass stale columns from the previous execution
+    const columnNames: string[] = [];
 
     const sq = StructuredQueryBuilder.fromSql(
       this.state.sql || '',
