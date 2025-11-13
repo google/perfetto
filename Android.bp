@@ -2388,6 +2388,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_trace_processor_rpc_query_result_serializer",
 }
 
+// GN: //include/perfetto/ext/trace_processor:trace_processor_shell
+filegroup {
+    name: "perfetto_include_perfetto_ext_trace_processor_trace_processor_shell",
+}
+
 // GN: //include/perfetto/ext/traced:sys_stats_counters
 filegroup {
     name: "perfetto_include_perfetto_ext_traced_sys_stats_counters",
@@ -15660,6 +15665,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor:trace_processor_shell_src
+filegroup {
+    name: "perfetto_src_trace_processor_trace_processor_shell_src",
+    srcs: [
+        "src/trace_processor/trace_processor_shell.cc",
+    ],
+}
+
 // GN: //src/trace_processor/trace_summary:gen_cc_trace_summary_descriptor
 genrule {
     name: "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
@@ -18770,6 +18783,7 @@ cc_binary {
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":perfetto_include_perfetto_ext_trace_processor_rpc_query_result_serializer",
+        ":perfetto_include_perfetto_ext_trace_processor_trace_processor_shell",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_public_abi_base",
@@ -18906,6 +18920,7 @@ cc_binary {
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
+        ":perfetto_src_trace_processor_trace_processor_shell_src",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
         ":perfetto_src_trace_processor_types_types",
         ":perfetto_src_trace_processor_util_args_utils",
@@ -18933,7 +18948,7 @@ cc_binary {
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",
-        "src/trace_processor/trace_processor_shell.cc",
+        "src/trace_processor/trace_processor_shell_main.cc",
     ],
     static_libs: [
         "perfetto_src_trace_processor_demangle",
