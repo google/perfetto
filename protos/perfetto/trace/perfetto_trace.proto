@@ -10022,6 +10022,18 @@ message FuncgraphExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
 
+// Begin of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
+message FwtpPerfettoCounterFtraceEvent {
+  optional uint64 timestamp = 1;
+  optional uint32 track_id = 2;
+  optional string category = 3;
+  optional string name = 4;
+  optional uint32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
 // Begin of protos/perfetto/trace/ftrace/g2d.proto
 
 message G2dTracingMarkWriteFtraceEvent {
@@ -12839,6 +12851,7 @@ message FtraceEvent {
     DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
   }
 }
 

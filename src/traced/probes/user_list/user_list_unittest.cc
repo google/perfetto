@@ -57,13 +57,13 @@ TEST(UserListDataSourceTest, ParseLineWithSpaces) {
 TEST(UserListDataSourceTest, ParseLineIncomplete) {
   char kLine[] = "SYSTEM\n";
   User usr;
-  EXPECT_EQ(ReadUserListLine(kLine, &usr), EPROTO);
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), -1);
 }
 
 TEST(UserListDataSourceTest, ParseLineInvalidUid) {
   char kLine[] = "SYSTEM ABC\n";
   User usr;
-  EXPECT_EQ(ReadUserListLine(kLine, &usr), EPROTO);
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), -1);
 }
 
 TEST(UserListDataSourceTest, ParseUserListStream) {

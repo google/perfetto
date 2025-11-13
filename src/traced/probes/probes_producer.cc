@@ -308,7 +308,7 @@ ProbesProducer::CreateDSInstance<UserListDataSource>(
   return std::unique_ptr<ProbesDataSource>(new UserListDataSource(
       config, session_id,
       endpoint_->CreateTraceWriter(buffer_id,
-                                   perfetto::BufferExhaustedPolicy::kDrop)));
+                                   perfetto::BufferExhaustedPolicy::kStall)));
 }
 
 template <>
