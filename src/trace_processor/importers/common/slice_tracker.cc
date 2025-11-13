@@ -400,7 +400,7 @@ void SliceTracker::MaybeCloseStack(int64_t ts,
     auto category =
         context_->storage->GetString(ref.category().value_or(kNullStringId))
             .c_str();
-    if (strcmp(category, "jsprofile") == 0 && incomplete_descendent) {
+    if (category != nullptr && strcmp(category, "jsprofile") == 0 && incomplete_descendent) {
       ref.set_dur(ts - ref.ts());
       continue;
     }
