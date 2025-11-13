@@ -59,6 +59,10 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // floor and return errors forever.
   base::Status Parse(TraceBlobView) override = 0;
 
+  // Shorthand for Parse(TraceBlobView(TraceBlob(TakeOwnership(buf, size))).
+  // For compatibility with older API clients.
+  base::Status Parse(std::unique_ptr<uint8_t[]> buf, size_t size);
+
   // Forces all data in the trace to be pushed to tables without buffering data
   // in sorting queues. This is useful if queries need to be performed to
   // compute post-processing data (e.g. deobfuscation, symbolization etc) which
