@@ -31,6 +31,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
@@ -104,7 +105,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TransactionTraceEntry);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TranslationTable);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Trigger);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UiState);
-PERFETTO_PB_MSG_DECL(perfetto_protos_UserList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8CodeMove);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8InternalCode);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8JsCode);
@@ -567,7 +567,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   121);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_UserList,
+                  perfetto_protos_AndroidUserList,
                   user_list,
                   123);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,

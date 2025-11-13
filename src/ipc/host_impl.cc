@@ -92,6 +92,7 @@ base::MachineID GenerateMachineID(base::UnixSocket* sock,
 uid_t HostImpl::ClientConnection::GetPosixPeerUid() const {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   if (sock->family() == base::SockFamily::kUnix)
     return sock->peer_uid_posix();

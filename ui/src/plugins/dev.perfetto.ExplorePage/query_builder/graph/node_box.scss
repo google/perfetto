@@ -23,6 +23,7 @@
   gap: 0.375rem;
   padding: 0.625rem 0.75rem;
   cursor: grab;
+  overflow: hidden;
   transition:
     border-color 0.2s ease-in-out,
     box-shadow 0.2s ease-in-out;
@@ -90,6 +91,9 @@
 .pf-exp-node-box__content {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
 }
 
 .pf-exp-node-box__filters {

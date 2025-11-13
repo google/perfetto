@@ -25,68 +25,134 @@
 @import "./nodes/modify_columns_node.scss";
 
 .pf-query-builder-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   height: 100%;
 
-  &.no-selection {
-    grid-template-rows: auto 1fr;
-  }
-
-  &.selection {
-    grid-template-rows: 50% 50%;
+  // SplitPanel's main section needs to have the grid layout
+  .pf-split-panel__main {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    overflow: hidden;
   }
 
   .pf-qb-node-graph {
     grid-column: 1;
-    grid-row: 1;
     overflow: auto;
+    position: relative;
   }
 
   .pf-qb-explorer {
     grid-column: 2;
-    grid-row: 1;
-    overflow: auto;
+    overflow: hidden;
+    width: 500px;
+    height: 100%;
+    transition:
+      width 0.3s ease,
+      border-left 0.3s ease;
   }
 
-  .pf-qb-viewer {
-    overflow: auto;
-  }
+  .pf-qb-side-panel {
+    grid-column: 3;
+    width: 60px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background-color: var(--pf-color-surface);
+    border-left: 1px solid var(--pf-color-border);
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
 
-  &.selection-left {
-    .pf-qb-viewer {
-      grid-column: 1;
-      grid-row: 2;
+    .pf-button {
+      width: 100%;
+      height: 60px;
+      font-size: 20px;
+      box-shadow: none;
+      border: none;
+      border-radius: 0;
+      border-bottom: 1px solid var(--pf-color-border);
+      background-color: var(--pf-color-surface);
+
+      &:hover {
+        background-color: var(--pf-color-hover);
+      }
+
+      &.pf-active {
+        background-color: var(--pf-color-primary);
+        color: white;
+      }
     }
+  }
+
+  .pf-qb-floating-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    .pf-button {
+      width: 60px;
+      height: 60px;
+      font-size: 28px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        transform: scale(1.05);
+      }
+    }
+  }
+
+  .pf-qb-floating-controls-bottom {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .pf-button {
+      width: 40px;
+      height: 40px;
+      font-size: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+      &:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transform: scale(1.05);
+      }
+    }
+  }
+
+  .pf-qb-floating-warning {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--pf-color-danger);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      transform: scale(1.05);
+    }
+
+    .pf-qb-warning-icon {
+      color: white;
+      font-size: 28px;
+    }
+  }
+
+  &.explorer-collapsed {
     .pf-qb-explorer {
-      grid-row: 1 / span 2;
-    }
-  }
-
-  &.selection-right {
-    .pf-qb-viewer {
-      grid-column: 2;
-      grid-row: 2;
-    }
-    .pf-qb-node-graph {
-      grid-row: 1 / span 2;
-    }
-  }
-
-  &.selection-bottom {
-    .pf-qb-viewer {
-      grid-column: 1 / span 2;
-      grid-row: 2;
-    }
-  }
-  &.full-page {
-    .pf-qb-node-graph,
-    .pf-qb-explorer {
-      display: none;
-    }
-    .pf-qb-viewer {
-      grid-column: 1 / span 2;
-      grid-row: 1 / span 2;
+      width: 0;
+      border-left: none;
+      overflow: hidden;
     }
   }
 }

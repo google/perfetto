@@ -156,17 +156,20 @@ class BlockingCallMetricHandler implements MetricHandler {
       ).firstRow({frame_id: LONG});
     } catch (e) {
       throw new Error(
-        `${e.message} caused by: No frame found for the given process, CUJ and blocking call.`,
+        `${e.message} caused by: No frame found for:
+          process: ${metricData.process}
+          CUJ: ${metricData.cujName}
+          blocking call: ${metricData.blockingCallName}`,
       );
     }
 
-    // Fetch the ts and dur of the frame corresponding to the above frame_id.
+    // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
       SELECT
-        cast_string!(frame_id) AS frame_id,
+        frame_id,
         ts,
-        dur
-      FROM android_frames_layers
+        (ts_end - ts) AS dur
+      FROM _extended_frame_boundary
       WHERE frame_id = ${row.frame_id}
       `;
 

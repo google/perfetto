@@ -717,7 +717,6 @@ perfetto_cc_library(
             ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_traced_probes_user_list_user_list",
-            ":src_traced_probes_user_list_user_list_parser",
             ":src_tracing_ipc_producer_producer",
         ],
     }),
@@ -3092,6 +3091,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/cujs_base.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
     ],
 )
@@ -4391,15 +4391,6 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/user_list/user_list_data_source.cc",
         "src/traced/probes/user_list/user_list_data_source.h",
-    ],
-)
-
-# GN target: //src/traced/probes/user_list:user_list_parser
-perfetto_filegroup(
-    name = "src_traced_probes_user_list_user_list_parser",
-    srcs = [
-        "src/traced/probes/user_list/user_list_parser.cc",
-        "src/traced/probes/user_list/user_list_parser.h",
     ],
 )
 
@@ -6598,6 +6589,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/ftrace_event.proto",
         "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
         "protos/perfetto/trace/ftrace/ftrace_stats.proto",
+        "protos/perfetto/trace/ftrace/fwtp_ftrace.proto",
         "protos/perfetto/trace/ftrace/g2d.proto",
         "protos/perfetto/trace/ftrace/generic.proto",
         "protos/perfetto/trace/ftrace/google_icc_trace.proto",

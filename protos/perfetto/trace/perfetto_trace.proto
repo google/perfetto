@@ -878,7 +878,7 @@ message SurfaceFlingerTransactionsConfig {
 
 // Data source that lists details (such as version code) about users on an
 // Android device.
-message UserListConfig {
+message AndroidUserListConfig {
   // If not empty, emit info about only the following list of user types
   // (exact match, no regex). Otherwise, emit info about all users.
   repeated string user_type_filter = 1;
@@ -4190,7 +4190,7 @@ message DataSourceConfig {
   optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
   // Data source name: android.user_list
-  optional UserListConfig user_list_config = 138 [lazy = true];
+  optional AndroidUserListConfig user_list_config = 138 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -6911,19 +6911,17 @@ message DisplayState {
 
 // Begin of protos/perfetto/trace/android/user_list.proto
 
-message UserList {
+message AndroidUserList {
   message UserInfo {
+    // eg. android.os.usertype.full.SYSTEM, android.os.usertype.full.SECONDARY
     optional string type = 1;
-    optional uint64 uid = 2;
+    optional int32 uid = 2;
   }
 
   repeated UserInfo users = 1;
 
-  // At least one error occurred parsing the user.list.
-  optional bool parse_error = 2;
-
-  // Failed to open / read user.list.
-  optional bool read_error = 3;
+  // Error number
+  optional int32 error = 2;
 }
 
 // End of protos/perfetto/trace/android/user_list.proto
@@ -10024,6 +10022,18 @@ message FuncgraphExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
 
+// Begin of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
+message FwtpPerfettoCounterFtraceEvent {
+  optional uint64 timestamp = 1;
+  optional uint32 track_id = 2;
+  optional string category = 3;
+  optional string name = 4;
+  optional uint32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/fwtp_ftrace.proto
+
 // Begin of protos/perfetto/trace/ftrace/g2d.proto
 
 message G2dTracingMarkWriteFtraceEvent {
@@ -11310,6 +11320,8 @@ message PixelMmKswapdWakeFtraceEvent {
 message PixelMmKswapdDoneFtraceEvent {
   optional uint64 delta_nr_scanned = 1;
   optional uint64 delta_nr_reclaimed = 2;
+  optional uint64 delta_nr_allocated = 3;
+  optional uint64 duration_ns = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/pixel_mm.proto
@@ -12839,6 +12851,7 @@ message FtraceEvent {
     DrmSchedJobQueueFtraceEvent drm_sched_job_queue = 593;
     DrmSchedJobRunFtraceEvent drm_sched_job_run = 594;
     DrmSchedJobUnschedulableFtraceEvent drm_sched_job_unschedulable = 595;
+    FwtpPerfettoCounterFtraceEvent fwtp_perfetto_counter = 596;
   }
 }
 
@@ -17620,7 +17633,7 @@ message TracePacket {
 
     EvdevEvent evdev_event = 121;
 
-    UserList user_list = 123;
+    AndroidUserList user_list = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

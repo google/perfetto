@@ -1,6 +1,7 @@
 .aider*
 .android_config
 .cache
+.cargo
 .ccls
 .ccls-cache
 .clangd
@@ -23,6 +24,7 @@
 .venv
 .vscode
 *.code-workspace
+*.core
 *.iml
 *.LOCAL.md
 *.pyc

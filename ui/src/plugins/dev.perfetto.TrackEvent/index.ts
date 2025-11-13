@@ -92,7 +92,14 @@ function computeTrackEventCallstackFlamegraph(
             ${selection.start},
             ${selection.end},
             (
-              select id, ts, dur
+              select
+                id,
+                ts,
+                -- We do this instead of filtering out negative durations
+                -- because we still want to include begin callsites for
+                -- incomplete slices. The code below will take care of
+                -- only looking at begin callsites for such slices.
+                max(dur, 0) as dur
               from slice
               where track_id in (${trackIds.join()})
             )

@@ -25,21 +25,48 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/android/user_list.gen.h"
 #include "protos/perfetto/trace/android/user_list.pbzero.h"
-#include "src/traced/probes/user_list/user_list_parser.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
 
-TEST(UserListDataSourceTest, ParseLineNonProfileNonDebug) {
+TEST(UserListDataSourceTest, ParseLineSystem) {
   char kLine[] = "SYSTEM 0\n";
   User usr;
-  ASSERT_TRUE(ReadUserListLine(kLine, &usr));
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
   EXPECT_EQ(usr.type, "SYSTEM");
-  EXPECT_EQ(usr.uid, 0u);
+  EXPECT_EQ(usr.uid, 0);
 }
 
-TEST(UserListDataSourceTest, ParseLineProfileNonDebug) {
+TEST(UserListDataSourceTest, ParseLineProfile) {
+  char kLine[] = "PROFILE 10\n";  // Test a single line
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
+  EXPECT_EQ(usr.type, "PROFILE");
+  EXPECT_EQ(usr.uid, 10);
+}
+
+TEST(UserListDataSourceTest, ParseLineWithSpaces) {
+  char kLine[] = "GUEST 11  \n";
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), 0);
+  EXPECT_EQ(usr.type, "GUEST");
+  EXPECT_EQ(usr.uid, 11);
+}
+
+TEST(UserListDataSourceTest, ParseLineIncomplete) {
+  char kLine[] = "SYSTEM\n";
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), -1);
+}
+
+TEST(UserListDataSourceTest, ParseLineInvalidUid) {
+  char kLine[] = "SYSTEM ABC\n";
+  User usr;
+  EXPECT_EQ(ReadUserListLine(kLine, &usr), -1);
+}
+
+TEST(UserListDataSourceTest, ParseUserListStream) {
   char buf[] =
       "SYSTEM 0\n"
       "PROFILE 10\n";
@@ -51,32 +78,21 @@ TEST(UserListDataSourceTest, ParseLineProfileNonDebug) {
   auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
   pipe.rd.release();  // now owned by |fs|
 
-  protozero::HeapBuffered<protos::pbzero::UserList> user_list;
+  protozero::HeapBuffered<protos::pbzero::AndroidUserList> user_list;
   std::set<std::string> filter{};
 
-  ASSERT_TRUE(ParseUserListStream(user_list.get(), fs, filter));
+  EXPECT_EQ(ParseUserListStream(user_list.get(), fs, filter), 0);
 
-  protos::gen::UserList parsed_list;
+  protos::gen::AndroidUserList parsed_list;
   parsed_list.ParseFromString(user_list.SerializeAsString());
 
-  EXPECT_FALSE(parsed_list.read_error());
-  EXPECT_FALSE(parsed_list.parse_error());
+  EXPECT_EQ(parsed_list.error(), 0);
   // all entries
-  EXPECT_EQ(parsed_list.users_size(), 2);
+  ASSERT_EQ(parsed_list.users_size(), 2);
   EXPECT_EQ(parsed_list.users()[0].type(), "SYSTEM");
-  EXPECT_EQ(parsed_list.users()[0].uid(), 0u);
+  EXPECT_EQ(parsed_list.users()[0].uid(), 0);
   EXPECT_EQ(parsed_list.users()[1].type(), "PROFILE");
-  EXPECT_EQ(parsed_list.users()[1].uid(), 10u);
-}
-
-TEST(UserListDataSourceTest, ParseLineNonProfileDebug) {
-  char kLine[] =
-      "SYSTEM 0\n"
-      "PROFILE 10\n";
-  User usr;
-  ASSERT_TRUE(ReadUserListLine(kLine, &usr));
-  EXPECT_EQ(usr.type, "SYSTEM");
-  EXPECT_EQ(usr.uid, 0u);
+  EXPECT_EQ(parsed_list.users()[1].uid(), 10);
 }
 
 }  // namespace

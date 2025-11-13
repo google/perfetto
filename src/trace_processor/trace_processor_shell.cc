@@ -78,6 +78,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_HAS_SIGNAL_H() 1
 #else
@@ -124,6 +125,7 @@ std::string GetConfigPath() {
   const char* homedir = getenv("HOME");
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   if (homedir == nullptr)
     homedir = getpwuid(getuid())->pw_dir;
@@ -1843,7 +1845,7 @@ base::Status RegisterAllFilesInFolder(const std::string& path,
   RETURN_IF_ERROR(base::ListFilesRecursive(path, files));
   for (const std::string& file : files) {
     std::string file_full_path = path + "/" + file;
-    base::ScopedMmap mmap = base::ReadMmapWholeFile(file_full_path.c_str());
+    base::ScopedMmap mmap = base::ReadMmapWholeFile(file_full_path);
     if (!mmap.IsValid()) {
       return base::ErrStatus("Failed to mmap file: %s", file_full_path.c_str());
     }

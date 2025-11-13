@@ -14,21 +14,9 @@
 
 import("../../../../gn/test.gni")
 
-source_set("user_list_parser") {
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-  ]
-  sources = [
-    "user_list_parser.cc",
-    "user_list_parser.h",
-  ]
-}
-
 source_set("user_list") {
   public_deps = [ "../../../tracing/core" ]
   deps = [
-    ":user_list_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
@@ -48,7 +36,6 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":user_list",
-    ":user_list_parser",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/trace/android:cpp",

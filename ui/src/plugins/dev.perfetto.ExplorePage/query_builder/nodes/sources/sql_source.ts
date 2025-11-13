@@ -21,10 +21,12 @@ import {
   createFinalColumns,
   MultiSourceNode,
   nextNodeId,
+  setOperationChanged,
 } from '../../../query_node';
 import {columnInfoFromName} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
+import {StructuredQueryBuilder} from '../../structured_query_builder';
 
 import {
   QueryHistoryComponent,
@@ -33,11 +35,9 @@ import {
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
-import {UIFilter} from '../../operations/filter';
 
 export interface SqlSourceSerializedState {
   sql?: string;
-  filters?: UIFilter[];
   comment?: string;
 }
 
@@ -78,12 +78,13 @@ export class SqlSourceNode implements MultiSourceNode {
 
   onQueryExecuted(columns: string[]) {
     this.setSourceColumns(columns);
+    // Mark node as changed to trigger re-analysis with updated columns
+    setOperationChanged(this);
   }
 
   clone(): QueryNode {
     const stateCopy: SqlSourceState = {
       sql: this.state.sql,
-      filters: this.state.filters ? [...this.state.filters] : undefined,
       issues: this.state.issues,
       trace: this.state.trace,
     };
@@ -101,34 +102,33 @@ export class SqlSourceNode implements MultiSourceNode {
   serializeState(): SqlSourceSerializedState {
     return {
       sql: this.state.sql,
-      filters: this.state.filters,
       comment: this.state.comment,
     };
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = this.nodeId;
-    const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
+    const dependencies = this.prevNodes.map((prevNode) => ({
+      alias: prevNode.nodeId,
+      query: prevNode.getStructuredQuery(),
+    }));
 
-    if (this.state.sql) sqlProto.sql = this.state.sql;
-    sqlProto.columnNames = this.finalCols.map((c) => c.column.name);
+    // Pass empty array for column names - the engine will discover them when analyzing the query
+    // Using this.finalCols here would pass stale columns from the previous execution
+    const columnNames: string[] = [];
 
-    for (const prevNode of this.prevNodes) {
-      const dependency = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();
-      dependency.alias = prevNode.nodeId;
-      dependency.query = prevNode.getStructuredQuery();
-      sqlProto.dependencies.push(dependency);
-    }
-
-    sq.sql = sqlProto;
+    const sq = StructuredQueryBuilder.fromSql(
+      this.state.sql || '',
+      dependencies,
+      columnNames,
+      this.nodeId,
+    );
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
   }
 
-  nodeSpecificModify(onExecute: () => void): m.Child {
+  nodeSpecificModify(): m.Child {
     const runQuery = (sql: string) => {
       this.state.sql = sql.trim();
       m.redraw();
@@ -154,7 +154,8 @@ export class SqlSourceNode implements MultiSourceNode {
           onExecute: (text: string) => {
             queryHistoryStorage.saveQuery(text);
             this.state.sql = text.trim();
-            onExecute();
+            // Note: Execution is now handled by the Run button in DataExplorer
+            // This callback only saves to query history and updates the SQL text
             m.redraw();
           },
           autofocus: true,
@@ -169,6 +170,30 @@ export class SqlSourceNode implements MultiSourceNode {
           m.redraw();
         },
       }),
+    );
+  }
+
+  nodeInfo(): m.Children {
+    return m(
+      'div',
+      m(
+        'p',
+        'Write custom queries to access any data in the trace. Use ',
+        m('code', '$node_id'),
+        ' to reference other nodes in your query.',
+      ),
+      m(
+        'p',
+        'Most flexible option for complex logic or operations not available through other nodes.',
+      ),
+      m(
+        'p',
+        m('strong', 'Example:'),
+        ' Write ',
+        m('code', 'SELECT * FROM slice WHERE dur > 1000'),
+        ' or reference another node with ',
+        m('code', 'SELECT * FROM $other_node WHERE ...'),
+      ),
     );
   }
 
