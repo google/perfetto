@@ -204,7 +204,7 @@ export class LimitAndOffsetNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    const hasLimit = this.state.limit !== undefined && this.state.limit > 0;
+    const hasLimit = this.state.limit !== undefined && this.state.limit >= 0;
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {
