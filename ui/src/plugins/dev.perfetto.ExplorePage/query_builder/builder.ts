@@ -194,6 +194,30 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.isExplorerCollapsed && 'explorer-collapsed',
       ) || '';
 
+    // When no nodes exist, show only the graph (which renders EmptyGraph)
+    // without any panels or split layout
+    if (rootNodes.length === 0) {
+      return m(Graph, {
+        rootNodes,
+        selectedNode,
+        onNodeSelected,
+        nodeLayouts: attrs.nodeLayouts,
+        onNodeLayoutChange: attrs.onNodeLayoutChange,
+        onDeselect: attrs.onDeselect,
+        onAddSourceNode: attrs.onAddSourceNode,
+        onClearAllNodes,
+        onDuplicateNode: attrs.onDuplicateNode,
+        onAddOperationNode: (id, node) => attrs.onAddOperationNode(id, node),
+        devMode: attrs.devMode,
+        onDevModeChange: attrs.onDevModeChange,
+        onDeleteNode: attrs.onDeleteNode,
+        onConnectionRemove: attrs.onConnectionRemove,
+        onImport: attrs.onImport,
+        onImportWithStatement: attrs.onImportWithStatement,
+        onExport: attrs.onExport,
+      });
+    }
+
     const explorer = selectedNode
       ? m(NodeExplorer, {
           // The key to force mithril to re-create the component when the

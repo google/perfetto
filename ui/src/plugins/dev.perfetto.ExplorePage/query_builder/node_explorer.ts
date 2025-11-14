@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
@@ -188,7 +187,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   view({attrs}: m.CVnode<NodeExplorerAttrs>) {
     const {node, isCollapsed, selectedView = SelectedView.kInfo} = attrs;
     if (!node) {
-      return m(ExplorePageHelp);
+      return null;
     }
 
     // Update the node's onchange callback to point to our attrs.onchange
