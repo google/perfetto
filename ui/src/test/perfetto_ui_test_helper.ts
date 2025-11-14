@@ -53,6 +53,14 @@ export class PerfettoTestHelper {
     await this.page.goto('/?testing=1' + fragment);
     await this.waitForPerfettoIdle();
     await this.page.click('body');
+    await this.page.addStyleTag({
+      content: `
+        body {
+          -webkit-font-smoothing: antialiased !important;
+          font-kerning: none !important;
+        }
+      `,
+    });
   }
 
   async openTraceFile(traceName: string, args?: {}): Promise<void> {
