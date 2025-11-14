@@ -372,6 +372,16 @@ function onCssLoaded() {
         }
       }
 
+      // Add a dummy binding to prevent Mod+P from opening the print dialog.
+      // Firstly, there is no reason to print the UI. Secondly, plugins might
+      // register a Mod+P hotkey later at trace load time. It would be confusing
+      // if this hotkey sometimes does what you want, but sometimes shows the
+      // print dialog.
+      hotkeys.push({
+        hotkey: 'Mod+P',
+        callback: () => {},
+      });
+
       const currentTraceId = app.trace?.engine.engineId ?? 'no-trace';
 
       // Trace data is cached inside many components on the tree. To avoid
