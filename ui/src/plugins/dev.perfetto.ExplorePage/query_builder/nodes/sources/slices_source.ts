@@ -149,12 +149,6 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
       },
     },
     {
-      name: 'category',
-      type: {
-        kind: 'string',
-      },
-    },
-    {
       name: 'track_id',
       type: {
         kind: 'joinid',
@@ -210,6 +204,12 @@ export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
           table: 'slice',
           column: 'id',
         },
+      },
+    },
+    {
+      name: 'category',
+      type: {
+        kind: 'string',
       },
     },
   ];
