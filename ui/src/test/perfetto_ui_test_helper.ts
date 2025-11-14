@@ -61,6 +61,14 @@ export class PerfettoTestHelper {
       .map(([k, v]) => `${k}=${v}`)
       .join('&');
     await this.page.goto('/?' + qs);
+    await this.page.addStyleTag({
+      content: `
+        body {
+          -webkit-font-smoothing: antialiased !important;
+          font-kerning: none !important;
+        }
+      `,
+    });
     const file = await this.page.waitForSelector('input.trace_file', {
       state: 'attached',
     });
