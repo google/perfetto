@@ -43,19 +43,21 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.AddBatteryEventsTrack',
       name: 'Add track: battery events',
-      callback: async (track) => {
-        if (track === undefined) {
-          track = await ctx.omnibox.prompt('Battery Track');
-          if (track === undefined) return;
-        }
+      callback: async (rawTrackName) => {
+        const trackName = await (async function () {
+          if (typeof rawTrackName === 'string') return rawTrackName;
+          return await ctx.omnibox.prompt('Battery Track');
+        })();
+
+        if (!trackName) return;
 
         await ctx.engine.query(`SELECT IMPORT('android.battery_stats');`);
         await this.addSimpleTrack(
           ctx,
-          track,
+          trackName,
           `(SELECT *
             FROM android_battery_stats_event_slices
-            WHERE track_name = "${track}")`,
+            WHERE track_name = "${trackName}")`,
           ['ts', 'dur', 'str_value', 'int_value'],
         );
       },
@@ -64,16 +66,23 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.AddNetworkActivityTrack',
       name: 'Add track: network activity',
-      callback: async (groupby, filter, trackName) => {
-        if (groupby === undefined) {
-          groupby = await ctx.omnibox.prompt('Group by', 'package_name');
-          if (groupby === undefined) return;
-        }
+      callback: async (rawGroupby, rawFilter, rawTrackName) => {
+        const groupby = await (async function () {
+          if (typeof rawGroupby === 'string') return rawGroupby;
+          return await ctx.omnibox.prompt('Group by', 'package_name');
+        })();
 
-        if (filter === undefined) {
-          filter = await ctx.omnibox.prompt('Filter', 'TRUE');
-          if (filter === undefined) return;
-        }
+        const filter = await (async function () {
+          if (typeof rawFilter === 'string') return rawFilter;
+          return await ctx.omnibox.prompt('Group by', 'package_name');
+        })();
+
+        if (!groupby || !filter) return;
+
+        const trackName = await (async function () {
+          if (typeof rawTrackName === 'string') return rawTrackName;
+          return 'Network Activity';
+        })();
 
         const suffix = new Date().getTime();
         await ctx.engine.query(`
@@ -91,7 +100,7 @@ export default class implements PerfettoPlugin {
         const groupCols = groupby.replaceAll(' ', '').split(',');
         await this.addSimpleTrack(
           ctx,
-          trackName ?? 'Network Activity',
+          trackName,
           `android_network_activity_${suffix}`,
           ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count'],
         );

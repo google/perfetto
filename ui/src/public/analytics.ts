@@ -16,8 +16,33 @@ import {ErrorDetails} from '../base/logging';
 
 export type TraceCategories = 'Trace Actions' | 'Record Trace' | 'User Actions';
 
+/**
+ * Logs analytics events and errors.
+ *
+ * Use this to track user actions, trace operations, and error conditions.
+ * Events are categorized (e.g., 'Trace Actions', 'User Actions') and can
+ * be used to understand how users interact with your plugin.
+ */
 export interface Analytics {
+  /**
+   * Logs a generic analytics event.
+   *
+   * @param category The category of the event (e.g., 'Trace Actions').
+   * @param event The name of the event (e.g., 'Save trace').
+   */
   logEvent(category: TraceCategories | null, event: string): void;
+
+  /**
+   * Logs an error event.
+   *
+   * @param err The error details to log.
+   */
   logError(err: ErrorDetails): void;
+
+  /**
+   * Checks if analytics is enabled.
+   *
+   * @returns `true` if analytics is enabled, `false` otherwise.
+   */
   isEnabled(): boolean;
 }

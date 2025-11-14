@@ -15,17 +15,41 @@
 import {time} from '../base/time';
 import {Track} from './track';
 
+/**
+ * Defines the possible sources for a search result.
+ */
 export type SearchSource = 'cpu' | 'log' | 'slice' | 'track' | 'event';
 
+/**
+ * Represents a single search result.
+ */
 export interface SearchResult {
-  eventId: number;
-  ts: time;
-  trackUri: string;
-  source: SearchSource;
+  /**
+   * The ID of the event found.
+   */
+  readonly eventId: number;
+  /**
+   * The timestamp of the event.
+   */
+  readonly ts: time;
+  /**
+   * The URI of the track where the event is located.
+   */
+  readonly trackUri: string;
+  /**
+   * The source of the search result.
+   */
+  readonly source: SearchSource;
 }
 
+/**
+ * A callback function type for handling search result steps.
+ */
 export type ResultStepEventHandler = (r: SearchResult) => void;
 
+/**
+ * Represents a filter expression used for searching.
+ */
 export interface FilterExpression {
   /**
    * A SQL WHERE clause that filters the events in the selected tracks. The
@@ -40,6 +64,9 @@ export interface FilterExpression {
   readonly join?: string;
 }
 
+/**
+ * Defines a provider for search functionality.
+ */
 export interface SearchProvider {
   /**
    * A human-readable name for this search provider. This is not currently used
@@ -49,7 +76,7 @@ export interface SearchProvider {
 
   /**
    * Returns a set of tracks that this provider is interested in.
-   * @param tracks - A list of all tracks we want to search inside.
+   * @param tracks A list of all tracks we want to search inside.
    * @returns A subset of tracks that this provider is interested in.
    */
   selectTracks(tracks: ReadonlyArray<Track>): ReadonlyArray<Track>;
@@ -61,13 +88,20 @@ export interface SearchProvider {
    * This function is async because it may need to query some data using the
    * search term before it can return a filter expression.
    *
-   * @param searchTerm - The raw search term entered by the user.
+   * @param searchTerm The raw search term entered by the user.
    * @returns A promise that resolves to a FilterExpression that is compiled into
-   * the resulting SQL query. If undefined, this provider will not be used.
+   *   the resulting SQL query. If `undefined`, this provider will not be used.
    */
   getSearchFilter(searchTerm: string): Promise<FilterExpression | undefined>;
 }
 
+/**
+ * Manages the registration of search providers.
+ */
 export interface SearchManager {
+  /**
+   * Registers a new search provider.
+   * @param provider The search provider to register.
+   */
   registerSearchProvider(provider: SearchProvider): void;
 }

@@ -25,52 +25,99 @@ import {TrackNode} from './workspace';
 import {CanvasColors} from './canvas_colors';
 import {z} from 'zod';
 
+/**
+ * Defines criteria for filtering tracks.
+ */
 export interface TrackFilterCriteria {
+  /**
+   * The human-readable name of the filter criteria.
+   */
   readonly name: string;
 
-  // Run on each node to work out whether it satisfies the selected filter
-  // option.
+  /**
+   * A predicate function that determines whether a track satisfies the selected
+   * filter option.
+   * @param track The track node to evaluate.
+   * @param filterOption The selected filter option string.
+   * @returns `true` if the track satisfies the filter, `false` otherwise.
+   */
   readonly predicate: (track: TrackNode, filterOption: string) => boolean;
 
-  // The list of possible filter options.
-  readonly options: ReadonlyArray<{key: string; label: string}>;
+  /**
+   * The list of possible filter options for this criteria.
+   */
+  readonly options: ReadonlyArray<{
+    readonly key: string;
+    readonly label: string;
+  }>;
 }
 
+/**
+ * Manages the registration and discovery of tracks.
+ */
 export interface TrackManager {
   /**
-   * Register a new track against a unique key known as a URI. The track is not
-   * shown by default and callers need to either manually add it to a
-   * Workspace or use registerTrackAndShowOnTraceLoad() below.
+   * Registers a new track with a unique URI.
+   *
+   * The track is not shown by default; callers need to either manually add it
+   * to a Workspace or use `registerTrackAndShowOnTraceLoad()` (if available)
+   * to display it.
+   * @param track The track to register.
    */
   registerTrack(track: Track): void;
 
+  /**
+   * Finds a track that satisfies the given predicate.
+   * @param predicate A function that returns `true` for the desired track.
+   * @returns The first track that satisfies the predicate, or `undefined` if
+   *   none is found.
+   */
   findTrack(
     predicate: (track: Track) => boolean | undefined,
   ): Track | undefined;
 
+  /**
+   * Retrieves all currently registered tracks.
+   * @returns An array of all registered tracks.
+   */
   getAllTracks(): Track[];
 
+  /**
+   * Retrieves a track by its unique URI.
+   * @param uri The unique URI of the track.
+   * @returns The track if found, or `undefined`.
+   */
   getTrack(uri: string): Track | undefined;
 
   /**
-   * Register a track filter criteria, which can be used by end users to control
-   * the list of tracks they see in workspaces. These criteria can provide more
-   * power to the user compared to e.g. purely filtering by name.
+   * Registers a track filter criteria, which can be used by end users to
+   * control the list of tracks they see in workspaces.
+   *
+   * These criteria can provide more power to the user compared to purely
+   * filtering by name.
+   * @param filter The track filter criteria to register.
    */
   registerTrackFilterCriteria(filter: TrackFilterCriteria): void;
 
   /**
-   * Register a timeline overlay renderer.
+   * Registers a timeline overlay renderer.
    *
    * Overlays are rendered on top of all tracks in the timeline view and can be
    * used to draw annotations that span multiple tracks, such as flow arrows or
    * vertical lines marking specific events.
+   * @param overlay The overlay to register.
    */
   registerOverlay(overlay: Overlay): void;
 }
 
+/**
+ * Contextual information about the track passed to track lifecycle hooks &
+ * render hooks.
+ */
 export interface TrackContext {
-  // This track's URI, used for making selections et al.
+  /**
+   * This track's URI, used for making selections and other operations.
+   */
   readonly trackUri: string;
 }
 
@@ -116,30 +163,46 @@ export interface TrackRenderContext extends TrackContext {
   readonly colors: CanvasColors;
 }
 
-// A definition of a track, including a renderer implementation and metadata.
+/**
+ * A definition of a track, including a renderer implementation and metadata.
+ */
 export interface Track {
-  // A unique identifier for this track.
+  /**
+   * A unique identifier for this track.
+   */
   readonly uri: string;
 
-  // Describes how to render the track.
+  /**
+   * Describes how to render the track.
+   */
   readonly renderer: TrackRenderer;
 
-  // Optional: A human readable description of the track. This can be a simple
-  // string or a render function that returns Mithril vnodes.
+  /**
+   * Optional: A human readable description of the track. This can be a simple
+   * string or a render function that returns Mithril vnodes.
+   */
   readonly description?: string | (() => m.Children);
 
-  // Optional: Human readable subtitle. Sometimes displayed if there is room.
+  /**
+   * Optional: Human readable subtitle. Sometimes displayed if there is room.
+   */
   readonly subtitle?: string;
 
-  // Optional: A list of tags which provide additional metadata about the track.
-  // Used mainly for legacy purposes that predate dataset.
+  /**
+   * Optional: A list of tags which provide additional metadata about the track.
+   * Used mainly for legacy purposes that predate dataset.
+   */
   readonly tags?: TrackTags;
 
-  // Optional: A list of strings which are displayed as "chips" in the track
-  // shell.
+  /**
+   * Optional: A list of strings which are displayed as "chips" in the track
+   * shell.
+   */
   readonly chips?: ReadonlyArray<string>;
 
-  // Filled in by the core.
+  /**
+   * Filled in by the core.
+   */
   readonly pluginId?: string;
 }
 
@@ -148,12 +211,12 @@ export interface Track {
  */
 export interface TrackMouseEvent {
   /**
-   * X coordinate of the mouse event w.r.t. the top-left of the track.
+   * X coordinate of the mouse event with respect to the top-left of the track.
    */
   readonly x: number;
 
   /**
-   * Y coordinate of the mouse event w.r.t the top-left of the track.
+   * Y coordinate of the mouse event with respect to the top-left of the track.
    */
   readonly y: number;
 
@@ -172,35 +235,51 @@ export interface TrackMouseEvent {
  *
  * A lot of the fields in this interface are currently unused, but they will be
  * used in the future when track serialization is implemented.
+ * @template T The type of the setting's value.
  */
 export interface TrackSettingDescriptor<T> {
-  // A unique identifier for this setting. Will be used to store the serialized
-  // value for this setting. Currently unused.
+  /**
+   * A unique identifier for this setting. Will be used to store the serialized
+   * value for this setting. Currently unused.
+   */
   readonly id: string;
 
-  // A human readable name for this setting. This is displayed in the settings
-  // menu unless overridden.
+  /**
+   * A human readable name for this setting. This is displayed in the settings
+   * menu unless overridden.
+   */
   readonly name: string;
 
-  // A human readable description for this setting. Currently unused, but good
-  // practice to require this in order to document what a setting does and is
-  // used for.
+  /**
+   * A human readable description for this setting. Currently unused, but good
+   * practice to require this in order to document what a setting does and is
+   * used for.
+   */
   readonly description: string;
 
-  // A Zod schema describing the setting's value type which is used to infer the
-  // automatic settings menu type and options, and will be used for
-  // serialization and deserialization.
+  /**
+   * A Zod schema describing the setting's value type which is used to infer the
+   * automatic settings menu type and options, and will be used for
+   * serialization and deserialization.
+   */
   readonly schema: z.ZodType<T>;
 
-  // The default value for this setting. This will be used to render a 'reset'
-  // button in the render menu, and possibly as a fallback if parsing fails when
-  // we add serialization. Currently unused.
+  /**
+   * The default value for this setting. This will be used to render a 'reset'
+   * button in the render menu, and possibly as a fallback if parsing fails when
+   * we add serialization. Currently unused.
+   */
   readonly defaultValue: T;
 
-  // An optional function used to render a control for this setting. This
-  // describes what the control looks like in the settings menu on the track and
-  // also the bulk settings menu when multiple tracks are selected. If omitted,
-  // a control will be automatically generated based on the schema and name.
+  /**
+   * An optional function used to render a control for this setting. This
+   * describes what the control looks like in the settings menu on the track and
+   * also the bulk settings menu when multiple tracks are selected. If omitted,
+   * a control will be automatically generated based on the schema and name.
+   * @param setter A function to set the value of the setting.
+   * @param values An array of current values for the setting (for bulk editing).
+   * @returns Mithril children to render the control.
+   */
   render?(setter: (value: T) => void, values: ReadonlyArray<T>): m.Children;
 }
 
@@ -208,13 +287,28 @@ export interface TrackSettingDescriptor<T> {
  * A setting that can be changed by the user that affects how the track is
  * rendered or behaves. References a TrackSettingDescriptor which describes the
  * setting's metadata and how to render a control for it.
+ * @template T The type of the setting's value.
  */
 export interface TrackSetting<T> {
+  /**
+   * The descriptor for this track setting.
+   */
   readonly descriptor: TrackSettingDescriptor<T>;
-  getValue: () => T;
+  /**
+   * Gets the current value of the setting.
+   * @returns The current value of the setting.
+   */
+  getValue(): T;
+  /**
+   * Sets the value of the setting.
+   * @param newValue The new value for the setting.
+   */
   setValue(newValue: T): void;
 }
 
+/**
+ * Defines the rendering logic and lifecycle hooks for a track.
+ */
 export interface TrackRenderer {
   /**
    * Describes which root table the events on this track come from. This is
@@ -251,6 +345,7 @@ export interface TrackRenderer {
    *
    * Note: On the first render cycle, both onCreate and onUpdate are called one
    * after another.
+   * @param ctx The track context.
    */
   onCreate?(ctx: TrackContext): Promise<void>;
 
@@ -260,6 +355,7 @@ export interface TrackRenderer {
    * The track should inspect things like the visible window, track size, and
    * resolution to work out whether any data needs to be reloaded based on these
    * properties and perform a reload.
+   * @param ctx The track render context.
    */
   onUpdate?(ctx: TrackRenderContext): Promise<void>;
 
@@ -272,48 +368,93 @@ export interface TrackRenderer {
   /**
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
+   * @param ctx The track render context.
    */
   render(ctx: TrackRenderContext): void;
+
+  /**
+   * Optional: Called when a full redraw of the track is required.
+   */
   onFullRedraw?(): void;
 
   /**
    * Return the vertical bounds (top & bottom) of a slice were it to be rendered
    * at a specific depth, given the slice height and padding/spacing that this
    * track uses.
+   * @param depth The depth of the slice.
+   * @returns The vertical bounds of the slice, or `undefined`.
    */
   getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
+
+  /**
+   * Optional: Returns the height of the track.
+   * @returns The height of the track in pixels.
+   */
   getHeight?(): number;
+
+  /**
+   * Optional: Returns Mithril children for buttons to be displayed in the track shell.
+   * @returns Mithril children representing the track shell buttons.
+   */
   getTrackShellButtons?(): m.Children;
+
+  /**
+   * Optional: Called when the mouse moves over the track.
+   * @param event The track mouse event.
+   */
   onMouseMove?(event: TrackMouseEvent): void;
+
+  /**
+   * Optional: Called when the mouse is clicked on the track.
+   * @param event The track mouse event.
+   * @returns `true` if the click was handled, `false` otherwise.
+   */
   onMouseClick?(event: TrackMouseEvent): boolean;
+
+  /**
+   * Optional: Called when the mouse leaves the track area.
+   */
   onMouseOut?(): void;
 
   /**
    * Optional: Returns a dataset that represents the events displayed on this
    * track.
+   * @returns The source dataset for the track, or `undefined`.
    */
   getDataset?(): SourceDataset | undefined;
 
   /**
    * Optional: Get details of a track event given by eventId on this track.
+   * @param eventId The ID of the track event.
+   * @returns A promise that resolves to the track event details, or `undefined`.
    */
   getSelectionDetails?(eventId: number): Promise<TrackEventDetails | undefined>;
 
-  // Optional: A factory that returns a details panel object for a given track
-  // event selection. This is called each time the selection is changed (and the
-  // selection is relevant to this track).
+  /**
+   * Optional: A factory that returns a details panel object for a given track
+   * event selection. This is called each time the selection is changed (and the
+   * selection is relevant to this track).
+   * @param sel The track event selection.
+   * @returns The track event details panel, or `undefined`.
+   */
   detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel | undefined;
 
-  // Optional: Returns tooltip content if available. If the return value is
-  // falsy, no tooltip is rendered.
+  /**
+   * Optional: Returns tooltip content if available. If the return value is
+   * falsy, no tooltip is rendered.
+   * @returns Mithril children for the tooltip content, or `undefined`.
+   */
   renderTooltip?(): m.Children;
 }
 
-// An set of key/value pairs describing a given track. These are used for
-// selecting tracks to pin/unpin, diplsaying "chips" in the track shell, and
-// (in future) the sorting and grouping of tracks.
-// We define a handful of well known fields, and the rest are arbitrary key-
-// value pairs.
+/**
+ * An set of key/value pairs describing a given track. These are used for
+ * selecting tracks to pin/unpin, displaying "chips" in the track shell, and
+ * (in future) the sorting and grouping of tracks.
+ *
+ * We define a handful of well known fields, and the rest are arbitrary key-
+ * value pairs.
+ */
 export type TrackTags = Partial<WellKnownTrackTags> & {
   // There may be arbitrary other key/value pairs.
   [key: string]:
@@ -325,72 +466,147 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
     | ReadonlyArray<number>;
 };
 
+/**
+ * Well-known track tags used for various subsystems.
+ */
 interface WellKnownTrackTags {
-  // The track "kinds", are by various subsystems e.g. aggregation controllers
-  // in order to select tracks to operate on. A good analogy is how CSS
-  // selectors can match elements using their class list.
-  kinds: ReadonlyArray<string>;
+  /**
+   * The track "kinds", are by various subsystems e.g. aggregation controllers
+   * in order to select tracks to operate on. A good analogy is how CSS
+   * selectors can match elements using their class list.
+   */
+  readonly kinds: ReadonlyArray<string>;
 
-  // Optional: list of track IDs represented by this trace.
-  // This list is used for participation in track indexing by track ID.
-  // This index is used by various subsystems to find links between tracks based
-  // on the track IDs used by trace processor.
-  trackIds: ReadonlyArray<number>;
+  /**
+   * Optional: list of track IDs represented by this trace.
+   * This list is used for participation in track indexing by track ID.
+   * This index is used by various subsystems to find links between tracks based
+   * on the track IDs used by trace processor.
+   */
+  readonly trackIds: ReadonlyArray<number>;
 
-  // Optional: The CPU number associated with this track.
-  cpu: number;
+  /**
+   * Optional: The CPU number associated with this track.
+   */
+  readonly cpu: number;
 
-  // Optional: The UTID associated with this track.
-  utid: number;
+  /**
+   * Optional: The UTID associated with this track.
+   */
+  readonly utid: number;
 
-  // Optional: The UPID associated with this track.
-  upid: number;
+  /**
+   * Optional: The UPID associated with this track.
+   */
+  readonly upid: number;
 
-  // Track type, used for filtering
-  type: string;
+  /**
+   * Track type, used for filtering.
+   */
+  readonly type: string;
 }
 
+/**
+ * Represents a single slice on a track.
+ */
 export interface Slice {
-  // These properties are updated only once per query result when the Slice
-  // object is created and don't change afterwards.
+  /**
+   * The unique ID of the slice.
+   * These properties are updated only once per query result when the Slice
+   * object is created and don't change afterwards.
+   */
   readonly id: number;
+  /**
+   * The start timestamp of the slice in nanoseconds.
+   */
   readonly startNs: time;
+  /**
+   * The end timestamp of the slice in nanoseconds.
+   */
   readonly endNs: time;
+  /**
+   * The duration of the slice in nanoseconds.
+   */
   readonly durNs: duration;
+  /**
+   * The timestamp of the slice.
+   */
   readonly ts: time;
+  /**
+   * The count associated with the slice.
+   */
   readonly count: number;
+  /**
+   * The duration of the slice.
+   */
   readonly dur: duration;
+  /**
+   * The depth of the slice in its track.
+   */
   readonly depth: number;
+  /**
+   * Flags associated with the slice.
+   */
   readonly flags: number;
 
-  // Each slice can represent some extra numerical information by rendering a
-  // portion of the slice with a lighter tint.
-  // |fillRatio\ describes the ratio of the normal area to the tinted area
-  // width of the slice, normalized between 0.0 -> 1.0.
-  // 0.0 means the whole slice is tinted.
-  // 1.0 means none of the slice is tinted.
-  // E.g. If |fillRatio| = 0.65 the slice will be rendered like this:
-  // [############|*******]
-  // ^------------^-------^
-  //     Normal     Light
+  /**
+   * Each slice can represent some extra numerical information by rendering a
+   * portion of the slice with a lighter tint.
+   * `fillRatio` describes the ratio of the normal area to the tinted area
+   * width of the slice, normalized between 0.0 -> 1.0.
+   * 0.0 means the whole slice is tinted.
+   * 1.0 means none of the slice is tinted.
+   * E.g. If `fillRatio` = 0.65 the slice will be rendered like this:
+   * [############|*******]
+   * ^------------^-------^
+   *     Normal     Light
+   */
   readonly fillRatio: number;
 
-  // These can be changed by the Impl.
+  /**
+   * The title of the slice. These can be changed by the Impl.
+   */
   title?: string;
+  /**
+   * The subtitle of the slice.
+   */
   subTitle: string;
+  /**
+   * The color scheme used for the slice.
+   */
   colorScheme: ColorScheme;
+  /**
+   * Whether the slice is currently highlighted.
+   */
   isHighlighted: boolean;
 }
 
 /**
- * Contains a track and it's top and bottom coordinates in the timeline.
+ * Contains a track and its top and bottom coordinates in the timeline.
  */
 export interface TrackBounds {
+  /**
+   * The track node.
+   */
   readonly node: TrackNode;
+  /**
+   * The vertical bounds of the track.
+   */
   readonly verticalBounds: VerticalBounds;
 }
 
+/**
+ * Defines a timeline overlay renderer.
+ */
 export interface Overlay {
+  /**
+   * Renders the overlay on top of the tracks.
+   * @param ctx The 2D rendering context of the canvas.
+   * @param timescale The time scale used for translating between pixels and time.
+   * @param size The dimensions of the canvas in pixels.
+   * @param tracks A read-only array of track bounds.
+   * @param theme The canvas colors for the current theme.
+   */
   render(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
