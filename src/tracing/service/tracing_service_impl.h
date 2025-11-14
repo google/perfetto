@@ -48,6 +48,7 @@
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/perfetto_atoms.h"
+#include "src/protovm/vm.h"
 #include "src/tracing/core/id_allocator.h"
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/dependencies.h"
@@ -497,12 +498,19 @@ class TracingServiceImpl : public TracingService {
     uint64_t trigger_delay_ms = 0;
   };
 
+  struct BufferAndVms {
+    std::unique_ptr<TraceBuffer> buffer;
+    std::vector<std::unique_ptr<protovm::Vm>> vms;
+    // int64_t cloned_timeestamp;
+  };
+
   struct PendingClone {
     size_t pending_flush_cnt = 0;
     // This vector might not be populated all at once. Some buffers might be
     // nullptr while flushing is not done.
-    std::vector<std::unique_ptr<TraceBuffer>> buffers;
-    std::vector<int64_t> buffer_cloned_timestamps;
+    std::vector<BufferAndVms> buffer_and_vms;
+    std::vector<int64_t> buffer_cloned_timestamps;  // TODO(keanmariotti): move
+                                                    // into ClonedBufferAndVms
     bool flush_failed = false;
     base::WeakPtr<ConsumerEndpointImpl> weak_consumer;
     bool skip_trace_filter = false;
@@ -860,12 +868,12 @@ class TracingServiceImpl : public TracingService {
   std::map<ProducerID, std::vector<DataSourceInstanceID>>
   GetFlushableDataSourceInstancesForBuffers(TracingSession*,
                                             const std::set<BufferID>&);
-  bool DoCloneBuffers(const TracingSession&,
-                      const std::set<BufferID>&,
-                      PendingClone*);
+  bool DoCloneBuffersAndVms(const TracingSession&,
+                            const std::set<BufferID>&,
+                            PendingClone*);
   base::Status FinishCloneSession(ConsumerEndpointImpl*,
                                   TracingSessionID,
-                                  std::vector<std::unique_ptr<TraceBuffer>>,
+                                  std::vector<BufferAndVms>,
                                   std::vector<int64_t> buf_cloned_timestamps,
                                   bool skip_filter,
                                   bool final_flush_outcome,
@@ -918,6 +926,7 @@ class TracingServiceImpl : public TracingService {
   size_t PurgeExpiredAndCountTriggerInWindow(int64_t now_ns,
                                              uint64_t trigger_name_hash);
   void StopOnDurationMsExpiry(TracingSessionID);
+  void OnTracePacketOverwrite(BufferID, const TracePacket&);
 
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
@@ -937,7 +946,10 @@ class TracingServiceImpl : public TracingService {
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
   std::map<RelayClientID, RelayEndpointImpl*> relay_clients_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
+  // TODO(keanmariotti): merge buffer and VM. E.g. struct BufferAndVms{};. Reuse
+  // it for cloning as well
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
+  std::multimap<BufferID, std::unique_ptr<protovm::Vm>> proto_vms_;
   std::map<std::string, int64_t> session_to_last_trace_s_;
 
   // Contains timestamps of triggers.

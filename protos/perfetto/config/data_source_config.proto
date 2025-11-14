@@ -57,6 +57,7 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
+import "protos/perfetto/protovm/vm_program.proto";
 
 // The configuration that is passed to each data source when starting tracing.
 // Next id: 138
@@ -133,6 +134,10 @@ message DataSourceConfig {
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
 
   optional PriorityBoostConfig priority_boost = 10;
+
+  // The data source involves incremental state updates performed by the proto
+  // VM executing these instructions (1 VM instance per ds)
+  optional VmProgram vm_program = 11;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.

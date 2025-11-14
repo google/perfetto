@@ -26,6 +26,8 @@
 #include <optional>
 #include <string>
 #include <unordered_set>
+#include "perfetto/protozero/field.h"
+#include "src/protovm/vm.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -89,6 +91,7 @@
 #include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/protovm/vm_program.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
@@ -1103,8 +1106,13 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         buffer_cfg.fill_policy() == TraceConfig::BufferConfig::DISCARD
             ? TraceBuffer::kDiscard
             : TraceBuffer::kOverwrite;
-    auto it_and_inserted =
-        buffers_.emplace(global_id, TraceBufferV2::Create(buf_size, policy));
+    auto it_and_inserted = buffers_.emplace(
+        global_id,
+        TraceBufferV2::Create(
+            buf_size, policy, [this, global_id](const TracePacket& packet) {
+              OnTracePacketOverwrite(global_id, packet);
+            }));  // TODO(keanmariotti): ideally should have no callback if
+                  // there are no VMs on this buffer or policy != overwrite
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
     std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
     if (!trace_buffer) {
@@ -1140,6 +1148,19 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   // Setup the data sources on the producers without starting them.
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
+    // Setup proto VM
+    if (cfg_data_source.config().has_vm_program()) {
+      std::string program =
+          cfg_data_source.config().vm_program().SerializeAsString();
+      auto vm = std::make_unique<protovm::Vm>(
+          std::move(program),
+          1'000'000);  // TODO(keanmariotti): memory limit from config
+      BufferID buffer_id =
+          tracing_session
+              ->buffers_index[cfg_data_source.config().target_buffer()];
+      proto_vms_.emplace(buffer_id, std::move(vm));
+    }
+
     // Scan all the registered data sources with a matching name.
     auto range = data_sources_.equal_range(cfg_data_source.config().name());
     for (auto it = range.first; it != range.second; it++) {
@@ -2581,6 +2602,27 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
   bool did_hit_threshold = false;
 
+  std::vector<TracePacket> vm_state_packets;
+  vm_state_packets.reserve(10);
+
+  for (auto buffer : tracing_session->buffers_index) {
+    // TODO(keanmariotti): somehow ignore VMs/incremental state that have
+    // already been read for this session
+    auto [vm_begin, vm_end] = proto_vms_.equal_range(buffer);
+    for (auto it = vm_begin; it != vm_end; ++it) {
+      // TODO(keanmariotti): make OOM safe
+      std::string bytes = it->second->SerializeIncrementalState();
+      if (bytes.empty()) {
+        continue;
+      }
+      Slice s = Slice::Allocate(bytes.size());
+      memcpy(s.own_data(), bytes.data(), bytes.size());
+      TracePacket p;
+      p.AddSlice(std::move(s));
+      vm_state_packets.push_back(std::move(p));
+    }
+  }
+
   for (size_t buf_idx = 0;
        buf_idx < tracing_session->num_buffers() && !did_hit_threshold;
        buf_idx++) {
@@ -2594,9 +2636,17 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     while (!did_hit_threshold) {
       TracePacket packet;
       TraceBuffer::PacketSequenceProperties sequence_properties{};
-      bool previous_packet_dropped;
-      if (!tbuf.ReadNextTracePacket(&packet, &sequence_properties,
-                                    &previous_packet_dropped)) {
+      bool previous_packet_dropped = false;
+
+      if (!vm_state_packets.empty()) {
+        packet = std::move(vm_state_packets.back());
+        vm_state_packets.pop_back();
+        // TODO(keanmariotti): take from last applied patch
+        sequence_properties.producer_id_trusted = 1;
+        sequence_properties.writer_id = 1;
+        sequence_properties.client_identity_trusted = ClientIdentity{0, 0, 0};
+      } else if (!tbuf.ReadNextTracePacket(&packet, &sequence_properties,
+                                           &previous_packet_dropped)) {
         break;
       }
       packet.set_buffer_index_for_stats(static_cast<uint32_t>(buf_idx));
@@ -3490,15 +3540,16 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
     total_buffer_bytes += id_to_buffer.second->size();
   }
 
-  // Sum up all the cloned traced buffers.
+  // Sum up all the cloned traced buffers and VMs.
   for (const auto& id_to_ts : tracing_sessions_) {
     const TracingSession& ts = id_to_ts.second;
     for (const auto& id_to_clone_op : ts.pending_clones) {
       const PendingClone& clone_op = id_to_clone_op.second;
-      for (const std::unique_ptr<TraceBuffer>& buf : clone_op.buffers) {
-        if (buf) {
-          total_buffer_bytes += buf->size();
+      for (const BufferAndVms& buf_and_vms : clone_op.buffer_and_vms) {
+        if (buf_and_vms.buffer) {
+          total_buffer_bytes += buf_and_vms.buffer->size();
         }
+        // TODO(keanmariotti): sum up VMs size
       }
     }
   }
@@ -4182,7 +4233,7 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   clone_op.pending_flush_cnt = 0;
   // Pre-initialize these vectors just as an optimization to avoid reallocations
   // in DoCloneBuffers().
-  clone_op.buffers.reserve(session->buffers_index.size());
+  clone_op.buffer_and_vms.reserve(session->buffers_index.size());
   clone_op.buffer_cloned_timestamps.reserve(session->buffers_index.size());
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = args.skip_trace_filter;
@@ -4272,10 +4323,11 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
   base::Status result;
   base::Uuid uuid;
 
-  // First clone the flushed TraceBuffer(s). This can fail because of ENOMEM. If
-  // it happens bail out early before creating any session.
-  if (!DoCloneBuffers(*src, buf_ids, &clone_op)) {
-    result = PERFETTO_SVC_ERR("Buffer allocation failed");
+  // First clone the flushed TraceBuffer(s) and the proto VMs incremental states
+  // corresponding to the buffers. This can fail because of ENOMEM. If it
+  // happens bail out early before creating any session.
+  if (!DoCloneBuffersAndVms(*src, buf_ids, &clone_op)) {
+    result = PERFETTO_SVC_ERR("Buffers and VMs clone failed");
   }
 
   if (result.ok()) {
@@ -4291,7 +4343,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
 
     if (clone_op.weak_consumer) {
       result = FinishCloneSession(
-          &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
+          &*clone_op.weak_consumer, tsid, std::move(clone_op.buffer_and_vms),
           std::move(clone_op.buffer_cloned_timestamps),
           clone_op.skip_trace_filter, !clone_op.flush_failed,
           clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns);
@@ -4307,11 +4359,11 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
   UpdateMemoryGuardrail();
 }
 
-bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
-                                        const std::set<BufferID>& buf_ids,
-                                        PendingClone* clone_op) {
+bool TracingServiceImpl::DoCloneBuffersAndVms(const TracingSession& src,
+                                              const std::set<BufferID>& buf_ids,
+                                              PendingClone* clone_op) {
   PERFETTO_DCHECK(src.num_buffers() == src.config.buffers().size());
-  clone_op->buffers.resize(src.buffers_index.size());
+  clone_op->buffer_and_vms.resize(src.buffers_index.size());
   clone_op->buffer_cloned_timestamps.resize(src.buffers_index.size());
 
   int64_t now = clock_->GetBootTimeNs().count();
@@ -4340,7 +4392,16 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     if (!new_buf.get()) {
       return false;
     }
-    clone_op->buffers[buf_idx] = std::move(new_buf);
+
+    std::vector<std::unique_ptr<protovm::Vm>> new_vms;
+    new_vms.reserve(10);
+    auto [src_vm_begin, src_vm_end] = proto_vms_.equal_range(src_buf_id);
+    for (auto src_vm = src_vm_begin; src_vm != src_vm_end; ++src_vm) {
+      new_vms.push_back(src_vm->second->CloneReadOnly());
+    }
+
+    clone_op->buffer_and_vms[buf_idx] = {std::move(new_buf),
+                                         std::move(new_vms)};
     clone_op->buffer_cloned_timestamps[buf_idx] = now;
   }
   return true;
@@ -4349,7 +4410,7 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
 base::Status TracingServiceImpl::FinishCloneSession(
     ConsumerEndpointImpl* consumer,
     TracingSessionID src_tsid,
-    std::vector<std::unique_ptr<TraceBuffer>> buf_snaps,
+    std::vector<BufferAndVms> buf_and_vm_snaps,
     std::vector<int64_t> buf_cloned_timestamps,
     bool skip_trace_filter,
     bool final_flush_outcome,
@@ -4371,15 +4432,23 @@ base::Status TracingServiceImpl::FinishCloneSession(
         "The consumer is already attached to another tracing session");
   }
 
+  PERFETTO_CHECK(std::all_of(
+      buf_and_vm_snaps.cbegin(), buf_and_vm_snaps.cend(),
+      [](const BufferAndVms& buf_and_vms) {
+        bool buf_not_null = buf_and_vms.buffer != nullptr;
+        bool vms_not_null =
+            std::all_of(buf_and_vms.vms.cbegin(), buf_and_vms.vms.cend(),
+                        [](const std::unique_ptr<protovm::Vm>& vm) {
+                          return vm != nullptr;
+                        });
+        return buf_not_null && vms_not_null;
+      }));
+
   std::vector<BufferID> buf_ids =
-      buffer_ids_.AllocateMultiple(buf_snaps.size());
-  if (buf_ids.size() != buf_snaps.size()) {
+      buffer_ids_.AllocateMultiple(buf_and_vm_snaps.size());
+  if (buf_ids.size() != buf_and_vm_snaps.size()) {
     return PERFETTO_SVC_ERR("Buffer id allocation failed");
   }
-
-  PERFETTO_CHECK(std::none_of(
-      buf_snaps.begin(), buf_snaps.end(),
-      [](const std::unique_ptr<TraceBuffer>& buf) { return buf == nullptr; }));
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* cloned_session =
@@ -4399,9 +4468,9 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->trace_uuid.set_lsb(orig_uuid_lsb);
   *new_uuid = cloned_session->trace_uuid;
 
-  for (size_t i = 0; i < buf_snaps.size(); i++) {
+  for (size_t i = 0; i < buf_and_vm_snaps.size(); i++) {
     BufferID buf_global_id = buf_ids[i];
-    std::unique_ptr<TraceBuffer>& buf = buf_snaps[i];
+    std::unique_ptr<TraceBuffer>& buf = buf_and_vm_snaps[i].buffer;
     // This is only needed for transfer_on_clone. Other buffers are already
     // marked as read-only by CloneReadOnly(). We cannot do this early because
     // in case of an allocation failure we will put std::move() the original
@@ -4409,8 +4478,13 @@ base::Status TracingServiceImpl::FinishCloneSession(
     buf->set_read_only();
     buffers_.emplace(buf_global_id, std::move(buf));
     cloned_session->buffers_index.emplace_back(buf_global_id);
+    for (std::unique_ptr<protovm::Vm>& vm : buf_and_vm_snaps[i].vms) {
+      proto_vms_.emplace(buf_global_id, std::move(vm));
+    }
   }
   UpdateMemoryGuardrail();
+
+  // TODO(keanmariotti): move serialized incremental states into cloned session
 
   // Copy over relevant state that we want to persist in the cloned session.
   // Mostly stats and metadata that is emitted in the trace file by the service.
@@ -4463,6 +4537,30 @@ base::Status TracingServiceImpl::FinishCloneSession(
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
   return base::OkStatus();
+}
+
+void TracingServiceImpl::OnTracePacketOverwrite(BufferID buffer,
+                                                const TracePacket& packet) {
+  // TODO(keanmariotti): reimplement this crap. Reuse the buffer. Possibly
+  // impose a packet size limit?
+  std::vector<uint8_t> bytes;
+  for (const auto& slice : packet.slices()) {
+    bytes.insert(bytes.cend(), slice.size, 0);
+    std::memcpy(bytes.data() + bytes.size() - slice.size, slice.start,
+                slice.size);
+  }
+
+  auto [begin, end] = proto_vms_.equal_range(buffer);
+  for (auto it = begin; it != end; ++it) {
+    auto status = it->second->ApplyPatch(
+        protozero::ConstBytes{bytes.data(), bytes.size()});
+    if (status.IsOk()) {
+      break;
+    }
+    if (status.IsAbort()) {
+      // TODO(keanmariotti): handle aborts
+    }
+  }
 }
 
 bool TracingServiceImpl::TracingSession::IsCloneAllowed(uid_t clone_uid) const {

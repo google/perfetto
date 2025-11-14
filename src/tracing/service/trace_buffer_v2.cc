@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -537,19 +538,25 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
 // +---------------------------------------------------------------------------+
 
 // static
-std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
-                                                     OverwritePolicy pol) {
+std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(
+    size_t size_in_bytes,
+    OverwritePolicy pol,
+    PacketOverwriteCallback packet_overwrite_callback) {
   // The size and alignment of TBChunk have implications on the memory
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
-  std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
+  std::unique_ptr<TraceBufferV2> trace_buffer(
+      new TraceBufferV2(pol, packet_overwrite_callback));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
   return trace_buffer;
 }
 
-TraceBufferV2::TraceBufferV2(OverwritePolicy pol) : overwrite_policy_(pol) {}
+TraceBufferV2::TraceBufferV2(OverwritePolicy pol,
+                             PacketOverwriteCallback packet_overwrite_callback)
+    : overwrite_policy_(pol),
+      packet_overwrite_callback_(std::move(packet_overwrite_callback)) {}
 
 bool TraceBufferV2::Initialize(size_t size) {
   size = base::AlignUp(std::max(size, size_t(1)), 4096);
@@ -917,11 +924,13 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
       // TODO(keanmariotti): if we have a ProtoVM here we should pass a non-null
       // TracePacket. But if we don't we should pass nullptr, as AddSlice() on
       // TracePacket has significant overhead (due to hitting the allocator)
-      TracePacket* trace_packet = nullptr;
-      if (!csr.ReadNextPacketInSeqOrder(trace_packet))
+      TracePacket trace_packet;
+      if (!csr.ReadNextPacketInSeqOrder(&trace_packet))
         break;
       has_cleared_unconsumed_fragments = true;
       // TODO(keanmariotti): pass `trace_packet` to ProtoVM.
+
+      packet_overwrite_callback_(trace_packet);
     }
 
     // In future this branch should become "&& !protovm_has_consumed_packet"

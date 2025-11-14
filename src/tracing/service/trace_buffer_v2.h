@@ -372,10 +372,14 @@ class TraceBufferV2 : public TraceBuffer {
   using OverwritePolicy = TraceBuffer::OverwritePolicy;
   using Patch = TraceBuffer::Patch;
   using PacketSequenceProperties = TraceBuffer::PacketSequenceProperties;
+  using PacketOverwriteCallback = std::function<void(const TracePacket&)>;
 
   // Can return nullptr if the memory allocation fails.
-  static std::unique_ptr<TraceBufferV2> Create(size_t size_in_bytes,
-                                               OverwritePolicy = kOverwrite);
+  static std::unique_ptr<TraceBufferV2> Create(
+      size_t size_in_bytes,
+      OverwritePolicy = kOverwrite,
+      PacketOverwriteCallback packet_overwrite_callback =
+          [](const TracePacket&) {});
 
   // Copies a Chunk from a producer Shared Memory Buffer into the trace buffer.
   // |src| points to the first packet in the SharedMemoryABI's chunk shared with
@@ -494,7 +498,7 @@ class TraceBufferV2 : public TraceBuffer {
   friend class internal::ChunkSeqReader;
   friend class internal::ChunkSeqIterator;
 
-  explicit TraceBufferV2(OverwritePolicy);
+  explicit TraceBufferV2(OverwritePolicy, PacketOverwriteCallback);
   TraceBufferV2(const TraceBufferV2&) = delete;
   TraceBufferV2& operator=(const TraceBufferV2&) = delete;
 
@@ -592,6 +596,8 @@ class TraceBufferV2 : public TraceBuffer {
   // bugs in the producers. This is for tests that feed malicious inputs and
   // hence mimic a buggy producer.
   bool suppress_client_dchecks_for_testing_ = false;
+
+  PacketOverwriteCallback packet_overwrite_callback_;
 };
 
 }  // namespace perfetto

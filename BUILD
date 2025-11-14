@@ -163,6 +163,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -236,6 +237,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_zero",
         ":protos_perfetto_ipc_cpp",
         ":protos_perfetto_ipc_ipc",
+        ":protos_perfetto_protovm_cpp",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -299,6 +302,7 @@ perfetto_cc_binary(
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_track_event_cpp",
+        ":protos_perfetto_protovm_cpp",
         ":protozero",
         ":src_base_base",
         ":src_base_version",
@@ -467,6 +471,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
+               ":protos_perfetto_protovm_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
                ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
@@ -560,6 +565,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_system_info_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -633,6 +639,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
+        ":protos_perfetto_protovm_cpp",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -664,6 +672,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -763,6 +772,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_zero",
         ":protos_perfetto_ipc_cpp",
         ":protos_perfetto_ipc_ipc",
+        ":protos_perfetto_protovm_cpp",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -1535,6 +1546,34 @@ perfetto_filegroup(
     srcs = [
         "src/profiling/deobfuscator.cc",
         "src/profiling/deobfuscator.h",
+    ],
+)
+
+# GN target: //src/protovm:protovm
+perfetto_filegroup(
+    name = "src_protovm_protovm",
+    srcs = [
+        "src/protovm/allocator.cc",
+        "src/protovm/allocator.h",
+        "src/protovm/error_handling.cc",
+        "src/protovm/error_handling.h",
+        "src/protovm/executor.cc",
+        "src/protovm/executor.h",
+        "src/protovm/node.cc",
+        "src/protovm/node.h",
+        "src/protovm/owned_ptr.h",
+        "src/protovm/parser.cc",
+        "src/protovm/parser.h",
+        "src/protovm/ro_cursor.cc",
+        "src/protovm/ro_cursor.h",
+        "src/protovm/rw_proto.cc",
+        "src/protovm/rw_proto.h",
+        "src/protovm/rw_proto_cursor.cc",
+        "src/protovm/rw_proto_cursor.h",
+        "src/protovm/scalar.h",
+        "src/protovm/slab_allocator.h",
+        "src/protovm/vm.cc",
+        "src/protovm/vm.h",
     ],
 )
 
@@ -4739,6 +4778,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
     ],
 )
 
@@ -4817,6 +4857,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
         ":protos_perfetto_trace_android_winscope_regular_protos",
@@ -5252,6 +5293,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_system_info_zero_h",
         ":protos_perfetto_config_track_event_zero_h",
         ":protos_perfetto_config_zero_h",
+        ":protos_perfetto_protovm_zero_h",
         ":protos_perfetto_trace_android_winscope_common_zero_h",
         ":protos_perfetto_trace_android_winscope_regular_zero_h",
         ":protos_perfetto_trace_android_zero_h",
@@ -5291,6 +5333,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_system_info_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -5426,6 +5469,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_track_event_cpp",
+        ":protos_perfetto_protovm_cpp",
     ],
 )
 
@@ -5705,6 +5749,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
     ],
 )
 
@@ -5841,6 +5886,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
         ":protos_perfetto_config_track_event_zero",
+        ":protos_perfetto_protovm_zero",
     ],
 )
 
@@ -5864,6 +5910,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_ipc_protos",
+        ":protos_perfetto_protovm_cpp",
     ],
 )
 
@@ -5888,6 +5935,7 @@ perfetto_cc_ipc_library(
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_ipc_cpp",
         ":protos_perfetto_ipc_protos",
+        ":protos_perfetto_protovm_cpp",
     ],
 )
 
@@ -5918,6 +5966,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
     ],
 )
 
@@ -6154,6 +6203,33 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_perfetto_sql_zero",
     deps = [
         ":protos_perfetto_perfetto_sql_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/protovm:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_protovm_cpp",
+    deps = [
+        ":protos_perfetto_protovm_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/protovm:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_protovm_protos",
+    srcs = [
+        "protos/perfetto/protovm/vm_program.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/perfetto/protovm:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_protovm_zero",
+    deps = [
+        ":protos_perfetto_protovm_protos",
     ],
 )
 
@@ -6655,6 +6731,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
     ],
 )
 
@@ -6677,6 +6754,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_system_info_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_minimal_protos",
     ],
 )
@@ -6715,6 +6793,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
         ":protos_perfetto_trace_android_winscope_regular_protos",
@@ -6760,6 +6839,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_system_info_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -6928,6 +7008,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
         ":protos_perfetto_trace_android_winscope_regular_protos",
@@ -7289,6 +7370,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -7357,6 +7439,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_zero",
         ":protos_perfetto_ipc_cpp",
         ":protos_perfetto_ipc_ipc",
+        ":protos_perfetto_protovm_cpp",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -7456,6 +7540,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_zero",
         ":protos_perfetto_ipc_cpp",
         ":protos_perfetto_ipc_ipc",
+        ":protos_perfetto_protovm_cpp",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_regular_zero",
         ":protos_perfetto_trace_android_zero",
@@ -7626,6 +7712,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
+               ":protos_perfetto_protovm_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
                ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
@@ -7826,6 +7913,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
+               ":protos_perfetto_protovm_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
                ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
@@ -8030,6 +8118,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
+               ":protos_perfetto_protovm_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
                ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",

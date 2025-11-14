@@ -54,6 +54,7 @@
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/common/builtin_clock.gen.h"
+#include "protos/perfetto/protovm/vm_program.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
@@ -6758,6 +6759,181 @@ TEST_F(TracingServiceImplTest, ExclusiveSessionHigherPriorityAbortsLower) {
   // Finally, disable the last exclusive session.
   new_exclusive_consumer->FreeBuffers();
   new_exclusive_consumer->WaitForTracingDisabled();
+}
+
+inline perfetto::protos::gen::VmProgram VmProgram() {
+  perfetto::protos::gen::VmProgram program;
+
+  // select src element
+  auto* instr_src_select = program.add_instructions();
+  auto* src_select = instr_src_select->mutable_select();
+
+  src_select->add_relative_path()->set_field_id(
+      protos::gen::TracePacket::kForTestingFieldNumber);
+
+  src_select->add_relative_path()->set_field_id(
+      protos::gen::TestEvent::kPayloadFieldNumber);
+
+  src_select->add_relative_path()->set_field_id(
+      protos::gen::TestEvent::TestPayload::kSingleStringFieldNumber);
+
+  // select dst element
+  auto* instr_dst_select = instr_src_select->add_nested_instructions();
+  auto* dst_select = instr_dst_select->mutable_select();
+  dst_select->set_cursor(protos::gen::VmCursorEnum::VM_CURSOR_DST);
+  dst_select->set_create_if_not_exist(true);
+
+  dst_select->add_relative_path()->set_field_id(
+      protos::gen::TracePacket::kForTestingFieldNumber);
+  dst_select->add_relative_path()->set_field_id(
+      protos::gen::TestEvent::kStrFieldNumber);
+
+  // set dst = src
+  auto* instr_set = instr_dst_select->add_nested_instructions();
+  instr_set->mutable_set();
+
+  return program;
+}
+
+inline void WriteIncrementalTracePatches(
+    TraceWriter& writer,
+    const std::vector<std::string>& substrings) {
+  for (const auto& substr : substrings) {
+    std::string s = substr + std::string(1000, '#');
+    writer.NewTracePacket()
+        ->set_for_testing()
+        ->set_payload()
+        ->set_single_string(std::move(s));
+    writer.Flush();
+  }
+}
+
+// TODO(keanmariotti): also test
+//  - Packet routing: 1 DS without VM + 2 DS with shared VM + (?) 1 DS with
+//  exclusive VM
+//  - Session cloning -> serialize incremental state into cloned session (?)
+//  - Session stop -> free VM
+
+TEST_F(TracingServiceImplTest, IncrementalTracingWithSimpleProtoVm) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  // TODO(keanmariotti): pass through DS descriptor (from producer)
+  *ds_config->mutable_vm_program() = VmProgram();
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  // Fill buffer but stop before triggering overwrites (no patch applied)
+  WriteIncrementalTracePatches(*writer, {"patch1", "patch2", "patch3"});
+
+  // Expect unapplied patches
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(
+      packets,
+      IsSupersetOf(
+          {Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch1")))),
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch2")))),
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch3"))))}));
+
+  // Fill buffer again and trigger overwrite of patch1
+  WriteIncrementalTracePatches(*writer,
+                               {"patch1", "patch2", "patch3", "patch4"});
+
+  // Expect VM incremental state with applied patch1 + unapplied patches
+  packets = consumer->ReadBuffers();
+  EXPECT_THAT(
+      packets,
+      IsSupersetOf(
+          {Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(&protos::gen::TestEvent::str, HasSubstr("patch1"))),
+
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch2")))),
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch3")))),
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch4"))))}));
+
+  // Fill buffer again and trigger overwrite of patch1 and patch2
+  WriteIncrementalTracePatches(
+      *writer, {"patch1", "patch2", "patch3", "patch4", "patch5"});
+
+  // Expect VM incremental state with applied patch2 + unapplied patches
+  packets = consumer->ReadBuffers();
+  EXPECT_THAT(
+      packets,
+      IsSupersetOf(
+          {Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(&protos::gen::TestEvent::str, HasSubstr("patch2"))),
+
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch3")))),
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch4")))),
+           Property(
+               &protos::gen::TracePacket::for_testing,
+               Property(
+                   &protos::gen::TestEvent::payload,
+                   Property(&protos::gen::TestEvent::TestPayload::single_string,
+                            HasSubstr("patch5"))))}));
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
 }
 
 }  // namespace
