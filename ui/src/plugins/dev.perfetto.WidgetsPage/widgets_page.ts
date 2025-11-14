@@ -23,6 +23,7 @@ import {renderCard} from './demos/card_demo';
 import {cardStack} from './demos/cardstack_demo';
 import {renderCheckbox} from './demos/checkbox_demo';
 import {renderChip} from './demos/chip_demo';
+import {renderClipBtnDemo} from './demos/clipboard_button_demo';
 import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
@@ -65,13 +66,14 @@ interface WidgetSection {
 
 const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'anchor', label: 'Anchor', view: anchor},
-  {id: 'button', label: 'Button', view: renderButtonDemo},
   {id: 'button-group', label: 'ButtonGroup', view: renderButtonGroupDemo},
+  {id: 'button', label: 'Button', view: renderButtonDemo},
   {id: 'callout', label: 'Callout', view: renderCallout},
   {id: 'card-stack', label: 'CardStack', view: cardStack},
   {id: 'card', label: 'Card', view: renderCard},
   {id: 'checkbox', label: 'Checkbox', view: renderCheckbox},
   {id: 'chip', label: 'Chip', view: renderChip},
+  {id: 'clipBtn', label: 'CopyToClipboardButton', view: renderClipBtnDemo},
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
@@ -87,8 +89,8 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'modal', label: 'Modal', view: renderModal},
   {id: 'multiselect', label: 'Multiselect', view: renderMultiselect},
   {id: 'nodegraph', label: 'NodeGraph', view: renderNodeGraph},
-  {id: 'popup', label: 'Popup', view: renderPopup},
   {id: 'popup-menu', label: 'PopupMenu', view: popupMenuDemo},
+  {id: 'popup', label: 'Popup', view: renderPopup},
   {id: 'portal', label: 'Portal', view: renderPortal},
   {id: 'segmented-buttons', label: 'SegmentedButtons', view: segmentedButtons},
   {id: 'select', label: 'Select', view: renderSelect},
