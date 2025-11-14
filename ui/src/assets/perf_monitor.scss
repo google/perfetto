@@ -25,6 +25,8 @@
   background-color: rgba(27, 28, 29, 0.9);
 
   button {
+    @include button-base;
+
     text-decoration: underline;
     color: hsl(45, 100%, 48%);
     &:hover {

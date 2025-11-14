@@ -28,14 +28,14 @@
   margin: 4px 0;
 
   .pf-menu-item {
+    @include button-base;
+
     font-family: var(--pf-font-compact);
-    user-select: none;
     text-align: left;
     padding: 6px 10px;
     white-space: nowrap;
     min-width: max-content;
     line-height: 1;
-    cursor: pointer;
 
     display: grid;
     grid-template-columns: auto 1fr auto;
