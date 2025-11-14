@@ -606,9 +606,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     return m(EmptyGraph, {
       onAddSourceNode: attrs.onAddSourceNode,
       onImport: attrs.onImport,
-      onImportWithStatement: attrs.onImportWithStatement,
-      devMode: attrs.devMode,
-      onDevModeChange: attrs.onDevModeChange,
     });
   }
 
