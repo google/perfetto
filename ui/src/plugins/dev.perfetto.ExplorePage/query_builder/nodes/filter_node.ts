@@ -24,23 +24,24 @@ import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {
   UIFilter,
-  FilterGroup,
   renderFilterOperation,
   createExperimentalFiltersProto,
   formatFilterDetails,
   showFilterEditModal,
-  deleteFilterWithGroupDissolution,
-  findFilterGroup,
 } from '../operations/filter';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
 import {showModal} from '../../../../widgets/modal';
+import {TabStrip} from '../../../../widgets/tabs';
+import {Editor} from '../../../../widgets/editor';
+import {Switch} from '../../../../widgets/switch';
 
 export interface FilterNodeState extends QueryNodeState {
   prevNode: QueryNode;
   filters?: UIFilter[];
   filterOperator?: 'AND' | 'OR';
-  groups?: FilterGroup[]; // OR groups that are ANDed together at top level
+  filterMode?: 'structured' | 'freeform';
+  sqlExpression?: string;
 }
 
 export class FilterNode implements ModificationNode {
@@ -97,43 +98,18 @@ export class FilterNode implements ModificationNode {
       filter,
       this.sourceCols,
       (editedFilter) => {
-        // Check if filter is in a group
-        const groups = this.state.groups ?? [];
-        const group = findFilterGroup(filter, groups);
-
-        if (group) {
-          // Update filter in group
-          this.state.groups = groups.map((g) => {
-            if (g.id === group.id) {
-              return {
-                ...g,
-                filters: g.filters.map((f) =>
-                  f === filter ? editedFilter : f,
-                ),
-              };
-            }
-            return g;
-          });
-        } else {
-          // Update filter in main filters array
-          this.state.filters = (this.state.filters ?? []).map((f) =>
-            f === filter ? editedFilter : f,
-          );
-        }
-
+        // Update filter in main filters array
+        this.state.filters = (this.state.filters ?? []).map((f) =>
+          f === filter ? editedFilter : f,
+        );
         this.state.onchange?.();
         m.redraw();
       },
       () => {
-        // Delete callback - use shared utility for group dissolution logic
-        const result = deleteFilterWithGroupDissolution(
-          filter,
-          this.state.filters ?? [],
-          this.state.groups ?? [],
+        // Delete callback
+        this.state.filters = (this.state.filters ?? []).filter(
+          (f) => f !== filter,
         );
-
-        this.state.filters = result.filters;
-        this.state.groups = result.groups;
         this.state.onchange?.();
         m.redraw();
       },
@@ -143,17 +119,30 @@ export class FilterNode implements ModificationNode {
   nodeDetails(): m.Child {
     this.validate();
 
-    const hasFilters = this.state.filters && this.state.filters.length > 0;
-    const hasGroups = this.state.groups && this.state.groups.length > 0;
+    const mode = this.state.filterMode ?? 'structured';
 
-    if (!hasFilters && !hasGroups) {
+    // Freeform SQL mode
+    if (mode === 'freeform') {
+      const sql = this.state.sqlExpression?.trim();
+      if (!sql) {
+        return m('.pf-filter-node-details', 'No filter clause');
+      }
+
+      if (sql.length < 200) {
+        return m('.pf-filter-node-details', m('code', sql));
+      } else {
+        return m('.pf-filter-node-details', 'Filter clause applied');
+      }
+    }
+
+    // Structured mode
+    if (!this.state.filters || this.state.filters.length === 0) {
       return m('.pf-filter-node-details', 'No filters applied');
     }
 
     return formatFilterDetails(
       this.state.filters,
       this.state.filterOperator,
-      this.state.groups,
       this.state, // Pass state for interactive toggling and removal
       undefined, // onRemove - handled internally by formatFilterDetails
       true, // compact mode for smaller font
@@ -164,25 +153,87 @@ export class FilterNode implements ModificationNode {
   nodeSpecificModify(): m.Child {
     this.validate();
 
-    return renderFilterOperation(
-      this.state.filters,
-      this.state.filterOperator,
-      this.sourceCols,
-      (newFilters) => {
-        this.state.filters = [...newFilters];
-        this.state.onchange?.();
-      },
-      (operator) => {
-        this.state.filterOperator = operator;
-        this.state.onchange?.();
-      },
-      this.state.groups,
-      (newGroups) => {
-        this.state.groups = [...newGroups];
-        this.state.onchange?.();
-      },
-      (filter) => this.handleFilterEdit(filter),
-    );
+    const mode = this.state.filterMode ?? 'structured';
+    const operator = this.state.filterOperator ?? 'AND';
+
+    // Set autoExecute based on mode
+    this.state.autoExecute = mode === 'structured';
+
+    return m('.pf-exp-query-operations', [
+      // Tab strip
+      m(
+        'div',
+        m(TabStrip, {
+          tabs: [
+            {key: 'structured', title: 'Structured'},
+            {key: 'freeform', title: 'Freeform SQL'},
+          ],
+          currentTabKey: mode,
+          onTabChange: (key: string) => {
+            this.state.filterMode = key as 'structured' | 'freeform';
+            this.state.onchange?.();
+          },
+        }),
+        m('hr', {
+          style: {margin: '0', borderTop: '1px solid var(--separator-color)'},
+        }),
+      ),
+
+      // AND/OR Switch (only for structured mode)
+      mode === 'structured' &&
+        m(
+          '.pf-exp-filter-mode-top',
+          m(Switch, {
+            labelLeft: 'AND',
+            label: 'OR',
+            checked: operator === 'OR',
+            onchange: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              const newOperator = target.checked ? 'OR' : 'AND';
+              this.state.filterOperator = newOperator;
+              this.state.onchange?.();
+            },
+          }),
+        ),
+
+      // Tab content
+      mode === 'structured'
+        ? m(
+            'div',
+            {style: {paddingTop: '10px'}},
+            renderFilterOperation(
+              this.state.filters,
+              this.state.filterOperator,
+              this.sourceCols,
+              (newFilters) => {
+                this.state.filters = [...newFilters];
+                this.state.onchange?.();
+              },
+              (operator) => {
+                this.state.filterOperator = operator;
+                this.state.onchange?.();
+              },
+              (filter) => this.handleFilterEdit(filter),
+            ),
+          )
+        : m(
+            'div',
+            {
+              style: {
+                minHeight: '400px',
+                backgroundColor: '#282c34',
+                position: 'relative',
+              },
+            },
+            m(Editor, {
+              text: this.state.sqlExpression ?? '',
+              onUpdate: (text: string) => {
+                this.state.sqlExpression = text;
+                this.state.onchange?.();
+              },
+            }),
+          ),
+    ]);
   }
 
   nodeInfo(): m.Children {
@@ -206,7 +257,7 @@ export class FilterNode implements ModificationNode {
         m('code', 'AND'),
         ' or ',
         m('code', 'OR'),
-        ' logic. Drag filters onto each other to create OR groups.',
+        ' logic. To use both AND and OR together, use multiple filter nodes.',
       ),
       m(
         'p',
@@ -248,11 +299,31 @@ export class FilterNode implements ModificationNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.prevNode === undefined) return undefined;
 
-    const hasFilters = this.state.filters && this.state.filters.length > 0;
-    const hasGroups = this.state.groups && this.state.groups.length > 0;
+    const mode = this.state.filterMode ?? 'structured';
 
-    // If no filters and no groups are defined, just return the previous node's query
-    if (!hasFilters && !hasGroups) {
+    if (mode === 'freeform') {
+      // Use SQL expression for freeform filtering
+      if (!this.state.sqlExpression || this.state.sqlExpression.trim() === '') {
+        return this.prevNode.getStructuredQuery();
+      }
+
+      // Create a filter group with just the SQL expression
+      const filterGroup =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup({
+          op: protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
+            .AND,
+          sqlExpressions: [this.state.sqlExpression],
+        });
+
+      return StructuredQueryBuilder.withFilter(
+        this.prevNode,
+        filterGroup,
+        this.nodeId,
+      );
+    }
+
+    // Structured mode
+    if (!this.state.filters || this.state.filters.length === 0) {
       return this.prevNode.getStructuredQuery();
     }
 
@@ -260,7 +331,6 @@ export class FilterNode implements ModificationNode {
       this.state.filters,
       this.sourceCols,
       this.state.filterOperator,
-      this.state.groups,
     );
 
     if (!filtersProto) {
@@ -293,26 +363,8 @@ export class FilterNode implements ModificationNode {
         }
       }),
       filterOperator: this.state.filterOperator,
-      groups: this.state.groups?.map((g) => ({
-        id: g.id,
-        enabled: g.enabled,
-        filters: g.filters.map((f) => {
-          if ('value' in f) {
-            return {
-              column: f.column,
-              op: f.op,
-              value: f.value,
-              enabled: f.enabled,
-            };
-          } else {
-            return {
-              column: f.column,
-              op: f.op,
-              enabled: f.enabled,
-            };
-          }
-        }),
-      })),
+      filterMode: this.state.filterMode,
+      sqlExpression: this.state.sqlExpression,
       comment: this.state.comment,
     };
   }
