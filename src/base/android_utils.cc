@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/file_utils.h"
 
 #include "perfetto/base/build_config.h"
 
@@ -67,6 +68,16 @@ std::string GetAndroidProp(const char* name) {
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
+static std::string DeviceCompatibleToSoCModel(std::string& device_compatible) {
+  std::string ret;
+
+  // We only support Pixel 6 (Tensor) on non-Android platforms
+  if (device_compatible.find("google,gs101") != std::string::npos) {
+    ret = std::string("Tensor");
+  }
+  return ret;
+}
+
 Utsname GetUtsname() {
   Utsname utsname_info;
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
@@ -96,6 +107,16 @@ SystemInfo GetSystemInfo() {
   info.utsname_info = GetUtsname();
   info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
   info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
+
+  // Use the device compatible string to determine the SoC Model
+  const std::string path = "/sys/firmware/devicetree/base/compatible";
+  std::string device_compatible;
+  bool read_device_compatible = ReadFile(path, &device_compatible);
+  if (read_device_compatible) {
+    info.android_soc_model = DeviceCompatibleToSoCModel(device_compatible);
+  } else {
+    PERFETTO_ELOG("Failed to get SoC model by reading %s", path.c_str());
+  }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   info.android_build_fingerprint = GetAndroidProp("ro.build.fingerprint");
