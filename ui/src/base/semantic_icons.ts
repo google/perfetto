@@ -50,6 +50,8 @@ export class Icons {
   static readonly Check = 'check';
   static readonly Search = 'search';
   static readonly Save = 'save';
+  static readonly Undo = 'undo';
+  static readonly Redo = 'redo';
 
   // Page control
   static readonly NextPage = 'chevron_right';
@@ -67,7 +69,9 @@ export class Icons {
   static readonly Analyze = 'analytics';
   static readonly Chart = 'bar_chart';
   static readonly Pivot = 'pivot_table_chart';
+  static readonly ApplyFunction = 'function';
 
   static readonly Play = 'play_arrow';
   static readonly Edit = 'edit';
+  static readonly DragHandle = 'drag_indicator';
 }

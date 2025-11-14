@@ -38,6 +38,7 @@
   background-color: var(--pf-color-background);
   box-shadow: 0 2px 4px var(--pf-color-box-shadow);
   max-width: 300px;
+  box-sizing: border-box;
 
   &--selected {
     border-color: var(--pf-color-primary);

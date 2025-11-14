@@ -23,14 +23,6 @@ pub mod builtin_clock;
 #[path = "data_source_descriptor.pz.rs"]
 pub mod data_source_descriptor;
 
-/// `ftrace_descriptor` protos.
-#[path = "ftrace_descriptor.pz.rs"]
-pub mod ftrace_descriptor;
-
-/// `gpu_counter_descriptor` protos.
-#[path = "gpu_counter_descriptor.pz.rs"]
-pub mod gpu_counter_descriptor;
-
 /// `track_event_descriptor` protos.
 #[path = "track_event_descriptor.pz.rs"]
 pub mod track_event_descriptor;

@@ -550,7 +550,7 @@ export abstract class EngineBase implements Engine, Disposable {
   // Note: This function is less flexible than .execute() as it only returns a
   // promise which must be unwrapped before the QueryResult may be accessed.
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
-    const queryLog = this.logQueryStart(sqlQuery);
+    const queryLog = this.logQueryStart(sqlQuery, tag);
     try {
       const result = createQueryResult({query: sqlQuery});
       this.streamingQuery(result, sqlQuery, tag);
@@ -707,7 +707,7 @@ export class EngineProxy implements Engine, Disposable {
       // cause crashes to code calling firstRow() and expecting data.
       return createQueryResult({query});
     }
-    return await this.engine.query(query, tag);
+    return await this.engine.query(query, tag ?? this.tag);
   }
 
   async tryQuery(query: string, tag?: string): Promise<Result<QueryResult>> {

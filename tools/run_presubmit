@@ -895,7 +895,7 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--merge-base', default='origin/main')
+  parser.add_argument('--merge-base', default=None)
   parser.add_argument(
       '--skip-formatters',
       default='',
@@ -906,6 +906,10 @@ def main():
 
   # 1. Determine files to check
   merge_base = args.merge_base
+  if merge_base is None:
+    merge_base = subprocess.check_output(
+        ['git', 'merge-base', 'HEAD', 'origin/main'], text=True).strip()
+
   changed_files = get_changed_files(merge_base)
 
   if not changed_files:
