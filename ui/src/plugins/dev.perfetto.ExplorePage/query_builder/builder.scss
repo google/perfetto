@@ -181,3 +181,15 @@
   line-height: 1.5;
   color: var(--pf-color-on-surface);
 }
+
+.pf-query-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  .pf-query-stats-separator {
+    user-select: none;
+  }
+}
