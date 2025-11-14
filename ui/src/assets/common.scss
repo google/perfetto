@@ -13,7 +13,6 @@
 // limitations under the License.
 
 @import "theme";
-@import "typefaces";
 
 :root {
   // Legacy variables - to be removed
@@ -27,28 +26,6 @@
   --pf-font: "Roboto", sans-serif;
   --pf-font-compact: "Roboto Condensed", sans-serif;
   --pf-font-monospace: "Roboto Mono", monospace;
-}
-
-@mixin transition($time: 0.1s) {
-  transition:
-    opacity $time ease,
-    color $time ease,
-    background-color $time ease,
-    border-color $time ease,
-    width $time ease,
-    height $time ease,
-    max-width $time ease,
-    max-height $time ease,
-    margin $time ease,
-    transform $time ease,
-    box-shadow $time ease,
-    border-radius $time ease;
-}
-
-// Mixin for using material icons inside a pseudo-element.
-@mixin material-icon($content) {
-  @include icon;
-  content: $content;
 }
 
 * {
@@ -108,6 +85,7 @@ h3 {
   padding: 0;
   margin: 0;
 }
+
 table {
   -webkit-user-select: text;
   user-select: text;
