@@ -16,23 +16,31 @@ import m from 'mithril';
 import {HTMLAttrs} from './common';
 import {MithrilEvent} from '../base/mithril_utils';
 
+export type ResizeHandleDirection = 'vertical' | 'horizontal';
+
 export interface ResizeHandleAttrs extends HTMLAttrs {
   onResize(deltaPx: number): void;
   onResizeStart?(): void;
   onResizeEnd?(): void;
+  // Direction of the resize handle:
+  // - 'vertical' (default): horizontal bar that can be dragged up/down
+  // - 'horizontal': vertical bar that can be dragged left/right
+  direction?: ResizeHandleDirection;
 }
 
 export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
   private handleElement?: HTMLElement;
   private previousY: number | undefined;
+  private previousX: number | undefined;
 
   oncreate(vnode: m.VnodeDOM<ResizeHandleAttrs, this>) {
     this.handleElement = vnode.dom as HTMLElement;
   }
 
   private endDrag(attrs: ResizeHandleAttrs, pointerId: number) {
-    if (this.previousY !== undefined) {
+    if (this.previousY !== undefined || this.previousX !== undefined) {
       this.previousY = undefined;
+      this.previousX = undefined;
       this.handleElement!.releasePointerCapture(pointerId);
       attrs.onResizeEnd?.();
     }
@@ -43,36 +51,56 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
       onResize: _onResize,
       onResizeStart: _onResizeStart,
       onResizeEnd: _onResizeEnd,
+      direction = 'vertical',
       ...rest
     } = attrs;
 
+    const isHorizontal = direction === 'horizontal';
+
     return m('.pf-resize-handle', {
+      class: isHorizontal ? 'pf-resize-handle--horizontal' : '',
       oncontextmenu: (e: Event) => {
         e.preventDefault();
       },
       onpointerdown: (e: PointerEvent) => {
         const offsetParent = this.handleElement?.offsetParent as HTMLElement;
-        const offsetTop = offsetParent?.getBoundingClientRect().top ?? 0;
-        const mouseOffsetY = e.clientY - offsetTop;
-        this.previousY = mouseOffsetY;
+
+        if (isHorizontal) {
+          const offsetLeft = offsetParent?.getBoundingClientRect().left ?? 0;
+          const mouseOffsetX = e.clientX - offsetLeft;
+          this.previousX = mouseOffsetX;
+        } else {
+          const offsetTop = offsetParent?.getBoundingClientRect().top ?? 0;
+          const mouseOffsetY = e.clientY - offsetTop;
+          this.previousY = mouseOffsetY;
+        }
 
         this.handleElement!.setPointerCapture(e.pointerId);
         attrs.onResizeStart?.();
       },
       onpointermove: (e: MithrilEvent<PointerEvent>) => {
         const offsetParent = this.handleElement?.offsetParent as HTMLElement;
-        const offsetTop = offsetParent?.getBoundingClientRect().top ?? 0;
-        const mouseOffsetY = e.clientY - offsetTop;
 
         // We typically just resize some element when dragging the handle, so we
         // tell Mithril not to redraw after this event.
         e.redraw = false;
-        if (
-          this.previousY !== undefined
-          // && this.handleElement!.hasPointerCapture(e.pointerId)
-        ) {
-          attrs.onResize(mouseOffsetY - this.previousY);
-          this.previousY = mouseOffsetY;
+
+        if (isHorizontal) {
+          const offsetLeft = offsetParent?.getBoundingClientRect().left ?? 0;
+          const mouseOffsetX = e.clientX - offsetLeft;
+
+          if (this.previousX !== undefined) {
+            attrs.onResize(mouseOffsetX - this.previousX);
+            this.previousX = mouseOffsetX;
+          }
+        } else {
+          const offsetTop = offsetParent?.getBoundingClientRect().top ?? 0;
+          const mouseOffsetY = e.clientY - offsetTop;
+
+          if (this.previousY !== undefined) {
+            attrs.onResize(mouseOffsetY - this.previousY);
+            this.previousY = mouseOffsetY;
+          }
         }
       },
       onpointerup: (e: PointerEvent) => {
