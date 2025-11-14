@@ -173,6 +173,30 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
         true);
   }
 }
+
+TEST_F(PerfettoCmdlineUnitTest, ListPersistentTracesToUpload) {
+  const char* kStatePersistentUploadingDir =
+      "/data/misc/perfetto-traces/persistent/uploading";
+  PERFETTO_CHECK(base::Rmdir(kStatePersistentUploadingDir));
+  PERFETTO_CHECK(base::Mkdir(kStatePersistentUploadingDir));
+  {
+    std::string file_txt_path =
+        std::string(kStatePersistentUploadingDir) + "/file.txt";
+    auto file_txt = base::OpenFile(file_txt_path, O_CREAT | O_RDWR, 0666);
+    std::string payload = "payload";
+    base::WriteAll(*file_txt, payload.data(), payload.size());
+  }
+  {
+    std::string empty_file_path =
+        std::string(kStatePersistentUploadingDir) + "/empty_file.txt";
+    auto file_empty = base::OpenFile(empty_file_path, O_CREAT | O_RDWR, 06666);
+  }
+
+  PERFETTO_LOG("vvvvvvv ReportAllPersistentTracesToAndroidFrameworkOrCrash");
+  PerfettoCmd::ReportAllPersistentTracesToAndroidFrameworkOrCrash();
+  PERFETTO_LOG("^^^^^^^ ReportAllPersistentTracesToAndroidFrameworkOrCrash");
+}
+
 #endif
 
 }  // namespace

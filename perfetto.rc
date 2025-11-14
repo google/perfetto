@@ -86,6 +86,9 @@ on property:persist.traced.enable=1
     # Traces in this directory are only accessed by system server
     mkdir /data/misc/perfetto-traces/profiling 0777 root shell
 
+    # TODO(ktimofeev): add a comment about persistent traces locations
+    mkdir /data/misc/perfetto-traces/persistent 0777 root shell
+
     # This directory allows shell to save configs file in a place where the
     # perfetto cmdline client can read then. /data/local/tmp/ isn't safe because
     # too many other domains can write into that. See b/170404111.
@@ -103,6 +106,8 @@ on property:persist.traced.enable=2
 # Reset the Perfetto guard rail state on boot:
 on post-fs-data
     rm /data/misc/perfetto-traces/.guardraildata
+    exec -- /system/bin/perfetto --upload-after-reboot
+
 
 #############################################################################
 #  perfetto_trace_on_boot - Starts a perfetto trace on boot
