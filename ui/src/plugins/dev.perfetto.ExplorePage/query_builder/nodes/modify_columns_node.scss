@@ -14,7 +14,17 @@
 
 @import "../common";
 
+.pf-exp-node-explorer:has(.pf-modify-columns-node) {
+  article {
+    padding: 0;
+  }
+}
+
 .pf-modify-columns-node {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
   .pf-exp-node-details-box strong {
     display: block;
     margin-bottom: 4px;
@@ -30,10 +40,11 @@
     color: var(--pf-text-color-light);
   }
 
-  .pf-columns-box-title {
-    font-size: var(--pf-exp-font-size-md);
-    font-weight: 500;
-    margin: 0 0 1rem 0;
+  .pf-new-columns-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .pf-column {
