@@ -52,15 +52,8 @@ export class PerfettoTestHelper {
   async navigate(fragment: string): Promise<void> {
     await this.page.goto('/?testing=1' + fragment);
     await this.waitForPerfettoIdle();
+    await this.applyTestingStyles();
     await this.page.click('body');
-    await this.page.addStyleTag({
-      content: `
-        body {
-          -webkit-font-smoothing: antialiased !important;
-          font-kerning: none !important;
-        }
-      `,
-    });
   }
 
   async openTraceFile(traceName: string, args?: {}): Promise<void> {
@@ -78,6 +71,14 @@ export class PerfettoTestHelper {
     const tracePath = this.getTestTracePath(traceName);
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
+    await this.applyTestingStyles();
+    await this.page.mouse.move(0, 0);
+  }
+
+  /**
+   * Applies styles to minimize rendering differences between Mac and Linux.
+   */
+  private async applyTestingStyles(): Promise<void> {
     await this.page.addStyleTag({
       content: `
         body {
@@ -86,7 +87,6 @@ export class PerfettoTestHelper {
         }
       `,
     });
-    await this.page.mouse.move(0, 0);
   }
 
   waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
